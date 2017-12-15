@@ -1,0 +1,33 @@
+name:                sturdy
+
+version:             0.1.0.0
+
+-- synopsis:            
+description:         A library for abstract interpretation
+license:             BSD3
+license-file:        LICENSE
+author:              Sven Keidel
+maintainer:          svenkeidel@gmail.com
+-- copyright:           
+category:            Language
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Data.Order,
+                       Data.Boolean,
+                       Data.Interval,
+                       Data.Sign,
+                       Data.Error,
+                       Control.Arrow.Fail
+  -- other-modules:       
+  
+  build-depends:       base,
+                       containers,
+                       numeric-limits,
+                       mtl
+  hs-source-dirs:      src/
+  default-language:    Haskell2010
+ 
+ 
