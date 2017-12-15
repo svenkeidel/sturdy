@@ -1,0 +1,1292 @@
+definition
+module GHC-GeneralizedNewtypeDeriving
+exports
+  context-free syntax
+    "newtype" Context? Type "=" Newconstr GeneralizedDeriving -> Topdecl {cons("NewTypeDecl")}
+    
+    "deriving" "(" {GDerive ","}+ ")" -> GeneralizedDeriving
+    Qtycls AType+ -> GDerive
+    Qtycls -> GDerive
+    
+    Deriving -> GeneralizedDeriving {reject}
+
+module GHC-Magic-Hash
+imports Haskell-Identifiers
+imports Haskell-Numbers
+imports Haskell-Strings
+exports
+  lexical syntax
+  	[a-z][A-Za-z0-9\'\_]*[\#]+ -> VARID
+    [\_][A-Za-z0-9\'\_]+[\#]+  -> VARID
+    [A-Z][A-Za-z0-9\'\_]*[\#]+ -> CONID
+  
+  lexical restrictions
+  	VARID -/- [\#]
+  	CONID -/- [\#]
+
+  lexical syntax
+    Decimal              -> INTEGER-HASH
+    [0] [Oo] Octal       -> INTEGER-HASH
+    [0] [Xx] Hexadecimal -> INTEGER-HASH
+    
+    Decimal "." Decimal           -> FLOAT-HASH
+    Decimal Exponent              -> RATIONAL-HASH
+    Decimal "." Decimal Exponent  -> RATIONAL-HASH
+
+  syntax
+    "'" CharChar "'" "#"       -> <Char-HASH-CF> {cons("CharHash")}
+    "\"" StringChar* "\"" "#"  -> <String-HASH-CF> {cons("StringHash")}
+    <INTEGER-HASH-LEX> "#" -> <Integer-HASH-CF> {cons("IntegerHash")}
+    <FLOAT-HASH-LEX> "#" -> <Float-HASH-CF> {cons("FloatHash")}
+    <RATIONAL-HASH-LEX> "#" -> <Float-HASH-CF> {cons("FloatHash")}
+    
+  context-free syntax
+    Char-HASH   -> Literal
+    String-HASH -> Literal
+    Integer-HASH  -> Literal
+    Float-HASH    -> Literal
+    
+  lexical restrictions
+    INTEGER -/- [\#]
+    FLOAT -/- [\#]
+    RATIONAL -/- [\#]
+    
+  context-free restrictions
+    Char -/- [\#]
+    String -/- [\#]
+
+module GHC-Flexible-Stuff
+exports
+  context-free syntax
+    Qtycls "(" Type ")" -> FlexibleClass {cons("Class")}
+    Qtycls Gtycon -> FlexibleClass {cons("Class")}
+    Qtycls Tyvar -> FlexibleClass {cons("SimpleClass")}
+    
+    FlexibleClass "=>" -> FlexibleContext {cons("FlexibleContext")}
+    "(" {FlexibleClass ","}* ")" "=>" -> FlexibleContext {cons("FlexibleContext")}
+    
+    FlexibleContext -> SContext {avoid}
+    FlexibleContext -> Context {avoid}
+
+  context-free syntax
+  	"instance" SContext? Qtycls AType* MaybeWhere 		-> Topdecl {cons("FlexibleInstance"), avoid}
+
+module Haskell-Arrow-Alternative
+
+exports
+  context-free syntax
+    Pat "->" ArrCommand MaybeWhere -> ArrAlt {cons("ArrAlt")}
+
+  context-free syntax
+    ArrNoOffsideAltBlock -> ArrAltList {cons("AltList")}
+    ArrOffsideAltList   -> ArrAltList {cons("AltList")}
+
+    "{" ArrNoOffsideAltList "}"  -> ArrNoOffsideAltBlock {bracket, ignore-indent}
+
+  context-free syntax
+    ArrAlt -> ArrNoOffsideAltList
+    ArrAlt ";" ArrNoOffsideAltList -> ArrNoOffsideAltList {cons("ArrAltSeq")}
+
+    ArrAlt -> ArrOffsideAlt {layout(gt(col(left(1)), col(first(1))))}
+
+    ArrOffsideAlt -> ArrOffsideAltList
+    ArrOffsideAlt ArrOffsideAltList -> ArrOffsideAltList
+     {cons("ArrAltSeq"), layout(eq(col(first(1)), col(first(2))))}
+
+module Haskell-Arrow-Command
+imports Haskell-Arrow-Alternative
+        Haskell-Arrow-Statement
+exports
+  context-free syntax
+    "proc" APat "->" ArrCommand -> Exp {cons("ArrProcedure")}
+
+    Exp "-<" Exp -> ArrCommand {cons("ArrFirst")}
+    Exp "-<<" Exp -> ArrCommand {cons("ArrHigher")}
+
+    "\\" Fargs "->" ArrCommand -> ArrCommand {cons("ArrAbs")}
+    "let" Declbinds "in" ArrCommand -> ArrCommand {cons("ArrLet")} 
+    "if" Exp "then" ArrCommand "else" ArrCommand -> ArrCommand {cons("ArrIf")}
+    "case" Exp "of" ArrAltList -> ArrCommand	{cons("ArrCase"), longest-match}
+    "do" ArrStmtList -> ArrCommand {cons("ArrDo"), longest-match}
+
+    ArrCommand Exp -> ArrCommand {cons("ArrAppBin"),left}
+
+    "(" ArrCommand ")" -> ArrCommand {bracket}
+    "(|" Exp ArrCommand+ "|)" -> ArrCommand {cons("ArrForm")}
+    ArrCommand Qop ArrCommand -> ArrCommand {cons("ArrOpApp"), right}
+
+  context-free priorities
+      ArrCommand Exp -> ArrCommand
+    > ArrCommand Qop ArrCommand -> ArrCommand
+
+  lexical syntax
+    "proc" -> VARID {reject}
+    "-<" -> VARSYM {reject}
+    "-<<" -> VARSYM {reject}
+
+  context-free priorities
+      ArrCommand Exp -> ArrCommand
+          > {
+          "\\" Fargs "->" ArrCommand -> ArrCommand
+          "let" Declbinds "in" ArrCommand -> ArrCommand 
+          "if" Exp "then" ArrCommand "else" ArrCommand -> ArrCommand
+          "case" Exp "of" AltList -> ArrCommand
+          "do" ArrStmtList -> ArrCommand
+
+          Exp "-<" Exp -> ArrCommand
+          Exp "-<<" Exp -> ArrCommand
+        }
+
+  context-free priorities
+      ArrCommand Qop ArrCommand -> ArrCommand
+    <0>
+    > {
+          "\\" Fargs "->" ArrCommand -> ArrCommand
+          "let" Declbinds "in" ArrCommand -> ArrCommand 
+          "if" Exp "then" ArrCommand "else" ArrCommand -> ArrCommand
+      }
+
+  context-free priorities
+          Exp Exp -> Exp
+          > 
+        {
+          "proc" APat "->" ArrCommand -> Exp {cons("ArrProcedure")}
+          Exp "-<" Exp -> ArrCommand
+          Exp "-<<" Exp -> ArrCommand
+        }
+
+  context-free priorities
+      Exp Qop Exp -> Exp
+    <0> >
+      "proc" APat "->" ArrCommand -> Exp {cons("ArrProcedure")}
+
+  context-free priorities
+        {
+          Exp "-<" Exp -> ArrCommand
+          Exp "-<<" Exp -> ArrCommand
+        }
+      <0>
+          > {
+          "\\" Fargs "->" Exp -> Exp
+         "let" Declbinds "in" Exp -> Exp 
+         "if" AnyExp "then" AnyExp "else" Exp -> Exp
+         "do" StmtList -> Exp {cons("Do"), longest-match}
+         "case" AnyExp "of" AltList -> Exp {cons("Case"), longest-match}
+        }
+
+module Haskell-Arrow-Statement
+exports
+  context-free syntax
+    "let" Declbinds -> ArrStmt {cons("ArrLetStmt")}
+    Pat "<-" ArrCommand -> ArrStmt {cons("ArrBindStmt")}
+    ArrCommand -> ArrStmt {cons("ArrCmdStmt")}
+
+  context-free syntax
+    "{" ArrExplStmtList "}" -> ArrStmtList {cons("ArrStmtList"), ignore-layout}
+    ArrImplStmtList   -> ArrStmtList {cons("ArrStmtList")}
+
+  context-free syntax
+    ArrStmt -> ArrExplStmtList
+    ArrStmt ";" ArrExplStmtList -> ArrExplStmtList {cons("ArrStmtSeq")}
+
+    ArrStmt -> ArrImplStmt {layout("1.first.col < 1.left.col")}
+
+    ArrImplStmt -> ArrImplStmtList
+    ArrImplStmt ArrImplStmtList -> ArrImplStmtList
+     {cons("ArrStmtSeq"), layout("1.first.col == 2.first.col")}
+
+module Haskell-Statements
+exports
+  context-free syntax
+    Pat "<-" Exp 	-> Stmt 	{cons("BindStmt")}
+    Exp               	-> Stmt 	{cons("ExpStmt")}
+    "let" Declbinds   	-> Stmt 	{cons("LetStmt")}
+    Qvar "=" Exp 	-> Fbind	{cons("FBind")}
+
+  context-free syntax
+  	NoOffsideStmtBlock -> StmtList {cons("StmtList")}
+  	OffsideStmtList   -> StmtList {cons("StmtList")}
+  	
+    "{" NoOffsideStmtListSem "}"  -> NoOffsideStmtBlock {bracket, ignore-layout}
+
+  context-free priorities
+    Stmt -> NoOffsideStmt
+  >
+    NoOffsideStmt ";" -> NoOffsideStmt
+
+  context-free syntax
+    NoOffsideStmt -> NoOffsideStmtList
+    NoOffsideStmt ";" NoOffsideStmtList -> NoOffsideStmtList {cons("StmtSeq")}
+
+    NoOffsideStmtList  -> NoOffsideStmtListSem
+    ";" NoOffsideStmtListSem -> NoOffsideStmtListSem 
+
+
+  context-free priorities
+    Stmt -> OffsideStmt {layout("1.first.col < 1.left.col")}
+  >
+    OffsideStmt ";" -> OffsideStmt {layout("1.first.col < 2.first.col")}
+  >
+    ";" OffsideStmt -> OffsideStmt {layout("1.first.col < 2.first.col")}
+  >
+    OffsideStmt ";" OffsideStmt -> OffsideStmt
+          {cons("StmtSeq"),
+           layout("1.first.col < 2.first.col && 1.first.col < 3.first.col && 1.first.col < 3.left.col")}
+  
+  context-free syntax
+    OffsideStmt -> OffsideStmtList
+    OffsideStmtNEWLINE OffsideStmtList -> OffsideStmtList {cons("StmtSeq"), layout("1.first.col == 2.first.col")}
+
+    OffsideStmt LAYOUT? -> OffsideStmtNEWLINE {enforce-newline}
+
+module Haskell-List-Comprehensions
+exports
+  context-free syntax
+    "[" List "]" 	 -> Exp {bracket}
+    {Exp ","}+ -> List {cons("List")}
+    Exp ".." -> List {cons("ListFrom")}
+    Exp "," Exp ".." -> List {cons("ListFirstFrom")}
+    Exp ".." Exp -> List {cons("ListFromTo")}
+    Exp "," Exp ".." Exp -> List {cons("ListFirstFromTo")}
+    Exp "|" {Qual ","}+ -> List {cons("ListCompr")}
+
+module Haskell-Qualifiers
+exports
+  context-free syntax
+    {Qual ","}+ 	 -> Quals
+    Pat "<-" Exp 	 -> Qual {cons("QualBind")}
+    Exp 	      	 -> Qual
+    "let" Declbinds   	 -> Qual {cons("QualLet")}
+
+module Haskell-Patterns
+exports
+  context-free syntax
+    LPat -> Pat
+    
+%% with infix precedence:
+%%  context-free priorities
+%%      Pat QconopNoCons LPat -> Pat {cons("BinOpApp")}
+%%    > XPat ConsOp Pat -> Pat {cons("BinOpApp")}  
+%%  context-free syntax
+%%    Pat QconopNoCons LPat -> XPat {cons("BinOpApp")}
+%%    LPat -> XPat
+%%    Qconop -> QconopNoCons
+%%    ":" -> QconopNoCons  {reject}
+
+%% without precedence    
+    Pat Qconop LPat -> Pat {cons("BinOpApp")}
+
+    APat -> LPat
+    "-" Literal -> LPat {cons("Negation")}
+    Gcon APat+ -> LPat {cons("ConstrApp")}
+    
+    Var -> APat
+    Var "@" APat -> APat {cons("Named")}
+    Gcon -> APat {cons("Constr")}
+    Qcon LabeledPat -> APat {cons("Labeled")}
+    "{" {FPat ","}* "}" -> LabeledPat {cons("LabeledPats"), ignore-layout}
+    Literal -> APat
+    "_" -> APat {cons("Wildcard")}
+    "(" Pat ")" -> APat {bracket}
+    "(" Pat "," {Pat ","}+ ")" -> APat {cons("Tuple")}
+    "[" {Pat ","}+ "]" -> APat {cons("List")}
+    "~" APat -> APat {cons("Irrefutable")}
+    
+    Qvar "=" Pat -> FPat {cons("PatBind")}
+
+  lexical restrictions
+    "~" -/- [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
+    "-" -/- [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
+    "|" -/- [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
+
+module Haskell-Value-Definitions
+exports
+  context-free syntax
+    Valdef 		   -> Decl
+    FunLHS "=" Exp MaybeWhere -> Valdef 	{cons("Valdef"), longest-match}
+
+    FunLHS Gdrh+ MaybeWhere  -> Valdef 	{cons("GdValdef"), longest-match}
+    "|" Exp "=" Exp 	   -> Gdrh   	{cons("Guarded")}   
+
+    
+    Pat -> FunLHS
+    Var APat+ -> FunLHS {cons("VarFunLHS")}
+    Pat Varop Pat -> FunLHS {cons("OpFunLHS")}
+    "(" FunLHS ")" APat+ -> FunLHS {cons("NestedFunLHS")}
+
+  context-free syntax
+    "where" DeclList       -> Where     {cons("Where")}
+    
+    -> MaybeWhere {ast("Where(DeclList(Empty))")}
+    Where   -> MaybeWhere
+  
+    DeclList 		   -> Declbinds
+
+
+  context-free restrictions
+%%  	NoWhere -/- [w].[h].[e].[r].[e]
+
+  context-free syntax
+  	NoOffsideDeclBlock -> DeclList {cons("DeclList")}
+  	OffsideDeclList | Empty   -> DeclList {cons("DeclList"), longest-match} 
+  	
+    "{" NoOffsideDeclListSem | Empty "}"  -> NoOffsideDeclBlock {bracket, ignore-layout}
+    
+  context-free priorities
+    Decl -> NoOffsideDecl
+  >
+    NoOffsideDecl ";" -> NoOffsideDecl
+
+  context-free syntax
+    NoOffsideDecl -> NoOffsideDeclList
+    NoOffsideDecl ";" NoOffsideDeclList -> NoOffsideDeclList {cons("DeclSeq")}
+    
+    NoOffsideDeclList  -> NoOffsideDeclListSem
+    ";" NoOffsideDeclListSem -> NoOffsideDeclListSem 
+
+
+  context-free priorities
+    Decl -> OffsideDecl {layout(gt(col(left(1)), col(first(1))))}
+  >
+    OffsideDecl ";" -> OffsideDecl {layout(gt(col(first(2)), col(first(1))))}
+  >
+    ";" OffsideDecl -> OffsideDecl {layout(gt(col(first(2)), col(first(1))))}
+  >
+    OffsideDecl ";" Decl -> OffsideDecl
+          {cons("DeclSeq"),
+           layout("1.first.col < 2.first.col && 1.first.col < 3.first.col && 1.first.col < 3.left.col")}
+  
+  context-free syntax
+    OffsideDecl -> OffsideDeclList
+    OffsideDeclNEWLINE OffsideDeclList -> OffsideDeclList {cons("DeclSeq"), layout(eq(col(first(1)), col(first(2))))}
+
+    OffsideDecl LAYOUT? -> OffsideDeclNEWLINE {enforce-newline}
+
+module Haskell-Case-Alternatives
+exports
+  context-free syntax
+    Pat "->" Exp MaybeWhere 	-> Alt   {cons("Alt")}
+
+    Pat Gdpat+ MaybeWhere	 	-> Alt   {cons("GdAlt")}
+    "|" Exp "->" Exp                  -> Gdpat {cons("GdPat")}
+
+  context-free syntax
+  	NoOffsideAltBlock -> AltList {cons("AltList")}
+  	OffsideAltList   -> AltList {cons("AltList")}
+  	
+    "{" NoOffsideAltList "}"  -> NoOffsideAltBlock {bracket, ignore-layout}
+    
+  context-free priorities
+    Alt -> NoOffsideAlt
+  >
+    NoOffsideAlt ";" -> NoOffsideAlt
+
+  context-free syntax
+    NoOffsideAlt -> NoOffsideAltList
+    NoOffsideAlt ";" NoOffsideAltList -> NoOffsideAltList {cons("AltSeq")}
+
+    NoOffsideAltList  -> NoOffsideAltListSem
+    ";" NoOffsideAltListSem -> NoOffsideAltListSem 
+
+  context-free priorities
+    Alt -> OffsideAlt {layout(gt(col(left(1)), col(first(1))))}
+  >
+    OffsideAlt ";" -> OffsideAlt {prefer, layout(gt(col(first(2)), col(first(1))))}
+  >
+    ";" OffsideAlt -> OffsideAlt {layout(gt(col(first(2)), col(first(1))))}
+  >
+    OffsideAlt ";" Alt -> OffsideAlt
+          {cons("AltSeq"),
+           layout("1.first.col < 2.first.col && 1.first.col < 3.first.col && 1.first.col < 3.left.col")}
+  
+  context-free syntax
+    OffsideAlt -> OffsideAltList
+    OffsideAltNEWLINE OffsideAltList -> OffsideAltList {cons("AltSeq"), layout(eq(col(first(1)), col(first(2))))}
+
+    OffsideAlt LAYOUT? -> OffsideAltNEWLINE {enforce-newline}
+
+module Haskell-Expressions
+exports
+  context-free syntax
+    Exp -> AnyExp
+
+    Qvar -> Exp {cons("Var")}
+    Gcon -> Exp {cons("Constr")}
+    Literal -> Exp {cons("Lit")}
+    "(" Exps2 ")" -> Exp {cons("Product")}
+%% "(#" Exps "#)" -> Exp {cons("Unboxed?")}
+    "(" Exp ")" -> Exp {bracket}
+
+    {Exp ","}+ -> Exps
+    Exp "," {Exp ","}+ -> Exps2 {cons("ECons")}
+    APat+ -> Fargs
+
+
+  context-free syntax
+    "infix" -> Infix {cons("Infix")}
+    "infixl" -> Infix {cons("InfixL")}
+    "infixr" -> Infix {cons("InfixR")}
+    INTEGER? -> Prec
+    {Op ","}+ -> Ops
+    Infix Prec Ops -> Fixdecl {cons("FixDecl")}
+    Fixdecl -> Decl
+
+    "(" Exp Qop ")" -> Exp {cons("LSection")}
+    "(" QopNoNeg Exp ")" -> Exp {cons("RSection")}
+
+    Qop -> QopNoNeg
+    "-" -> QopNoNeg {reject}
+ 
+    "{" {Fbind ","}* "}" -> LabelBinds {cons("LabelBinds"), ignore-layout}
+
+  context-free priorities
+    Qvar "@" Exp -> Exp {cons("Named")}
+  > Exp LabelBinds -> Exp {cons("Labeled")}
+  > Exp -> Aexp
+  > Exp Exp -> Exp {cons("AppBin"),left}
+  > "-" Exp -> Exp {cons("Negation")}
+  > Exp Qop Exp -> Exp {cons("OpApp"), right}
+  > Exp "::" Context? Type -> Exp {cons("Typed")}
+
+
+  context-free syntax
+   "\\" Fargs "->" Exp -> Exp {cons("Abs"), longest-match}
+    "let" Declbinds "in" Exp -> Exp {cons("Let"), longest-match}
+    "if" AnyExp "then" AnyExp "else" Exp -> Exp {cons("If"), longest-match}
+    "do" StmtList -> Exp {cons("Do"), longest-match}
+    "case" AnyExp "of" AltList -> Exp {cons("Case"), longest-match}
+
+  context-free priorities
+   Exp Exp -> Exp {cons("AppBin"),left}
+   > {
+        "\\" Fargs "->" Exp -> Exp
+       "let" Declbinds "in" Exp -> Exp
+       "if" AnyExp "then" AnyExp "else" Exp -> Exp
+       "case" AnyExp "of" AltList -> Exp
+       "do" StmtList -> Exp
+      }
+
+  context-free priorities
+    Exp Qop Exp -> Exp
+  <0>
+  > {
+   "\\" Fargs "->" Exp -> Exp
+     "let" Declbinds "in" Exp -> Exp
+     "if" AnyExp "then" AnyExp "else" Exp -> Exp
+    }
+ 
+   context-free priorities
+    Exp "::" Context? Type -> Exp
+  .> {
+   "\\" Fargs "->" Exp -> Exp
+     "let" Declbinds "in" Exp -> Exp
+     "if" AnyExp "then" AnyExp "else" Exp -> Exp
+    }
+
+module Haskell-Signature-Declarations
+exports
+  context-free syntax
+    Signdecl 	   -> Decl 
+    Vars "::" Context? Type -> Signdecl {cons("SignDecl")}
+
+module Haskell-Type-Classes
+exports
+  context-free syntax
+    "class" SContext? Tycls Tyvar MaybeWhere 		-> Topdecl {cons("Class")}
+    "instance" SContext? Qtycls Inst* MaybeWhere 		-> Topdecl {cons("Instance")}
+    "instance" SContext? "(" Qtycls Inst* ")" MaybeWhere    -> Topdecl {cons("Instance")}
+    "default"  "(" {Type ","}* ")" 	-> Topdecl {cons("Default")}
+
+    Gtycon -> Inst {cons("InstCons")}
+    "(" Gtycon Tyvar* ")" -> Inst {cons("InstApp")}
+    "(" Tyvar "," {Tyvar ","}+ ")" -> Inst {cons("InstTuple")}
+    "[" Tyvar "]" -> Inst {cons("InstList")}
+    "(" Tyvar "->" Tyvar ")" -> Inst {cons("InstArrow")}
+    
+    Class "=>"              -> Context {cons("Context")}
+    "(" {Class ","}* ")" "=>"     -> Context {cons("Context")}
+    SimpleClass "=>"              -> SContext {cons("SContext")}
+    "(" {SimpleClass ","}* ")" "=>"     -> SContext {cons("SContext")}
+
+    
+    Qtycls Tyvar -> SimpleClass {cons("SimpleClass")}
+    SimpleClass -> Class
+    Qtycls "(" Tyvar AType+ ")" -> Class {cons("Class")}
+
+module Haskell-Type-Declarations
+exports
+  context-free syntax
+    "type" Tycon Tyvar* "=" Type			  -> Topdecl {cons("TypeDecl")}
+    "data" Context? Type Constrs Deriving 	  -> Topdecl {cons("Data")}
+    "newtype" Context? Type "=" Newconstr Deriving -> Topdecl {cons("NewTypeDecl")}
+
+  context-free syntax
+    "deriving" Qtycls 		     	-> Deriving {cons("Derive")}
+    "deriving" "(" ")" 		     	-> Deriving {cons("NoDeriving")}
+    "deriving" "(" {Qtycls ","}+ ")" 	-> Deriving {cons("Derive")}
+    				     	-> Deriving {cons("NoDeriving")}
+  context-free syntax
+    -> Constrs {cons("NoConstrDecls")}
+    "=" {Constr "|"}+ -> Constrs {cons("ConstrDecls")}
+    
+    Conid Satype*       -> Constr {cons("ConstrDecl")}
+    Sbtype Conop Sbtype -> Constr {cons("InfixConstr")}
+
+    Conid Type 			 	 -> Newconstr
+    Conid LabeledConstr 	 -> Newconstr
+    "{" Var "::" Type "}" -> LabeledConstr {cons("LabeledConstr"), ignore-layout}
+   
+    AType 				 -> Satype
+    "!" AType 				 -> Satype
+    Type     				 -> Sbtype
+    "!" Type 				 -> Sbtype
+ 
+
+
+module Haskell-Records
+exports
+  context-free syntax
+    Context? Con RecordFields -> Constr {cons("RecordConstr")}
+    "{" Fielddecls "}" -> RecordFields {ignore-indent}
+    {Fielddecl ","}+ 			    -> Fielddecls
+    Vars "::" Stype  			    -> Fielddecl
+    Type 				    -> Stype
+    "!" Type 				    -> Stype
+
+
+
+module Haskell-Types
+exports
+  context-free syntax
+    ("::" Type)?   	   -> OptSig
+
+  context-free syntax
+    Qtycon 	   	   -> Gtycon
+    "(" "->" ")"           -> Gtycon 	{cons("TArrow")}
+
+  context-free syntax
+    {Type ","}+ 	   -> Types
+    Type "," {Type ","}+   -> Types2 	{cons("TCons")}
+    
+  context-free syntax
+    Gtycon 		   -> AType 	{cons("TCon")}
+    Tyvar 		   -> AType 	{cons("TVar")}
+    "(" Type ")" 	   -> AType 	{bracket}
+    "[" Type "]" 	   -> AType 	{cons("TList")}
+    "(" Types2 ")" 	   -> AType 	{cons("TProd")}
+
+    AType -> Type
+    Type Type 	   	   -> Type 	{cons("TAppBin"),left}
+    Type "->" Type 	   -> Type 	{cons("TFunBin"),right}
+
+
+  context-free priorities
+    Type Type 	   	   -> Type 
+  > Type "->" Type 	   -> Type
+
+  %% The following productions are syntactic sugar for
+  %% [] Type and (,,,) Type ... Type
+
+  context-free syntax
+    "(" ")" 	           -> Gtycon 	{cons("TUnit")}
+    "[" "]"                -> Gtycon 	{cons("TList")}
+    "(" ","+ ")"           -> Gtycon 	{cons("TProduct")}
+
+module Haskell-Import-Export
+exports
+  context-free syntax
+  	{ Export "," }* -> Exportlist {cons("Exportlist")}
+  	Exportlist "," -> Exportlist
+    "(" Exportlist ")" 		-> Exports {cons("Exports")}
+
+    Qvar 			-> Export
+    Gtycon 			-> Export
+    Gtycon "(" ".." ")" 	-> Export
+    Gtycon "(" ")" 		-> Export
+    Gtycon "("{Qcname ","}+ ")" -> Export
+    "module" Modid 		-> Export
+
+    Qvar 			-> Qcname
+    Gcon 			-> Qcname
+
+  context-free syntax  
+    "import" Src? Qualified?
+             Modid As? Impspec? -> Importdecl 	{cons("Import")}
+    "{-# SOURCE" "#-}" 		-> Src 		{cons("SOURCE")}
+    "qualified" 		-> Qualified 	{cons("Qualified")}
+    "as" Modid 			-> As 		{cons("As")}
+    "(" Exportlist ")" 		-> Impspec {cons("Impspec")}
+    "hiding" "(" Exportlist ")" -> Impspec 	{cons("Hiding")}
+
+module Haskell-Modules
+exports
+  context-free syntax
+    "module" Modid Exports? "where" -> ModuleDec {cons("ModuleDec")}
+    ModuleDec Body 	-> Module 	{cons("Module")}
+    Body 			-> Module 	{cons("Program")}
+    Decl 		   	-> Topdecl
+
+  context-free syntax
+  	"{" NoOffsideBody "}" -> Body {bracket, ignore-layout}
+    OffsideBody           -> Body
+  	
+  	"" -> Empty {cons("Empty")}
+  	
+  	Empty                          Empty                   -> NoOffsideBody {cons("Body")}
+  	Empty                          NoOffsideTopdeclListSem -> NoOffsideBody {cons("Body")}
+  	NoOffsideImportdeclListSem     Empty                   -> NoOffsideBody {cons("Body")}
+    NoOffsideImportdeclListSem ";" NoOffsideTopdeclList -> NoOffsideBody {cons("Body")}
+
+    Empty                 Empty              -> OffsideBody {cons("Body")}
+    Empty                 OffsideTopdeclList -> OffsideBody {cons("Body")}
+    OffsideImportdeclList Empty              -> OffsideBody {cons("Body")}
+    OffsideImportdeclListNEWLINE OffsideTopdeclList -> OffsideBody {cons("Body"), layout(eq(col(first(1)), col(first(2))))}
+
+    
+%% No offside import declarations    
+  context-free priorities
+    Importdecl -> NoOffsideImportdecl
+  >
+    NoOffsideImportdecl ";" -> NoOffsideImportdecl
+%%  >
+%%    ";" NoOffsideImportdecl -> NoOffsideImportdecl
+
+  context-free syntax
+    NoOffsideImportdecl -> NoOffsideImportdeclList
+    NoOffsideImportdecl ";" NoOffsideImportdeclList -> NoOffsideImportdeclList {cons("ImportdeclSeq")}
+
+    NoOffsideImportdeclList  -> NoOffsideImportdeclListSem
+    ";" NoOffsideImportdeclListSem -> NoOffsideImportdeclListSem 
+
+%% No offside top declarations
+  context-free priorities
+    Topdecl -> NoOffsideTopdecl
+  >
+    NoOffsideTopdecl ";" -> NoOffsideTopdecl {prefer}
+
+  context-free syntax
+    NoOffsideTopdecl -> NoOffsideTopdeclList
+    NoOffsideTopdecl ";" NoOffsideTopdeclList -> NoOffsideTopdeclList {cons("TopdeclSeq")}
+
+    NoOffsideTopdeclList  -> NoOffsideTopdeclListSem
+    ";" NoOffsideTopdeclListSem -> NoOffsideTopdeclListSem 
+
+
+%% Offside import declarations
+  context-free priorities
+    Importdecl -> OffsideImportdecl {layout(gt(col(left(1)), col(first(1))))}
+  >
+    OffsideImportdecl ";" -> OffsideImportdecl {layout(gt(col(first(2)), col(first(1))))}
+  >
+    ";" OffsideImportdecl -> OffsideImportdecl {layout(gt(col(first(2)), col(first(1))))}
+  >
+    Importdecl ";" OffsideImportdecl -> OffsideImportdecl
+          {cons("ImportdeclSeq"),
+           layout(and(gt(col(left(1)), col(first(1))), and(gt(col(first(2)), col(first(1))), gt(col(first(3)), col(first(1))))))}
+
+  context-free syntax
+    OffsideImportdecl -> OffsideImportdeclList
+    OffsideImportdeclNEWLINE OffsideImportdeclList -> OffsideImportdeclList {cons("ImportdeclSeq"), layout(eq(col(first(1)), col(first(2))))}
+
+    OffsideImportdecl LAYOUT? -> OffsideImportdeclNEWLINE {enforce-newline}
+    OffsideImportdeclList LAYOUT? -> OffsideImportdeclListNEWLINE {enforce-newline}
+
+%% Offside top declarations
+  context-free priorities
+    Topdecl -> OffsideTopdecl {layout(gt(col(left(1)), col(first(1))))}
+  >
+    OffsideTopdecl ";" -> OffsideTopdecl {prefer, layout(gt(col(first(2)), col(first(1))))}
+  >
+    ";" OffsideTopdecl -> OffsideTopdecl {layout(gt(col(first(2)), col(first(1))))}
+  >
+    Topdecl ";" OffsideTopdecl -> OffsideTopdecl
+          {cons("TopdeclSeq"),
+           layout(and(gt(col(left(1)), col(first(1))), and(gt(col(first(2)), col(first(1))), gt(col(first(3)), col(first(1))))))}
+
+  context-free syntax
+    OffsideTopdecl -> OffsideTopdeclList
+    OffsideTopdeclNEWLINE OffsideTopdeclList -> OffsideTopdeclList {cons("TopdeclSeq"), layout(eq(col(first(1)), col(first(2))))}
+
+    OffsideTopdecl LAYOUT? -> OffsideTopdeclNEWLINE {enforce-newline}
+
+module Haskell-Literals
+exports
+  context-free syntax
+    INTEGER 		-> Literal {cons("Int")}
+    Char 		-> Literal
+    FLOAT 		-> Literal {cons("Float")}
+    RATIONAL 		-> Literal {cons("Float")}
+    String 		-> Literal
+    PRIMINTEGER 	-> Literal {cons("PrimInt")}
+    PRIMCHAR 		-> Literal {cons("PrimChar")}
+    PRIMSTRING 		-> Literal {cons("PrimString")}
+    PRIMFLOAT 		-> Literal {cons("PrimFloat")}
+    PRIMDOUBLE 		-> Literal {cons("PrimDouble")}
+    CLITLIT 		-> Literal {cons("CLitLit")}
+
+module Haskell-Strings
+exports
+  syntax
+    "'" CharChar "'" 	   -> <Char-CF> {cons("Char")}
+    "\"" StringChar* "\""  -> <String-CF> {cons("String")}
+
+    <CharChar-LEX> -> CharChar
+    "\\" Escape 		   -> CharChar {cons("Escape")}
+    "\\" [\&]              -> CharChar {reject}
+
+    <StringChar-LEX> -> StringChar
+    "\\" Escape 		   -> StringChar {cons("Escape")}
+    "\\" [\ \t\n\r]+ "\\"  -> StringChar {cons("Gap")}
+
+    <CharEsc-LEX> -> Escape {cons("CharEsc")}
+    <ASCII-LEX> -> Escape  {cons("ASCIIEsc")}
+    <Decimal-LEX> -> Escape {cons("DecimalEsc")}
+    "o" <Octal-LEX> -> Escape {cons("OctalEsc")}
+    "x" <Hexadecimal-LEX> -> Escape {cons("HexadecimalEsc")}
+
+
+  lexical syntax
+    ~[\0-\31\'\\] 	       -> CharChar
+    ~[\0-\31\"\\] 	       -> StringChar
+    [abfnrtv\\\"\'\&]       -> CharEsc
+
+    "^" [A-Z\@\[\]\\\^\_]                   -> ASCII
+
+    "NUL" | "SOH" | "STX" | "ETX" | "EOT" |
+    "ENQ" | "ACK" | "BEL" | "BS"  | "HT"  |
+    "LF"  | "VT"  | "FF"  | "CR"  | ASCII-SO  |
+    "SI"  | "DLE" | "DC1" | "DC2" | "DC3" |
+    "DC4" | "NAK" | "SYN" | "ETB" | "CAN" |
+    "EM"  | "SUB" | "ESC" | "FS"  | "GS"  |
+    "RS"  | "US"  | "SP"  | "DEL"           -> ASCII
+
+    "SO" -> ASCII-SO
+  
+  lexical restrictions
+    ASCII-SO -/- [H]
+
+module Haskell-Numbers
+exports
+  lexical syntax
+    [0-9]                -> Digit
+    [0-7]                -> Octit
+    [0-9A-Fa-f]          -> Hexit
+
+    [0]                  -> Zero
+    Zero Digit*          -> Decimal
+    [1-9] Digit*         -> Decimal
+    Octit+               -> Octal
+    Hexit+               -> Hexadecimal    
+
+    Decimal              -> INTEGER
+    [0] [Oo] Octal       -> INTEGER
+    [0] [Xx] Hexadecimal -> INTEGER
+  
+  lexical restrictions
+    Decimal -/- [0-9]
+    Octal -/- [0-7]
+    Hexadecimal -/- [0-9A-Fa-f]
+    Zero -/- [OoXx]
+    
+  lexical syntax
+  	Decimal "." Decimal -> FLOAT
+  	Decimal Exponent -> RATIONAL
+    Decimal "." Decimal Exponent -> RATIONAL
+    [eE] [\-\+]? Decimal -> Exponent
+    
+  lexical restrictions
+    INTEGER -/- [\.] . [0-9]
+    INTEGER -/- [eE] . [0-9] | [eE] . [\+\-] %% . [0-9] multiple lookahead not supported
+    FLOAT -/- [eE]
+
+  lexical syntax
+    [] -> PRIMCHAR
+    [] -> PRIMSTRING
+    [] -> PRIMINTEGER
+    [] -> PRIMFLOAT
+    [] -> PRIMDOUBLE
+    
+    [] -> CLITLIT
+    [] -> UNKNOWN
+
+
+
+module Haskell-Identifier-Sorts
+exports
+  lexical syntax
+    VARID       	-> Varid
+    ReservedId  	-> Varid {reject}
+
+    VARID 		-> Tyvar
+    ReservedId 		-> Tyvar {reject}
+    ReservedId2 	-> Tyvar {reject}
+
+  context-free syntax
+    Vars "," Var 	-> Vars 	{cons("Snoc")}
+    Qvar 	 	-> Vars 	{cons("Ins")}
+
+  context-free syntax
+    "(" ")"        	-> Gcon 	{cons("Unit")}
+    "[" "]"        	-> Gcon		{cons("EmptyList")}
+    "(" ","+ ")"   	-> Gcon		{cons("Product")}
+    Qcon           	-> Gcon		
+
+  %% The following portion can be put into module Haskell-Infix
+  %% in order to factor out infix operators from the kernel language
+
+  context-free syntax
+
+    %% variable identifiers
+
+    Varid     -> Qvarid
+    QVARID    -> Qvarid
+    Varid           -> Var    {cons("Var")}
+    Qvarid            -> Qvar
+
+
+    %% infix operators
+
+    Varop 		-> Op		{cons("Op")}
+    Conop 		-> Op		{cons("ConOp")}
+
+    %% variable operators
+
+    Varsym  		-> Qvarsym
+    Qvarsym1 		-> Qvarsym
+
+    %% constructor operators
+
+    Varsym        	-> Varop
+    "`" Varid "`" 	-> Varop 	{cons("PrefOp")}
+
+    Qvarsym        	-> Qvarop
+    "`" Qvarid "`" 	-> Qvarop 	{cons("PrefOp")}
+
+    Consym        	-> Conop
+    "`" Conid "`" 	-> Conop 	{cons("PrefCon")}
+
+    Gconsym        	-> Qconop
+    "`" Qconid "`" 	-> Qconop 	{cons("PrefCon")}
+
+    Qvarop 		  -> Qop
+    Qconop 		  -> Qop
+
+    Qconsym -> Gconsym
+    ConsOp  -> Gconsym
+    CONSOP -> ConsOp {cons("ConsOp")}
+
+
+
+
+
+    Consym  		-> Qconsym
+    QCONSYM 		-> Qconsym
+    CONSYM 		-> Consym
+
+    %% make prefix symbols from infix symbols
+
+    "(" Varsym ")" 	-> Var 		{cons("BinOp")}
+    "(" Qvarsym ")" 	-> Qvar 	{cons("BinOp")}
+    "(" Consym ")" 	-> Con 		{cons("BinCon")}
+    "(" Qconsym ")" 	-> Qcon 	{cons("BinCon")}
+    
+
+  context-free syntax
+    VARSYM 		-> Varsym
+
+    QVARSYM 		-> Qvarsym1
+
+  context-free syntax
+    CONID 		-> Tycon
+    Tycon  		-> Qtycon
+    QCONID 		-> Qtycon
+    Tycon		-> Tycls
+    Qtycon 		-> Qtycls
+   
+    %% constructor identifiers
+
+    CONID     -> Conid
+    Conid     -> Qconid
+    QCONID    -> Qconid
+    Conid           -> Con    {cons("ConId")}
+    Qconid            -> Qcon
+
+
+  %% in each of these cases the constructor ID in fact is a module ID
+  %% that quantifies a variable, constructor, type or operator
+  context-free restrictions
+    Qconid -/- [\.] . [a-zA-Z\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
+    Qconid -/- [\.] . [\_] %% . [A-Za-z0-9\'\_]
+    Qconid -/- [\.] . [\:] %% . [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
+
+    Qtycon -/- [\.] . [a-zA-Z\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
+    Qtycon -/- [\.] . [\_] %% . [A-Za-z0-9\'\_]
+    Qtycon -/- [\.] . [\:] %% . [\!\#\$\%\&\*\+\.\/\<\=\>\?\@\\\^\|\-\~]
+
+
+  lexical syntax
+    CONID -> Modid
+
+  syntax
+    <Modid-LEX> -> Modid
+    Modid "." <VARID-LEX>           -> <QVARID-CF>  {cons("QVarId")}
+    Modid "." <CONID-LEX>           -> <QCONID-CF>  {cons("QConId")}
+    Modid "." <VARSYM-LEX>          -> <QVARSYM-CF> {cons("QVarSym")}
+    Modid "." <CONSYM-LEX>          -> <QCONSYM-CF> {cons("QConSym")}
+    
+  syntax
+    <CONID-LEX> "." <Modid-LEX> -> QModid {cons("QModId")}
+    <CONID-LEX> "." QModid -> QModid {cons("QModId")}
+    QModid -> Modid
+    QModid -> <Modid-CF>
+
+
+module Haskell-Keywords
+exports
+  lexical syntax
+    "case" 	| "class" 	| "data" 	|
+    "default" 	| "deriving" 	| "do" 		|
+    "else" 	| "if" 	        | "import" 	|
+    "in" 	| "infix" 	| "infixl" 	|
+    "infixr" 	| "instance" 	| "let" 	|
+    "module" 	| "newtype" 	| "of" 		|
+    "then" 	| "type" 	| "where" 	|
+    "_"        					-> ReservedId
+    "as" 	| "hiding" 	| "qualified" 	|
+    "export" 	| "label" 	| "dynamic" 	-> ReservedId0
+
+    ".." | ":" | "::" | "=" | "\\" | "|" | "<-" |
+    "->" | "@" | "~" | "=>" -> ReservedOp
+
+%%    "-" | "!" | "." | "/\\" | "{" | "}" | "[" | 
+%%    "]" | "(" | ")" | "(#" | "#)" | ";" | "," | "`"
+
+  lexical restrictions
+    "case" 	 "class" 	 "data" 	
+    "default" 	 "deriving" 	 "do" 		
+    "else" 	 "if" 	         "import" 	
+    "in" 	 "infix" 	 "infixl" 	
+    "infixr" 	 "instance" 	 "let" 	
+    "module" 	 "newtype" 	 "of" 		
+    "then" 	 "type" 	 "where" 	
+    "_" 
+    "as" 	 "hiding" 	 "qualified" 	
+    "export" 	 "label" 	 "dynamic" -/- [a-zA-Z0-9\'\_]
+
+module Haskell-Identifiers
+exports
+  lexical syntax
+    [a-z][A-Za-z0-9\'\_]*       -> VARID
+    [\_][A-Za-z0-9\'\_]+ -> VARID
+    [A-Z][A-Za-z0-9\'\_]*       -> CONID
+
+    %% Question: underscore in identifiers according to standard???
+    %% Answer: Underscore, "_", is treated as a lowercase letter, and can occur wherever a lowercase letter can. However, "_" all by itself is a reserved identifier, used as wild card in patterns.
+
+    [\!\#\$\%\&\*\+\.\/]
+    \/ [\<\=\>\?\@\\\^\|\-\~] -> Symbol
+    Symbol (Symbol | [\:])*   -> VARSYM
+    [\:] (Symbol | [\:])+     -> CONSYM
+    "="                -> VARSYM {reject}
+    ReservedOp                -> VARSYM {reject}
+    ReservedOp                -> CONSYM {reject}
+    ":" -> CONSOP
+
+  lexical restrictions
+    CONID VARID -/- [A-Za-z0-9\'\_]
+    VARSYM      -/- [\!\#\$\%\&\*\+\.\/] \/ [\<\=\>\?\@\\\^\|\-\~]
+    CONSYM      -/- [\!\#\$\%\&\*\+\.\/] \/ [\<\=\>\?\@\\\^\|\-\~]
+    CONSOP      -/- [\:] \/ [\!\#\$\%\&\*\+\.\/] \/ [\<\=\>\?\@\\\^\|\-\~]
+
+module Haskell-Layout
+exports
+  lexical syntax
+    WhiteChar                     -> LAYOUT
+    Comment                       -> LAYOUT
+    NComment                      -> LAYOUT
+
+    [\ \t\n\r]                      -> WhiteChar
+
+    ~[\n\r] -> AnyNoSymbol
+    Symbol -> AnyNoSymbol {reject}
+    "--" [\-]* -> Dashes
+
+    Dashes (AnyNoSymbol ~[\n\r]*)? ([\r\n] | EOF)    -> Comment
+    -> EOF
+
+    "{-" NCommentContent* "-}" -> NComment
+    NCommentText -> NCommentContent
+    NComment -> NCommentContent
+    L-Char+ -> NCommentText
+
+    ~[\-\{]                       -> L-Char
+    Hyphen                        -> L-Char
+    CurlyOpen                     -> L-Char
+    [\-]                          -> Hyphen
+    [\{]	                  -> CurlyOpen
+    
+    [\r\n] -> Newline
+    LAYOUT -> NoNewlineLayout
+    Newline -> NoNewlineLayout {reject}
+    
+    NoNewlineLayout? Newline -> NewLineLayout
+    NoNewlineLayout? Newline LAYOUT -> NewLineLayout
+    
+  lexical restrictions
+  	Dashes -/- [\-]
+    Hyphen    -/- [\}]
+    CurlyOpen -/- [\-]
+    EOF -/- ~[]
+    NewLineLayout -/- [\r\n\t\ ]
+    NCommentText -/- ~[\-\{] | [\-].~[\}] | [\{].~[\-]
+
+  context-free restrictions
+    LAYOUT? -/- [\ \t\n\r] | [\{].[\-] | [\-].[\-]
+
+module Haskell-Syntax
+imports Haskell-Layout
+
+	Haskell-Identifiers
+	Haskell-Keywords
+	Haskell-Identifier-Sorts
+
+	Haskell-Numbers
+	Haskell-Strings
+        Haskell-Literals
+
+	Haskell-Modules
+	Haskell-Import-Export
+
+	Haskell-Types
+	Haskell-Records
+	Haskell-Type-Declarations
+	Haskell-Type-Classes
+	Haskell-Signature-Declarations
+        Haskell-Arrow-Command
+
+	Haskell-Expressions
+	Haskell-Case-Alternatives
+	Haskell-Value-Definitions
+	Haskell-Patterns
+
+	Haskell-Qualifiers
+	Haskell-List-Comprehensions
+	Haskell-Statements
+
+exports
+  sorts Module
+
+module Haskell
+imports Haskell-Syntax
+imports GHC-Flexible-Stuff
+        GHC-Magic-Hash
+        GHC-GeneralizedNewtypeDeriving
+exports
+  sorts Module
+  context-free start-symbols Module
+
+module Haskell-Export
+imports 
+        Haskell
+          [ GDerive                      => HaskellGDerive
+            GeneralizedDeriving          => HaskellGeneralizedDeriving
+            Float-HASH                   => HaskellFloat-HASH
+            Integer-HASH                 => HaskellInteger-HASH
+            String-HASH                  => HaskellString-HASH
+            Char-HASH                    => HaskellChar-HASH
+            RATIONAL-HASH                => HaskellRATIONAL-HASH
+            FLOAT-HASH                   => HaskellFLOAT-HASH
+            INTEGER-HASH                 => HaskellINTEGER-HASH
+            FlexibleContext              => HaskellFlexibleContext
+            FlexibleClass                => HaskellFlexibleClass
+            OffsideStmtNEWLINE           => HaskellOffsideStmtNEWLINE
+            OffsideStmtList              => HaskellOffsideStmtList
+            NoOffsideStmtList            => HaskellNoOffsideStmtList
+            NoOffsideStmtBlock           => HaskellNoOffsideStmtBlock
+            StmtList                     => HaskellStmtList
+            Fbind                        => HaskellFbind
+            Stmt                         => HaskellStmt
+            List                         => HaskellList
+            Qual                         => HaskellQual
+            FPat                         => HaskellFPat
+            LabeledPat                   => HaskellLabeledPat
+            APat                         => HaskellAPat
+            LPat                         => HaskellLPat
+            XPat                         => HaskellXPat
+            OffsideDeclNEWLINE           => HaskellOffsideDeclNEWLINE
+            OffsideDeclList              => HaskellOffsideDeclList
+            NoOffsideDeclList            => HaskellNoOffsideDeclList
+            NoOffsideDeclBlock           => HaskellNoOffsideDeclBlock
+            DeclList                     => HaskellDeclList
+            Declbinds                    => HaskellDeclbinds
+            MaybeWhere                   => HaskellMaybeWhere
+            Where                        => HaskellWhere
+            FunLHS                       => HaskellFunLHS
+            Gdrh                         => HaskellGdrh
+            Valdef                       => HaskellValdef
+            OffsideAltNEWLINE            => HaskellOffsideAltNEWLINE
+            OffsideAltList               => HaskellOffsideAltList
+            NoOffsideAltList             => HaskellNoOffsideAltList
+            NoOffsideAltBlock            => HaskellNoOffsideAltBlock
+            AltList                      => HaskellAltList
+            Gdpat                        => HaskellGdpat
+            Alt                          => HaskellAlt
+            LabelBinds                   => HaskellLabelBinds
+            QopNoNeg                     => HaskellQopNoNeg
+            Fixdecl                      => HaskellFixdecl
+            Ops                          => HaskellOps
+            Prec                         => HaskellPrec
+            Infix                        => HaskellInfix
+            Fargs                        => HaskellFargs
+            Exps                         => HaskellExps
+            AnyExp                       => HaskellAnyExp
+            Signdecl                     => HaskellSigndecl
+            Decl                         => HaskellDecl
+            Class                        => HaskellClass
+            SimpleClass                  => HaskellSimpleClass
+            SContext                     => HaskellSContext
+            Context                      => HaskellContext
+            Inst                         => HaskellInst
+            Sbtype                       => HaskellSbtype
+            Satype                       => HaskellSatype
+            LabeledConstr                => HaskellLabeledConstr
+            Newconstr                    => HaskellNewconstr
+            Constrs                      => HaskellConstrs
+            Deriving                     => HaskellDeriving
+            Stype                        => HaskellStype
+            Fielddecl                    => HaskellFielddecl
+            Fielddecls                   => HaskellFielddecls
+            RecordFields                 => HaskellRecordFields
+            Constr                       => HaskellConstr
+            AType                        => HaskellAType
+            Types                        => HaskellTypes
+            Gtycon                       => HaskellGtycon
+            OptSig                       => HaskellOptSig
+            Impspec                      => HaskellImpspec
+            As                           => HaskellAs
+            Qualified                    => HaskellQualified
+            Src                          => HaskellSrc
+            Importdecl                   => HaskellImportdecl
+            Qcname                       => HaskellQcname
+            Export                       => HaskellExport
+            Exports                      => HaskellExports
+            Exportlist                   => HaskellExportlist
+            OffsideTopdeclNEWLINE        => HaskellOffsideTopdeclNEWLINE
+            OffsideTopdeclList           => HaskellOffsideTopdeclList
+            OffsideImportdeclListNEWLINE => HaskellOffsideImportdeclListNEWLINE
+            OffsideImportdeclNEWLINE     => HaskellOffsideImportdeclNEWLINE
+            OffsideImportdeclList        => HaskellOffsideImportdeclList
+            NoOffsideTopdeclList         => HaskellNoOffsideTopdeclList
+            NoOffsideImportdeclList      => HaskellNoOffsideImportdeclList
+            OffsideBody                  => HaskellOffsideBody
+            NoOffsideBody                => HaskellNoOffsideBody
+            Empty                        => HaskellEmpty
+            Body                         => HaskellBody
+            Topdecl                      => HaskellTopdecl
+            ModuleDec                    => HaskellModuleDec
+            Module                       => HaskellModule
+            Literal                      => HaskellLiteral
+            ASCII-SO                     => HaskellASCII-SO
+            ASCII                        => HaskellASCII
+            CharEsc                      => HaskellCharEsc
+            Escape                       => HaskellEscape
+            StringChar                   => HaskellStringChar
+            CharChar                     => HaskellCharChar
+            String                       => HaskellString
+            Char                         => HaskellChar
+            UNKNOWN                      => HaskellUNKNOWN
+            CLITLIT                      => HaskellCLITLIT
+            PRIMDOUBLE                   => HaskellPRIMDOUBLE
+            PRIMFLOAT                    => HaskellPRIMFLOAT
+            PRIMINTEGER                  => HaskellPRIMINTEGER
+            PRIMSTRING                   => HaskellPRIMSTRING
+            PRIMCHAR                     => HaskellPRIMCHAR
+            Exponent                     => HaskellExponent
+            RATIONAL                     => HaskellRATIONAL
+            FLOAT                        => HaskellFLOAT
+            INTEGER                      => HaskellINTEGER
+            Hexadecimal                  => HaskellHexadecimal
+            Octal                        => HaskellOctal
+            Decimal                      => HaskellDecimal
+            Zero                         => HaskellZero
+            Hexit                        => HaskellHexit
+            Octit                        => HaskellOctit
+            Digit                        => HaskellDigit
+            QModid                       => HaskellQModid
+            QCONSYM                      => HaskellQCONSYM
+            QVARSYM                      => HaskellQVARSYM
+            QCONID                       => HaskellQCONID
+            QVARID                       => HaskellQVARID
+            Modid                        => HaskellModid
+            Qconid                       => HaskellQconid
+            Conid                        => HaskellConid
+            Qtycls                       => HaskellQtycls
+            Tycls                        => HaskellTycls
+            Qtycon                       => HaskellQtycon
+            Tycon                        => HaskellTycon
+            Qvarsym1                     => HaskellQvarsym1
+            Varsym                       => HaskellVarsym
+            Qcon                         => HaskellQcon
+            Con                          => HaskellCon
+            Qop                          => HaskellQop
+            ConsOp                       => HaskellConsOp
+            Qconop                       => HaskellQconop
+            Gconsym                      => HaskellGconsym
+            Conop                        => HaskellConop
+            Consym                       => HaskellConsym
+            Qconsym                      => HaskellQconsym
+            Qvarsym                      => HaskellQvarsym
+            Qvarop                       => HaskellQvarop
+            Varop                        => HaskellVarop
+            Op                           => HaskellOp
+            Qvar                         => HaskellQvar
+            Var                          => HaskellVar
+            Qvarid                       => HaskellQvarid
+            Gcon                         => HaskellGcon
+            Vars                         => HaskellVars
+            Tyvar                        => HaskellTyvar
+            Varid                        => HaskellVarid
+            ReservedOp                   => HaskellReservedOp
+            ReservedId0                  => HaskellReservedId0
+            ReservedId                   => HaskellReservedId
+            CONSOP                       => HaskellCONSOP
+            CONSYM                       => HaskellCONSYM
+            VARSYM                       => HaskellVARSYM
+            Symbol                       => HaskellSymbol
+            CONID                        => HaskellCONID
+            VARID                        => HaskellVARID
+            NewLineLayout                => HaskellNewLineLayout
+            NoNewlineLayout              => HaskellNoNewlineLayout
+            Newline                      => HaskellNewline
+            CurlyOpen                    => HaskellCurlyOpen
+            Hyphen                       => HaskellHyphen
+            L-Char                       => HaskellL-Char
+            NCommentText                 => HaskellNCommentText
+            NCommentContent              => HaskellNCommentContent
+            NComment                     => HaskellNComment
+            EOF                          => HaskellEOF
+            Comment                      => HaskellComment
+            WhiteChar                    => HaskellWhiteChar
+            NoOffsideImportdecl          => HaskellNoOffsideImportdecl
+            NoOffsideTopdecl             => HaskellNoOffsideTopdecl
+            OffsideImportdecl            => HaskellOffsideImportdecl
+            OffsideTopdecl               => HaskellOffsideTopdecl
+            Aexp                         => HaskellAexp
+            NoOffsideAlt                 => HaskellNoOffsideAlt
+            OffsideAlt                   => HaskellOffsideAlt
+            NoOffsideDecl                => HaskellNoOffsideDecl
+            OffsideDecl                  => HaskellOffsideDecl
+            Pat                          => HaskellPat
+            NoOffsideStmt                => HaskellNoOffsideStmt
+            OffsideStmt                  => HaskellOffsideStmt
+            Type                         => HaskellType
+            Exp                          => HaskellExp
+            ArrCommand                   => HaskellArrCommand
+            ArrImplStmtList              => HaskellArrImplStmtList
+            ArrExplStmtList              => HaskellArrExplStmtList
+            ]
+exports
+  syntax
+    %% support lower-case package
+    <HaskellVARID-LEX> "." <HaskellModid-LEX> -> HaskellQModid {cons("QModId")}
+    <HaskellVARID-LEX> "." HaskellQModid -> HaskellQModid {cons("QModId")}

@@ -1,0 +1,104 @@
+name:                sturdy-stratego
+version:             0.3.0.0
+synopsis:            Abstract Interpreter for Stratego
+license:             BSD3
+author:              Sven Keidel
+maintainer:          s.keidel@tudelft.nl
+copyright:           Copyright (c) 2017, Sven Keidel
+category:            Language
+build-type:          Simple
+cabal-version:       >=1.20
+
+data-files:          case-studies/arrows/arrows.aterm,
+                     case-studies/pcf/pcf.aterm,
+                     case-studies/arith/arith.aterm,
+                     case-studies/cca/cca.aterm,
+                     case-studies/go2js/go2js.aterm
+
+library
+  ghc-options:         -Wall
+                       -O2
+                       -fprof-auto
+  exposed-modules:     Control.Arrow.Try,
+                       Control.Arrow.Join,
+                       Control.Arrow.Apply,
+                       Control.Arrow.Fix,
+                       Control.Arrow.Deduplicate,
+                       Control.Monad.Deduplicate,
+                       Control.Monad.Join,
+                       Control.Monad.Powerset,
+                       Control.Monad.Result,
+                       Control.Monad.Try,
+                       Data.ATerm,
+                       Data.Constructor,
+                       Data.Powerset,
+                       Data.AbstractPowerset,
+                       Data.Result,
+                       Data.Order,
+                       Data.GaloisConnection,
+                       Data.Complete,
+                       Data.TypedResult,
+                       Data.Term,
+                       Data.TermEnv,
+                       Data.UncertainResult,
+                       Syntax,
+                       Signature,
+                       Utils,
+                       SubtypeRelation,
+                       Sort,
+                       SharedSemantics,
+                       ConcreteSemantics,
+                       WildcardSemantics,
+                       Soundness
+  build-depends:       base,
+                       sturdy-lib,
+                       arrows,
+                       deepseq,
+                       QuickCheck,
+                       attoparsec,
+                       containers,
+                       fgl,
+                       hashable,
+                       unordered-containers,
+                       mtl,
+                       pretty,
+                       text
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+Executable case-studies
+  ghc-options:         -Wall
+  Build-Depends:       base,
+                       arrows,
+                       deepseq,
+                       QuickCheck,
+                       attoparsec,
+                       containers,
+                       criterion,
+                       hashable,
+                       unordered-containers,
+                       mtl,
+                       pretty,
+                       text,
+                       vector,
+                       sturdy-stratego
+  hs-source-dirs:      case-studies
+  main-is:             Main.hs
+  default-language:    Haskell2010
+
+test-suite specs
+  type:                exitcode-stdio-1.0
+  ghc-options:         -Wall
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base,
+                       sturdy-stratego,
+                       containers,
+                       hashable,
+                       unordered-containers,
+                       hspec,
+                       QuickCheck,
+                       pretty,
+                       mtl,
+                       text
+  default-language:    Haskell2010

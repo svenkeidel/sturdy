@@ -1,0 +1,678 @@
+module arrows
+
+imports
+  haskell
+
+signature 
+  constructors
+      Nil            : List(a)
+      Cons           : a * List(a) -> List(a)
+      Conc           : List(a) * List(a) -> List(a)
+                     : ()
+                     : a -> (a)
+                     : a * b -> (a, b)
+                     : a * b * c -> (a, b, c)
+
+                     : Empty -> NoOffsideDeclListSem_Empty0
+                     : NoOffsideDeclListSem -> NoOffsideDeclListSem_Empty0
+                     : Empty -> OffsideDeclList_Empty0
+                     : OffsideDeclList -> OffsideDeclList_Empty0
+    Conc             : ListStarOfCharClass0 * ListPlusOfCharClass0 -> ListPlusOfCharClass0
+    Conc             : ListPlusOfCharClass0 * ListStarOfCharClass0 -> ListPlusOfCharClass0
+    Conc             : ListPlusOfCharClass0 * ListPlusOfCharClass0 -> ListPlusOfCharClass0
+    Cons             : Int * ListStarOfCharClass0 -> ListPlusOfCharClass0
+    StmtSeq          : OffsideStmt * OffsideStmt -> OffsideStmt
+                     : Stmt -> OffsideStmt
+    DeclSeq          : OffsideDecl * Decl -> OffsideDecl
+                     : Decl -> OffsideDecl
+    AltSeq           : OffsideAlt * Alt -> OffsideAlt
+                     : Alt -> OffsideAlt
+    TopdeclSeq       : Topdecl * OffsideTopdecl -> OffsideTopdecl
+                     : Topdecl -> OffsideTopdecl
+    ImportdeclSeq    : Importdecl * OffsideImportdecl -> OffsideImportdecl
+                     : Importdecl -> OffsideImportdecl
+    FloatHash        : String -> Float-HASH
+    IntegerHash      : String -> Integer-HASH
+    StringHash       : List(StringChar) -> String-HASH
+    CharHash         : CharChar -> Char-HASH
+    FlexibleContext  : List(FlexibleClass) -> FlexibleContext
+    FlexibleContext  : FlexibleClass -> FlexibleContext
+    SimpleClass      : Qtycls * Tyvar -> FlexibleClass
+    Class            : Qtycls * Gtycon -> FlexibleClass
+    Class            : Qtycls * Type -> FlexibleClass
+                     : OffsideStmt -> OffsideStmtList
+                     : Stmt -> NoOffsideStmt
+                     : NoOffsideStmtList -> NoOffsideStmtListSem
+    StmtSeq          : NoOffsideStmt * NoOffsideStmtList -> NoOffsideStmtList
+                     : NoOffsideStmt -> NoOffsideStmtList
+                     : NoOffsideStmtListSem -> NoOffsideStmtBlock
+    StmtList         : OffsideStmtList -> StmtList
+    StmtList         : NoOffsideStmtBlock -> StmtList
+    FBind            : Qvar * Exp -> Fbind
+    LetStmt          : Declbinds -> Stmt
+    ExpStmt          : Exp -> Stmt
+    BindStmt         : Pat * Exp -> Stmt
+    ListCompr        : Exp * List(Qual) -> List
+    ListFirstFromTo  : Exp * Exp * Exp -> List
+    ListFromTo       : Exp * Exp -> List
+    ListFirstFrom    : Exp * Exp -> List
+    ListFrom         : Exp -> List
+    List             : List(Exp) -> List
+    QualLet          : Declbinds -> Qual
+                     : Exp -> Qual
+    QualBind         : Pat * Exp -> Qual
+    PatBind          : Qvar * Pat -> FPat
+    LabeledPats      : List(FPat) -> LabeledPat
+    Irrefutable      : APat -> APat
+    List             : List(Pat) -> APat
+    Tuple            : Pat * List(Pat) -> APat
+                     : Pat -> APat
+    Wildcard         : APat
+                     : Literal -> APat
+    Labeled          : Qcon * LabeledPat -> APat
+    Constr           : Gcon -> APat
+    Named            : Var * APat -> APat
+                     : Var -> APat
+    ConstrApp        : Gcon * List(APat) -> LPat
+    Negation         : Literal -> LPat
+                     : APat -> LPat
+    BinOpApp         : Pat * Qconop * LPat -> Pat
+                     : LPat -> Pat
+                     : OffsideDecl -> OffsideDeclList
+                     : Decl -> NoOffsideDecl
+                     : NoOffsideDeclList -> NoOffsideDeclListSem
+    DeclSeq          : NoOffsideDecl * NoOffsideDeclList -> NoOffsideDeclList
+                     : NoOffsideDecl -> NoOffsideDeclList
+                     : NoOffsideDeclListSem_Empty0 -> NoOffsideDeclBlock
+    DeclList         : OffsideDeclList_Empty0 -> DeclList
+    DeclList         : NoOffsideDeclBlock -> DeclList
+                     : DeclList -> Declbinds
+                     : Where -> MaybeWhere
+    Where            : DeclList -> Where
+    NestedFunLHS     : FunLHS * List(APat) -> FunLHS
+    OpFunLHS         : Pat * Varop * Pat -> FunLHS
+    VarFunLHS        : Var * List(APat) -> FunLHS
+                     : Pat -> FunLHS
+    Guarded          : Exp * Exp -> Gdrh
+    GdValdef         : FunLHS * List(Gdrh) * MaybeWhere -> Valdef
+    Valdef           : FunLHS * Exp * MaybeWhere -> Valdef
+                     : OffsideAlt -> OffsideAltList
+                     : Alt -> NoOffsideAlt
+    AltSeq           : NoOffsideAlt * NoOffsideAltList -> NoOffsideAltList
+                     : NoOffsideAlt -> NoOffsideAltList
+                     : NoOffsideAltList -> NoOffsideAltBlock
+    AltList          : OffsideAltList -> AltList
+    AltList          : NoOffsideAltBlock -> AltList
+    GdPat            : Exp * Exp -> Gdpat
+    GdAlt            : Pat * List(Gdpat) * MaybeWhere -> Alt
+    Alt              : Pat * Exp * MaybeWhere -> Alt
+    LabelBinds       : List(Fbind) -> LabelBinds
+                     : Qop -> QopNoNeg
+    FixDecl          : Infix * Prec * Ops -> Fixdecl
+                     : List(Op) -> Ops
+                     : Option(INTEGER) -> Prec
+    InfixR           : Infix
+    InfixL           : Infix
+    Infix            : Infix
+                     : List(APat) -> Fargs
+    ECons            : Exp * List(Exp) -> Exps2
+                     : Exp -> AnyExp
+    ArrOpApp         : ArrCommand * Qop * ArrCommand -> ArrCommand
+    ArrForm          : Exp * List(ArrCommand) -> ArrCommand
+    ArrAppBin        : ArrCommand * Exp -> ArrCommand
+    ArrDo            : ArrStmtList -> ArrCommand
+    ArrCase          : Exp * ArrAltList -> ArrCommand
+    ArrIf            : Exp * ArrCommand * ArrCommand -> ArrCommand
+    ArrLet           : Declbinds * ArrCommand -> ArrCommand
+    ArrAbs           : Fargs * ArrCommand -> ArrCommand
+    ArrHigher        : Exp * Exp -> ArrCommand
+    ArrFirst         : Exp * Exp -> ArrCommand
+    Typed            : Exp * Option(Context) * Type -> Exp
+    Negation         : Exp -> Exp
+    Labeled          : Exp * LabelBinds -> Exp
+    Named            : Qvar * Exp -> Exp
+    OpApp            : Exp * Qop * Exp -> Exp
+    AppBin           : Exp * Exp -> Exp
+                     : List -> Exp
+    Case             : AnyExp * AltList -> Exp
+    Do               : StmtList -> Exp
+    If               : AnyExp * AnyExp * Exp -> Exp
+    Let              : Declbinds * Exp -> Exp
+    Abs              : Fargs * Exp -> Exp
+    RSection         : QopNoNeg * Exp -> Exp
+    LSection         : Exp * Qop -> Exp
+    Product          : Exps2 -> Exp
+    Lit              : Literal -> Exp
+    Constr           : Gcon -> Exp
+    Var              : Qvar -> Exp
+    ArrProcedure     : APat * ArrCommand -> Exp
+    ArrStmtSeq       : ArrImplStmt * ArrImplStmtList -> ArrImplStmtList
+                     : ArrImplStmt -> ArrImplStmtList
+                     : ArrStmt -> ArrImplStmt
+    ArrStmtSeq       : ArrStmt * ArrExplStmtList -> ArrExplStmtList
+                     : ArrStmt -> ArrExplStmtList
+    ArrStmtList      : ArrImplStmtList -> ArrStmtList
+    ArrStmtList      : ArrExplStmtList -> ArrStmtList
+    ArrCmdStmt       : ArrCommand -> ArrStmt
+    ArrBindStmt      : Pat * ArrCommand -> ArrStmt
+    ArrLetStmt       : Declbinds -> ArrStmt
+    ArrAltSeq        : ArrOffsideAlt * ArrOffsideAltList -> ArrOffsideAltList
+                     : ArrOffsideAlt -> ArrOffsideAltList
+                     : ArrAlt -> ArrOffsideAlt
+    ArrAltSeq        : ArrAlt * ArrNoOffsideAltList -> ArrNoOffsideAltList
+                     : ArrAlt -> ArrNoOffsideAltList
+                     : ArrNoOffsideAltList -> ArrNoOffsideAltBlock
+    AltList          : ArrOffsideAltList -> ArrAltList
+    AltList          : ArrNoOffsideAltBlock -> ArrAltList
+    ArrAlt           : Pat * ArrCommand * MaybeWhere -> ArrAlt
+    SignDecl         : Vars * Option(Context) * Type -> Signdecl
+                     : Valdef -> Decl
+                     : Fixdecl -> Decl
+                     : Signdecl -> Decl
+    Class            : Qtycls * Tyvar * List(AType) -> Class
+                     : SimpleClass -> Class
+    SimpleClass      : Qtycls * Tyvar -> SimpleClass
+                     : FlexibleContext -> SContext
+    SContext         : List(SimpleClass) -> SContext
+    SContext         : SimpleClass -> SContext
+                     : FlexibleContext -> Context
+    Context          : List(Class) -> Context
+    Context          : Class -> Context
+    InstArrow        : Tyvar * Tyvar -> Inst
+    InstList         : Tyvar -> Inst
+    InstTuple        : Tyvar * List(Tyvar) -> Inst
+    InstApp          : Gtycon * List(Tyvar) -> Inst
+    InstCons         : Gtycon -> Inst
+                     : Type -> Sbtype
+                     : AType -> Satype
+    InfixConstr      : Sbtype * Conop * Sbtype -> Constr
+    ConstrDecl       : Conid * List(Satype) -> Constr
+    ConstrDecls      : List(Constr) -> Constrs
+    NoConstrDecls    : Constrs
+    Derive           : List(Qtycls) -> Deriving
+    NoDeriving       : Deriving
+    Derive           : Qtycls -> Deriving
+    TFunBin          : Type * Type -> Type
+    TAppBin          : Type * Type -> Type
+                     : AType -> Type
+    TProd            : Types2 -> AType
+    TList            : Type -> AType
+                     : Type -> AType
+    TVar             : Tyvar -> AType
+    TCon             : Gtycon -> AType
+    TCons            : Type * List(Type) -> Types2
+    TList            : Gtycon
+    TUnit            : Gtycon
+    TArrow           : Gtycon
+                     : Qtycon -> Gtycon
+    Hiding           : Exportlist -> Impspec
+    Impspec          : Exportlist -> Impspec
+    As               : Modid -> As
+    Qualified        : Qualified
+    SOURCE           : Src
+    Import           : Option(Src) * Option(Qualified) * Modid * Option(As) * Option(Impspec) -> Importdecl
+                     : Gtycon -> Export
+                     : Qvar -> Export
+    Exports          : Exportlist -> Exports
+    Exportlist       : List(Export) -> Exportlist
+                     : OffsideTopdecl -> OffsideTopdeclList
+                     : OffsideImportdecl -> OffsideImportdeclList
+                     : Topdecl -> NoOffsideTopdecl
+                     : NoOffsideTopdeclList -> NoOffsideTopdeclListSem
+    TopdeclSeq       : NoOffsideTopdecl * NoOffsideTopdeclList -> NoOffsideTopdeclList
+                     : NoOffsideTopdecl -> NoOffsideTopdeclList
+                     : Importdecl -> NoOffsideImportdecl
+                     : NoOffsideImportdeclList -> NoOffsideImportdeclListSem
+    ImportdeclSeq    : NoOffsideImportdecl * NoOffsideImportdeclList -> NoOffsideImportdeclList
+                     : NoOffsideImportdecl -> NoOffsideImportdeclList
+    Body             : OffsideImportdeclList * Empty -> OffsideBody
+    Body             : Empty * OffsideTopdeclList -> OffsideBody
+    Body             : Empty * Empty -> OffsideBody
+    Body             : NoOffsideImportdeclListSem * NoOffsideTopdeclList -> NoOffsideBody
+    Body             : NoOffsideImportdeclListSem * Empty -> NoOffsideBody
+    Body             : Empty * NoOffsideTopdeclListSem -> NoOffsideBody
+    Body             : Empty * Empty -> NoOffsideBody
+    Empty            : Empty
+                     : OffsideBody -> Body
+                     : NoOffsideBody -> Body
+    FlexibleInstance : Option(SContext) * Qtycls * List(AType) * MaybeWhere -> Topdecl
+    Default          : List(Type) -> Topdecl
+    Instance         : Option(SContext) * Qtycls * List(Inst) * MaybeWhere -> Topdecl
+    Class            : Option(SContext) * Tycls * Tyvar * MaybeWhere -> Topdecl
+    Data             : Option(Context) * Type * Constrs * Deriving -> Topdecl
+    TypeDecl         : Tycon * List(Tyvar) * Type -> Topdecl
+                     : Decl -> Topdecl
+    Program          : Body -> Module
+    Module           : ModuleDec * Body -> Module
+    ModuleDec        : Modid * Option(Exports) -> ModuleDec
+                     : Float-HASH -> Literal
+                     : Integer-HASH -> Literal
+                     : String-HASH -> Literal
+                     : Char-HASH -> Literal
+    CLitLit          : CLITLIT -> Literal
+    PrimDouble       : PRIMDOUBLE -> Literal
+    PrimFloat        : PRIMFLOAT -> Literal
+    PrimString       : PRIMSTRING -> Literal
+    PrimChar         : PRIMCHAR -> Literal
+    PrimInt          : PRIMINTEGER -> Literal
+                     : String -> Literal
+    Float            : RATIONAL -> Literal
+    Float            : FLOAT -> Literal
+                     : Char -> Literal
+    Int              : INTEGER -> Literal
+    HexadecimalEsc   : String -> Escape
+    OctalEsc         : String -> Escape
+    DecimalEsc       : String -> Escape
+    ASCIIEsc         : String -> Escape
+    CharEsc          : String -> Escape
+    Gap              : ListPlusOfCharClass0 -> StringChar
+    Escape           : Escape -> StringChar
+                     : String -> StringChar
+    Escape           : Escape -> CharChar
+                     : String -> CharChar
+    String           : List(StringChar) -> String
+    Char             : CharChar -> Char
+                     : String -> CLITLIT
+                     : String -> PRIMDOUBLE
+                     : String -> PRIMFLOAT
+                     : String -> PRIMINTEGER
+                     : String -> PRIMSTRING
+                     : String -> PRIMCHAR
+                     : String -> RATIONAL
+                     : String -> FLOAT
+                     : String -> INTEGER
+    QModId           : String * QModid -> QModid
+    QModId           : String * String -> QModid
+    QConSym          : Modid * String -> QCONSYM
+    QVarSym          : Modid * String -> QVARSYM
+    QConId           : Modid * String -> QCONID
+    QVarId           : Modid * String -> QVARID
+                     : QModid -> Modid
+                     : String -> Modid
+                     : QCONID -> Qconid
+                     : Conid -> Qconid
+                     : CONID -> Conid
+                     : Qtycon -> Qtycls
+                     : Tycon -> Tycls
+                     : QCONID -> Qtycon
+                     : Tycon -> Qtycon
+                     : CONID -> Tycon
+                     : QVARSYM -> Qvarsym1
+                     : VARSYM -> Varsym
+                     : Qconid -> Qcon
+    BinCon           : Qconsym -> Qcon
+                     : CONSYM -> Consym
+                     : QCONSYM -> Qconsym
+                     : Consym -> Qconsym
+    ConsOp           : CONSOP -> ConsOp
+                     : ConsOp -> Gconsym
+                     : Qconsym -> Gconsym
+                     : Qconop -> Qop
+                     : Qvarop -> Qop
+    PrefCon          : Qconid -> Qconop
+                     : Gconsym -> Qconop
+    PrefCon          : Conid -> Conop
+                     : Consym -> Conop
+    PrefOp           : Qvarid -> Qvarop
+                     : Qvarsym -> Qvarop
+    PrefOp           : Varid -> Varop
+                     : Varsym -> Varop
+                     : Qvarsym1 -> Qvarsym
+                     : Varsym -> Qvarsym
+    ConOp            : Conop -> Op
+    Op               : Varop -> Op
+    BinOp            : Qvarsym -> Qvar
+                     : Qvarid -> Qvar
+    BinOp            : Varsym -> Var
+    Var              : Varid -> Var
+                     : QVARID -> Qvarid
+                     : Varid -> Qvarid
+                     : Qcon -> Gcon
+    EmptyList        : Gcon
+    Unit             : Gcon
+    Ins              : Qvar -> Vars
+    Snoc             : Vars * Var -> Vars
+                     : String -> Tyvar
+                     : String -> Varid
+                     : String -> CONSOP
+                     : String -> CONSYM
+                     : String -> VARSYM
+                     : String -> CONID
+
+
+rules
+
+  desugar-arrow :
+    ArrProcedure(pat, cmd) -> OpApp(
+                                AppBin(
+                                  Var("arr")
+                                , Abs(
+                                    [pat]
+                                  , (<tuple> pat-vars)
+                                  )
+                                )
+                              , ">>>"
+                              , (<desugar-arrow'(|pat-vars)> cmd)
+                              )
+    where <free-pat-vars> pat => pat-vars
+
+  desugar-arrow'(|vars):
+    ArrFirst(f, e) -> OpApp(
+                        AppBin(
+                          Var("arr")
+                        , Abs(
+                            [(<tuple-pat> vars)]
+                          , e
+                          )
+                        )
+                      , ">>>"
+                      , f
+                      )
+
+  desugar-arrow'(|vars):
+    ArrHigher(f, e) -> OpApp(
+                         AppBin(
+                           Var("arr")
+                         , Abs(
+                             [(<tuple-pat> vars)]
+                           , Product(ECons(f, [e]))
+                           )
+                         )
+                       , ">>>"
+                       , Var("app")
+                       )
+
+  desugar-arrow'(|vars):
+    ArrIf(e, c1, c2) -> OpApp(
+                          AppBin(
+                            Var("arr")
+                          , Abs(
+                              [(<tuple-pat> vars)]
+                            , If(
+                                e
+                              , AppBin(
+                                  Constr("Left")
+                                , (<tuple> vars)
+                                )
+                              , AppBin(
+                                  Constr("Right")
+                                , (<tuple> vars)
+                                )
+                              )
+                            )
+                          )
+                        , ">>>"
+                        , OpApp(
+                            (<desugar-arrow'(|vars)> c1)
+                          , "|||"
+                          , (<desugar-arrow'(|vars)> c2)
+                          )
+                        )
+
+  desugar-arrow'(|vars):
+    ArrLet(decls, c) -> OpApp(
+                          AppBin(
+                            Var("arr")
+                          , Abs(
+                              [(<tuple-pat> vars)]
+                            , Let(decls, (<tuple> all-vars))
+                            )
+                          )
+                        , ">>>"
+                        , (<desugar-arrow'(|all-vars)> c)
+                        )
+    where <free-decls-vars> decls => decls-vars
+          ; <conc> (vars, decls-vars) => all-vars
+
+  desugar-arrow'(|vars):
+    ArrAbs([p], c) -> OpApp(
+                        AppBin(
+                          Var("arr")
+                        , Abs(
+                            [ Tuple(
+                                (<tuple-pat> vars)
+                              , [Var(p)]
+                              )
+                            ]
+                          , (<tuple> all-vars)
+                          )
+                        )
+                      , ">>>"
+                      , (<desugar-arrow'(|all-vars)> c)
+                      )
+    where <free-pat-vars> p => pat-vars
+          ; <conc> (vars, pat-vars) => all-vars
+
+  desugar-arrow'(|vars):
+    ArrAppBin(c, e) -> OpApp(
+                         AppBin(
+                           Var("arr")
+                         , Abs(
+                             [(<tuple-pat> vars)]
+                           , Product(
+                               ECons(
+                                 (<tuple> vars)
+                               , [e]
+                               )
+                             )
+                           )
+                         )
+                       , ">>>"
+                       , (<desugar-arrow'(|vars)> c)
+                       )
+
+  desugar-arrow'(|vars):
+    ArrForm(e, cs) -> <apply-all(|k)> ( e
+                                      , <map(desugar-arrow'(|vars))> cs
+                                      )
+    where k := Abs(
+                 [(<tuple-pat> vars)]
+               , (<tuple> vars)
+               )
+
+  desugar-arrow'(|vars):
+    ArrOpApp(c1, op, c2) -> <desugar-arrow'(|vars)> ArrForm(
+                                                      BinCon(op)
+                                                    , [c1, c2]
+                                                    )
+
+  desugar-arrow'(|vars):
+    ArrDo(ArrStmtList(ArrCmdStmt(c))) -> <desugar-arrow'(|vars)> c
+
+  desugar-arrow'(|vars):
+    ArrDo(
+      ArrStmtList(ArrStmtSeq(ArrLetStmt(decls), cs))
+    ) -> OpApp(
+           AppBin(
+             Var("arr")
+           , Abs(
+               [(<tuple-pat> vars)]
+             , Let(decls, (<tuple> all-vars))
+             )
+           )
+         , ">>>"
+         , ( <desugar-arrow'(|all-vars)> ArrDo(ArrStmtList(cs))
+           )
+         )
+    where <free-decls-vars> decls => decls-vars
+          ; <conc> (vars, decls-vars) => all-vars
+
+  desugar-arrow'(|vars):
+    ArrDo(
+      ArrStmtList(ArrStmtSeq(ArrCmdStmt(c), cs))
+    ) -> OpApp(
+           AppBin(
+             Var("arr")
+           , Abs(
+               [(<tuple-pat> vars)]
+             , Product(
+                 ECons(
+                   (<tuple> vars)
+                 , [(<tuple> vars)]
+                 )
+               )
+             )
+           )
+         , ">>>"
+         , OpApp(
+             AppBin(
+               Var("first")
+             , (<desugar-arrow'(|vars)> c)
+             )
+           , ">>>"
+           , OpApp(
+               AppBin(
+                 Var("arr")
+               , Var("snd")
+               )
+             , ">>>"
+             , ( <desugar-arrow'(|vars)> ArrDo(ArrStmtList(cs))
+               )
+             )
+           )
+         )
+
+  desugar-arrow'(|vars):
+    ArrDo(
+      ArrStmtList(
+        ArrStmtSeq(ArrBindStmt(p, c), cs)
+      )
+    ) -> OpApp(
+           AppBin(
+             Var("arr")
+           , Abs(
+               [(<tuple-pat> vars)]
+             , Product(
+                 ECons(
+                   (<tuple> vars)
+                 , [(<tuple> vars)]
+                 )
+               )
+             )
+           )
+         , ">>>"
+         , OpApp(
+             AppBin(
+               Var("first")
+             , (<desugar-arrow'(|vars)> c)
+             )
+           , ">>>"
+           , OpApp(
+               AppBin(
+                 Var("arr")
+               , Abs(
+                   [ Tuple(
+                       p
+                     , [(<tuple-pat> vars)]
+                     )
+                   ]
+                 , (<tuple> all-vars)
+                 )
+               )
+             , ">>>"
+             , ( <desugar-arrow'(|all-vars)> ArrDo(ArrStmtList(cs))
+               )
+             )
+           )
+         )
+    where <free-pat-vars> p => pat-vars
+          ; <conc> (pat-vars, vars) => all-vars
+
+
+rules
+
+  tuple-pat :
+    [] -> Constr(Unit())
+
+  tuple-pat :
+    [p] -> p
+
+  tuple-pat :
+    [p|ps] -> Tuple(p, ps)
+
+  tuple :
+    [] -> Constr(Unit())
+
+  tuple :
+    [e] -> e
+
+  tuple :
+    [e|es] -> Product(ECons(e, es))
+
+  free-pat-vars =
+    collect-all(?Var(_))
+
+  free-decls-vars =
+    collect-all(
+      ?Var(_)
+    , union
+    , \ VarFunLHS(v, _) -> v \
+    )
+
+  apply-all(|k):
+    (e, []) -> e
+
+  apply-all(|k):
+    (e, [c|cs]) -> <apply-all(|k)> ( AppBin(
+                                       e
+                                     , OpApp(
+                                         AppBin(Var("arr"), k)
+                                       , ">>>"
+                                       , c
+                                       )
+                                     )
+                                   , cs
+                                   )
+
+  map(s) = 
+    rec x([] + [s | x]) 
+
+  collect-all(s) =
+    collect-all(s, union)
+
+  collect-all(s,un) =
+    rec x(
+      ![<s> | <crush(![], un, x)>]
+      <+ crush(![], un, x)
+    )
+
+  collect-all(s, un, reduce) =
+    rec x(
+       ![<s> | <crush(![],un,x)>]
+    <+ reduce; x
+    <+ crush(![],un,x)
+    )
+
+  crush(nul, sum, s) : _#(xs) -> <foldr(nul, sum, s)> xs
+
+  foldr(s1, s2, f)  = []; s1 + \ [y|ys] -> <s2> (<f> y, <foldr(s1, s2, f)> ys) \
+
+  conc =
+    \ (l1, l2) -> <at-end(!l2)> l1 \
+    <+ \ "" # (xs) -> <concat> xs \
+
+  at-end(s) = 
+    rec x([id | x] + []; s)
+
+  concat =
+    rec x([] + \ [l | ls] -> <at-end(<x> ls)> l\ )
+
+  union : (l1, l2) -> <rec x(
+       ([]; !l2)
+       <+ (HdMember(!l2); x)
+       <+ [id | x]
+    )> l1
+
+  HdMember(mklst) : 
+     [x | xs] -> xs 
+     where mklst; fetch(\y -> <eq> (x, y)\)
+
+  fetch(s) = 
+    rec x([s | id] <+ [id | x])
+
+  eq = ?(x, x)
+
+  oncetd(s) = rec x(s <+ one(x))
+
+strategies
+  main = oncetd(desugar-arrow)

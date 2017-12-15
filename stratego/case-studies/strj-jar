@@ -1,0 +1,127 @@
+#!/bin/sh
+
+## SETTINGS
+
+RUNTIMECP=
+PRINT_CLASSPATH=
+JAR=`if type -p fastjar &>/dev/null; then echo fastjar; else echo jar; fi`
+JAVAC=`if type -p ecj &>/dev/null; then echo ecj; else echo javac; fi`
+if [ "$JAVACFLAGS" == "" ]; then
+  JAVACFLAGS="-J-Xmx256m -J-Xms100m -J-server -J-XX:+UseParallelGC -encoding UTF-8"
+fi
+
+[ "$TEMP" != "" ] || TEMP=/tmp
+TEMPDIR=$TEMP/strj-jar-`date +'%N'`
+
+CLASSPATH=strategoxt.jar
+
+if [ ! -e $CLASSPATH ]; then
+  echo Warning: $CLASSPATH not found >&2
+  echo "(invoked as $0; available as `type -p strj-jar`) ">&2
+fi
+
+## PARAMETERS
+
+while P=$1; shift; do
+  if [ "$P" == "-cp" ]; then
+    CLASSPATH="$1:$CLASSPATH"
+    shift
+  elif [ "$P" == "-i" ]; then
+    INPUT="$1"
+    shift
+  elif [ "$P" == "-p" ]; then
+    PRINT_CLASSPATH=1
+  elif [ "$P" == "-o" ]; then
+    OUTPUT="$1"
+    shift
+  elif [ "$P" == "-runtimecp" ]; then
+    RUNTIMECP="$1 $RUNTIMECP"
+    shift
+  elif [ "$P" == "--help" ] || [ "$P" == "-h" ]; then
+    break
+  else
+    echo "Illegal argument: $P" >&2
+    INPUT=
+    break
+  fi
+done
+
+if [ $PRINT_CLASSPATH ]; then
+  echo $CLASSPATH
+  exit
+fi
+
+if [ "$INPUT" == "" ]; then
+  echo "Usage: strj-jar [-cp CLASSPATH] [-runtimecp CLASSPATH] -i INPUT.java [-o OUTPUT.jar]"
+  exit 1
+fi
+
+
+## PARAMETER VALIDATION
+
+if [ ! -e "$INPUT" ]; then
+  echo "File does not exist: $INPUT" >&2
+  exit 1
+elif [ "$CLASSPATH" == "strategoxt.jar" ] && [ ! -e strategoxt.jar ]; then
+  echo "File not found: strategoxt.jar" >&2
+  exit 1
+elif [ "$OUTPUT" == "" ]; then
+  OUTPUT="`dirname $INPUT`/`basename $INPUT .java`.jar"
+fi
+
+INPUTDIR=`dirname $INPUT`
+
+## PROCESS PACKAGE NAME
+ 
+INPUT2=
+INPUT3=
+if head -n 1 $INPUT | grep '^package' &>/dev/null; then
+  PACKAGE="`head -n 1 $INPUT | sed 's/package //; s/\;//'`."
+  # PACKAGEDIR=`echo "$PACKAGE" | sed 's!\.!/!g	'`
+  INPUT2="$INPUTDIR/Main.java"
+  if [ "$INPUT2" == "$INPUT" ]; then
+    INPUT2=
+  fi
+  INPUTDIR2=`cd $INPUTDIR; pwd` # canonicalize
+  INPUT3="$INPUTDIR/`basename $INPUTDIR2`.java"
+  if [ ! -e $INPUT3 ]; then
+    INPUT3=
+  fi
+fi
+
+## COMPILATION
+
+mkdir -p $TEMPDIR || exit 1
+echo "$JAVAC -source 5 -target 5 -nowarn $JAVACFLAGS -cp $CLASSPATH -d \$TEMPDIR $INPUT $INPUT2 $INPUT3"
+set -o pipefail
+$JAVAC -source 5 -target 5 -nowarn $JAVACFLAGS -cp "$CLASSPATH" -d $TEMPDIR $INPUT $INPUT2 $INPUT3 \
+  | tee $TEMPDIR/javac.log
+if [ $? != 0 ]; then
+  if grep "annot be resolved" $TEMPDIR/javac.log >/dev/null; then
+    echo "Unresolved references: please check the -la import options." >&2
+  fi
+  rm -rf $TEMPDIR
+  exit 1
+fi
+
+## JARRING
+
+MAINCLASS="`head -n1 $INPUT | grep "package [^;];" | sed 's/package ([^;]*);/$1\./'``basename $INPUT .java`"
+echo "Manifest-Version: 1.0" > $TEMPDIR/MANIFEST.MF
+echo "Main-Class: $PACKAGE$MAINCLASS" >> $TEMPDIR/MANIFEST.MF
+echo "Class-Path: strategoxt.jar $RUNTIMECP" >> $TEMPDIR/MANIFEST.MF
+echo >> $TEMPDIR/MANIFEST.MF
+
+if ls $INPUTDIR/*.str &>/dev/null; then
+  echo "WARNING: using this build directory may mean that non-term files are included as attachments" >&2
+fi
+
+ATTACHMENTS=`ls $INPUTDIR | grep -vE '^.*\.(java|jar|log|astr|str|meta|dep|c|lo|o|class|MF)$' | sed "s!^!-C $INPUTDIR !"`
+
+echo $JAR cfm $OUTPUT \$TEMPDIR/MANIFEST.MF -C \$TEMPDIR . $ATTACHMENTS
+$JAR cfm $OUTPUT $TEMPDIR/MANIFEST.MF -C $TEMPDIR . $ATTACHMENTS
+RET=$?
+
+rm -rf $TEMPDIR
+
+exit $RET

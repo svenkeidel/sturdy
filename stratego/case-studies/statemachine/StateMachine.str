@@ -1,0 +1,134 @@
+module StateMachine
+
+imports SM-sig
+
+rules
+
+  sm-to-java :
+	machine@Machine(m, extends, elem*) -> $[
+		public class [m] [<extends-to-java>extends] {
+			String current = [<state-to-java>init];
+			[vardefs]
+
+			String next(String event) {
+				[cond-stat*]
+				while(true) {
+					[uncond-stat*]
+				}
+			}
+		}
+	]
+	where
+		init         := <initial-state> machine;
+		vardefs      := <var-defs; filter(vardef-to-java)> machine;
+		cond-stat*   := <transitions; filter(cond-transition-to-java)> machine;
+		uncond-stat* := <transitions; filter(uncond-transition-to-java)> machine
+
+  extends-to-java :
+	NoExtends() -> $[]
+  extends-to-java :
+	Extends(m) -> $[extends [m]]
+
+  vardef-to-java :
+	VarDef(x, c) -> $[
+		int [x] = [<exp-to-java>c];]
+
+  cond-transition-to-java :
+	Transition(from, to, event@Event(_), guard, actions) -> $[
+		if(current == [<state-to-java>from] && [<event-to-java>event] && [<guard-to-java>guard]) {
+			[<actions-to-java>actions]
+			current = [<state-to-java>to];
+			return current;
+		}
+	]
+
+  uncond-transition-to-java :
+	Transition(from, to, NoEvent(), guard, actions) -> $[
+		if(current == [<state-to-java>from] && [<guard-to-java>guard]) {
+			[<actions-to-java>actions]
+			current = [<state-to-java>to];
+			continue;
+		}
+	]
+
+  state-to-java :
+	StateRef(x) -> $["[x]"]
+  state-to-java :
+	State(x) -> $["[x]"]
+
+  event-to-java :
+	NoEvent() -> $[true]
+  event-to-java :
+	Event(x) -> $[event == "[x]"]
+
+  guard-to-java :
+	NoGuard() -> $[true]
+  guard-to-java :
+	Guard(e) -> <exp-to-java> e
+
+  actions-to-java :
+	NoActions() -> $[]
+  actions-to-java :
+	Actions(action*) -> <map(action-to-java)> action*
+
+  action-to-java :
+	Assign(Var(x), e) -> $[[x] = [<exp-to-java>e];]
+
+rules // translate expressions
+
+  exp-to-java :
+	True() -> $[true]
+  exp-to-java :
+	False() -> $[false]
+  exp-to-java :
+	Int(i) -> i
+  exp-to-java :
+	Var(x) -> x
+  exp-to-java :
+	Or(e1, e2) -> $[([<exp-to-java>e1] | [<exp-to-java>e2])]
+  exp-to-java :
+	And(e1, e2) -> $[([<exp-to-java>e1] & [<exp-to-java>e2])]
+  exp-to-java :
+	Gt(e1, e2) -> $[([<exp-to-java>e1] > [<exp-to-java>e2])]
+  exp-to-java :
+	Eq(e1, e2) -> $[([<exp-to-java>e1] == [<exp-to-java>e2])]
+  exp-to-java :
+	Add(e1, e2) -> $[([<exp-to-java>e1] + [<exp-to-java>e2])]
+  exp-to-java :
+	Sub(e1, e2) -> $[([<exp-to-java>e1] - [<exp-to-java>e2])]
+  exp-to-java :
+	c#(t*) -> $[[c]([<map(exp-to-java)>t*])]
+
+rules
+
+	states =
+		collect-all(?State(_))
+
+  initial-state =
+	states; Hd
+
+  var-defs =
+	collect-all(?VarDef(_, _))
+
+	transitions =
+		collect-all(?"Transition"#(_))
+
+
+
+rules
+  collect-all(s,un) =
+    rec x(
+      ![<s> | <crush(![], un, x)>]
+      <+ crush(![], un, x)
+    )
+
+  collect-all(s, un, reduce) =
+    rec x(
+       ![<s> | <crush(![],un,x)>]
+    <+ reduce; x
+    <+ crush(![],un,x)
+    )
+
+  crush(nul, sum, s) : _#(xs) -> <foldr(nul, sum, s)> xs
+
+  foldr(s1, s2, f)  = []; s1 + \ [y|ys] -> <s2> (<f> y, <foldr(s1, s2, f)> ys) \

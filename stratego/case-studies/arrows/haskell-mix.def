@@ -1,0 +1,34 @@
+definition
+module Haskell-Mix[E]
+imports Haskell-Export
+exports
+
+  context-free syntax
+
+    "|[" HaskellExp "]|" -> E {cons("ToMetaExpr")}
+    "|[" HaskellTopdecl "]|" -> E {cons("ToMetaExpr")}
+
+    "cmd" "|[" HaskellArrCommand "]|" -> E {cons("ToMetaExpr")}
+
+  context-free syntax
+
+    "$"  E -> HaskellArrCommand {cons("FromMetaExpr")}
+
+    "$*" E -> HaskellArrImplStmtList {cons("FromMetaExpr")}
+    "$*" E -> HaskellArrExplStmtList {cons("FromMetaExpr")}
+
+    "$"  E -> HaskellExp {cons("FromMetaExpr")}
+    "$"  E -> HaskellType {cons("FromMetaExpr")}
+    "$"  E -> HaskellInst {cons("FromMetaExpr")}
+
+    "$"  E -> HaskellAPat {cons("FromMetaExpr")}
+    "$*" E -> HaskellFargs {cons("FromMetaExpr")}
+
+    "$*" E -> HaskellDeclList {cons("FromMetaExpr")}
+
+  lexical syntax
+    "$" -> NOVARSYM
+    NOVARSYM -> HaskellVARSYM {reject}
+
+  lexical restrictions
+    NOVARSYM -/- [\ \t\r\n] \/ [\!\#\$\%\&\*\+\.\/] \/ [\<\=\>\?\@\\\^\|\-\~] \/ [\:]

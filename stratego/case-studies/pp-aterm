@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+STRJAR=../strategoxt.jar
+
+exec java -Xss8M -cp "$STRJAR" \
+  run org.strategoxt.stratego-aterm.io-pp-aterm "$@"

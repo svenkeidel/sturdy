@@ -1,0 +1,44 @@
+module arith
+
+signature
+  constructors
+    Zero : Exp
+    Succ : Exp -> Exp
+    Mul : Exp * Exp -> Exp
+    Add  : Exp * Exp -> Exp
+
+    Nil  : List(a)
+    Cons : a * List(a) -> List(a)
+         : ()
+         : a -> (a)
+         : a * b -> (a, b)
+         : a * b * c -> (a, b, c)
+
+rules
+  eval: Zero() -> Zero()
+  eval: Succ(n) -> Succ(<eval> n)
+
+  eval: Mul(Zero(), _) -> Zero()
+  eval: Mul(Succ(m),n) -> <eval> Add(Mul(m, n), n)
+  eval: Mul(e1,e2)     -> <eval> Mul(<eval> e1, <eval> e2)
+
+  eval: Add(Zero(), n) -> <eval> n
+  eval: Add(Succ(m),n) -> <eval> Succ(Add(m, n))
+  eval: Add(e1,e2)     -> <eval> Add(e1, e2)
+
+
+/* rules */
+/*   step: Succ(n) -> Succ(<step> n) */
+
+/*   step: Mul(Zero(), _) -> Zero() */
+/*   step: Mul(Succ(m),n) -> Add(Mul(m,n),n) */
+/*   step: Mul(e1,e2)     -> Mul(<step> e1, e2) */
+/*   step: Mul(e1,e2)     -> Mul(e1, <step> e2) */
+
+/*   step: Add(Zero(), n) -> n */
+/*   step: Add(Succ(m),n) -> Succ(Add(m,n)) */
+/*   step: Add(e1,e2)     -> Add(<step> e1, e2) */
+/*   step: Add(e1,e2)     -> Add(e1, <step> e2) */
+
+/* rules */
+/*   eval = step < eval + id */

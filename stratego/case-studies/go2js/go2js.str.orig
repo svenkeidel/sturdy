@@ -1,0 +1,1082 @@
+module go2js
+
+signature
+  constructors
+    Nil                      : List(a)
+    Cons                     : a * List(a) -> List(a)
+    Conc                     : List(a) * List(a) -> List(a)
+                             : ()
+                             : a -> (a)
+                             : a * b -> (a, b)
+                             : a * b * c -> (a, b, c)
+    None                     : Option(a)
+    Some                     : a -> Option(a)
+    Program                  : List(Statement) -> Start
+                             : String -> ID
+                             : String -> INT
+                             : String -> FLOAT
+                             : String -> STRING
+                             : String -> StringChar
+                             : String -> BackSlashChar
+                             : String -> CommentChar
+                             : String -> InsideComment
+                             : String -> NewLineEOF
+                             : String -> EOF
+    Parenthesised            : Expression -> Expression
+    Property                 : Expression * ID -> Expression
+    Call                     : Expression * List(Expression) -> Expression
+    IntegerLiteral           : INT -> Expression
+    FloatLiteral             : FLOAT -> Expression
+    True                     : Expression
+    False                    : Expression
+    Null                     : Expression
+    Undefined                : Expression
+    Identifier               : ID -> Expression
+    String                   : STRING -> Expression
+    Addition                 : Expression * Expression -> Expression
+    Substraction             : Expression * Expression -> Expression
+    Multiplication           : Expression * Expression -> Expression
+    Division                 : Expression * Expression -> Expression
+    Greater                  : Expression * Expression -> Expression
+    Lower                    : Expression * Expression -> Expression
+    GreaterEquals            : Expression * Expression -> Expression
+    LowerEquals              : Expression * Expression -> Expression
+    Equals                   : Expression * Expression -> Expression
+    NotEquals                : Expression * Expression -> Expression
+    And                      : Expression * Expression -> Expression
+    Or                       : Expression * Expression -> Expression
+    AnonFunction             : List(Parameter) * List(Statement) -> Expression
+    Object                   : List(KeyValue) -> Expression
+    KeyValue                 : ID * Expression -> KeyValue
+    Array                    : Expression * Expression -> Expression
+    ArrayLiteral             : List(Expression) -> Expression
+    parameter                : ID -> Parameter
+    expStmt                  : Expression -> Statement
+    varDecl                  : ID * Expression -> Statement
+    constDecl                : ID * Expression -> Statement
+    assignment               : Expression * Expression -> Statement
+    for                      : Statement * Expression * Expression * List(Statement) -> Statement
+    while                    : Expression * List(Statement) -> Statement
+    return                   : Expression -> Statement
+                             : MethodDecl -> Statement
+    try                      : List(Statement) * CatchFinally -> Statement
+    catch                    : Expression * List(Statement) * Option(CatchFinally) -> CatchFinally
+    finally                  : List(Statement) -> CatchFinally
+    method                   : ID * List(Parameter) * List(Statement) -> MethodDecl
+    ReceiveStmt              : Operand * Operand -> Statement
+    SubstitutedExp           : Operand * List(Statement) * StringLit -> UnaryExpr
+    SubstitudedCall          : Exp * Exp * StringLit -> Exp
+    AddedJsStmt              : Statement -> Statement
+                             : ConstDecl -> Declaration
+                             : TypeDecl -> Declaration
+                             : VarDecl -> Declaration
+                             : Declaration -> TopLevelDecl
+                             : FunctionDecl -> TopLevelDecl
+                             : MethodDecl -> TopLevelDecl
+    ConstDecl                : ConstSpec -> ConstDecl
+    ConstSpecTyped           : IdentifierList * Type * Option(ConstDeclAssign) -> ConstSpec
+    ConstSpec                : IdentifierList * ConstDeclAssign -> ConstSpec
+    ConstDeclAssign          : ExpressionList -> ConstDeclAssign
+    IdentifierList           : List(Identifier) -> IdentifierList
+    ExpressionList           : List(Expression) -> ExpressionList
+    TypeDecl                 : TypeSpec -> TypeDecl
+    TypeDecls                : List(TypeSpec) -> TypeDecl
+    TypeSpec                 : Identifier * Type -> TypeSpec
+    VarDecl                  : VarSpec -> VarDecl
+    VarSpecTyped             : IdentifierList * Type * Option(VarDeclAssign) -> VarSpec
+    VarSpec                  : IdentifierList * VarDeclAssign -> VarSpec
+    VarDeclAssign            : ExpressionList -> VarDeclAssign
+    ShortVarDecl             : IdentifierList * ShortVarDeclAssign -> ShortVarDecl
+    ShortVarDeclAssign       : ExpressionList -> ShortVarDeclAssign
+    FunctionDecl             : FunctionName * FunOrSig -> FunctionDecl
+    FunctionName             : ID -> FunctionName
+                             : Function -> FunOrSig
+                             : FunctionSignature -> FunOrSig
+    Function                 : Signature * FunctionBody -> Function
+    FunctionSignature        : Signature -> FunctionSignature
+    FunctionBody             : Block -> FunctionBody
+    MethodDecl               : Parameters * MethodName * FunOrSig -> MethodDecl
+    MethodName               : Identifier -> MethodName
+                             : String -> QualifiedIdent
+                             : String -> BinaryOp
+                             : String -> RelOp
+                             : String -> AddOp
+                             : String -> MulOp
+                             : String -> UnaryOp
+    Literal                  : Literal -> Operand
+    OperandName              : OperandName -> Operand
+    MethodExpr               : MethodExpr -> Operand
+    GroupedExpression        : Expression -> Operand
+                             : BasicLit -> Literal
+                             : CompositeLit -> Literal
+                             : FunctionLit -> Literal
+    IntLit                   : IntLit -> BasicLit
+    StringLit                : StringLit -> BasicLit
+                             : Identifier -> OperandName
+                             : QualifiedIdent -> OperandName
+    CompositeLit             : LiteralType * LiteralValue -> CompositeLit
+                             : ArrayType -> LiteralType
+                             : TypeName -> LiteralType
+    LiteralValue             : Option(ElementList) -> LiteralValue
+    ElementList              : List(KeyedElement) -> ElementList
+    SingleElem               : Element -> KeyedElement
+    KeyValPair               : Key * Element -> KeyedElement
+                             : Identifier -> Key
+                             : Expression -> Element
+                             : LiteralValue -> Element
+    FunctionLit              : Function -> FunctionLit
+    PrimaryExprArguments     : PrimaryExpr * Arguments -> PrimaryExpr
+    PrimaryExprIndex         : PrimaryExpr * Index -> PrimaryExpr
+    PrimaryExprSlice         : PrimaryExpr * Slice -> PrimaryExpr
+    PrimaryExprSelector      : PrimaryExpr * Selector -> PrimaryExpr
+    Operand                  : Operand -> PrimaryExpr
+    Index                    : Expression -> Index
+    Slice                    : Option(Expression) * Option(Expression) -> Slice
+    Arguments                : Option(ExpressionList) -> Arguments
+    TypeArg                  : TypeLit -> Arguments
+    TypeArgWithList          : TypeLit * ExpressionList -> Arguments
+    Selector                 : Identifier -> Selector
+    MethodExpr               : ReceiverType * MethodName -> MethodExpr
+    TypeName                 : TypeName -> ReceiverType
+    Asterisk                 : TypeName -> ReceiverType
+    Brackets                 : ReceiverType -> ReceiverType
+    UnaryExpr                : UnaryExpr -> Expression
+    BinaryExpr               : Expression * BinaryOp * Expression -> Expression
+    PrimaryExpr              : PrimaryExpr -> UnaryExpr
+    UnaryExpr                : UnaryOp * UnaryExpr -> UnaryExpr
+    Conversion               : Type * Expression -> Conversion
+                             : String -> LetterUnicodeDigit
+                             : String -> Identifier
+                             : String -> IntLit
+                             : String -> DecimalLit
+                             : String -> OctalLit
+                             : String -> HexX
+                             : String -> HexLit
+                             : String -> StringLit
+    SourceFile               : PackageClause * List(ImportDecl) * List(TopLevelDecl) -> SourceFile
+    PackageClause            : PackageName -> PackageClause
+    PackageName              : Identifier -> PackageName
+    SingleImportDecl         : ImportSpec -> ImportDecl
+    MultiImportDecl          : List(ImportSpec) -> ImportDecl
+    ImportSpec               : PackageSelector * ImportPath -> ImportSpec
+    SubSet                   : Identifier -> PackageSelector
+    All                      : PackageSelector
+    ImportPath               : StringLit -> ImportPath
+                             : String -> Newline
+                             : String -> UnicodeChar
+                             : String -> UnicodeLetter
+                             : String -> UnicodeDigit
+                             : String -> Letter
+                             : String -> DecimalDigit
+                             : String -> OctalDigit
+                             : String -> HexDigit
+    Block                    : StatementList -> Block
+    StatementList            : List(StatementLine) -> StatementList
+    StatementLine            : Statement -> StatementLine
+                             : Declaration -> Statement
+                             : LabeledStmt -> Statement
+                             : SimpleStmt -> Statement
+                             : GoStmt -> Statement
+                             : ReturnStmt -> Statement
+                             : BreakStmt -> Statement
+                             : ContinueStmt -> Statement
+                             : GotoStmt -> Statement
+                             : FallthroughStmt -> Statement
+                             : Block -> Statement
+                             : IfStmt -> Statement
+                             : SwitchStmt -> Statement
+                             : SelectStmt -> Statement
+                             : ForStmt -> Statement
+                             : DeferStmt -> Statement
+                             : EmptyStmt -> SimpleStmt
+                             : ExpressionStmt -> SimpleStmt
+                             : SendStmt -> SimpleStmt
+                             : IncDecStmt -> SimpleStmt
+                             : Assignment -> SimpleStmt
+                             : ShortVarDecl -> SimpleStmt
+    EmptyStmt                : EmptyStmt
+    LabeledStmt              : Label * Statement -> LabeledStmt
+    Label                    : ID -> Label
+    ExpressionStmt           : Expression -> ExpressionStmt
+    SendStmt                 : Channel * Expression -> SendStmt
+    Channel                  : Expression -> Channel
+    IncStmt                  : Expression -> IncDecStmt
+    DecStmt                  : Expression -> IncDecStmt
+    Assignment               : ExpressionList * AssignOp * ExpressionList -> Assignment
+    AssignAddOp              : AddOp -> AssignOp
+    AssignMulOp              : MulOp -> AssignOp
+    AssignEquals             : AssignOp
+    IfStmt                   : Option(IfConditionStmt) * Expression * Block * Option(ElseStmt) -> IfStmt
+    IfConditionStmt          : SimpleStmt -> IfConditionStmt
+    ElseIfStmt               : IfStmt -> ElseStmt
+    ElseBlockStmt            : Block -> ElseStmt
+    SwitchStmt               : SwitchStmt
+    ForStmt                  : ForCond * Block -> ForStmt
+    Condition                : Condition -> ForCond
+    ForClause                : ForClause -> ForCond
+    RangeClause              : RangeClause -> ForCond
+                             : Expression -> Condition
+    ForClause                : Option(InitStmt) * Option(Condition) * Option(PostStmt) -> ForClause
+                             : SimpleStmt -> InitStmt
+                             : SimpleStmt -> PostStmt
+    RangeClause              : Option(RangeExpIdList) * Expression -> RangeClause
+    ExpressionList           : ExpressionList -> RangeExpIdList
+    IdentifierList           : IdentifierList -> RangeExpIdList
+    GoStmt                   : Expression -> GoStmt
+    SelectStmt               : SelectStmt
+    ReturnStmt               : Option(ExpressionList) -> ReturnStmt
+    BreakStmt                : Option(Label) -> BreakStmt
+    ContinueStmt             : Option(Label) -> ContinueStmt
+    GotoStmt                 : Option(Label) -> GotoStmt
+    FallthroughStmt          : FallthroughStmt
+    DeferStmt                : Expression -> DeferStmt
+                             : TypeLit -> Type
+                             : TypeName -> Type
+                             : TypeGrouped -> Type
+                             : Identifier -> TypeName
+                             : BooleanType -> TypeLit
+                             : NumericType -> TypeLit
+                             : StringType -> TypeLit
+                             : ArrayType -> TypeLit
+                             : StructType -> TypeLit
+                             : PointerType -> TypeLit
+                             : FunctionType -> TypeLit
+                             : InterfaceType -> TypeLit
+                             : SliceType -> TypeLit
+                             : MapType -> TypeLit
+                             : ChannelType -> TypeLit
+    TypeGrouped              : List(Type) -> TypeGrouped
+    BooleanType              : BooleanType
+    IntType                  : NumericType
+    StringType               : StringType
+    ArrayType                : Expression * Type -> ArrayType
+    SliceType                : SliceType
+    StructType               : List(FieldDecl) -> StructType
+    NormalField              : IdentifierList * Type -> FieldDecl
+    AnonField                : Option(Pointer) * TypeName -> FieldDecl
+    Pointer                  : Pointer
+    PointerType              : Type -> PointerType
+    FunctionType             : Signature -> FunctionType
+    Signature                : Parameters * Option(Result) -> Signature
+                             : Parameters -> Result
+                             : Type -> Result
+    Parameters               : List(ParameterDecl) -> Parameters
+    ParameterDecl            : ID * Type -> ParameterDecl
+    InterfaceType            : InterfaceType
+    MapType                  : MapType
+    Channel                  : Type -> ChannelType
+    ReceivingChannel         : UnaryOp * Type -> ChannelType
+    SendingChannel           : UnaryOp * Type -> ChannelType
+
+rules
+
+        generate-js-ast : ast -> result
+          where
+            result := <gen-js-ast> ast
+
+        sub-go : ast -> analyzedAst
+          where
+            analyzedAst := <subAllChannels> ast
+
+        gen-js-ast : SourceFile(packageClause, _, topLevelDecls) -> Program(js)
+          where
+            packageName := <package-name> packageClause;
+            jsdecl := <map(gen-js-ast)> topLevelDecls;
+            js := <concat> [IMPORTLIST, jsdecl, [expStmt(Call(Identifier("main"), []))]]
+
+	gen-js-ast : FunctionDecl(
+          FunctionName(name),
+          Function(
+            Signature(Parameters(params), returnType),
+            FunctionBody(block)
+	  )
+        ) -> method(name, paramsJs, bodyJs)
+          where
+            retparname := <newname> "__retcallback__";
+            paramsJs := <conc> (<map(gen-js-ast)> params, [parameter(retparname)]);
+            bodyJs := <func-block(|retparname)> block
+
+        // ---- declarations.str ----
+	gen-js-ast: MethodDecl(
+           Parameters(receiver),
+           MethodName(name),
+           Function(
+             Signature(Parameters(params), returntype),
+             FunctionBody(block)
+           )
+        ) -> method(name, paramsJs, bodyJs)
+           where
+             retparname := <newname> "__retcallback__";
+             paramsJs := <conc> (<map(gen-js-ast)> receiver, <map(gen-js-ast)> params, [parameter(retparname)]);
+             bodyJs := <func-block(|retparname)> block
+
+	gen-js-ast : ParameterDecl(name, _) -> parameter(name)
+
+	stmt-to-js(|defername) : ConstDecl(constDecl) -> <convert-stmt(|defername)> constDecl
+	stmt-to-js(|defername): VarDecl(varDecl) -> <convert-stmt(|defername)> varDecl
+
+	stmt-to-js(|defername) : VarSpecTyped(IdentifierList(identifierList), _, None()) -> (<map(to-js-var)> identifierList, [])
+	stmt-to-js(|defername) : VarSpecTyped(idList, _, Some(list)) -> <stmt-to-js(|defername)> ConstSpec(idList, list)
+
+	stmt-to-js(|defername) : ConstSpecTyped(IdentifierList(identifierList), _, None()) -> (<map(to-js-const)> identifierList, [])
+	stmt-to-js(|defername) : ConstSpecTyped(idList, _, Some(list)) -> <stmt-to-js(|defername)> ConstSpec(idList, list)
+
+	to-js-var: identifier -> varDecl(identifier, Null())
+	to-js-const: identifier -> constDecl(identifier, Null())
+
+	stmt-to-js(|defername) : VarSpec(IdentifierList(targets), VarDeclAssign(ExpressionList(values))) -> (expressions, stmts)
+          where
+            tuples := <zip(to-js-vars)> (targets, values);
+            expressions := <map(exp)> tuples;
+            stmts := <mapconcat(stmts)> tuples
+
+        stmt-to-js(|defername): ConstSpec(IdentifierList(targets), ConstDeclAssign(ExpressionList(values))) -> (expressions, stmts)
+          where
+            tuples := <zip(to-js-consts)> (targets, values);
+            expressions := <map(exp)> tuples;
+            stmts := <mapconcat(stmts)> tuples
+
+        to-js-vars: (target, value) -> (varDecl(target, <exp> valueJs), <stmts> valueJs)
+          where
+            valueJs := <gen-js-ast> value
+
+        to-js-consts: (target, value) -> (constDecl(target, <exp> valueJs), <stmts> valueJs)
+          where
+            valueJs := <gen-js-ast> value
+
+        stmt-to-js(|defername) : ShortVarDecl(IdentifierList(targets), ShortVarDeclAssign(ExpressionList(values))) -> (expressions, stmts)
+          where
+            tuples := <zip(to-js-vars)> (targets, values);
+            expressions := <map(exp)> tuples;
+            stmts := <mapconcat(stmts)> tuples
+
+        // ---- statements.str ----
+	stmt-list : (stmtlist, _) -> stmtlist
+	subbed-list : (_, stmt) -> stmt
+
+	func-block(|callbackname) : Block(statementList) ->
+          [ try(<conc> ([deferStackDecl, deferStackSetRet], statementsJs),
+                catch(Identifier("e"), [executeDeferred], None())
+            )
+	  ]
+          where
+            deferstackname := <newname> "___deferstack___";
+            deferStackDecl := varDecl(deferstackname, Call(Property(Identifier(GOROUTINE_LIBNAME), GODEFER_NEWDEFERMETHOD), []));
+            deferStackSetRet := expStmt(Call(Property(Identifier(deferstackname), GODEFER_SETRETMETHOD), [Identifier(callbackname)]));
+            statements := <statements-from-list> statementList;
+            executeDeferred := <get-deferstmt(|deferstackname)> [];
+            statementsWithAddedJs := <conc> (statements,
+              [AddedJsStmt(expStmt(Call(Property(Identifier(deferstackname), GODEFER_RETURNMETHOD),[])))]);
+            statementsJs := <stmt-iter(|deferstackname)> statementsWithAddedJs
+
+        gen-js-ast : Block(statementList) -> js
+          where
+            statements := <statements-from-list> statementList;
+            js := <stmt-iter(|"")> statements
+
+	process-substituted(|parstmt, rest, defername): [SendStmt(channel, exp) | []] -> [
+          expStmt(
+            Call(Property(<Fst> parstmt, "send"),
+              [ <Snd> parstmt,
+                AnonFunction(
+                  [],
+                  [try(remaining, catch(Identifier("e"),
+                  [executeDeferred], None()))]
+                )
+              ]
+            )
+          )
+        ]
+          where
+            remaining := <stmt-iter(|defername)> rest;
+            executeDeferred := <get-deferstmt(|defername)> []
+
+        process-substituted(|parstmt, rest, defername): [SubstitudedCall(target, argsJs, subVarName) | []] -> [callStmt]
+          where
+            tailJs := <stmt-iter(|defername)> rest;
+            executeDeferred := <get-deferstmt(|defername)> [];
+            retFunc := AnonFunction(
+              [parameter(subVarName)],
+              [ try(<conc> (parstmt, tailJs),
+                  catch(Identifier("e"), [executeDeferred], None())
+                )
+              ]
+            );
+            callStmt := expStmt(Call(<get-target> target, <conc> (argsJs, [retFunc])))
+
+        process-substituted(|parstmt, rest, defername):
+          [SubstitudedCall(target, argsJs, subVarName) | tail] -> [callStmt]
+          where
+            tailJs := <process-substituted(|parstmt, rest, defername)> tail;
+            executeDeferred := <get-deferstmt(|defername)> [];
+            retFunc := AnonFunction(
+              [parameter(subVarName)],
+              [try(tailJs , catch(Identifier("e"), [executeDeferred], None()))]
+            );
+            callStmt := expStmt(Call(<get-target> target, <conc> (argsJs, [retFunc])))
+
+	get-target: a@AnonFunction(x, y) -> Parenthesised(a)
+	get-target: p@Property(_,_) -> p
+	get-target: x -> Identifier(x)
+
+	process-substituted(|parent, rest, dstack): [ReceiveStmt(varname, channelExp) | []] -> [
+          expStmt(
+            Call(
+              Property(channelExp, "receive"), [
+                AnonFunction(
+                  [parameter(varnameJs)],
+                  [try(<conc> (parent, tailJs), catch(Identifier("e"), [executeDeferred], None()))]
+                )
+              ]
+            )
+          )
+        ]
+          where
+	    varnameJs := <extract-varname> varname;
+	    tailJs := <stmt-iter(|dstack)> rest;
+            executeDeferred := <get-deferstmt(|dstack)> []
+
+	process-substituted(|parent, rest, dstack): [ReceiveStmt(varname, channelExp) | tail] -> [
+          expStmt(
+            Call(
+              Property(channelExpJs, "receive"),
+              [AnonFunction([parameter(varnameJs)], nextReceive)]
+            )
+          )
+        ]
+          where
+            channelExpJs := <gen-js-ast> channelExp;
+            varnameJs := <extract-varname> varname;
+            nextReceive := <process-substituted(|parent, rest, dstack)> tail
+
+	process-substituted(|parstmt, rest, defername): [] -> <conc> (parstmt, restJs)
+          where
+	    restJs := <stmt-iter(|defername)> rest
+
+	stmt-iter(|defername): [stat@SendStmt(channel, exp) | xs] -> ret
+          where
+            tupleChan := <gen-js-ast> channel;
+            tupleExp := <gen-js-ast> exp;
+            stmts := <concat> [<stmts> tupleChan, <stmts> tupleExp, [stat]];
+            ret := <process-substituted(|(<exp> tupleChan, <exp> tupleExp), xs, defername)> stmts
+
+	stmt-iter(|defername): [stmt | xs] -> ret
+          where
+            tuple := <convert-stmt(|defername)> stmt;
+            subbedExps := <subbed-list> tuple;
+            ret := <process-substituted(|<stmt-list> tuple, xs, defername)> subbedExps
+
+	stmt-iter(|defername): [] -> []
+
+	convert-stmt(|defername) = stmt-to-js(|defername)
+
+	stmt-to-js(|defername): AddedJsStmt(stmt) -> ([stmt], [])
+
+	stmt-to-js(|defername): ExpressionStmt(expression) -> ([expStmt(exp)], stmts)
+          where
+            tuple := <gen-js-ast> expression;
+            exp := <exp> tuple;
+            stmts := <stmts> tuple
+
+	stmt-to-js(|defername): GoStmt(exp) ->
+          ([expStmt(Call(Property(Identifier(GOROUTINE_LIBNAME), GOROURTINE_GOMETHOD),
+                         [AnonFunction([], [expStmt(<exp> tuple)])]))], <stmts> tuple)
+          where
+            tuple := <go-exp-to-js> exp
+
+	stmt-to-js(|defername): ReturnStmt(None()) ->
+          ([expStmt(Call(Property(Identifier(defername), GODEFER_RETURNMETHOD), [])), return(Undefined())], [])
+
+	stmt-to-js(|defername): ReturnStmt(Some(ExpressionList([exp]))) ->
+          ([expStmt(Call(Property(Identifier(defername), GODEFER_RETURNMETHOD), [<exp> expJs])), return(Undefined())],
+          <stmts> expJs)
+          where
+            expJs := <gen-js-ast> exp
+
+	stmt-to-js(|defername): ReturnStmt(Some(expList)) ->
+          ([expStmt(Call(Property(Identifier(defername), GODEFER_RETURNMETHOD), [<exp> arrayJs])), return(Undefined())], <stmts> arrayJs)
+          where
+            arrayJs := <exps-list-to-js-array> expList
+
+	// Matches on functions returning (possible) multiple values
+	stmt-to-js(|defername): Assignment(
+          ExpressionList(targetExpressions),
+          AssignEquals(),
+          ExpressionList([singleValueExpression])
+	) -> (js, <stmts> valuesArray)
+          where
+            <gt> (<length> targetExpressions, 1);
+            valuesArray := <gen-js-ast> singleValueExpression;
+            js := <gen-js-ast-multiple-assignment> (<exp> valuesArray, targetExpressions)
+
+	stmt-to-js(|defername):
+          Assignment(
+            ExpressionList(targetExpressions),
+            AssignEquals(),
+            ExpressionList(valueExpressions)
+          ) -> (js, statements)
+          where
+            tuples := <zip(to-js-equals-assign)> (targetExpressions, valueExpressions);
+            js := <map(stmt-list)> tuples;
+            statements := <mapconcat(stmts)> tuples
+
+	gen-js-ast-multiple-assignment:
+          (valuesArray, targetExps) -> <flatten-list> [[valuesArrayJs], assignmentsJs]
+          where
+            tmpIdentifier := <newname> "tmp_assign_";
+            valuesArrayJs := varDecl(tmpIdentifier, valuesArray);
+            assignmentsJs := <map(gen-js-ast-indexed-assign(|tmpIdentifier))> <add-indices> targetExps
+
+	to-js-equals-assign:
+          (UnaryExpr(UnaryExpr("*", operand)), rhs) ->
+            (expStmt(Call(Property(operandJs, POINTERLIB_SET), [<exp> rhJs])), <stmts> rhJs)
+          where
+            rhJs := <gen-js-ast> rhs;
+            operandJs := <gen-js-ast; exp> operand
+
+	to-js-equals-assign: (lhs, rhs) -> (assignment(<exp> lhsJs,<exp> rhsJs), <stmts> rhsJs)
+          where
+            lhsJs := <gen-js-ast> lhs;
+            rhsJs := <gen-js-ast> rhs
+
+	gen-js-ast-indexed-assign(|tmpIdentifier):
+          (index, UnaryExpr(UnaryExpr("*", operand))) ->
+            expStmt(Call(Property(operandJs, POINTERLIB_SET), [array]))
+          where
+            operandJs := <gen-js-ast; exp> operand;
+            array := Array(Identifier(tmpIdentifier), IntegerLiteral(<int-dec> index))
+
+        gen-js-ast-indexed-assign(|tmpIdentifier):
+          (index, lhs) ->
+            assignment(
+              lhsJs,
+              Array(
+                Identifier(tmpIdentifier),
+                IntegerLiteral(<int-dec> index)
+              )
+            )
+          where
+            lhsJs := <gen-js-ast; exp> lhs
+
+        exps-list-to-js-array:
+          ExpressionList(exps) ->
+            (ArrayLiteral(<map(exp)> expsJs), <mapconcat(stmts)> expsJs)
+          where
+            expsJs := <map(gen-js-ast)> exps
+
+        go-exp-to-js:
+          PrimaryExprArguments(target, args) ->
+            (Call(Parenthesised(<exp> targetJs), <exp> argsJs),
+             <conc> (<stmts> targetJs, <stmts> argsJs))
+          where
+            targetJs := <gen-js-ast> target;
+            argsJs := <gen-js-ast> args
+
+	go-exp-to-js: UnaryExpr(x) -> <go-exp-to-js> x
+	go-exp-to-js: PrimaryExpr(x) -> <go-exp-to-js> x
+
+        get-deferstmt(|name): x -> []
+          where
+            <equal>(name, "")
+
+        get-deferstmt(|defername): x -> expStmt(Call(Property(Identifier(defername), GODEFER_EXECECUTEMETHOD), []))
+
+        funcname: Call(Property(ident, p), params) -> Property(ident, p)
+        funcname: Call(x, params) -> Identifier(x)
+
+	params: Call(funcname, params) -> params
+	gen-addparamstmt(|defername): x -> expStmt(Call(Property(Identifier(defername), GODEFER_ADDPARAMMETHOD), [x]))
+
+
+        // ---- expressions.str ----
+        stmts: (_, stmts) -> stmts
+	exp: (exps, _) -> exps
+
+	gen-js-ast: PrimaryExpr(primaryExpression) -> <gen-js-ast> primaryExpression
+
+        gen-js-ast:
+          PrimaryExprArguments(Operand(OperandName("println")), args) ->
+            (Call(Property(Identifier("console"), "log"), <exp> argsJs), <stmts> argsJs)
+          where
+            argsJs := <gen-js-ast> args
+
+        gen-js-ast:
+          PrimaryExprArguments(
+            Operand(OperandName("make")),
+            TypeArgWithList(Channel(_), args)
+          ) -> (Call(Property(Identifier(GOROUTINE_LIBNAME), GOROUTINE_MAKECHANNELMETHOD), <exp> argsJs),
+                <stmts> argsJs)
+        where
+          argsJs := <gen-js-ast> Arguments(Some(args))
+
+	gen-js-ast:
+          PrimaryExprArguments(
+            Operand(OperandName("make")),
+            TypeArg(Channel(_))
+          ) -> (Call(Property(Identifier(GOROUTINE_LIBNAME), GOROUTINE_MAKECHANNELMETHOD), [IntegerLiteral(0)]),
+                [])
+
+        gen-js-ast:
+          PrimaryExprArguments(Operand(OperandName(target)), args) ->
+            (Identifier(subVarName), allStmts)
+          where
+            subVarName := <newname> "_functionresult";
+            argsJs := <gen-js-ast> args;
+            stmt := [SubstitudedCall(target, <exp> argsJs, subVarName)];
+            allStmts := <conc> (<stmts> argsJs, stmt)
+
+        gen-js-ast:
+          PrimaryExprArguments(exp,args) ->
+            (Identifier(subVarName), allStmts)
+          where
+            subVarName := <newname> "_functionresult";
+            argsJs := <gen-js-ast> args;
+            expJs := <gen-js-ast> exp;
+            stmt := [SubstitudedCall(<exp> expJs, <exp> argsJs, subVarName)];
+            allStmts := <conc> (<stmts> expJs,<stmts> argsJs, stmt)
+
+	gen-js-ast:
+          PrimaryExprIndex(idExp, Index(indexExp)) ->
+            (Array(Call(Property(<exp> idExpJs, ARRAYLIB_LOOKUPMETHOD), [<exp> indexExpJs]), addition),
+             allStmts)
+          where
+            idExpJs := <gen-js-ast> idExp;
+            indexExpJs := <gen-js-ast> indexExp;
+            addition := Addition(<exp> indexExpJs, Call(Property(<exp> idExpJs, ARRAYLIB_GETSTARTPOSTMETHOD), [<exp> indexExpJs]));
+            allStmts := <conc> (<stmts> idExpJs, <stmts> indexExpJs)
+
+        gen-js-ast:
+          PrimaryExprSlice(
+            idExp,
+            slice
+          ) -> (Call(Property(<exp> idExpJs, ARRAYLIB_CREATESLICEMETHOD), <exp> sliceJs),
+                allStmts)
+          where
+            idExpJs := <gen-js-ast> idExp;
+            sliceJs := <gen-js-ast> slice;
+            allStmts := <conc> (<stmts> idExpJs, <stmts> sliceJs)
+
+	gen-js-ast:
+          PrimaryExprSelector(
+            exp,
+            Selector(selectorName)
+          ) -> (Property(<exp> tuple, selectorName), <stmts> tuple)
+          where
+            tuple := <gen-js-ast> exp
+
+	gen-js-ast:
+          Slice(exp1, exp2) ->
+            ([<exp> exp1Js, <exp> exp2Js], allStmts)
+          where
+            exp1Js := <slice-exp-to-js> exp1;
+            exp2Js := <slice-exp-to-js> exp2;
+            allStmts := <conc> (<stmts> exp1, <stmts> exp2)
+
+
+	slice-exp-to-js: Some(x) -> <gen-js-ast> x
+	slice-exp-to-js: None()  -> (Undefined(), [])
+
+	gen-js-ast: Channel(UnaryExpr(x)) ->  <gen-js-ast> x
+
+        gen-js-ast:
+          UnaryExpr("*", exp) ->
+            (Call(Property(<exp> expJs, POINTERLIB_GET), []), <stmts> expJs)
+          where
+            expJs := <gen-js-ast> exp
+
+
+	gen-js-ast: UnaryExpr("<-", innerexp) ->
+          (Identifier(subVarName), <conc> (<stmts> innerExpTuple, [stmt]))
+          where
+            subVarName := <newname> "gochanjs";
+            innerExpTuple := <gen-js-ast> innerexp;
+            stmt := ReceiveStmt(Operand(OperandName(subVarName)), <exp> innerExpTuple)
+
+        gen-js-ast:
+          UnaryExpr("&", exp) -> (Call(Property(Identifier(POINTERLIB_NAME), POINTERLIB_NEWPOINTER), [set, get]), <stmts> expJs)
+          where
+            expJs := <gen-js-ast> exp;
+            expJsExp := <exp> expJs;
+            set:= <gen-pointer-set> expJsExp;
+            get:= <gen-pointer-get> expJsExp
+
+	gen-js-ast: UnaryExpr(x) -> <gen-js-ast> x
+
+	gen-pointer-set: e -> AnonFunction([parameter(parname)], [assignment(e, Identifier(parname))])
+          where
+            parname := <newname> "___parset___"
+
+	gen-pointer-get: e -> AnonFunction([], [return(e)])
+
+	gen-js-ast:
+          PrimaryExprArguments(
+            Operand(
+              MethodExpr(TypeName(receiver), methodName)
+            ),
+            args
+          ) ->
+          Call(Property(Identifier(receiver), methodName), argsJs)
+          where
+            argsJs := <gen-js-ast> args
+
+	gen-js-ast:
+          PrimaryExprArguments(
+            Operand(
+              Literal(functionLit)
+            ),
+            args
+          ) -> (Identifier(subVarName), <conc> (<stmts> argsTuple, stmt))
+          where
+            subVarName := <newname> "_functionresult";
+            functionJs := <gen-js-ast; exp> functionLit;
+            argsTuple := <gen-js-ast> args;
+            stmt := [SubstitudedCall(functionJs, <exp> argsTuple, subVarName)]
+
+	gen-js-ast:
+          Arguments(ExpressionList(args)) ->
+            (expArgJs, allStmts)
+	  where
+	    argsJs := <map(gen-js-ast)> args;
+	    expArgJs := <map(exp)> argsJs;
+	    allStmts := <mapconcat(stmts)> argsJs
+
+	gen-js-ast:
+          Arguments(Some(ExpressionList(args))) ->
+            (expArgJs, allStmts)
+          where
+            argsJs := <map(gen-js-ast)> args;
+            expArgJs := <map(exp)> argsJs;
+            allStmts := <mapconcat(stmts)> argsJs
+
+	gen-js-ast: Arguments(None()) -> ([], [])
+	gen-js-ast: Operand(operand) -> <gen-js-ast> operand
+	gen-js-ast: SubstitutedExp(exp, stmtlist, lastvar) -> <gen-js-ast> exp
+	gen-js-ast: OperandName(name) -> (Identifier(name), [])
+	gen-js-ast: Literal(literal) -> <gen-js-ast> literal
+	gen-js-ast: IntLit(int) -> (IntegerLiteral(int), [])
+	gen-js-ast: StringLit(string) -> (String(string), [])
+
+	gen-js-ast:
+          CompositeLit(ArrayType(sizeExp, type), arrayLit) ->
+            ( Call(Property(Identifier(ARRAYLIB_NAME), ARRAYLIB_NEWARRAYMETHOD),
+                  [ <exp> arrayLitJs,
+                    <exp> sizeExpJs,
+                    String(typeJs)
+            	  ]
+              ),
+              <conc> (<stmts> sizeExpJs, <stmts> arrayLitJs)
+            )
+          where
+            sizeExpJs := <gen-js-ast> sizeExp;
+            typeJs := "''";
+            arrayLitJs := <array-to-js> arrayLit
+
+	gen-js-ast:
+          CompositeLit(typename, list) ->
+            ( Call(
+                Property(Identifier(typename), STRUCTLIB_GETNEWMETHOD),
+                [<exp> tuple]
+              ),
+              <stmts> tuple
+            )
+          where
+            tuple := <array-to-js> list
+
+	array-to-js:
+          LiteralValue(Some(ElementList(x))) ->
+            (ArrayLiteral(expList), stmtList)
+          where
+            <eq> (<collect-om(?KeyValPair(name, exp))> x, []);
+            tupleList := <map(gen-js-ast)> x;
+            expList := <map(exp)> tupleList;
+            stmtList := <mapconcat(stmts)> tupleList
+
+	array-to-js:
+          LiteralValue(Some(ElementList(x))) ->
+            (Object(expList), stmtList)
+          where
+            tupleList := < map(gen-js-ast)> x;
+            expList := <map(exp)> tupleList;
+            stmtList := <mapconcat(stmts)> tupleList
+
+	array-to-js: LiteralValue(None()) -> (ArrayLiteral([]), [])
+
+	gen-js-ast: FunctionLit(function) -> <gen-js-ast> function
+	gen-js-ast: SingleElem(exp) -> <gen-js-ast> exp
+	gen-js-ast: KeyValPair(name, exp) -> (KeyValue(name, <exp> tuple), <stmts> tuple)
+          where
+            tuple := <gen-js-ast> exp
+
+	gen-js-ast:
+          Function(
+            Signature(Parameters(params), returnType),
+            FunctionBody(block)
+          ) -> (AnonFunction(paramsJs, bodyJs), [])
+          where
+            retparname := <newname> "__retcallback__";
+            paramsJs := <conc> (<map(gen-js-ast)> params, [parameter(retparname)]);
+            bodyJs := <func-block(|retparname)> block
+
+        // ---- channelhelper.str ----
+	subAllChannels = topdown(try(substitute-channels))
+
+	substitute-channels:
+          UnaryExpr("<-", PrimaryExpr(Operand(OperandName(x)))) ->
+            SubstitutedExp(PrimaryExpr(Operand(OperandName(subVarName))), [s], subVarName)
+          where
+            subVarName := <newname> "gochanjs";
+            s := ReceiveStmt(Operand(OperandName(subVarName)), Operand(OperandName(x)))
+
+	substitute-channels:
+          UnaryExpr("<-", innerexp) ->
+            SubstitutedExp(PrimaryExpr(Operand(OperandName(subVarName))), stmtList, subVarName)
+          where
+            subVarName := <newname> "gochanjs";
+            subbedInnerExp := <substitute-channels> innerexp;
+            stmt := ReceiveStmt(Operand(OperandName(subVarName)), <lastExp> subbedInnerExp);
+            stmtList := <addStmt; extract-stmtlist> (subbedInnerExp, stmt)
+
+	substitute-channels: PrimaryExpr(Operand(GroupedExpression(UnaryExpr(x)))) -> <substitute-channels> x
+
+	lastVar : SubstitutedExp(_, _, varname) -> varname
+
+	lastExp : SubstitutedExp(exp, _, _) -> exp
+
+	extract-stmtlist : SubstitutedExp(_, list, _) -> list
+
+	extract-varname : Operand(OperandName(subVarName)) -> subVarName
+
+	addStmt : (SubstitutedExp(exp, stmtlist, lastvar), stmt) ->  SubstitutedExp(exp, newlist, lastvar)
+          where
+            newlist := <conc> (stmtlist, [stmt])
+
+        // ---- arithmetic.str ----
+	// BinaryExpr(_, RelOp, _)
+	gen-js-ast:	BinaryExpr(lhs, "==", rhs) -> Equals(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+	gen-js-ast:	BinaryExpr(lhs, "!=", rhs) -> NotEquals(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+	gen-js-ast:	BinaryExpr(lhs, "<", rhs) -> Lower(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+	gen-js-ast:	BinaryExpr(lhs, "<=", rhs) -> LowerEquals(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+	gen-js-ast:	BinaryExpr(lhs, ">", rhs) -> Greater(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+	gen-js-ast:	BinaryExpr(lhs, ">=", rhs) -> GreaterEquals(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+
+	// BinaryExpr(_, AddOp, _)
+	gen-js-ast:	BinaryExpr(lhs, "+", rhs) -> Addition(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+	gen-js-ast:	BinaryExpr(lhs, "-", rhs) -> Substraction(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+
+	// BinaryExpr(_, MulOp, _)
+	gen-js-ast:	BinaryExpr(lhs, "*", rhs) -> Multiplication(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+	gen-js-ast:	BinaryExpr(lhs, "/", rhs) -> Division(<gen-js-ast; exp> lhs, <gen-js-ast; exp> rhs)
+
+	stmt-to-js(|defername):
+          Assignment(ExpressionList([target]), AssignAddOp("+"), ExpressionList([value])) ->
+            ([js], statements)
+          where
+            tuple := <to-js-equals-addition-assign> (target, value);
+            js := <stmt-list> tuple;
+            statements := <stmts> tuple
+
+	to-js-equals-addition-assign:
+          (lhs, rhs) ->
+            ( assignment(<exp> lhsJs, Addition(<exp> lhsJs, <exp> rhsJs)),
+              <stmts> rhsJs
+            )
+	  where
+            lhsJs := <gen-js-ast> lhs;
+            rhsJs := <gen-js-ast> rhs
+
+	stmt-to-js(|defername):
+          Assignment(ExpressionList([target]), AssignAddOp("-"), ExpressionList([value]))
+            -> ([js], statements)
+          where
+            tuple := <to-js-equals-substraction-assign> (target, value);
+            js := <stmt-list> tuple;
+            statements := <stmts> tuple
+
+	to-js-equals-substraction-assign:
+          (lhs, rhs) -> (
+            assignment(<exp> lhsJs, Substraction(<exp> lhsJs, <exp> rhsJs)),
+            <stmts> rhsJs
+	  )
+	  where
+            lhsJs := <gen-js-ast> lhs;
+            rhsJs := <gen-js-ast> rhs
+
+	stmt-to-js(|defername):
+          Assignment(
+	    ExpressionList([target]), AssignMulOp("*"), ExpressionList([value])
+	  ) ->
+          ([js], statements)
+          where
+            tuple := <to-js-equals-multiplication-assign> (target, value);
+            js := <stmt-list> tuple;
+            statements := <stmts> tuple
+
+	to-js-equals-multiplication-assign:
+          (lhs, rhs) -> (
+            assignment(<exp> lhsJs, Multiplication(<exp> lhsJs, <exp> rhsJs)),
+	    <stmts> rhsJs
+	  )
+          where
+            lhsJs := <gen-js-ast> lhs;
+            rhsJs := <gen-js-ast> rhs
+
+	stmt-to-js(|defername):
+          Assignment(ExpressionList([target]), AssignMulOp("/"), ExpressionList([value])) ->
+            ([js], statements)
+	  where
+            tuple := <to-js-equals-division-assign> (target, value);
+            js := <stmt-list> tuple;
+            statements := <stmts> tuple
+
+	to-js-equals-division-assign:
+          (lhs, rhs) -> (
+	    assignment(<exp> lhsJs, Division(<exp> lhsJs, <exp> rhsJs)),
+	    <stmts> rhsJs
+	  )
+          where
+            lhsJs := <gen-js-ast> lhs;
+            rhsJs := <gen-js-ast> rhs
+
+        // ---- types.str ----
+	gen-js-ast: TypeDecl(TypeSpec(identif, type)) -> varDecl(
+          identif,
+          Call(
+            Property(STRUCTLIB_NAME, STRUCTLIB_DEFSTRUCTMETHOD),
+            [ArrayLiteral(<gen-js-ast> type)]
+          )
+        )
+
+	gen-js-ast: StructType(fieldDecl) -> <mapconcat(field-to-js)> fieldDecl
+
+	field-to-js: NormalField(IdentifierList(ids), type) -> <map(id-to-str)> ids
+	field-to-js: AnonField(_, struct) -> [<id-to-str> struct]
+	field-to-js: TypeName(x) -> [<id-to-str> x]
+
+	id-to-str: x -> String(<double-quote> x)
+
+        // ---- helpers.str ----
+        // Utils
+	mapsep(f | sep) = map(f); separate-by(|sep)
+	package-name : PackageClause(PackageName(name)) -> name
+	statements-from-block: Block(statementList) -> statements
+          where
+            statements := <statements-from-list> statementList
+
+	statements-from-list: StatementList(wrappedStatements) -> statements
+          where
+            statements := <map(unwrap-statement)> wrappedStatements
+
+	unwrap-statement: StatementLine(statement) -> statement
+
+        // ---- stdlib ----
+        map(s) = rec x([] + [s | x])
+        mapconcat(s) = foldr([], conc, s)
+
+        conc =
+          \ (l1, l2) -> <at-end(!l2)> l1 \
+          <+ \ "" # (xs) -> <concat> xs \
+
+        at-end(s) = rec x([id | x] + []; s)
+
+        concat = rec x([] + \ [l | ls] -> <at-end(<x> ls)> l\ )
+        collect-all(s) = collect-all(s, union)
+
+        collect-all(s,un) =
+          rec x(
+            ![<s> | <crush(![], un, x)>]
+            <+ crush(![], un, x)
+          )
+
+        collect-all(s, un, reduce) =
+          rec x(
+             ![<s> | <crush(![],un,x)>]
+          <+ reduce; x
+          <+ crush(![],un,x)
+          )
+
+        collect-om(s) = collect-om(s, union)
+        collect-om(s, op) = ![<s>] <+ crush(![], op, collect-om(s, op))
+        collect-om(s, un, skip) =
+          rec x(
+            ![<s>]
+            <+ skip; crush(![],un,x)
+            <+ crush(![],un,x)
+          )
+
+        crush(nul, sum, s) : _#(xs) -> <foldr(nul, sum, s)> xs
+
+        foldr(s1, s2, f)  = []; s1 + \ [y|ys] -> <s2> (<f> y, <foldr(s1, s2, f)> ys) \
+
+        union : (l1, l2) -> <rec x(
+             ([]; !l2)
+             <+ (HdMember(!l2); x)
+             <+ [id | x]
+          )> l1
+
+        HdMember(mklst) :
+           [x | xs] -> xs
+           where mklst; fetch(\y -> <eq> (x, y)\)
+
+        fetch(s) =
+          rec x([s | id] <+ [id | x])
+
+        eq = ?(x, x)
+
+        oncetd(s) = rec x(s <+ one(x))
+
+        genzip(a, b, c, s) = rec x(a + b; (s, x); c)
+
+        zip  = zip(id)
+        zip(s) = genzip(Zip1, Zip2, Zip3, s)
+        Zip1 : ([],[]) -> []
+        Zip2 : ([x|xs],[y|ys]) -> ((x, y), (xs, ys))
+        Zip3 : (x, xs) -> [x|xs]
+
+        Fst   : "" # ([x | xs]) -> x
+        Snd   : "" # ([x, y | xs]) -> y
+
+        flatten-list = foldr(![], (is-list, id) < conc + MkCons, is-list < flatten-list + id)
+        is-list = ?[] + ?[_ | _]
+        MkCons : (x, xs) -> [x | xs]
+
+        equal(|x, y) = where(!x => y)
+
+        double-quote: s -> <strcat>(<strcat>("\"", s), "\"")
+
+        separate-by = ?(sep, <id>) ; separate-by(|sep)
+        separate-by(sep) = separate-by(|<sep> ())
+        separate-by(|sep) =
+          []
+          + [id |
+              rec x(
+                []
+                + [id | x];
+                  ![sep | <id>]
+              )
+            ]
+
+        add-indices = 
+          map-with-index(id)
+      
+        inc = <add>  (<id>, 1)
+
+        nmap(s : Int * a -> b | i) =
+          [] + [s(|i) | nmap(s | <inc> i)]
+
+        map-with-index(s) =
+          let apply(|i) = <s> (i, <id>)
+           in nmap(apply | 1)
+          end
+
+        int-dec = int-subt(|1)
+        int-subt(|y) = ?x; prim("SSL_subti", x, y)
+
+        topdown(s) = s; all(topdown(s))
+        try(s) = s <+ id
+
+        newname = ?prefix; prim("SSL_newname", prefix)
+        strcat = ?(str1, str2); prim("SSL_strcat", str1, str2)
+        length = ?t; prim("SSL_get_list_length", t)
+        gt = ?(x,y); test(prim("SSL_gti",x,y) <+ prim("SSL_gtr",x,y))
+        add = ?(x,y); (prim("SSL_addi",x,y) <+ prim("SSL_addr",x,y))
+        int-to-string = ?x; prim("SSL_int_to_string",x)

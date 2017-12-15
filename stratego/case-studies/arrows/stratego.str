@@ -1,0 +1,175 @@
+module Stratego
+
+signature
+  constructors
+    RuleNames                : StrategoTerm -> StrategoRuleNames
+                             : List(StrategoId) -> StrategoRuleNames
+    RDecT                    : StrategoId * List(StrategoTypedid) * List(StrategoTypedid) -> StrategoRuleDec
+    RDec                     : StrategoId * List(StrategoTypedid) -> StrategoRuleDec
+    RDecNoArgs               : StrategoId -> StrategoRuleDec
+    DynRuleScopeId           : StrategoId -> StrategoDynRuleScopeId
+    LabeledDynRuleScopeId    : StrategoId * StrategoTerm -> StrategoDynRuleScopeId
+    DynRuleId                : StrategoRuleDec -> StrategoDynRuleId
+    AddLabelDynRuleId        : StrategoRuleDec * StrategoTerm -> StrategoDynRuleId
+    LabeledDynRuleId         : StrategoRuleDec * StrategoTerm -> StrategoDynRuleId
+    SetDynRuleDepends        : StrategoDynRuleId * StrategoRule * StrategoTerm -> StrategoDynRuleDef
+    DynRuleAssignAdd         : StrategoDynRuleId * StrategoTerm -> StrategoDynRuleDef
+    DynRuleAssign            : StrategoDynRuleId * StrategoTerm -> StrategoDynRuleDef
+    SetDynRuleMatch          : StrategoDynRuleId * StrategoTerm -> StrategoDynRuleDef
+    AddDynRule               : StrategoDynRuleId * StrategoRule -> StrategoDynRuleDef
+    SetDynRule               : StrategoDynRuleId * StrategoRule -> StrategoDynRuleDef
+    UndefineDynRule          : StrategoDynRuleId * StrategoTerm -> StrategoDynRuleDef
+    AddScopeLabel            : StrategoId * StrategoTerm -> StrategoDynRuleDef
+    ScopeLabels              : StrategoTerm -> StrategoScopeLabels
+                             : List(StrategoDynRuleScopeId) -> StrategoScopeLabels
+    WithClause               : StrategoStrategy -> StrategoRuleCond
+    WhereClause              : StrategoStrategy -> StrategoRuleCond
+    Rule                     : StrategoTerm * StrategoTerm * List(StrategoRuleCond) -> StrategoRule
+    Rule                     : StrategoTerm * StrategoTerm * StrategoStrategy -> StrategoRule
+    RuleNoCond               : StrategoTerm * StrategoTerm -> StrategoRule
+    RDefT                    : StrategoId * List(StrategoTypedid) * List(StrategoTypedid) * StrategoRule -> StrategoRuleDef
+    RDef                     : StrategoId * List(StrategoTypedid) * StrategoRule -> StrategoRuleDef
+    RDefNoArgs               : StrategoId * StrategoRule -> StrategoRuleDef
+    Overlay                  : StrategoId * List(StrategoId) * StrategoTerm -> StrategoOverlay
+    OverlayNoArgs            : StrategoId * StrategoTerm -> StrategoOverlay
+    SwitchCase               : StrategoStrategy * StrategoStrategy -> StrategoSwitchCase
+    StrategyCurly            : StrategoStrategy -> StrategoStrategyCurly
+                             : StrategoStrategy -> StrategoStrategyAngle
+    ListVar                  : StrategoLId -> StrategoLID
+    ImportWildcard           : StrategoModName -> StrategoImportModName
+    Import                   : StrategoModName -> StrategoImportModName
+    Overlays                 : List(StrategoOverlay) -> StrategoDecl
+    Rules                    : List(StrategoDef) -> StrategoDecl
+    Signature                : List(StrategoSdecl) -> StrategoDecl
+    Strategies               : List(StrategoDef) -> StrategoDecl
+    Imports                  : List(StrategoImportModName) -> StrategoDecl
+    Specification            : List(StrategoDecl) -> StrategoModule
+    Module                   : StrategoModName * List(StrategoDecl) -> StrategoModule
+                             : StrategoStrategy -> StrategoStrategyMid
+    ParenStrat               : StrategoStrategy -> StrategoStrategyParen
+    DefaultVarDec            : StrategoID -> StrategoTypedid
+    VarDec                   : StrategoID * StrategoType -> StrategoTypedid
+    SDef                     : StrategoId * List(StrategoTypedid) * StrategoStrategy -> StrategoStrategyDef
+    SDefNoArgs               : StrategoId * StrategoStrategy -> StrategoStrategyDef
+    ExtSDef                  : StrategoId * List(StrategoTypedid) * List(StrategoTypedid) -> StrategoStrategyDef
+    ExtSDefInl               : StrategoId * List(StrategoTypedid) * List(StrategoTypedid) * StrategoStrategy -> StrategoStrategyDef
+    SDefT                    : StrategoId * List(StrategoTypedid) * List(StrategoTypedid) * StrategoStrategy -> StrategoStrategyDef
+    DynRuleIntersectUnion    : StrategoStrategy * StrategoRuleNames * StrategoRuleNames * StrategoStrategy -> StrategoStrategy
+    DynRuleUnion             : StrategoStrategy * StrategoRuleNames * StrategoStrategy -> StrategoStrategy
+    DynRuleIntersect         : StrategoStrategy * StrategoRuleNames * StrategoStrategy -> StrategoStrategy
+    DynRuleIntersectUnionFix : StrategoRuleNames * StrategoRuleNames * StrategoStrategy -> StrategoStrategy
+    DynRuleUnionFix          : StrategoRuleNames * StrategoStrategy -> StrategoStrategy
+    DynRuleIntersectFix      : StrategoRuleNames * StrategoStrategy -> StrategoStrategy
+    GenDynRules              : List(StrategoDynRuleDef) -> StrategoStrategy
+    DynRuleScope             : StrategoScopeLabels * StrategoStrategy -> StrategoStrategy
+    Assign                   : StrategoTerm * StrategoTerm -> StrategoStrategy
+    AM                       : StrategoStrategy * StrategoTerm -> StrategoStrategy
+    SwitchChoice             : StrategoStrategy * List(StrategoSwitchCase) * StrategoStrategy -> StrategoStrategy
+    SwitchChoiceNoOtherwise  : StrategoStrategy * List(StrategoSwitchCase) -> StrategoStrategy
+    IfThen                   : StrategoStrategy * StrategoStrategy -> StrategoStrategy
+    CondChoice               : StrategoStrategy * StrategoStrategy * StrategoStrategy -> StrategoStrategy
+    RChoice                  : StrategoStrategy * StrategoStrategy -> StrategoStrategy
+    Choice                   : StrategoStrategy * StrategoStrategy -> StrategoStrategy
+    SRule                    : StrategoRule -> StrategoStrategy
+    LRule                    : StrategoRule -> StrategoStrategy
+    CallNoArgs               : StrategoSVar -> StrategoStrategy
+    ExplodeCong              : StrategoStrategy * StrategoStrategyParen -> StrategoStrategy
+    ListCong                 : List(StrategoStrategy) * StrategoStrategy -> StrategoStrategy
+    ListCongNoTail           : List(StrategoStrategy) -> StrategoStrategy
+    TupleCong                : StrategoStrategy * List(StrategoStrategy) -> StrategoStrategy
+    EmptyTupleCong           : StrategoStrategy
+    AnnoCong                 : StrategoStrategy * StrategoStrategyCurly -> StrategoStrategy
+    CongQ                    : StrategoString * List(StrategoStrategy) -> StrategoStrategy
+    CharCong                 : StrategoChar -> StrategoStrategy
+    RealCong                 : StrategoReal -> StrategoStrategy
+    IntCong                  : StrategoInt -> StrategoStrategy
+    StrCong                  : StrategoString -> StrategoStrategy
+    Prim                     : StrategoString * List(StrategoTerm) -> StrategoStrategy
+    PrimNoArgs               : StrategoString -> StrategoStrategy
+    Test                     : StrategoStrategy -> StrategoStrategy
+    With                     : StrategoStrategy -> StrategoStrategy
+    Where                    : StrategoStrategy -> StrategoStrategy
+    Not                      : StrategoStrategy -> StrategoStrategy
+    Rec                      : StrategoId * StrategoStrategy -> StrategoStrategy
+    LChoice                  : StrategoStrategy * StrategoStrategy -> StrategoStrategy
+    BA                       : StrategoStrategyAngle * StrategoTerm -> StrategoStrategy
+    ScopeDefault             : StrategoStrategy -> StrategoStrategy
+    Call                     : StrategoSVar * List(StrategoStrategy) -> StrategoStrategy
+    ImportTerm               : StrategoModName -> StrategoStrategy
+    All                      : StrategoStrategy -> StrategoStrategy
+    One                      : StrategoStrategy -> StrategoStrategy
+    Some                     : StrategoStrategy -> StrategoStrategy
+    PrimT                    : StrategoString * List(StrategoStrategy) * List(StrategoTerm) -> StrategoStrategy
+    GuardedLChoice           : StrategoStrategy * StrategoStrategyMid * StrategoStrategy -> StrategoStrategy
+    Seq                      : StrategoStrategy * StrategoStrategy -> StrategoStrategy
+    Scope                    : List(StrategoID) * StrategoStrategy -> StrategoStrategy
+    Build                    : StrategoTerm -> StrategoStrategy
+    Match                    : StrategoTerm -> StrategoStrategy
+    Id                       : StrategoStrategy
+    Fail                     : StrategoStrategy
+    CallDynamic              : StrategoTerm * List(StrategoStrategy) * List(StrategoTerm) -> StrategoStrategy
+    CallT                    : StrategoSVar * List(StrategoStrategy) * List(StrategoTerm) -> StrategoStrategy
+    Let                      : List(StrategoDef) * StrategoStrategy -> StrategoStrategy
+    SVar                     : StrategoId -> StrategoSVar
+                             : StrategoRuleDef -> StrategoDef
+                             : StrategoStrategyDef -> StrategoDef
+                             : StrategoConstType -> StrategoType
+                             : StrategoFunType -> StrategoType
+                             : StrategoType -> StrategoRetType
+                             : StrategoConstType -> StrategoArgType
+                             : StrategoType -> StrategoArgType
+    FunType                  : List(StrategoArgType) * StrategoRetType -> StrategoFunType
+    ConstType                : StrategoSort -> StrategoConstType
+    ExtOpDeclInj             : StrategoType -> StrategoOpdecl
+    ExtOpDeclQ               : StrategoString * StrategoType -> StrategoOpdecl
+    ExtOpDecl                : StrategoId * StrategoType -> StrategoOpdecl
+    OpDeclInj                : StrategoType -> StrategoOpdecl
+    OpDeclQ                  : StrategoString * StrategoType -> StrategoOpdecl
+    OpDecl                   : StrategoId * StrategoType -> StrategoOpdecl
+    SortTuple                : List(StrategoSort) -> StrategoSort
+    SortListTl               : List(StrategoSort) * StrategoSort -> StrategoSort
+    SortList                 : List(StrategoSort) -> StrategoSort
+    Sort                     : StrategoId * List(StrategoSort) -> StrategoSort
+    SortNoArgs               : StrategoUCID -> StrategoSort
+    SortVar                  : StrategoLCID -> StrategoSort
+    Constructors             : List(StrategoOpdecl) -> StrategoSdecl
+    Sorts                    : List(StrategoSort) -> StrategoSdecl
+    Wld                      : StrategoWld
+    RootApp                  : StrategoStrategyAngle -> StrategoTerm
+    App                      : StrategoStrategy * StrategoTerm -> StrategoTerm
+    NoAnnoList               : StrategoPreTerm -> StrategoTerm
+    AnnoList                 : StrategoPreTerm * List(StrategoTerm) -> StrategoTerm
+    BuildDefault             : StrategoTerm -> StrategoTerm
+    As                       : StrategoVar * StrategoTerm -> StrategoTerm
+    Anno                     : StrategoPreTerm * StrategoPreTerm -> StrategoTerm
+                             : StrategoWld -> StrategoTerm
+                             : StrategoVar -> StrategoTerm
+    ListTail                 : List(StrategoTerm) * StrategoTerm -> StrategoPreTerm
+    List                     : List(StrategoTerm) -> StrategoPreTerm
+    Tuple                    : List(StrategoTerm) -> StrategoPreTerm
+    RootApp                  : StrategoStrategyAngle -> StrategoPreTerm
+    App                      : StrategoStrategy * StrategoTerm -> StrategoPreTerm
+    Char                     : StrategoChar -> StrategoPreTerm
+    BuildDefaultPT           : StrategoPreTerm -> StrategoPreTerm
+    As                       : StrategoVar * StrategoPreTerm -> StrategoPreTerm
+    Explode                  : StrategoTerm * StrategoTerm -> StrategoPreTerm
+    OpQ                      : StrategoString * List(StrategoTerm) -> StrategoPreTerm
+    Op                       : StrategoId * List(StrategoTerm) -> StrategoPreTerm
+    Str                      : StrategoString -> StrategoPreTerm
+    Real                     : StrategoReal -> StrategoPreTerm
+    Int                      : StrategoInt -> StrategoPreTerm
+                             : StrategoWld -> StrategoPreTerm
+                             : StrategoVar -> StrategoPreTerm
+                             : StrategoLID -> StrategoID
+                             : StrategoId -> StrategoID
+    Var                      : StrategoLID -> StrategoVar
+    Var                      : StrategoId -> StrategoVar
+                             : String -> StrategoChar
+                             : String -> StrategoString
+                             : String -> StrategoReal
+                             : String -> StrategoInt
+                             : String -> StrategoUCID
+                             : String -> StrategoLCID
+                             : String -> StrategoLId
+                             : String -> StrategoId
+                             : String -> StrategoModName

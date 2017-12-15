@@ -1,0 +1,57 @@
+module pcf
+
+signature
+  constructors
+    Var  : String -> Exp
+    App  : Exp * Exp -> Exp
+    Abs  : String * Type * Exp -> Exp
+    Zero : Exp
+    Succ : Exp -> Exp
+    Pred : Exp -> Exp
+    Ifz  : Exp * Exp * Exp -> Exp
+
+    Num  : Type
+    Fun  : Type * Type -> Type
+
+    Nil  : List(a)
+    Cons : a * List(a) -> List(a)
+         : ()
+         : a -> (a)
+         : a * b -> (a, b)
+         : a * b * c -> (a, b, c)
+
+strategies
+
+  check: (ctx, Var(x)) -> <lookup> (x,ctx)
+  check: (ctx, Abs(x,t,e)) -> <check> ([(x,t)|ctx], e)
+  check: (ctx, App(e1,e2)) -> t2
+    where <check> (ctx,e1) => Fun(t1,t2);
+          <check> (ctx,e2) => t1
+  check: (_, Zero()) -> Num()
+  check: (ctx, Succ(e)) -> Num()
+    where <check> (ctx,e) => Num()
+  check: (ctx, Pred(e)) -> Num()
+    where <check> (ctx,e) => Num()
+  check: (ctx, Ifz(e1,e2,e3)) -> t
+    where <check> (ctx,e1) => Num();
+          <check> (ctx,e2) => t;
+          <check> (ctx,e2) => t
+
+  eval: (env, Var(x)) -> <lookup> (x,env)
+  eval: (env, Abs(x,t,e)) -> Abs(x,t,e)
+  eval: (env, App(e1,e2)) -> <eval> ([(x,arg)|env],e)
+    where <eval> (env,e1) => Abs(x,_,e);
+          <eval> (env,e2) => arg
+  eval: (_, Zero()) -> Zero()
+  eval: (env, Succ(e)) -> Succ(<eval>(env,e))
+  eval: (env, Pred(e)) -> Pred(<eval>(env,e))
+  eval: (env, Ifz(e1,e2,e3)) -> <eval>(env,e2)
+    where <eval> (env,e1) => Zero()
+  eval: (env, Ifz(e1,e2,e3)) -> <eval>(env,e3)
+    where <eval> (env,e2) => Succ(_)
+
+  check-eval: e -> <eval> ([], e)
+    where <check> ([],e) => _
+
+  lookup = (?(x,[(x,y)|_]); !y)
+         <+ (?(x,[_|r]); <lookup> (x,r))

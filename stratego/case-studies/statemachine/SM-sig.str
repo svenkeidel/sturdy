@@ -1,0 +1,44 @@
+module signatures/SM-sig
+
+signature
+  constructors
+     : String -> ID
+     : String -> INT
+     : String -> STRING
+     : String -> StringChar
+     : String -> BackSlashChar
+     : String -> CommentChar
+     : String -> InsideComment
+     : String -> NewLineEOF
+     : String -> EOF
+
+               : System -> Start
+    Machine    : ID * Extends * List(Element) -> System
+    Extends    : ID -> Extends
+    NoExtends  : Extends
+    State      : ID -> Element
+    Transition : StateRef * StateRef * Event * Guard * Actions -> Element
+    StateRef   : ID -> StateRef
+    Event      : ID -> Event
+    NoEvent    : Event
+    VarDef     : ID * Const -> Element
+    Guard      : Exp -> Guard
+    NoGuard    : Guard
+    Actions    : List(Action) -> Actions
+    NoActions  : Actions
+    Assign     : Var * Exp -> Action
+    Exp        : Exp -> Action
+    And        : Exp * Exp -> Exp
+    Or         : Exp * Exp -> Exp
+    Eq         : Exp * Exp -> Exp
+    Gt         : Exp * Exp -> Exp
+    Add        : Exp * Exp -> Exp
+    Sub        : Exp * Exp -> Exp
+               : Var -> Exp
+               : Const -> Exp
+    Var        : ID -> Var
+    Int        : INT -> Const
+    True       : Const
+    False      : Const
+    BoolType   : Type
+    IntType    : Type

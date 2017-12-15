@@ -2,7 +2,7 @@
 
 let
   hsEnv = pkgs.haskellPackages.ghcWithPackages(p: with p; [
-    Cabal cabal-install hlint text containers hspec mtl numeric-limits
+    Cabal cabal-install hlint text containers hspec mtl numeric-limits criterion
   ]);
 
 in pkgs.stdenv.mkDerivation {

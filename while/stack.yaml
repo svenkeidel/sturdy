@@ -1,0 +1,7 @@
+flags: {}
+extra-package-dbs: []
+packages:
+- '.'
+extra-deps:
+- numeric-limits-0.1.0.0
+resolver: lts-9.18

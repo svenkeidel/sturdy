@@ -1,0 +1,459 @@
+Module(
+  "StateMachine"
+, [ Imports([Import("SM-sig")])
+  , Rules(
+      [ RDefNoArgs(
+          "sm-to-java"
+        , Rule(
+            As(
+              Var("machine")
+            , NoAnnoList(
+                Op(
+                  "Machine"
+                , [Var("m"), Var("extends"), Var(ListVar("elem*"))]
+                )
+              )
+            )
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                                        "
+              , [ QStr("\n  \t\tpublic class ")
+                , StringEscape1("  \t\t             ", Var("m"))
+                , QStr(" ")
+                , StringEscape1("  \t\t                 ", App(CallNoArgs(SVar("extends-to-java")), Var("extends")))
+                , QStr(" {\n  \t\t\tString current = ")
+                , StringEscape1("  \t\t\t                 ", App(CallNoArgs(SVar("state-to-java")), Var("init")))
+                , QStr(";\n  \t\t\t")
+                , StringEscape1("  \t\t\t", Var("vardefs"))
+                , QStr("\n  \t\t\t\n  \t\t\tString next(String event) {\n  \t\t\t\t")
+                , StringEscape1("  \t\t\t\t", Var(ListVar("cond-stat*")))
+                , QStr("\n  \t\t\t\twhile(true) {\n  \t\t\t\t\t")
+                , StringEscape1("  \t\t\t\t\t", Var(ListVar("uncond-stat*")))
+                , QStr("\n  \t\t\t\t}\n  \t\t\t}  \t\t\t\n  \t\t}\n  \t")
+                ]
+              )
+            )
+          , Seq(
+              Assign(
+                Var("init")
+              , App(CallNoArgs(SVar("initial-state")), Var("machine"))
+              )
+            , Seq(
+                Assign(
+                  Var("vardefs")
+                , App(
+                    Seq(
+                      CallNoArgs(SVar("var-defs"))
+                    , Call(SVar("filter"), [CallNoArgs(SVar("vardef-to-java"))])
+                    )
+                  , Var("machine")
+                  )
+                )
+              , Seq(
+                  Assign(
+                    Var(ListVar("cond-stat*"))
+                  , App(
+                      Seq(
+                        CallNoArgs(SVar("transitions"))
+                      , Call(SVar("filter"), [CallNoArgs(SVar("cond-transition-to-java"))])
+                      )
+                    , Var("machine")
+                    )
+                  )
+                , Assign(
+                    Var(ListVar("uncond-stat*"))
+                  , App(
+                      Seq(
+                        CallNoArgs(SVar("transitions"))
+                      , Call(SVar("filter"), [CallNoArgs(SVar("uncond-transition-to-java"))])
+                      )
+                    , Var("machine")
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "extends-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("NoExtends", []))
+          , NoAnnoList(StringQuotation1("  \t                 ", []))
+          )
+        )
+      , RDefNoArgs(
+          "extends-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Extends", [Var("m")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                "
+              , [QStr("extends "), StringEscape1("  \t                        ", Var("m"))]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "vardef-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("VarDef", [Var("x"), Var("c")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                  "
+              , [ QStr(" \n  \t\tint ")
+                , StringEscape1("  \t\t    ", Var("x"))
+                , QStr(" = ")
+                , StringEscape1("  \t\t          ", App(CallNoArgs(SVar("exp-to-java")), Var("c")))
+                , QStr(";")
+                ]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "cond-transition-to-java"
+        , RuleNoCond(
+            NoAnnoList(
+              Op(
+                "Transition"
+              , [ Var("from")
+                , Var("to")
+                , As(Var("event"), NoAnnoList(Op("Event", [Wld()])))
+                , Var("guard")
+                , Var("actions")
+                ]
+              )
+            )
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                                                          "
+              , [ QStr("\n  \t\tif(current == ")
+                , StringEscape1("  \t\t              ", App(CallNoArgs(SVar("state-to-java")), Var("from")))
+                , QStr(" && ")
+                , StringEscape1("  \t\t                                       ", App(CallNoArgs(SVar("event-to-java")), Var("event")))
+                , QStr(" && ")
+                , StringEscape1("  \t\t                                                                 ", App(CallNoArgs(SVar("guard-to-java")), Var("guard")))
+                , QStr(") {\n  \t\t\t")
+                , StringEscape1("  \t\t\t", App(CallNoArgs(SVar("actions-to-java")), Var("actions")))
+                , QStr("\n  \t\t\tcurrent = ")
+                , StringEscape1("  \t\t\t          ", App(CallNoArgs(SVar("state-to-java")), Var("to")))
+                , QStr(";\n  \t\t\treturn current;\n  \t\t}\n  \t")
+                ]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "uncond-transition-to-java"
+        , RuleNoCond(
+            NoAnnoList(
+              Op(
+                "Transition"
+              , [ Var("from")
+                , Var("to")
+                , NoAnnoList(Op("NoEvent", []))
+                , Var("guard")
+                , Var("actions")
+                ]
+              )
+            )
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                                                     "
+              , [ QStr("\n  \t\tif(current == ")
+                , StringEscape1("  \t\t              ", App(CallNoArgs(SVar("state-to-java")), Var("from")))
+                , QStr(" && ")
+                , StringEscape1("  \t\t                                       ", App(CallNoArgs(SVar("guard-to-java")), Var("guard")))
+                , QStr(") {\n  \t\t\t")
+                , StringEscape1("  \t\t\t", App(CallNoArgs(SVar("actions-to-java")), Var("actions")))
+                , QStr("\n  \t\t\tcurrent = ")
+                , StringEscape1("  \t\t\t          ", App(CallNoArgs(SVar("state-to-java")), Var("to")))
+                , QStr(";\n  \t\t\tcontinue;\n  \t\t}\n  \t")
+                ]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "state-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("StateRef", [Var("x")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                 "
+              , [QStr("\""), StringEscape1("  \t                  ", Var("x")), QStr("\"")]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "state-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("State", [Var("x")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t              "
+              , [QStr("\""), StringEscape1("  \t               ", Var("x")), QStr("\"")]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "event-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("NoEvent", []))
+          , NoAnnoList(StringQuotation1("  \t               ", [QStr("true")]))
+          )
+        )
+      , RDefNoArgs(
+          "event-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Event", [Var("x")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t              "
+              , [QStr("event == \""), StringEscape1("  \t                        ", Var("x")), QStr("\"")]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "guard-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("NoGuard", []))
+          , NoAnnoList(StringQuotation1("  \t               ", [QStr("true")]))
+          )
+        )
+      , RDefNoArgs(
+          "guard-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Guard", [Var("e")]))
+          , App(CallNoArgs(SVar("exp-to-java")), Var("e"))
+          )
+        )
+      , RDefNoArgs(
+          "actions-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("NoActions", []))
+          , NoAnnoList(StringQuotation1("  \t                 ", []))
+          )
+        )
+      , RDefNoArgs(
+          "actions-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Actions", [Var(ListVar("action*"))]))
+          , App(
+              Call(SVar("map"), [CallNoArgs(SVar("action-to-java"))])
+            , Var(ListVar("action*"))
+            )
+          )
+        )
+      , RDefNoArgs(
+          "action-to-java"
+        , RuleNoCond(
+            NoAnnoList(
+              Op(
+                "Assign"
+              , [NoAnnoList(Op("Var", [Var("x")])), Var("e")]
+              )
+            )
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                       "
+              , [ StringEscape1("  \t                       ", Var("x"))
+                , QStr(" = ")
+                , StringEscape1("  \t                             ", App(CallNoArgs(SVar("exp-to-java")), Var("e")))
+                , QStr(";")
+                ]
+              )
+            )
+          )
+        )
+      ]
+    )
+  , Rules(
+      [ RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("True", []))
+          , NoAnnoList(StringQuotation1("  \t            ", [QStr("true")]))
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("False", []))
+          , NoAnnoList(StringQuotation1("  \t             ", [QStr("false")]))
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Int", [Var("i")]))
+          , Var("i")
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Var", [Var("x")]))
+          , Var("x")
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Or", [Var("e1"), Var("e2")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                "
+              , [ QStr("(")
+                , StringEscape1("  \t                 ", App(CallNoArgs(SVar("exp-to-java")), Var("e1")))
+                , QStr(" | ")
+                , StringEscape1("  \t                                     ", App(CallNoArgs(SVar("exp-to-java")), Var("e2")))
+                , QStr(")")
+                ]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("And", [Var("e1"), Var("e2")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                 "
+              , [ QStr("(")
+                , StringEscape1("  \t                  ", App(CallNoArgs(SVar("exp-to-java")), Var("e1")))
+                , QStr(" & ")
+                , StringEscape1("  \t                                      ", App(CallNoArgs(SVar("exp-to-java")), Var("e2")))
+                , QStr(")")
+                ]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Gt", [Var("e1"), Var("e2")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                "
+              , [ QStr("(")
+                , StringEscape1("  \t                 ", App(CallNoArgs(SVar("exp-to-java")), Var("e1")))
+                , QStr(" > ")
+                , StringEscape1("  \t                                     ", App(CallNoArgs(SVar("exp-to-java")), Var("e2")))
+                , QStr(")")
+                ]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Eq", [Var("e1"), Var("e2")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                "
+              , [ QStr("(")
+                , StringEscape1("  \t                 ", App(CallNoArgs(SVar("exp-to-java")), Var("e1")))
+                , QStr(" == ")
+                , StringEscape1("  \t                                      ", App(CallNoArgs(SVar("exp-to-java")), Var("e2")))
+                , QStr(")")
+                ]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Add", [Var("e1"), Var("e2")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                 "
+              , [ QStr("(")
+                , StringEscape1("  \t                  ", App(CallNoArgs(SVar("exp-to-java")), Var("e1")))
+                , QStr(" + ")
+                , StringEscape1("  \t                                      ", App(CallNoArgs(SVar("exp-to-java")), Var("e2")))
+                , QStr(")")
+                ]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Op("Sub", [Var("e1"), Var("e2")]))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t                 "
+              , [ QStr("(")
+                , StringEscape1("  \t                  ", App(CallNoArgs(SVar("exp-to-java")), Var("e1")))
+                , QStr(" - ")
+                , StringEscape1("  \t                                      ", App(CallNoArgs(SVar("exp-to-java")), Var("e2")))
+                , QStr(")")
+                ]
+              )
+            )
+          )
+        )
+      , RDefNoArgs(
+          "exp-to-java"
+        , RuleNoCond(
+            NoAnnoList(Explode(Var("c"), Var(ListVar("t*"))))
+          , NoAnnoList(
+              StringQuotation1(
+                "  \t            "
+              , [ StringEscape1("  \t            ", Var("c"))
+                , QStr("(")
+                , StringEscape1(
+                    "  \t                "
+                  , App(
+                      Call(SVar("map"), [CallNoArgs(SVar("exp-to-java"))])
+                    , Var(ListVar("t*"))
+                    )
+                  )
+                , QStr(")")
+                ]
+              )
+            )
+          )
+        )
+      ]
+    )
+  , Rules(
+      [ SDefNoArgs(
+          "states"
+        , Call(
+            SVar("collect-all")
+          , [Match(NoAnnoList(Op("State", [Wld()])))]
+          )
+        )
+      , SDefNoArgs(
+          "initial-state"
+        , Seq(CallNoArgs(SVar("states")), CallNoArgs(SVar("Hd")))
+        )
+      , SDefNoArgs(
+          "var-defs"
+        , Call(
+            SVar("collect-all")
+          , [Match(NoAnnoList(Op("VarDef", [Wld(), Wld()])))]
+          )
+        )
+      , SDefNoArgs(
+          "transitions"
+        , Call(
+            SVar("collect-all")
+          , [Match(NoAnnoList(Explode(NoAnnoList(Str("\"Transition\"")), Wld())))]
+          )
+        )
+      ]
+    )
+  ]
+)
