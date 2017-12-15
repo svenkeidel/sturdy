@@ -20,9 +20,7 @@ instance Show a => Show (Pow a) where
 instance PreOrd a => PreOrd (Pow a) where
   as ⊑ bs = all (\x -> any (x ⊑) bs) as
 
-instance PartOrd a => PartOrd (Pow a) 
-
-instance PartOrd a => Lattice (Pow a) where
+instance PreOrd a => Complete (Pow a) where
   as ⊔ bs = as `P.union` bs
 
 instance MonadDeduplicate Pow where

@@ -60,9 +60,7 @@ instance PreOrd a => PreOrd (UncertainResult a) where
     (Fail, SuccessOrFail _) -> True
     (_, _) -> False
 
-instance PartOrd a => PartOrd (UncertainResult a)
-
-instance Lattice a => Lattice (UncertainResult a) where
+instance Complete a => Complete (UncertainResult a) where
   m1 ⊔ m2 = case (m1,m2) of
     (Success x, Success y) -> Success (x ⊔ y)
     (Success x, Fail) -> SuccessOrFail x

@@ -10,7 +10,6 @@ import           Prelude hiding (map,(.),id)
 import           Control.Category
 import           Control.Applicative
 import           Control.Monad
-import           Control.Monad.Deduplicate
 
 import           Data.Sequence (Seq)
 import           Data.Hashable
@@ -25,9 +24,7 @@ newtype Pow a = Pow (Seq a) deriving (Eq, Functor, Applicative, Monad, Alternati
 instance (Eq a, Hashable a) => PreOrd (Pow a) where
   as ⊑ bs = all (`H.member` toHashSet as) (toHashSet bs)
 
-instance (Eq a, Hashable a) => PartOrd (Pow a) 
-
-instance (Eq a, Hashable a) => Lattice (Pow a) where
+instance (Eq a, Hashable a) => Complete (Pow a) where
   as ⊔ bs = as `union` bs
 
 instance Show a => Show (Pow a) where
@@ -53,7 +50,6 @@ fromFoldable = foldMap return
 
 size :: Foldable f => f a -> Int
 size = length
-           
-instance MonadDeduplicate Pow where
-  dedup = fromFoldable . toHashSet
-
+       
+dedup :: (Hashable a, Eq a) => Pow a -> Pow a
+dedup = fromFoldable . toHashSet

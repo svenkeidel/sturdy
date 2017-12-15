@@ -10,7 +10,7 @@ import Control.Monad.Reader
 import Control.Monad.State (StateT(..))
 import Data.Order
 
-class (Lattice s,Monad m) => MonadJoin s m | m -> s where
+class (Complete s,Monad m) => MonadJoin s m | m -> s where
   get :: m s
   get = state (\s -> (s,s))
 
@@ -49,7 +49,7 @@ instance Monad m => Monad (JoinT s m) where
     (a,s') <- f s
     runJoinT (k a) s'
 
-instance (Lattice s, Monad m) => MonadJoin s (JoinT s m) where
+instance (Complete s, Monad m) => MonadJoin s (JoinT s m) where
   state f = JoinT (\s -> return (f s))
 
 instance MonadTrans (JoinT s) where

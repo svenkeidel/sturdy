@@ -165,32 +165,6 @@ instance IsTerm Term Interp where
   numberLiteral = arr NumberLiteral
   stringLiteral = arr StringLiteral
 
-instance PreOrd Term where
-  t1 ⊑ t2 = case (t1,t2) of
-    (Cons c ts,Cons c' ts') -> c == c' && ts ⊑ ts'
-    (StringLiteral s, StringLiteral s') -> s == s'
-    (NumberLiteral n, NumberLiteral n') -> n == n'
-    (_, _) -> False
-
-instance PartOrd Term
-
-instance Lattice (Complete Term) where
-  t1 ⊔ t2 = case (t1,t2) of
-    (Complete (Cons c ts), Complete (Cons c' ts'))
-      | c == c' ->
-        Cons c <$> (Complete ts ⊔ Complete ts')
-      | otherwise -> Top
-    (Complete (StringLiteral s), Complete (StringLiteral s'))
-      | s == s' -> Complete (StringLiteral s)
-      | otherwise -> Top
-    (Complete (NumberLiteral n), Complete (NumberLiteral n'))
-      | n == n' -> Complete (NumberLiteral n)
-      | otherwise -> Top
-    (_, _) -> Top
-
-instance BoundedLattice (Complete Term) where
-  top = Top
-
 instance TermUtils Term where
   convertToList ts = case ts of
     (x:xs) -> Cons "Cons" [x,convertToList xs]
@@ -205,12 +179,6 @@ instance TermUtils Term where
   height (StringLiteral _) = 1
   height (NumberLiteral _) = 1
   
-instance Lattice Term where
-  (⊔) = undefined
-
-instance BoundedLattice Term where
-  top = undefined
-
 instance Show Term where
   show (Cons c ts) = show c ++ if null ts then "" else show ts
   show (StringLiteral s) = show s

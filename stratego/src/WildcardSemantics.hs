@@ -28,7 +28,6 @@ import           Control.Monad.Result
 import           Control.Monad.State hiding (fail,sequence)
 import           Control.Monad.Deduplicate
 
-import           Data.Complete
 import           Data.Constructor
 import           Data.Foldable (foldr')
 import           Data.HashMap.Lazy (HashMap)
@@ -36,6 +35,7 @@ import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.Order
 import           Data.GaloisConnection
+import           Data.FreeCompletion
 import           Data.Powerset hiding (size)
 import qualified Data.Powerset as P
 import qualified Data.AbstractPowerset as A
@@ -56,7 +56,7 @@ data Term
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 newtype Interp a b = Interp (Kleisli (ReaderT (StratEnv,Int) (StateT TermEnv (ResultT A.Pow))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowTry,ArrowZero,ArrowPlus,ArrowDeduplicate,PreOrd,PartOrd,Lattice)
+  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowTry,ArrowZero,ArrowPlus,ArrowDeduplicate,PreOrd,Complete)
 
 runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> A.Pow (Result (b,TermEnv))
 runInterp (Interp f) i senv tenv a = runResultT (runStateT (runReaderT (runKleisli f a) (senv,i)) tenv)
@@ -182,7 +182,7 @@ instance IsTerm Term Interp where
   numberLiteral = arr NumberLiteral
   stringLiteral = arr StringLiteral
 
-instance BoundedLattice (Interp () Term) where
+instance UpperBounded (Interp () Term) where
   top = proc () -> success ⊔ failA -< Wildcard
 
 instance ArrowFix Interp Term where
@@ -203,7 +203,7 @@ instance Soundness Interp where
         abst = dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
-instance BoundedLattice Term where
+instance UpperBounded Term where
   top = Wildcard
 
 instance TermUtils Term where
@@ -230,13 +230,11 @@ instance PreOrd Term where
     (NumberLiteral n, NumberLiteral n') -> n == n'
     (_, _) -> False
 
-instance PartOrd Term
-
-instance Lattice Term where
+instance Complete Term where
   t1 ⊔ t2 = case (t1,t2) of
     (Cons c ts, Cons c' ts')
-      | c == c' -> case Complete ts ⊔ Complete ts' of
-        Complete ts'' -> Cons c ts''
+      | c == c' -> case Lower ts ⊔ Lower ts' of
+        Lower ts'' -> Cons c ts''
         _             -> Wildcard
       | otherwise -> Wildcard
     (StringLiteral s, StringLiteral s')
@@ -248,11 +246,6 @@ instance Lattice Term where
     (Wildcard, _) -> Wildcard
     (_, Wildcard) -> Wildcard
     (_, _) -> Wildcard
-
-instance Lattice (Complete Term) where
-  x ⊔ y = case (x,y) of
-    (Complete t1, Complete t2) -> Complete (t1 ⊔ t2)
-    (_,_) -> Top
 
 instance Galois (P.Pow C.Term) Term where
   alpha = lub . fmap go
@@ -322,9 +315,7 @@ instance PreOrd TermEnv where
   TermEnv env1 ⊑ TermEnv env2 =
     Prelude.all (\v -> M.lookup v env1 ⊑ M.lookup v env2) (dom env2)
 
-instance PartOrd TermEnv
-
-instance Lattice TermEnv where
+instance Complete TermEnv where
   TermEnv env1' ⊔ TermEnv env2' = go (dom env1') env1' env2' M.empty
     where
       go vars env1 env2 env3 = case vars of

@@ -83,8 +83,6 @@ instance PreOrd a => PreOrd (Result a) where
     (Fail, Fail) -> True
     (_,_) -> False
 
-instance (PartOrd a) => PartOrd (Result a)
-
 instance Galois x y => Galois (Result x) (Result y) where
   alpha = fmap alpha
   gamma = fmap gamma

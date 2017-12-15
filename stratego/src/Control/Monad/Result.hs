@@ -72,8 +72,6 @@ instance MonadDeduplicate m => MonadDeduplicate (ResultT m) where
 instance PreOrd (m (Result a)) => PreOrd (ResultT m a) where
   (ResultT m1) ⊑ (ResultT m2) = m1 ⊑ m2
 
-instance PartOrd (m (Result a)) => PartOrd (ResultT m a) where
-
-instance Lattice (m (Result a)) => Lattice (ResultT m a) where
+instance Complete (m (Result a)) => Complete (ResultT m a) where
   (ResultT m1) ⊔ (ResultT m2) = ResultT (m1 ⊔ m2)
 
