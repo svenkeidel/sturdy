@@ -1,1 +1,5 @@
 **/dist/
+.stack-work
+*.iml
+/out
+/.idea
