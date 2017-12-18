@@ -7,6 +7,7 @@ import qualified Data.Map as M
 import           Data.Set (Set)
 import qualified Data.Set as S
 import           Data.Error
+import           Data.Text (Text)
 
 import           Numeric.Limits
 
@@ -43,13 +44,20 @@ class PreOrd x => UpperBounded x where
 glb :: (Foldable f, Complete x, UpperBounded x) => f x -> x
 glb = foldr (⊔) top
 
+
 instance PreOrd a => PreOrd [a] where
   []     ⊑ []     = True
   (a:as) ⊑ (b:bs) = a ⊑ b && as ⊑ bs
   _      ⊑ _      = False
 
-instance PreOrd a => PreOrd (Set a) where
+instance (Ord a, PreOrd a) => PreOrd (Set a) where
   s1 ⊑ s2 = all (\x -> any (\y -> x ⊑ y) s2) s1
+
+instance (Ord a, PreOrd a) => Complete (Set a) where
+  (⊔) = S.union
+
+instance (Ord a, PreOrd a) => CoComplete (Set a) where
+  (⊓) = S.intersection
 
 instance PreOrd () where
   () ⊑ () = True
@@ -74,6 +82,10 @@ instance (Ord k, Complete v) => Complete (Map k v) where
 
 -- Base types are discretly ordered
 instance PreOrd Char where
+  (⊑) = (==)
+  (≈) = (==)
+
+instance PreOrd Text where
   (⊑) = (==)
   (≈) = (==)
 

@@ -2,12 +2,17 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Arrows #-}
-module IntervalAnalysis where
+module IntervalAnalysisDeadWrites where
+
+import Prelude
+import qualified Prelude as Prelude
 
 import WhileLanguage
 
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Interval
 import Data.Order
@@ -31,11 +36,30 @@ instance Complete Val where
   _ ⊔ _ = Top
 
 type Store = Map Text Val
-type Prop = ()
+
+data DeadWrites = DeadWrites {
+  maybeDead :: Set Text, -- dead unless followed by a read
+  mustDead :: Set Text -- definitely dead (e.g., because of double write)
+}
+instance PreOrd DeadWrites where
+  (DeadWrites may1 must1) ⊑ (DeadWrites may2 must2) = (must1 ⊑ must2) && (maymay ⊑ may2)
+    where maymay = Set.filter (\x -> Prelude.not $ Set.member x must2) may1
+instance Complete DeadWrites where
+  (DeadWrites may1 must1) ⊔ (DeadWrites may2 must2) = DeadWrites (may1 ⊔ may2) (must1 ⊔ must2)
+
+type Prop = DeadWrites
 type M = StateT (Store,Prop) (Except String)
 
 runAbstract :: Kleisli M [Statement] ()
 runAbstract = run
+
+propAbstract :: Kleisli M [Statement] (Set Text)
+propAbstract = proc ss -> do
+  (_,DeadWrites maybe must) <- getA <<< run -< ss
+  returnA -< (maybe `Set.union` must)
+
+getA :: Kleisli M () (Store,Prop)
+getA = Kleisli (\_ -> get)
 
 getStore :: M Store
 getStore = get >>= return . fst
@@ -58,7 +82,12 @@ instance ArrowFail String (Kleisli M) where
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)
 
-  store = Kleisli $ \(x,v) -> modifyStore (M.insert x v)
+  store = Kleisli $ \(x,v) -> do
+    modifyStore (M.insert x v)
+    modifyProp (\(DeadWrites maybe must) ->
+          if x `Set.member` maybe
+            then DeadWrites maybe (Set.insert x must)
+            else DeadWrites (Set.insert x maybe)  must)
 
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal True -> f1 -< x
@@ -68,6 +97,7 @@ instance Run (Kleisli M) Val where
 
 instance Eval (Kleisli M) Val where
   lookup = Kleisli $ \x -> do
+    modifyProp (\(DeadWrites maybe must) -> DeadWrites (Set.delete x maybe) must)
     env <- getStore
     case M.lookup x env of
       Just v -> return v

@@ -1,43 +1,48 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
-module ConcreteSemanticsReadVars where
+module IntervalAnalysisFailedReads where
 
 import WhileLanguage
 
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Text (Text)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Error
+import Data.Text (Text)
+import Data.Interval
+import Data.Order
 
 import Control.Monad.State
 import Control.Monad.Except
-import Control.Monad.Writer
 import Control.Arrow
 import Control.Arrow.Fail
 
-data Val = BoolVal Bool | NumVal Double
+data Val = BoolVal Bool | NumVal (Interval Double) | Top
+
+instance PreOrd Val where
+  _ ⊑ Top = True
+  BoolVal b1 ⊑ BoolVal b2 = b1 == b2
+  NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
+  _ ⊑ _ = False
+
+instance Complete Val where
+  BoolVal b1 ⊔ BoolVal b2 = if b1 == b2 then BoolVal b1 else Top
+  NumVal n1 ⊔ NumVal n2 = NumVal $ n1 ⊔ n2
+  _ ⊔ _ = Top
+
 type Store = Map Text Val
-initStore :: Store
-initStore = M.empty
-
 type Prop = Set Text
-initProp :: Prop
-initProp = Set.empty
+type M = StateT (Store,Prop) (Except String)
 
-type M = StateT (Store, Prop) (Except String)
+runAbstract :: Kleisli M [Statement] ()
+runAbstract = run
 
-runConcrete :: [Statement] -> Error String ()
-runConcrete ss = fromEither $ runExcept $ evalStateT (runKleisli run ss) (initStore,initProp)
-
-propConcrete :: [Statement] -> Error String Prop
-propConcrete ss = do
-  (_,prop) <- fromEither $ runExcept $ execStateT (runKleisli run ss) (initStore,initProp)
-  return prop
+propAbstract :: Kleisli M [Statement] (Set Text)
+propAbstract = proc ss -> do
+  (_,vx) <- getA <<< run -< ss
+  returnA -< vx
 
 getA :: Kleisli M () (Store,Prop)
 getA = Kleisli (\_ -> get)
@@ -68,52 +73,73 @@ instance Run (Kleisli M) Val where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
+    Top -> (f1 -< x) ⊔ (f2 -< y)
     _ -> failA -< "Expected boolean as argument for 'if'"
 
 instance Eval (Kleisli M) Val where
   lookup = Kleisli $ \x -> do
-    modifyProp $ Set.insert x
     env <- getStore
     case M.lookup x env of
       Just v -> return v
-      Nothing -> throwError "variable not found"
+      Nothing -> do
+        modifyProp $ Set.insert x
+        throwError "variable not found"
 
   boolLit = arr BoolVal
 
   and = proc (v1,v2) -> case (v1,v2) of
-    (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 && b2)
+    (BoolVal False,_) -> returnA -< BoolVal False
+    (_,BoolVal False) -> returnA -< BoolVal False
+    (BoolVal True,BoolVal True) -> returnA -< BoolVal True
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two booleans as arguments for 'and'"
 
   or = proc (v1,v2) -> case (v1,v2) of
-    (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 || b2)
+    (BoolVal True,_) -> returnA -< BoolVal True
+    (_,BoolVal True) -> returnA -< BoolVal True
+    (BoolVal False,BoolVal False) -> returnA -< BoolVal False
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two booleans as arguments for 'or'"
   
   not = proc v -> case v of
-    BoolVal b -> returnA -< BoolVal (Prelude.not b)
+    BoolVal True -> returnA -< BoolVal False
+    BoolVal False -> returnA -< BoolVal True
+    Top -> returnA -< Top
     _ -> failA -< "Expected a boolean as argument for 'not'"
 
-  numLit = arr NumVal
+  numLit = arr $ \x -> NumVal (IV (x,x))
 
   add = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'add'"
 
   sub = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'sub'"
 
   mul = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'mul'"
 
   div = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 / n2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'mul'"
 
   eq = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 == n2)
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
 
   fixEval f = f (fixEval f)
-

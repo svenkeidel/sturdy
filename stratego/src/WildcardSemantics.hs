@@ -198,9 +198,9 @@ instance ArrowFix Interp Term where
 instance Soundness Interp where
   sound senv xs f g = forAll (choose (0,3)) $ \i ->
     let con :: A.Pow (Result (_,TermEnv))
-        con = dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
+        con = P.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
         abst :: A.Pow (Result (_,TermEnv))
-        abst = dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+        abst = P.dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 instance UpperBounded Term where

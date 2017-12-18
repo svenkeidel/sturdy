@@ -13,10 +13,14 @@ library
   exposed-modules:     WhileLanguage,
                        ConcreteSemantics,
                        ConcreteSemanticsReadVars,
+                       ConcreteSemanticsFailedReads,
                        ConcreteSemanticsDeadWrites,
                        ConcreteSemanticsStatementTrace,
                        ControlFlowGraph,
-                       IntervalAnalysis
+                       IntervalAnalysis,
+                       IntervalAnalysisReadVars,
+                       IntervalAnalysisFailedReads,
+                       IntervalAnalysisDeadWrites
   build-depends:       base,
                        sturdy-lib,
                        text,

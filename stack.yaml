@@ -3,7 +3,7 @@ extra-package-dbs: []
 packages:
 - 'lib'
 - 'while'
-- 'stratego'
+#- 'stratego'
 extra-deps:
 - numeric-limits-0.1.0.0
 resolver: lts-9.18
