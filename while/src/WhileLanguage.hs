@@ -26,6 +26,8 @@ data Statement = While Expr [Statement]
                | Assign Text Expr
   deriving (Show,Ord,Eq)
 
+type Prog = [Statement]
+
 class ArrowChoice c => Eval c v | c -> v where
   lookup :: c Text v
   boolLit :: c Bool v
