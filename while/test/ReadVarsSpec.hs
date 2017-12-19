@@ -45,7 +45,8 @@ spec = do
       , Assign y (NumLit 2)
       , Assign z (NumLit 3)
       , While (Not $ Eq (Var x) (NumLit 100))
-        [ If (Eq (Var x) (NumLit 101))
+        [ Assign x (Add (Var x) (NumLit 1))
+        , If (Eq (Var x) (NumLit 101))
           [ Assign z (Var y) ]
           [ Assign y (Var z) ]
         ]
