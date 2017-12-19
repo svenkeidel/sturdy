@@ -10,9 +10,9 @@ import WhileLanguage
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Text (Text)
-
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Error
 
 import Control.Monad.State
 import Control.Monad.Except
@@ -22,21 +22,23 @@ import Control.Arrow.Fail
 
 data Val = BoolVal Bool | NumVal Double
 type Store = Map Text Val
+initStore :: Store
+initStore = M.empty
 
 data TraceElem = TrStore Text | TrIfThen | TrIfElse | TrEndIf
 type Prop = [TraceElem]
+initProp :: Prop
+initProp = []
+
 type M = StateT (Store,Prop) (Except String)
+runM :: [Statement] -> Error String ((),(Store,Prop))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initProp)
 
-runConcrete :: Kleisli M [Statement] ()
-runConcrete = run
+runConcrete :: [Statement] -> Error String ()
+runConcrete ss = fmap fst $ runM ss
 
-propConcrete :: Kleisli M [Statement] Prop
-propConcrete = proc ss -> do
-  (_,prop) <- getA <<< run -< ss
-  returnA -< reverse prop
-
-getA :: Kleisli M () (Store,Prop)
-getA = Kleisli (\_ -> get)
+propConcrete :: [Statement] -> Error String Prop
+propConcrete ss = fmap (reverse . snd . snd) $ runM ss
 
 getStore :: M Store
 getStore = get >>= return . fst

@@ -13,6 +13,7 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Interval
 import Data.Order
+import Data.Error
 
 import Control.Monad.State
 import Control.Monad.Except
@@ -33,19 +34,22 @@ instance Complete Val where
   _ ⊔ _ = Top
 
 type Store = Map Text Val
+initStore :: Store
+initStore = M.empty
+
 type Prop = Set Text
+initProp :: Prop
+initProp = Set.empty
+
 type M = StateT (Store,Prop) (Except String)
+runM :: [Statement] -> Error String ((), (Store,Prop))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initProp)
 
-runAbstract :: Kleisli M [Statement] ()
-runAbstract = run
+runAbstract :: [Statement] -> Error String ()
+runAbstract ss = fmap fst $ runM ss
 
-propAbstract :: Kleisli M [Statement] (Set Text)
-propAbstract = proc ss -> do
-  (_,vx) <- getA <<< run -< ss
-  returnA -< vx
-
-getA :: Kleisli M () (Store,Prop)
-getA = Kleisli (\_ -> get)
+propAbstract :: [Statement] -> Error String Prop
+propAbstract ss = fmap (snd . snd) $ runM ss
 
 getStore :: M Store
 getStore = get >>= return . fst

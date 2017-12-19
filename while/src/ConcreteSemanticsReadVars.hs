@@ -30,17 +30,14 @@ initProp :: Prop
 initProp = Set.empty
 
 type M = StateT (Store, Prop) (Except String)
+runM :: [Statement] -> Error String ((),(Store,Prop))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initProp)
 
 runConcrete :: [Statement] -> Error String ()
-runConcrete ss = fromEither $ runExcept $ evalStateT (runKleisli run ss) (initStore,initProp)
+runConcrete ss = fmap fst $ runM ss
 
 propConcrete :: [Statement] -> Error String Prop
-propConcrete ss = do
-  (_,prop) <- fromEither $ runExcept $ execStateT (runKleisli run ss) (initStore,initProp)
-  return prop
-
-getA :: Kleisli M () (Store,Prop)
-getA = Kleisli (\_ -> get)
+propConcrete ss = fmap (snd . snd) $ runM ss
 
 getStore :: M Store
 getStore = get >>= return . fst

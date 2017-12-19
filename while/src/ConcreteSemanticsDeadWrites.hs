@@ -10,9 +10,9 @@ import WhileLanguage
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Text (Text)
-
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Error
 
 import Control.Monad.State
 import Control.Monad.Except
@@ -22,25 +22,31 @@ import Control.Arrow.Fail
 
 data Val = BoolVal Bool | NumVal Double
 type Store = Map Text Val
+initStore :: Store
+initStore = M.empty
+
 -- A variable write is "dead" if at least once the variable was written
 -- without a subsequent read observing that write
 data DeadWrites = DeadWrites {
   maybeDead :: Set Text, -- dead unless followed by a read
   mustDead :: Set Text -- definitely dead (e.g., because of double write)
 }
+finalize :: DeadWrites -> Set Text
+finalize (DeadWrites may must) = may `Set.union` must
+
 type Prop = DeadWrites
+initProp :: Prop
+initProp = DeadWrites Set.empty Set.empty
+
 type M = StateT (Store,Prop) (Except String)
+runM :: [Statement] -> Error String ((),(Store,Prop))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initProp)
 
-runConcrete :: Kleisli M [Statement] ()
-runConcrete = run
+runConcrete :: [Statement] -> Error String ()
+runConcrete ss = fmap fst $ runM ss
 
-propConcrete :: Kleisli M [Statement] (Set Text)
-propConcrete = proc ss -> do
-  (_,DeadWrites maybe must) <- getA <<< run -< ss
-  returnA -< (maybe `Set.union` must)
-
-getA :: Kleisli M () (Store,Prop)
-getA = Kleisli (\_ -> get)
+propConcrete :: [Statement] -> Error String (Set Text)
+propConcrete ss = fmap (finalize . snd . snd) $ runM ss
 
 getStore :: M Store
 getStore = get >>= return . fst
