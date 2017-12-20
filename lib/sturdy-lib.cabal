@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Data.Order,
                        Data.Boolean,
+                       Data.InfiniteNumbers,
                        Data.Interval,
                        Data.Powerset,
                        Data.Sign,
