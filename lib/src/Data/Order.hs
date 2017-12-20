@@ -97,6 +97,18 @@ instance PreOrd Double where
   (⊑) = (==)
   (≈) = (==)
 
+instance LowerBounded Int where
+  bottom = minBound
+
+instance UpperBounded Int where
+  top = maxBound
+
+instance Complete Int where
+  (⊔) = max
+
+instance CoComplete Int where
+  (⊓) = min
+
 instance LowerBounded Double where
   bottom = minValue
 
