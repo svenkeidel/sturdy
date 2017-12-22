@@ -3,9 +3,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
-module ConcreteSemanticsStatementTrace where
+module ControlFlow.Concrete where
 
 import WhileLanguage
+import ConcreteSemantics (Val(..), Store, initStore)
+
+import ControlFlow.Prop
 
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -13,6 +16,7 @@ import Data.Text (Text)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Error
+import Data.Order
 
 import Control.Monad.State
 import Control.Monad.Except
@@ -20,24 +24,14 @@ import Control.Monad.Writer
 import Control.Arrow
 import Control.Arrow.Fail
 
-data Val = BoolVal Bool | NumVal Double
-type Store = Map Text Val
-initStore :: Store
-initStore = M.empty
-
-data TraceElem = TrStore Text | TrIfThen | TrIfElse | TrEndIf
-type Prop = [TraceElem]
-initProp :: Prop
-initProp = []
-
-type M = StateT (Store,Prop) (Except String)
-runM :: [Statement] -> Error String ((),(Store,Prop))
-runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initProp)
+type M = StateT (Store,CProp) (Except String)
+runM :: [Statement] -> Error String ((),(Store,CProp))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore, initCProp)
 
 runConcrete :: [Statement] -> Error String ()
 runConcrete ss = fmap fst $ runM ss
 
-propConcrete :: [Statement] -> Error String Prop
+propConcrete :: [Statement] -> Error String CProp
 propConcrete ss = fmap (reverse . snd . snd) $ runM ss
 
 getStore :: M Store
@@ -49,10 +43,10 @@ putStore env = modify (\(x,y) -> (env,y))
 modifyStore :: (Store -> Store) -> M ()
 modifyStore f = modify (\(x,y) -> (f x, y))
 
-putProp :: Prop -> M ()
+putProp :: CProp -> M ()
 putProp prop = modify (\(x,y) -> (x,prop))
 
-modifyProp :: (Prop -> Prop) -> M ()
+modifyProp :: (CProp -> CProp) -> M ()
 modifyProp f = modify (\(x,y) -> (x, f y))
 
 instance ArrowFail String (Kleisli M) where
@@ -62,19 +56,15 @@ instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)
 
   store = Kleisli $ \(x,v) -> do
-    modifyProp (TrStore x :)
+    modifyProp (TrAssign x v :)
     modifyStore (M.insert x v)
 
-  if_ (Kleisli f1) (Kleisli f2) = Kleisli (\(v,(x,y)) -> case v of
-    BoolVal True -> do
-      modifyProp (TrIfThen :)
-      f1 x
-      modifyProp (TrEndIf :)
-    BoolVal False -> do
-      modifyProp (TrIfElse :)
-      f2 y
-      modifyProp (TrEndIf :)
-    _ -> throwError "Expected boolean as argument for 'if'")
+  if_ (Kleisli f1) (Kleisli f2) = Kleisli (\(v,(x,y)) -> do
+    modifyProp (TrIf v :)
+    case v of
+      BoolVal True -> f1 x
+      BoolVal False -> f2 y
+      _ -> throwError "Expected boolean as argument for 'if'")
 
 instance Eval (Kleisli M) Val where
   lookup = Kleisli $ \x -> do

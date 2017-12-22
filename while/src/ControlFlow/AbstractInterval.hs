@@ -2,63 +2,44 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Arrows #-}
-module IntervalAnalysis where
+module ControlFlow.AbstractInterval where
 
 import WhileLanguage
-import qualified ConcreteSemantics as Concrete
+import IntervalAnalysis (Val(..), Store, initStore)
 
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IM
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Interval
 import Data.Order
+import Data.Error
+import Data.Maybe
+import Data.List
 import Data.GaloisConnection
-import Data.Powerset
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
 
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Arrow
 import Control.Arrow.Fail
 
-data Val = BoolVal Bool | NumVal (Interval Double) | Top | Bot
 
-instance PreOrd Val where
-  Bot ⊑ _ = True
-  _ ⊑ Top = True
-  BoolVal b1 ⊑ BoolVal b2 = b1 == b2
-  NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
-  _ ⊑ _ = False
+pushNode :: CFGNode -> Prop -> Prop
+pushNode node (b, cache) =
+  (b `mappend` CFGBuilder (\i -> CFG (Set.singleton i) (IM.singleton i node) Set.empty), cache)
 
-instance LowerBounded Val where
-  bottom = Bot
-instance UpperBounded Val where
-  top = Top
-
-instance Complete Val where
-  BoolVal b1 ⊔ BoolVal b2 = if b1 == b2 then BoolVal b1 else Top
-  NumVal n1 ⊔ NumVal n2 = NumVal $ n1 ⊔ n2
-  Bot ⊔ a = a
-  a ⊔ Bot = a
-  _ ⊔ _ = Top
-
-instance Galois (Pow Concrete.Val) Val where
-  alpha = lifted lift
-    where lift (Concrete.BoolVal b) = BoolVal b
-          lift (Concrete.NumVal n) = NumVal $ IV (n,n)
-  gamma Bot = Pow Seq.empty
-  gamma (BoolVal b) = Pow $ Seq.singleton $ Concrete.BoolVal b
-  gamma (NumVal (IV (m,n))) = Pow $ Seq.fromList [Concrete.NumVal x | x <- [m..n]]
-  gamma Top = gamma (BoolVal True) `union` gamma (BoolVal False) `union` gamma (NumVal $ IV (bottom,top))
-
-
-type Store = Map Text Val
-type Prop = ()
 type M = StateT (Store,Prop) (Except String)
+runM :: [Statement] -> Error String ((), (Store,Prop))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initProp)
 
-runAbstract :: Kleisli M [Statement] ()
-runAbstract = run
+runAbstract :: [Statement] -> Error String ()
+runAbstract ss = fmap fst $ runM ss
+
+propAbstract :: [Statement] -> Error String CFG
+propAbstract ss = fmap (\r -> buildCFG (fst $ snd $ snd r) 1) $ runM ss
 
 getStore :: M Store
 getStore = get >>= return . fst
@@ -68,6 +49,9 @@ putStore env = modify (\(x,y) -> (env,y))
 
 modifyStore :: (Store -> Store) -> M ()
 modifyStore f = modify (\(x,y) -> (f x, y))
+
+getProp :: M Prop
+getProp = get >>= return . snd
 
 putProp :: Prop -> M ()
 putProp prop = modify (\(x,y) -> (x,prop))
@@ -81,13 +65,17 @@ instance ArrowFail String (Kleisli M) where
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)
 
-  store = Kleisli $ \(x,v) -> modifyStore (M.insert x v)
+  store = Kleisli $ \(x,v) -> do
+    modifyProp (pushNode $ CFGAssign x v)
+    modifyStore (M.insert x v)
 
-  if_ f1 f2 = proc (v,(x,y)) -> case v of
-    BoolVal True -> f1 -< x
-    BoolVal False -> f2 -< y
-    Top -> (f1 -< x) ⊔ (f2 -< y)
-    _ -> failA -< "Expected boolean as argument for 'if'"
+  if_ (Kleisli f1) (Kleisli f2) = Kleisli $ \(v,(x,y)) -> do
+    modifyProp (pushNode $ CFGIf v)
+    case v of
+      BoolVal True -> f1 x
+      BoolVal False -> f2 y
+      Top -> (f1 x) ⊔ (f2 y)
+      _ -> throwError "Expected boolean as argument for 'if'"
 
 instance Eval (Kleisli M) Val where
   lookup = Kleisli $ \x -> do

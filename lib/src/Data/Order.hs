@@ -6,6 +6,9 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Set (Set)
 import qualified Data.Set as S
+import           Data.IntMap (IntMap)
+import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
 import           Data.Error
 import           Data.Text (Text)
 
@@ -77,6 +80,9 @@ instance (CoComplete a, CoComplete b) => CoComplete (a,b) where
 instance (Ord k,PreOrd v) => PreOrd (Map k v) where
   c1 ⊑ c2 = M.keysSet c1 `S.isSubsetOf` M.keysSet c2 && all (\k -> (c1 M.! k) ⊑ (c2 M.! k)) (M.keys c1)
 
+instance PreOrd v => PreOrd (IntMap v) where
+  c1 ⊑ c2 = IM.keysSet c1 `IS.isSubsetOf` IM.keysSet c2 && all (\k -> (c1 IM.! k) ⊑ (c2 IM.! k)) (IM.keys c1)
+
 instance (Ord k, Complete v) => Complete (Map k v) where
   (⊔) = M.unionWith (⊔)
 
@@ -92,6 +98,18 @@ instance PreOrd Text where
 instance PreOrd Int where
   (⊑) = (==)
   (≈) = (==)
+
+instance LowerBounded Int where
+  bottom = minBound
+
+instance UpperBounded Int where
+  top = maxBound
+
+instance Complete Int where
+  (⊔) = max
+
+instance CoComplete Int where
+  (⊓) = min
 
 instance PreOrd Double where
   (⊑) = (==)

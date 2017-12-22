@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DeriveGeneric #-}
 module ConcreteSemantics where
 
 import WhileLanguage
@@ -10,14 +11,30 @@ import WhileLanguage
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Text (Text)
+import Data.Order
+import Data.Hashable
 
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Arrow
 import Control.Arrow.Fail
 
+import GHC.Generics (Generic)
+
+
 data Val = BoolVal Bool | NumVal Double
+  deriving (Eq, Show, Generic)
+
+instance Hashable Val
+
+instance PreOrd Val where
+  (⊑) = (==)
+  (≈) = (==)
+
 type Store = Map Text Val
+initStore :: Store
+initStore = M.empty
+
 type M = StateT Store (Except String)
 
 runConcrete :: Kleisli M [Statement] ()

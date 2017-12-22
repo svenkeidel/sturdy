@@ -5,15 +5,15 @@ import Soundness
 import WhileLanguage
 
 import Data.Error
-import Data.Order
+import Data.GaloisConnection
 
 import Test.Hspec
 
-whileSoundnessSpec :: (PreOrd r, PreOrd p, Show r, Show p) =>
-  (Prog -> Error String r) ->
-  (Prog -> Error String r) ->
-  (Prog -> Error String p) ->
-  (Prog -> Error String p) ->
+whileSoundnessSpec :: (Galois rc ra, Galois pc pa, Show ra, Show pa) =>
+  (Prog -> Error String rc) ->
+  (Prog -> Error String ra) ->
+  (Prog -> Error String pc) ->
+  (Prog -> Error String pa) ->
   Spec
 whileSoundnessSpec runConcrete runAbstract propConcrete propAbstract = do
   sound "$x:=1; $y:=$z" (\(x,y,z) ->

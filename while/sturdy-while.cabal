@@ -15,18 +15,20 @@ library
                        ConcreteSemanticsReadVars,
                        ConcreteSemanticsFailedReads,
                        ConcreteSemanticsDeadWrites,
-                       ConcreteSemanticsStatementTrace,
                        ControlFlowGraph,
                        IntervalAnalysis,
                        IntervalAnalysisReadVars,
                        IntervalAnalysisFailedReads,
-                       IntervalAnalysisDeadWrites
+                       IntervalAnalysisDeadWrites,
+                       ControlFlow.Prop
+                       ControlFlow.Concrete
   build-depends:       base,
                        sturdy-lib,
                        text,
                        containers,
                        mtl,
-                       numeric-limits
+                       numeric-limits,
+                       hashable
   hs-source-dirs:      src
   default-language:    Haskell2010
 
