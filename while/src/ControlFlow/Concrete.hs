@@ -31,8 +31,8 @@ runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore, ini
 runConcrete :: [Statement] -> Error String ()
 runConcrete ss = fmap fst $ runM ss
 
-propConcrete :: [Statement] -> Error String CProp
-propConcrete ss = fmap (reverse . snd . snd) $ runM ss
+propConcrete :: [Statement] -> Error String LiftedCProp
+propConcrete ss = fmap (liftCProp . reverse . snd . snd) $ runM ss
 
 getStore :: M Store
 getStore = get >>= return . fst

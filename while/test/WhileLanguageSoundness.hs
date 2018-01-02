@@ -9,7 +9,7 @@ import Data.GaloisConnection
 
 import Test.Hspec
 
-whileSoundnessSpec :: (Galois rc ra, Galois pc pa, Show ra, Show pa) =>
+whileSoundnessSpec :: (Galois rc ra, Galois pc pa, Show rc, Show ra, Show pc, Show pa) =>
   (Prog -> Error String rc) ->
   (Prog -> Error String ra) ->
   (Prog -> Error String pc) ->

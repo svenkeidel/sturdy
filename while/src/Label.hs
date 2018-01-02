@@ -3,7 +3,7 @@ module Label where
 import Data.Hashable
 import Control.Monad.State
 
-newtype Label = Label Int
+newtype Label = Label { labelVal :: Int }
   deriving (Show,Ord,Eq)
 
 (@@) :: (Label -> a) -> Int -> a

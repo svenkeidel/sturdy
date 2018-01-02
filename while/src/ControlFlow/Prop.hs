@@ -14,6 +14,7 @@ import Data.GaloisConnection
 import Data.Order
 import Data.Powerset
 import Data.Hashable
+import Data.Traversable
 
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -31,6 +32,10 @@ import GHC.Generics (Generic)
 
 data TraceElem v = TrAssign Label v | TrIf Label v
   deriving (Show,Eq,Generic,Functor)
+
+trLabel :: TraceElem v -> Label
+trLabel (TrAssign l _) = l
+trLabel (TrIf l _) = l
 
 instance Hashable v => Hashable (TraceElem v)
 
@@ -70,7 +75,14 @@ singletonCFG n = CFG (Set.singleton l) (Set.singleton l) (IM.singleton l n) Set.
 
 instance Monoid (CFG v) where
   mempty = CFG Set.empty Set.empty IM.empty Set.empty
-  mappend = undefined
+
+  mappend g1 g2 | IM.null (nodes g1) = g2
+  mappend g1 g2 | IM.null (nodes g2) = g1
+  mappend (CFG en1 ex1 no1 ed1) (CFG en2 ex2 no2 ed2) =
+    CFG en1 ex2 (IM.union no1 no2) (ed1 `Set.union` ed2 `Set.union` connects)
+    where
+      connects :: Set (Int,Int)
+      connects = Set.fromList [(ex,en) | ex <- Set.toList ex1, en <- Set.toList en2]
 
 instance PreOrd v => PreOrd (CFGNode v) where
   (CFGAssign l1 v1) ⊑ (CFGAssign l2 v2) = l1==l2 && v1⊑v2
@@ -112,11 +124,22 @@ pushNode node p = p `mappend` (singletonCFG node)
 
 instance (Galois (Pow Concrete.Val) v,Complete v,LowerBounded v) => Galois (Pow [TraceElem (Pow Concrete.Val)]) (CFG v) where
   alpha = lifted lift
-    where lift elems = CFG (Set.singleton 1) (Set.singleton $ length elems) (nodes elems) (edges elems)
-          nodes elems = foldl (\m (elem,i) -> IM.insert i (mkNode elem) m) IM.empty (zip elems [1..])
-          edges elems = foldr (\n -> Set.insert (n,n+1)) Set.empty [1..(length elems - 1)]
-          mkNode (TrAssign l v) = CFGAssign l $ alpha v
-          mkNode (TrIf l v) = CFGIf l $ alpha v
+    where lift elems = CFG (entry elems) (exit elems) (nodes elems) (edges elems)
+
+          entry [] = Set.empty
+          entry (e:_) = Set.singleton $ labelVal $ trLabel e
+
+          exit [] = Set.empty
+          exit es = Set.singleton $ labelVal $ trLabel $ last es
+
+          nodes elems = IM.fromList $ map mkNode elems
+
+          edges [] = Set.empty
+          edges [e] = Set.empty
+          edges (e1:e2:es) = Set.insert (labelVal $ trLabel e1,labelVal $ trLabel e2) $ edges (e2:es)
+
+          mkNode (TrAssign (Label l) v) = (l,CFGAssign (Label l) $ alpha v)
+          mkNode (TrIf (Label l) v) = (l, CFGIf (Label l) $ alpha v)
 
   gamma  (CFG en ex nodes edges) = foldr (union . walk []) empty en
     where walk :: [TraceElem (Pow Concrete.Val)] -> Int -> Pow [TraceElem (Pow Concrete.Val)]

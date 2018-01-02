@@ -23,6 +23,7 @@ import Control.Arrow
 import Control.Arrow.Fail
 
 data Val = BoolVal Bool | NumVal (Interval Double) | Top | Bot
+  deriving (Show)
 
 instance PreOrd Val where
   Bot ⊑ _ = True

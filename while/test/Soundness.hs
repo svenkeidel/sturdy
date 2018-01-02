@@ -4,6 +4,8 @@ module Soundness where
 
 import WhileLanguage
 
+import           Control.Monad (unless)
+
 import           Data.Error
 import           Data.Order
 import           Data.Text
@@ -19,7 +21,12 @@ instance Arbitrary Text where
 withSize :: Spec -> Spec
 withSize = modifyMaxSuccess (const 1000)
 
-sound :: (Arbitrary a, Galois rc ra, Galois pc pa, Show a, Show ra, Show pa) =>
+shouldBeApproximated :: (HasCallStack, Galois c a, Show a, Show c) => Error String c -> Error String a -> Expectation
+c `shouldBeApproximated` a = unless (ca ⊑ a) (expectationFailure msg)
+  where ca = fmap alpha c
+        msg = "soundness check failed: " ++ show ca ++ " ⊑ " ++ show a
+
+sound :: (Arbitrary a, Galois rc ra, Galois pc pa, Show a, Show rc, Show ra, Show pc, Show pa) =>
   String ->
   (a -> Prog) ->
   (Prog -> Error String rc) ->
@@ -30,19 +37,13 @@ sound :: (Arbitrary a, Galois rc ra, Galois pc pa, Show a, Show ra, Show pa) =>
 sound desc genprog runConcrete runAbstract propConcrete propAbstract = do
   withSize $ it ("sound value approximation " ++ desc) $ property $ \a -> do
     let prog = genprog a
-    let concreteVal = runConcrete prog
-    let concreteValAbstracted = fmap alpha concreteVal
-    let abstractVal = runAbstract prog
-    abstractVal `shouldSatisfy` (concreteValAbstracted ⊑)
+    runConcrete prog `shouldBeApproximated` runAbstract prog
 
   withSize $ it ("sound property approximation " ++ desc) $ property $ \a -> do
     let prog = genprog a
-    let concreteProp = propConcrete prog
-    let concretePropAbstracted = fmap alpha concreteProp
-    let abstractProp = propAbstract prog
-    abstractProp `shouldSatisfy` (concretePropAbstracted ⊑)
+    propConcrete prog `shouldBeApproximated` propAbstract prog
 
-soundProg :: (Galois rc ra, Galois pc pa, Show ra, Show pa) =>
+soundProg :: (Galois rc ra, Galois pc pa, Show rc, Show ra, Show pc, Show pa) =>
   String ->
   [Statement] ->
   (Prog -> Error String rc) ->
@@ -51,12 +52,8 @@ soundProg :: (Galois rc ra, Galois pc pa, Show ra, Show pa) =>
   (Prog -> Error String pa) ->
   Spec
 soundProg desc prog runConcrete runAbstract propConcrete propAbstract = do
-  let concreteVal = runConcrete prog
-  let concreteValAbstracted = fmap alpha concreteVal
-  let abstractVal = runAbstract prog
-  it ("sound value approximation " ++ desc) $ abstractVal `shouldSatisfy` (concreteValAbstracted ⊑)
+  it ("sound value approximation " ++ desc) $
+    runConcrete prog `shouldBeApproximated` runAbstract prog
 
-  let concreteProp = propConcrete prog
-  let concretePropAbstracted = fmap alpha concreteProp
-  let abstractProp = propAbstract prog
-  it ("sound property approximation " ++ desc) $ abstractProp `shouldSatisfy` (concretePropAbstracted ⊑)
+  it ("sound property approximation " ++ desc) $
+    propConcrete prog `shouldBeApproximated` propAbstract prog
