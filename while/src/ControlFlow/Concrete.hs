@@ -55,12 +55,12 @@ instance ArrowFail String (Kleisli M) where
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)
 
-  store = Kleisli $ \(x,v) -> do
-    modifyProp (TrAssign x v :)
+  store = Kleisli $ \(x,v,l) -> do
+    modifyProp (TrAssign l v :)
     modifyStore (M.insert x v)
 
-  if_ (Kleisli f1) (Kleisli f2) = Kleisli (\(v,(x,y)) -> do
-    modifyProp (TrIf v :)
+  if_ (Kleisli f1) (Kleisli f2) = Kleisli (\(v,(x,y),l) -> do
+    modifyProp (TrIf l v :)
     case v of
       BoolVal True -> f1 x
       BoolVal False -> f2 y

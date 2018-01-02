@@ -22,10 +22,13 @@ import           Data.Order
 
 import GHC.Generics (Generic)
 
-newtype Pow a = Pow (Seq a) deriving (Eq, Functor, Applicative, Monad, Alternative, MonadPlus, Monoid, Foldable, Traversable, Generic)
+newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, MonadPlus, Monoid, Foldable, Traversable, Generic)
 
 instance (Eq a, Hashable a) => PreOrd (Pow a) where
   as ⊑ bs = all (`H.member` toHashSet as) (toHashSet bs)
+
+instance (Eq a, Hashable a) => Eq (Pow a) where
+  as == bs = (toHashSet as) == (toHashSet bs)
 
 instance (Eq a, Hashable a) => Complete (Pow a) where
   as ⊔ bs = as `union` bs

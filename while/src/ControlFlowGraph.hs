@@ -108,8 +108,8 @@ instance Run (Kleisli M) Expr where
              Nothing -> tell $ CFGBuilder $ \i ->
                let cache' = M.insert stmt i cache
                in buildCFG (execM (runKleisli (f (fixRun f)) stmt) cache') i
-  store = Kleisli $ \(v,e) -> tell (singleton (Assign v e))
-  if_ (Kleisli f) (Kleisli g) = Kleisli $ \(cond,(stmts1,stmts2)) -> do
+  store = Kleisli $ \(v,e,_) -> tell (singleton (Assign v e))
+  if_ (Kleisli f) (Kleisli g) = Kleisli $ \(cond,(stmts1,stmts2),_) -> do
     b1 <- listenCFG (f stmts1)
     b2 <- listenCFG (g stmts2)
     tell $ fork cond b1 b2

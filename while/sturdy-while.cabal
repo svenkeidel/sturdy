@@ -11,6 +11,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     WhileLanguage,
+                       Label
                        ConcreteSemantics,
                        ConcreteSemanticsReadVars,
                        ConcreteSemanticsFailedReads,
@@ -22,6 +23,8 @@ library
                        IntervalAnalysisDeadWrites,
                        ControlFlow.Prop
                        ControlFlow.Concrete
+                       ControlFlow.AbstractInterval
+                       Symbolic
   build-depends:       base,
                        sturdy-lib,
                        text,

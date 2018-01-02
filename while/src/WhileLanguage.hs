@@ -1,12 +1,19 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
-module WhileLanguage where
+{-# LANGUAGE DeriveGeneric #-}
+module WhileLanguage(module Label, module WhileLanguage) where
 
 import Prelude hiding (lookup,fail,and,or,not,div)
 
+import Label
+
 import Control.Arrow
 import Data.Text (Text)
+import Data.Hashable
+import Data.Order
+
+import GHC.Generics
 
 data Expr = Var Text
           | BoolLit Bool
@@ -19,12 +26,23 @@ data Expr = Var Text
           | Mul Expr Expr
           | Div Expr Expr
           | Eq Expr Expr
+  deriving (Show,Ord,Eq,Generic)
+
+instance Hashable Expr where
+
+instance PreOrd Expr where
+  (⊑) = (==)
+  (≈) = (==)
+
+data Statement = While Expr [Statement] Label
+               | If Expr [Statement] [Statement] Label
+               | Assign Text Expr Label
   deriving (Show,Ord,Eq)
 
-data Statement = While Expr [Statement]
-               | If Expr [Statement] [Statement]
-               | Assign Text Expr
-  deriving (Show,Ord,Eq)
+label :: Statement -> Label
+label (While _ _ l) = l
+label (If _ _ _ l) = l
+label (Assign _ _ l) = l
 
 type Prog = [Statement]
 
@@ -80,20 +98,20 @@ eval = fixEval $ \ev -> proc e -> case e of
     eq -< (v1,v2)
 
 class Run c v | c -> v where
-  store :: c (Text,v) ()
-  if_ :: c [Statement] () -> c [Statement] () -> c (v,([Statement],[Statement])) ()
+  store :: c (Text,v,Label) ()
+  if_ :: c [Statement] () -> c [Statement] () -> c (v,([Statement],[Statement]),Label) ()
   fixRun :: (c [Statement] () -> c Statement ()) -> c [Statement] ()
 
 run :: (Run c v, Eval c v) => c [Statement] ()
 run = fixRun $ \run' -> proc stmt -> case stmt of
-  Assign x e -> do
+  Assign x e l -> do
     v <- eval -< e
-    store -< (x,v) 
-  If cond b1 b2 -> do
+    store -< (x,v,l)
+  If cond b1 b2 l -> do
     b <- eval -< cond
-    if_ run' run' -< (b,(b1,b2))
-  While cond body ->
-    run' -< [If cond (body ++ [While cond body]) []]
+    if_ run' run' -< (b,(b1,b2),l)
+  While cond body l ->
+    run' -< [If cond (body ++ [While cond body l]) [] l]
 
 mapA :: ArrowChoice c => c x y -> c [x] [y]
 mapA f = proc l -> case l of

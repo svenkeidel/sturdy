@@ -87,14 +87,14 @@ instance ArrowFail String (Kleisli M) where
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)
 
-  store = Kleisli $ \(x,v) -> do
+  store = Kleisli $ \(x,v,_) -> do
     modifyStore (M.insert x v)
     modifyProp (\(DeadWrites maybe must) ->
           if x `Set.member` maybe
             then DeadWrites maybe (Set.insert x must)
             else DeadWrites (Set.insert x maybe)  must)
 
-  if_ f1 f2 = proc (v,(x,y)) -> case v of
+  if_ f1 f2 = proc (v,(x,y),_) -> case v of
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
     Top -> (f1 -< x) ⊔ (f2 -< y)

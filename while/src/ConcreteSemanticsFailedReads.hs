@@ -61,9 +61,9 @@ instance ArrowFail String (Kleisli M) where
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)
 
-  store = Kleisli $ \(x,v) -> modifyStore (M.insert x v)
+  store = Kleisli $ \(x,v,_) -> modifyStore (M.insert x v)
 
-  if_ f1 f2 = proc (v,(x,y)) -> case v of
+  if_ f1 f2 = proc (v,(x,y),_) -> case v of
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
     _ -> failA -< "Expected boolean as argument for 'if'"

@@ -7,6 +7,8 @@ module ControlFlow.AbstractInterval where
 import WhileLanguage
 import IntervalAnalysis (Val(..), Store, initStore)
 
+import ControlFlow.Prop
+
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.IntMap (IntMap)
@@ -26,20 +28,15 @@ import Control.Monad.Except
 import Control.Arrow
 import Control.Arrow.Fail
 
-
-pushNode :: CFGNode -> Prop -> Prop
-pushNode node (b, cache) =
-  (b `mappend` CFGBuilder (\i -> CFG (Set.singleton i) (IM.singleton i node) Set.empty), cache)
-
-type M = StateT (Store,Prop) (Except String)
-runM :: [Statement] -> Error String ((), (Store,Prop))
-runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initProp)
+type M = StateT (Store,AProp Val) (Except String)
+runM :: [Statement] -> Error String ((), (Store,AProp Val))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initAProp)
 
 runAbstract :: [Statement] -> Error String ()
 runAbstract ss = fmap fst $ runM ss
 
-propAbstract :: [Statement] -> Error String CFG
-propAbstract ss = fmap (\r -> buildCFG (fst $ snd $ snd r) 1) $ runM ss
+propAbstract :: [Statement] -> Error String (AProp Val)
+propAbstract ss = fmap (snd . snd) $ runM ss
 
 getStore :: M Store
 getStore = get >>= return . fst
@@ -48,16 +45,14 @@ putStore :: Store -> M ()
 putStore env = modify (\(x,y) -> (env,y))
 
 modifyStore :: (Store -> Store) -> M ()
-modifyStore f = modify (\(x,y) -> (f x, y))
+modifyStore f = modify (\(x,y) -> (f x,y))
 
-getProp :: M Prop
-getProp = get >>= return . snd
-
-putProp :: Prop -> M ()
+putProp :: AProp Val -> M ()
 putProp prop = modify (\(x,y) -> (x,prop))
 
-modifyProp :: (Prop -> Prop) -> M ()
-modifyProp f = modify (\(x,y) -> (x, f y))
+modifyProp :: (AProp Val -> AProp Val) -> M ()
+modifyProp f = modify (\(x,y) -> (x,f y))
+
 
 instance ArrowFail String (Kleisli M) where
   failA = Kleisli $ \e -> throwError e
@@ -65,12 +60,12 @@ instance ArrowFail String (Kleisli M) where
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)
 
-  store = Kleisli $ \(x,v) -> do
-    modifyProp (pushNode $ CFGAssign x v)
+  store = Kleisli $ \(x,v,l) -> do
+    modifyProp (pushNode $ CFGAssign l v)
     modifyStore (M.insert x v)
 
-  if_ (Kleisli f1) (Kleisli f2) = Kleisli $ \(v,(x,y)) -> do
-    modifyProp (pushNode $ CFGIf v)
+  if_ (Kleisli f1) (Kleisli f2) = Kleisli $ \(v,(x,y),l) -> do
+    modifyProp (pushNode $ CFGIf l v)
     case v of
       BoolVal True -> f1 x
       BoolVal False -> f2 y

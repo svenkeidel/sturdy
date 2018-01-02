@@ -29,14 +29,14 @@ import GHC.Generics (Generic)
 -- concrete
 ---------------
 
-data TraceElem v = TrAssign Text v | TrIf v
+data TraceElem v = TrAssign Label v | TrIf Label v
   deriving (Show,Eq,Generic,Functor)
 
 instance Hashable v => Hashable (TraceElem v)
 
 instance PreOrd v => PreOrd (TraceElem v) where
-  (TrAssign t1 v1) ⊑ (TrAssign t2 v2) = t1==t2 && v1 ⊑ v2
-  (TrIf v1) ⊑ (TrIf v2) = v1 ⊑ v2
+  (TrAssign l1 v1) ⊑ (TrAssign l2 v2) = l1==l2 && v1 ⊑ v2
+  (TrIf l1 v1) ⊑ (TrIf l2 v2) = l1==l2 && v1 ⊑ v2
   _ ⊑ _ = False
 
 type CProp = [TraceElem Concrete.Val]
@@ -52,21 +52,33 @@ liftCProp = singleton . map (fmap singleton)
 -- abstract
 ---------------
 
-data CFGNode v = CFGAssign Text v | CFGIf v
+data CFGNode v = CFGAssign Label v | CFGIf Label v
   deriving (Show,Eq)
+
+labelCFG :: CFGNode v -> Label
+labelCFG (CFGAssign l _) = l
+labelCFG (CFGIf l _) = l
 
 type CFGNodes v = IntMap (CFGNode v)
 
 data CFG v = CFG {entry :: Set Int, exit :: Set Int, nodes :: CFGNodes v, edges :: Set (Int,Int)}
   deriving (Show,Eq)
 
+singletonCFG :: CFGNode v -> CFG v
+singletonCFG n = CFG (Set.singleton l) (Set.singleton l) (IM.singleton l n) Set.empty
+  where Label l = labelCFG n
+
+instance Monoid (CFG v) where
+  mempty = CFG Set.empty Set.empty IM.empty Set.empty
+  mappend = undefined
+
 instance PreOrd v => PreOrd (CFGNode v) where
-  (CFGAssign t1 v1) ⊑ (CFGAssign t2 v2) = t1==t2 && v1⊑v2
-  (CFGIf v1) ⊑ (CFGIf v2) = v1⊑v2
+  (CFGAssign l1 v1) ⊑ (CFGAssign l2 v2) = l1==l2 && v1⊑v2
+  (CFGIf l1 v1) ⊑ (CFGIf l2 v2) = l1==l2 && v1⊑v2
   _ ⊑ _ = False
 
-  (CFGAssign t1 v1) ≈ (CFGAssign t2 v2) = t1==t2 && v1≈v2
-  (CFGIf v1) ≈ (CFGIf v2) = v1≈v2
+  (CFGAssign l1 v1) ≈ (CFGAssign l2 v2) = l1==l2 && v1≈v2
+  (CFGIf l1 v1) ≈ (CFGIf l2 v2) = l1==l2 && v1≈v2
   _ ≈ _ = False
 
 instance PreOrd v => PreOrd (CFG v) where
@@ -79,20 +91,32 @@ instance PreOrd v => PreOrd (CFG v) where
 
 instance Complete v => Complete (CFG v) where
   (CFG en1 ex1 no1 ed1) ⊔ (CFG en2 ex2 no2 ed2) =
-      CFG (en1 `Set.union` en2) (ex1 `Set.union` ex2) (IM.unionWith partialJoin no1 no2) (ed1 `mappend` ed2)
-    where (CFGAssign t1 v1) `partialJoin` (CFGAssign t2 v2) | t1 == t2 = CFGAssign t1 $ v1 ⊔ v2
-          (CFGIf v1) `partialJoin` (CFGIf v2) = CFGIf $ v1 ⊔ v2
+      CFG (en1 `Set.union` en2) (ex1 `Set.union` ex2) (IM.unionWith partialJoin no1 no2) (ed1 `Set.union` ed2)
+    where (CFGAssign l1 v1) `partialJoin` (CFGAssign l2 v2) | l1 == l2 = CFGAssign l1 $ v1 ⊔ v2
+          (CFGIf l1 v1) `partialJoin` (CFGIf l2 v2) | l1 == l2 = CFGIf l1 $ v1 ⊔ v2
 
 instance PreOrd v => LowerBounded (CFG v) where
   bottom = CFG Set.empty Set.empty IM.empty Set.empty
+
+type AProp v = CFG v
+initAProp :: AProp v
+initAProp = mempty
+
+pushNode :: CFGNode v -> AProp v -> AProp v
+pushNode node p = p `mappend` (singletonCFG node)
+
+
+---------------
+-- Galois
+---------------
 
 instance (Galois (Pow Concrete.Val) v,Complete v,LowerBounded v) => Galois (Pow [TraceElem (Pow Concrete.Val)]) (CFG v) where
   alpha = lifted lift
     where lift elems = CFG (Set.singleton 1) (Set.singleton $ length elems) (nodes elems) (edges elems)
           nodes elems = foldl (\m (elem,i) -> IM.insert i (mkNode elem) m) IM.empty (zip elems [1..])
           edges elems = foldr (\n -> Set.insert (n,n+1)) Set.empty [1..(length elems - 1)]
-          mkNode (TrAssign x v) = CFGAssign x $ alpha v
-          mkNode (TrIf v) = CFGIf $ alpha v
+          mkNode (TrAssign l v) = CFGAssign l $ alpha v
+          mkNode (TrIf l v) = CFGIf l $ alpha v
 
   gamma  (CFG en ex nodes edges) = foldr (union . walk []) empty en
     where walk :: [TraceElem (Pow Concrete.Val)] -> Int -> Pow [TraceElem (Pow Concrete.Val)]
@@ -102,81 +126,6 @@ instance (Galois (Pow Concrete.Val) v,Complete v,LowerBounded v) => Galois (Pow 
             in end `union` foldr (union . walk (mkTraceElem n : path)) empty outs
 
           mkTraceElem n = case nodes IM.! n of
-            CFGAssign t v -> TrAssign t $ gamma v
-            CFGIf v -> TrIf $ gamma v
+            CFGAssign l v -> TrAssign l $ gamma v
+            CFGIf l v -> TrIf l $ gamma v
 
-
--- findBackwards :: (CFGNode -> Bool) -> CFG -> Maybe CFGNode
--- findBackwards f (CFG exits nodes edges) = fmap fromJust $ find isJust $ (map (fst . go Set.empty) exits)
---   where go :: Set Int -> Int -> (Maybe CFGNode, Set Int)
---         go seen current | f node = (Just node,seen)
---                         | Set.member current seen = (Nothing,seen)
---                         | otherwise = foldl findNext (Nothing,Set.insert current seen) predecessors
---           where node = nodes IM.! current
---                 predecessors = map fst $ filter (\(from,to) -> to == current) edges
---                 findNext (Just n,seen) pred = (Just n,seen)
---                 findNext (Nothing,seen) pred = go seen pred
-
--- subgraph :: CFG -> -> CFG -> Bool
--- subgraph (CFG ex1 nodes1 edges1) start1 (CFG ex2 nodes2 edges2) start2 =
---   go (IM.singleton start1 start2) Set.empty
---   where go :: IntMap Int -> Set Int -> Int -> Bool
---         go alias seen current
---           | Set.member current seen = true
---           | otherwise = fromMaybe false $ do
---             other <- IM.lookup current alias
---             currentNode <- M.lookup current nodes1
---             otherNode <- M.lookup other nodes2
---             if currentNode /= otherNode
---               then return false
---               else do
---                 let newseen = Set.insert current seen
---                 currentOut = filter () edges1
-
-
--- newtype CFGCache = CFGCache (Map Statement Int)
--- data CFGBuilder v = CFGBuilder { buildCFG :: Int -> CFG v }
---
--- instance PreOrd CFGCache where
---   (CFGCache c1) ⊑ (CFGCache c2) =
---     M.keysSet c1 `Set.isSubsetOf` M.keysSet c2
---       && all (\k -> (c1 M.! k) ⊑ (c2 M.! k)) (M.keys c1)
---
--- instance Complete CFGCache where
---   (CFGCache c1) ⊔ (CFGCache c2) =
---     CFGCache $ M.unionWith (\a b -> if a == b then a else error "cannot join differing caches") c1 c2
---
--- fresh :: Int -> (CFGNodes v) -> Int
--- fresh i no
---   | IM.null no = i
---   | otherwise = succ (fst (IM.findMax no))
---
--- instance Eq v => Eq (CFGBuilder v) where
---   b1 == b2 = buildCFG b1 1 == buildCFG b2 1
---
--- instance Eq v => Monoid (CFGBuilder v) where
---   mempty = CFGBuilder $ \_ -> CFG Set.empty Set.empty IM.empty Set.empty
---   mappend b1 b2
---     | b1 == mempty = b2
---     | b2 == mempty = b1
---     | otherwise = CFGBuilder $ \i ->
---       let CFG en1 ex1 no1 ed1 = buildCFG b1 i
---           CFG en2 ex2 no2 ed2 = buildCFG b2 (fresh i no1)
---       in CFG en1 ex2 (IM.union no1 no2) $
---         foldr Set.insert (ed1 `mappend` ed2) [(ex,en) | ex <- Set.toList ex1, en <- Set.toList en2]
---
--- instance PreOrd v => PreOrd (CFGBuilder v) where
---   b1 ⊑ b2 = (buildCFG b1 1) ⊑ (buildCFG b2 1)
---   (≈) = (==)
---
--- instance Complete (CFGBuilder v) where
---   b1 ⊔ b2 = CFGBuilder $ \i ->
---     let CFG ex1 no1 ed1 = buildCFG b1 i
---         CFG ex2 no2 ed2 = buildCFG b2 i
---     in CFG (ex1 `mappend` ex2) (IM.union no1 no2) (ed1 `mappend` ed2)
---
---
---
--- type AProp v = (CFGBuilder v,CFGCache)
--- initAProp :: AProp v
--- initAProp = (mempty, CFGCache M.empty)
