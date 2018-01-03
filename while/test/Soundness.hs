@@ -24,7 +24,7 @@ withSize = modifyMaxSuccess (const 1000)
 shouldBeApproximated :: (HasCallStack, Galois c a, Show a, Show c) => Error String c -> Error String a -> Expectation
 c `shouldBeApproximated` a = unless (ca ⊑ a) (expectationFailure msg)
   where ca = fmap alpha c
-        msg = "soundness check failed: " ++ show c ++ " ⊑ " ++ show a
+        msg = "soundness check failed: " ++ show ca ++ " ⊑ " ++ show a
 
 sound :: (Arbitrary a, Galois rc ra, Galois pc pa, Show a, Show rc, Show ra, Show pc, Show pa) =>
   String ->

@@ -73,17 +73,6 @@ singletonCFG :: CFGNode v -> CFG v
 singletonCFG n = CFG (Set.singleton l) (Set.singleton l) (IM.singleton l n) Set.empty
   where Label l = labelCFG n
 
-instance Monoid (CFG v) where
-  mempty = CFG Set.empty Set.empty IM.empty Set.empty
-
-  mappend g1 g2 | IM.null (nodes g1) = g2
-  mappend g1 g2 | IM.null (nodes g2) = g1
-  mappend (CFG en1 ex1 no1 ed1) (CFG en2 ex2 no2 ed2) =
-    CFG en1 ex2 (IM.union no1 no2) (ed1 `Set.union` ed2 `Set.union` connects)
-    where
-      connects :: Set (Int,Int)
-      connects = Set.fromList [(ex,en) | ex <- Set.toList ex1, en <- Set.toList en2]
-
 instance PreOrd v => PreOrd (CFGNode v) where
   (CFGAssign l1 v1) ⊑ (CFGAssign l2 v2) = l1==l2 && v1⊑v2
   (CFGIf l1 v1) ⊑ (CFGIf l2 v2) = l1==l2 && v1⊑v2
@@ -94,27 +83,39 @@ instance PreOrd v => PreOrd (CFGNode v) where
   _ ≈ _ = False
 
 instance PreOrd v => PreOrd (CFG v) where
-  -- TODO: implement proper subgraph check
   (CFG en1 ex1 no1 ed1) ⊑ (CFG en2 ex2 no2 ed2) =
     en1 ⊑ en2 &&
     ex1 ⊑ ex2 &&
     no1 ⊑ no2 &&
-    ed1 ⊑ ed2
+    all (\e1 -> Set.member e1 ed2) ed1
+
+partialJoin :: Complete v => CFGNode v -> CFGNode v -> CFGNode v
+(CFGAssign l1 v1) `partialJoin` (CFGAssign l2 v2) | l1 == l2 = CFGAssign l1 $ v1 ⊔ v2
+(CFGIf l1 v1) `partialJoin` (CFGIf l2 v2) | l1 == l2 = CFGIf l1 $ v1 ⊔ v2
 
 instance Complete v => Complete (CFG v) where
   (CFG en1 ex1 no1 ed1) ⊔ (CFG en2 ex2 no2 ed2) =
       CFG (en1 `Set.union` en2) (ex1 `Set.union` ex2) (IM.unionWith partialJoin no1 no2) (ed1 `Set.union` ed2)
-    where (CFGAssign l1 v1) `partialJoin` (CFGAssign l2 v2) | l1 == l2 = CFGAssign l1 $ v1 ⊔ v2
-          (CFGIf l1 v1) `partialJoin` (CFGIf l2 v2) | l1 == l2 = CFGIf l1 $ v1 ⊔ v2
+
+instance Complete v => Monoid (CFG v) where
+  mempty = CFG Set.empty Set.empty IM.empty Set.empty
+
+  mappend g1 g2 | IM.null (nodes g1) = g2
+  mappend g1 g2 | IM.null (nodes g2) = g1
+  mappend (CFG en1 ex1 no1 ed1) (CFG en2 ex2 no2 ed2) =
+    CFG en1 ex2 (IM.unionWith partialJoin no1 no2) (ed1 `Set.union` ed2 `Set.union` connects)
+    where
+      connects :: Set (Int,Int)
+      connects = Set.fromList [(ex,en) | ex <- Set.toList ex1, en <- Set.toList en2]
 
 instance PreOrd v => LowerBounded (CFG v) where
   bottom = CFG Set.empty Set.empty IM.empty Set.empty
 
 type AProp v = CFG v
 initAProp :: AProp v
-initAProp = mempty
+initAProp = CFG Set.empty Set.empty IM.empty Set.empty
 
-pushNode :: CFGNode v -> AProp v -> AProp v
+pushNode :: Complete v => CFGNode v -> AProp v -> AProp v
 pushNode node p = p `mappend` (singletonCFG node)
 
 
@@ -132,7 +133,7 @@ instance (Galois (Pow Concrete.Val) v,Complete v,LowerBounded v) => Galois (Pow 
           exit [] = Set.empty
           exit es = Set.singleton $ labelVal $ trLabel $ last es
 
-          nodes elems = IM.fromList $ map mkNode elems
+          nodes elems = IM.fromListWith partialJoin $ map mkNode elems
 
           edges [] = Set.empty
           edges [e] = Set.empty
