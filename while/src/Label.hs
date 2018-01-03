@@ -1,6 +1,8 @@
 module Label where
 
 import Data.Hashable
+import Data.Order
+
 import Control.Monad.State
 
 newtype Label = Label { labelVal :: Int }
@@ -11,6 +13,10 @@ f @@ i = f (Label i)
 
 instance Hashable Label where
   hashWithSalt salt (Label i) = hashWithSalt salt i
+
+instance PreOrd Label where
+  (⊑) = (==)
+  (≈) = (==)
 
 labelAll :: [Label -> a] -> [a]
 labelAll = labelAllFrom 1

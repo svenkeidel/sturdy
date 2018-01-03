@@ -11,8 +11,6 @@ import ControlFlow.Prop
 
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IM
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
