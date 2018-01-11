@@ -1,9 +1,12 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Data.Interval where
 
+import Data.Hashable
 import Data.Order
+import GHC.Generics
 
 newtype Interval n = IV (n,n)
-  deriving (Eq,Show)
+  deriving (Eq,Show,Generic)
 
 instance PreOrd x => PreOrd (Interval x) where
   IV (i1,i2) ⊑ IV (j1,j2) = j1 ⊑ i1 && i2 ⊑ j2
@@ -24,6 +27,8 @@ instance (Fractional n, Complete n, LowerBounded n, CoComplete n, UpperBounded n
     | j1 ⊑ 0 && 0 ⊑ j2 = IV (bottom,top)
     | otherwise = withBounds2 (/) (IV (i1,i2)) (IV (j1,j2))
   fromRational = constant . fromRational
+
+instance Hashable n => Hashable (Interval n)
 
 constant :: n -> Interval n
 constant x = IV (x,x)

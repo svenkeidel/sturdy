@@ -10,10 +10,7 @@ instance PreOrd Sign where
   _ ⊑ _ = False
 
 instance Complete Sign where
-  Top ⊔ _ = Top
-  _ ⊔ Top = Top
   Negative ⊔ Negative = Negative
   Zero ⊔ Zero = Zero
   Positive ⊔ Positive = Positive
   _ ⊔ _ = Top
-  

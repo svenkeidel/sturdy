@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE Arrows #-}
 module Data.Order where
 
 import           Data.Functor.Identity
@@ -16,6 +17,7 @@ import           Numeric.Limits
 
 import           Control.Arrow
 import           Control.Monad.State
+import           Control.Monad.Reader
 import           Control.Monad.Except
 
 -- | Reflexive, transitive order
@@ -35,6 +37,12 @@ class PreOrd x => LowerBounded x where
 
 lub :: (Foldable f, Complete x, LowerBounded x) => f x -> x
 lub = foldr (⊔) bottom
+
+lubA :: (ArrowChoice c, LowerBounded y, Complete (c (x,[x]) y)) => c x y -> c [x] y
+lubA f = proc l -> case l of
+  [] -> returnA -< bottom
+  -- (x:xs) -> (f -< x) ⊔ (lubA f -< xs) causes an type error.
+  (x:xs) -> (proc (a,_) -> f -< a) ⊔ (proc (_,b) -> lubA f -< b) -< (x,xs)
 
 -- | Order with all greatest lower bounds
 class PreOrd x => CoComplete x where
@@ -96,7 +104,11 @@ instance PreOrd Text where
   (≈) = (==)
 
 instance PreOrd Int where
-  (⊑) = (==)
+  (⊑) = (<=)
+  (≈) = (==)
+
+instance PreOrd Double where
+  (⊑) = (<=)
   (≈) = (==)
 
 instance LowerBounded Int where
@@ -111,10 +123,6 @@ instance Complete Int where
 instance CoComplete Int where
   (⊓) = min
 
-instance PreOrd Double where
-  (⊑) = (==)
-  (≈) = (==)
-
 instance LowerBounded Double where
   bottom = minValue
 
@@ -127,11 +135,17 @@ instance Complete Double where
 instance CoComplete Double where
   (⊓) = min
 
-instance (PreOrd (m (a,s))) => PreOrd (StateT s m a) where
+instance PreOrd (m (a,s)) => PreOrd (StateT s m a) where
   _ ⊑ _ = error "StateT f ⊑ StateT g  iff  forall x. f x ⊑ g x"
 
 instance Complete (m (a,s)) => Complete (StateT s m a) where
   StateT f ⊔ StateT g = StateT $ \s -> f s ⊔ g s
+
+instance PreOrd (m a) => PreOrd (ReaderT e m a) where
+  _ ⊑ _ = error "ReaderT f ⊑ ReaderT g  iff  forall x. f x ⊑ g x"
+
+instance Complete (m a) => Complete (ReaderT r m a) where
+  ReaderT f ⊔ ReaderT g = ReaderT $ \r -> f r ⊔ g r
 
 instance PreOrd a => PreOrd (Error e a) where
   Error _ ⊑ Success _ = True
