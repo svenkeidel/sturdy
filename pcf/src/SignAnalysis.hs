@@ -2,23 +2,24 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
-module Interval where
+module SignAnalysis where
 
 import           Prelude
 
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Monad.Trans.Reader
+
 import           Data.Error
 import qualified Data.HashMap.Lazy as M
-import           Data.Hashable
-import           Data.InfiniteNumbers
-import           Data.Interval
 import           Data.Order
-import           Data.Powerset
+import           Data.Sign hiding (Top)
+import qualified Data.Sign as Sign
 import           Data.Text (Text)
-import           Data.Foldable(toList)
-    
+import           Data.Powerset
+import           Data.Hashable
+import           Data.Foldable (toList)
+
 import           GHC.Generics
 
 import           PCF (Expr (Lam))
@@ -26,19 +27,19 @@ import           Shared hiding (Env)
 import           Utils
 
 data Closure = Closure Expr Env deriving (Eq,Show,Generic)
-data Val = Bot | NumVal (Interval (InfiniteNumber Int)) | ClosureVal (Pow Closure) | Top deriving (Eq, Show, Generic)
+data Val = Bot | NumVal Sign | ClosureVal (Pow Closure) | Top deriving (Eq,Show,Generic)
 type Env = M.HashMap Text Val
 
 type Interp = Kleisli (ReaderT Env (Error String))
 
-evalInterval :: Env -> Expr -> Error String Val
-evalInterval env e = runReaderT (runKleisli eval e) env
+evalSign :: Env -> Expr -> Error String Val
+evalSign env e = runReaderT (runKleisli eval e) env
 
 instance ArrowFix Interp where
   fixA f = f (fixA f)
 
 instance ArrowFail String Interp where
-  failA = Kleisli $ const (fail "")
+  failA = Kleisli fail
 
 instance IsEnv Env Val Interp where
   getEnv = Kleisli $ const ask
@@ -49,25 +50,23 @@ instance IsEnv Env Val Interp where
       Nothing -> failA -< "Variable '" ++ show x ++ "' not bound"
 
 instance IsVal Val Interp where
-  succ = proc x -> case x of
-    NumVal n -> returnA -< NumVal $ withBounds1 (\y -> y + 1) n
-    Top -> returnA -< Top
+  succ = proc s -> case s of
+    NumVal n -> returnA -< NumVal (n+1)
     _ -> failA -< "Expected a number as argument for 'succ'"
-  pred = proc x -> case x of
-    NumVal n -> returnA -< NumVal $ withBounds1 (\y -> y - 1) n
-    Top -> returnA -< Top
+  pred = proc s -> case s of
+    NumVal n -> returnA -< NumVal (n-1)
     _ -> failA -< "Expected a number as argument for 'pred'"
-  zero = arr $ const (NumVal (constant 0))
-  ifZero f g = proc (NumVal (IV (i1, i2)), (x, y)) ->
-    if (i1, i2) == (0, 0)
-      then f -< x
-      else if i1 > 0 || i2 < 0
-        then g -< y
-        else (f -< x) ⊔ (g -< y)
+  zero = arr $ const (NumVal 0)
+  ifZero f g = proc (v1, (x, y)) -> case v1 of
+    NumVal Zero -> f -< x
+    NumVal Sign.Top -> (f -< x) ⊔ (g -< y)
+    NumVal _ -> g -< y
+    _ -> failA -< "Expected a number as condition for 'ifZero'"
   closure = arr $ \(e, env) -> ClosureVal (return (Closure e env))
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal cls -> lubA (proc (Closure (Lam x _ body) env) -> localA f -< (M.insert x arg env, body)) -<< toList cls
     _ -> failA -< "Expected a closure"
+
 
 instance PreOrd Val where
   Bot ⊑ _ = True

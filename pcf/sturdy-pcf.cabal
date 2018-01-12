@@ -11,13 +11,15 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:   Concrete,
-                     Interval,
+                     IntervalAnalysis,
                      PCF,
                      Shared,
-                     Sign,
+                     SignAnalysis,
                      Utils
   build-depends:     base,
                      containers,
+                     unordered-containers,
+                     hashable,
                      mtl,
                      sturdy-lib,
                      text,
