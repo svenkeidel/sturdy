@@ -8,6 +8,7 @@ import           Prelude
 
 import           Control.Arrow
 import           Control.Arrow.Fail
+import           Control.Arrow.Fix
 import           Control.Monad.Trans.Reader
 
 import qualified Data.HashMap.Lazy as M

@@ -8,8 +8,10 @@ import           Prelude
 
 import           Control.Arrow
 import           Control.Arrow.Fail
+import           Control.Arrow.Fix
 import           Control.Monad.Trans.Reader
 import           Data.Error
+import           Data.Foldable (toList)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.InfiniteNumbers
@@ -17,7 +19,6 @@ import           Data.Interval
 import           Data.Order
 import           Data.Powerset
 import           Data.Text (Text)
-import           Data.Foldable(toList)
     
 import           GHC.Generics
 

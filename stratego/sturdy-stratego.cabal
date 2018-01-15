@@ -22,7 +22,6 @@ library
   exposed-modules:     Control.Arrow.Try,
                        Control.Arrow.Join,
                        Control.Arrow.Apply,
-                       Control.Arrow.Fix,
                        Control.Arrow.Deduplicate,
                        Control.Monad.Deduplicate,
                        Control.Monad.Join,
