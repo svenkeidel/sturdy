@@ -19,14 +19,8 @@ library
   ghc-options:         -Wall
                        -O2
                        -fprof-auto
-  exposed-modules:     Control.Arrow.Try,
-                       Control.Arrow.Join,
-                       Control.Arrow.Apply,
-                       Control.Arrow.Deduplicate,
-                       Control.Monad.Deduplicate,
-                       Control.Monad.Join,
+  exposed-modules:     Control.Arrow.Apply,
                        Control.Monad.Result,
-                       Control.Monad.Try,
                        Data.ATerm,
                        Data.Constructor,
                        Data.AbstractPowerset,

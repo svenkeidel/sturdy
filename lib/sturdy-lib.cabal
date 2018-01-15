@@ -25,8 +25,15 @@ library
                        Data.Error,
                        Data.FreeCompletion,
                        Data.FreeCoCompletion,
-                       Control.Arrow.Fail
-                       Control.Arrow.Fix
+                       Control.Arrow.Debug,
+                       Control.Arrow.Deduplicate,
+                       Control.Arrow.Fail,
+                       Control.Arrow.Fix,
+                       Control.Arrow.Join,
+                       Control.Arrow.Try,
+                       Control.Monad.Deduplicate,
+                       Control.Monad.Join,
+                       Control.Monad.Try
   -- other-modules:       
   
   build-depends:       base,
