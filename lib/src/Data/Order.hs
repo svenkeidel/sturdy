@@ -85,6 +85,12 @@ instance (Complete a, Complete b) => Complete (a,b) where
 instance (CoComplete a, CoComplete b) => CoComplete (a,b) where
   (a1,b1) ⊓ (a2,b2) = (a1 ⊓ a2, b1 ⊓ b2)
 
+instance PreOrd b => PreOrd (a -> b) where
+  _ ⊑ _ = error "f ⊑ g  iff  forall x. f x ⊑ g x"
+
+instance Complete b => Complete (a -> b) where
+  f ⊔ g = \x -> f x ⊔ g x
+
 instance (Ord k,PreOrd v) => PreOrd (Map k v) where
   c1 ⊑ c2 = M.keysSet c1 `S.isSubsetOf` M.keysSet c2 && all (\k -> (c1 M.! k) ⊑ (c2 M.! k)) (M.keys c1)
 
@@ -94,7 +100,6 @@ instance PreOrd v => PreOrd (IntMap v) where
 instance (Ord k, Complete v) => Complete (Map k v) where
   (⊔) = M.unionWith (⊔)
 
--- Base types are discretly ordered
 instance PreOrd Char where
   (⊑) = (==)
   (≈) = (==)
@@ -173,7 +178,7 @@ instance PreOrd (m b) => PreOrd (Kleisli m a b) where
   _ ⊑ _ = error "Kleisli f ⊑ Kleisli g  iff  forall x. f x ⊑ g x"
 
 instance Complete (m b) => Complete (Kleisli m a b) where
-  Kleisli f ⊔ Kleisli g = Kleisli $ \x -> f x ⊔ g x
+  Kleisli f ⊔ Kleisli g = Kleisli $ f ⊔ g
 
 instance PreOrd a => PreOrd (Identity a) where
   (Identity x) ⊑ (Identity y) = x ⊑ y
