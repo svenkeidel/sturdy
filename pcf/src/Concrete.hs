@@ -10,10 +10,10 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Monad.Trans.Reader
-
+import           Data.Error
 import qualified Data.HashMap.Lazy as M
-import           Data.Text (Text)
 import           Data.Hashable
+import           Data.Text (Text)
 import           GHC.Generics
 
 import           PCF (Expr (Lam))
@@ -25,9 +25,9 @@ type Env = M.HashMap Text Val
 
 data Val = NumVal Int | ClosureVal Closure deriving (Eq, Show,Generic)
 
-type Interp = Kleisli (ReaderT Env (Either String))
+type Interp = Kleisli (ReaderT Env (Error String))
 
-evalConcrete :: Env -> Expr -> Either String Val
+evalConcrete :: Env -> Expr -> Error String Val
 evalConcrete env e = runReaderT (runKleisli eval e) env
 
 instance ArrowFix Interp where
@@ -57,7 +57,6 @@ instance IsVal Val Interp where
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal (Closure (Lam x _ body) env) -> localA f -< (M.insert x arg env, body)
     _ -> failA -< "Expected a closure"
-  
 
 instance Hashable Closure
 instance Hashable Val
