@@ -10,3 +10,9 @@ mapA f = proc l -> case l of
     b <- f -< a
     bs <- mapA f -< as
     returnA -< (b:bs)
+
+pi1 :: Arrow c => c (x,y) x
+pi1 = arr fst
+
+pi2 :: Arrow c => c (x,y) y
+pi2 = arr snd

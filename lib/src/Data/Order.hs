@@ -10,7 +10,6 @@ import qualified Data.Set as S
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
-import           Data.Error
 import           Data.Text (Text)
 
 import           Numeric.Limits
@@ -18,7 +17,6 @@ import           Numeric.Limits
 import           Control.Arrow
 import           Control.Monad.State
 import           Control.Monad.Reader
-import           Control.Monad.Except
 
 -- | Reflexive, transitive order
 class PreOrd x where
@@ -152,27 +150,12 @@ instance PreOrd (m a) => PreOrd (ReaderT e m a) where
 instance Complete (m a) => Complete (ReaderT r m a) where
   ReaderT f ⊔ ReaderT g = ReaderT $ \r -> f r ⊔ g r
 
-instance PreOrd a => PreOrd (Error e a) where
-  Error _ ⊑ Success _ = True
-  Error _ ⊑ Error _ = True
-  Success x ⊑ Success y = x ⊑ y
-  _ ⊑ _ = False
-
-  Error _ ≈ Error _ = True
-  Success x ≈ Success y = x ≈ y
-  _ ≈ _ = False
-
-instance Complete a => Complete (Error e a) where
-  Error _ ⊔ b = b
-  a ⊔ Error _ = a
-  Success x ⊔ Success y = Success (x ⊔ y)
-
 -- | The type Error has the correct ordering for our use case compared to the either type
-instance (PreOrd (m (Error e a)), Functor m) => PreOrd (ExceptT e m a) where
-  ExceptT f ⊑ ExceptT g = fmap fromEither f ⊑ fmap fromEither g
+-- instance (PreOrd (m (Error e a)), Functor m) => PreOrd (ExceptT e m a) where
+--   ExceptT f ⊑ ExceptT g = fmap fromEither f ⊑ fmap fromEither g
 
-instance (Complete (m (Error e a)), Functor m) => Complete (ExceptT e m a) where
-  ExceptT f ⊔ ExceptT g = ExceptT $ fmap toEither (fmap fromEither f ⊔ fmap fromEither g)
+-- instance (Complete (m (Error e a)), Functor m) => Complete (ExceptT e m a) where
+--   ExceptT f ⊔ ExceptT g = ExceptT $ fmap toEither (fmap fromEither f ⊔ fmap fromEither g)
 
 instance PreOrd (m b) => PreOrd (Kleisli m a b) where
   _ ⊑ _ = error "Kleisli f ⊑ Kleisli g  iff  forall x. f x ⊑ g x"

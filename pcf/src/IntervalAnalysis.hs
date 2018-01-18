@@ -38,9 +38,6 @@ evalInterval env e = runReaderT (runKleisli eval e) env
 instance ArrowFix Interp where
   fixA f = f (fixA f)
 
-instance ArrowFail String Interp where
-  failA = Kleisli fail
-
 instance IsEnv Env Val Interp where
   getEnv = Kleisli $ const ask
   lookup = proc x -> do
