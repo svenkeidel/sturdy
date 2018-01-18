@@ -39,7 +39,7 @@ instance IsEnv Env Val Interp where
     env <- getEnv -< ()
     case M.lookup x env of
       Just v -> returnA -< v
-      Nothing -> failA -< "Variable '" ++ show x ++ "' not bound"
+      Nothing -> failA -< "Variable " ++ show x ++ " not bound"
 
 instance IsVal Val Interp where
   succ = proc x -> case x of

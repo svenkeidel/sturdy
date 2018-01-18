@@ -44,7 +44,7 @@ instance IsEnv Env Val Interp where
     env <- getEnv -< ()
     case M.lookup x env of
       Just v -> returnA -< v
-      Nothing -> failA -< "Variable '" ++ show x ++ "' not bound"
+      Nothing -> failA -< "Variable " ++ show x ++ " not bound"
 
 instance IsVal Val Interp where
   succ = proc x -> case x of
@@ -56,12 +56,11 @@ instance IsVal Val Interp where
     Top -> returnA -< Top
     _ -> failA -< "Expected a number as argument for 'pred'"
   zero = arr $ const (NumVal (constant 0))
-  ifZero f g = proc (NumVal (IV (i1, i2)), (x, y)) ->
-    if (i1, i2) == (0, 0)
-      then f -< x
-      else if i1 > 0 || i2 < 0
-        then g -< y
-        else (f -< x) ⊔ (g -< y)
+  ifZero f g = proc x -> case x of
+    (NumVal (IV (i1, i2)), (x, y)) | (i1, i2) == (0, 0) -> f -< x
+                                   | i1 > 0 || i2 < 0 -> g -< y
+                                   | otherwise -> (f -< x) ⊔ (g -< y)
+    _ -> failA -< "Expected a number as condition for 'ifZero'"
   closure = arr $ \(e, env) -> ClosureVal (return (Closure e env))
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal cls -> lubA (proc (Closure (Lam x _ body) env) -> localA f -< (M.insert x arg env, body)) -<< toList cls
