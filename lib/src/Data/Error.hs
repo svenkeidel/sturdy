@@ -10,7 +10,7 @@ import Data.Order
 -- | Error is an Either-like type with the special ordering Error ⊑ Success.
 -- Left and Right of the regular Either type, on the other hand are incomparable.
 data Error e a = Error e | Success a
-  deriving (Functor, Show)
+  deriving (Eq, Functor, Show)
 
 instance PreOrd a => PreOrd (Error e a) where
   Error _ ⊑ Success _ = True

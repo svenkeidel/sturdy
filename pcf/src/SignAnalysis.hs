@@ -10,16 +10,15 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Monad.Trans.Reader
-
 import           Data.Error
-import qualified Data.HashMap.Lazy as M
-import           Data.Order
-import           Data.Sign hiding (Top)
-import qualified Data.Sign as Sign
-import           Data.Text (Text)
-import           Data.Powerset
-import           Data.Hashable
 import           Data.Foldable (toList)
+import qualified Data.HashMap.Lazy as M
+import           Data.Hashable
+import           Data.Order
+import           Data.Powerset
+import qualified Data.Sign as Sign
+import           Data.Sign hiding (Top)
+import           Data.Text (Text)
 
 import           GHC.Generics
 
@@ -45,7 +44,7 @@ instance IsEnv Env Val Interp where
     env <- getEnv -< ()
     case M.lookup x env of
       Just v -> returnA -< v
-      Nothing -> failA -< "Variable '" ++ show x ++ "' not bound"
+      Nothing -> failA -< "Variable " ++ show x ++ " not bound"
 
 instance IsVal Val Interp where
   succ = proc s -> case s of
