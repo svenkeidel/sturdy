@@ -1,0 +1,19 @@
+image: haskell:latest
+
+before_script:
+  - apt-get update -qq && apt-get install xz-utils make
+  - stack setup
+
+stages:
+  - build
+  - test
+
+stack-build:
+  stage: build
+  script:
+    - stack build
+
+stack-test:
+  stage: test
+  script:
+    - stack test

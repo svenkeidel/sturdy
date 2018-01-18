@@ -33,7 +33,8 @@ library
                        Control.Arrow.Try,
                        Control.Monad.Deduplicate,
                        Control.Monad.Join,
-                       Control.Monad.Try
+                       Control.Monad.Try,
+                       Control.Arrow.Utils
   -- other-modules:       
   
   build-depends:       base,

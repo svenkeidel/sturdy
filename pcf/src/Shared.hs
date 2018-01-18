@@ -9,8 +9,8 @@ import           PCF (Expr)
 import qualified PCF as E
 
 import           Control.Arrow
-import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Fail
 
 import           Data.HashMap.Lazy (HashMap)
 import           Data.Text (Text)
