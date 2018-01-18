@@ -25,7 +25,9 @@ library
                        Data.Error,
                        Data.FreeCompletion,
                        Data.FreeCoCompletion,
-                       Control.Arrow.Fail
+                       Control.Arrow.Fail,
+                       Control.Arrow.Fix,
+                       Control.Arrow.Utils
   -- other-modules:       
   
   build-depends:       base,

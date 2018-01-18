@@ -9,6 +9,7 @@ import           PCF (Expr)
 import qualified PCF as E
 
 import           Control.Arrow
+import           Control.Arrow.Fix
 import           Control.Arrow.Fail
 
 import           Data.HashMap.Lazy (HashMap)
@@ -38,14 +39,11 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
     v1 <- ev -< e1
     ifZero ev ev -< (v1, (e2, e3))
 
--- TODO: extract into separate file?
-class Arrow c => ArrowFix c where
-  fixA :: (c x y -> c x y) -> c x y
-
 -- TODO: v -> env should go now that the shared interpreter does not define Val anymore?
 class Arrow c => IsEnv env v c | v -> env, env -> v where
   getEnv :: c () env
   lookup :: c Text v
+  localA :: c x y -> c (env,x) y
 
 class Arrow c => IsVal v c | c -> v where
   succ :: c v v
