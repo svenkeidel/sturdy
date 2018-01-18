@@ -40,9 +40,6 @@ type M = StateT Store (Except String)
 runConcrete :: Kleisli M [Statement] ()
 runConcrete = run
 
-instance ArrowFail String (Kleisli M) where
-  failA = Kleisli $ \e -> throwError e
-          
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)
 

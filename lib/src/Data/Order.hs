@@ -150,13 +150,6 @@ instance PreOrd (m a) => PreOrd (ReaderT e m a) where
 instance Complete (m a) => Complete (ReaderT r m a) where
   ReaderT f ⊔ ReaderT g = ReaderT $ \r -> f r ⊔ g r
 
--- | The type Error has the correct ordering for our use case compared to the either type
--- instance (PreOrd (m (Error e a)), Functor m) => PreOrd (ExceptT e m a) where
---   ExceptT f ⊑ ExceptT g = fmap fromEither f ⊑ fmap fromEither g
-
--- instance (Complete (m (Error e a)), Functor m) => Complete (ExceptT e m a) where
---   ExceptT f ⊔ ExceptT g = ExceptT $ fmap toEither (fmap fromEither f ⊔ fmap fromEither g)
-
 instance PreOrd (m b) => PreOrd (Kleisli m a b) where
   _ ⊑ _ = error "Kleisli f ⊑ Kleisli g  iff  forall x. f x ⊑ g x"
 

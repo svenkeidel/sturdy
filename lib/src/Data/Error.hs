@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Data.Error where
 
@@ -51,3 +52,14 @@ fromEither (Right a) = Success a
 toEither :: Error e a -> Either e a
 toEither (Error e) = Left e
 toEither (Success a) = Right a
+
+
+
+
+-- | The type Error has the correct ordering for our use case compared to the either type
+instance (PreOrd (m (Error e a)), Functor m) => PreOrd (ExceptT e m a) where
+  ExceptT f ⊑ ExceptT g = fmap fromEither f ⊑ fmap fromEither g
+
+instance (Complete (m (Error e a)), Functor m) => Complete (ExceptT e m a) where
+  ExceptT f ⊔ ExceptT g = ExceptT $ fmap toEither (fmap fromEither f ⊔ fmap fromEither g)
+

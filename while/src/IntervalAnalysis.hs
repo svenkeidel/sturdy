@@ -11,6 +11,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Text (Text)
 import Data.Interval
+import Data.Error
 import Data.Order
 import Data.GaloisConnection
 import Data.Powerset
@@ -78,9 +79,6 @@ putProp prop = modify (\(x,y) -> (x,prop))
 
 modifyProp :: (Prop -> Prop) -> M ()
 modifyProp f = modify (\(x,y) -> (x, f y))
-
-instance ArrowFail String (Kleisli M) where
-  failA = Kleisli $ \e -> throwError e
 
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)
