@@ -82,6 +82,7 @@ sub = proc (v1,v2) -> case (v1,v2) of
   (_,Top) -> returnA -< Top
   _ -> failA -< "Expected two numbers as arguments for 'sub'"
 
+mul:: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
 mul = proc (v1,v2) -> case (v1,v2) of
   (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
   (Top,_) -> returnA -< Top

@@ -9,7 +9,23 @@ import qualified Data.Set as Set
 -- concrete
 ---------------
 
-type Prop = Set Text
+type CProp = Set Text
 
-initCProp :: Prop
+initCProp :: CProp
 initCProp = Set.empty
+
+---------------
+-- abstract
+---------------
+
+type AProp = Set Text
+
+initAProp :: AProp
+initAProp = Set.empty
+
+
+---------------
+-- Galois
+---------------
+
+-- derived

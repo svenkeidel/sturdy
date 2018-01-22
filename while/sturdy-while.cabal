@@ -28,6 +28,8 @@ library
                        Vals.Interval.Semantic
 
                        Props.FailedReads.Prop
+                       Props.FailedReads.Concrete
+                       Props.FailedReads.Interval
 
 --                       Props.ControlFlow.Prop
 --                       Props.ControlFlow.Concrete
