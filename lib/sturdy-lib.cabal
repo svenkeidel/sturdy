@@ -31,6 +31,8 @@ library
                        Control.Arrow.Fix,
                        Control.Arrow.Join,
                        Control.Arrow.Try,
+                       Control.Arrow.State,
+                       Control.Arrow.Reader,
                        Control.Monad.Deduplicate,
                        Control.Monad.Join,
                        Control.Monad.Try,

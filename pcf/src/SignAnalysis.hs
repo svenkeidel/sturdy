@@ -64,7 +64,6 @@ instance IsVal Val Interp where
     ClosureVal cls -> lubA (proc (Closure (Lam x _ body) env) -> localA f -< (M.insert x arg env, body)) -<< toList cls
     _ -> failA -< "Expected a closure"
 
-
 instance PreOrd Val where
   Bot ⊑ _ = True
   _ ⊑ Top = True

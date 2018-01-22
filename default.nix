@@ -2,12 +2,11 @@
 
 let
   hsEnv = pkgs.haskellPackages.ghcWithPackages(p: with p; [
-    Cabal cabal-install hlint text containers hspec mtl numeric-limits criterion fgl arrows
-    (p.callPackage ../lib/default.nix { })
+    stack
   ]);
 
 in pkgs.stdenv.mkDerivation {
-  name = "sturdy-lambda-adt";
+  name = "sturdy";
   version = "0.0.1";
   src = ./.;
   buildInputs = [

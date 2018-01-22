@@ -16,3 +16,17 @@ pi1 = arr fst
 
 pi2 :: Arrow c => c (x,y) y
 pi2 = arr snd
+
+zipWithA :: ArrowChoice c => c (x,y) z -> c ([x],[y]) [z]
+zipWithA f = proc (l1,l2) -> case (l1,l2) of
+  ([],_) -> returnA -< []
+  (_,[]) -> returnA -< []
+  (a:as,b:bs) -> do
+    c <- f -< (a,b)
+    cs <- zipWithA f -< (as,bs)
+    returnA -< c:cs
+
+voidA :: Arrow c => c x y -> c x ()
+voidA f = proc x -> do
+  _ <- f -< x
+  returnA -< ()
