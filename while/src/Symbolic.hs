@@ -32,12 +32,12 @@ initState :: State
 initState = (M.empty,M.empty)
 
 
-type M = StateT (Store,Cache) (Except String)
-runM :: [Statement] -> Error String ((), (Store,Cache))
+type M = StateT State (Except String)
+runM :: [Statement] -> Error String ((),State)
 runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) initState
 
-runAbstract :: [Statement] -> Error String ()
-runAbstract ss = fmap fst $ runM ss
+runAbstract :: [Statement] -> Error String Store
+runAbstract ss = fmap (fst.snd) $ runM ss
 
 getStore :: M Store
 getStore = get >>= return . fst
@@ -57,9 +57,6 @@ modifyCache f = modify (\(x,y) -> (x, f y))
 getCache :: M Cache
 getCache = get >>= return . snd
 
-instance ArrowFail String (Kleisli M) where
-  failA = Kleisli $ \e -> throwError e
-
 instance Run (Kleisli M) Val where
   fixRun f = Kleisli $ \stmts ->
     forM_ stmts $ \stmt -> do
@@ -70,8 +67,11 @@ instance Run (Kleisli M) Val where
           traceM $ "Cache hit: " ++ show (stmt,before,after)
           putStore after
         _ -> do
-          traceM $ "Cache miss: " ++ show (stmt,now)
+          -- recursion hypothesis: if `now` is not changed until next occurrence of `label stmt`, yield `now` as result
+          modifyCache (M.insert (label stmt) (now,now))
+          traceM $ "Cache miss, cache assumption: " ++ show (stmt,now)
           runKleisli (f (fixRun f)) stmt
+          -- recursion step: recursive call on `now` finished, remember that it resulted in `after`
           after <- getStore
           modifyCache (M.insert (label stmt) (now,after))
           traceM $ "Cache store: " ++ show (stmt,now,after)

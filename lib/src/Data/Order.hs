@@ -15,6 +15,7 @@ import           Data.Text (Text)
 import           Numeric.Limits
 
 import           Control.Arrow
+import           Control.Arrow.Utils
 import           Control.Monad.State
 import           Control.Monad.Reader
 
@@ -36,11 +37,25 @@ class PreOrd x => LowerBounded x where
 lub :: (Foldable f, Complete x, LowerBounded x) => f x -> x
 lub = foldr (⊔) bottom
 
+joined :: (Arrow c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
+joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
+
+-- What we actually would like to write is this:
+-- joined f1 f2 = proc (x1,x2) -> (f1 -< x1) ⊔ (f2 -< x2)
+
+-- This is what the compiler desugars it to (we simplified it):
+-- joined = \ @ t_a8le    @ t_a8ld    @ t_a8m7    @ t_a8m3    @ t_a8m5    @ t_a8lm    @ t_a8li    @ t_a8lk    $dArrow_a8pD    $dArrow_a8pE    $dArrow_a8pF    f1_a8kp    f2_a8kq ->
+--       (arr (\(x1, x2) -> ((x2, x1), ())) )
+--       >>>
+--       (op
+--             (arr (\((x2,x1), b) -> (x1, b))) >>> arr fst >>> f1   ::  c ((x2,x1,b)) r
+--             (arr (\((x2,x1),b) -> (x2,b)) >>> arr fst >>> f2   ::     c ((x2,x1),b) r
+
 lubA :: (ArrowChoice c, LowerBounded y, Complete (c (x,[x]) y)) => c x y -> c [x] y
 lubA f = proc l -> case l of
   [] -> returnA -< bottom
   -- (x:xs) -> (f -< x) ⊔ (lubA f -< xs) causes an type error.
-  (x:xs) -> (proc (a,_) -> f -< a) ⊔ (proc (_,b) -> lubA f -< b) -< (x,xs)
+  (x:xs) -> joined f (lubA f) -< (x, xs)
 
 -- | Order with all greatest lower bounds
 class PreOrd x => CoComplete x where

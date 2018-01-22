@@ -4,10 +4,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
-module ControlFlow.Prop where
+module Props.ControlFlow.Prop where
 
 import WhileLanguage
-import qualified ConcreteSemantics as Concrete
+import qualified Vals.Concrete.Val as Concrete
 
 import Data.Text (Text)
 import Data.GaloisConnection

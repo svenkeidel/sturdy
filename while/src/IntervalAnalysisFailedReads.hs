@@ -19,6 +19,7 @@ import Control.Monad.State
 import Control.Monad.Except
 import Control.Arrow
 import Control.Arrow.Fail
+import Control.Arrow.Utils
 
 data Val = BoolVal Bool | NumVal (Interval Double) | Top
 
@@ -45,8 +46,8 @@ type M = StateT (Store,Prop) (Except String)
 runM :: [Statement] -> Error String ((), (Store,Prop))
 runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initProp)
 
-runAbstract :: [Statement] -> Error String ()
-runAbstract ss = fmap fst $ runM ss
+runAbstract :: [Statement] -> Error String Store
+runAbstract ss = fmap (fst.snd) $ runM ss
 
 propAbstract :: [Statement] -> Error String Prop
 propAbstract ss = fmap (snd . snd) $ runM ss

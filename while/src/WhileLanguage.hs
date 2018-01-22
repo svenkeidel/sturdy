@@ -46,6 +46,19 @@ label (Assign _ _ l) = l
 
 type Prog = [Statement]
 
+class ArrowChoice c => HasStore c st where
+  getStore :: c a st
+  putStore :: c st ()
+  modifyStore :: c (st -> st) ()
+  modifyStore = proc f -> do
+    store <- getStore -< ()
+    putStore -< f store
+
+class ArrowChoice c => HasProp c pr where
+  getProp :: c () pr
+  putProp :: c pr ()
+  modifyProp :: c (pr -> pr) ()
+
 class ArrowChoice c => Eval c v | c -> v where
   lookup :: c Text v
   boolLit :: c Bool v
@@ -112,16 +125,3 @@ run = fixRun $ \run' -> proc stmt -> case stmt of
     if_ run' run' -< (b,(b1,b2),l)
   While cond body l ->
     run' -< [If cond (body ++ [While cond body l]) [] l]
-
-mapA :: ArrowChoice c => c x y -> c [x] [y]
-mapA f = proc l -> case l of
-  (x:xs) -> do
-      y <- f -< x
-      ys <- mapA f -< xs
-      returnA -< (y:ys)
-  [] -> returnA -< []
-
-voidA :: ArrowChoice c => c x y -> c x ()
-voidA f = proc x -> do
-  _ <- f -< x
-  returnA -< ()

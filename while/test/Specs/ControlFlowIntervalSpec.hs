@@ -1,7 +1,7 @@
 module Specs.ControlFlowIntervalSpec(main,spec) where
 
-import           ControlFlow.Concrete
-import           ControlFlow.AbstractInterval
+import           Props.ControlFlow.Concrete
+import           Props.ControlFlow.Interval
 import           WhileLanguageSoundness
 
 import           Test.Hspec

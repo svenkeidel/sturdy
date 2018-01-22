@@ -19,6 +19,7 @@ import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Arrow
 import Control.Arrow.Fail
+import Control.Arrow.Utils
 
 data Val = BoolVal Bool | NumVal Double
 type Store = Map Text Val
@@ -33,8 +34,8 @@ type M = StateT (Store, Prop) (Except String)
 runM :: [Statement] -> Error String ((),(Store,Prop))
 runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) (initStore,initProp)
 
-runConcrete :: [Statement] -> Error String ()
-runConcrete ss = fmap fst $ runM ss
+runConcrete :: [Statement] -> Error String Store
+runConcrete ss = fmap (fst.snd) $ runM ss
 
 propConcrete :: [Statement] -> Error String Prop
 propConcrete ss = fmap (snd . snd) $ runM ss

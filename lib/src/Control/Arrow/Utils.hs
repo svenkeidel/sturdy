@@ -11,6 +11,11 @@ mapA f = proc l -> case l of
     bs <- mapA f -< as
     returnA -< (b:bs)
 
+voidA :: ArrowChoice c => c x y -> c x ()
+voidA f = proc x -> do
+  _ <- f -< x
+  returnA -< ()
+
 pi1 :: Arrow c => c (x,y) x
 pi1 = arr fst
 

@@ -2,12 +2,29 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Arrows #-}
-module ControlFlow.AbstractInterval where
+module Props.ControlFlow.Interval where
 
-import WhileLanguage
-import IntervalAnalysis (Val(..), Store, initStore)
+import WhileLanguage hiding (HasStore(..))
+import Vals.Interval.Val
 
-import ControlFlow.Prop
+Concrete
+Intervbal
+Symbolic
++ 2 proofs
+
+Pure
+ReadVars
+DeadWrites
+ControlFlow
+FailedReads
++ 4 proofs (some of which can be automated, if not using getProp)
+
++ glue proves
+
+=> 15 instances
+
+
+import Props.ControlFlow.Prop
 
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -25,6 +42,7 @@ import Control.Monad.State
 import Control.Monad.Except
 import Control.Arrow
 import Control.Arrow.Fail
+import Control.Arrow.Utils
 
 type M = StateT (Store,AProp Val) (Except String)
 runM :: [Statement] -> Error String ((), (Store,AProp Val))

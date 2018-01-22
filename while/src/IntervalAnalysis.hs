@@ -22,63 +22,28 @@ import Control.Monad.State
 import Control.Monad.Except
 import Control.Arrow
 import Control.Arrow.Fail
+import Control.Arrow.Utils
 
-data Val = BoolVal Bool | NumVal (Interval Double) | Top | Bot
-  deriving (Show)
+import Vals.Interval.Val
 
-instance PreOrd Val where
-  Bot ⊑ _ = True
-  _ ⊑ Top = True
-  BoolVal b1 ⊑ BoolVal b2 = b1 == b2
-  NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
-  _ ⊑ _ = False
+type M = StateT Store (Except String)
+runM :: [Statement] -> Error String ((), Store)
+runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) initStore
 
-instance LowerBounded Val where
-  bottom = Bot
-instance UpperBounded Val where
-  top = Top
-
-instance Complete Val where
-  BoolVal b1 ⊔ BoolVal b2 = if b1 == b2 then BoolVal b1 else Top
-  NumVal n1 ⊔ NumVal n2 = NumVal $ n1 ⊔ n2
-  Bot ⊔ a = a
-  a ⊔ Bot = a
-  _ ⊔ _ = Top
-
-instance Galois (Pow Concrete.Val) Val where
-  alpha = lifted lift
-    where lift (Concrete.BoolVal b) = BoolVal b
-          lift (Concrete.NumVal n) = NumVal $ IV (n,n)
-  gamma Bot = Pow Seq.empty
-  gamma (BoolVal b) = Pow $ Seq.singleton $ Concrete.BoolVal b
-  gamma (NumVal (IV (m,n))) = Pow $ Seq.fromList [Concrete.NumVal x | x <- [m..n]]
-  gamma Top = gamma (BoolVal True) `union` gamma (BoolVal False) `union` gamma (NumVal $ IV (bottom,top))
-
-
-type Store = Map Text Val
-initStore :: Store
-initStore = M.empty
-
-type Prop = ()
-type M = StateT (Store,Prop) (Except String)
+runConcrete :: [Statement] -> Error String Store
+runConcrete ss = fmap snd $ runM ss
 
 runAbstract :: Kleisli M [Statement] ()
 runAbstract = run
 
 getStore :: M Store
-getStore = get >>= return . fst
+getStore = get
 
 putStore :: Store -> M ()
-putStore env = modify (\(x,y) -> (env,y))
+putStore env = modify (const env)
 
 modifyStore :: (Store -> Store) -> M ()
-modifyStore f = modify (\(x,y) -> (f x, y))
-
-putProp :: Prop -> M ()
-putProp prop = modify (\(x,y) -> (x,prop))
-
-modifyProp :: (Prop -> Prop) -> M ()
-modifyProp f = modify (\(x,y) -> (x, f y))
+modifyStore f = modify f
 
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)

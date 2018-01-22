@@ -13,32 +13,24 @@ import qualified Data.Map as M
 import Data.Text (Text)
 import Data.Order
 import Data.Hashable
+import Data.Error
 
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Arrow
 import Control.Arrow.Fail
+import Control.Arrow.Utils
 
 import GHC.Generics (Generic)
 
-
-data Val = BoolVal Bool | NumVal Double
-  deriving (Eq, Show, Generic)
-
-instance Hashable Val
-
-instance PreOrd Val where
-  (⊑) = (==)
-  (≈) = (==)
-
-type Store = Map Text Val
-initStore :: Store
-initStore = M.empty
+import Vals.Concrete.Val
 
 type M = StateT Store (Except String)
+runM :: [Statement] -> Error String ((),Store)
+runM ss = fromEither $ runExcept $ runStateT (runKleisli run ss) initStore
 
-runConcrete :: Kleisli M [Statement] ()
-runConcrete = run
+runConcrete :: [Statement] -> Error String Store
+runConcrete ss = fmap snd $ runM ss
 
 instance Run (Kleisli M) Val where
   fixRun f = voidA $ mapA $ f (fixRun f)

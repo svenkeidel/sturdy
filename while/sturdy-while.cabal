@@ -12,19 +12,27 @@ cabal-version:       >=1.10
 library
   exposed-modules:     WhileLanguage,
                        Label
-                       ConcreteSemantics,
-                       ConcreteSemanticsReadVars,
-                       ConcreteSemanticsFailedReads,
-                       ConcreteSemanticsDeadWrites,
-                       ControlFlowGraph,
-                       IntervalAnalysis,
-                       IntervalAnalysisReadVars,
-                       IntervalAnalysisFailedReads,
-                       IntervalAnalysisDeadWrites,
-                       ControlFlow.Prop
-                       ControlFlow.Concrete
-                       ControlFlow.AbstractInterval
-                       Symbolic
+--                       ConcreteSemantics,
+--                       ConcreteSemanticsReadVars,
+--                       ConcreteSemanticsFailedReads,
+--                       ConcreteSemanticsDeadWrites,
+--                       ControlFlowGraph,
+--                       IntervalAnalysis,
+--                       IntervalAnalysisReadVars,
+--                       IntervalAnalysisFailedReads,
+--                       IntervalAnalysisDeadWrites,
+
+                       Vals.Concrete.Val
+                       Vals.Concrete.Semantic
+                       Vals.Interval.Val
+                       Vals.Interval.Semantic
+
+                       Props.FailedReads.Prop
+
+--                       Props.ControlFlow.Prop
+--                       Props.ControlFlow.Concrete
+--                       Props.ControlFlow.Interval
+--                       Symbolic
   build-depends:       base,
                        sturdy-lib,
                        text,
