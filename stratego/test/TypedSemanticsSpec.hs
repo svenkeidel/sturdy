@@ -9,7 +9,7 @@ module TypedSemanticsSpec where
 -- import           Signature (Signature)
 -- import qualified Signature as S
 -- import           InterpreterArrow
--- import           Paths_system_s
+-- import           Paths_sturdy_stratego
 -- import           Syntax(parseModule,Strat(..))
 
 -- import           Data.ATerm(parseATerm)

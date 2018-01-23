@@ -11,7 +11,7 @@ import           ConcreteSemantics
 import           Syntax hiding (Fail,TermPattern(..))
 import qualified Syntax as T
 
-import           Paths_system_s
+import           Paths_sturdy_stratego
 
 import           Control.Monad
 
