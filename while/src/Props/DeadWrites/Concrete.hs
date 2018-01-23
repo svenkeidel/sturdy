@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Props.ReadVars.Concrete where
+module Props.DeadWrites.Concrete where
 
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
@@ -13,7 +13,7 @@ import qualified WhileLanguage as L
 import Vals.Concrete.Val
 import qualified Vals.Concrete.Semantic as Concrete
 
-import Props.FailedReads.Prop
+import Props.DeadWrites.Prop
 
 import Data.Error
 import Data.Text (Text)
@@ -32,8 +32,15 @@ import Control.Monad.Except
 import System.Random
 
 lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c CProp) => c Text Val
-lookup = (proc x -> modifyProp -< Set.insert x)
+lookup = (proc x -> modifyProp -< (\(DeadWrites maybe must) -> DeadWrites (Set.delete x maybe) must))
      &&> Concrete.lookup
+
+store :: (ArrowChoice c, HasStore c Store, HasProp c CProp) => c (Text,Val,Label) ()
+store = (proc (x,_,_) -> modifyProp -< (\(DeadWrites maybe must) ->
+          if x `Set.member` maybe
+            then DeadWrites maybe (Set.insert x must)
+            else DeadWrites (Set.insert x maybe)  must))
+    &&> Concrete.store
 
 
 ----------
@@ -45,10 +52,10 @@ type M = StateT State (Except String)
 runM :: [Statement] -> Error String ((),State)
 runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initCProp,mkStdGen 0)
 
-run :: [Statement] -> Error String (Store,CProp)
-run = fmap (\((),(st,pr,gen)) -> (st,pr)) . runM
+run :: [Statement] -> Error String (Store,FCProp)
+run = fmap (\(_,(st,pr,gen)) -> (st,finalizeDeadWrites pr)) . runM
 
-runLifted :: [Statement] -> Error String (LiftedStore,CProp)
+runLifted :: [Statement] -> Error String (LiftedStore,FCProp)
 runLifted = fmap (\(st, pr) -> (liftStore st, liftCProp pr)) . run
 
 instance L.HasStore (Kleisli M) Store where
@@ -85,5 +92,5 @@ instance L.Eval (Kleisli M) Val  where
 
 instance L.Run (Kleisli M) Val where
   fixRun = Concrete.fixRun
-  store = Concrete.store
+  store = store
   if_ = Concrete.if_

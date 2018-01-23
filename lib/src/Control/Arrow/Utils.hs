@@ -16,9 +16,9 @@ voidA f = proc x -> do
   _ <- f -< x
   returnA -< ()
 
-infixr 1 &>>
-(&>>) :: Arrow c => c a () -> c a b -> c a b
-f &>> g = f &&& g >>> arr snd
+infixr 1 &&>
+(&&>) :: Arrow c => c a () -> c a b -> c a b
+f &&> g = f &&& g >>> arr snd
 
 pi1 :: Arrow c => c (x,y) x
 pi1 = arr fst

@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Props.ReadVars.Interval where
+module Props.DeadWrites.Interval where
 
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
@@ -13,10 +13,10 @@ import qualified WhileLanguage as L
 import Vals.Interval.Val
 import qualified Vals.Interval.Semantic as Interval
 
-import Props.FailedReads.Prop
+import Props.DeadWrites.Prop
 
 import Data.Error
-import Data.Text (Text,snoc)
+import Data.Text (Text)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -30,9 +30,17 @@ import Control.Monad.State
 import Control.Monad.Except
 
 
-lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c AProp) => c Text Val
-lookup = (proc x -> modifyProp -< Set.insert x)
+lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c CProp) => c Text Val
+lookup = (proc x -> modifyProp -< (\(DeadWrites maybe must) -> DeadWrites (Set.delete x maybe) must))
      &&> Interval.lookup
+
+store :: (ArrowChoice c, HasStore c Store, HasProp c CProp) => c (Text,Val,Label) ()
+store = (proc (x,_,_) -> modifyProp -< (\(DeadWrites maybe must) ->
+          if x `Set.member` maybe
+            then DeadWrites maybe (Set.insert x must)
+            else DeadWrites (Set.insert x maybe)  must))
+    &&> Interval.store
+
 
 ----------
 -- Arrows
@@ -42,8 +50,8 @@ type M = StateT (Store,AProp) (Except String)
 runM :: [Statement] -> Error String ((),(Store,AProp))
 runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initAProp)
 
-run :: [Statement] -> Error String (Store,AProp)
-run = fmap snd . runM
+run :: [Statement] -> Error String (Store,FAProp)
+run = fmap (\(_,(st,pr)) -> (st,finalizeDeadWrites pr)) . runM
 
 instance L.HasStore (Kleisli M) Store where
   getStore = Kleisli $ \_ -> get >>= return . fst
@@ -72,5 +80,5 @@ instance L.Eval (Kleisli M) Val  where
 
 instance L.Run (Kleisli M) Val where
   fixRun = Interval.fixRun
-  store = Interval.store
+  store = store
   if_ = Interval.if_
