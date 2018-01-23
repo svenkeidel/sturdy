@@ -100,7 +100,8 @@ div = proc (v1,v2) -> case (v1,v2) of
 
 eq :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
 eq = proc (v1,v2) -> case (v1,v2) of
-  (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 == n2)
+  (NumVal (IV (m1,m2)),NumVal (IV (n1,n2))) | m1 == m2 && n1 == n2 -> returnA -< BoolVal (m1 == n1)
+  (NumVal n1,NumVal n2)   -> returnA -< Top
   (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
   (Top,_) -> returnA -< Top
   (_,Top) -> returnA -< Top
