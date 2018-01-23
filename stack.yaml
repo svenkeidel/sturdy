@@ -4,6 +4,7 @@ packages:
 - 'lib'
 - 'pcf'
 - 'while'
+- 'lambda-adt'
 #- 'stratego'
 extra-deps:
 - numeric-limits-0.1.0.0

@@ -1,0 +1,3 @@
+[submodule "rtg"]
+	path = rtg
+	url = https://gitlab.com/svenkeidel/tree-automata-parsing
