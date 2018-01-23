@@ -41,3 +41,5 @@ withBounds2 f (IV (i1,i2)) (IV (j1,j2)) =
     IV (glb [ f x y | x <- [i1,i2], y <- [j1,j2]],
         lub [ f x y | x <- [i1,i2], y <- [j1,j2]])
 
+instance (LowerBounded n, UpperBounded n) => UpperBounded (Interval n) where
+  top = IV (bottom,top)
