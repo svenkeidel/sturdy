@@ -189,12 +189,12 @@ instance IsTerm Term Interp where
 instance UpperBounded (Interp () Term) where
   top = proc () -> success ⊔ failA' -< Wildcard
 
-instance ArrowFix Interp Term where
-  fixA f z = proc x -> do
+instance ArrowFix' Interp Term where
+  fixA' f z = proc x -> do
     i <- getFuel -< ()
     if i <= 0
     then top -< ()
-    else localFuel (f (fixA f) z) -< (i-1,x)
+    else localFuel (f (fixA' f) z) -< (i-1,x)
     where
       getFuel = liftK (const (snd <$> ask))
       localFuel (Interp (Kleisli g)) = liftK $ \(i,a) -> local (second (const i)) (g a)

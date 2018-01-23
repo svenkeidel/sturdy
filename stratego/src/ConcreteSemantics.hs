@@ -73,8 +73,8 @@ eval = runInterp . eval'
 liftK :: (a -> _ b) -> Interp a b
 liftK f = Interp (Kleisli f)
 
-instance ArrowFix Interp Term where
-  fixA f = f (fixA f)
+instance ArrowFix' Interp Term where
+  fixA' f = f (fixA' f)
 
 instance ArrowFail () Interp where
   failA = Interp failA

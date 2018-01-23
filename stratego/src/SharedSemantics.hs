@@ -29,11 +29,11 @@ import           Data.Hashable
 import           Text.Printf
 
 -- Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowTry c, ArrowPlus c, ArrowApply c, ArrowFix c t,
+eval' :: (ArrowChoice c, ArrowTry c, ArrowPlus c, ArrowApply c, ArrowFix' c t,
           ArrowFail () c, ArrowDeduplicate c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c)
       => (Strat -> c t t)
-eval' = fixA $ \ev s0 -> dedupA $ case s0 of
+eval' = fixA' $ \ev s0 -> dedupA $ case s0 of
     Id -> id
     S.Fail -> failA'
     Seq s1 s2 -> sequence (ev s1) (ev s2)
