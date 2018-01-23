@@ -252,6 +252,12 @@ instance Complete Term where
     (_, Wildcard) -> Wildcard
     (_, _) -> Wildcard
 
+instance LowerBounded Term where
+  bottom = undefined
+
+instance LowerBounded TermEnv where
+  bottom = emptyEnv
+
 instance Galois (P.Pow C.Term) Term where
   alpha = lub . fmap go
     where
