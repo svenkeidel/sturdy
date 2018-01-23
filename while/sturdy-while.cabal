@@ -31,6 +31,10 @@ library
                        Props.FailedReads.Concrete
                        Props.FailedReads.Interval
 
+                       Props.ReadVars.Prop
+                       Props.ReadVars.Concrete
+                       Props.ReadVars.Interval
+
 --                       Props.ControlFlow.Prop
 --                       Props.ControlFlow.Concrete
 --                       Props.ControlFlow.Interval
@@ -66,3 +70,4 @@ test-suite specs
 
                        Specs.IntervalSpec
                        Specs.FailedReadsSpec
+                       Specs.ReadVarsSpec

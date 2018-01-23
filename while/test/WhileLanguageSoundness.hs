@@ -29,12 +29,13 @@ whileSoundnessSpec runConcrete runAbstract = do
     , Assign y (Var z) @@ 2
     ]) runConcrete runAbstract
 
-  sound "$x:=1; if (random!=0) {$y:=$x} else {$y:=$z}" (\(x,y,z) ->
-      [ Assign x (NumLit 1) @@ 1
-      , If (Not (Eq RandomNum (NumLit 0)))
-        [Assign y (Var x) @@ 3]
-        [Assign y (Var z) @@ 4]
-        @@ 2
+  sound "$x1:=1; x2:=2; if (random!=0) {$y:=$x1} else {$y:=$x2}" (\() ->
+      [ Assign "x1" (NumLit 1) @@ 1
+      , Assign "x2" (NumLit 2) @@ 2
+      , If (Eq RandomNum (NumLit 0))
+        [Assign "y" (Var "x1") @@ 4]
+        [Assign "y" (Var "x2") @@ 5]
+        @@ 3
       ]) runConcrete runAbstract
 
   sound "$x:=1; if (x==2) $y:=3 else $z:=4" (\(x,y,z) ->
