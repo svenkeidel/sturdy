@@ -30,6 +30,7 @@ import           Control.Monad.Result
 import           Control.Monad.State
 
 import           Data.Constructor
+import           Data.Error
 import           Data.Foldable (foldr')
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
@@ -317,7 +318,7 @@ dom = M.keys
 
 instance PreOrd TermEnv where
   TermEnv env1 ⊑ TermEnv env2 =
-    Prelude.all (\v -> M.lookup v env1 ⊑ M.lookup v env2) (dom env2)
+    Prelude.all (\v -> fromMaybe (M.lookup v env1) ⊑ fromMaybe (M.lookup v env2)) (dom env2)
 
 instance Complete TermEnv where
   TermEnv env1' ⊔ TermEnv env2' = go (dom env1') env1' env2' M.empty
