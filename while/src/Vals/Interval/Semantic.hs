@@ -22,9 +22,8 @@ import Control.Arrow
 import Control.Arrow.Fail
 import Control.Arrow.Utils
 
-import Control.Monad.State
+import Control.Monad.State hiding (State)
 import Control.Monad.Except
-
 
 -----------
 -- Eval
@@ -67,6 +66,9 @@ not = proc v -> case v of
 
 numLit :: Arrow c => c Double Val
 numLit = arr $ \x -> NumVal (IV (x,x))
+
+randomNum :: Arrow c => c () Val
+randomNum = arr $ const $ NumVal top
 
 add :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
 add = proc (v1,v2) -> case (v1,v2) of
@@ -131,17 +133,18 @@ if_ f1 f2 = proc (v,(x,y),_) -> case v of
 -- Arrows
 ----------
 
-type M = StateT Store (Except String)
-runM :: [Statement] -> Error String ((),Store)
+type State = Store
+type M = StateT State (Except String)
+runM :: [Statement] -> Error String ((),State)
 runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) initStore
 
 run :: [Statement] -> Error String (Store,())
 run = fmap (\(_,st) -> (st,())) . runM
 
 instance HasStore (Kleisli M) Store where
-  getStore = Kleisli (const get)
-  putStore = Kleisli put
-  modifyStore = Kleisli modify
+  getStore = Kleisli $ \_ -> get
+  putStore = Kleisli $ \st -> modify $ const st
+  modifyStore = Kleisli  $ \f -> modify f
 
 instance L.Eval (Kleisli M) Val  where
   lookup = lookup
@@ -150,6 +153,7 @@ instance L.Eval (Kleisli M) Val  where
   or = or
   not = not
   numLit = numLit
+  randomNum = randomNum
   add = add
   sub = sub
   mul = mul

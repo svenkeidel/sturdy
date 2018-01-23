@@ -68,6 +68,7 @@ instance L.Eval (Kleisli M) Val  where
   or = Interval.or
   not = Interval.not
   numLit = Interval.numLit
+  randomNum = Interval.randomNum
   add = Interval.add
   sub = Interval.sub
   mul = Interval.mul

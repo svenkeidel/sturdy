@@ -7,7 +7,7 @@ module Vals.Concrete.Semantic where
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
 
-import WhileLanguage (HasStore(..), Statement, Expr, Label)
+import WhileLanguage (HasStore(..), HasRandomGen(..), Statement, Expr, Label)
 import qualified WhileLanguage as L
 import Vals.Concrete.Val
 
@@ -20,8 +20,10 @@ import Control.Arrow
 import Control.Arrow.Fail
 import Control.Arrow.Utils
 
-import Control.Monad.State
+import Control.Monad.State hiding (State)
 import Control.Monad.Except
+
+import System.Random
 
 -----------
 -- Eval
@@ -54,6 +56,11 @@ not = proc v -> case v of
 
 numLit :: Arrow c => c Double Val
 numLit = arr NumVal
+
+randomNum :: (Arrow c, HasRandomGen c) => c () Val
+randomNum = proc () -> do
+  n <- nextRandom -< ()
+  returnA -< NumVal n
 
 add :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
 add = proc (v1,v2) -> case (v1,v2) of
@@ -108,20 +115,28 @@ if_ f1 f2 = proc (v,(x,y),_) -> case v of
 -- Arrows
 ----------
 
-type M = StateT Store (Except String)
-runM :: [Statement] -> Error String ((),Store)
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) initStore
+type State = (Store,StdGen)
+type M = StateT State (Except String)
+runM :: [Statement] -> Error String ((),State)
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore, mkStdGen 0)
 
 run :: [Statement] -> Error String (Store,())
-run = fmap (\(_,st) -> (st,())) . runM
+run = fmap (\(_,(st,rnd)) -> (st,())) . runM
 
 runLifted :: [Statement] -> Error String (LiftedStore,())
 runLifted = fmap (\(st,pr) -> (liftStore st,pr)) . run
 
 instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli (const get)
-  putStore = Kleisli put
-  modifyStore = Kleisli modify
+  getStore = Kleisli $ \_ -> get >>= return . fst
+  putStore = Kleisli $ \st -> modify (\(_,rnd) -> (st,rnd))
+  modifyStore = Kleisli  $ \f -> modify (\(st,rnd) -> (f st,rnd))
+
+instance L.HasRandomGen (Kleisli M) where
+  nextRandom = Kleisli $ \() -> do
+    (st, gen) <- get
+    let (r, gen') = random gen
+    put (st, gen')
+    return r
 
 instance L.Eval (Kleisli M) Val  where
   lookup = lookup
@@ -130,6 +145,7 @@ instance L.Eval (Kleisli M) Val  where
   or = or
   not = not
   numLit = numLit
+  randomNum = randomNum
   add = add
   sub = sub
   mul = mul

@@ -14,6 +14,7 @@ import Data.Hashable
 import Data.Order
 
 import GHC.Generics
+import System.Random
 
 data Expr = Var Text
           | BoolLit Bool
@@ -21,6 +22,7 @@ data Expr = Var Text
           | Or Expr Expr
           | Not Expr
           | NumLit Double
+          | RandomNum
           | Add Expr Expr
           | Sub Expr Expr
           | Mul Expr Expr
@@ -54,10 +56,13 @@ class ArrowChoice c => HasStore c st where
     store <- getStore -< ()
     putStore -< f store
 
-class ArrowChoice c => HasProp c pr where
+class HasProp c pr where
   getProp :: c () pr
   putProp :: c pr ()
   modifyProp :: c (pr -> pr) ()
+
+class HasRandomGen c where
+  nextRandom :: Random a => c () a
 
 class ArrowChoice c => Eval c v | c -> v where
   lookup :: c Text v
@@ -66,6 +71,7 @@ class ArrowChoice c => Eval c v | c -> v where
   or :: c (v,v) v
   not :: c v v
   numLit :: c Double v
+  randomNum :: c () v
   add :: c (v,v) v
   sub :: c (v,v) v
   mul :: c (v,v) v
@@ -89,6 +95,7 @@ eval = fixEval $ \ev -> proc e -> case e of
     v1 <- ev -< e1
     not -< v1
   NumLit n -> numLit -< n
+  RandomNum -> randomNum -< ()
   Add e1 e2 -> do
     v1 <- ev -< e1
     v2 <- ev -< e2
