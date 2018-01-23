@@ -8,10 +8,11 @@ module Data.AbstractPowerset where
 
 import           Prelude hiding ((.))
 
+import           Control.Applicative hiding (empty)
 import           Control.Category
-import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Deduplicate
+import           Control.Monad.Except
 
 import           Data.Sequence (Seq)
 import           Data.Hashable
@@ -21,7 +22,7 @@ import           Data.Foldable (foldl',toList)
 import           Data.List (intercalate)
 import           Data.Order
 
-import GHC.Generics (Generic)
+import           GHC.Generics (Generic)
 
 newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, MonadPlus, Monoid, Foldable, Traversable, Generic)
 
@@ -39,6 +40,11 @@ instance Show a => Show (Pow a) where
 
 instance (Eq a, Hashable a) => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
+
+instance MonadError () Pow where
+  throwError _ = empty
+  catchError a f | null a = f ()
+                 | otherwise = a
 
 empty :: Pow a
 empty = mempty

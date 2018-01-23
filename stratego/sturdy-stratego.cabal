@@ -49,7 +49,8 @@ library
                        unordered-containers,
                        mtl,
                        pretty,
-                       text
+                       text,
+                       transformers
   hs-source-dirs:      src
   default-language:    Haskell2010
 

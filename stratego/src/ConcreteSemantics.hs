@@ -11,7 +11,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module ConcreteSemantics where
 
-import           Prelude hiding (id,(.),fail,all,curry,uncurry)
+import           Prelude hiding (id,(.),all,curry,uncurry)
 
 -- import           InterpreterArrow
 import           SharedSemantics
@@ -21,14 +21,15 @@ import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
 
 import           Control.Arrow
-import           Control.Arrow.Fix
-import           Control.Arrow.Try
 import           Control.Arrow.Apply
 import           Control.Arrow.Debug
 import           Control.Arrow.Deduplicate
-import           Control.Monad.Reader hiding (fail)
-import           Control.Monad.State hiding (fail)
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Try
 import           Control.Category
+import           Control.Monad.Reader
+import           Control.Monad.State
 
 import           Data.Constructor
 import           Data.Result
@@ -74,6 +75,9 @@ liftK f = Interp (Kleisli f)
 
 instance ArrowFix Interp Term where
   fixA f = f (fixA f)
+
+instance ArrowFail () Interp where
+  failA = Interp failA
 
 instance ArrowDebug Interp where
   debug s f = proc a -> do
