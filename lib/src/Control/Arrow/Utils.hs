@@ -11,7 +11,7 @@ mapA f = proc l -> case l of
     bs <- mapA f -< as
     returnA -< (b:bs)
 
-voidA :: ArrowChoice c => c x y -> c x ()
+voidA :: Arrow c => c x y -> c x ()
 voidA f = proc x -> do
   _ <- f -< x
   returnA -< ()
@@ -30,8 +30,3 @@ zipWithA f = proc (l1,l2) -> case (l1,l2) of
     c <- f -< (a,b)
     cs <- zipWithA f -< (as,bs)
     returnA -< c:cs
-
-voidA :: Arrow c => c x y -> c x ()
-voidA f = proc x -> do
-  _ <- f -< x
-  returnA -< ()

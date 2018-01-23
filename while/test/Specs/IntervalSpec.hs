@@ -1,7 +1,7 @@
-module Specs.FailedReadsSpec(main,spec) where
+module Specs.IntervalSpec(main,spec) where
 
-import qualified Props.FailedReads.Concrete as Concrete
-import qualified Props.FailedReads.Interval as Interval
+import qualified Vals.Concrete.Semantic as Concrete
+import qualified Vals.Interval.Semantic as Interval
 
 import WhileLanguageSoundness
 

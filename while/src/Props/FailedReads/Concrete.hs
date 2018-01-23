@@ -15,6 +15,7 @@ import qualified Vals.Concrete.Semantic as Concrete
 
 import Props.FailedReads.Prop
 
+import Data.Error
 import Data.Text (Text)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -44,6 +45,14 @@ lookup = proc x -> do
 ----------
 
 type M = StateT (Store,CProp) (Except String)
+runM :: [Statement] -> Error String ((),(Store,CProp))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initCProp)
+
+run :: [Statement] -> Error String (Store,CProp)
+run = fmap snd . runM
+
+runLifted :: [Statement] -> Error String (LiftedStore,CProp)
+runLifted = fmap (\(st, pr) -> (liftStore st, liftCProp pr)) . run
 
 instance L.HasStore (Kleisli M) Store where
   getStore = Kleisli $ \_ -> get >>= return . fst

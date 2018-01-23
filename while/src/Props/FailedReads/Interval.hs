@@ -15,6 +15,7 @@ import qualified Vals.Interval.Semantic as Interval
 
 import Props.FailedReads.Prop
 
+import Data.Error
 import Data.Text (Text)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -44,6 +45,11 @@ lookup = proc x -> do
 ----------
 
 type M = StateT (Store,AProp) (Except String)
+runM :: [Statement] -> Error String ((),(Store,AProp))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initAProp)
+
+run :: [Statement] -> Error String (Store,AProp)
+run = fmap snd . runM
 
 instance L.HasStore (Kleisli M) Store where
   getStore = Kleisli $ \_ -> get >>= return . fst

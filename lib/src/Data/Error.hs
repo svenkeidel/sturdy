@@ -53,8 +53,17 @@ toEither :: Error e a -> Either e a
 toEither (Error e) = Left e
 toEither (Success a) = Right a
 
+unzipError :: Error e (a1,a2) -> (Error e a1, Error e a2)
+unzipError (Error e) = (Error e, Error e)
+unzipError (Success (a1, a2)) = (Success a1, Success a2)
 
+zipError :: Eq e => (Error e a1, Error e a2) -> Error e (a1,a2)
+zipError (Error e1, Error e2) | e1 == e2 = Error e1
+zipError (Success a1, Success a2) = Success (a1, a2)
 
+mapError :: (a1 -> b1) -> (a2 -> b2) -> Error e (a1, a2) -> Error e (b1, b2)
+mapError f1 f2 (Error e) = Error e
+mapError f1 f2 (Success (a1, a2)) = Success (f1 a1, f2 a2)
 
 -- | The type Error has the correct ordering for our use case compared to the either type
 instance (PreOrd (m (Error e a)), Functor m) => PreOrd (ExceptT e m a) where

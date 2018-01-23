@@ -6,6 +6,8 @@ module Data.GaloisConnection where
 import Data.Order
 import Data.Powerset
 import Data.Hashable
+import           Data.Map (Map)
+import qualified Data.Map as Map
 
 -- | A galois connection consisting of an abstraction function alpha
 -- and a concretization function gamma between two pre-ordered sets
@@ -26,6 +28,10 @@ instance (Eq (x,y), Hashable (x,y), Galois (Pow x) x', Galois (Pow y) y')
   => Galois (Pow (x,y)) (x',y') where
   alpha m = (alpha (fst <$> m),alpha (snd <$> m))
   gamma m = cartesian (gamma (fst m),gamma (snd m))
+
+instance (Galois v1 v2, Ord k) => Galois (Map k v1) (Map k v2) where
+  alpha = Map.map alpha
+  gamma = Map.map gamma
 
 alphaSing :: Galois (Pow x) x' => x -> x'
 alphaSing = alpha . (return :: x -> Pow x)

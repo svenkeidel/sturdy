@@ -4,13 +4,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Vals.Concrete.Semantic where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($))
+import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
 
 import WhileLanguage (HasStore(..), Statement, Expr, Label)
 import qualified WhileLanguage as L
 import Vals.Concrete.Val
 
+import Data.Error
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
@@ -108,6 +109,14 @@ if_ f1 f2 = proc (v,(x,y),_) -> case v of
 ----------
 
 type M = StateT Store (Except String)
+runM :: [Statement] -> Error String ((),Store)
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) initStore
+
+run :: [Statement] -> Error String (Store,())
+run = fmap (\(_,st) -> (st,())) . runM
+
+runLifted :: [Statement] -> Error String (LiftedStore,())
+runLifted = fmap (\(st,pr) -> (liftStore st,pr)) . run
 
 instance L.HasStore (Kleisli M) Store where
   getStore = Kleisli (const get)

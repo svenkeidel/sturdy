@@ -29,31 +29,26 @@ c `shouldBeApproximated` a = unless (ca ⊑ a) (expectationFailure msg)
 sound :: (Arbitrary a, Galois rc ra, Galois pc pa, Show a, Show rc, Show ra, Show pc, Show pa) =>
   String ->
   (a -> Prog) ->
-  (Prog -> Error String rc) ->
-  (Prog -> Error String ra) ->
-  (Prog -> Error String pc) ->
-  (Prog -> Error String pa) ->
+  (Prog -> Error String (rc, pc)) ->
+  (Prog -> Error String (ra, pa)) ->
   Spec
-sound desc genprog runConcrete runAbstract propConcrete propAbstract = do
-  withSize $ it ("sound value approximation " ++ desc) $ property $ \a -> do
+sound desc genprog runConcrete runAbstract =
+  withSize $ it ("sound value and property approximation " ++ desc) $ property $ \a -> do
     let prog = genprog a
-    runConcrete prog `shouldBeApproximated` runAbstract prog
-
-  withSize $ it ("sound property approximation " ++ desc) $ property $ \a -> do
-    let prog = genprog a
-    propConcrete prog `shouldBeApproximated` propAbstract prog
+    let (rc, pc) = unzipError $ runConcrete prog
+    let (ra, pa) = unzipError $ runAbstract prog
+    rc `shouldBeApproximated` ra
+    pc `shouldBeApproximated` pa
 
 soundProg :: (Galois rc ra, Galois pc pa, Show rc, Show ra, Show pc, Show pa) =>
   String ->
   [Statement] ->
-  (Prog -> Error String rc) ->
-  (Prog -> Error String ra) ->
-  (Prog -> Error String pc) ->
-  (Prog -> Error String pa) ->
+  (Prog -> Error String (rc, pc)) ->
+  (Prog -> Error String (ra, pa)) ->
   Spec
-soundProg desc prog runConcrete runAbstract propConcrete propAbstract = do
-  it ("sound value approximation " ++ desc) $
-    runConcrete prog `shouldBeApproximated` runAbstract prog
-
-  it ("sound property approximation " ++ desc) $
-    propConcrete prog `shouldBeApproximated` propAbstract prog
+soundProg desc prog runConcrete runAbstract =
+  it ("sound value and property approximation " ++ desc) $ do
+    let (rc, pc) = unzipError $ runConcrete prog
+    let (ra, pa) = unzipError $ runAbstract prog
+    rc `shouldBeApproximated` ra
+    pc `shouldBeApproximated` pa

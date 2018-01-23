@@ -14,6 +14,9 @@ type CProp = Set Text
 initCProp :: CProp
 initCProp = Set.empty
 
+liftCProp :: CProp -> CProp
+liftCProp = id
+
 ---------------
 -- abstract
 ---------------

@@ -5,7 +5,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 module Vals.Interval.Semantic where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), fst, snd)
+import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
 
 import WhileLanguage (HasStore(..), Statement, Expr, Label)
@@ -132,6 +132,11 @@ if_ f1 f2 = proc (v,(x,y),_) -> case v of
 ----------
 
 type M = StateT Store (Except String)
+runM :: [Statement] -> Error String ((),Store)
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) initStore
+
+run :: [Statement] -> Error String (Store,())
+run = fmap (\(_,st) -> (st,())) . runM
 
 instance HasStore (Kleisli M) Store where
   getStore = Kleisli (const get)

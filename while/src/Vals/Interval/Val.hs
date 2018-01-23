@@ -46,7 +46,6 @@ instance Galois (Pow Concrete.Val) Val where
   gamma (NumVal (IV (m,n))) = Pow $ Seq.fromList [Concrete.NumVal x | x <- [m..n]]
   gamma Top = gamma (BoolVal True) `union` gamma (BoolVal False) `union` gamma (NumVal $ IV (bottom,top))
 
-
 type Store = Map Text Val
 initStore :: Store
 initStore = Map.empty
