@@ -147,6 +147,7 @@ instance (Galois (Pow Concrete.Val) v,Complete v,LowerBounded v) => Galois (Pow 
                 outs = Set.map snd $ Set.filter (\(m,_) -> m == n) edges
             in end `union` foldr (union . walk (mkTraceElem n : path)) empty outs
 
+          mkTraceElem :: Label -> TraceElem (Pow Concrete.Val)
           mkTraceElem n = case nodes M.! n of
             CFGAssign l v -> TrAssign l $ gamma v
             CFGIf l v -> TrIf l $ gamma v

@@ -21,6 +21,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Utils
 
 import Control.Arrow
 import Control.Arrow.Fail
@@ -32,16 +33,14 @@ import Control.Monad.Except
 import System.Random
 
 lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c CProp) => c Text Val
-lookup = (proc x -> modifyProp -< (\(DeadWrites maybe must) -> DeadWrites (Set.delete x maybe) must))
+lookup = (proc x -> modifyProp -< (\(DeadWrites written overwritten) -> DeadWrites (Map.delete x written) overwritten))
      &&> Concrete.lookup
 
 store :: (ArrowChoice c, HasStore c Store, HasProp c CProp) => c (Text,Val,Label) ()
-store = (proc (x,_,_) -> modifyProp -< (\(DeadWrites maybe must) ->
-          if x `Set.member` maybe
-            then DeadWrites maybe (Set.insert x must)
-            else DeadWrites (Set.insert x maybe)  must))
+store = (proc (x,_,l) -> modifyProp -< (\(DeadWrites written overwritten) ->
+          DeadWrites (Map.insert x (Set.singleton l) written)
+                     (overwritten `Set.union` lookupM x written)))
     &&> Concrete.store
-
 
 ----------
 -- Arrows

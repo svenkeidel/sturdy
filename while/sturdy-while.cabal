@@ -39,6 +39,10 @@ library
                        Props.DeadWrites.Concrete
                        Props.DeadWrites.Interval
 
+                       Props.LiveVariables.Prop
+                       Props.LiveVariables.Concrete
+                       Props.LiveVariables.Interval
+
 --                       Props.ControlFlow.Prop
 --                       Props.ControlFlow.Concrete
 --                       Props.ControlFlow.Interval
@@ -76,3 +80,4 @@ test-suite specs
                        Specs.FailedReadsSpec
                        Specs.ReadVarsSpec
                        Specs.DeadWritesSpec
+                       Specs.ControlFlowSpec

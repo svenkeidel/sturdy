@@ -16,11 +16,13 @@ import qualified Vals.Interval.Semantic as Interval
 import Props.DeadWrites.Prop
 
 import Data.Error
+import Data.Maybe
 import Data.Text (Text)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Utils
 
 import Control.Arrow
 import Control.Arrow.Fail
@@ -31,14 +33,13 @@ import Control.Monad.Except
 
 
 lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c CProp) => c Text Val
-lookup = (proc x -> modifyProp -< (\(DeadWrites maybe must) -> DeadWrites (Set.delete x maybe) must))
+lookup = (proc x -> modifyProp -< (\(DeadWrites written overwritten) -> DeadWrites (Map.delete x written) overwritten))
      &&> Interval.lookup
 
 store :: (ArrowChoice c, HasStore c Store, HasProp c CProp) => c (Text,Val,Label) ()
-store = (proc (x,_,_) -> modifyProp -< (\(DeadWrites maybe must) ->
-          if x `Set.member` maybe
-            then DeadWrites maybe (Set.insert x must)
-            else DeadWrites (Set.insert x maybe)  must))
+store = (proc (x,_,l) -> modifyProp -< (\dw ->
+          DeadWrites (Map.insert x (Set.singleton l) $ written dw)
+                     (overwritten dw `Set.union` lookupM x (written dw))))
     &&> Interval.store
 
 
