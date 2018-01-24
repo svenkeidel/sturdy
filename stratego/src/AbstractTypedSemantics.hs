@@ -6,12 +6,12 @@
 {-# LANGUAGE PatternSynonyms #-}
 module AbstractTypedSemantics where
 
-import           Prelude hiding (id,(.),fail,all)
+import           Prelude hiding (fail)
 
 import           InterpreterArrow
 import           WildcardSemantics hiding (Term(..),TermEnv)
 import           Sort
-import           Signature hiding (lookupType)
+import           Signature
 import qualified Signature as Sig
 import           Syntax(Strat,StratEnv,Module,signature,stratEnv)
 import           Utils

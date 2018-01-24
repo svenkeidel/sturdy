@@ -2,8 +2,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import           Prelude hiding (log)
-
 import           Syntax hiding (Fail)
 import qualified WildcardSemantics as W
 import qualified Data.AbstractPowerset as W
@@ -31,7 +29,7 @@ import qualified Data.Term as T
 
 import           System.IO
 
-import           Text.PrettyPrint hiding (sep,(<>))
+import           Text.PrettyPrint
 import           Text.Printf
 
 main :: IO ()

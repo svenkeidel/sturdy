@@ -5,7 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module GrammarSemantics where
 
-import           Prelude hiding (fail,all,zipWith,id,(.))
+import           Prelude hiding (fail,all,id,(.))
 import           Result
 import           Syntax (Strat(..),Constructor(..),TermVar,StratEnv,TermPattern)
 import qualified Syntax as S

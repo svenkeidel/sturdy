@@ -5,12 +5,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module TypedSemantics where
 
-import           Prelude hiding (id,(.),fail,all)
-
 import           InterpreterArrow
 import           ConcreteSemantics hiding (Term(..),TermEnv,eval)
 import           Sort
-import           Signature hiding (lookupType,lub)
+import           Signature hiding (lub)
 import qualified Signature as Sig
 import           Syntax(Module,Strat,StratEnv,stratEnv,signature)
 import           Utils
@@ -44,7 +42,7 @@ eval :: Signature -> StratEnv -> Strat -> (Term,TermEnv) -> TypedResult (Term,Te
 eval sig senv s = runInterp (eval' s) (sig, senv)
 
 instance HasTerm Term (Interp (Signature,senv) s TypedResult) where
-  matchTerm = arr $ \t -> case t of
+  matchTerm = arr $ \case
     Cons c ts _ -> T.Cons c ts
     StringLiteral s -> T.StringLiteral s
     NumberLiteral n -> T.NumberLiteral n

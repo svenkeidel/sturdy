@@ -11,7 +11,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module ConcreteSemantics where
 
-import           Prelude hiding (id,(.),all,curry,uncurry)
+import           Prelude hiding ((.),uncurry)
 
 -- import           InterpreterArrow
 import           SharedSemantics
@@ -32,18 +32,15 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 
 import           Data.Constructor
+import           Data.Foldable (foldr')
+import           Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as M
+import           Data.Hashable
 import           Data.Result
 import           Data.String (IsString(..))
 import           Data.Term (IsTerm(..),TermUtils(..))
 import           Data.TermEnv
 import           Data.Text (Text)
-import           Data.Order
-import           Data.Stack
-import           Data.Complete
-import           Data.Foldable (foldr')
-import           Data.Hashable
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as M
 
 import           Test.QuickCheck hiding (Result(..))
 

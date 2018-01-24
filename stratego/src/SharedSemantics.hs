@@ -6,7 +6,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 module SharedSemantics where
 
-import           Prelude hiding (fail,(.),id,sum,flip,uncurry,all,sequence)
+import           Prelude hiding (id,all,sequence)
 
 import           Syntax hiding (Fail,TermPattern(..))
 import           Syntax (TermPattern)

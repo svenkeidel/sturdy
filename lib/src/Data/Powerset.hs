@@ -6,7 +6,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Data.Powerset where
 
-import           Prelude hiding (map,(.),id)
+import           Prelude hiding ((.))
 
 import           Control.Category
 import           Control.Applicative

@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Utils where
 
-import Prelude hiding (id)
 import Control.Arrow
 
 eqLength :: [a] -> [b] -> Bool

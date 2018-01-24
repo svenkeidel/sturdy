@@ -8,7 +8,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module WildcardSemantics where
 
-import           Prelude hiding (id,concat,sequence,(.),uncurry)
+import           Prelude hiding ((.),uncurry)
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics

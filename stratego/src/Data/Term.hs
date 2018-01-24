@@ -1,8 +1,6 @@
 {-# LANGUAGE FunctionalDependencies #-}
 module Data.Term where
 
-import Prelude hiding (fail)
-
 import Data.Constructor
 import Data.Text(Text)
 
