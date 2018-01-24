@@ -25,6 +25,7 @@ library
                        Data.Error,
                        Data.FreeCompletion,
                        Data.FreeCoCompletion,
+                       Data.Utils
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
                        Control.Arrow.Fail,

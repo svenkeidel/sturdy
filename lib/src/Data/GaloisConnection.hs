@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
 module Data.GaloisConnection where
 
 import Data.Order
@@ -16,7 +17,7 @@ class (PreOrd x, PreOrd y) => Galois x y where
   alpha :: x -> y
   gamma :: y -> x
 
-instance PreOrd a => Galois a a where
+instance {-# OVERLAPS #-} (PreOrd a, PreOrd b, a ~ b) => Galois a b where
   alpha = id
   gamma = id
 
