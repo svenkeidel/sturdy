@@ -47,6 +47,8 @@ library
                        Props.ControlFlow.Concrete
                        Props.ControlFlow.Interval
 --                       Symbolic
+
+  ghc-options:       -Wall
   build-depends:       base,
                        sturdy-lib,
                        text,

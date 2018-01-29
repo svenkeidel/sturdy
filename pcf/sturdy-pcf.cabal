@@ -10,6 +10,7 @@ extra-source-files:
 cabal-version:       >=1.10
 
 library
+  ghc-options:       -Wall
   exposed-modules:   Concrete,
                      IntervalAnalysis,
                      PCF,
