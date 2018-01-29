@@ -49,7 +49,7 @@ runM :: [Statement] -> Error String ((),State)
 runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initCProp,mkStdGen 0)
 
 run :: [Statement] -> Error String (Store,CProp)
-run = fmap (\(_,(st,pr,gen)) -> (st,pr)) . runM
+run = fmap (\(_,(st,pr,gen)) -> (st,reverse pr)) . runM
 
 runLifted :: [Statement] -> Error String (LiftedStore,LiftedCProp)
 runLifted = fmap (\(st, pr) -> (liftStore st, liftCProp pr)) . run

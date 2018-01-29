@@ -43,9 +43,9 @@ library
                        Props.LiveVariables.Concrete
                        Props.LiveVariables.Interval
 
---                       Props.ControlFlow.Prop
---                       Props.ControlFlow.Concrete
---                       Props.ControlFlow.Interval
+                       Props.ControlFlow.Prop
+                       Props.ControlFlow.Concrete
+                       Props.ControlFlow.Interval
 --                       Symbolic
   build-depends:       base,
                        sturdy-lib,
