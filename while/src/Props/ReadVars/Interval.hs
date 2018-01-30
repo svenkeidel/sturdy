@@ -30,8 +30,8 @@ import Control.Monad.State
 import Control.Monad.Except
 
 
-lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c AProp) => c Text Val
-lookup = (proc x -> modifyProp -< Set.insert x)
+lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c AProp) => c (Text,Label) Val
+lookup = (proc (x,l) -> modifyProp -< Set.insert x)
      &&> Interval.lookup
 
 ----------

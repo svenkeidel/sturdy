@@ -16,18 +16,18 @@ import Data.Order
 import GHC.Generics
 import System.Random
 
-data Expr = Var Text
-          | BoolLit Bool
-          | And Expr Expr
-          | Or Expr Expr
-          | Not Expr
-          | NumLit Double
-          | RandomNum
-          | Add Expr Expr
-          | Sub Expr Expr
-          | Mul Expr Expr
-          | Div Expr Expr
-          | Eq Expr Expr
+data Expr = Var Text Label
+          | BoolLit Bool Label
+          | And Expr Expr Label
+          | Or Expr Expr Label
+          | Not Expr Label
+          | NumLit Double Label
+          | RandomNum Label
+          | Add Expr Expr Label
+          | Sub Expr Expr Label
+          | Mul Expr Expr Label
+          | Div Expr Expr Label
+          | Eq Expr Expr Label
   deriving (Show,Ord,Eq,Generic)
 
 instance Hashable Expr where
@@ -65,57 +65,57 @@ class HasRandomGen c where
   nextRandom :: Random a => c () a
 
 class ArrowChoice c => Eval c v | c -> v where
-  lookup :: c Text v
-  boolLit :: c Bool v
-  and :: c (v,v) v
-  or :: c (v,v) v
-  not :: c v v
-  numLit :: c Double v
-  randomNum :: c () v
-  add :: c (v,v) v
-  sub :: c (v,v) v
-  mul :: c (v,v) v
-  div :: c (v,v) v
-  eq :: c (v,v) v
+  lookup :: c (Text,Label) v
+  boolLit :: c (Bool,Label) v
+  and :: c (v,v,Label) v
+  or :: c (v,v,Label) v
+  not :: c (v,Label) v
+  numLit :: c (Double,Label) v
+  randomNum :: c Label v
+  add :: c (v,v,Label) v
+  sub :: c (v,v,Label) v
+  mul :: c (v,v,Label) v
+  div :: c (v,v,Label) v
+  eq :: c (v,v,Label) v
   fixEval :: (c Expr v -> c Expr v) -> c Expr v
 
 eval :: Eval c v => c Expr v
 eval = fixEval $ \ev -> proc e -> case e of
-  Var x -> lookup -< x
-  BoolLit b -> boolLit -< b
-  And e1 e2 -> do
+  Var x l -> lookup -< (x,l)
+  BoolLit b l -> boolLit -< (b,l)
+  And e1 e2 l -> do
     v1 <- ev -< e1
     v2 <- ev -< e2
-    and -< (v1,v2)
-  Or e1 e2 -> do
+    and -< (v1,v2,l)
+  Or e1 e2 l -> do
     v1 <- ev -< e1
     v2 <- ev -< e2
-    or -< (v1,v2)
-  Not e1 -> do
+    or -< (v1,v2,l)
+  Not e1 l -> do
     v1 <- ev -< e1
-    not -< v1
-  NumLit n -> numLit -< n
-  RandomNum -> randomNum -< ()
-  Add e1 e2 -> do
-    v1 <- ev -< e1
-    v2 <- ev -< e2
-    add -< (v1,v2)
-  Sub e1 e2 -> do
+    not -< (v1,l)
+  NumLit n l -> numLit -< (n,l)
+  RandomNum l -> randomNum -< l
+  Add e1 e2 l -> do
     v1 <- ev -< e1
     v2 <- ev -< e2
-    sub -< (v1,v2)
-  Mul e1 e2 -> do
+    add -< (v1,v2,l)
+  Sub e1 e2 l -> do
     v1 <- ev -< e1
     v2 <- ev -< e2
-    mul -< (v1,v2)
-  Div e1 e2 -> do
+    sub -< (v1,v2,l)
+  Mul e1 e2 l -> do
     v1 <- ev -< e1
     v2 <- ev -< e2
-    div -< (v1,v2)
-  Eq e1 e2 -> do
+    mul -< (v1,v2,l)
+  Div e1 e2 l -> do
     v1 <- ev -< e1
     v2 <- ev -< e2
-    eq -< (v1,v2)
+    div -< (v1,v2,l)
+  Eq e1 e2 l -> do
+    v1 <- ev -< e1
+    v2 <- ev -< e2
+    eq -< (v1,v2,l)
 
 class Run c v | c -> v where
   store :: c (Text,v,Label) ()

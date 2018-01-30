@@ -30,8 +30,8 @@ import Control.Arrow.Utils
 import Control.Monad.State
 import Control.Monad.Except
 
-lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c CProp) => c Text Val
-lookup = (proc x -> modifyProp -< (\(LiveVars maybe live) ->
+lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c CProp) => c (Text,Label) Val
+lookup = (proc (x,l) -> modifyProp -< (\(LiveVars maybe live) ->
            -- `x` is live at all assignments `maybe(x)`, hence remove `x` from `maybe` and it to `live`
            LiveVars (Map.delete x maybe)
                     (Map.insertWith Set.union x (lookupM x maybe) live)))

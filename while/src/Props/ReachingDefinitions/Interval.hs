@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Props.DeadWrites.Interval where
+module Props.ReachingDefinitions.Interval where
 
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
@@ -13,7 +13,7 @@ import qualified WhileLanguage as L
 import Vals.Interval.Val
 import qualified Vals.Interval.Semantic as Interval
 
-import Props.DeadWrites.Prop
+import Props.ReachingDefinitions.Prop
 
 import Data.Error
 import Data.Maybe
@@ -32,14 +32,9 @@ import Control.Monad.State
 import Control.Monad.Except
 
 
-lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c AProp) => c (Text,Label) Val
-lookup = (proc (x,l) -> modifyProp -< (\(DeadWrites written overwritten) -> DeadWrites (Map.delete x written) overwritten))
-     &&> Interval.lookup
-
 store :: (ArrowChoice c, HasStore c Store, HasProp c AProp) => c (Text,Val,Label) ()
-store = (proc (x,_,l) -> modifyProp -< (\dw ->
-          DeadWrites (Map.insert x (Set.singleton l) $ written dw)
-                     (overwritten dw `Set.union` lookupM x (written dw))))
+store = (proc (x,_,l) -> modifyProp -< Map.insert x (Set.singleton l))
+                         -- all previous defs of `x` are killed and `l` is generated
     &&> Interval.store
 
 
@@ -51,8 +46,8 @@ type M = StateT (Store,AProp) (Except String)
 runM :: [Statement] -> Error String ((),(Store,AProp))
 runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initAProp)
 
-run :: [Statement] -> Error String (Store,FAProp)
-run = fmap (\(_,(st,pr)) -> (st,finalizeDeadWrites pr)) . runM
+run :: [Statement] -> Error String (Store,AProp)
+run = fmap (\(_,(st,pr)) -> (st, pr)) . runM
 
 instance L.HasStore (Kleisli M) Store where
   getStore = Kleisli $ \_ -> get >>= return . fst
@@ -65,7 +60,7 @@ instance L.HasProp (Kleisli M) AProp where
   modifyProp = Kleisli $ \f -> modify (\(x,pr) -> (x,f pr))
 
 instance L.Eval (Kleisli M) Val  where
-  lookup = lookup
+  lookup = Interval.lookup
   boolLit = Interval.boolLit
   and = Interval.and
   or = Interval.or

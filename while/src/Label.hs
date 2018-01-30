@@ -11,6 +11,9 @@ newtype Label = Label { labelVal :: Int }
 (@@) :: (Label -> a) -> Int -> a
 f @@ i = f (Label i)
 
+(@@-) :: (Label -> a) -> Int -> a
+f @@- i = f (Label $ -i)
+
 instance Hashable Label where
   hashWithSalt salt (Label i) = hashWithSalt salt i
 

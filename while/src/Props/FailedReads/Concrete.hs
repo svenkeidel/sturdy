@@ -31,8 +31,8 @@ import Control.Monad.Except
 
 import System.Random
 
-lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c CProp) => c Text Val
-lookup = proc x -> do
+lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c CProp) => c (Text,Label) Val
+lookup = proc (x,l) -> do
   store <- getStore -< x
   case Map.lookup x store of
     Just v -> returnA -< v

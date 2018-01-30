@@ -2,9 +2,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Vals.Concrete.Semantic where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
+import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), ($), (.), fst)
 import qualified Prelude as Prelude
 
 import WhileLanguage (HasStore(..), HasRandomGen(..), Statement, Expr, Label)
@@ -12,7 +13,6 @@ import qualified WhileLanguage as L
 import Vals.Concrete.Val
 
 import Data.Error
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 
@@ -29,61 +29,61 @@ import System.Random
 -- Eval
 -----------
 
-lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store) => c Text Val
-lookup = proc x -> do
+lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store) => c (Text,Label) Val
+lookup = proc (x,l) -> do
   store <- getStore -< x
   case Map.lookup x store of
     Just v -> returnA -< v
     Nothing -> failA -< "variable not found"
 
-boolLit :: Arrow c => c Bool Val
-boolLit = arr BoolVal
+boolLit :: Arrow c => c (Bool,Label) Val
+boolLit = arr (\(b,l) -> BoolVal b)
 
-and :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
-and = proc (v1,v2) -> case (v1,v2) of
+and :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
+and = proc (v1,v2,l) -> case (v1,v2) of
   (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 && b2)
   _ -> failA -< "Expected two booleans as arguments for 'and'"
 
-or :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
-or = proc (v1,v2) -> case (v1,v2) of
+or :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
+or = proc (v1,v2,l) -> case (v1,v2) of
   (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 || b2)
   _ -> failA -< "Expected two booleans as arguments for 'or'"
 
-not :: (ArrowChoice c, ArrowFail String c) => c Val Val
-not = proc v -> case v of
+not :: (ArrowChoice c, ArrowFail String c) => c (Val,Label) Val
+not = proc (v,l) -> case v of
   BoolVal b -> returnA -< BoolVal (Prelude.not b)
   _ -> failA -< "Expected a boolean as argument for 'not'"
 
-numLit :: Arrow c => c Double Val
-numLit = arr NumVal
+numLit :: Arrow c => c (Double,Label) Val
+numLit = arr (\(d,l) -> NumVal d)
 
-randomNum :: (Arrow c, HasRandomGen c) => c () Val
-randomNum = proc () -> do
+randomNum :: (Arrow c, HasRandomGen c) => c Label Val
+randomNum = proc l -> do
   n <- nextRandom -< ()
   returnA -< NumVal n
 
-add :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
-add = proc (v1,v2) -> case (v1,v2) of
+add :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
+add = proc (v1,v2,l) -> case (v1,v2) of
   (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
   _ -> failA -< "Expected two numbers as arguments for 'add'"
 
-sub :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
-sub = proc (v1,v2) -> case (v1,v2) of
+sub :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
+sub = proc (v1,v2,l) -> case (v1,v2) of
   (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
   _ -> failA -< "Expected two numbers as arguments for 'sub'"
 
-mul :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
-mul = proc (v1,v2) -> case (v1,v2) of
+mul :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
+mul = proc (v1,v2,l) -> case (v1,v2) of
   (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
   _ -> failA -< "Expected two numbers as arguments for 'mul'"
 
-div :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
-div = proc (v1,v2) -> case (v1,v2) of
+div :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
+div = proc (v1,v2,l) -> case (v1,v2) of
   (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 / n2)
   _ -> failA -< "Expected two numbers as arguments for 'mul'"
 
-eq :: (ArrowChoice c, ArrowFail String c) => c (Val,Val) Val
-eq = proc (v1,v2) -> case (v1,v2) of
+eq :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
+eq = proc (v1,v2,l) -> case (v1,v2) of
   (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 == n2)
   (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
   _ -> failA -< "Expected two values of the same type as arguments for 'eq'"

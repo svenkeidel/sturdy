@@ -27,6 +27,9 @@ library
                        Vals.Interval.Val
                        Vals.Interval.Semantic
 
+                       Props.UseDef.Prop
+                       Props.UseDef.Concrete
+
                        Props.FailedReads.Prop
                        Props.FailedReads.Concrete
                        Props.FailedReads.Interval
@@ -46,6 +49,10 @@ library
                        Props.ControlFlow.Prop
                        Props.ControlFlow.Concrete
                        Props.ControlFlow.Interval
+
+                       Props.ReachingDefinitions.Prop
+                       Props.ReachingDefinitions.Concrete
+                       Props.ReachingDefinitions.Interval
 --                       Symbolic
 
   ghc-options:       -Wall
