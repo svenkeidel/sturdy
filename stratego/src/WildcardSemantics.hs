@@ -23,10 +23,9 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Deduplicate
 import           Control.Category
 import           Control.DeepSeq
-import           Control.Monad.Reader hiding (fail,sequence)
+import           Control.Monad.Reader
 import           Control.Monad.Result
-import           Control.Monad.State hiding (fail,sequence)
-import           Control.Monad.Deduplicate
+import           Control.Monad.State
 
 import           Data.Constructor
 import           Data.Foldable (foldr')
@@ -198,9 +197,9 @@ instance ArrowFix Interp Term where
 instance Soundness Interp where
   sound senv xs f g = forAll (choose (0,3)) $ \i ->
     let con :: A.Pow (Result (_,TermEnv))
-        con = P.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
+        con = A.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
         abst :: A.Pow (Result (_,TermEnv))
-        abst = P.dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+        abst = A.dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 instance UpperBounded Term where
