@@ -23,7 +23,6 @@ library
                        Control.Monad.Result,
                        Data.ATerm,
                        Data.Constructor,
-                       Data.AbstractPowerset,
                        Data.Result,
                        Data.Complete,
                        Data.TypedResult,
