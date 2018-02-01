@@ -35,7 +35,7 @@ data Pat
   | VarP Text
   deriving (Eq, Generic)
 
-eval :: (ArrowReader env c, ArrowChoice c, ArrowFix c, IsVal v c, IsClosure Expr v c) => c Expr v
+eval :: (ArrowReader env c, ArrowChoice c, ArrowFix Expr v c, IsVal v c, IsClosure Expr v c) => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
   Var x -> lookup -< x
   Lam x body -> closure -< (x,body)

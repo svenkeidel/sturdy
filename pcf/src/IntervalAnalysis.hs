@@ -37,8 +37,8 @@ type Interp = Kleisli (ReaderT (IV,Env) (Error String))
 evalInterval :: IV -> Env -> Expr -> Error String Val
 evalInterval bound env e = runReaderT (runKleisli eval e) (bound,env)
 
-instance ArrowFix Interp where
-  fixA f = widenedLfp _
+instance ArrowFix Expr Val Interp where
+  fixA f = undefined
 
 instance IsEnv Env Val Interp where
   getEnv = Kleisli $ const (snd <$> ask)
@@ -71,8 +71,6 @@ instance IsVal Val Interp where
       localA' g = proc (c,x) -> do
         b <- Kleisli (const (fst <$> ask)) -< ()
         localA g -< ((b,c),x)
-
-
 
 instance PreOrd Val where
   Bot ⊑ _ = True

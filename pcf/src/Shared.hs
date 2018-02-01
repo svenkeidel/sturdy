@@ -17,7 +17,7 @@ import           Data.Text (Text)
 
 type Env v = HashMap Text v
 
-eval :: (ArrowChoice c, ArrowFix c, ArrowFail String c, IsEnv (Env v) v c, IsVal v c) => c Expr v
+eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowFail String c, IsEnv (Env v) v c, IsVal v c) => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
   E.Var x -> lookup -< x
   E.Lam {} -> do

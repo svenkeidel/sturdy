@@ -31,7 +31,7 @@ type Interp = Kleisli (ReaderT Env (Either String))
 evalConcrete :: Env -> Expr -> Either String Val
 evalConcrete env e = runReaderT (runKleisli eval e) env
 
-instance ArrowFix Interp where
+instance ArrowFix Expr Val Interp where
   fixA f = f (fixA f)
 
 instance IsVal Val Interp where

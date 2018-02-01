@@ -39,7 +39,7 @@ type Interp = Kleisli (ReaderT Env (Error String))
 evalAbs :: Env -> Expr -> Error String Val
 evalAbs env e = runReaderT (runKleisli eval e) env
 
-instance ArrowFix Interp where
+instance ArrowFix Expr Val Interp where
   fixA f = f (fixA f)
 
 instance IsVal Val Interp where
