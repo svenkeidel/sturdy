@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Props.ReachingDefinitions.Interval where
+module Props.UseDef.ReachingDefinitions.Interval where
 
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
@@ -13,7 +13,7 @@ import qualified WhileLanguage as L
 import Vals.Interval.Val
 import qualified Vals.Interval.Semantic as Interval
 
-import Props.ReachingDefinitions.Prop
+import Props.UseDef.ReachingDefinitions.Prop
 
 import Data.Error
 import Data.Maybe
@@ -32,8 +32,8 @@ import Control.Monad.State
 import Control.Monad.Except
 
 
-store :: (ArrowChoice c, HasStore c Store, HasProp c AProp) => c (Text,Val,Label) ()
-store = (proc (x,_,l) -> modifyProp -< Map.insert x (Set.singleton l))
+store :: (ArrowChoice c, HasStore c Store, HasProp c Prop) => c (Text,Val,Label) ()
+store = (proc (x,v,l) -> modifyProp -< \prop -> prop {env = Map.insert x (Set.singleton l) (env prop)})
                          -- all previous defs of `x` are killed and `l` is generated
     &&> Interval.store
 
@@ -42,11 +42,11 @@ store = (proc (x,_,l) -> modifyProp -< Map.insert x (Set.singleton l))
 -- Arrows
 ----------
 
-type M = StateT (Store,AProp) (Except String)
-runM :: [Statement] -> Error String ((),(Store,AProp))
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initAProp)
+type M = StateT (Store,Prop) (Except String)
+runM :: [Statement] -> Error String ((),(Store,Prop))
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initProp)
 
-run :: [Statement] -> Error String (Store,AProp)
+run :: [Statement] -> Error String (Store,Prop)
 run = fmap (\(_,(st,pr)) -> (st, pr)) . runM
 
 instance L.HasStore (Kleisli M) Store where
@@ -54,7 +54,7 @@ instance L.HasStore (Kleisli M) Store where
   putStore = Kleisli $ \st -> modify (\(_,y) -> (st,y))
   modifyStore = Kleisli $ \f -> modify (\(st,y) -> (f st,y))
 
-instance L.HasProp (Kleisli M) AProp where
+instance L.HasProp (Kleisli M) Prop where
   getProp = Kleisli $ \_ -> get >>= return . snd
   putProp = Kleisli $ \pr -> modify (\(x,_) -> (x,pr))
   modifyProp = Kleisli $ \f -> modify (\(x,pr) -> (x,f pr))

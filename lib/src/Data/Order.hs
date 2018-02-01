@@ -155,6 +155,12 @@ instance Complete Double where
 instance CoComplete Double where
   (⊓) = min
 
+instance (Ord a, PreOrd a) => LowerBounded (Set a) where
+  bottom = S.empty
+
+instance (Ord k, PreOrd v) => LowerBounded (Map k v) where
+  bottom = M.empty
+
 instance PreOrd (m (a,s)) => PreOrd (StateT s m a) where
   _ ⊑ _ = error "StateT f ⊑ StateT g  iff  forall x. f x ⊑ g x"
 

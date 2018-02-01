@@ -2,7 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Props.UseDef.Concrete where
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+module Props.UseDef.ReachingDefinitions.Concrete where
 
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
@@ -13,7 +14,7 @@ import qualified WhileLanguage as L
 import Vals.Concrete.Val
 import qualified Vals.Concrete.Semantic as Concrete
 
-import Props.UseDef.Prop
+import Props.UseDef.ReachingDefinitions.Prop
 
 import Data.Error
 import Data.Text (Text)
@@ -32,37 +33,32 @@ import Control.Monad.Except
 
 import System.Random
 
-
-
-lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c Trace) => c (Text,Label) Val
-lookup = (proc (x,l) -> modifyProp -< (TrUse x l :))
-     &&> Concrete.lookup
-
-store :: (ArrowChoice c, HasStore c Store, HasProp c Trace) => c (Text,Val,Label) ()
-store = (proc (x,_,l) -> modifyProp -< (TrDef x l :))
+store :: (ArrowChoice c, HasStore c Store, HasProp c Prop) => c (Text,Val,Label) ()
+store = (proc (x,v,l) -> modifyProp -< \prop -> prop {env = Map.insert x (Set.singleton l) (env prop)})
+                         -- all previous defs of `x` are killed and `l` is generated
     &&> Concrete.store
 
 ----------
 -- Arrows
 ----------
 
-type State = (Store,Trace,StdGen)
+type State = (Store,Prop,StdGen)
 type M = StateT State (Except String)
 runM :: [Statement] -> Error String ((),State)
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initTrace,mkStdGen 0)
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initProp,mkStdGen 0)
 
-run :: [Statement] -> Error String (Store,Trace)
-run = fmap (\(_,(st,pr,gen)) -> (st,Prelude.reverse pr)) . runM
+run :: [Statement] -> Error String (Store,Prop)
+run = fmap (\(_,(st,pr,gen)) -> (st,pr)) . runM
 
-runLifted :: [Statement] -> Error String (LiftedStore,LiftedTrace)
-runLifted = fmap (\(st, pr) -> (liftStore st, liftedTrace pr)) . run
+runLifted :: [Statement] -> Error String (LiftedStore,Prop)
+runLifted = fmap (\(st, pr) -> (liftStore st, pr)) . run
 
 instance L.HasStore (Kleisli M) Store where
   getStore = Kleisli $ \_ -> get >>= return . (\(st,_,_) -> st)
   putStore = Kleisli $ \st -> modify (\(_,pr,gen) -> (st,pr,gen))
   modifyStore = Kleisli $ \f -> modify (\(st,pr,gen) -> (f st,pr,gen))
 
-instance L.HasProp (Kleisli M) Trace where
+instance L.HasProp (Kleisli M) Prop where
   getProp = Kleisli $ \_ -> get >>= return . (\(_,pr,_) -> pr)
   putProp = Kleisli $ \pr -> modify (\(st,_,gen) -> (st,pr,gen))
   modifyProp = Kleisli $ \f -> modify (\(st,pr,gen) -> (st,f pr,gen))
@@ -75,7 +71,7 @@ instance L.HasRandomGen (Kleisli M) where
     return r
 
 instance L.Eval (Kleisli M) Val  where
-  lookup = lookup
+  lookup = Concrete.lookup
   boolLit = Concrete.boolLit
   and = Concrete.and
   or = Concrete.or

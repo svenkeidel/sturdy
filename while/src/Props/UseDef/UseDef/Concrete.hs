@@ -2,7 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Props.ReachingDefinitions.Concrete where
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+module Props.UseDef.ReachingDefinitions.Concrete where
 
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
@@ -13,7 +14,7 @@ import qualified WhileLanguage as L
 import Vals.Concrete.Val
 import qualified Vals.Concrete.Semantic as Concrete
 
-import Props.ReachingDefinitions.Prop
+import Props.UseDef.ReachingDefinitions.Prop
 
 import Data.Error
 import Data.Text (Text)
@@ -32,31 +33,36 @@ import Control.Monad.Except
 
 import System.Random
 
-store :: (ArrowChoice c, HasStore c Store, HasProp c CProp) => c (Text,Val,Label) ()
-store = (proc (x,_,l) -> modifyProp -< Map.insert x (Set.singleton l))
+lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c Prop) => c (Text,Label) Val
+lookup = (proc (x,l) -> modifyProp -< \prop -> prop {
+           useDef = Map.insertWith Set.union l (env prop Map.! x) (useDef prop),
+           defUse = Set.foldr (\def m -> Map.insertWith Set.union def (Set.singleton l) m) (defUse prop) (env prop Map.! x)
+         })
+     &&> Concrete.lookup
+
+store :: (ArrowChoice c, HasStore c Store, HasProp c Prop) => c (Text,Val,Label) ()
+store = (proc (x,v,l) -> modifyProp -< \prop -> prop {env = Map.insert x (Set.singleton l) (env prop)})
+                         -- all previous defs of `x` are killed and `l` is generated
     &&> Concrete.store
 
 ----------
 -- Arrows
 ----------
 
-type State = (Store,CProp,StdGen)
+type State = (Store,Prop,StdGen)
 type M = StateT State (Except String)
 runM :: [Statement] -> Error String ((),State)
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initCProp,mkStdGen 0)
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initProp,mkStdGen 0)
 
-run :: [Statement] -> Error String (Store,CProp)
-run = fmap (\(_,(st,pr,gen)) -> (st, pr)) . runM
-
-runLifted :: [Statement] -> Error String (LiftedStore,CProp)
-runLifted = fmap (\(st, pr) -> (liftStore st, liftCProp pr)) . run
+run :: [Statement] -> Error String (Store,Prop)
+run = fmap (\(_,(st,pr,gen)) -> (st,pr)) . runM
 
 instance L.HasStore (Kleisli M) Store where
   getStore = Kleisli $ \_ -> get >>= return . (\(st,_,_) -> st)
   putStore = Kleisli $ \st -> modify (\(_,pr,gen) -> (st,pr,gen))
   modifyStore = Kleisli $ \f -> modify (\(st,pr,gen) -> (f st,pr,gen))
 
-instance L.HasProp (Kleisli M) CProp where
+instance L.HasProp (Kleisli M) Prop where
   getProp = Kleisli $ \_ -> get >>= return . (\(_,pr,_) -> pr)
   putProp = Kleisli $ \pr -> modify (\(st,_,gen) -> (st,pr,gen))
   modifyProp = Kleisli $ \f -> modify (\(st,pr,gen) -> (st,f pr,gen))

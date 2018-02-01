@@ -13,6 +13,8 @@ import           Control.Applicative
 import           Control.Monad
 
 import           Data.Sequence (Seq)
+import           Data.Set (Set)
+import           Data.Map (Map)
 import           Data.Hashable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
@@ -38,6 +40,12 @@ instance Show a => Show (Pow a) where
 
 instance (Eq a, Hashable a) => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
+
+instance Hashable a => Hashable (Set a) where
+  hashWithSalt salt seq = foldl hashWithSalt salt seq
+
+instance (Hashable k,Hashable v) => Hashable (Map k v) where
+  hashWithSalt salt seq = foldl hashWithSalt salt seq
 
 empty :: Pow a
 empty = mempty

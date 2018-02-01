@@ -1,4 +1,7 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Props.UseDef.Prop where
+
+import WhileLanguage
 
 import Label
 import Data.Text (Text)
@@ -6,27 +9,48 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Powerset
+
+import Data.Hashable
+import GHC.Generics (Generic)
 
 ---------------
--- concrete
+-- Trace: Use and def events
 ---------------
 
-data TrUseDef = TrUse Text Label
-              | TrDef Text Label
+data TrUseDef =
+  -- A use of variable `text` with `label`
+  TrUse Text Label |
+  -- A definition of variable `text` at assignment `label`
+  TrDef Text Label
+  deriving (Eq,Show,Generic)
 
-type CProp = [TrUseDef]
+instance Hashable TrUseDef where
 
-initCProp :: CProp
-initCProp = []
+type Trace = [TrUseDef]
 
-data UseDef = UseDef { useDef :: Map Label Label, defUse :: Map Label (Set Label) }
-type FCProp = UseDef
+initTrace :: Trace
+initTrace = []
 
-finalizeCProp :: CProp -> FCProp
-finalizeCProp = snd . foldl go (Map.empty, UseDef Map.empty Map.empty)
-  where go :: (Map Text Label, UseDef) -> TrUseDef -> (Map Text Label, UseDef)
-        go (env, ud) (TrDef v def) = (Map.insert v def env, ud)
-        go (env, UseDef ud du) (TrUse v use) =
-          (env, UseDef (Map.insert use def ud)
-                       (Map.insertWith Set.union def (Set.singleton use) du))
-          where def = env Map.! v
+type LiftedTrace = Pow Trace
+
+liftedTrace :: Trace -> LiftedTrace
+liftedTrace = singleton
+
+-- ---------------
+-- -- Prop: use-def/def-use relations
+-- ---------------
+--
+-- data UseDef = UseDef { useDef :: Map Label (Set Label), defUse :: Map Label (Set Label) }
+--   deriving (Eq,Show,Generic)
+--
+-- instance Hashable UseDef where
+--
+-- extractStatementUseDef :: Trace -> UseDef
+-- extractStatementUseDef = snd . foldl go (Map.empty, UseDef Map.empty Map.empty)
+--   where go :: (Map Text Label, UseDef) -> TrUseDef -> (Map Text Label, UseDef)
+--         go (env, ud) (TrDef v def) = (Map.insert v def env, ud)
+--         go (env, UseDef ud du) (TrUse v use) =
+--           (env, UseDef (Map.insertWith Set.union use (Set.singleton def) ud)
+--                        (Map.insertWith Set.union def (Set.singleton use) du))
+--           where def = env Map.! v

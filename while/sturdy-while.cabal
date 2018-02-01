@@ -27,9 +27,6 @@ library
                        Vals.Interval.Val
                        Vals.Interval.Semantic
 
-                       Props.UseDef.Prop
-                       Props.UseDef.Concrete
-
                        Props.FailedReads.Prop
                        Props.FailedReads.Concrete
                        Props.FailedReads.Interval
@@ -50,9 +47,13 @@ library
                        Props.ControlFlow.Concrete
                        Props.ControlFlow.Interval
 
-                       Props.ReachingDefinitions.Prop
-                       Props.ReachingDefinitions.Concrete
-                       Props.ReachingDefinitions.Interval
+                       Props.UseDef.Prop
+                       Props.UseDef.Concrete
+
+                       Props.UseDef.ReachingDefinitions.Prop
+                       Props.UseDef.ReachingDefinitions.Concrete
+                       Props.UseDef.ReachingDefinitions.Interval
+
 --                       Symbolic
 
   ghc-options:       -Wall
@@ -90,6 +91,8 @@ test-suite specs
                        Specs.ReadVarsSpec
                        Specs.DeadWritesSpec
                        Specs.ControlFlowSpec
+
+                       Specs.UseDef.ReachingDefinitionsSpec
 
 test-suite hlint
     build-depends:    base, hlint
