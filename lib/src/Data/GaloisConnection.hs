@@ -4,11 +4,12 @@
 {-# LANGUAGE TypeFamilies #-}
 module Data.GaloisConnection where
 
-import Data.Order
-import Data.Powerset
-import Data.Hashable
+import           Data.Hashable
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Order
+import           Data.Powerset
+import           Data.Functor.Identity
 
 -- | A galois connection consisting of an abstraction function alpha
 -- and a concretization function gamma between two pre-ordered sets
@@ -17,7 +18,7 @@ class (PreOrd x, PreOrd y) => Galois x y where
   alpha :: x -> y
   gamma :: y -> x
 
-instance {-# OVERLAPS #-} (PreOrd a, PreOrd b, a ~ b) => Galois a b where
+instance (PreOrd a) => Galois (Identity a) (Identity a) where
   alpha = id
   gamma = id
 

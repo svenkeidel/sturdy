@@ -36,7 +36,8 @@ constant x = IV (x,x)
 withBounds1 :: (Complete n, CoComplete n) => (n -> n) -> Interval n -> Interval n
 withBounds1 f (IV (i1,i2)) = IV (f i1 ⊓ f i2, f i1 ⊔ f i2)
 
-withBounds2 :: (Complete n, LowerBounded n, CoComplete n, UpperBounded n) => (n -> n -> n) -> Interval n -> Interval n -> Interval n
+withBounds2 :: (Complete n, LowerBounded n, CoComplete n, UpperBounded n) =>
+               (n -> n -> n) -> Interval n -> Interval n -> Interval n
 withBounds2 f (IV (i1,i2)) (IV (j1,j2)) =
     IV (glb [ f x y | x <- [i1,i2], y <- [j1,j2]],
         lub [ f x y | x <- [i1,i2], y <- [j1,j2]])

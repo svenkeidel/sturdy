@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Data.Widening where
 
 import Prelude hiding (Bounded)
@@ -29,12 +28,10 @@ class PreOrd a => Narrowing a where
 -- We define here some simple widening operators.
 
 -- |Invokes the least upper bound operator until the element reaches a given limit.
-data Bounded a = Bounded
-                 a -- ^limit
-                 a -- ^element
+data Bounded a = Bounded a a
 
 instance PreOrd a => PreOrd (Bounded a) where
-  Bounded b1 e1 ⊑ Bounded b2 e2 = e1 ⊑ e2
+  Bounded _ e1 ⊑ Bounded _ e2 = e1 ⊑ e2
 
 instance (Complete a, UpperBounded a) => Widening (Bounded a) where
   Bounded b1 e1 ▽ Bounded _ e2
@@ -42,9 +39,7 @@ instance (Complete a, UpperBounded a) => Widening (Bounded a) where
     | otherwise = Bounded b1 top
 
 -- |Invokes the least upper bound operator a certain number of times.
-data Fueled a = Fueled
-                Int -- ^fuel
-                a -- ^element
+data Fueled a = Fueled Int a
 
 instance PreOrd a => PreOrd (Fueled a) where
   Fueled f1 e1 ⊑ Fueled f2 e2 = f1 <= f2 && e1 ⊑ e2

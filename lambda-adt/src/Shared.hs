@@ -1,7 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Shared where
 
 import Prelude hiding (lookup)
@@ -12,22 +14,28 @@ import Control.Arrow.Reader
 import Control.Arrow.Utils
 
 import Data.String
-import Data.Text(Text,unpack)
+import Data.Hashable
+import Data.Text (Text,unpack)
+
+import GHC.Generics (Generic)
+
+newtype Constructor = Constructor Text
+  deriving (Ord, Eq, IsString, Generic, Hashable)
 
 data Expr
   = Var Text
   | Lam Text Expr
   | App Expr Expr
-  | Con Text [Expr]
+  | Con Constructor [Expr]
   | Case Expr [(Pat,Expr)]
-  deriving (Eq)
+  deriving (Eq, Generic)
 
 data Pat
-  = ConP Text [Pat]
+  = ConP Constructor [Pat]
   | VarP Text
-  deriving (Eq)
+  deriving (Eq, Generic)
 
-eval :: (Show env, ArrowReader env c, ArrowChoice c, ArrowFix c, IsVal v c, IsClosure Expr v c) => c Expr v
+eval :: (ArrowReader env c, ArrowChoice c, ArrowFix c, IsVal v c, IsClosure Expr v c) => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
   Var x -> lookup -< x
   Lam x body -> closure -< (x,body)
@@ -44,7 +52,7 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
 
 class Arrow c => IsVal v c | c -> v where
   lookup :: c Text v
-  con :: c (Text,[v]) v
+  con :: c (Constructor,[v]) v
   match :: c Expr v -> c (v,[(Pat,Expr)]) v
 
 class Arrow c => IsClosure exp v c where
@@ -59,15 +67,21 @@ instance Show Expr where
     Var x -> showString $ unpack x
     Lam x e -> showParen (d > appPrec) $ showString ("λ" ++ unpack x ++ ". ") . shows e
     App e1 e2 -> showParen (d > appPrec) $ showsPrec (appPrec + 1) e1 . showString " " . showsPrec (appPrec + 1) e2
-    Con x t -> showParen (d > appPrec) $ showString (unpack x) . showString " " . showsPrec d t
+    Con x t -> showParen (d > appPrec) $ shows x . showString " " . showsPrec d t
     Case e cases -> showString "case " . shows e . showString " of " . showList cases
     where appPrec = 10
 
 instance Show Pat where
   showsPrec d e0 = case e0 of
     VarP x -> showString $ unpack x
-    ConP x t -> showParen (d > appPrec) $ showString (unpack x) . showString " " . showsPrec d t
+    ConP x t -> showParen (d > appPrec) $ shows x . showString " " . showsPrec d t
     where appPrec = 10
 
 instance IsString Pat where
   fromString = VarP . fromString
+
+instance Show Constructor where
+  show (Constructor c) = unpack c
+
+instance Hashable Expr
+instance Hashable Pat

@@ -19,6 +19,7 @@ import           Data.Interval
 import           Data.Order
 import           Data.Powerset
 import           Data.Text (Text)
+import           Data.Widening
     
 import           GHC.Generics
 
@@ -26,20 +27,21 @@ import           PCF (Expr (Lam))
 import           Shared hiding (Env)
 import           Utils
 
+type IV = Interval (InfiniteNumber Int)
 data Closure = Closure Expr Env deriving (Eq,Show,Generic)
-data Val = Bot | NumVal (Interval (InfiniteNumber Int)) | ClosureVal (Pow Closure) | Top deriving (Eq, Show, Generic)
+data Val = Bot | NumVal IV | ClosureVal (Pow Closure) | Top deriving (Eq, Show, Generic)
 type Env = M.HashMap Text Val
 
-type Interp = Kleisli (ReaderT Env (Error String))
+type Interp = Kleisli (ReaderT (IV,Env) (Error String))
 
-evalInterval :: Env -> Expr -> Error String Val
-evalInterval env e = runReaderT (runKleisli eval e) env
+evalInterval :: IV -> Env -> Expr -> Error String Val
+evalInterval bound env e = runReaderT (runKleisli eval e) (bound,env)
 
 instance ArrowFix Interp where
-  fixA f = f (fixA f)
+  fixA f = widenedLfp _
 
 instance IsEnv Env Val Interp where
-  getEnv = Kleisli $ const ask
+  getEnv = Kleisli $ const (snd <$> ask)
   lookup = proc x -> do
     env <- getEnv -< ()
     case M.lookup x env of
@@ -63,8 +65,14 @@ instance IsVal Val Interp where
     _ -> failA -< "Expected a number as condition for 'ifZero'"
   closure = arr $ \(e, env) -> ClosureVal (return (Closure e env))
   applyClosure f = proc (fun, arg) -> case fun of
-    ClosureVal cls -> lubA (proc (Closure (Lam x _ body) env) -> localA f -< (M.insert x arg env, body)) -<< toList cls
+    ClosureVal cls -> lubA (proc (Closure (Lam x _ body) env) -> localA' f -< (M.insert x arg env, body)) -<< toList cls
     _ -> failA -< "Expected a closure"
+    where
+      localA' g = proc (c,x) -> do
+        b <- Kleisli (const (fst <$> ask)) -< ()
+        localA g -< ((b,c),x)
+
+
 
 instance PreOrd Val where
   Bot ⊑ _ = True

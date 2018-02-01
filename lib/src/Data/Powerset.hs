@@ -28,7 +28,7 @@ instance (Eq a, Hashable a) => PreOrd (Pow a) where
   as ⊑ bs = all (`H.member` toHashSet as) (toHashSet bs)
 
 instance (Eq a, Hashable a) => Eq (Pow a) where
-  as == bs = (toHashSet as) == (toHashSet bs)
+  as == bs = toHashSet as == toHashSet bs
 
 instance (Eq a, Hashable a) => Complete (Pow a) where
   as ⊔ bs = as `union` bs
@@ -36,10 +36,8 @@ instance (Eq a, Hashable a) => Complete (Pow a) where
 instance Show a => Show (Pow a) where
   show (Pow a) = "{" ++ intercalate ", " (show <$> toList a) ++ "}"
 
-instance Hashable a => Hashable (Pow a)
-
-instance Hashable a => Hashable (Seq a) where
-  hashWithSalt salt seq = foldl hashWithSalt salt seq
+instance (Eq a, Hashable a) => Hashable (Pow a) where
+  hashWithSalt salt x = hashWithSalt salt (toHashSet x)
 
 empty :: Pow a
 empty = mempty

@@ -1,7 +1,6 @@
 module Data.Utils where
 
 import Data.Maybe
-import Data.Monoid
 import Data.Map (Map)
 import qualified Data.Map as Map
 

@@ -23,7 +23,7 @@ import           Data.Text (Text,unpack)
 
 import           Text.Printf
 
-data Val = ClsV Text Expr Env | ConV Text [Val] deriving (Eq)
+data Val = ClsV Text Expr Env | ConV Constructor [Val] deriving (Eq)
 type Env = Map Text Val
 
 type Interp = Kleisli (ReaderT Env (Either String))
@@ -72,4 +72,4 @@ instance IsClosure Expr Val Interp where
 
 instance Show Val where
   show (ClsV x e _) = "λ" ++ unpack x ++ ". " ++ show e
-  show (ConV c ts) = unpack c ++ show ts
+  show (ConV c ts) = show c ++ show ts

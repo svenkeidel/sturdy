@@ -1,4 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Data.InfiniteNumbers where
@@ -19,7 +18,7 @@ mult a e
       Infinity -> NegInfinity
       Number b -> Number (a * b)
   | a == 0 = Number 0
-  | a > 0 = case e of
+  | otherwise = case e of
       NegInfinity -> NegInfinity
       Infinity -> Infinity
       Number b -> Number (a * b)

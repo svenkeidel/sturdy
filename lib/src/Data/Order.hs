@@ -15,7 +15,6 @@ import           Data.Text (Text)
 import           Numeric.Limits
 
 import           Control.Arrow
-import           Control.Arrow.Utils
 import           Control.Monad.State
 import           Control.Monad.Reader
 
@@ -65,8 +64,8 @@ class PreOrd x => CoComplete x where
 class PreOrd x => UpperBounded x where
   top :: x
 
-glb :: (Foldable f, Complete x, UpperBounded x) => f x -> x
-glb = foldr (⊔) top
+glb :: (Foldable f, CoComplete x, UpperBounded x) => f x -> x
+glb = foldr (⊓) top
 
 
 instance PreOrd a => PreOrd [a] where
@@ -74,7 +73,7 @@ instance PreOrd a => PreOrd [a] where
   (a:as) ⊑ (b:bs) = a ⊑ b && as ⊑ bs
   _      ⊑ _      = False
 
-instance (Ord a, PreOrd a) => PreOrd (Set a) where
+instance (PreOrd a) => PreOrd (Set a) where
   s1 ⊑ s2 = all (\x -> any (\y -> x ⊑ y) s2) s1
 
 instance (Ord a, PreOrd a) => Complete (Set a) where

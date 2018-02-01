@@ -18,6 +18,7 @@ library
                      unordered-containers,
                      hashable,
                      mtl,
+                     tree-automata,
                      sturdy-lib,
                      text,
                      transformers
