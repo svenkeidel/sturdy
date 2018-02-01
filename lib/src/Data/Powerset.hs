@@ -11,6 +11,7 @@ import           Prelude hiding (map,(.),id)
 import           Control.Category
 import           Control.Applicative
 import           Control.Monad
+import           Control.Monad.Deduplicate
 
 import           Data.Sequence (Seq)
 import           Data.Set (Set)
@@ -70,6 +71,6 @@ fromFoldable = foldMap return
 
 size :: Foldable f => f a -> Int
 size = length
-       
-dedup :: (Hashable a, Eq a) => Pow a -> Pow a
-dedup = fromFoldable . toHashSet
+
+instance MonadDeduplicate Pow where
+  dedup = fromFoldable . toHashSet
