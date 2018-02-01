@@ -87,7 +87,7 @@ instance Eval (Kleisli M) Val where
     Top -> returnA -< Top
     _ -> failA -< "Expected a boolean as argument for 'not'"
 
-  numLit = arr $ \x -> NumVal (IV (x,x))
+  numLit = arr $ \x -> NumVal (fromIntegral x)
 
   add = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)

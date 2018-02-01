@@ -100,6 +100,9 @@ instance (CoComplete a, CoComplete b) => CoComplete (a,b) where
 instance PreOrd b => PreOrd (a -> b) where
   _ ⊑ _ = error "f ⊑ g  iff  forall x. f x ⊑ g x"
 
+instance LowerBounded b => LowerBounded (a -> b) where
+  bottom = const bottom
+
 instance Complete b => Complete (a -> b) where
   f ⊔ g = \x -> f x ⊔ g x
 
@@ -155,11 +158,17 @@ instance CoComplete Double where
 instance PreOrd (m (a,s)) => PreOrd (StateT s m a) where
   _ ⊑ _ = error "StateT f ⊑ StateT g  iff  forall x. f x ⊑ g x"
 
+instance LowerBounded (m (a,s)) => LowerBounded (StateT s m a) where
+  bottom = StateT (const bottom)
+
 instance Complete (m (a,s)) => Complete (StateT s m a) where
   StateT f ⊔ StateT g = StateT $ \s -> f s ⊔ g s
 
 instance PreOrd (m a) => PreOrd (ReaderT e m a) where
   _ ⊑ _ = error "ReaderT f ⊑ ReaderT g  iff  forall x. f x ⊑ g x"
+
+instance LowerBounded (m a) => LowerBounded (ReaderT r m a) where
+  bottom = ReaderT (const bottom)
 
 instance Complete (m a) => Complete (ReaderT r m a) where
   ReaderT f ⊔ ReaderT g = ReaderT $ \r -> f r ⊔ g r
@@ -167,11 +176,17 @@ instance Complete (m a) => Complete (ReaderT r m a) where
 instance PreOrd (m b) => PreOrd (Kleisli m a b) where
   _ ⊑ _ = error "Kleisli f ⊑ Kleisli g  iff  forall x. f x ⊑ g x"
 
+instance LowerBounded (m b) => LowerBounded (Kleisli m a b) where
+  bottom = Kleisli bottom
+
 instance Complete (m b) => Complete (Kleisli m a b) where
   Kleisli f ⊔ Kleisli g = Kleisli $ f ⊔ g
 
 instance PreOrd a => PreOrd (Identity a) where
   (Identity x) ⊑ (Identity y) = x ⊑ y
+
+instance LowerBounded a => LowerBounded (Identity a) where
+  bottom = Identity bottom
 
 instance Complete a => Complete (Identity a) where
   Identity x ⊔ Identity y = Identity $ x ⊔ y

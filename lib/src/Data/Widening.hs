@@ -1,13 +1,17 @@
+{-# LANGUAGE UndecidableInstances #-}
 module Data.Widening where
 
-import Prelude hiding (Bounded)
+import Control.Arrow
+import Control.Monad.Reader
+import Control.Monad.State
+import Data.Functor.Identity
 
 import Data.Order
 
 class PreOrd a => Widening a where
   -- ▽ has to be an upper bound operator, i.e. x ⊑ x ▽ y and y ⊑ x ▽ y.
   -- Furthermore, iterating ▽ on an ascending chain has to stabilize:
-  -- Let x1, x2, ... xn be an infinite ascending chain, then x1, x1 ▽ x2, (x1 ▽ x2) ▽ x3, ... has a limit.
+  -- Let x1, x2, ... xn be an infinite ascending chain, then x1, x1 ▽ x2, (x1 ▽ x2) ▽ x3, ... (similar to left fold) has a limit.
   (▽) :: a -> a -> a
 
 -- it holds that for all f, lfp f ⊑ widenedLfp f
@@ -16,27 +20,6 @@ widenedLfp f = go bottom
   where
     go x | f x ⊑ x = x
          | otherwise = x ▽ f (go x)
-
-class PreOrd a => Narrowing a where
-  -- For △ holds that, i.e. if x ⊑ y then y ⊑ x ▽ y ⊑ x.
-  -- Furthermore, iterating ▽ on an descending chain has to stabilize:
-  -- Let x1, x2, ... xn be an infinite descending chain, then x1, x1 ▽ x2, (x1 ▽ x2) ▽ x3, ... has a limit.
-  (△) :: a -> a -> a
-
--- Notice that widening and narrowing are *not* dual.
-
--- We define here some simple widening operators.
-
--- |Invokes the least upper bound operator until the element reaches a given limit.
-data Bounded a = Bounded a a
-
-instance PreOrd a => PreOrd (Bounded a) where
-  Bounded _ e1 ⊑ Bounded _ e2 = e1 ⊑ e2
-
-instance (Complete a, UpperBounded a) => Widening (Bounded a) where
-  Bounded b1 e1 ▽ Bounded _ e2
-    | e1 ⊑ b1 || e2 ⊑ e1 = Bounded b1 (e1 ⊔ e2)
-    | otherwise = Bounded b1 top
 
 -- |Invokes the least upper bound operator a certain number of times.
 data Fueled a = Fueled Int a
@@ -49,5 +32,17 @@ instance (Complete a, UpperBounded a) => Widening (Fueled a) where
     | f1 > 0 || e2 ⊑ e1 = Fueled (f1-1) (e1 ⊔ e2)
     | otherwise = Fueled 0 top
 
+instance Widening (m b) => Widening (Kleisli m a b) where
+  Kleisli f ▽ Kleisli g = Kleisli $ f ▽ g
 
+instance Widening b => Widening (a -> b) where
+  f ▽ g = \x -> f x ▽ g x
 
+instance Widening (m a) => Widening (ReaderT r m a) where
+  ReaderT f ▽ ReaderT g = ReaderT $ f ▽ g
+
+instance Widening (m (a,s)) => Widening (StateT s m a) where
+  StateT f ▽ StateT g = StateT $ f ▽ g
+
+instance Widening a => Widening (Identity a) where
+  Identity a ▽ Identity b = Identity $ a ▽ b

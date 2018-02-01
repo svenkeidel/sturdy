@@ -5,42 +5,53 @@ import Data.Hashable
 import Data.Order
 import GHC.Generics
 
-newtype Interval n = IV (n,n)
+-- | Intervals represent ranges of numbers. Bot represents the empty interval
+data Interval n = Bot | Interval n n
   deriving (Eq,Show,Generic)
 
 instance PreOrd x => PreOrd (Interval x) where
-  IV (i1,i2) ⊑ IV (j1,j2) = j1 ⊑ i1 && i2 ⊑ j2
+  Bot ⊑ _ = True
+  _ ⊑ Bot = False
+  Interval i1 i2 ⊑ Interval j1 j2 = j1 ⊑ i1 && i2 ⊑ j2
 
 instance (Complete x, CoComplete x) => Complete (Interval x) where
-  IV (i1,i2) ⊔  IV (j1,j2) = IV (i1 ⊓ j1, i2 ⊔ j2)
+  Bot ⊔ x = x
+  x ⊔ Bot = x
+  Interval i1 i2 ⊔  Interval j1 j2 = Interval (i1 ⊓ j1) (i2 ⊔ j2)
 
 instance (Num n, Complete n, LowerBounded n, CoComplete n, UpperBounded n) => Num (Interval n) where
-  IV (i1,i2) + IV (j1,j2) = IV (i1+j1,i2+j2)
+  Bot + _ = Bot
+  _ + Bot = Bot
+  Interval i1 i2 + Interval j1 j2 = Interval (i1+ j1) (i2+ j2)
   (*) = withBounds2 (*)
-  negate (IV (i1,i2)) = IV (negate i2,negate i1)
+  negate Bot = Bot
+  negate (Interval i1 i2) = Interval (negate i2) (negate i1)
   abs = withBounds1 abs
   signum = withBounds1 signum
   fromInteger = constant . fromInteger
 
 instance (Fractional n, Complete n, LowerBounded n, CoComplete n, UpperBounded n) => Fractional (Interval n) where
-  IV (i1,i2) / IV (j1,j2)
-    | j1 ⊑ 0 && 0 ⊑ j2 = IV (bottom,top)
-    | otherwise = withBounds2 (/) (IV (i1,i2)) (IV (j1,j2))
+  Interval i1 i2 / Interval j1 j2
+    | j1 ⊑ 0 && 0 ⊑ j2 = Interval bottom top
+    | otherwise = withBounds2 (/) (Interval i1 i2) (Interval j1 j2)
   fromRational = constant . fromRational
 
 instance Hashable n => Hashable (Interval n)
 
 constant :: n -> Interval n
-constant x = IV (x,x)
+constant x = Interval x x
 
 withBounds1 :: (Complete n, CoComplete n) => (n -> n) -> Interval n -> Interval n
-withBounds1 f (IV (i1,i2)) = IV (f i1 ⊓ f i2, f i1 ⊔ f i2)
+withBounds1 f (Interval i1 i2) = Interval (f i1 ⊓ f i2) (f i1 ⊔ f i2)
 
 withBounds2 :: (Complete n, LowerBounded n, CoComplete n, UpperBounded n) =>
                (n -> n -> n) -> Interval n -> Interval n -> Interval n
-withBounds2 f (IV (i1,i2)) (IV (j1,j2)) =
-    IV (glb [ f x y | x <- [i1,i2], y <- [j1,j2]],
-        lub [ f x y | x <- [i1,i2], y <- [j1,j2]])
+withBounds2 f (Interval i1 i2) (Interval j1 j2) =
+    Interval (glb [ f x y | x <- [i1,i2], y <- [j1,j2]]) 
+             (lub [ f x y | x <- [i1,i2], y <- [j1,j2]])
+
+instance PreOrd n => LowerBounded (Interval n) where
+  bottom = Bot
 
 instance (LowerBounded n, UpperBounded n) => UpperBounded (Interval n) where
-  top = IV (bottom,top)
+  top = Interval bottom top

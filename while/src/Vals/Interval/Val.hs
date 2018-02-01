@@ -2,15 +2,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Vals.Interval.Val(module Vals.Interval.Val, module Data.Interval) where
 
-import Data.Interval
-import Data.Order
-import Data.GaloisConnection
-import Data.Powerset
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
-import Data.Map (Map)
+import           Data.Interval (Interval)
+import qualified Data.Interval as I
+import           Data.Order
+import           Data.GaloisConnection
+import           Data.Powerset
+import           Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Text (Text)
+import           Data.Text (Text)
 
 import qualified Vals.Concrete.Val as Concrete
 
@@ -40,11 +39,12 @@ instance Complete Val where
 instance Galois (Pow Concrete.Val) Val where
   alpha = lifted lift
     where lift (Concrete.BoolVal b) = BoolVal b
-          lift (Concrete.NumVal n) = NumVal $ IV (n,n)
-  gamma Bot = Pow Seq.empty
-  gamma (BoolVal b) = Pow $ Seq.singleton $ Concrete.BoolVal b
-  gamma (NumVal (IV (m,n))) = Pow $ Seq.fromList [Concrete.NumVal x | x <- [m..n]]
-  gamma Top = gamma (BoolVal True) `union` gamma (BoolVal False) `union` gamma (NumVal $ IV (bottom,top))
+          lift (Concrete.NumVal n) = NumVal $ I.Interval n n
+  gamma Bot = mempty
+  gamma (BoolVal b) = return $ Concrete.BoolVal b
+  gamma (NumVal (I.Interval m n)) = fromFoldable [Concrete.NumVal x | x <- [m..n]]
+  gamma (NumVal I.Bot) = mempty
+  gamma Top = gamma (BoolVal True) `union` gamma (BoolVal False) `union` gamma (NumVal top)
 
 type Store = Map Text Val
 initStore :: Store

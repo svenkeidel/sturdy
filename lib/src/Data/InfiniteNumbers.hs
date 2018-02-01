@@ -59,6 +59,12 @@ instance PreOrd a => PreOrd (InfiniteNumber a) where
   Infinity ⊑ _ = False
   Number n ⊑ Number m = n ⊑ m
 
+instance PreOrd a => LowerBounded (InfiniteNumber a) where
+  bottom = NegInfinity
+
+instance PreOrd a => UpperBounded (InfiniteNumber a) where
+  top = Infinity
+
 instance (PreOrd a, Complete a) => Complete (InfiniteNumber a) where
   NegInfinity ⊔ x = x
   x ⊔ NegInfinity = x

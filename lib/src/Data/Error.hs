@@ -8,6 +8,7 @@ module Data.Error where
 import Control.Monad
 import Control.Monad.Except
 import Data.Order
+import Data.Widening
 
 -- | Error is an Either-like type with the special ordering Error ⊑ Success.
 -- Left and Right of the regular Either type, on the other hand are incomparable.
@@ -29,8 +30,16 @@ instance Complete a => Complete (Error e a) where
   a ⊔ Error _ = a
   Success x ⊔ Success y = Success (x ⊔ y)
 
+instance PreOrd a => LowerBounded (Error String a) where
+  bottom = Error "Bottom"
+
 instance UpperBounded a => UpperBounded (Error e a) where
   top = Success top
+
+instance Widening a => Widening (Error e a) where
+  Error _ ▽ b = b
+  a ▽ Error _ = a
+  Success x ▽ Success y = Success (x ▽ y)
 
 instance MonadError e (Error e) where
   throwError = Error

@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module IntervalAnalysis where
 
-import           Prelude
+import           Prelude hiding (Bounded)
 
 import           Control.Arrow
 import           Control.Arrow.Fail
@@ -15,11 +15,13 @@ import           Data.Foldable (toList)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.InfiniteNumbers
-import           Data.Interval
+import           Data.Interval (Interval)
+import qualified Data.Interval as I
 import           Data.Order
 import           Data.Powerset
 import           Data.Text (Text)
 import           Data.Widening
+import           Data.Bounded
     
 import           GHC.Generics
 
@@ -29,7 +31,7 @@ import           Utils
 
 type IV = Interval (InfiniteNumber Int)
 data Closure = Closure Expr Env deriving (Eq,Show,Generic)
-data Val = Bot | NumVal IV | ClosureVal (Pow Closure) | Top deriving (Eq, Show, Generic)
+data Val = Bot | NumVal (Bounded IV) | ClosureVal (Pow Closure) | Top deriving (Eq, Show, Generic)
 type Env = M.HashMap Text Val
 
 type Interp = Kleisli (ReaderT (IV,Env) (Error String))
@@ -38,7 +40,11 @@ evalInterval :: IV -> Env -> Expr -> Error String Val
 evalInterval bound env e = runReaderT (runKleisli eval e) (bound,env)
 
 instance ArrowFix Expr Val Interp where
-  fixA f = undefined
+  fixA = widenedLfp
+
+instance Widening Val where
+  NumVal v1 ▽ NumVal v2 = NumVal (v1 ▽ v2)
+  v1 ▽ v2 = v1 ⊔ v2
 
 instance IsEnv Env Val Interp where
   getEnv = Kleisli $ const (snd <$> ask)
@@ -50,18 +56,21 @@ instance IsEnv Env Val Interp where
 
 instance IsVal Val Interp where
   succ = proc x -> case x of
-    NumVal n -> returnA -< NumVal $ withBounds1 (\y -> y + 1) n
+    NumVal n -> returnA -< NumVal $ n + 1
     Top -> returnA -< Top
     _ -> failA -< "Expected a number as argument for 'succ'"
   pred = proc x -> case x of
-    NumVal n -> returnA -< NumVal $ withBounds1 (\y -> y - 1) n
+    NumVal n -> returnA -< NumVal $ n - 1
     Top -> returnA -< Top
     _ -> failA -< "Expected a number as argument for 'pred'"
-  zero = arr $ const (NumVal (constant 0))
-  ifZero f g = proc x -> case x of
-    (NumVal (IV (i1, i2)), (x, y)) | (i1, i2) == (0, 0) -> f -< x
-                                   | i1 > 0 || i2 < 0 -> g -< y
-                                   | otherwise -> (f -< x) ⊔ (g -< y)
+  zero = proc _ -> do
+    b <- Kleisli $ const (fst <$> ask) -< ()
+    returnA -< (NumVal (Bounded b 0))
+  ifZero f g = proc v -> case v of
+    (NumVal (Bounded _ (I.Interval i1 i2)), (x, y))
+      | (i1, i2) == (0, 0) -> f -< x
+      | i1 > 0 || i2 < 0 -> g -< y
+      | otherwise -> (f -< x) ⊔ (g -< y)
     _ -> failA -< "Expected a number as condition for 'ifZero'"
   closure = arr $ \(e, env) -> ClosureVal (return (Closure e env))
   applyClosure f = proc (fun, arg) -> case fun of
@@ -87,7 +96,7 @@ instance Complete Val where
   x ⊔ Bot = x
   Top ⊔ _ = Top
   _ ⊔ Top = Top
-  NumVal x ⊔ NumVal y = NumVal (x ⊔ y) 
+  NumVal x ⊔ NumVal y = NumVal (x ⊔ y)
   ClosureVal x ⊔ ClosureVal y = ClosureVal (x ⊔ y) 
   _ ⊔ _ = Top
 
