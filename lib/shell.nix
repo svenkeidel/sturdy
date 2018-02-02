@@ -5,7 +5,7 @@ let
   inherit (nixpkgs) pkgs;
 
   f = { mkDerivation, base, containers, hashable, mtl
-      , numeric-limits, stdenv, text, unordered-containers, hlint
+      , numeric-limits, stdenv, text, unordered-containers, hlint, cabal-install
       }:
       mkDerivation {
         pname = "sturdy-lib";
@@ -13,7 +13,7 @@ let
         src = ./.;
         libraryHaskellDepends = [
           base containers hashable mtl numeric-limits text
-          unordered-containers hlint
+          unordered-containers hlint cabal-install
         ];
         license = stdenv.lib.licenses.bsd3;
       };

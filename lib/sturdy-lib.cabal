@@ -41,8 +41,13 @@ library
                        Control.Monad.Join,
                        Control.Monad.Try,
                        Control.Arrow.Utils
-  -- other-modules:       
-  
+  other-modules:       Control.Arrow.Class.Reader,
+                       Control.Arrow.Class.State,
+                       Control.Arrow.Class.Fail,
+                       Control.Arrow.Transformer.Reader,
+                       Control.Arrow.Transformer.State,
+                       Control.Arrow.Transformer.Fail
+
   build-depends:       base,
                        containers,
                        hashable,
