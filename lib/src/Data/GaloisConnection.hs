@@ -18,7 +18,7 @@ class (PreOrd x, PreOrd y) => Galois x y where
   alpha :: x -> y
   gamma :: y -> x
 
-instance (PreOrd a) => Galois (Identity a) (Identity a) where
+instance {-# OVERLAPS #-} (PreOrd a, PreOrd b, a ~ b) => Galois a b where
   alpha = id
   gamma = id
 
