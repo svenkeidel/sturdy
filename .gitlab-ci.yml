@@ -2,6 +2,7 @@ image: haskell:latest
 
 before_script:
   - apt-get update -qq && apt-get install xz-utils make
+  - git submodule update --init --recursive
   - stack setup
 
 stages:
