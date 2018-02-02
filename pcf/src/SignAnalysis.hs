@@ -22,11 +22,11 @@ import           Data.Text (Text)
 
 import           GHC.Generics
 
-import           PCF (Expr (Lam))
+import           PCF (Expr)
 import           Shared hiding (Env)
 import           Utils
 
-data Closure = Closure Expr Env deriving (Eq,Show,Generic)
+data Closure = Closure Text Expr Env deriving (Eq,Show,Generic)
 data Val = Bot | NumVal Sign | ClosureVal (Pow Closure) | Top deriving (Eq,Show,Generic)
 type Env = M.HashMap Text Val
 
@@ -59,9 +59,9 @@ instance IsVal Val Interp where
     NumVal Sign.Top -> (f -< x) ⊔ (g -< y)
     NumVal _ -> g -< y
     _ -> failA -< "Expected a number as condition for 'ifZero'"
-  closure = arr $ \(e, env) -> ClosureVal (return (Closure e env))
+  closure = arr $ \(x, e, env) -> ClosureVal (return (Closure x e env))
   applyClosure f = proc (fun, arg) -> case fun of
-    ClosureVal cls -> lubA (proc (Closure (Lam x _ body) env) -> localA f -< (M.insert x arg env, body)) -<< toList cls
+    ClosureVal cls -> lubA (proc (Closure x body env) -> localA f -< (M.insert x arg env, body)) -<< toList cls
     _ -> failA -< "Expected a closure"
 
 instance PreOrd Val where

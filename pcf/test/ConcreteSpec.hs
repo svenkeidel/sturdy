@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module ConcreteSpec where
 
 import           Concrete
@@ -13,27 +14,18 @@ main = hspec spec
 spec :: Spec
 spec = describe "evalConcrete" $ do
     it "should look up a bound variable" $
-      let k = T.singleton 'x'
-          v = NumVal 3
-      in evalConcrete (M.singleton k v) (E.Var k) `shouldBe` Success v
+      evalConcrete (M.singleton "x" (NumVal 3)) "x" `shouldBe` Success (NumVal 3)
 
     it "should fail when looking up an unbound variable" $
-      let k = T.singleton 'x'
-      in evalConcrete M.empty (E.Var k) `shouldBe` Error "Variable \"x\" not bound"
+      evalConcrete M.empty "x" `shouldBe` Error "Variable \"x\" not bound"
 
-    it "should create a closure of a FunT" $
-      let k = T.singleton 'x'
-          v = E.Lam k (E.FunT E.NumT E.NumT) (E.Succ (E.Var k))
-      in evalConcrete M.empty v `shouldBe` Success (ClosureVal (Closure v M.empty))
-
-    it "should create a closure of a NumT" $
-      let k = T.singleton 'x'
-          v = E.Lam k E.NumT (E.Var k)
-      in evalConcrete M.empty v `shouldBe` Success (ClosureVal (Closure v M.empty))
+    it "should create a closure" $
+      let v = E.Succ (E.Var "x")
+      in evalConcrete M.empty (E.Lam "x" v) `shouldBe` Success (ClosureVal (Closure "x" v M.empty))
 
     it "should apply a function" $
       let k = T.singleton 'x'
-          v = E.Lam k (E.FunT E.NumT E.NumT) (E.Succ (E.Var k))
+          v = E.Lam k (E.Succ (E.Var k))
       in evalConcrete M.empty (E.App v E.Zero) `shouldBe` Success (NumVal 1)
 
     it "should fail when applying something other than a function" $
@@ -64,11 +56,11 @@ spec = describe "evalConcrete" $ do
       evalConcrete M.empty (E.Succ (E.Pred E.Zero)) `shouldBe` Success (NumVal 0)
 
     it "should fail when using succ on something other than a number" $
-      let bogus = E.Lam (T.singleton 'x') E.NumT E.Zero
+      let bogus = E.Lam (T.singleton 'x') E.Zero
       in evalConcrete M.empty (E.Succ bogus) `shouldBe` Error "Expected a number as argument for 'succ'"
 
     it "should fail when using pred on something other than a number" $
-      let bogus = E.Lam (T.singleton 'x') E.NumT E.Zero
+      let bogus = E.Lam (T.singleton 'x') E.Zero
       in evalConcrete M.empty (E.Pred bogus) `shouldBe` Error "Expected a number as argument for 'pred'"
 
     it "should execute the then branch on IfZero on zero" $
@@ -80,5 +72,5 @@ spec = describe "evalConcrete" $ do
         `shouldBe` Success (NumVal 0)
 
     it "should fail when using a non-number condition for IfZero" $
-      let bogus = E.Lam (T.singleton 'x') E.NumT E.Zero
+      let bogus = E.Lam (T.singleton 'x') E.Zero
       in evalConcrete M.empty (E.IfZero bogus E.Zero E.Zero) `shouldBe` Error "Expected a number as condition for 'ifZero'"

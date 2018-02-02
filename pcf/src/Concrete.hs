@@ -16,11 +16,11 @@ import           Data.Hashable
 import           Data.Text (Text)
 import           GHC.Generics
 
-import           PCF (Expr (Lam))
+import           PCF (Expr)
 import           Shared hiding (Env)
 import           Utils
 
-data Closure = Closure Expr Env deriving (Eq,Show,Generic)
+data Closure = Closure Text Expr Env deriving (Eq,Show,Generic)
 type Env = M.HashMap Text Val
 
 data Val = NumVal Int | ClosureVal Closure deriving (Eq, Show,Generic)
@@ -53,9 +53,9 @@ instance IsVal Val Interp where
     NumVal 0 -> f -< x
     NumVal _ -> g -< y
     _ -> failA -< "Expected a number as condition for 'ifZero'"
-  closure = arr $ \(e,env) -> ClosureVal $ Closure e env
+  closure = arr $ \(x, e, env) -> ClosureVal $ Closure x e env
   applyClosure f = proc (fun, arg) -> case fun of
-    ClosureVal (Closure (Lam x _ body) env) -> localA f -< (M.insert x arg env, body)
+    ClosureVal (Closure x body env) -> localA f -< (M.insert x arg env, body)
     _ -> failA -< "Expected a closure"
 
 instance Hashable Closure

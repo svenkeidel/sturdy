@@ -10,19 +10,18 @@ import qualified PCF as E
 
 import           Control.Arrow
 import           Control.Arrow.Fix
-import           Control.Arrow.Fail
 
 import           Data.HashMap.Lazy (HashMap)
 import           Data.Text (Text)
 
 type Env v = HashMap Text v
 
-eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowFail String c, IsEnv (Env v) v c, IsVal v c) => c Expr v
+eval :: (ArrowChoice c, ArrowFix Expr v c, IsEnv (Env v) v c, IsVal v c) => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
   E.Var x -> lookup -< x
-  E.Lam {} -> do
+  E.Lam x e -> do
     env <- getEnv -< ()
-    closure -< (e0, env)
+    closure -< (x, e, env)
   E.App e1 e2 -> do
     fun <- ev -< e1
     arg <- ev -< e2
@@ -50,5 +49,5 @@ class Arrow c => IsVal v c | c -> v where
   zero :: c () v
   ifZero :: c x v -> c y v -> c (v, (x, y)) v
 
-  closure :: c (Expr, Env v) v
+  closure :: c (Text, Expr, Env v) v
   applyClosure :: c Expr v -> c (v, v) v

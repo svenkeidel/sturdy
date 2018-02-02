@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module SignAnalysisSpec where
 
 import           Data.Error
@@ -16,27 +17,22 @@ main = hspec spec
 spec :: Spec
 spec = describe "evalSign" $ do
     it "should look up a bound variable" $
-      let k = T.singleton 'x'
+      let k = "x"
           v = NumVal Positive
       in evalSign (M.singleton k v) (E.Var k) `shouldBe` Success v
 
     it "should fail when looking up an unbound variable" $
-      let k = T.singleton 'x'
+      let k = "x"
       in evalSign M.empty (E.Var k) `shouldBe` Error "Variable \"x\" not bound"
 
-    it "should create a closure of a FunT" $
-      let k = T.singleton 'x'
-          v = E.Lam k (E.FunT E.NumT E.NumT) (E.Succ (E.Var k))
-      in evalSign M.empty v `shouldBe` Success (ClosureVal (P.singleton (Closure v M.empty)))
-
-    it "should create a closure of a NumT" $
-      let k = T.singleton 'x'
-          v = E.Lam k E.NumT (E.Var k)
-      in evalSign M.empty v `shouldBe` Success (ClosureVal (P.singleton (Closure v M.empty)))
+    it "should create a closure" $
+      let k = "x"
+          v = E.Succ (E.Var k)
+      in evalSign M.empty (E.Lam k v) `shouldBe` Success (ClosureVal (P.singleton (Closure k v M.empty)))
 
     it "should apply a function" $
-      let k = T.singleton 'x'
-          v = E.Lam k (E.FunT E.NumT E.NumT) (E.Succ (E.Var k)) in
+      let k = "x"
+          v = E.Lam k (E.Succ (E.Var k)) in
         evalSign M.empty (E.App v E.Zero) `shouldBe` Success (NumVal Positive)
 
     it "should fail when applying something other than a function" $
@@ -67,11 +63,11 @@ spec = describe "evalSign" $ do
       evalSign M.empty (E.Succ (E.Pred E.Zero)) `shouldBe` Success (NumVal Top)
 
     it "should fail when using succ on something other than a number" $
-      let bogus = E.Lam (T.singleton 'x') E.NumT E.Zero
+      let bogus = E.Lam (T.singleton 'x') E.Zero
       in evalSign M.empty (E.Succ bogus) `shouldBe` Error "Expected a number as argument for 'succ'"
 
     it "should fail when using pred on something other than a number" $
-      let bogus = E.Lam (T.singleton 'x') E.NumT E.Zero
+      let bogus = E.Lam (T.singleton 'x') E.Zero
       in evalSign M.empty (E.Pred bogus) `shouldBe` Error "Expected a number as argument for 'pred'"
 
     it "should execute the then branch on IfZero on zero" $
@@ -86,5 +82,5 @@ spec = describe "evalSign" $ do
       evalSign M.empty (E.IfZero (E.Succ (E.Pred E.Zero)) (E.Succ E.Zero) E.Zero) `shouldBe` Success (NumVal Top)
 
     it "should fail when using a non-number condition for IfZero" $
-      let bogus = E.Lam (T.singleton 'x') E.NumT E.Zero
+      let bogus = E.Lam (T.singleton 'x') E.Zero
       in evalSign M.empty (E.IfZero bogus E.Zero E.Zero) `shouldBe` Error "Expected a number as condition for 'ifZero'"
