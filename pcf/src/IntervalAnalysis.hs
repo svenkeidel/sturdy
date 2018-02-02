@@ -1,5 +1,6 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 module IntervalAnalysis where
@@ -9,7 +10,8 @@ import           Prelude hiding (Bounded)
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Monad.Trans.Reader
+import           Control.Arrow.Reader
+import           Control.Arrow.Utils
 import           Data.Error
 import           Data.Foldable (toList)
 import qualified Data.HashMap.Lazy as M
@@ -27,27 +29,26 @@ import           GHC.Generics
 
 import           PCF (Expr)
 import           Shared hiding (Env)
-import           Utils
 
 type IV = Interval (InfiniteNumber Int)
 data Closure = Closure Text Expr Env deriving (Eq,Show,Generic)
 data Val = Bot | NumVal (Bounded IV) | ClosureVal (Pow Closure) | Top deriving (Eq, Show, Generic)
 type Env = M.HashMap Text Val
 
-type Interp = Kleisli (ReaderT (IV,Env) (Error String))
+type Interp = ReaderArrow (IV,Env) (ErrorArrow String (->))
 
 evalInterval :: IV -> Env -> Expr -> Error String Val
-evalInterval bound env e = runReaderT (runKleisli eval e) (bound,env)
+evalInterval bound env e = runErrorArrow (runReaderArrow eval) ((bound,env),e)
 
 instance ArrowFix Expr Val Interp where
-  fixA = widenedLfp
+  fixA = undefined
 
 instance Widening Val where
   NumVal v1 ▽ NumVal v2 = NumVal (v1 ▽ v2)
   v1 ▽ v2 = v1 ⊔ v2
 
 instance IsEnv Env Val Interp where
-  getEnv = Kleisli $ const (snd <$> ask)
+  getEnv = askA >>> pi2
   lookup = proc x -> do
     env <- getEnv -< ()
     case M.lookup x env of
@@ -64,7 +65,7 @@ instance IsVal Val Interp where
     Top -> returnA -< Top
     _ -> failA -< "Expected a number as argument for 'pred'"
   zero = proc _ -> do
-    b <- Kleisli $ const (fst <$> ask) -< ()
+    b <- pi1 <<< askA -< ()
     returnA -< (NumVal (Bounded b 0))
   ifZero f g = proc v -> case v of
     (NumVal (Bounded _ (I.Interval i1 i2)), (x, y))
@@ -78,7 +79,7 @@ instance IsVal Val Interp where
     _ -> failA -< "Expected a closure"
     where
       localA' g = proc (c,x) -> do
-        b <- Kleisli (const (fst <$> ask)) -< ()
+        b <- pi1 <<< askA -< ()
         localA g -< ((b,c),x)
 
 instance PreOrd Val where

@@ -15,8 +15,7 @@ library
                      IntervalAnalysis,
                      PCF,
                      Shared,
-                     SignAnalysis,
-                     Utils
+                     SignAnalysis
   build-depends:     base,
                      hashable,
                      sturdy-lib,

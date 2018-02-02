@@ -13,6 +13,7 @@ import           Control.Arrow.Class.State
 import           Control.Monad (join)
 
 import           Data.Error
+import           Data.Order
 
 newtype ErrorArrow e c x y = ErrorArrow { runErrorArrow :: c x (Error e y)}
 
@@ -59,6 +60,9 @@ commuteRight e0 = case e0 of
   Right (Success x) -> Success (Right x)
 {-# INLINE commuteRight #-}
 
+instance (ArrowChoice c, ArrowApply c) => ArrowApply (ErrorArrow e c) where
+  app = ErrorArrow $ first runErrorArrow ^>> app
+
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (ErrorArrow e c) where
   getA = liftError getA
   putA = liftError putA
@@ -69,3 +73,19 @@ instance ArrowChoice c => ArrowFail e (ErrorArrow e c) where
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (ErrorArrow e c) where
   askA = liftError askA
   localA (ErrorArrow f) = ErrorArrow (localA f)
+
+instance PreOrd (c x (Error e y)) => PreOrd (ErrorArrow e c x y) where
+  ErrorArrow f ⊑ ErrorArrow g = f ⊑ g
+
+instance LowerBounded (c x (Error e y)) => LowerBounded (ErrorArrow e c x y) where
+  bottom = ErrorArrow bottom
+
+instance Complete (c x (Error e y)) => Complete (ErrorArrow e c x y) where
+  ErrorArrow f ⊔ ErrorArrow g = ErrorArrow (f ⊔ g)
+
+instance CoComplete (c x (Error e y)) => CoComplete (ErrorArrow e c x y) where
+  ErrorArrow f ⊓ ErrorArrow g = ErrorArrow (f ⊓ g)
+
+instance UpperBounded (c x (Error e y)) => UpperBounded (ErrorArrow e c x y) where
+  top = ErrorArrow top
+

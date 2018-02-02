@@ -9,7 +9,8 @@ import           Prelude
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Monad.Trans.Reader
+import           Control.Arrow.Reader
+
 import           Data.Error
 import           Data.Foldable (toList)
 import qualified Data.HashMap.Lazy as M
@@ -24,22 +25,21 @@ import           GHC.Generics
 
 import           PCF (Expr)
 import           Shared hiding (Env)
-import           Utils
 
 data Closure = Closure Text Expr Env deriving (Eq,Show,Generic)
 data Val = Bot | NumVal Sign | ClosureVal (Pow Closure) | Top deriving (Eq,Show,Generic)
 type Env = M.HashMap Text Val
 
-type Interp = Kleisli (ReaderT Env (Error String))
+type Interp = ReaderArrow Env (ErrorArrow String (->))
 
 evalSign :: Env -> Expr -> Error String Val
-evalSign env e = runReaderT (runKleisli eval e) env
+evalSign env e = runErrorArrow (runReaderArrow eval) (env,e)
 
 instance ArrowFix Expr Val Interp where
   fixA f = f (fixA f)
 
 instance IsEnv Env Val Interp where
-  getEnv = Kleisli $ const ask
+  getEnv = askA
   lookup = proc x -> do
     env <- getEnv -< ()
     case M.lookup x env of

@@ -4,12 +4,15 @@
 module Control.Arrow.Transformer.State where
 
 import Prelude hiding (id,(.))
+
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Class.Fail
 import Control.Arrow.Class.State
 import Control.Arrow.Class.Reader
 import Control.Arrow.Utils
+
+import Data.Order
 
 newtype StateArrow s c x y = StateArrow { runStateArrow :: c (s,x) (s,y) }
 
@@ -30,6 +33,9 @@ instance ArrowChoice c => ArrowChoice (StateArrow s c) where
   left (StateArrow f) = StateArrow $ injectBoth ^>> left f >>^ eject
   right (StateArrow f) = StateArrow $ injectBoth ^>> right f >>^ eject
 
+instance ArrowApply c => ArrowApply (StateArrow s c) where
+  app = StateArrow $ (\(s,(StateArrow f,b)) -> (f,(s,b))) ^>> app
+
 instance Arrow c => ArrowState s (StateArrow s c) where
   getA = StateArrow (arr (\(a,()) -> (a,a)))
   putA = StateArrow (arr (\(_,s) -> (s,())))
@@ -40,3 +46,19 @@ instance ArrowFail e c => ArrowFail e (StateArrow s c) where
 instance ArrowReader r c => ArrowReader r (StateArrow s c) where
   askA = liftState askA
   localA (StateArrow f) = StateArrow $ (\(s,(r,x)) -> (r,(s,x))) ^>> localA f
+
+instance PreOrd (c (s,x) (s,y)) => PreOrd (StateArrow s c x y) where
+  StateArrow f ⊑ StateArrow g = f ⊑ g
+
+instance LowerBounded (c (s,x) (s,y)) => LowerBounded (StateArrow s c x y) where
+  bottom = StateArrow bottom
+
+instance Complete (c (s,x) (s,y)) => Complete (StateArrow s c x y) where
+  StateArrow f ⊔ StateArrow g = StateArrow (f ⊔ g)
+
+instance CoComplete (c (s,x) (s,y)) => CoComplete (StateArrow s c x y) where
+  StateArrow f ⊓ StateArrow g = StateArrow (f ⊓ g)
+
+instance UpperBounded (c (s,x) (s,y)) => UpperBounded (StateArrow s c x y) where
+  top = StateArrow top
+
