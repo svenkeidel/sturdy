@@ -6,13 +6,7 @@ before_script:
   - stack setup
 
 stages:
-  - build
   - test
-
-stack-build:
-  stage: build
-  script:
-    - stack build
 
 stack-test:
   stage: test
