@@ -15,13 +15,12 @@ import           Control.Arrow
 import           Data.Foldable (toList)
 import qualified Data.HashMap.Lazy as M
 import           Data.HashSet (HashSet)
-import           Data.Result
 import           Data.Sequence (Seq)
 import qualified Data.Sequence as S
 
 import           Text.Printf
 
-import           Test.QuickCheck hiding (Result(..))
+import           Test.QuickCheck
 
 alphaTerm :: C.Term -> W.Term
 alphaTerm t = case t of
@@ -32,7 +31,7 @@ alphaTerm t = case t of
 alphaEnv :: C.TermEnv -> W.TermEnv
 alphaEnv = fmap alphaTerm
 
-alphaResult :: Seq (Result (C.Term,C.TermEnv)) -> Seq (Result (W.Term,W.TermEnv))
+alphaResult :: Seq (Either () (C.Term,C.TermEnv)) -> Seq (Either () (W.Term,W.TermEnv))
 alphaResult = (fmap.fmap) (alphaTerm *** alphaEnv)
 
 sound'' :: Int -> Strat -> Property
@@ -105,7 +104,7 @@ instance (PartOrd a,PartOrd b) => PartOrd (a,b) where
 instance (Lattice a, Lattice b) => Lattice (a,b) where
   lub (a1,b1) (a2,b2) = (lub a1 a2, lub b1 b2)
 
-instance PartOrd a => PartOrd (Result a) where
+instance PartOrd a => PartOrd (Either () a) where
   r1 <= r2 = case (r1,r2) of
     (Fail,Fail) -> True
     (Success a1,Success a2) -> a1 <= a2

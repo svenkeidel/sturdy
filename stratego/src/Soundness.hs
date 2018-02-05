@@ -8,7 +8,7 @@ import           Data.Powerset (Pow)
 import           Data.GaloisConnection
 import           Data.Hashable
 
-import           Test.QuickCheck hiding (Result(..))
+import           Test.QuickCheck
 
 class Soundness c' where
   sound :: (Eq x, Eq x', Eq y, Eq y', Show x, Show y, Show x', Show y',

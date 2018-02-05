@@ -14,19 +14,17 @@ import qualified WildcardSemantics as W
 -- import           Control.Arrow
 
 import qualified Data.HashMap.Lazy as M
-import           Data.Result hiding (map)
 import           Data.Order
 import           Data.GaloisConnection
 import           Data.Term(TermUtils(..))
 import qualified Data.Powerset as C
 import qualified Data.AbstractPowerset as A
--- import           Data.PowersetResult (PowersetResult(..))
     
 import           Text.Printf
 
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
-import           Test.QuickCheck hiding (Result(..))
+import           Test.QuickCheck
 
 main :: IO ()
 main = hspec spec
@@ -38,17 +36,17 @@ spec = do
     it "should work for the abstract case" $ do
       let cons x xs = W.Cons "Cons" [x,xs]
       let t = cons 2 W.Wildcard
-      fmap fst <$> weval 2 (Let [("map", map)]
+      fmap snd <$> weval 2 (Let [("map", map)]
                   (Match "x" `Seq`
                    Call "map" [Build 1] ["x"])) t
         `shouldBe'`
            C.fromFoldable
-             [ Success $ convertToList [1]
-             , Success $ convertToList [1,1]
-             , Success $ convertToList [1,1,1]
-             , Fail
-             , Fail
-             , Success (cons 1 (cons 1 (cons 1 (cons W.Wildcard W.Wildcard))))]
+             [ Right $ convertToList [1]
+             , Right $ convertToList [1,1]
+             , Right $ convertToList [1,1,1]
+             , Left ()
+             , Left ()
+             , Right (cons 1 (cons 1 (cons 1 (cons W.Wildcard W.Wildcard))))]
 
   describe "call" $
     prop "should be sound" $ do
@@ -108,7 +106,7 @@ spec = do
     showLub :: C.Term -> C.Term -> String
     showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: W.Term) 
 
-    shouldBe' :: A.Pow (Result W.Term) -> A.Pow (Result W.Term) -> Property
+    shouldBe' :: A.Pow (Either () W.Term) -> A.Pow (Either () W.Term) -> Property
     shouldBe' s1 s2 = counterexample (printf "%s < %s\n" (show s1) (show s2)) (s2 ⊑ s1 `shouldBe` True)
     infix 1 `shouldBe'`
 
@@ -124,5 +122,5 @@ spec = do
                Build (Cons "Cons" ["x'", "xs'"]))
               (Build (Cons "Nil" []))))
 
-    weval :: Int -> Strat -> W.Term -> A.Pow (Result (W.Term,W.TermEnv))
+    weval :: Int -> Strat -> W.Term -> A.Pow (Either () (W.TermEnv,W.Term))
     weval i s = W.eval i s M.empty (W.TermEnv M.empty)

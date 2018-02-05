@@ -12,7 +12,6 @@ import           Control.Applicative hiding (empty)
 import           Control.Category
 import           Control.Monad
 import           Control.Monad.Deduplicate
-import           Control.Monad.Except
 
 import           Data.Sequence (Seq)
 import           Data.Hashable
@@ -40,11 +39,6 @@ instance Show a => Show (Pow a) where
 
 instance (Eq a, Hashable a) => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
-
-instance MonadError () Pow where
-  throwError _ = empty
-  catchError a f | null a = f ()
-                 | otherwise = a
 
 empty :: Pow a
 empty = mempty

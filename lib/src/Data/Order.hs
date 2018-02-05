@@ -67,6 +67,10 @@ class PreOrd x => UpperBounded x where
 glb :: (Foldable f, CoComplete x, UpperBounded x) => f x -> x
 glb = foldr (⊓) top
 
+instance (PreOrd e, PreOrd a) => PreOrd (Either e a) where
+  Left e1 ⊑ Left e2 = e1 ⊑ e2
+  Right a1 ⊑ Right a2 = a1 ⊑ a2
+  _ ⊑ _ = False
 
 instance PreOrd a => PreOrd [a] where
   []     ⊑ []     = True

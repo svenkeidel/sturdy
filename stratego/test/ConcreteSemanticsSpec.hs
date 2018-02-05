@@ -7,7 +7,7 @@ module ConcreteSemanticsSpec(main, spec) where
 import           Prelude hiding (map)
 
 import           ConcreteSemantics
-import           Syntax hiding (Fail,TermPattern(..))
+import           Syntax hiding (TermPattern(..))
 import qualified Syntax as T
 
 import           Paths_sturdy_stratego
@@ -16,12 +16,11 @@ import           Control.Monad
 
 import           Data.ATerm
 import           Data.Term (TermUtils(..))
-import           Data.Result hiding (map)
 import qualified Data.HashMap.Lazy as M
 
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
-import           Test.QuickCheck hiding (Result(..))
+import           Test.QuickCheck
 
 import qualified Data.Text.IO as TIO
 
@@ -35,16 +34,16 @@ spec = do
     it "should hide declare variables" $ do
       let tenv = termEnv [("x", term1)]
       eval (Scope ["x"] (Build "x")) M.empty tenv term2 
-        `shouldBe` Fail
+        `shouldBe` Left ()
       eval (Scope ["x"] (Match "x")) M.empty tenv term2
-        `shouldBe` Success (term2,tenv)
+        `shouldBe` Right (tenv,term2)
 
     it "should make non-declared variables available" $ do
       let tenv = termEnv [("x", term1)]
       eval (Scope ["y"] (Build "x")) M.empty tenv term2 `shouldBe`
-        Success (term1,tenv)
+        Right (tenv,term1)
       eval (Scope ["y"] (Match "z")) M.empty tenv term2 `shouldBe`
-        Success (term2,termEnv [("x", term1), ("z", term2)])
+        Right (termEnv [("x", term1), ("z", term2)],term2)
 
   describe "let" $
     it "should support recursion" $ do
@@ -52,7 +51,7 @@ spec = do
           tenv = termEnv []; tenv' = termEnv [("x",t)]
       eval (Let [("map", map)] (Match "x" `Seq` Call "map" [Build 1] ["x"])) M.empty tenv t
         `shouldBe`
-           Success (convertToList [1, 1, 1], tenv')
+           Right (tenv', convertToList [1, 1, 1])
 
   describe "call" $
     it "should support recursion" $ do
@@ -61,42 +60,42 @@ spec = do
           tenv = termEnv []; tenv' = termEnv [("x",t)]
       eval (Match "x" `Seq` Call "map" [Build (T.NumberLiteral 1)] ["x"]) senv tenv t
         `shouldBe`
-           Success (convertToList [1, 1, 1], tenv')
+           Right (tenv', convertToList [1, 1, 1])
 
   describe "match" $ do
     prop "should introduce variables" $ \t ->
       let tenv = termEnv [] 
       in eval (Match "x" `Seq` Match "y") M.empty tenv t `shouldBe`
-           Success (t, termEnv [("x", t), ("y", t)])
+           Right (termEnv [("x", t), ("y", t)], t)
 
     prop "should support linear pattern matching" $ \t1 t2 ->
       let t' = Cons "f" [t1,t2]
           tenv = termEnv []; tenv' = termEnv [("x",t1)]
       in eval (Match (T.Cons "f" ["x","x"])) M.empty tenv t' `shouldBe`
-           if t1 == t2 then Success (t', tenv') else Fail
+           if t1 == t2 then Right (tenv', t') else Left ()
 
     prop "should match deep" $ \t -> do
       p <- similarTermPattern t 3
       return $ counterexample (show p) $ when (linear p) $
-        fmap fst (eval (Match p) M.empty (termEnv []) t) `shouldBe`
-          Success t
+        fmap snd (eval (Match p) M.empty (termEnv []) t) `shouldBe`
+          Right t
 
     it "should succeed when exploding literals" $
       let tenv = termEnv []; tenv' = termEnv [("x", Cons "Nil" [])]
       in eval (Match (T.Explode "_" "x")) M.empty tenv 1 `shouldBe`
-           Success (1, tenv')
+           Right (tenv', 1)
 
   describe "build" $ do
     prop "build should be inverse to match" $ \t -> do
       p <- similarTermPattern t 3
       return $ counterexample (show p) $ when (linear p) $
-        fmap fst (eval (Match p `Seq` Build p) M.empty (termEnv []) t) `shouldBe`
-          Success t
+        fmap snd (eval (Match p `Seq` Build p) M.empty (termEnv []) t) `shouldBe`
+          Right t
 
     prop "build should lookup variables" $ \t -> do
       let tenv = termEnv [("x", t)]
       eval (Build (T.Var "x")) M.empty tenv t `shouldBe`
-        Success (t,tenv)
+        Right (tenv,t)
 
   describe "Case Studies" $ describe "Haskell Arrows" $ beforeAll parseArrowCaseStudy $ do
 
@@ -107,14 +106,14 @@ spec = do
           tenv = termEnv []
       eval (Call "union_0_0" [] []) (stratEnv module_) tenv t
         `shouldBe`
-           Success (convertToList [1,3,2,4], tenv)
+           Right (tenv, convertToList [1,3,2,4])
 
     it "concat should work" $ \module_ ->
       let l = convertToList (fmap convertToList [[1,2,3],[4,5],[],[6]])
           tenv = termEnv []
       in eval (Call "concat_0_0" [] []) (stratEnv module_) tenv l
         `shouldBe`
-           Success (convertToList [1,2,3,4,5,6], tenv)
+           Right (tenv, convertToList [1,2,3,4,5,6])
 
     it "free-pat-vars should work" $ \module_ ->
       let var x = Cons "Var" [x]
@@ -124,7 +123,7 @@ spec = do
           tenv = termEnv []
       in eval (Call "free_pat_vars_0_0" [] []) (stratEnv module_) tenv t
           `shouldBe`
-             Success (convertToList [var "b", var "c", var "a"], tenv)
+             Right (tenv, convertToList [var "b", var "c", var "a"])
 
   where
 

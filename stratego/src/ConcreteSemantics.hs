@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -13,7 +14,6 @@ module ConcreteSemantics where
 
 import           Prelude hiding ((.),uncurry)
 
--- import           InterpreterArrow
 import           SharedSemantics
 import           Syntax (TermPattern)
 import qualified Syntax as S
@@ -24,25 +24,26 @@ import           Control.Arrow
 import           Control.Arrow.Apply
 import           Control.Arrow.Debug
 import           Control.Arrow.Deduplicate
+import           Control.Arrow.Either
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Reader
+import           Control.Arrow.State
 import           Control.Arrow.Try
 import           Control.Category
 import           Control.Monad.Reader
-import           Control.Monad.State
 
 import           Data.Constructor
 import           Data.Foldable (foldr')
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
-import           Data.Result
 import           Data.String (IsString(..))
 import           Data.Term (IsTerm(..),TermUtils(..))
 import           Data.TermEnv
 import           Data.Text (Text)
 
-import           Test.QuickCheck hiding (Result(..))
+import           Test.QuickCheck
 
 import           Debug.Trace
 import           Text.Printf
@@ -55,20 +56,18 @@ data Term
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 
--- Kleisli m a b = a -> m b
--- M a = StratEnv -> TermEnv -> Result (a,TermEnv)
-newtype Interp a b = Interp ( Kleisli (ReaderT StratEnv (StateT TermEnv Result)) a b )
+newtype Interp a b = Interp (ReaderArrow StratEnv (StateArrow TermEnv (EitherArrow () (->))) a b)
   deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowTry,ArrowZero,ArrowPlus,ArrowDeduplicate)
 
-runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Result (b,TermEnv)
-runInterp (Interp f) senv tenv t = runStateT (runReaderT (runKleisli f t) senv) tenv
+runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Either () (TermEnv,b)
+runInterp (Interp f) senv tenv t = runEitherArrow (runStateArrow (runReaderArrow f)) (tenv, (senv, t))
 
-eval :: Strat -> StratEnv -> TermEnv -> Term -> Result (Term,TermEnv)
-eval = runInterp . eval'
+eval :: Strat -> StratEnv -> TermEnv -> Term -> Either () (TermEnv,Term)
+eval s = runInterp (eval' s)
 
 -- Instances -----------------------------------------------------------------------------------------
-liftK :: (a -> _ b) -> Interp a b
-liftK f = Interp (Kleisli f)
+deriving instance ArrowState TermEnv Interp
+deriving instance ArrowReader StratEnv Interp
 
 instance ArrowFix' Interp Term where
   fixA' f = f (fixA' f)
@@ -82,12 +81,12 @@ instance ArrowDebug Interp where
     returnA -< trace (printf "%s: %s -> %s" s (show a) (show b)) b
 
 instance HasStratEnv Interp where
-  readStratEnv = liftK (const ask)
-  localStratEnv senv (Interp (Kleisli f)) = liftK (local (const senv) . f)
+  readStratEnv = Interp (const () ^>> askA)
+  localStratEnv senv f = proc a -> localA f -< (senv,a)
 
 instance IsTermEnv TermEnv Term Interp where
-  getTermEnv = liftK (const get)
-  putTermEnv = liftK put
+  getTermEnv = getA
+  putTermEnv = putA
   lookupTermVar f g = proc (v,TermEnv env) ->
     case M.lookup v env of
       Just t -> f -< t

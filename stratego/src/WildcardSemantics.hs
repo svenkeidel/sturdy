@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -18,16 +19,18 @@ import           Utils
     
 import           Control.Arrow
 import           Control.Arrow.Apply
-import           Control.Arrow.Try
-import           Control.Arrow.Fix
-import           Control.Arrow.Fail
 import           Control.Arrow.Deduplicate
+import           Control.Arrow.Either
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Powerset
+import           Control.Arrow.Reader
+import           Control.Arrow.State
+import           Control.Arrow.Try
 import           Control.Arrow.Utils (failA')
 import           Control.Category
 import           Control.DeepSeq
 import           Control.Monad.Reader
-import           Control.Monad.Result
-import           Control.Monad.State
 
 import           Data.Constructor
 import           Data.Error
@@ -44,9 +47,8 @@ import qualified Data.AbstractPowerset as A
 import           Data.Term
 import           Data.TermEnv
 import           Data.Text (Text)
-import           Data.Result
 
-import           Test.QuickCheck hiding (Result(..))
+import           Test.QuickCheck
 import           Text.Printf
 
 data Term
@@ -57,32 +59,35 @@ data Term
     deriving (Eq)
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
-newtype Interp a b = Interp (Kleisli (ReaderT (StratEnv,Int) (StateT TermEnv (ResultT A.Pow))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowTry,ArrowZero,ArrowPlus,ArrowDeduplicate,PreOrd,Complete)
+newtype Interp a b = Interp (ReaderArrow (StratEnv,Int) (StateArrow TermEnv (EitherArrow () (PowersetArrow (->)))) a b)
+  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowZero,ArrowPlus,ArrowDeduplicate,PreOrd,Complete)
 
-runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> A.Pow (Result (b,TermEnv))
-runInterp (Interp f) i senv tenv a = runResultT (runStateT (runReaderT (runKleisli f a) (senv,i)) tenv)
+runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> A.Pow (Either () (TermEnv,b))
+runInterp (Interp f) i senv tenv a = runPowersetArrow (runEitherArrow (runStateArrow (runReaderArrow f))) (tenv, ((senv,i), a))
 
-eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> A.Pow (Result (Term,TermEnv))
+eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> A.Pow (Either () (TermEnv,Term))
 eval i s = runInterp (eval' s) i
-
-liftK :: (a -> _ b) -> Interp a b
-liftK f = Interp (Kleisli f)
 
 emptyEnv :: TermEnv
 emptyEnv = TermEnv M.empty
 
 -- Instances -----------------------------------------------------------------------------------------
+deriving instance ArrowReader (StratEnv, Int) Interp
+deriving instance ArrowState TermEnv Interp
+
 instance ArrowFail () Interp where
   failA = Interp failA
 
 instance HasStratEnv Interp where
-  readStratEnv = liftK (const (fst <$> ask))
-  localStratEnv senv (Interp (Kleisli f)) = liftK (local (first (const senv)) . f)
+  readStratEnv = Interp (const () ^>> askA >>^ fst)
+  localStratEnv senv f = proc a -> do
+    i <- (askA >>^ snd) -< ()
+    r <- localA f -< ((senv,i),a)
+    returnA -< r
 
 instance IsTermEnv TermEnv Term Interp where
-  getTermEnv = liftK (const get)
-  putTermEnv = liftK (modify . const)
+  getTermEnv = getA
+  putTermEnv = putA
   lookupTermVar f g = proc (v,TermEnv env) ->
     case M.lookup v env of
       Just t -> f -< t
@@ -195,16 +200,18 @@ instance ArrowFix' Interp Term where
     i <- getFuel -< ()
     if i <= 0
     then top -< ()
-    else localFuel (f (fixA' f) z) -< (i-1,x)
+    else do
+      env <- askA >>^ fst -< ()
+      localFuel (f (fixA' f) z) -< ((env,i-1),x)
     where
-      getFuel = liftK (const (snd <$> ask))
-      localFuel (Interp (Kleisli g)) = liftK $ \(i,a) -> local (second (const i)) (g a)
+      getFuel = Interp (askA >>^ snd)
+      localFuel (Interp g) = Interp $ proc ((env,i),a) -> localA g -< ((env,i),a)
 
 instance Soundness Interp where
   sound senv xs f g = forAll (choose (0,3)) $ \i ->
-    let con :: A.Pow (Result (_,TermEnv))
+    let con :: A.Pow (Either () (TermEnv,_))
         con = A.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
-        abst :: A.Pow (Result (_,TermEnv))
+        abst :: A.Pow (Either () (TermEnv,_))
         abst = A.dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
@@ -339,7 +346,7 @@ instance Galois (Pow C.TermEnv) TermEnv where
   alpha = lub . fmap (\(C.TermEnv e) -> TermEnv (fmap alphaSing e))
   gamma = undefined
 
-instance (Eq x, Hashable x, Eq x', Hashable x', Galois (Pow x) x') => Galois (Pow (Result x)) (A.Pow (Result x')) where
+instance (PreOrd (Either () x'), Eq x, Hashable x, Eq x', Hashable x', Galois (Pow x) x') => Galois (Pow (Either () x)) (A.Pow (Either () x')) where
   alpha = P.fromFoldable . fmap (fmap alphaSing)
   gamma = undefined
 
