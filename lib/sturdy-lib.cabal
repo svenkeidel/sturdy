@@ -31,6 +31,7 @@ library
                        Data.Utils
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
+                       Control.Arrow.Environment,
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
                        Control.Arrow.Join,
@@ -44,6 +45,8 @@ library
   other-modules:       Control.Arrow.Class.Reader,
                        Control.Arrow.Class.State,
                        Control.Arrow.Class.Fail,
+                       Control.Arrow.Class.Environment,
+                       Control.Arrow.Transformer.BoundedEnvironment,
                        Control.Arrow.Transformer.Reader,
                        Control.Arrow.Transformer.State,
                        Control.Arrow.Transformer.Fail

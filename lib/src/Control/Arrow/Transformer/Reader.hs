@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Reader where
+{-# LANGUAGE Arrows #-}
+module Control.Arrow.Transformer.Reader(ReaderArrow(..),liftReader) where
 
 import Prelude hiding (id,(.))
 
@@ -10,9 +11,13 @@ import Control.Arrow
 import Control.Arrow.Class.Fail
 import Control.Arrow.Class.Reader
 import Control.Arrow.Class.State
+import Control.Arrow.Class.Environment
 import Control.Arrow.Utils
 
 import Data.Order
+import Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as H
+import Data.Hashable (Hashable)
 
 newtype ReaderArrow r c x y = ReaderArrow { runReaderArrow :: c (r,x) y }
 
@@ -37,7 +42,16 @@ instance ArrowApply c => ArrowApply (ReaderArrow r c) where
 
 instance Arrow c => ArrowReader r (ReaderArrow r c) where
   askA = ReaderArrow pi1
-  localA (ReaderArrow f) = ReaderArrow (pi2 >>> f)
+  localA (ReaderArrow f) = ReaderArrow $ (\(_,(r,x)) -> (r,x)) ^>> f
+
+instance (Eq x, Hashable x, Arrow c) => ArrowEnv x y (HashMap x y) (ReaderArrow (HashMap x y) c) where
+  lookup = proc x -> do
+    env <- getEnv -< ()
+    returnA -< H.lookup x env
+  getEnv = askA
+  extendEnv = arr $ \(x,y,env) ->
+    H.insert x y env
+  localEnv = localA
 
 instance ArrowState s c => ArrowState s (ReaderArrow r c) where
   getA = liftReader getA
