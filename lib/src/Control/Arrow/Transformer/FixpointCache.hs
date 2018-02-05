@@ -1,32 +1,37 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DeriveFunctor #-}
-module Control.Arrow.Transformer.FixpointCache(CacheArrow,runCacheArrow,liftCache,Cache,empty,insert,lookup,insertWith,(!),keys,toList) where
+module Control.Arrow.Transformer.FixpointCache(CacheArrow,runCacheArrow,liftCache) where
 
-import           Prelude hiding (id,lookup)
+import           Prelude hiding (id,(.),lookup)
+import           Data.Function (fix)
 
 import           Control.Arrow
 import           Control.Arrow.Class.Fail (ArrowFail(..))
 import           Control.Arrow.Class.Reader
 import           Control.Arrow.Class.State
-import           Control.Arrow.Class.FixpointCache
+import           Control.Arrow.Class.Fix
+import           Control.Arrow.Class.Environment
 import           Control.Arrow.Utils
 import           Control.Category
 
 import           Data.Hashable (Hashable)
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as H
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as S
 import           Data.Maybe
 import           Data.Order
+import           Data.Store (Store)
+import qualified Data.Store as S
 
-newtype CacheArrow a b c x y = CacheArrow (c ((Cache a b,Cache a b),x) (Cache a b,y))
+newtype CacheArrow a b c x y = CacheArrow (c ((Store a b,Store a b),x) (Store a b,y))
+
+runCacheArrow :: Arrow c => CacheArrow a b c x y -> c x y
+runCacheArrow (CacheArrow f) = (\x -> ((S.empty,S.empty),x)) ^>> f >>^ snd
+
+liftCache :: Arrow c => c x y -> CacheArrow a b c x y
+liftCache f = CacheArrow ((\((_,o),x) -> (o,x)) ^>> second f)
 
 instance Arrow c => Category (CacheArrow i o c) where
   id = liftCache id
@@ -43,6 +48,9 @@ instance ArrowChoice c => ArrowChoice (CacheArrow i o c) where
   left (CacheArrow f) = CacheArrow $ (\((i,o),e) -> injectRight (o,injectLeft ((i,o),e))) ^>> left f >>^ eject
   right (CacheArrow f) = CacheArrow $ (\((i,o),e) -> injectRight ((i,o),injectLeft (o,e))) ^>> right f >>^ eject
 
+instance ArrowApply c => ArrowApply (CacheArrow i o c) where
+  app = CacheArrow $ (\(io,(CacheArrow f,x)) -> (f,(io,x))) ^>> app
+
 instance ArrowState s c => ArrowState s (CacheArrow i o c) where
   getA = liftCache getA
   putA = liftCache putA
@@ -54,59 +62,48 @@ instance ArrowReader r c => ArrowReader r (CacheArrow i o c) where
 instance ArrowFail e c => ArrowFail e (CacheArrow i o c) where
   failA = liftCache failA
 
-instance (Eq x, Hashable x, LowerBounded y, Complete y, Arrow c) => ArrowCache x y (CacheArrow x y c) where
-  askCache = CacheArrow $ arr $ \((_,o),x) -> (o,lookup x o)
-  -- transfer cached value from old fixpoint iteration into the new cache
-  initializeCache = CacheArrow $ arr $ \((Cache i,Cache o),x) -> (Cache $ H.insert x (fromMaybe bottom (H.lookup x i)) o,())
-  updateCache = CacheArrow $ arr $ \((_,o),(x,y)) -> (insertWith (⊔) x y o,())
-  retireCache (CacheArrow f) = CacheArrow $ (\((_,o),x) -> ((o,bottom),x)) ^>> f
-  -- we reached or overshot the fixpoint if we landed in the reductive set, i.e. if f x ⊑ x
-  reachedFixpoint = CacheArrow $ arr $ \((i,o),()) -> (o,o ⊑ i)
+instance ArrowEnv a b env c => ArrowEnv a b env (CacheArrow x y c) where
+  lookup = liftCache lookup
+  getEnv = liftCache getEnv
+  extendEnv = liftCache extendEnv
+  localEnv (CacheArrow f) = CacheArrow $ (\(s,(env,a)) -> (env,(s,a))) ^>> localEnv f
 
-newtype Cache a b = Cache (HashMap a b) deriving (Functor,Foldable,Traversable)
+instance (Eq a, Hashable a, LowerBounded b, Complete b, ArrowChoice c) => ArrowFix a b (CacheArrow a b c) where
+  fixA f = proc x -> do
+    y <- retireCache (fix (f . memoize)) -< x
+    fp <- reachedFixpoint -< ()
+    if fp
+    then returnA -< y
+    else fix f -< x
 
-instance (Eq a, Hashable a, PreOrd b) => PreOrd (Cache a b) where
-  Cache m1 ⊑ Cache m2 = subsetKeys m1 m2 && all (\(k,v1) -> v1 ⊑ (m2 H.! k)) (H.toList m1)
-  Cache m1 ≈ Cache m2 = H.keys m1 == H.keys m2 && all (\(k,v_o) -> v_o ⊑ (m2 H.! k)) (H.toList m1)
+memoize :: (Eq a, Hashable a, LowerBounded b, Complete b, ArrowChoice c) => CacheArrow a b c a b -> CacheArrow a b c a b
+memoize f = proc x -> do
+  m <- askCache -< x
+  case m of
+    Just y -> returnA -< y
+    Nothing -> do
+      initializeCache -< x
+      y <- f -< x
+      updateCache -< (x,y)
+      returnA -< y
 
-instance (Eq a, Hashable a, Complete b) => Complete (Cache a b) where
-  Cache m1 ⊔ Cache m2 = Cache (H.unionWith (⊔) m1 m2)
+askCache :: (Eq a, Hashable a, Arrow c) => CacheArrow a b c a (Maybe b)
+askCache = CacheArrow $ arr $ \((_,o),x) -> (o,S.lookup x o)
 
-instance (Eq a, Hashable a, CoComplete b) => CoComplete (Cache a b) where
-  Cache m1 ⊓ Cache m2 = Cache (H.intersectionWith (⊓) m1 m2)
+retireCache :: (Eq a, Hashable a, LowerBounded b, Arrow c) => CacheArrow a b c x y -> CacheArrow a b c x y
+retireCache (CacheArrow f) = CacheArrow $ (\((_,o),x) -> ((o,bottom),x)) ^>> f
 
-instance (Eq a, Hashable a, PreOrd b) => LowerBounded (Cache a b) where
-  bottom = empty
+initializeCache :: (Eq a, Hashable a, LowerBounded b, Arrow c) => CacheArrow a b c a ()
+initializeCache = CacheArrow $ arr $ \((i,o),x) -> (S.insert x (fromMaybe bottom (S.lookup x i)) o,())
 
-subsetKeys :: (Eq a, Hashable a) => HashMap a b -> HashMap a b -> Bool
-subsetKeys m1 m2 = subset (S.fromMap (H.map (const ()) m1)) (S.fromMap (H.map (const ()) m2))
+updateCache :: (Eq a, Hashable a, Complete b, Arrow c) => CacheArrow a b c (a,b) ()
+updateCache = CacheArrow $ arr $ \((_,o),(x,y)) -> (S.insertWith (⊔) x y o,())
 
-subset :: (Eq a, Hashable a) => HashSet a -> HashSet a -> Bool
-subset s1 s2 = S.size (S.intersection s1 s2) == S.size s1
+reachedFixpoint :: (Eq a, Hashable a, LowerBounded b, Arrow c) => CacheArrow a b c () Bool
+reachedFixpoint = CacheArrow $ arr $ \((i,o),()) -> (o,o ⊑ i)
 
-empty :: Cache a b
-empty = Cache H.empty
-
-runCacheArrow :: Arrow c => CacheArrow a b c x y -> Cache a b -> c x y
-runCacheArrow (CacheArrow f) i = (\x -> ((i,empty),x)) ^>> f >>^ snd
-
-liftCache :: Arrow c => c x y -> CacheArrow i o c x y
-liftCache f = CacheArrow $ (\((_,o),x) -> (o,x)) ^>> second f
-
-lookup :: (Eq a, Hashable a) => a -> Cache a b -> Maybe b
-lookup a (Cache m) = H.lookup a m
-
-insert :: (Eq a, Hashable a) => a -> b -> Cache a b -> Cache a b
-insert a b (Cache m) = Cache (H.insert a b m)
-
-insertWith :: (Eq a, Hashable a) => (b -> b -> b) -> a -> b -> Cache a b -> Cache a b
-insertWith f a b (Cache m) = Cache (H.insertWith f a b m)
-
-(!) :: (Eq a, Hashable a) => Cache a b -> a -> b
-Cache m ! a = m H.! a
-
-keys :: Cache a b -> [a]
-keys (Cache m) = H.keys m
-
-toList :: Cache a b -> [(a,b)]
-toList (Cache m) = H.toList m
+deriving instance PreOrd (c ((Store a b,Store a b),x) (Store a b,y)) => PreOrd (CacheArrow a b c x y)
+deriving instance Complete (c ((Store a b,Store a b),x) (Store a b,y)) => Complete (CacheArrow a b c x y)
+deriving instance CoComplete (c ((Store a b,Store a b),x) (Store a b,y)) => CoComplete (CacheArrow a b c x y)
+deriving instance LowerBounded (c ((Store a b,Store a b),x) (Store a b,y)) => LowerBounded (CacheArrow a b c x y)
+deriving instance UpperBounded (c ((Store a b,Store a b),x) (Store a b,y)) => UpperBounded (CacheArrow a b c x y)

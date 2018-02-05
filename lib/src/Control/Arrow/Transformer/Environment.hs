@@ -20,8 +20,11 @@ import Control.Arrow.Class.State
 import Control.Arrow.Class.Fail
 import Control.Arrow.Class.Environment
 
-newtype Environment a b c x y = Environment { runEnvironment :: ReaderArrow (HashMap a b) c x y }
+newtype Environment a b c x y = Environment (ReaderArrow (HashMap a b) c x y)
   deriving (Category,Arrow,ArrowChoice)
+
+runEnvironment :: Environment a b c x y -> c (HashMap a b,x) y
+runEnvironment (Environment (ReaderArrow f)) = f
 
 liftEnv :: Arrow c => c x y -> Environment a b c x y
 liftEnv f = Environment (liftReader f)

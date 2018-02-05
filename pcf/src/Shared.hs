@@ -13,13 +13,10 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment
 
-import           Data.HashMap.Lazy (HashMap)
 import           Data.Text (Text,unpack)
 import           Text.Printf
 
-type Env v = HashMap Text v
-
-eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v (Env v) c, ArrowFail String c, IsVal v c) => c Expr v
+eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c, IsVal v c, IsClosure v env c) => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
   E.Var x -> do
     m <- lookup -< x
@@ -51,5 +48,6 @@ class Arrow c => IsVal v c | c -> v where
   zero :: c () v
   ifZero :: c x v -> c y v -> c (v, (x, y)) v
 
-  closure :: c (Text, Expr, Env v) v
+class Arrow c => IsClosure v env c | c -> env, c -> v where
+  closure :: c (Text, Expr, env) v
   applyClosure :: c Expr v -> c (v, v) v

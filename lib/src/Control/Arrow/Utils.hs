@@ -35,6 +35,13 @@ zipWithA f = proc (l1,l2) -> case (l1,l2) of
     cs <- zipWithA f -< (as,bs)
     returnA -< c:cs
 
+foldA :: ArrowChoice c => c (a,x) a -> c ([x],a) a
+foldA f = proc (l,a) -> case l of
+  (x:xs) -> do
+    a' <- f -< (a,x)
+    foldA f -< (xs,a')
+  [] -> returnA -< a
+
 injectLeft :: (r,Either a b) -> Either (r,a) b
 injectLeft (r,e) = case e of
   Left a -> Left (r,a)

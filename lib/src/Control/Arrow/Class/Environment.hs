@@ -3,7 +3,8 @@
 {-# LANGUAGE Arrows #-}
 module Control.Arrow.Class.Environment where
 
-import           Control.Arrow
+import Control.Arrow
+import Control.Arrow.Utils
 
 class Arrow c => ArrowEnv x y env c | c -> x, c -> y, c -> env where
   lookup :: c x (Maybe y)
@@ -16,3 +17,6 @@ extendEnv' f = proc (x,y,a) -> do
   env <- getEnv -< ()
   env' <- extendEnv -< (x,y,env)
   localEnv f -< (env',a)
+
+bindings :: (ArrowChoice c, ArrowEnv x y env c) => c ([(x,y)],env) env
+bindings = foldA ((\(env,(x,y)) -> (x,y,env)) ^>> extendEnv)

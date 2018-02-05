@@ -1,9 +1,9 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-module Control.Arrow.Fix where
+module Control.Arrow.Fix
+  ( module Control.Arrow.Class.Fix,
+    module Control.Arrow.Transformer.FixpointCache
+  )
+where
 
-import Control.Arrow
-
-class Arrow c => ArrowFix x y c | y -> c, x -> c where
-  fixA :: (c x y -> c x y) -> c x y
+import Control.Arrow.Class.Fix
+import Control.Arrow.Transformer.FixpointCache
 

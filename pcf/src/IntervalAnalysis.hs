@@ -5,14 +5,15 @@
 {-# LANGUAGE DeriveGeneric #-}
 module IntervalAnalysis where
 
-import           Prelude hiding (Bounded)
+import           Prelude hiding (id,Bounded)
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.Environment
-import           Control.Arrow.Utils
+
 import           Data.Error
 import           Data.Foldable (toList)
 import qualified Data.HashMap.Lazy as M
@@ -23,31 +24,26 @@ import qualified Data.Interval as I
 import           Data.Order
 import           Data.Powerset
 import           Data.Text (Text)
-import           Data.Widening
 import           Data.Bounded
     
 import           GHC.Generics
 
 import           PCF (Expr)
-import           Shared hiding (Env)
+import           Shared
 
 type IV = Interval (InfiniteNumber Int)
 data Closure = Closure Text Expr Env deriving (Eq,Show,Generic)
 data Val = Bot | NumVal (Bounded IV) | ClosureVal (Pow Closure) | Top deriving (Eq, Show, Generic)
-type Env = M.HashMap Text Val
+type Env = M.HashMap Text Addr
 
-type Addr = Int
-type Interp = ReaderArrow IV (BoundedEnv Text Addr Val (ErrorArrow String (->)))
+type Addr = Text
+type Interp = CacheArrow Expr Val (ReaderArrow IV (BoundedEnv Text Addr Val (ErrorArrow String (->))))
 
-evalInterval :: IV -> Env -> Expr -> Error String Val
-evalInterval bound env e = _ (runReaderArrow eval)
-
-instance ArrowFix Expr Val Interp where
-  fixA = undefined
-
-instance Widening Val where
-  NumVal v1 ▽ NumVal v2 = NumVal (v1 ▽ v2)
-  v1 ▽ v2 = v1 ⊔ v2
+evalInterval :: IV -> M.HashMap Text Val -> Expr -> Error String Val
+evalInterval bound env e = runErrorArrow (runBoundedEnv (runReaderArrow (runCacheArrow eval))) (alloc,env,(bound,e))
+  where
+    -- CFA0-like analysis by using the variables as addresses.
+    alloc = id
 
 instance IsVal Val Interp where
   succ = proc x -> case x of
@@ -59,7 +55,7 @@ instance IsVal Val Interp where
     Top -> returnA -< Top
     _ -> failA -< "Expected a number as argument for 'pred'"
   zero = proc _ -> do
-    b <- pi1 <<< askA -< ()
+    b <- askA -< ()
     returnA -< (NumVal (Bounded b 0))
   ifZero f g = proc v -> case v of
     (NumVal (Bounded _ (I.Interval i1 i2)), (x, y))
@@ -67,14 +63,15 @@ instance IsVal Val Interp where
       | i1 > 0 || i2 < 0 -> g -< y
       | otherwise -> (f -< x) ⊔ (g -< y)
     _ -> failA -< "Expected a number as condition for 'ifZero'"
+
+instance IsClosure Val Env Interp where
   closure = arr $ \(x, e, env) -> ClosureVal (return (Closure x e env))
   applyClosure f = proc (fun, arg) -> case fun of
-    ClosureVal cls -> lubA (proc (Closure x body env) -> localA' f -< (M.insert x arg env, body)) -<< toList cls
+    ClosureVal cls -> lubA (proc (Closure x body env) -> do
+      env' <- extendEnv -< (x,arg,env)
+      localEnv f -< (env', body))
+        -<< toList cls
     _ -> failA -< "Expected a closure"
-    where
-      localA' g = proc (c,x) -> do
-        b <- pi1 <<< askA -< ()
-        localA g -< ((b,c),x)
 
 instance PreOrd Val where
   Bot ⊑ _ = True
