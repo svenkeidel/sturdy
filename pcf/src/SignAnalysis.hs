@@ -4,15 +4,17 @@
 {-# LANGUAGE DeriveGeneric #-}
 module SignAnalysis where
 
-import           Prelude
+import           Prelude hiding (id)
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Reader
+import           Control.Arrow.Environment
 
 import           Data.Error
 import           Data.Foldable (toList)
+import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.Order
@@ -24,27 +26,18 @@ import           Data.Text (Text)
 import           GHC.Generics
 
 import           PCF (Expr)
-import           Shared hiding (Env)
+import           Shared
 
 data Closure = Closure Text Expr Env deriving (Eq,Show,Generic)
 data Val = Bot | NumVal Sign | ClosureVal (Pow Closure) | Top deriving (Eq,Show,Generic)
-type Env = M.HashMap Text Val
+type Env = M.HashMap Text Addr
 
-type Interp = ReaderArrow Env (ErrorArrow String (->))
+type Addr = Text
+type Interp = CacheArrow Expr Val (BoundedEnv Text Addr Val (ErrorArrow String (->)))
 
-evalSign :: Env -> Expr -> Error String Val
-evalSign env e = runErrorArrow (runReaderArrow eval) (env,e)
-
-instance ArrowFix Expr Val Interp where
-  fixA f = f (fixA f)
-
-instance IsEnv Env Val Interp where
-  getEnv = askA
-  lookup = proc x -> do
-    env <- getEnv -< ()
-    case M.lookup x env of
-      Just v -> returnA -< v
-      Nothing -> failA -< "Variable " ++ show x ++ " not bound"
+evalSign :: HashMap Text Val -> Expr -> Error String Val
+evalSign env e = runErrorArrow (runBoundedEnv (runCacheArrow eval)) (alloc,env,e)
+  where alloc = id
 
 instance IsVal Val Interp where
   succ = proc s -> case s of
@@ -59,9 +52,14 @@ instance IsVal Val Interp where
     NumVal Sign.Top -> (f -< x) ⊔ (g -< y)
     NumVal _ -> g -< y
     _ -> failA -< "Expected a number as condition for 'ifZero'"
+
+instance IsClosure Val Env Interp where
   closure = arr $ \(x, e, env) -> ClosureVal (return (Closure x e env))
   applyClosure f = proc (fun, arg) -> case fun of
-    ClosureVal cls -> lubA (proc (Closure x body env) -> localA f -< (M.insert x arg env, body)) -<< toList cls
+    ClosureVal cls -> lubA (proc (Closure x body env) -> do
+      env' <- extendEnv -< (x,arg,env)
+      localEnv f -< (env', body))
+        -<< toList cls
     _ -> failA -< "Expected a closure"
 
 instance PreOrd Val where

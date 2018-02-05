@@ -3,7 +3,7 @@
 module Control.Arrow.Utils where
 
 import Control.Arrow
-import Control.Arrow.Fail
+import Control.Arrow.Class.Fail
 
 mapA :: ArrowChoice c => c x y -> c [x] [y]
 mapA f = proc l -> case l of

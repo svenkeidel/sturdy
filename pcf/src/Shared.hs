@@ -22,7 +22,7 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
     m <- lookup -< x
     case m of
       Just v -> returnA -< v
-      Nothing -> failA -< printf "variable %s not in scope" (unpack x)
+      Nothing -> failA -< printf "Variable \"%s\" not bound" (unpack x)
   E.Lam x e -> do
     env <- getEnv -< ()
     closure -< (x, e, env)
