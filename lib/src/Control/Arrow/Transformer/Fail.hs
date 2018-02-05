@@ -5,13 +5,14 @@
 {-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.Fail(ErrorArrow(..),liftError) where
 
-import           Prelude hiding (id)
+import           Prelude hiding (id,lookup)
 
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Class.Fail
 import           Control.Arrow.Class.Reader
 import           Control.Arrow.Class.State
+import           Control.Arrow.Class.Environment
 import           Control.Monad (join)
 
 import           Data.Error
@@ -75,6 +76,12 @@ instance ArrowChoice c => ArrowFail e (ErrorArrow e c) where
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (ErrorArrow e c) where
   askA = liftError askA
   localA (ErrorArrow f) = ErrorArrow (localA f)
+
+instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (ErrorArrow e c) where
+  lookup = liftError lookup
+  getEnv = liftError getEnv
+  extendEnv = liftError extendEnv
+  localEnv (ErrorArrow f) = ErrorArrow (localEnv f)
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (ErrorArrow e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (ErrorArrow e c x y)

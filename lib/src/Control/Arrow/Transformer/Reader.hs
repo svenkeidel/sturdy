@@ -6,7 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.Reader(ReaderArrow(..),liftReader) where
 
-import Prelude hiding (id,(.))
+import Prelude hiding (id,(.),lookup)
 
 import Control.Category
 import Control.Arrow
@@ -49,6 +49,12 @@ instance ArrowState s c => ArrowState s (ReaderArrow r c) where
 
 instance ArrowFail e c => ArrowFail e (ReaderArrow r c) where
   failA = liftReader failA
+
+instance ArrowEnv x y env c => ArrowEnv x y env (ReaderArrow r c) where
+  lookup = liftReader lookup
+  getEnv = liftReader getEnv
+  extendEnv = liftReader extendEnv
+  localEnv (ReaderArrow f) = ReaderArrow ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
 
 deriving instance PreOrd (c (r,x) y) => PreOrd (ReaderArrow r c x y)
 deriving instance LowerBounded (c (r,x) y) => LowerBounded (ReaderArrow r c x y)

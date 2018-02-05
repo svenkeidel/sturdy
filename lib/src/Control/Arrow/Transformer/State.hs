@@ -5,13 +5,14 @@
 {-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.State(StateArrow(..),liftState) where
 
-import Prelude hiding (id,(.))
+import Prelude hiding (id,(.),lookup)
 
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Class.Fail
 import Control.Arrow.Class.State
 import Control.Arrow.Class.Reader
+import Control.Arrow.Class.Environment
 import Control.Arrow.Utils
 
 import Data.Order
@@ -48,6 +49,12 @@ instance ArrowFail e c => ArrowFail e (StateArrow s c) where
 instance ArrowReader r c => ArrowReader r (StateArrow s c) where
   askA = liftState askA
   localA (StateArrow f) = StateArrow $ (\(s,(r,x)) -> (r,(s,x))) ^>> localA f
+
+instance ArrowEnv x y env c => ArrowEnv x y env (StateArrow r c) where
+  lookup = liftState lookup
+  getEnv = liftState getEnv
+  extendEnv = liftState extendEnv
+  localEnv (StateArrow f) = StateArrow ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (StateArrow s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (StateArrow s c x y)
