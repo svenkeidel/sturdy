@@ -27,7 +27,7 @@ apply a = do
   k <- get
   let b = g k a
   case M.lookup b (l k) of
-    Just c | otherwise -> do
+    Just c -> do
       let c' = f k a ⊔ c
       put (k {l = M.insert b c' (l k)})
       return c'

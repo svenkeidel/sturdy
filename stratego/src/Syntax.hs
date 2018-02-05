@@ -3,8 +3,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Syntax where
 
-import           Prelude hiding (maybe)
-
 import           Signature (Signature,Sort,Fun)
 import qualified Signature as I
 

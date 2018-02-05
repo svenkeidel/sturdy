@@ -63,6 +63,14 @@ toEither :: Error e a -> Either e a
 toEither (Error e) = Left e
 toEither (Success a) = Right a
 
+fromMaybe :: Maybe a -> Error () a
+fromMaybe Nothing = Error ()
+fromMaybe (Just a) = Success a
+
+toMaybe :: Error e a -> Maybe a
+toMaybe (Error _) = Nothing
+toMaybe (Success a) = Just a
+
 unzipError :: Error e (a1,a2) -> (Error e a1, Error e a2)
 unzipError (Error e) = (Error e, Error e)
 unzipError (Success (a1, a2)) = (Success a1, Success a2)

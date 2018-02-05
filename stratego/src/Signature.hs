@@ -6,8 +6,6 @@
 module Signature(Signature, HasSignature(..), Sort(..), Fun(..), SortId(..),
                  empty, insertType, lookupType, insertSubtype, subtype, inhabitants) where
 
-import           Prelude hiding (lookup)
-
 import           Sort
 import           SubtypeRelation (SubtypeRelation)
 import qualified SubtypeRelation as R

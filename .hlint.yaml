@@ -1,0 +1,6 @@
+# HLint configuration file
+# https://github.com/ndmitchell/hlint
+##########################
+
+# Ignore some builtin hints
+- ignore: {name: "Use lambda-case"}

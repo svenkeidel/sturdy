@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 library
   ghc-options:         -Wall
   exposed-modules:     Data.Order,
+                       Data.AbstractPowerset,
                        Data.Boolean,
                        Data.Bounded,
                        Data.InfiniteNumbers,

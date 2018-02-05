@@ -2,7 +2,7 @@
 module Pretty.PCF where
 
 import WildcardSemantics
-import Text.PrettyPrint hiding (sep)
+import Text.PrettyPrint
 
 ppPCF :: Term -> Doc
 ppPCF t = case t of

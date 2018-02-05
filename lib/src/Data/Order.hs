@@ -196,3 +196,4 @@ instance LowerBounded a => LowerBounded (Identity a) where
 
 instance Complete a => Complete (Identity a) where
   Identity x ⊔ Identity y = Identity $ x ⊔ y
+  

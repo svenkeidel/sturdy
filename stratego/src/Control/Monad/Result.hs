@@ -3,16 +3,15 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Monad.Result where
 
-import           Prelude hiding (fail)
 import           Control.Applicative
-import           Control.Monad hiding (fail)
-import           Control.Monad.Trans
-import           Control.Monad.State hiding (fail)
-import           Control.Monad.Reader hiding (fail)
+import           Control.Monad
 import           Control.Monad.Deduplicate
-import           Control.Monad.Try
+import           Control.Monad.Except
 import           Control.Monad.Join (MonadJoin)
 import qualified Control.Monad.Join as J
+import           Control.Monad.Reader
+import           Control.Monad.State
+import           Control.Monad.Try
 
 import           Data.Result
 import           Data.Order
@@ -48,7 +47,6 @@ instance MonadReader r m => MonadReader r (ResultT m) where
   local = mapResultT . local
 
 instance Monad m => MonadTry (ResultT m) where
-  fail = ResultT (return fail)
   try (ResultT f) g (ResultT h) = ResultT $ do
     r <- f
     case r of
@@ -75,3 +73,10 @@ instance PreOrd (m (Result a)) => PreOrd (ResultT m a) where
 instance Complete (m (Result a)) => Complete (ResultT m a) where
   (ResultT m1) ⊔ (ResultT m2) = ResultT (m1 ⊔ m2)
 
+instance MonadError () m => MonadError () (ResultT m) where
+  throwError _ = ResultT $ return Fail
+  catchError m h = ResultT $ do
+    r <- runResultT m
+    case r of
+      Fail -> runResultT (h ())
+      Success a -> return (Success a)

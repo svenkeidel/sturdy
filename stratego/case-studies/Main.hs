@@ -2,8 +2,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import           Prelude hiding (log)
-
 import           Syntax hiding (Fail)
 import qualified WildcardSemantics as W
 import qualified Data.AbstractPowerset as W
@@ -13,7 +11,7 @@ import qualified Pretty.Haskell as H
 -- import qualified Pretty.PCF as P
 import           Pretty.Results
 
-import           Paths_system_s
+import           Paths_sturdy_stratego
 
 import           Control.Monad
 import qualified Criterion.Measurement as CM
@@ -31,7 +29,7 @@ import qualified Data.Term as T
 
 import           System.IO
 
-import           Text.PrettyPrint hiding (sep,(<>))
+import           Text.PrettyPrint
 import           Text.Printf
 
 main :: IO ()

@@ -4,8 +4,7 @@ import WildcardSemantics
 
 import Data.Foldable
 
-import Text.PrettyPrint hiding (sep)
-
+import Text.PrettyPrint
 
 ppResults :: (Functor f, Foldable f) => (Term -> Doc) -> f Term -> Doc
 ppResults ppTerm res = braces

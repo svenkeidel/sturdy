@@ -23,7 +23,6 @@ library
                        Control.Monad.Result,
                        Data.ATerm,
                        Data.Constructor,
-                       Data.AbstractPowerset,
                        Data.Result,
                        Data.Complete,
                        Data.TypedResult,
@@ -38,37 +37,32 @@ library
                        SharedSemantics,
                        ConcreteSemantics,
                        WildcardSemantics,
-                       Soundness
-  build-depends:       base,
-                       sturdy-lib,
-                       deepseq,
-                       QuickCheck,
-                       attoparsec,
+                       Soundness,
+                       Paths_sturdy_stratego
+  build-depends:       attoparsec,
+                       base,
                        containers,
-                       hashable,
+                       deepseq,
                        fgl,
-                       unordered-containers,
+                       hashable,
                        mtl,
-                       pretty,
-                       text
+                       sturdy-lib,
+                       text,
+                       transformers,
+                       unordered-containers,
+                       QuickCheck
   hs-source-dirs:      src
   default-language:    Haskell2010
 
 Executable case-studies
   ghc-options:         -Wall
   Build-Depends:       base,
-                       deepseq,
-                       QuickCheck,
-                       attoparsec,
-                       containers,
                        criterion,
-                       hashable,
-                       unordered-containers,
-                       mtl,
                        pretty,
+                       sturdy-lib,
+                       sturdy-stratego,
                        text,
-                       vector,
-                       sturdy-stratego
+                       unordered-containers
   hs-source-dirs:      case-studies
   main-is:             Main.hs
   default-language:    Haskell2010
@@ -79,13 +73,10 @@ test-suite specs
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base,
-                       sturdy-stratego,
-                       containers,
-                       hashable,
-                       unordered-containers,
                        hspec,
-                       QuickCheck,
-                       pretty,
-                       mtl,
-                       text
+                       sturdy-lib,
+                       sturdy-stratego,
+                       text,
+                       unordered-containers,
+                       QuickCheck
   default-language:    Haskell2010

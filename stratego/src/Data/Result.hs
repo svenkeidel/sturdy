@@ -3,13 +3,12 @@
 {-# LANGUAGE Arrows #-}
 module Data.Result where
 
-import Prelude hiding (map)
-
-import Control.Monad
-import Control.Monad.Try
-import Control.Monad.Deduplicate
 import Control.Applicative
 import Control.Arrow
+import Control.Monad
+import Control.Monad.Deduplicate
+import Control.Monad.Except
+import Control.Monad.Try
 
 import Data.Hashable
 import Data.Semigroup
@@ -57,7 +56,6 @@ instance MonadPlus Result where
   mplus Fail r = r
 
 instance MonadTry Result where
-  fail = Fail
   try Fail _ m2 = m2
   try (Success a) k _ = k a
 
@@ -86,3 +84,8 @@ instance PreOrd a => PreOrd (Result a) where
 instance Galois x y => Galois (Result x) (Result y) where
   alpha = fmap alpha
   gamma = fmap gamma
+
+instance MonadError () Result where
+  throwError _ = Fail
+  catchError Fail f = f ()
+  catchError a _ = a

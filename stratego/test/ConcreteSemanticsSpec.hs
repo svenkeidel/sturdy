@@ -5,13 +5,12 @@
 module ConcreteSemanticsSpec(main, spec) where
 
 import           Prelude hiding (map)
-import qualified Prelude as P
 
 import           ConcreteSemantics
 import           Syntax hiding (Fail,TermPattern(..))
 import qualified Syntax as T
 
-import           Paths_system_s
+import           Paths_sturdy_stratego
 
 import           Control.Monad
 
@@ -149,9 +148,7 @@ spec = do
     parseArrowCaseStudy = do
       file <- TIO.readFile =<< getDataFileName "case-studies/arrows/arrows.aterm"
       case parseModule =<< parseATerm file of
-        Left e -> P.fail (show e)
+        Left e -> fail (show e)
         Right module_ -> return module_
 
     tup x y = Cons "" [x,y]
-
-

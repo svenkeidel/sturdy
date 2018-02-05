@@ -4,7 +4,6 @@
 {-# LANGUAGE Arrows #-}
 module Data.TermEnv where
 
-import           Prelude hiding ((.),id,map)
 import           Syntax (TermVar)
 
 import           Control.Category

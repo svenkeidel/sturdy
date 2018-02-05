@@ -9,8 +9,6 @@ import qualified Data.Powerset as P
 import qualified Data.AbstractPowerset as A
 
 import           Test.Hspec
-import           Test.Hspec.QuickCheck
-import           Test.QuickCheck hiding (Result(..))
 
 main :: IO ()
 main = hspec spec

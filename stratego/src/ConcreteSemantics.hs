@@ -11,7 +11,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module ConcreteSemantics where
 
-import           Prelude hiding (id,(.),fail,all,curry,uncurry)
+import           Prelude hiding ((.),uncurry)
 
 -- import           InterpreterArrow
 import           SharedSemantics
@@ -21,28 +21,26 @@ import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
 
 import           Control.Arrow
-import           Control.Arrow.Fix
-import           Control.Arrow.Try
 import           Control.Arrow.Apply
 import           Control.Arrow.Debug
 import           Control.Arrow.Deduplicate
-import           Control.Monad.Reader hiding (fail)
-import           Control.Monad.State hiding (fail)
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Try
 import           Control.Category
+import           Control.Monad.Reader
+import           Control.Monad.State
 
 import           Data.Constructor
+import           Data.Foldable (foldr')
+import           Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as M
+import           Data.Hashable
 import           Data.Result
 import           Data.String (IsString(..))
 import           Data.Term (IsTerm(..),TermUtils(..))
 import           Data.TermEnv
 import           Data.Text (Text)
-import           Data.Order
-import           Data.Stack
-import           Data.Complete
-import           Data.Foldable (foldr')
-import           Data.Hashable
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as M
 
 import           Test.QuickCheck hiding (Result(..))
 
@@ -72,8 +70,11 @@ eval = runInterp . eval'
 liftK :: (a -> _ b) -> Interp a b
 liftK f = Interp (Kleisli f)
 
-instance ArrowFix Interp Term where
-  fixA f = f (fixA f)
+instance ArrowFix' Interp Term where
+  fixA' f = f (fixA' f)
+
+instance ArrowFail () Interp where
+  failA = Interp failA
 
 instance ArrowDebug Interp where
   debug s f = proc a -> do

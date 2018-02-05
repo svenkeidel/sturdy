@@ -8,27 +8,29 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module WildcardSemantics where
 
-import           Prelude hiding (id,fail,concat,sequence,(.),uncurry)
+import           Prelude hiding ((.),uncurry)
 
-import           SharedSemantics
 import qualified ConcreteSemantics as C
-import           Utils
-import           Syntax hiding (Fail,TermPattern(..))
+import           SharedSemantics
 import           Soundness
+import           Syntax hiding (Fail,TermPattern(..))
+import           Utils
     
 import           Control.Arrow
 import           Control.Arrow.Apply
 import           Control.Arrow.Try
 import           Control.Arrow.Fix
+import           Control.Arrow.Fail
 import           Control.Arrow.Deduplicate
+import           Control.Arrow.Utils (failA')
 import           Control.Category
 import           Control.DeepSeq
-import           Control.Monad.Reader hiding (fail,sequence)
+import           Control.Monad.Reader
 import           Control.Monad.Result
-import           Control.Monad.State hiding (fail,sequence)
-import           Control.Monad.Deduplicate
+import           Control.Monad.State
 
 import           Data.Constructor
+import           Data.Error
 import           Data.Foldable (foldr')
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
@@ -71,6 +73,9 @@ emptyEnv :: TermEnv
 emptyEnv = TermEnv M.empty
 
 -- Instances -----------------------------------------------------------------------------------------
+instance ArrowFail () Interp where
+  failA = Interp failA
+
 instance HasStratEnv Interp where
   readStratEnv = liftK (const (fst <$> ask))
   localStratEnv senv (Interp (Kleisli f)) = liftK (local (first (const senv)) . f)
@@ -98,7 +103,7 @@ instance IsTerm Term Interp where
       returnA -< Cons c ts''
     Wildcard -> do
       ts'' <- matchSubterms -< (ts,[ Wildcard | _ <- [1..(length ts)] ])
-      returnA ⊔ failA -< Cons c ts''
+      returnA ⊔ failA' -< Cons c ts''
     _ -> failA -< ()
   
   matchTermAgainstString = proc (s,t) -> case t of
@@ -106,16 +111,16 @@ instance IsTerm Term Interp where
       | s == s' -> returnA -< t
       | otherwise -> failA -< ()
     Wildcard ->
-      returnA ⊔ failA -< StringLiteral s
-    _ -> failA -< ()
+      returnA ⊔ failA' -< StringLiteral s
+    _ -> failA' -< ()
   
   matchTermAgainstNumber = proc (n,t) -> case t of
     NumberLiteral n'
       | n == n' -> returnA -< t
       | otherwise -> failA -< ()
     Wildcard ->
-      success ⊔ failA -< NumberLiteral n
-    _ -> failA -< ()
+      success ⊔ failA' -< NumberLiteral n
+    _ -> failA' -< ()
   
   matchTermAgainstExplode matchCons matchSubterms = proc t -> case t of
       Cons (Constructor c) ts -> do
@@ -152,15 +157,15 @@ instance IsTerm Term Interp where
       (NumberLiteral n, NumberLiteral n')
           | n == n' -> success -< t1
           | otherwise -> failA -< ()
-      (Wildcard, t) -> failA ⊔ success -< t
-      (t, Wildcard) -> failA ⊔ success -< t
-      (_,_) -> failA -< ()
+      (Wildcard, t) -> failA' ⊔ success -< t
+      (t, Wildcard) -> failA' ⊔ success -< t
+      (_,_) -> failA' -< ()
   
   convertFromList = proc (c,ts) -> case (c,go ts) of
     (StringLiteral c', Just ts'') -> returnA -< Cons (Constructor c') ts''
-    (Wildcard, Just _)            -> failA ⊔ success -< Wildcard
-    (_,                Nothing)   -> failA ⊔ success -< Wildcard
-    _                             -> failA -< ()
+    (Wildcard, Just _)            -> failA' ⊔ success -< Wildcard
+    (_,                Nothing)   -> failA' ⊔ success -< Wildcard
+    _                             -> failA' -< ()
     where
       go t = case t of
         Cons "Cons" [x,tl] -> (x:) <$> go tl
@@ -175,7 +180,7 @@ instance IsTerm Term Interp where
         returnA -< Cons c ts'
       StringLiteral _ -> returnA -< t
       NumberLiteral _ -> returnA -< t
-      Wildcard -> failA ⊔ success -< Wildcard
+      Wildcard -> failA' ⊔ success -< Wildcard
   
   
   cons = arr (uncurry Cons)
@@ -183,14 +188,14 @@ instance IsTerm Term Interp where
   stringLiteral = arr StringLiteral
 
 instance UpperBounded (Interp () Term) where
-  top = proc () -> success ⊔ failA -< Wildcard
+  top = proc () -> success ⊔ failA' -< Wildcard
 
-instance ArrowFix Interp Term where
-  fixA f z = proc x -> do
+instance ArrowFix' Interp Term where
+  fixA' f z = proc x -> do
     i <- getFuel -< ()
     if i <= 0
     then top -< ()
-    else localFuel (f (fixA f) z) -< (i-1,x)
+    else localFuel (f (fixA' f) z) -< (i-1,x)
     where
       getFuel = liftK (const (snd <$> ask))
       localFuel (Interp (Kleisli g)) = liftK $ \(i,a) -> local (second (const i)) (g a)
@@ -198,9 +203,9 @@ instance ArrowFix Interp Term where
 instance Soundness Interp where
   sound senv xs f g = forAll (choose (0,3)) $ \i ->
     let con :: A.Pow (Result (_,TermEnv))
-        con = P.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
+        con = A.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
         abst :: A.Pow (Result (_,TermEnv))
-        abst = P.dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+        abst = A.dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 instance UpperBounded Term where
@@ -246,6 +251,12 @@ instance Complete Term where
     (Wildcard, _) -> Wildcard
     (_, Wildcard) -> Wildcard
     (_, _) -> Wildcard
+
+instance LowerBounded Term where
+  bottom = undefined
+
+instance LowerBounded TermEnv where
+  bottom = emptyEnv
 
 instance Galois (P.Pow C.Term) Term where
   alpha = lub . fmap go
@@ -313,7 +324,7 @@ dom = M.keys
 
 instance PreOrd TermEnv where
   TermEnv env1 ⊑ TermEnv env2 =
-    Prelude.all (\v -> M.lookup v env1 ⊑ M.lookup v env2) (dom env2)
+    Prelude.all (\v -> fromMaybe (M.lookup v env1) ⊑ fromMaybe (M.lookup v env2)) (dom env2)
 
 instance Complete TermEnv where
   TermEnv env1' ⊔ TermEnv env2' = go (dom env1') env1' env2' M.empty

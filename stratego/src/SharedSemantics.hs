@@ -6,7 +6,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 module SharedSemantics where
 
-import           Prelude hiding (fail,(.),id,sum,flip,uncurry,all,sequence)
+import           Prelude hiding (id,all,sequence)
 
 import           Syntax hiding (Fail,TermPattern(..))
 import           Syntax (TermPattern)
@@ -14,9 +14,11 @@ import qualified Syntax as S
 import           Utils
 
 import           Control.Arrow
-import           Control.Arrow.Try
-import           Control.Arrow.Fix
 import           Control.Arrow.Deduplicate
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Try
+import           Control.Arrow.Utils hiding (mapA,zipWithA)
 import           Control.Category
 
 import qualified Data.HashMap.Lazy as M
@@ -27,13 +29,13 @@ import           Data.Hashable
 import           Text.Printf
 
 -- Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowTry c, ArrowPlus c, ArrowApply c, ArrowFix c t,
-          ArrowDeduplicate c, Eq t, Hashable t, 
+eval' :: (ArrowChoice c, ArrowTry c, ArrowPlus c, ArrowApply c, ArrowFix' c t,
+          ArrowFail () c, ArrowDeduplicate c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c)
       => (Strat -> c t t)
-eval' = fixA $ \ev s0 -> dedupA $ case s0 of
+eval' = fixA' $ \ev s0 -> dedupA $ case s0 of
     Id -> id
-    S.Fail -> failA
+    S.Fail -> failA'
     Seq s1 s2 -> sequence (ev s1) (ev s2)
     GuardedChoice s1 s2 s3 -> guardedChoice (ev s1) (ev s2) (ev s3)
     One s -> mapSubterms (one (ev s))
@@ -51,14 +53,14 @@ guardedChoice = tryA
 sequence :: Category c => c x y -> c y z -> c x z
 sequence f g = f >>> g
 
-one :: (ArrowChoice c, ArrowTry c, ArrowPlus c) => c t t -> c [t] [t]
+one :: (ArrowChoice c, ArrowFail () c, ArrowTry c, ArrowPlus c) => c t t -> c [t] [t]
 one f = proc l -> case l of
   (t:ts) -> do
     (t',ts') <- first f <+> second (one f) -< (t,ts)
     returnA -< (t':ts')
   [] -> failA -< ()
 
-some :: (ArrowChoice c, ArrowTry c) => c t t -> c [t] [t]
+some :: (ArrowChoice c, ArrowFail () c, ArrowTry c) => c t t -> c [t] [t]
 some f = go
   where
     go = proc l -> case l of
@@ -91,7 +93,7 @@ let_ ss body interp = proc a -> do
   senv <- readStratEnv -< ()
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a 
 
-call :: (ArrowChoice c, ArrowTry c, ArrowPlus c, ArrowApply c,
+call :: (ArrowChoice c, ArrowFail () c, ArrowTry c, ArrowPlus c, ArrowApply c,
          IsTermEnv env t c, HasStratEnv c)
      => StratVar
      -> [Strat]
@@ -148,7 +150,7 @@ match = proc (p,t) -> case p of
   S.NumberLiteral n ->
     matchTermAgainstNumber -< (n,t)
 
-build :: (ArrowChoice c, ArrowTry c, IsTerm t c, IsTermEnv env t c)
+build :: (ArrowChoice c, ArrowFail () c, ArrowTry c, IsTerm t c, IsTermEnv env t c)
       => c TermPattern t
 build = proc p -> case p of
   S.As _ _ -> error "As-pattern in build is disallowed" -< ()

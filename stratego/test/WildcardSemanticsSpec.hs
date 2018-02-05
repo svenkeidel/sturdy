@@ -124,4 +124,4 @@ spec = do
               (Build (Cons "Nil" []))))
 
     weval :: Int -> Strat -> W.Term -> A.Pow (Result (W.Term,W.TermEnv))
-    weval i s t = W.eval i s M.empty (W.TermEnv M.empty) t
+    weval i s = W.eval i s M.empty (W.TermEnv M.empty)
