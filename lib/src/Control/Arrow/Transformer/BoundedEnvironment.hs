@@ -3,12 +3,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.BoundedEnvironment(ArrowAlloc(..),BoundedEnv,runBoundedEnv,liftBoundedEnv) where
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Class.Alloc
 import           Control.Arrow.Class.Environment
 import           Control.Arrow.Class.Reader
 import           Control.Arrow.Class.State
@@ -20,9 +21,6 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
 import           Data.Hashable
 import           Data.Order
-
-class Arrow c => ArrowAlloc x addr c | c -> x, c -> addr where
-  alloc :: c x addr
 
 newtype BoundedEnv a addr b c x y = BoundedEnv ( ReaderArrow (HashMap a addr) (StateArrow (HashMap addr b) c) x y )
   deriving (Category,Arrow,ArrowChoice)
@@ -61,6 +59,9 @@ instance ArrowState s c => ArrowState s (BoundedEnv a addr b c) where
 instance ArrowFail e c => ArrowFail e (BoundedEnv a addr b c) where
   failA = liftBoundedEnv failA
 
+instance ArrowApply c => ArrowApply (BoundedEnv a addr b c) where
+  app = BoundedEnv $ (\(BoundedEnv f,x) -> (f,x)) ^>> app
+
 getStore :: Arrow c => BoundedEnv a addr b c () (HashMap addr b)
 getStore = BoundedEnv getA
 {-# INLINE getStore #-}
@@ -68,3 +69,9 @@ getStore = BoundedEnv getA
 putStore :: Arrow c => BoundedEnv a addr b c (HashMap addr b) ()
 putStore = BoundedEnv putA
 {-# INLINE putStore #-}
+
+deriving instance PreOrd (c (HashMap addr b,(HashMap a addr,x)) (HashMap addr b,y)) => PreOrd (BoundedEnv a addr b c x y)
+deriving instance Complete (c (HashMap addr b,(HashMap a addr,x)) (HashMap addr b,y)) => Complete (BoundedEnv a addr b c x y)
+deriving instance CoComplete (c (HashMap addr b,(HashMap a addr,x)) (HashMap addr b,y)) => CoComplete (BoundedEnv a addr b c x y)
+deriving instance LowerBounded (c (HashMap addr b,(HashMap a addr,x)) (HashMap addr b,y)) => LowerBounded (BoundedEnv a addr b c x y)
+deriving instance UpperBounded (c (HashMap addr b,(HashMap a addr,x)) (HashMap addr b,y)) => UpperBounded (BoundedEnv a addr b c x y)

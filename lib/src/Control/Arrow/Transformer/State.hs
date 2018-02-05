@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.State(StateArrow(..),liftState) where
 
 import Prelude hiding (id,(.))
@@ -47,18 +49,8 @@ instance ArrowReader r c => ArrowReader r (StateArrow s c) where
   askA = liftState askA
   localA (StateArrow f) = StateArrow $ (\(s,(r,x)) -> (r,(s,x))) ^>> localA f
 
-instance PreOrd (c (s,x) (s,y)) => PreOrd (StateArrow s c x y) where
-  StateArrow f ⊑ StateArrow g = f ⊑ g
-
-instance LowerBounded (c (s,x) (s,y)) => LowerBounded (StateArrow s c x y) where
-  bottom = StateArrow bottom
-
-instance Complete (c (s,x) (s,y)) => Complete (StateArrow s c x y) where
-  StateArrow f ⊔ StateArrow g = StateArrow (f ⊔ g)
-
-instance CoComplete (c (s,x) (s,y)) => CoComplete (StateArrow s c x y) where
-  StateArrow f ⊓ StateArrow g = StateArrow (f ⊓ g)
-
-instance UpperBounded (c (s,x) (s,y)) => UpperBounded (StateArrow s c x y) where
-  top = StateArrow top
-
+deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (StateArrow s c x y)
+deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (StateArrow s c x y)
+deriving instance Complete (c (s,x) (s,y)) => Complete (StateArrow s c x y)
+deriving instance CoComplete (c (s,x) (s,y)) => CoComplete (StateArrow s c x y)
+deriving instance UpperBounded (c (s,x) (s,y)) => UpperBounded (StateArrow s c x y)

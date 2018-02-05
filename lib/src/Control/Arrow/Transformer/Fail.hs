@@ -1,9 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.Fail(ErrorArrow(..),liftError) where
 
-import           Prelude hiding (id,(.))
+import           Prelude hiding (id)
 
 import           Control.Category
 import           Control.Arrow
@@ -74,18 +76,8 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (ErrorArrow e c) wher
   askA = liftError askA
   localA (ErrorArrow f) = ErrorArrow (localA f)
 
-instance PreOrd (c x (Error e y)) => PreOrd (ErrorArrow e c x y) where
-  ErrorArrow f ⊑ ErrorArrow g = f ⊑ g
-
-instance LowerBounded (c x (Error e y)) => LowerBounded (ErrorArrow e c x y) where
-  bottom = ErrorArrow bottom
-
-instance Complete (c x (Error e y)) => Complete (ErrorArrow e c x y) where
-  ErrorArrow f ⊔ ErrorArrow g = ErrorArrow (f ⊔ g)
-
-instance CoComplete (c x (Error e y)) => CoComplete (ErrorArrow e c x y) where
-  ErrorArrow f ⊓ ErrorArrow g = ErrorArrow (f ⊓ g)
-
-instance UpperBounded (c x (Error e y)) => UpperBounded (ErrorArrow e c x y) where
-  top = ErrorArrow top
-
+deriving instance PreOrd (c x (Error e y)) => PreOrd (ErrorArrow e c x y)
+deriving instance LowerBounded (c x (Error e y)) => LowerBounded (ErrorArrow e c x y)
+deriving instance Complete (c x (Error e y)) => Complete (ErrorArrow e c x y)
+deriving instance CoComplete (c x (Error e y)) => CoComplete (ErrorArrow e c x y)
+deriving instance UpperBounded (c x (Error e y)) => UpperBounded (ErrorArrow e c x y)

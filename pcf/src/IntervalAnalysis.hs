@@ -40,7 +40,7 @@ type Addr = Int
 type Interp = ReaderArrow IV (BoundedEnv Text Addr Val (ErrorArrow String (->)))
 
 evalInterval :: IV -> Env -> Expr -> Error String Val
-evalInterval bound env e = runErrorArrow (runReaderArrow eval) ((bound,env),e)
+evalInterval bound env e = _ (runReaderArrow eval)
 
 instance ArrowFix Expr Val Interp where
   fixA = undefined
