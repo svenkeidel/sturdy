@@ -32,14 +32,6 @@ evalConcrete env e = runErrorArrow (runReaderArrow eval) (env,e)
 instance ArrowFix Expr Val Interp where
   fixA f = f (fixA f)
 
-instance IsEnv Env Val Interp where
-  getEnv = askA
-  lookup = proc x -> do
-    env <- getEnv -< ()
-    case M.lookup x env of
-      Just v -> returnA -< v
-      Nothing -> failA -< "Variable " ++ show x ++ " not bound"
-
 instance IsVal Val Interp where
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal (n + 1)

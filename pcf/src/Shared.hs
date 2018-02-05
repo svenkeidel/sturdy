@@ -10,15 +10,22 @@ import qualified PCF as E
 
 import           Control.Arrow
 import           Control.Arrow.Fix
+import           Control.Arrow.Fail
+import           Control.Arrow.Environment
 
 import           Data.HashMap.Lazy (HashMap)
-import           Data.Text (Text)
+import           Data.Text (Text,unpack)
+import           Text.Printf
 
 type Env v = HashMap Text v
 
-eval :: (ArrowChoice c, ArrowFix Expr v c, IsEnv (Env v) v c, IsVal v c) => c Expr v
+eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v (Env v) c, ArrowFail String c, IsVal v c) => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
-  E.Var x -> lookup -< x
+  E.Var x -> do
+    m <- lookup -< x
+    case m of
+      Just v -> returnA -< v
+      Nothing -> failA -< printf "variable %s not in scope" (unpack x)
   E.Lam x e -> do
     env <- getEnv -< ()
     closure -< (x, e, env)
@@ -37,11 +44,6 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
   E.IfZero e1 e2 e3 -> do
     v1 <- ev -< e1
     ifZero ev ev -< (v1, (e2, e3))
-
--- TODO: v -> env should go now that the shared interpreter does not define Val anymore?
-class Arrow c => IsEnv env v c | v -> env, env -> v where
-  getEnv :: c () env
-  lookup :: c Text v
 
 class Arrow c => IsVal v c | c -> v where
   succ :: c v v

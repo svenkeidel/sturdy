@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.State where
+module Control.Arrow.Transformer.State(StateArrow(..),liftState) where
 
 import Prelude hiding (id,(.))
 

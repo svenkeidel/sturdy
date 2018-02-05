@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Fail where
+module Control.Arrow.Transformer.Fail(ErrorArrow(..),liftError) where
 
 import           Prelude hiding (id,(.))
 

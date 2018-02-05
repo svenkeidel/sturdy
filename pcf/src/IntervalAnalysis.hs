@@ -11,6 +11,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
+import           Control.Arrow.Environment
 import           Control.Arrow.Utils
 import           Data.Error
 import           Data.Foldable (toList)
@@ -35,7 +36,8 @@ data Closure = Closure Text Expr Env deriving (Eq,Show,Generic)
 data Val = Bot | NumVal (Bounded IV) | ClosureVal (Pow Closure) | Top deriving (Eq, Show, Generic)
 type Env = M.HashMap Text Val
 
-type Interp = ReaderArrow (IV,Env) (ErrorArrow String (->))
+type Addr = Int
+type Interp = ReaderArrow IV (BoundedEnv Text Addr Val (ErrorArrow String (->)))
 
 evalInterval :: IV -> Env -> Expr -> Error String Val
 evalInterval bound env e = runErrorArrow (runReaderArrow eval) ((bound,env),e)
@@ -46,14 +48,6 @@ instance ArrowFix Expr Val Interp where
 instance Widening Val where
   NumVal v1 ▽ NumVal v2 = NumVal (v1 ▽ v2)
   v1 ▽ v2 = v1 ⊔ v2
-
-instance IsEnv Env Val Interp where
-  getEnv = askA >>> pi2
-  lookup = proc x -> do
-    env <- getEnv -< ()
-    case M.lookup x env of
-      Just v -> returnA -< v
-      Nothing -> failA -< "Variable " ++ show x ++ " not bound"
 
 instance IsVal Val Interp where
   succ = proc x -> case x of
