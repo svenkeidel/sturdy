@@ -10,8 +10,14 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as S
+import           Text.Printf
 
 newtype Store a b = Store (HashMap a b) deriving (Functor,Foldable,Traversable)
+
+instance (Show a,Show b) => Show (Store a b) where
+  show (Store h)
+    | H.null h = "[]"
+    | otherwise = "[" ++ init (unwords [ printf "%s -> %s," (show k) (show v) | (k,v) <- H.toList h]) ++ "]"
 
 instance (Eq a, Hashable a, PreOrd b) => PreOrd (Store a b) where
   Store m1 ⊑ Store m2 = subsetKeys m1 m2 && all (\(k,v1) -> v1 ⊑ (m2 H.! k)) (H.toList m1)

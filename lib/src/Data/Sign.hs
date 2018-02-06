@@ -5,16 +5,20 @@ import Data.Order
 import Data.Hashable
 import GHC.Generics
 
-data Sign = Negative | Zero | Positive | Top
+data Sign = Bot | Negative | Zero | Positive | Top
   deriving (Show,Eq,Generic)
 
 instance Num Sign where
+  Bot + _ = Bot
+  _ + Bot = Bot
   Negative + Negative = Negative
   Positive + Positive = Positive
   Zero + x = x
   x + Zero = x
   _ + _ = Top
 
+  Bot * _ = Bot
+  _ * Bot = Bot
   Negative * Negative = Positive
   Positive * Negative = Negative
   Negative * Positive = Negative
@@ -28,6 +32,7 @@ instance Num Sign where
   negate Positive = Negative
   negate Negative = Positive
   negate Top = Top
+  negate Bot = Bot
 
   abs Zero = Zero
   abs _ = Positive
@@ -36,6 +41,7 @@ instance Num Sign where
   signum Positive = Positive
   signum Zero = Zero
   signum Top = Top
+  signum Bot = Bot
 
   fromInteger n
     | n == 0 = Zero
@@ -43,13 +49,22 @@ instance Num Sign where
     | otherwise = Positive
 
 instance PreOrd Sign where
+  Bot ⊑ _ = True
   _ ⊑ Top = True
   _ ⊑ _ = False
 
 instance Complete Sign where
+  Bot ⊔ y = y
+  x ⊔ Bot = x
   Negative ⊔ Negative = Negative
   Zero ⊔ Zero = Zero
   Positive ⊔ Positive = Positive
   _ ⊔ _ = Top
+
+instance LowerBounded Sign where
+  bottom = Bot
+
+instance UpperBounded Sign where
+  top = Top
 
 instance Hashable Sign

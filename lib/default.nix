@@ -1,5 +1,5 @@
-{ mkDerivation, base, containers, hashable, mtl, numeric-limits
-, stdenv, text, unordered-containers
+{ mkDerivation, base, containers, hashable, hspec, mtl
+, numeric-limits, stdenv, text, unordered-containers
 }:
 mkDerivation {
   pname = "sturdy-lib";
@@ -9,5 +9,6 @@ mkDerivation {
     base containers hashable mtl numeric-limits text
     unordered-containers
   ];
+  testHaskellDepends = [ base hspec text unordered-containers ];
   license = stdenv.lib.licenses.bsd3;
 }

@@ -25,6 +25,9 @@ import           Data.Order
 import           Data.Store (Store)
 import qualified Data.Store as S
 
+import           Debug.Trace
+import           Text.Printf
+
 newtype CacheArrow a b c x y = CacheArrow (c ((Store a b,Store a b),x) (Store a b,y))
 
 runCacheArrow :: Arrow c => CacheArrow a b c x y -> c x y
@@ -68,15 +71,14 @@ instance ArrowEnv a b env c => ArrowEnv a b env (CacheArrow x y c) where
   extendEnv = liftCache extendEnv
   localEnv (CacheArrow f) = CacheArrow $ (\(s,(env,a)) -> (env,(s,a))) ^>> localEnv f
 
-instance (Eq a, Hashable a, LowerBounded b, Complete b, ArrowChoice c) => ArrowFix a b (CacheArrow a b c) where
+instance (Show a, Show b, Eq a, Hashable a, LowerBounded b, Complete b, ArrowChoice c) => ArrowFix a b (CacheArrow a b c) where
   fixA f = proc x -> do
-    y <- retireCache (fix (f . memoize)) -< x
-    fp <- reachedFixpoint -< ()
+    (y,fp) <- retireCache (fix (f . memoize) &&& reachedFixpoint) -< x
     if fp
     then returnA -< y
-    else fix f -< x
+    else fixA f -< x
 
-memoize :: (Eq a, Hashable a, LowerBounded b, Complete b, ArrowChoice c) => CacheArrow a b c a b -> CacheArrow a b c a b
+memoize :: (Show a, Show b, Eq a, Hashable a, LowerBounded b, Complete b, ArrowChoice c) => CacheArrow a b c a b -> CacheArrow a b c a b
 memoize f = proc x -> do
   m <- askCache -< x
   case m of
@@ -99,8 +101,8 @@ initializeCache = CacheArrow $ arr $ \((i,o),x) -> (S.insert x (fromMaybe bottom
 updateCache :: (Eq a, Hashable a, Complete b, Arrow c) => CacheArrow a b c (a,b) ()
 updateCache = CacheArrow $ arr $ \((_,o),(x,y)) -> (S.insertWith (⊔) x y o,())
 
-reachedFixpoint :: (Eq a, Hashable a, LowerBounded b, Arrow c) => CacheArrow a b c () Bool
-reachedFixpoint = CacheArrow $ arr $ \((i,o),()) -> (o,o ⊑ i)
+reachedFixpoint :: (Show a, Show b, Eq a, Hashable a, LowerBounded b, Arrow c) => CacheArrow a b c x Bool
+reachedFixpoint = CacheArrow $ arr $ \((i,o),_) -> (o,o ⊑ i)
 
 deriving instance PreOrd (c ((Store a b,Store a b),x) (Store a b,y)) => PreOrd (CacheArrow a b c x y)
 deriving instance Complete (c ((Store a b,Store a b),x) (Store a b,y)) => Complete (CacheArrow a b c x y)
