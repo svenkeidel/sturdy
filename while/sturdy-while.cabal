@@ -49,10 +49,12 @@ library
 
                        Props.UseDef.Prop
                        Props.UseDef.Concrete
+                       Props.UseDef.Interval
 
                        Props.UseDef.ReachingDefinitions.Prop
                        Props.UseDef.ReachingDefinitions.Concrete
                        Props.UseDef.ReachingDefinitions.Interval
+
 
 --                       Symbolic
 
