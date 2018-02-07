@@ -74,3 +74,9 @@ size = length
 
 instance MonadDeduplicate Pow where
   dedup = fromFoldable . toHashSet
+
+dedup :: (Hashable a, Eq a) => Pow a -> Pow a
+dedup = fromFoldable . toHashSet
+
+powmap :: (a -> b) -> Pow a -> Pow b
+powmap = fmap
