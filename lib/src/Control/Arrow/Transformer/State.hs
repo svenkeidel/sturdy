@@ -13,6 +13,7 @@ import Control.Arrow.Class.Fail
 import Control.Arrow.Class.State
 import Control.Arrow.Class.Reader
 import Control.Arrow.Class.Environment
+import Control.Arrow.Class.Config
 import Control.Arrow.Utils
 
 import Data.Order
@@ -55,6 +56,11 @@ instance ArrowEnv x y env c => ArrowEnv x y env (StateArrow r c) where
   getEnv = liftState getEnv
   extendEnv = liftState extendEnv
   localEnv (StateArrow f) = StateArrow ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
+
+instance ArrowConfig cIn cOut c => ArrowConfig (s,cIn) (s,cOut) (StateArrow s c) where
+  getInConfig = getA &&& liftState getInConfig
+  getOutConfig = getA &&& liftState getOutConfig
+  setOutConfig = voidA (putA *** liftState setOutConfig)
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (StateArrow s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (StateArrow s c x y)

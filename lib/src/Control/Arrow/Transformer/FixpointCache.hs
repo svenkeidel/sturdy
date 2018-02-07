@@ -5,6 +5,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MonoLocalBinds #-}
 module Control.Arrow.Transformer.FixpointCache(CacheArrow,runCacheArrow,liftCache) where
 
 import           Prelude hiding (id,(.),lookup)
@@ -16,6 +18,7 @@ import           Control.Arrow.Class.Reader
 import           Control.Arrow.Class.State
 import           Control.Arrow.Class.Fix
 import           Control.Arrow.Class.Environment
+import           Control.Arrow.Class.Config
 import           Control.Arrow.Utils
 import           Control.Category
 
@@ -24,9 +27,6 @@ import           Data.Maybe
 import           Data.Order
 import           Data.Store (Store)
 import qualified Data.Store as S
-
-import           Debug.Trace
-import           Text.Printf
 
 newtype CacheArrow a b c x y = CacheArrow (c ((Store a b,Store a b),x) (Store a b,y))
 
@@ -71,25 +71,32 @@ instance ArrowEnv a b env c => ArrowEnv a b env (CacheArrow x y c) where
   extendEnv = liftCache extendEnv
   localEnv (CacheArrow f) = CacheArrow $ (\(s,(env,a)) -> (env,(s,a))) ^>> localEnv f
 
-instance (Show a, Show b, Eq a, Hashable a, LowerBounded b, Complete b, ArrowChoice c) => ArrowFix a b (CacheArrow a b c) where
+instance ArrowConfig cIn cOut c => ArrowConfig cIn cOut (CacheArrow cIn cOut c) where
+
+
+instance (Eq x, Eq cIn, Hashable x, Hashable cIn, LowerBounded y, Complete y, LowerBounded cOut, Complete cOut, ArrowConfig cIn cOut c, ArrowChoice c) => ArrowFix x y (CacheArrow (x,cIn) (y,cOut) c) where
   fixA f = proc x -> do
     (y,fp) <- retireCache (fix (f . memoize) &&& reachedFixpoint) -< x
     if fp
     then returnA -< y
     else fixA f -< x
 
-memoize :: (Show a, Show b, Eq a, Hashable a, LowerBounded b, Complete b, ArrowChoice c) => CacheArrow a b c a b -> CacheArrow a b c a b
+memoize :: (Eq (x,cIn), Hashable (x,cIn), LowerBounded (y,cOut), Complete (y,cOut), ArrowConfig cIn cOut c, ArrowChoice c) => CacheArrow (x,cIn) (y,cOut) c x y -> CacheArrow (x,cIn) (y,cOut) c x y
 memoize f = proc x -> do
-  m <- askCache -< x
+  cIn <- liftCache getInConfig -< ()
+  m <- askCache -< (x,cIn)
   case m of
-    Just y -> returnA -< y
+    Just (y,cOut) -> do
+      liftCache setOutConfig -< cOut
+      returnA -< y
     Nothing -> do
-      initializeCache -< x
+      initializeCache -< (x,cIn)
       y <- f -< x
-      updateCache -< (x,y)
+      cOut <- liftCache getOutConfig -< ()
+      updateCache -< ((x,cIn),(y,cOut))
       returnA -< y
 
-askCache :: (Eq a, Hashable a, Arrow c) => CacheArrow a b c a (Maybe b)
+askCache :: (Eq x, Hashable x, Arrow c) => CacheArrow x y c x (Maybe y)
 askCache = CacheArrow $ arr $ \((_,o),x) -> (o,S.lookup x o)
 
 retireCache :: (Eq a, Hashable a, LowerBounded b, Arrow c) => CacheArrow a b c x y -> CacheArrow a b c x y
@@ -101,7 +108,7 @@ initializeCache = CacheArrow $ arr $ \((i,o),x) -> (S.insert x (fromMaybe bottom
 updateCache :: (Eq a, Hashable a, Complete b, Arrow c) => CacheArrow a b c (a,b) ()
 updateCache = CacheArrow $ arr $ \((_,o),(x,y)) -> (S.insertWith (⊔) x y o,())
 
-reachedFixpoint :: (Show a, Show b, Eq a, Hashable a, LowerBounded b, Arrow c) => CacheArrow a b c x Bool
+reachedFixpoint :: (Eq a, Hashable a, LowerBounded b, Arrow c) => CacheArrow a b c x Bool
 reachedFixpoint = CacheArrow $ arr $ \((i,o),_) -> (o,o ⊑ i)
 
 deriving instance PreOrd (c ((Store a b,Store a b),x) (Store a b,y)) => PreOrd (CacheArrow a b c x y)

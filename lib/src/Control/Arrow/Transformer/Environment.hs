@@ -19,6 +19,7 @@ import Control.Arrow.Class.Reader
 import Control.Arrow.Class.State
 import Control.Arrow.Class.Fail
 import Control.Arrow.Class.Environment
+import Control.Arrow.Class.Config
 
 newtype Environment a b c x y = Environment (ReaderArrow (HashMap a b) c x y)
   deriving (Category,Arrow,ArrowChoice)
@@ -50,6 +51,12 @@ instance (Eq a, Hashable a, Arrow c) => ArrowEnv a b (HashMap a b) (Environment 
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> H.insert x y env
   localEnv (Environment f) = Environment (localA f)
+
+instance (Eq a, Hashable a, ArrowConfig cIn cOut c) => ArrowConfig (HashMap a b,cIn) cOut (Environment a b c) where
+  getInConfig = getEnv &&& liftEnv getInConfig
+  getOutConfig = liftEnv getOutConfig
+  setOutConfig = liftEnv setOutConfig
+
 
 deriving instance PreOrd (c (HashMap a b,x) y) => PreOrd (Environment a b c x y)
 deriving instance Complete (c (HashMap a b,x) y) => Complete (Environment a b c x y)

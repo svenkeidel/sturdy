@@ -13,6 +13,7 @@ import           Control.Arrow.Class.Environment
 import           Control.Arrow.Class.Reader
 import           Control.Arrow.Class.State
 import           Control.Arrow.Class.Fail
+import           Control.Arrow.Class.Config
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils
@@ -79,6 +80,11 @@ getStore = BoundedEnv getA
 putStore :: Arrow c => BoundedEnv a addr b c (Store addr b) ()
 putStore = BoundedEnv putA
 {-# INLINE putStore #-}
+
+instance (Eq a, Hashable a, Eq addr, Hashable addr, Complete b, ArrowConfig cIn cOut c, ArrowApply c) => ArrowConfig (HashMap a addr,(Store addr b, cIn)) (Store addr b, cOut) (BoundedEnv a addr b c) where
+  getInConfig = getEnv &&& getStore &&& liftBoundedEnv getInConfig
+  getOutConfig = getStore &&& liftBoundedEnv getOutConfig
+  setOutConfig = voidA $ putStore *** liftBoundedEnv setOutConfig
 
 deriving instance PreOrd (c (Store addr b,((Alloc a addr b c,HashMap a addr),x)) (Store addr b,y)) => PreOrd (BoundedEnv a addr b c x y)
 deriving instance Complete (c (Store addr b,((Alloc a addr b c,HashMap a addr),x)) (Store addr b,y)) => Complete (BoundedEnv a addr b c x y)

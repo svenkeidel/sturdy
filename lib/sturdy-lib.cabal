@@ -49,6 +49,7 @@ library
                        Control.Arrow.Class.Fail,
                        Control.Arrow.Class.Fix,
                        Control.Arrow.Class.Environment,
+                       Control.Arrow.Class.Config,
                        Control.Arrow.Transformer.BoundedEnvironment,
                        Control.Arrow.Transformer.Environment,
                        Control.Arrow.Transformer.Reader,

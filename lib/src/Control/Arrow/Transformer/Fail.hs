@@ -13,6 +13,7 @@ import           Control.Arrow.Class.Fail
 import           Control.Arrow.Class.Reader
 import           Control.Arrow.Class.State
 import           Control.Arrow.Class.Environment
+import           Control.Arrow.Class.Config
 import           Control.Monad (join)
 
 import           Data.Error
@@ -82,6 +83,11 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (ErrorArrow e c
   getEnv = liftError getEnv
   extendEnv = liftError extendEnv
   localEnv (ErrorArrow f) = ErrorArrow (localEnv f)
+
+instance (ArrowChoice c, ArrowConfig cIn cOut c) => ArrowConfig cIn cOut (ErrorArrow e c) where
+  getInConfig = liftError getInConfig
+  getOutConfig = liftError getOutConfig
+  setOutConfig = liftError setOutConfig
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (ErrorArrow e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (ErrorArrow e c x y)

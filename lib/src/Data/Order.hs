@@ -91,6 +91,9 @@ instance Complete () where
 instance (PreOrd a,PreOrd b) => PreOrd (a,b) where
   (a1,b1) ⊑ (a2,b2) = a1 ⊑ a2 && b1 ⊑ b2 
 
+instance (LowerBounded a,LowerBounded b) => LowerBounded (a,b) where
+  bottom = (bottom,bottom)
+
 instance (Complete a, Complete b) => Complete (a,b) where
   (a1,b1) ⊔ (a2,b2) = (a1 ⊔ a2, b1 ⊔ b2)
 
