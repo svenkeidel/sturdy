@@ -14,7 +14,6 @@ import Control.Arrow.Class.Fail
 import Control.Arrow.Class.Reader
 import Control.Arrow.Class.State
 import Control.Arrow.Class.Environment
-import Control.Arrow.Class.Config
 import Control.Arrow.Class.Fix
 import Control.Arrow.Utils
 
@@ -57,11 +56,6 @@ instance ArrowEnv x y env c => ArrowEnv x y env (ReaderArrow r c) where
   getEnv = liftReader getEnv
   extendEnv = liftReader extendEnv
   localEnv (ReaderArrow f) = ReaderArrow ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
-
-instance ArrowConfig cIn cOut c => ArrowConfig (r,cIn) cOut (ReaderArrow r c) where
-  getInConfig = askA &&& liftReader getInConfig
-  getOutConfig = liftReader getOutConfig
-  setOutConfig = liftReader setOutConfig
 
 instance ArrowFix (r,x) y c => ArrowFix x y (ReaderArrow r c) where
   fixA f = ReaderArrow (fixA (runReaderArrow . f . ReaderArrow))

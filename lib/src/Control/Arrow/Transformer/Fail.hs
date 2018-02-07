@@ -13,7 +13,6 @@ import           Control.Arrow.Class.Fail
 import           Control.Arrow.Class.Reader
 import           Control.Arrow.Class.State
 import           Control.Arrow.Class.Environment
-import           Control.Arrow.Class.Config
 import           Control.Arrow.Class.Fix
 import           Control.Monad (join)
 
@@ -84,11 +83,6 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (ErrorArrow e c
   getEnv = liftError getEnv
   extendEnv = liftError extendEnv
   localEnv (ErrorArrow f) = ErrorArrow (localEnv f)
-
-instance (ArrowChoice c, ArrowConfig cIn cOut c) => ArrowConfig cIn cOut (ErrorArrow e c) where
-  getInConfig = liftError getInConfig
-  getOutConfig = liftError getOutConfig
-  setOutConfig = liftError setOutConfig
 
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (ErrorArrow e c) where
   fixA f = ErrorArrow (fixA (runErrorArrow . f . ErrorArrow))
