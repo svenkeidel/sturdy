@@ -33,6 +33,9 @@ instance Complete a => Complete (Error e a) where
 instance PreOrd a => LowerBounded (Error String a) where
   bottom = Error "Bottom"
 
+instance (PreOrd b, LowerBounded a) => LowerBounded (Error a b) where
+  bottom = Error bottom
+
 instance UpperBounded a => UpperBounded (Error e a) where
   top = Success top
 

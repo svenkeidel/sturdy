@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-module Data.Store(Store,subsetKeys,empty,lookup,insert,insertWith,(!),keys,toList) where
+module Data.Store(Store,subsetKeys,empty,lookup,insert,insertWith,(!),keys,toList,fromList) where
 
 import           Prelude hiding (lookup)
 
@@ -12,7 +12,7 @@ import           Data.HashSet (HashSet)
 import qualified Data.HashSet as S
 import           Text.Printf
 
-newtype Store a b = Store (HashMap a b) deriving (Functor,Foldable,Traversable)
+newtype Store a b = Store (HashMap a b) deriving (Eq,Functor,Foldable,Traversable)
 
 instance (Show a,Show b) => Show (Store a b) where
   show (Store h)
@@ -58,3 +58,6 @@ keys (Store m) = H.keys m
 
 toList :: Store a b -> [(a,b)]
 toList (Store m) = H.toList m
+
+fromList :: (Eq a, Hashable a) => [(a,b)] -> Store a b
+fromList l = Store (H.fromList l)

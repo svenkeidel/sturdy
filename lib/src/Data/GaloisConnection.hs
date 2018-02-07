@@ -9,7 +9,6 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Order
 import           Data.Powerset
-import           Data.Functor.Identity
 
 -- | A galois connection consisting of an abstraction function alpha
 -- and a concretization function gamma between two pre-ordered sets

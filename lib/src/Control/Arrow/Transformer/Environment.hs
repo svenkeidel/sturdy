@@ -7,6 +7,8 @@
 {-# LANGUAGE Arrows #-}
 module Control.Arrow.Transformer.Environment where
 
+import Prelude hiding ((.))
+
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
 import Data.Hashable
@@ -20,6 +22,7 @@ import Control.Arrow.Class.State
 import Control.Arrow.Class.Fail
 import Control.Arrow.Class.Environment
 import Control.Arrow.Class.Config
+import Control.Arrow.Class.Fix
 
 newtype Environment a b c x y = Environment (ReaderArrow (HashMap a b) c x y)
   deriving (Category,Arrow,ArrowChoice)
@@ -57,6 +60,8 @@ instance (Eq a, Hashable a, ArrowConfig cIn cOut c) => ArrowConfig (HashMap a b,
   getOutConfig = liftEnv getOutConfig
   setOutConfig = liftEnv setOutConfig
 
+instance (ArrowFix (HashMap a b,x) y c) => ArrowFix x y (Environment a b c) where
+  fixA f = Environment (ReaderArrow (fixA (runEnvironment . f . Environment . ReaderArrow)))
 
 deriving instance PreOrd (c (HashMap a b,x) y) => PreOrd (Environment a b c x y)
 deriving instance Complete (c (HashMap a b,x) y) => Complete (Environment a b c x y)

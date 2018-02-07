@@ -20,7 +20,7 @@ import           Data.Hashable
 import           Data.Order
 import           Data.Powerset
 import qualified Data.Sign as Sign
-import           Data.Sign hiding (Top)
+import           Data.Sign hiding (Bot,Top)
 import           Data.Text (Text)
 
 import           GHC.Generics

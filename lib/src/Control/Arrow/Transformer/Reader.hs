@@ -15,6 +15,7 @@ import Control.Arrow.Class.Reader
 import Control.Arrow.Class.State
 import Control.Arrow.Class.Environment
 import Control.Arrow.Class.Config
+import Control.Arrow.Class.Fix
 import Control.Arrow.Utils
 
 import Data.Order
@@ -61,6 +62,9 @@ instance ArrowConfig cIn cOut c => ArrowConfig (r,cIn) cOut (ReaderArrow r c) wh
   getInConfig = askA &&& liftReader getInConfig
   getOutConfig = liftReader getOutConfig
   setOutConfig = liftReader setOutConfig
+
+instance ArrowFix (r,x) y c => ArrowFix x y (ReaderArrow r c) where
+  fixA f = ReaderArrow (fixA (runReaderArrow . f . ReaderArrow))
 
 deriving instance PreOrd (c (r,x) y) => PreOrd (ReaderArrow r c x y)
 deriving instance LowerBounded (c (r,x) y) => LowerBounded (ReaderArrow r c x y)

@@ -14,6 +14,7 @@ import Control.Arrow.Class.State
 import Control.Arrow.Class.Reader
 import Control.Arrow.Class.Environment
 import Control.Arrow.Class.Config
+import Control.Arrow.Class.Fix
 import Control.Arrow.Utils
 
 import Data.Order
@@ -61,6 +62,9 @@ instance ArrowConfig cIn cOut c => ArrowConfig (s,cIn) (s,cOut) (StateArrow s c)
   getInConfig = getA &&& liftState getInConfig
   getOutConfig = getA &&& liftState getOutConfig
   setOutConfig = voidA (putA *** liftState setOutConfig)
+
+instance ArrowFix (s,x) (s,y) c => ArrowFix x y (StateArrow s c) where
+  fixA f = StateArrow (fixA (runStateArrow . f . StateArrow))
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (StateArrow s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (StateArrow s c x y)

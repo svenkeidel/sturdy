@@ -7,6 +7,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.BoundedEnvironment(BoundedEnv,runBoundedEnv,liftBoundedEnv,Alloc) where
 
+import           Prelude hiding ((.))
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Class.Environment
@@ -14,6 +15,7 @@ import           Control.Arrow.Class.Reader
 import           Control.Arrow.Class.State
 import           Control.Arrow.Class.Fail
 import           Control.Arrow.Class.Config
+import           Control.Arrow.Class.Fix
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils
@@ -85,6 +87,20 @@ instance (Eq a, Hashable a, Eq addr, Hashable addr, Complete b, ArrowConfig cIn 
   getInConfig = getEnv &&& getStore &&& liftBoundedEnv getInConfig
   getOutConfig = getStore &&& liftBoundedEnv getOutConfig
   setOutConfig = voidA $ putStore *** liftBoundedEnv setOutConfig
+
+instance (ArrowApply c, ArrowFix (HashMap a addr,Store addr b,x) (Store addr b,y) c) => ArrowFix x y (BoundedEnv a addr b c) where
+  fixA f = lift $ proc (a,e,s,x) -> do
+    fixA (unlift a . f . lift') -<< (e,s,x)
+    where
+      lift :: Arrow c => c (Alloc a addr b c, HashMap a addr,Store addr b,x) (Store addr b,y) -> BoundedEnv a addr b c x y
+      lift g = BoundedEnv (ReaderArrow (StateArrow ((\(s,((a,e),x)) -> (a,e,s,x)) ^>> g)))
+
+      lift' :: Arrow c => c (HashMap a addr,Store addr b,x) (Store addr b,y) -> BoundedEnv a addr b c x y
+      lift' g = BoundedEnv (ReaderArrow (StateArrow ((\(s,((_,e),x)) -> (e,s,x)) ^>> g)))
+
+      unlift :: Arrow c => Alloc a addr b c -> BoundedEnv a addr b c x y -> c (HashMap a addr,Store addr b,x) (Store addr b,y)
+      unlift a (BoundedEnv (ReaderArrow (StateArrow g))) = (\(s,e,x) -> (e,((a,s),x))) ^>> g
+
 
 deriving instance PreOrd (c (Store addr b,((Alloc a addr b c,HashMap a addr),x)) (Store addr b,y)) => PreOrd (BoundedEnv a addr b c x y)
 deriving instance Complete (c (Store addr b,((Alloc a addr b c,HashMap a addr),x)) (Store addr b,y)) => Complete (BoundedEnv a addr b c x y)

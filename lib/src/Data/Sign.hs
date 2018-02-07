@@ -51,6 +51,9 @@ instance Num Sign where
 instance PreOrd Sign where
   Bot ⊑ _ = True
   _ ⊑ Top = True
+  Negative ⊑ Negative = True
+  Zero ⊑ Zero = True
+  Positive ⊑ Positive = True
   _ ⊑ _ = False
 
 instance Complete Sign where

@@ -31,6 +31,8 @@ instance (Num n, Complete n, LowerBounded n, CoComplete n, UpperBounded n) => Nu
   fromInteger = constant . fromInteger
 
 instance (Fractional n, Complete n, LowerBounded n, CoComplete n, UpperBounded n) => Fractional (Interval n) where
+  Bot / _ = Bot
+  _ / Bot = Bot
   Interval i1 i2 / Interval j1 j2
     | j1 ⊑ 0 && 0 ⊑ j2 = Interval bottom top
     | otherwise = withBounds2 (/) (Interval i1 i2) (Interval j1 j2)
@@ -43,12 +45,15 @@ constant x = Interval x x
 
 withBounds1 :: (Complete n, CoComplete n) => (n -> n) -> Interval n -> Interval n
 withBounds1 f (Interval i1 i2) = Interval (f i1 ⊓ f i2) (f i1 ⊔ f i2)
+withBounds1 _ Bot = Bot
 
 withBounds2 :: (Complete n, LowerBounded n, CoComplete n, UpperBounded n) =>
                (n -> n -> n) -> Interval n -> Interval n -> Interval n
 withBounds2 f (Interval i1 i2) (Interval j1 j2) =
     Interval (glb [ f x y | x <- [i1,i2], y <- [j1,j2]]) 
              (lub [ f x y | x <- [i1,i2], y <- [j1,j2]])
+withBounds2 _ Bot _ = Bot
+withBounds2 _ _ Bot = Bot
 
 instance PreOrd n => LowerBounded (Interval n) where
   bottom = Bot

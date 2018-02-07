@@ -73,7 +73,7 @@ instance PreOrd a => PreOrd [a] where
   (a:as) ⊑ (b:bs) = a ⊑ b && as ⊑ bs
   _      ⊑ _      = False
 
-instance (PreOrd a) => PreOrd (Set a) where
+instance PreOrd a => PreOrd (Set a) where
   s1 ⊑ s2 = all (\x -> any (\y -> x ⊑ y) s2) s1
 
 instance (Ord a, PreOrd a) => Complete (Set a) where
@@ -85,6 +85,12 @@ instance (Ord a, PreOrd a) => CoComplete (Set a) where
 instance PreOrd () where
   () ⊑ () = True
 
+instance LowerBounded () where
+  bottom = ()
+
+instance UpperBounded () where
+  top = ()
+
 instance Complete () where
   () ⊔ () = ()
 
@@ -93,6 +99,9 @@ instance (PreOrd a,PreOrd b) => PreOrd (a,b) where
 
 instance (LowerBounded a,LowerBounded b) => LowerBounded (a,b) where
   bottom = (bottom,bottom)
+
+instance (UpperBounded a,UpperBounded b) => UpperBounded (a,b) where
+  top = (top,top)
 
 instance (Complete a, Complete b) => Complete (a,b) where
   (a1,b1) ⊔ (a2,b2) = (a1 ⊔ a2, b1 ⊔ b2)
@@ -158,7 +167,7 @@ instance Complete Double where
 instance CoComplete Double where
   (⊓) = min
 
-instance (Ord a, PreOrd a) => LowerBounded (Set a) where
+instance PreOrd a => LowerBounded (Set a) where
   bottom = S.empty
 
 instance (Ord k, PreOrd v) => LowerBounded (Map k v) where
