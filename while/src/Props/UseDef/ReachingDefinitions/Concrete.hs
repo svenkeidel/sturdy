@@ -23,6 +23,7 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Utils
+import Data.Order
 
 import Control.Arrow
 import Control.Arrow.Fail
@@ -34,7 +35,7 @@ import Control.Monad.Except
 import System.Random
 
 store :: (ArrowChoice c, HasStore c Store, HasProp c Prop) => c (Text,Val,Label) ()
-store = (proc (x,v,l) -> modifyProp -< \prop -> prop {env = Map.insert x (Set.singleton l) (env prop)})
+store = (proc (x,v,l) -> modifyProp -< \(ReachingDefs defs) -> ReachingDefs $ Map.insert x (Set.singleton l) defs)
                          -- all previous defs of `x` are killed and `l` is generated
     &&> Concrete.store
 
@@ -45,7 +46,7 @@ store = (proc (x,v,l) -> modifyProp -< \prop -> prop {env = Map.insert x (Set.si
 type State = (Store,Prop,StdGen)
 type M = StateT State (Except String)
 runM :: [Statement] -> Error String ((),State)
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initProp,mkStdGen 0)
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,bottom,mkStdGen 0)
 
 run :: [Statement] -> Error String (Store,Prop)
 run = fmap (\(_,(st,pr,gen)) -> (st,pr)) . runM
