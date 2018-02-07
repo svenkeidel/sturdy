@@ -11,7 +11,7 @@ import WhileLanguage (HasStore(..), HasProp(..), Statement, Expr, Label)
 import qualified WhileLanguage as L
 
 import Vals.Interval.Val
-import qualified Vals.Interval.Semantic as Interval
+import qualified Vals.Interval.Semantics as Interval
 
 import Props.UseDef.Prop
 

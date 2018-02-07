@@ -3,7 +3,7 @@ extra-package-dbs: []
 packages:
 - 'lib'
 - 'rtg'
-- 'pcf'
+# - 'pcf'
 - 'while'
 - 'lambda-adt'
 - 'stratego'

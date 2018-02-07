@@ -11,7 +11,7 @@ import WhileLanguage (HasStore(..), HasProp(..), Statement, Expr, Label)
 import qualified WhileLanguage as L
 
 import Vals.Concrete.Val
-import qualified Vals.Concrete.Semantic as Concrete
+import qualified Vals.Concrete.Semantics as Concrete
 
 import Props.UseDef.Prop
 

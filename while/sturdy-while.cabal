@@ -23,9 +23,13 @@ library
 --                       IntervalAnalysisDeadWrites,
 
                        Vals.Concrete.Val
-                       Vals.Concrete.Semantic
+                       Vals.Concrete.Semantics
+
                        Vals.Interval.Val
-                       Vals.Interval.Semantic
+                       Vals.Interval.Semantics
+
+                       Vals.Symbolic.Val
+                        Vals.Symbolic.Semantics
 
                        Props.FailedReads.Prop
                        Props.FailedReads.Concrete

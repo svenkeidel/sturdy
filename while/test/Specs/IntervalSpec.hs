@@ -1,7 +1,7 @@
 module Specs.IntervalSpec(main,spec) where
 
-import qualified Vals.Concrete.Semantic as Concrete
-import qualified Vals.Interval.Semantic as Interval
+import qualified Vals.Concrete.Semantics as Concrete
+import qualified Vals.Interval.Semantics as Interval
 
 import WhileLanguageSoundness
 

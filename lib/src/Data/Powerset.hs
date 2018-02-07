@@ -30,6 +30,9 @@ newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, 
 instance (Eq a, Hashable a) => PreOrd (Pow a) where
   as ⊑ bs = all (`H.member` toHashSet as) (toHashSet bs)
 
+instance (Eq a, Hashable a) => LowerBounded (Pow a) where
+  bottom = mempty
+
 instance (Eq a, Hashable a) => Eq (Pow a) where
   as == bs = toHashSet as == toHashSet bs
 
