@@ -5,10 +5,9 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.UseDef.ReachingDefinitions.Concrete where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
-import qualified Prelude as Prelude
+import Prelude (String, ($), (.),(<$>),const)
 
-import WhileLanguage (HasStore(..), HasProp(..), Statement, Expr, Label)
+import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
 
 import Vals.Concrete.Val
@@ -18,15 +17,11 @@ import Props.UseDef.ReachingDefinitions.Prop
 
 import Data.Error
 import Data.Text (Text)
-import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Utils
 import Data.Order
 
 import Control.Arrow
-import Control.Arrow.Fail
 import Control.Arrow.Utils
 
 import Control.Monad.State hiding (State)
@@ -35,7 +30,7 @@ import Control.Monad.Except
 import System.Random
 
 store :: (ArrowChoice c, HasStore c Store, HasProp c Prop) => c (Text,Val,Label) ()
-store = (proc (x,v,l) -> modifyProp -< \(ReachingDefs defs) -> ReachingDefs $ Map.insert x (Set.singleton l) defs)
+store = (proc (x,v,l) -> modifyProp -< \(ReachingDefs ds) -> ReachingDefs $ Map.insert x (Set.singleton l) ds)
                          -- all previous defs of `x` are killed and `l` is generated
     &&> Concrete.store
 
@@ -49,18 +44,18 @@ runM :: [Statement] -> Error String ((),State)
 runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,bottom,mkStdGen 0)
 
 run :: [Statement] -> Error String (Store,Prop)
-run = fmap (\(_,(st,pr,gen)) -> (st,pr)) . runM
+run = fmap (\(_,(st,pr,_)) -> (st,pr)) . runM
 
 runLifted :: [Statement] -> Error String (LiftedStore,Prop)
-runLifted = fmap (\(st, pr) -> (liftStore st, pr)) . run
+runLifted = fmap (first liftStore) . run
 
 instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli $ \_ -> get >>= return . (\(st,_,_) -> st)
+  getStore = Kleisli $ const ((\ (st, _, _) -> st) <$> get)
   putStore = Kleisli $ \st -> modify (\(_,pr,gen) -> (st,pr,gen))
   modifyStore = Kleisli $ \f -> modify (\(st,pr,gen) -> (f st,pr,gen))
 
 instance L.HasProp (Kleisli M) Prop where
-  getProp = Kleisli $ \_ -> get >>= return . (\(_,pr,_) -> pr)
+  getProp = Kleisli $ const ((\ (_, pr, _) -> pr) <$> get)
   putProp = Kleisli $ \pr -> modify (\(st,_,gen) -> (st,pr,gen))
   modifyProp = Kleisli $ \f -> modify (\(st,pr,gen) -> (st,f pr,gen))
 

@@ -2,12 +2,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.UseDef.Interval where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
-import qualified Prelude as Prelude
+import Prelude (String, const, ($), (.), fst, snd, (<$>))
+import qualified Prelude
 
-import WhileLanguage (HasStore(..), HasProp(..), Statement, Expr, Label)
+import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
 
 import Vals.Interval.Val
@@ -17,11 +18,6 @@ import Props.UseDef.Prop
 
 import Data.Error
 import Data.Text (Text)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Data.Utils
 import Data.Powerset
 
 import Control.Arrow
@@ -52,14 +48,14 @@ run :: [Statement] -> Error String (Store,LiftedTrace)
 run = fmap (\(_,(st,pr)) -> (st,fmap Prelude.reverse pr)) . runM
 
 instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli $ \_ -> get >>= return . (\(st,_) -> st)
+  getStore = Kleisli $ const (fst <$> get)
   putStore = Kleisli $ \st -> modify (\(_,pr) -> (st,pr))
-  modifyStore = Kleisli $ \f -> modify (\(st,pr) -> (f st,pr))
+  modifyStore = Kleisli $ \f -> modify (first f)
 
 instance L.HasProp (Kleisli M) LiftedTrace where
-  getProp = Kleisli $ \_ -> get >>= return . (\(_,pr) -> pr)
+  getProp = Kleisli $ const (snd <$> get)
   putProp = Kleisli $ \pr -> modify (\(st,_) -> (st,pr))
-  modifyProp = Kleisli $ \f -> modify (\(st,pr) -> (st,f pr))
+  modifyProp = Kleisli $ \f -> modify (second f)
 
 instance L.Eval (Kleisli M) Val  where
   lookup = lookup

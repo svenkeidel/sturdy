@@ -41,7 +41,7 @@ type Prop = ReachingDefs
 instance Galois (Pow Trace) ReachingDefs where
   alpha = lifted lift
     where lift trace = ReachingDefs $ foldl extenddefs bottom trace
-          extenddefs defs (TrUse _ _) = defs
-          extenddefs defs (TrDef x l) = Map.insert x (Set.singleton l) defs
+          extenddefs ds (TrUse _ _) = ds
+          extenddefs ds (TrDef x l) = Map.insert x (Set.singleton l) ds
 
   gamma = undefined

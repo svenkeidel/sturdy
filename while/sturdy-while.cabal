@@ -12,15 +12,6 @@ cabal-version:       >=1.10
 library
   exposed-modules:     WhileLanguage,
                        Label
---                       ConcreteSemantics,
---                       ConcreteSemanticsReadVars,
---                       ConcreteSemanticsFailedReads,
---                       ConcreteSemanticsDeadWrites,
---                       ControlFlowGraph,
---                       IntervalAnalysis,
---                       IntervalAnalysisReadVars,
---                       IntervalAnalysisFailedReads,
---                       IntervalAnalysisDeadWrites,
 
                        Vals.Concrete.Val
                        Vals.Concrete.Semantics
@@ -59,8 +50,6 @@ library
                        Props.UseDef.ReachingDefinitions.Concrete
                        Props.UseDef.ReachingDefinitions.Interval
 
-
---                       Symbolic
 
   ghc-options:         -Wall
   build-depends:       base,

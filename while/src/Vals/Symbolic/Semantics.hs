@@ -3,9 +3,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Vals.Symbolic.Semantics where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (/), const, ($), (.), uncurry)
+import Prelude (String, Double, Bool(..), const, ($), (.), uncurry)
 
 import WhileLanguage (HasStore(..), Statement, Label)
 import qualified WhileLanguage as L
@@ -13,7 +14,6 @@ import Vals.Symbolic.Val
 
 import Data.Order
 import Data.Error
-import qualified Data.Map as Map
 import Data.Text (Text)
 
 import Control.Arrow
@@ -97,7 +97,7 @@ run :: [Statement] -> Error String (Store,())
 run = fmap (\(_,st) -> (st,())) . runM
 
 instance HasStore (Kleisli M) Store where
-  getStore = Kleisli $ \_ -> get
+  getStore = Kleisli $ const get
   putStore = Kleisli $ \st -> modify $ const st
   modifyStore = Kleisli  $ \f -> modify f
 

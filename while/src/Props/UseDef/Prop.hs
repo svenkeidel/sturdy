@@ -3,12 +3,7 @@ module Props.UseDef.Prop where
 
 import WhileLanguage
 
-import Label
 import Data.Text (Text)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Powerset
 
 import Data.Hashable

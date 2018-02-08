@@ -1,17 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Vals.Symbolic.Val where
 
 import WhileLanguage
 
-import           Data.Interval (Interval)
-import qualified Data.Interval as I
-import           Data.Order
 import           Data.GaloisConnection
 import           Data.Powerset
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.Text (Text)
 
 import qualified Vals.Concrete.Val as Concrete
 

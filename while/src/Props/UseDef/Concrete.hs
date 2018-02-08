@@ -2,12 +2,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.UseDef.Concrete where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
-import qualified Prelude as Prelude
+import Prelude (String, ($), (.),const,(<$>))
+import qualified Prelude
 
-import WhileLanguage (HasStore(..), HasProp(..), Statement, Expr, Label)
+import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
 
 import Vals.Concrete.Val
@@ -17,11 +18,6 @@ import Props.UseDef.Prop
 
 import Data.Error
 import Data.Text (Text)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Data.Utils
 
 import Control.Arrow
 import Control.Arrow.Fail
@@ -52,18 +48,18 @@ runM :: [Statement] -> Error String ((),State)
 runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initTrace,mkStdGen 0)
 
 run :: [Statement] -> Error String (Store,Trace)
-run = fmap (\(_,(st,pr,gen)) -> (st,Prelude.reverse pr)) . runM
+run = fmap (\(_,(st,pr,_)) -> (st,Prelude.reverse pr)) . runM
 
 runLifted :: [Statement] -> Error String (LiftedStore,LiftedTrace)
-runLifted = fmap (\(st, pr) -> (liftStore st, liftedTrace pr)) . run
+runLifted = fmap (liftStore *** liftedTrace) . run
 
 instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli $ \_ -> get >>= return . (\(st,_,_) -> st)
+  getStore = Kleisli $ Prelude.const ((\ (st, _, _) -> st) <$> get)
   putStore = Kleisli $ \st -> modify (\(_,pr,gen) -> (st,pr,gen))
   modifyStore = Kleisli $ \f -> modify (\(st,pr,gen) -> (f st,pr,gen))
 
 instance L.HasProp (Kleisli M) Trace where
-  getProp = Kleisli $ \_ -> get >>= return . (\(_,pr,_) -> pr)
+  getProp = Kleisli $ const ((\ (_, pr, _) -> pr) <$> get)
   putProp = Kleisli $ \pr -> modify (\(st,_,gen) -> (st,pr,gen))
   modifyProp = Kleisli $ \f -> modify (\(st,pr,gen) -> (st,f pr,gen))
 

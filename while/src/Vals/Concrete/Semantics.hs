@@ -3,10 +3,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-unused-matches #-}
 module Vals.Concrete.Semantics where
 
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), ($), (.), fst)
-import qualified Prelude as Prelude
+import qualified Prelude
 
 import WhileLanguage (HasStore(..), HasRandomGen(..), Statement, Expr, Label)
 import qualified WhileLanguage as L
@@ -31,8 +32,8 @@ import System.Random
 
 lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store) => c (Text,Label) Val
 lookup = proc (x,l) -> do
-  store <- getStore -< x
-  case Map.lookup x store of
+  st <- getStore -< x
+  case Map.lookup x st of
     Just v -> returnA -< v
     Nothing -> failA -< "variable not found"
 
@@ -121,15 +122,15 @@ runM :: [Statement] -> Error String ((),State)
 runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore, mkStdGen 0)
 
 run :: [Statement] -> Error String (Store,())
-run = fmap (\(_,(st,rnd)) -> (st,())) . runM
+run = fmap (\(_,(st,_)) -> (st,())) . runM
 
 runLifted :: [Statement] -> Error String (LiftedStore,())
-runLifted = fmap (\(st,pr) -> (liftStore st,pr)) . run
+runLifted = fmap (first liftStore) . run
 
 instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli $ \_ -> get >>= return . fst
+  getStore = Kleisli $ \_ -> fst Prelude.<$> get
   putStore = Kleisli $ \st -> modify (\(_,rnd) -> (st,rnd))
-  modifyStore = Kleisli  $ \f -> modify (\(st,rnd) -> (f st,rnd))
+  modifyStore = Kleisli  $ \f -> modify (first f)
 
 instance L.HasRandomGen (Kleisli M) where
   nextRandom = Kleisli $ \() -> do

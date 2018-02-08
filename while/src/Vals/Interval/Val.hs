@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Vals.Interval.Val(module Vals.Interval.Val, module Data.Interval) where
 
 import           Data.Interval (Interval)

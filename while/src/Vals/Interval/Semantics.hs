@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Vals.Interval.Semantics where
 
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (/), const, ($), (.))
@@ -30,8 +31,8 @@ import Control.Monad.Except
 
 lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store) => c (Text,Label) Val
 lookup = proc (x,_) -> do
-  store <- getStore -< x
-  case Map.lookup x store of
+  st <- getStore -< x
+  case Map.lookup x st of
     Just v -> returnA -< v
     Nothing -> failA -< "variable not found"
 
@@ -142,7 +143,7 @@ run :: [Statement] -> Error String (Store,())
 run = fmap (\(_,st) -> (st,())) . runM
 
 instance HasStore (Kleisli M) Store where
-  getStore = Kleisli $ \_ -> get
+  getStore = Kleisli $ const get
   putStore = Kleisli $ \st -> modify $ const st
   modifyStore = Kleisli  $ \f -> modify f
 

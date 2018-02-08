@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module WhileLanguage(module Label, module WhileLanguage) where
 
-import Prelude hiding (lookup,fail,and,or,not,div)
+import Prelude hiding (lookup, and, or, not, div)
 
 import Label
 
@@ -53,8 +53,8 @@ class ArrowChoice c => HasStore c st where
   putStore :: c st ()
   modifyStore :: c (st -> st) ()
   modifyStore = proc f -> do
-    store <- getStore -< ()
-    putStore -< f store
+    st <- getStore -< ()
+    putStore -< f st
 
 class HasProp c pr where
   getProp :: c () pr
