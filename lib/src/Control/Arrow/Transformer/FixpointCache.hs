@@ -64,21 +64,21 @@ instance (Eq x, Hashable x, LowerBounded y, Complete y) => ArrowFix x y (CacheAr
 
 memoize :: (Eq x, Hashable x, LowerBounded y, Complete y) => CacheArrow x y x y -> CacheArrow x y x y
 memoize f = proc x -> do
-  m <- askOutCache -< x
+  m <- lookupOutCache -< x
   case m of
     Just y -> returnA -< y
     Nothing -> do
-      yOld <- askInCache -< x
+      yOld <- lookupInCache -< x
       writeOutCache -< (x, fromMaybe bottom yOld)
       y <- f -< x
       updateOutCache -< (x, y)
       returnA -< y
 
-askOutCache :: (Eq x, Hashable x) => CacheArrow x y x (Maybe y)
-askOutCache = CacheArrow $ \((_,o),x) -> (o,S.lookup x o)
+lookupOutCache :: (Eq x, Hashable x) => CacheArrow x y x (Maybe y)
+lookupOutCache = CacheArrow $ \((_,o),x) -> (o,S.lookup x o)
 
-askInCache :: (Eq x, Hashable x) => CacheArrow x y x (Maybe y)
-askInCache = CacheArrow $ \((i,o),x) -> (o,S.lookup x i)
+lookupInCache :: (Eq x, Hashable x) => CacheArrow x y x (Maybe y)
+lookupInCache = CacheArrow $ \((i,o),x) -> (o,S.lookup x i)
 
 writeOutCache :: (Eq x, Hashable x) => CacheArrow x y (x,y) ()
 writeOutCache = CacheArrow $ \((_,o),(x,y)) -> (S.insert x y o,())
