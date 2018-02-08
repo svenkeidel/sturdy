@@ -7,6 +7,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -DTRACE #-}
 module Control.Arrow.Transformer.FixpointCache(CacheArrow,runCacheArrow,runCacheArrow',liftCache) where
 
 import           Prelude hiding (id,(.),lookup)
@@ -22,6 +24,11 @@ import           Data.Maybe
 import           Data.Order
 import           Data.Store (Store)
 import qualified Data.Store as S
+
+#ifdef TRACE
+import           Debug.Trace
+import           Text.Printf
+#endif
 
 newtype CacheArrow a b x y = CacheArrow (((Store a b,Store a b),x) -> (Store a b,y))
 
@@ -52,13 +59,40 @@ instance ArrowChoice (CacheArrow i o) where
 instance ArrowApply (CacheArrow i o) where
   app = CacheArrow $ (\(io,(CacheArrow f,x)) -> (f,(io,x))) ^>> app
 
-instance (Eq x, Hashable x, LowerBounded y, Complete y) => ArrowFix x y (CacheArrow x y) where
+#ifdef TRACE
+instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y)
+  => ArrowFix x y (CacheArrow x y) where
   fixA f = proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
     y <- localInCache (fix (f . memoize)) -< (old,x)
     new <- getOutCache -< ()
-    if new ⊑ old -- We are in the reductive set of `f` and have overshot the fixpoint
+    if trace (printf "old: %s\nnew: %s" (show old) (show new)) (new ⊑ old) -- We are in the reductive set of `f` and have overshot the fixpoint
+    then returnA -< y
+    else fixA f -< x
+
+memoize :: (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y) => CacheArrow x y x y -> CacheArrow x y x y
+memoize f = proc x -> do
+  m <- lookupOutCache -< x
+  case m of
+    Just y -> do
+      returnA -< trace (printf "cache hit: %s -> %s" (show x) (show y)) y
+    Nothing -> do
+      yOld <- lookupInCache -< x
+      writeOutCache -< trace (printf "cache miss: %s, old value: %s, recompute ..." (show x) (show yOld))(x, fromMaybe bottom yOld)
+      y <- f -< x
+      updateOutCache -< trace (printf "cache miss: %s, old value: %s, new value: %s" (show x) (show yOld) (show y)) (x, y)
+      returnA -< y
+#elif
+
+instance (Eq x, Hashable x, LowerBounded y, Complete y)
+  => ArrowFix x y (CacheArrow x y) where
+  fixA f = proc x -> do
+    old <- getOutCache -< ()
+    setOutCache -< bottom
+    y <- localInCache (fix (f . memoize)) -< (old,x)
+    new <- getOutCache -< ()
+    if (new ⊑ old) -- We are in the reductive set of `f` and have overshot the fixpoint
     then returnA -< y
     else fixA f -< x
 
@@ -66,13 +100,15 @@ memoize :: (Eq x, Hashable x, LowerBounded y, Complete y) => CacheArrow x y x y 
 memoize f = proc x -> do
   m <- lookupOutCache -< x
   case m of
-    Just y -> returnA -< y
+    Just y -> do
+      returnA -< y
     Nothing -> do
       yOld <- lookupInCache -< x
       writeOutCache -< (x, fromMaybe bottom yOld)
       y <- f -< x
       updateOutCache -< (x, y)
       returnA -< y
+#endif
 
 lookupOutCache :: (Eq x, Hashable x) => CacheArrow x y x (Maybe y)
 lookupOutCache = CacheArrow $ \((_,o),x) -> (o,S.lookup x o)

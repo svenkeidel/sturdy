@@ -7,7 +7,11 @@ import GHC.Generics
 
 -- | Intervals represent ranges of numbers. Bot represents the empty interval
 data Interval n = Bot | Interval n n
-  deriving (Eq,Show,Generic)
+  deriving (Eq,Generic)
+
+instance Show n => Show (Interval n) where
+  show Bot = "⊥"
+  show (Interval n m) = "["++ show n ++ "," ++ show m ++"]"
 
 instance PreOrd x => PreOrd (Interval x) where
   Bot ⊑ _ = True
