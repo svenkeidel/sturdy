@@ -54,36 +54,46 @@ instance ArrowApply (CacheArrow i o) where
 
 instance (Eq x, Hashable x, LowerBounded y, Complete y) => ArrowFix x y (CacheArrow x y) where
   fixA f = proc x -> do
-    (y,fp) <- retireCache (fix (f . memoize) &&& reachedFixpoint) -< x
-    if fp
+    old <- getOutCache -< ()
+    setOutCache -< bottom
+    y <- localInCache (fix (f . memoize)) -< (old,x)
+    new <- getOutCache -< ()
+    if new ⊑ old -- We are in the reductive set of `f` and have overshot the fixpoint
     then returnA -< y
     else fixA f -< x
 
 memoize :: (Eq x, Hashable x, LowerBounded y, Complete y) => CacheArrow x y x y -> CacheArrow x y x y
 memoize f = proc x -> do
-  m <- askCache -< x
+  m <- askOutCache -< x
   case m of
     Just y -> returnA -< y
     Nothing -> do
-      initializeCache -< x
+      yOld <- askInCache -< x
+      writeOutCache -< (x, fromMaybe bottom yOld)
       y <- f -< x
-      updateCache -< (x,y)
+      updateOutCache -< (x, y)
       returnA -< y
 
-askCache :: (Eq x, Hashable x) => CacheArrow x y x (Maybe y)
-askCache = CacheArrow $ arr $ \((_,o),x) -> (o,S.lookup x o)
+askOutCache :: (Eq x, Hashable x) => CacheArrow x y x (Maybe y)
+askOutCache = CacheArrow $ \((_,o),x) -> (o,S.lookup x o)
 
-retireCache :: (Eq a, Hashable a, LowerBounded b) => CacheArrow a b x y -> CacheArrow a b x y
-retireCache (CacheArrow f) = CacheArrow $ (\((_,o),x) -> ((o,bottom),x)) ^>> f
+askInCache :: (Eq x, Hashable x) => CacheArrow x y x (Maybe y)
+askInCache = CacheArrow $ \((i,o),x) -> (o,S.lookup x i)
 
-initializeCache :: (Eq a, Hashable a, LowerBounded b) => CacheArrow a b a ()
-initializeCache = CacheArrow $ arr $ \((i,o),x) -> (S.insert x (fromMaybe bottom (S.lookup x i)) o,())
+writeOutCache :: (Eq x, Hashable x) => CacheArrow x y (x,y) ()
+writeOutCache = CacheArrow $ \((_,o),(x,y)) -> (S.insert x y o,())
 
-updateCache :: (Eq a, Hashable a, Complete b) => CacheArrow a b (a,b) ()
-updateCache = CacheArrow $ arr $ \((_,o),(x,y)) -> (S.insertWith (⊔) x y o,())
+getOutCache :: CacheArrow x y () (Store x y)
+getOutCache = CacheArrow $ (\((_,o),()) -> (o,o))
 
-reachedFixpoint :: (Eq a, Hashable a, LowerBounded b) => CacheArrow a b x Bool
-reachedFixpoint = CacheArrow $ arr $ \((i,o),_) -> (o,o ⊑ i)
+setOutCache :: CacheArrow x y (Store x y) ()
+setOutCache = CacheArrow $ (\((_,_),o) -> (o,()))
+
+localInCache :: CacheArrow x y x y -> CacheArrow x y (Store x y,x) y
+localInCache (CacheArrow f) = CacheArrow (\((_,o),(i,x)) -> f ((i,o),x))
+
+updateOutCache :: (Eq x, Hashable x, Complete y) => CacheArrow x y (x,y) ()
+updateOutCache = CacheArrow $ \((_,o),(x,y)) -> (S.insertWith (⊔) x y o,())
 
 deriving instance PreOrd (((Store a b,Store a b),x) -> (Store a b,y)) => PreOrd (CacheArrow a b x y)
 deriving instance Complete (((Store a b,Store a b),x) -> (Store a b,y)) => Complete (CacheArrow a b x y)
