@@ -29,7 +29,7 @@ import           Data.Hashable
 import           Text.Printf
 
 -- Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowTry c, ArrowPlus c, ArrowApply c, ArrowFix' c t,
+eval' :: (ArrowChoice c, ArrowTry t t t c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c, ArrowPlus c, ArrowApply c, ArrowFix' c t,
           ArrowFail () c, ArrowDeduplicate c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c)
       => (Strat -> c t t)
@@ -47,20 +47,20 @@ eval' = fixA' $ \ev s0 -> dedupA $ case s0 of
     Let bnds body -> let_ bnds body eval'
     Call f ss ps -> call f ss ps ev
 
-guardedChoice :: ArrowTry c => c x y -> c y z -> c x z -> c x z
+guardedChoice :: ArrowTry x y z c => c x y -> c y z -> c x z -> c x z
 guardedChoice = tryA
 
 sequence :: Category c => c x y -> c y z -> c x z
 sequence f g = f >>> g
 
-one :: (ArrowChoice c, ArrowFail () c, ArrowTry c, ArrowPlus c) => c t t -> c [t] [t]
+one :: (ArrowChoice c, ArrowFail () c, ArrowPlus c) => c t t -> c [t] [t]
 one f = proc l -> case l of
   (t:ts) -> do
     (t',ts') <- first f <+> second (one f) -< (t,ts)
     returnA -< (t':ts')
   [] -> failA -< ()
 
-some :: (ArrowChoice c, ArrowFail () c, ArrowTry c) => c t t -> c [t] [t]
+some :: (ArrowChoice c, ArrowFail () c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c) => c t t -> c [t] [t]
 some f = go
   where
     go = proc l -> case l of
@@ -93,7 +93,7 @@ let_ ss body interp = proc a -> do
   senv <- readStratEnv -< ()
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a 
 
-call :: (ArrowChoice c, ArrowFail () c, ArrowTry c, ArrowPlus c, ArrowApply c,
+call :: (ArrowChoice c, ArrowFail () c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c, ArrowPlus c, ArrowApply c,
          IsTermEnv env t c, HasStratEnv c)
      => StratVar
      -> [Strat]
@@ -127,7 +127,7 @@ bindStratArgs ((v,Call v' [] []) : ss) senv =
 bindStratArgs ((v,s) : ss) senv =
     M.insert v (Closure (Strategy [] [] s) senv) (bindStratArgs ss senv)
  
-match :: (ArrowChoice c, ArrowTry c, ArrowApply c, IsTerm t c, IsTermEnv env t c)
+match :: (ArrowChoice c, ArrowApply c, ArrowTry t t t c, IsTerm t c, IsTermEnv env t c)
       => c (TermPattern,t) t
 match = proc (p,t) -> case p of
   S.As v p2 -> do
@@ -150,7 +150,7 @@ match = proc (p,t) -> case p of
   S.NumberLiteral n ->
     matchTermAgainstNumber -< (n,t)
 
-build :: (ArrowChoice c, ArrowFail () c, ArrowTry c, IsTerm t c, IsTermEnv env t c)
+build :: (ArrowChoice c, ArrowFail () c, IsTerm t c, IsTermEnv env t c)
       => c TermPattern t
 build = proc p -> case p of
   S.As _ _ -> error "As-pattern in build is disallowed" -< ()

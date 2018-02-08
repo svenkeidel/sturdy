@@ -63,7 +63,7 @@ instance ArrowEnv x y env c => ArrowEnv x y env (StateArrow r c) where
 instance ArrowFix (s,x) (s,y) c => ArrowFix x y (StateArrow s c) where
   fixA f = StateArrow (fixA (runStateArrow . f . StateArrow))
 
-instance ArrowTry c => ArrowTry (StateArrow s c) where
+instance ArrowTry (s,x) (s,y) (s,z) c => ArrowTry x y z (StateArrow s c) where
   tryA (StateArrow f) (StateArrow g) (StateArrow h) = StateArrow $ tryA f g h
 
 instance ArrowZero c => ArrowZero (StateArrow s c) where

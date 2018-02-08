@@ -61,9 +61,9 @@ instance ArrowEnv x y env c => ArrowEnv x y env (ReaderArrow r c) where
 instance ArrowFix (r,x) y c => ArrowFix x y (ReaderArrow r c) where
   fixA f = ReaderArrow (fixA (runReaderArrow . f . ReaderArrow))
 
-instance ArrowTry c => ArrowTry (ReaderArrow r c) where
+instance ArrowTry (r,x) (r,y) (r,z) c => ArrowTry x y z (ReaderArrow r c) where
   tryA (ReaderArrow f) (ReaderArrow g) (ReaderArrow h) = ReaderArrow $
-    tryA (pi1 &&& f) g h
+    tryA (pi1 &&& f) (pi1 &&& g) (pi1 &&& h) >>> pi2
 
 instance ArrowZero c => ArrowZero (ReaderArrow r c) where
   zeroArrow = liftReader zeroArrow

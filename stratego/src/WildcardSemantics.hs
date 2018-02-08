@@ -74,6 +74,8 @@ emptyEnv = TermEnv M.empty
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader (StratEnv, Int) Interp
 deriving instance ArrowState TermEnv Interp
+deriving instance ArrowTry Term Term Term Interp
+deriving instance ArrowTry (Term,[Term]) (Term,[Term]) (Term,[Term]) Interp
 
 instance ArrowFail () Interp where
   failA = Interp failA

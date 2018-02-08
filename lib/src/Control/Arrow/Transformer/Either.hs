@@ -85,7 +85,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (EitherArrow e 
   extendEnv = liftEither extendEnv
   localEnv (EitherArrow f) = EitherArrow (localEnv f)
 
-instance ArrowChoice c => ArrowTry (EitherArrow e c) where
+instance ArrowChoice c => ArrowTry x y z (EitherArrow e c) where
   tryA (EitherArrow f) (EitherArrow g) (EitherArrow h) = EitherArrow $ proc x -> do
     e <- f -< x
     case e of

@@ -57,7 +57,7 @@ data Term
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 
 newtype Interp a b = Interp (ReaderArrow StratEnv (StateArrow TermEnv (EitherArrow () (->))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowTry,ArrowZero,ArrowPlus,ArrowDeduplicate)
+  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowZero,ArrowPlus,ArrowDeduplicate)
 
 runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Either () (TermEnv,b)
 runInterp (Interp f) senv tenv t = runEitherArrow (runStateArrow (runReaderArrow f)) (tenv, (senv, t))
@@ -68,6 +68,8 @@ eval s = runInterp (eval' s)
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowReader StratEnv Interp
+deriving instance ArrowTry Term Term Term Interp
+deriving instance ArrowTry (Term,[Term]) (Term,[Term]) (Term,[Term]) Interp
 
 instance ArrowFix' Interp Term where
   fixA' f = f (fixA' f)
