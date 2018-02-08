@@ -3,6 +3,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE LiberalTypeSynonyms #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module IntervalAnalysis where
 
 import           Prelude hiding (id,Bounded)
@@ -25,6 +28,8 @@ import           Data.Order
 import           Data.Powerset
 import           Data.Text (Text)
 import           Data.Bounded
+import           Data.HashMap.Lazy (HashMap)
+import           Data.Store (Store)
     
 import           GHC.Generics
 
@@ -37,10 +42,13 @@ data Val = Bot | NumVal (Bounded IV) | ClosureVal (Pow Closure) | Top deriving (
 type Env = M.HashMap Text Addr
 
 type Addr = Text
-type Interp = CacheArrow Expr Val (ReaderArrow IV (BoundedEnv Text Addr Val (ErrorArrow String (->))))
+type Interp = ReaderArrow IV (BoundedEnv Text Addr Val (ErrorArrow String (CacheArrow (HashMap Text Addr,Store Addr Val,(IV,Expr)) (Error String (Store Addr Val,Val)))))
+
+instance LowerBounded String where
+  bottom = "Program might not terminate"
 
 evalInterval :: IV -> M.HashMap Text Val -> Expr -> Error String Val
-evalInterval bound env e = runErrorArrow (runBoundedEnv (runReaderArrow (runCacheArrow eval))) (alloc,env,(bound,e))
+evalInterval bound env e = runCacheArrow (runErrorArrow (runBoundedEnv (runReaderArrow eval))) (alloc,env,(bound,e))
   where
     -- CFA0-like analysis by using the variables as addresses.
     alloc = id

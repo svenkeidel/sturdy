@@ -30,9 +30,6 @@ instance Complete a => Complete (Error e a) where
   a ⊔ Error _ = a
   Success x ⊔ Success y = Success (x ⊔ y)
 
-instance PreOrd a => LowerBounded (Error String a) where
-  bottom = Error "Bottom"
-
 instance (PreOrd b, LowerBounded a) => LowerBounded (Error a b) where
   bottom = Error bottom
 

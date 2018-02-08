@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Data.Store(Store,subsetKeys,empty,lookup,insert,insertWith,(!),keys,toList,fromList) where
 
 import           Prelude hiding (lookup)
@@ -12,7 +13,7 @@ import           Data.HashSet (HashSet)
 import qualified Data.HashSet as S
 import           Text.Printf
 
-newtype Store a b = Store (HashMap a b) deriving (Eq,Functor,Foldable,Traversable)
+newtype Store a b = Store (HashMap a b) deriving (Eq,Functor,Foldable,Traversable,Hashable)
 
 instance (Show a,Show b) => Show (Store a b) where
   show (Store h)

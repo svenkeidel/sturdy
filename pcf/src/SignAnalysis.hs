@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module SignAnalysis where
 
 import           Prelude hiding (id)
@@ -22,6 +23,7 @@ import           Data.Powerset
 import qualified Data.Sign as Sign
 import           Data.Sign hiding (Bot,Top)
 import           Data.Text (Text)
+import           Data.Store (Store)
 
 import           GHC.Generics
 
@@ -33,10 +35,13 @@ data Val = Bot | NumVal Sign | ClosureVal (Pow Closure) | Top deriving (Eq,Show,
 type Env = M.HashMap Text Addr
 
 type Addr = Text
-type Interp = CacheArrow Expr Val (BoundedEnv Text Addr Val (ErrorArrow String (->)))
+type Interp = BoundedEnv Text Addr Val (ErrorArrow String (CacheArrow (HashMap Text Addr, Store Addr Val, Expr) (Error String (Store Addr Val, Val))))
+
+instance LowerBounded String where
+  bottom = "Program might not terminate"
 
 evalSign :: HashMap Text Val -> Expr -> Error String Val
-evalSign env e = runErrorArrow (runBoundedEnv (runCacheArrow eval)) (alloc,env,e)
+evalSign env e = runCacheArrow (runErrorArrow (runBoundedEnv eval)) (alloc,env,e)
   where alloc = id
 
 instance IsVal Val Interp where

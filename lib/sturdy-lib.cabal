@@ -54,6 +54,7 @@ library
                        Control.Arrow.Transformer.Reader,
                        Control.Arrow.Transformer.State,
                        Control.Arrow.Transformer.FixpointCache,
+                       Control.Arrow.Transformer.Fix,
                        Control.Arrow.Transformer.Fail
 
   build-depends:       base,

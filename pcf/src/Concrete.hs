@@ -24,13 +24,10 @@ type Env = M.HashMap Text Val
 
 data Val = NumVal Int | ClosureVal Closure deriving (Eq, Show,Generic)
 
-type Interp = Environment Text Val (ErrorArrow String (->))
+type Interp = Environment Text Val (ErrorArrow String (Fix (Env,Expr) (Error String Val)))
 
 evalConcrete :: Env -> Expr -> Error String Val
-evalConcrete env e = runErrorArrow (runEnvironment eval) (env,e)
-
-instance ArrowFix Expr Val Interp where
-  fixA f = f (fixA f)
+evalConcrete env e = runFix (runErrorArrow (runEnvironment eval)) (env,e)
 
 instance IsVal Val Interp where
   succ = proc x -> case x of

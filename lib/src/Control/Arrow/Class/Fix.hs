@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Control.Arrow.Class.Fix(ArrowFix(..),ArrowFix'(..)) where
 
 import Control.Arrow
