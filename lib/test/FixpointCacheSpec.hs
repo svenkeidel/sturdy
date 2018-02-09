@@ -44,7 +44,7 @@ spec = do
                       returnA -< x + y))
 
     in it "should memoize numbers that have been computed before already" $ do
-         runCacheArrow (fixA fib :: Cache IV IV) (I.Interval NegInfinity Infinity) `shouldBe` I.Interval 0 Infinity
+         runCacheArrow (fixA fib :: Cache IV IV) (I.Interval 5 10) `shouldBe` I.Interval 5 55
          -- runCacheArrow (fixA fib :: Cache (Interval Int) (Interval Int)) 15 `shouldBe` fix fib 15
 
   describe "the analysis of the factorial function" $
