@@ -65,7 +65,7 @@ instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y)
   fixA f = trace (printf "fixA fact") $ proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
-    y <- localInCache (trace (printf "\tfix (fact . memoize)") $ fix (memoize . f)) -< (old,x)
+    y <- localInCache (trace (printf "\tfix (memoize . fact)") $ fix (memoize . f)) -< (old,x)
     new <- getOutCache -< ()
     if new ⊑ old -- We are in the reductive set of `f` and have overshot the fixpoint
     then returnA -< y
@@ -73,16 +73,19 @@ instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y)
 
 memoize :: (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y) => CacheArrow x y x y -> CacheArrow x y x y
 memoize f = proc x -> do
-  m <- lookupOutCache -< trace (printf "\t\tmemoize (fact (fix (memoize . fact))) -< %s" (show x)) x
+  m <- lookupOutCache -< trace (printf "\t\tmemoize -< %s" (show x)) x
   case m of
     Just y -> do
-      returnA -< trace (printf "\t\t%s <- memoize (fact (fix (memoize . fact))) -< %s" (show y) (show x)) y
+      returnA -< trace (printf "\t\t%s <- memoize -< %s" (show y) (show x)) y
     Nothing -> do
       yOld <- lookupInCache -< x
-      writeOutCache -< (x, fromMaybe bottom yOld)
-      y <- f -< trace (printf "\t\tfact (fix (memoize . fact)) -< %s" (show x)) x
-      updateOutCache -< trace (printf "\t\t%s <- fact (fix (memoize . fact)) -< %s" (show y) (show x)) (x, y)
-      returnA -< trace (printf "\t\t%s <- memoize (fact (fix (memoize . fact))) -< %s" (show y) (show x)) y
+      writeOutCache -< trace (printf "\t\tout(%s) := %s" (show x) (show (fromMaybe bottom yOld))) (x, fromMaybe bottom yOld)
+      y <- f -< trace (printf "\t\tfact -< %s" (show x)) x
+      yCached <- lookupOutCache -< x
+      updateOutCache -< trace (printf "\t\tout(%s) := %s ⊔ %s = %s" (show x) (show (fromJust yCached)) (show y) (show (fromJust yCached ⊔ y)))
+                         (trace (printf "\t\t%s <- fact -< %s" (show y) (show x))
+                        (x, y))
+      returnA -< trace (printf "\t\t%s <- memoize -< %s" (show y) (show x)) y
 #elif
 
 instance (Eq x, Hashable x, LowerBounded y, Complete y)
