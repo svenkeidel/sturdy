@@ -28,7 +28,7 @@ main = hspec spec
 
 type Cache x y = CacheArrow x y x y
 type ErrorCache x y = ErrorArrow () (CacheArrow x (Error () y)) x y
-type StateCache x y = StateArrow Int (CacheArrow (Int,x) (Int,y)) x y
+type StateCache x y = StateArrow (InfiniteNumber Int) (CacheArrow (InfiniteNumber Int,x) (InfiniteNumber Int,y)) x y
 type IV = Interval (InfiniteNumber Int)
 
 spec :: Spec
@@ -70,10 +70,10 @@ spec = do
           _ -> f -< (n-1)
     in it "should fail, but update the fixpoint cache" $
          runCacheArrow' (runErrorArrow (fixA recurseFail)) 5
-            `shouldBe` (S.fromList [(n,Error ()) | n <- [0..4]], Error ())
+            `shouldBe` (S.fromList [(n,Error ()) | n <- [0..5]], Error ())
 
   describe "the analysis of a stateful program" $
-    let timesTwo :: StateCache Int () -> StateCache Int ()
+    let timesTwo :: StateCache (InfiniteNumber Int) () -> StateCache (InfiniteNumber Int) ()
         timesTwo f = proc n -> case n of
           0 -> returnA -< ()
           _ -> do
@@ -85,7 +85,7 @@ spec = do
 
     in it "should cache the state of the program" $
          runCacheArrow' (runStateArrow (fixA timesTwo)) (0,5)
-           `shouldBe` (S.fromList [((n,5-n),(10-n,())) | n <- [1..5]],(10,()))
+           `shouldBe` (S.fromList [((Number n,5- Number n),(10-Number n,())) | n <- [0..5]],(10,()))
   where
 
     ifEq :: (Num n, Ord n, ArrowChoice c, Complete (c (Interval n, Interval n) (Interval n)), Complete (c (Interval n,(Interval n, Interval n)) (Interval n))) => n -> c (Interval n) (Interval n) -> c (Interval n) (Interval n) -> c (Interval n) (Interval n)
