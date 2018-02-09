@@ -7,7 +7,6 @@
 module FixpointCacheSpec where
 
 import           Prelude hiding (lookup)
-import           Data.Function
 
 import           Control.Arrow
 import           Control.Arrow.Fix
@@ -19,6 +18,7 @@ import qualified Data.Interval as I
 import           Data.Sign (Sign)
 import           Data.Order
 import           Data.Error
+import           Data.InfiniteNumbers
 import qualified Data.Store as S
 
 import           Test.Hspec
@@ -29,6 +29,7 @@ main = hspec spec
 type Cache x y = CacheArrow x y x y
 type ErrorCache x y = ErrorArrow () (CacheArrow x (Error () y)) x y
 type StateCache x y = StateArrow Int (CacheArrow (Int,x) (Int,y)) x y
+type IV = Interval (InfiniteNumber Int)
 
 spec :: Spec
 spec = do
@@ -43,15 +44,15 @@ spec = do
                       returnA -< x + y))
 
     in it "should memoize numbers that have been computed before already" $ do
-         runCacheArrow (fixA fib :: Cache (Interval Int) (Interval Int)) (I.Interval 5 10) `shouldBe` I.Interval 5 55
+         runCacheArrow (fixA fib :: Cache IV IV) (I.Interval NegInfinity Infinity) `shouldBe` I.Interval 0 Infinity
          -- runCacheArrow (fixA fib :: Cache (Interval Int) (Interval Int)) 15 `shouldBe` fix fib 15
 
   describe "the analysis of the factorial function" $
-    let fact :: (ArrowChoice c, Complete (c (Interval Int,Interval Int) (Interval Int))) => c (Interval Int) (Interval Int) -> c (Interval Int) (Interval Int)
-        fact f = proc n -> do
+    let fact f = proc n -> do
           ifLowerThan 0 (proc _ -> returnA -< 1)
                         (proc n -> do {x <- f -< (n-1); returnA -< n * x}) -< n
-    in it "absfact [5,10] should produce [fact 5,fact 10]" $ runCacheArrow (fixA fact :: Cache (Interval Int) (Interval Int)) (I.Interval 5 10) `shouldBe` I.Interval 120 3628800
+    in it "fact [-∞,∞] should produce [1,∞]" $
+         runCacheArrow (fixA fact :: Cache IV IV) (I.Interval NegInfinity Infinity) `shouldBe` I.Interval 1 Infinity
 
   describe "the analyis of a diverging program" $
     let diverge :: Cache Int Sign -> Cache Int Sign
@@ -87,7 +88,7 @@ spec = do
            `shouldBe` (S.fromList [((n,5-n),(10-n,())) | n <- [1..5]],(10,()))
   where
 
-    ifEq :: (ArrowChoice c, Complete (c (Interval Int, Interval Int) (Interval Int)), Complete (c (Interval Int,(Interval Int, Interval Int)) (Interval Int))) => Int -> c (Interval Int) (Interval Int) -> c (Interval Int) (Interval Int) -> c (Interval Int) (Interval Int)
+    ifEq :: (Num n, Ord n, ArrowChoice c, Complete (c (Interval n, Interval n) (Interval n)), Complete (c (Interval n,(Interval n, Interval n)) (Interval n))) => n -> c (Interval n) (Interval n) -> c (Interval n) (Interval n) -> c (Interval n) (Interval n)
     ifEq l f g = proc b -> case b of
       I.Bot -> returnA -< I.Bot
       I.Interval m n
@@ -95,14 +96,14 @@ spec = do
         | n < l || l < m -> g -< b
         | otherwise -> joined f (joined g g) -< (I.Interval l l,(toBot $ I.Interval m (l-1), toBot $ I.Interval (l+1) n))
       where
-        toBot :: Interval Int -> Interval Int
-        toBot I.Bot = bottom
+        toBot :: Ord n => Interval n -> Interval n
+        toBot I.Bot = I.Bot
         toBot x@(I.Interval m n)
-          | n < m = bottom
+          | n < m = I.Bot
           | otherwise = x
       
 
-    ifLowerThan :: (ArrowChoice c, Complete (c (Interval Int,Interval Int) (Interval Int))) => Int -> c (Interval Int) (Interval Int) -> c (Interval Int) (Interval Int) -> c (Interval Int) (Interval Int)
+    ifLowerThan :: (Num n, Ord n, ArrowChoice c, Complete (c (Interval n,Interval n) (Interval n))) => n -> c (Interval n) (Interval n) -> c (Interval n) (Interval n) -> c (Interval n) (Interval n)
     ifLowerThan l f g = proc b -> case b of
       I.Bot -> returnA -< I.Bot
       I.Interval m n

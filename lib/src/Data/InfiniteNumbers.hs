@@ -6,7 +6,12 @@ import Data.Order
 import Data.Hashable
 import GHC.Generics
 
-data InfiniteNumber a = NegInfinity | Number a | Infinity deriving (Eq,Ord,Show,Generic)
+data InfiniteNumber a = NegInfinity | Number a | Infinity deriving (Eq,Ord,Generic)
+
+instance Show a => Show (InfiniteNumber a) where
+  show NegInfinity = "-∞"
+  show (Number n) = show n
+  show Infinity = "∞"
 
 isNegative :: (Eq a,Num a) => a -> Bool
 isNegative x = signum x == -1

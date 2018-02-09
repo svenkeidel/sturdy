@@ -62,27 +62,27 @@ instance ArrowApply (CacheArrow i o) where
 #ifdef TRACE
 instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y)
   => ArrowFix x y (CacheArrow x y) where
-  fixA f = proc x -> do
+  fixA f = trace (printf "fixA fact") $ proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
-    y <- localInCache (fix (f . memoize)) -< (old,x)
+    y <- localInCache (trace (printf "\tfix (fact . memoize)") $ fix (memoize . f)) -< (old,x)
     new <- getOutCache -< ()
-    if trace (printf "old: %s\nnew: %s" (show old) (show new)) (new ⊑ old) -- We are in the reductive set of `f` and have overshot the fixpoint
+    if new ⊑ old -- We are in the reductive set of `f` and have overshot the fixpoint
     then returnA -< y
     else fixA f -< x
 
 memoize :: (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y) => CacheArrow x y x y -> CacheArrow x y x y
 memoize f = proc x -> do
-  m <- lookupOutCache -< x
+  m <- lookupOutCache -< trace (printf "\t\tmemoize (fact (fix (memoize . fact))) -< %s" (show x)) x
   case m of
     Just y -> do
-      returnA -< trace (printf "cache hit: %s -> %s" (show x) (show y)) y
+      returnA -< trace (printf "\t\t%s <- memoize (fact (fix (memoize . fact))) -< %s" (show y) (show x)) y
     Nothing -> do
       yOld <- lookupInCache -< x
-      writeOutCache -< trace (printf "cache miss: %s, old value: %s, recompute ..." (show x) (show yOld))(x, fromMaybe bottom yOld)
-      y <- f -< x
-      updateOutCache -< trace (printf "cache miss: %s, old value: %s, new value: %s" (show x) (show yOld) (show y)) (x, y)
-      returnA -< y
+      writeOutCache -< (x, fromMaybe bottom yOld)
+      y <- f -< trace (printf "\t\tfact (fix (memoize . fact)) -< %s" (show x)) x
+      updateOutCache -< trace (printf "\t\t%s <- fact (fix (memoize . fact)) -< %s" (show y) (show x)) (x, y)
+      returnA -< trace (printf "\t\t%s <- memoize (fact (fix (memoize . fact))) -< %s" (show y) (show x)) y
 #elif
 
 instance (Eq x, Hashable x, LowerBounded y, Complete y)
@@ -90,7 +90,7 @@ instance (Eq x, Hashable x, LowerBounded y, Complete y)
   fixA f = proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
-    y <- localInCache (fix (f . memoize)) -< (old,x)
+    y <- localInCache (fix (memoize . f)) -< (old,x)
     new <- getOutCache -< ()
     if (new ⊑ old) -- We are in the reductive set of `f` and have overshot the fixpoint
     then returnA -< y
