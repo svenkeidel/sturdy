@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Props.DeadWrites.Concrete where
+module Props.UseDef.DeadStores.Concrete where
 
 import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
 import qualified Prelude as Prelude
@@ -13,7 +13,7 @@ import qualified WhileLanguage as L
 import Vals.Concrete.Val
 import qualified Vals.Concrete.Semantics as Concrete
 
-import Props.DeadWrites.Prop
+import Props.UseDef.DeadStores.Prop
 
 import Data.Error
 import Data.Text (Text)
@@ -31,38 +31,39 @@ import Control.Monad.State hiding (State)
 import Control.Monad.Except
 
 import System.Random
+import Data.Order (bottom)
 
-lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c CProp) => c (Text,Label) Val
-lookup = (proc (x,l) -> modifyProp -< (\(DeadWrites written overwritten) -> DeadWrites (Map.delete x written) overwritten))
+lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c Prop) => c (Text,Label) Val
+lookup = (proc (x,l) -> modifyProp -< (\(DeadStores maybeDead dead) -> DeadStores (Map.delete x maybeDead) dead))
      &&> Concrete.lookup
 
-store :: (ArrowChoice c, HasStore c Store, HasProp c CProp) => c (Text,Val,Label) ()
-store = (proc (x,_,l) -> modifyProp -< (\(DeadWrites written overwritten) ->
-          DeadWrites (Map.insert x (Set.singleton l) written)
-                     (overwritten `Set.union` lookupM x written)))
+store :: (ArrowChoice c, HasStore c Store, HasProp c Prop) => c (Text,Val,Label) ()
+store = (proc (x,_,l) -> modifyProp -< (\(DeadStores maybeDead dead) ->
+          DeadStores (Map.insert x (Set.singleton l) maybeDead)
+                     (dead `Set.union` lookupM x maybeDead)))
     &&> Concrete.store
 
 ----------
 -- Arrows
 ----------
 
-type State = (Store,CProp,StdGen)
+type State = (Store,Prop,StdGen)
 type M = StateT State (Except String)
 runM :: [Statement] -> Error String ((),State)
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initCProp,mkStdGen 0)
+runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,bottom,mkStdGen 0)
 
-run :: [Statement] -> Error String (Store,FCProp)
-run = fmap (\(_,(st,pr,gen)) -> (st,finalizeDeadWrites pr)) . runM
+run :: [Statement] -> Error String (Store,FProp)
+run = fmap (\(_,(st,pr,gen)) -> (st,finalizeDeadStores pr)) . runM
 
-runLifted :: [Statement] -> Error String (LiftedStore,FCProp)
-runLifted = fmap (\(st, pr) -> (liftStore st, liftCProp pr)) . run
+runLifted :: [Statement] -> Error String (LiftedStore,FProp)
+runLifted = fmap (\(st, pr) -> (liftStore st, pr)) . run
 
 instance L.HasStore (Kleisli M) Store where
   getStore = Kleisli $ \_ -> get >>= return . (\(st,_,_) -> st)
   putStore = Kleisli $ \st -> modify (\(_,pr,gen) -> (st,pr,gen))
   modifyStore = Kleisli $ \f -> modify (\(st,pr,gen) -> (f st,pr,gen))
 
-instance L.HasProp (Kleisli M) CProp where
+instance L.HasProp (Kleisli M) Prop where
   getProp = Kleisli $ \_ -> get >>= return . (\(_,pr,_) -> pr)
   putProp = Kleisli $ \pr -> modify (\(st,_,gen) -> (st,pr,gen))
   modifyProp = Kleisli $ \f -> modify (\(st,pr,gen) -> (st,f pr,gen))

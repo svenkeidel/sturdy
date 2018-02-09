@@ -20,6 +20,10 @@ data TrUseDef =
   TrDef Text Label
   deriving (Eq,Show,Generic)
 
+useDefName :: TrUseDef -> Text
+useDefName (TrUse t _) = t
+useDefName (TrDef t _) = t
+
 instance Hashable TrUseDef where
 
 type Trace = [TrUseDef]

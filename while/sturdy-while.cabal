@@ -20,7 +20,7 @@ library
                        Vals.Interval.Semantics
 
                        Vals.Symbolic.Val
-                        Vals.Symbolic.Semantics
+                       Vals.Symbolic.Semantics
 
                        Props.FailedReads.Prop
                        Props.FailedReads.Concrete
@@ -29,10 +29,6 @@ library
                        Props.ReadVars.Prop
                        Props.ReadVars.Concrete
                        Props.ReadVars.Interval
-
-                       Props.DeadWrites.Prop
-                       Props.DeadWrites.Concrete
-                       Props.DeadWrites.Interval
 
                        Props.LiveVariables.Prop
                        Props.LiveVariables.Concrete
@@ -49,6 +45,10 @@ library
                        Props.UseDef.ReachingDefinitions.Prop
                        Props.UseDef.ReachingDefinitions.Concrete
                        Props.UseDef.ReachingDefinitions.Interval
+
+                       Props.UseDef.DeadStores.Prop
+                       Props.UseDef.DeadStores.Concrete
+                       Props.UseDef.DeadStores.Interval
 
 
   ghc-options:         -Wall
@@ -82,7 +82,7 @@ test-suite specs
                        Specs.IntervalSpec
                        Specs.FailedReadsSpec
                        Specs.ReadVarsSpec
-                       Specs.DeadWritesSpec
                        Specs.ControlFlowSpec
 
                        Specs.UseDef.ReachingDefinitionsSpec
+                       Specs.UseDef.DeadStoresSpec
