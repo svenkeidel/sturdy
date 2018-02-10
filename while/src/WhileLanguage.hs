@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DeriveGeneric #-}
 module WhileLanguage(module Label, module WhileLanguage) where
@@ -9,6 +10,9 @@ import Prelude hiding (lookup, and, or, not, div)
 import Label
 
 import Control.Arrow
+import Control.Arrow.Fix
+import Control.Arrow.Utils
+
 import Data.Text (Text)
 import Data.Hashable
 import Data.Order
@@ -48,18 +52,21 @@ label (Assign _ _ l) = l
 
 type Prog = [Statement]
 
-class ArrowChoice c => HasStore c st where
-  getStore :: c a st
+class Arrow c => HasStore c st where
+  getStore :: c () st
   putStore :: c st ()
-  modifyStore :: c (st -> st) ()
-  modifyStore = proc f -> do
+  modifyStore :: (c (x,st) st) -> c x ()
+  modifyStore f = proc x -> do
     st <- getStore -< ()
-    putStore -< f st
+    putStore <<< f -< (x,st)
 
-class HasProp c pr where
+class Arrow c => HasProp c pr where
   getProp :: c () pr
   putProp :: c pr ()
-  modifyProp :: c (pr -> pr) ()
+  modifyProp :: (c (x,pr) pr) -> c x ()
+  modifyProp f = proc x -> do
+    pr <- getProp -< ()
+    putProp <<< f -< (x,pr)
 
 class HasRandomGen c where
   nextRandom :: Random a => c () a
@@ -120,15 +127,17 @@ eval = fixEval $ \ev -> proc e -> case e of
 class Run c v | c -> v where
   store :: c (Text,v,Label) ()
   if_ :: c [Statement] () -> c [Statement] () -> c (v,([Statement],[Statement]),Label) ()
-  fixRun :: (c [Statement] () -> c Statement ()) -> c [Statement] ()
 
-run :: (Run c v, Eval c v) => c [Statement] ()
-run = fixRun $ \run' -> proc stmt -> case stmt of
+run :: (Run c v, Eval c v, ArrowFix [Statement] () c) => c [Statement] ()
+run = fixA $ \run' -> voidA $ mapA $ step run'
+
+step :: (Run c v, Eval c v) => c [Statement] () -> c Statement ()
+step steps = proc stmt -> case stmt of
   Assign x e l -> do
     v <- eval -< e
     store -< (x,v,l)
   If cond b1 b2 l -> do
     b <- eval -< cond
-    if_ run' run' -< (b,(b1,b2),l)
+    if_ steps steps -< (b,(b1,b2),l)
   While cond body l ->
-    run' -< [If cond (body ++ [While cond body l]) [] l]
+    steps -< [If cond (body ++ [While cond body l]) [] l]

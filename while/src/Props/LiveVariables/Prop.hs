@@ -1,7 +1,6 @@
 module Props.LiveVariables.Prop where
 
 import Label
-import Data.Maybe
 import Data.Order
 import Data.Text (Text)
 import Data.Map (Map)
@@ -31,7 +30,7 @@ type FLiveVars = Map Label (Set Text)
 finalizeLiveVars :: LiveVars -> FLiveVars
 finalizeLiveVars lv = Map.foldrWithKey insert Map.empty $ live lv
   where insert :: Text -> Set Label -> FLiveVars -> FLiveVars
-        insert t labs m = Set.foldr (\l m -> Map.insertWith (Set.union) l (Set.singleton t) m) m labs
+        insert t labs m = Set.foldr (\l n -> Map.insertWith Set.union l (Set.singleton t) n) m labs
 
 ---------------
 -- concrete

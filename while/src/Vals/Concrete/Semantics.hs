@@ -6,7 +6,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
 module Vals.Concrete.Semantics where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), ($), (.), fst)
+import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), ($), (.), fst,fmap)
 import qualified Prelude
 
 import WhileLanguage (HasStore(..), HasRandomGen(..), Statement, Expr, Label)
@@ -19,10 +19,8 @@ import Data.Text (Text)
 
 import Control.Arrow
 import Control.Arrow.Fail
-import Control.Arrow.Utils
-
-import Control.Monad.State hiding (State)
-import Control.Monad.Except
+import Control.Arrow.Fix
+import Control.Arrow.State
 
 import System.Random
 
@@ -32,7 +30,7 @@ import System.Random
 
 lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store) => c (Text,Label) Val
 lookup = proc (x,l) -> do
-  st <- getStore -< x
+  st <- getStore -< ()
   case Map.lookup x st of
     Just v -> returnA -< v
     Nothing -> failA -< "variable not found"
@@ -98,11 +96,8 @@ fixEval f = f (fixEval f)
 -- Run
 ----------
 
-fixRun :: ArrowChoice c => (c [Statement] () -> c Statement ()) -> c [Statement] ()
-fixRun f = voidA $ mapA $ f (fixRun f)
-
 store :: (ArrowChoice c, HasStore c Store) => c (Text,Val,Label) ()
-store = proc (x,v,_) -> modifyStore -< (Map.insert x v)
+store = modifyStore (arr $ \((x,v,_),st) -> Map.insert x v st)
 
 if_ :: (ArrowChoice c, ArrowFail String c) => c [Statement] () -> c [Statement] () -> c (Val,([Statement],[Statement]),Label) ()
 if_ f1 f2 = proc (v,(x,y),_) -> case v of
@@ -117,29 +112,34 @@ if_ f1 f2 = proc (v,(x,y),_) -> case v of
 ----------
 
 type State = (Store,StdGen)
-type M = StateT State (Except String)
-runM :: [Statement] -> Error String ((),State)
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore, mkStdGen 0)
+initState :: State
+initState = (initStore, mkStdGen 0)
+
+type In a = (State,a)
+type Out a = Error String (State,a)
+type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
+
+runM :: [Statement] -> Error String (State,())
+runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
 run :: [Statement] -> Error String (Store,())
-run = fmap (\(_,(st,_)) -> (st,())) . runM
+run = fmap (first fst) . runM
 
 runLifted :: [Statement] -> Error String (LiftedStore,())
 runLifted = fmap (first liftStore) . run
 
-instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli $ \_ -> fst Prelude.<$> get
-  putStore = Kleisli $ \st -> modify (\(_,rnd) -> (st,rnd))
-  modifyStore = Kleisli  $ \f -> modify (first f)
+instance L.HasStore M Store where
+  getStore = getA >>> arr fst
+  putStore = modifyA $ arr $ \(st,(_,rnd)) -> (st,rnd)
 
-instance L.HasRandomGen (Kleisli M) where
-  nextRandom = Kleisli $ \() -> do
-    (st, gen) <- get
+instance L.HasRandomGen M where
+  nextRandom = proc () -> do
+    (st, gen) <- getA -< ()
     let (r, gen') = random gen
-    put (st, gen')
-    return r
+    putA -< (st, gen')
+    returnA -< r
 
-instance L.Eval (Kleisli M) Val  where
+instance L.Eval M Val  where
   lookup = lookup
   boolLit = boolLit
   and = and
@@ -154,7 +154,6 @@ instance L.Eval (Kleisli M) Val  where
   eq = eq
   fixEval = fixEval
 
-instance L.Run (Kleisli M) Val where
-  fixRun = fixRun
+instance L.Run M Val where
   store = store
   if_ = if_

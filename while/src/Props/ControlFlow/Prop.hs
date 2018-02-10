@@ -9,12 +9,10 @@ module Props.ControlFlow.Prop where
 import WhileLanguage
 import qualified Vals.Concrete.Val as Concrete
 
-import Data.Text (Text)
 import Data.GaloisConnection
 import Data.Order
 import Data.Powerset
 import Data.Hashable
-import Data.Traversable
 
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -114,7 +112,7 @@ initAProp :: AProp v
 initAProp = CFG Set.empty Set.empty M.empty Set.empty
 
 pushNode :: Complete v => CFGNode v -> AProp v -> AProp v
-pushNode node p = p `mappend` (singletonCFG node)
+pushNode node p = p `mappend` singletonCFG node
 
 
 ---------------

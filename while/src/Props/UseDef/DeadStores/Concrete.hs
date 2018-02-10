@@ -2,12 +2,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.UseDef.DeadStores.Concrete where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
-import qualified Prelude as Prelude
+import Prelude (String, ($), (.), fmap)
 
-import WhileLanguage (HasStore(..), HasProp(..), Statement, Expr, Label)
+import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
 
 import Vals.Concrete.Val
@@ -17,30 +17,27 @@ import Props.UseDef.DeadStores.Prop
 
 import Data.Error
 import Data.Text (Text)
-import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Utils
 
 import Control.Arrow
 import Control.Arrow.Fail
+import Control.Arrow.Fix
+import Control.Arrow.State
 import Control.Arrow.Utils
-
-import Control.Monad.State hiding (State)
-import Control.Monad.Except
 
 import System.Random
 import Data.Order (bottom)
 
 lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c Prop) => c (Text,Label) Val
-lookup = (proc (x,l) -> modifyProp -< (\(DeadStores maybeDead dead) -> DeadStores (Map.delete x maybeDead) dead))
+lookup = modifyProp (arr $ \((x,_),DeadStores maybeDead dead) -> DeadStores (Map.delete x maybeDead) dead)
      &&> Concrete.lookup
 
 store :: (ArrowChoice c, HasStore c Store, HasProp c Prop) => c (Text,Val,Label) ()
-store = (proc (x,_,l) -> modifyProp -< (\(DeadStores maybeDead dead) ->
+store = modifyProp (arr $ \((x,_,l),DeadStores maybeDead dead) ->
           DeadStores (Map.insert x (Set.singleton l) maybeDead)
-                     (dead `Set.union` lookupM x maybeDead)))
+                     (dead `Set.union` lookupM x maybeDead))
     &&> Concrete.store
 
 ----------
@@ -48,34 +45,38 @@ store = (proc (x,_,l) -> modifyProp -< (\(DeadStores maybeDead dead) ->
 ----------
 
 type State = (Store,Prop,StdGen)
-type M = StateT State (Except String)
-runM :: [Statement] -> Error String ((),State)
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,bottom,mkStdGen 0)
+initState :: State
+initState = (initStore, bottom, mkStdGen 0)
 
-run :: [Statement] -> Error String (Store,FProp)
-run = fmap (\(_,(st,pr,gen)) -> (st,finalizeDeadStores pr)) . runM
+type In a = (State,a)
+type Out a = Error String (State,a)
+type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
 
-runLifted :: [Statement] -> Error String (LiftedStore,FProp)
-runLifted = fmap (\(st, pr) -> (liftStore st, pr)) . run
+runM :: [Statement] -> Error String (State,())
+runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
-instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli $ \_ -> get >>= return . (\(st,_,_) -> st)
-  putStore = Kleisli $ \st -> modify (\(_,pr,gen) -> (st,pr,gen))
-  modifyStore = Kleisli $ \f -> modify (\(st,pr,gen) -> (f st,pr,gen))
+run :: [Statement] -> Error String (Store,())
+run = fmap (first $ \(st,_,_) -> st) . runM
 
-instance L.HasProp (Kleisli M) Prop where
-  getProp = Kleisli $ \_ -> get >>= return . (\(_,pr,_) -> pr)
-  putProp = Kleisli $ \pr -> modify (\(st,_,gen) -> (st,pr,gen))
-  modifyProp = Kleisli $ \f -> modify (\(st,pr,gen) -> (st,f pr,gen))
+runLifted :: [Statement] -> Error String (LiftedStore,())
+runLifted = fmap (first liftStore) . run
 
-instance L.HasRandomGen (Kleisli M) where
-  nextRandom = Kleisli $ \() -> do
-    (st, pr, gen) <- get
+instance L.HasStore M Store where
+  getStore = getA >>> arr (\(st, _, _) -> st)
+  putStore = modifyA $ arr $ \(st,(_,pr,rnd)) -> (st,pr,rnd)
+
+instance L.HasProp M Prop where
+  getProp = getA >>> arr (\(_, pr, _) -> pr)
+  putProp = modifyA $ arr $ \(pr,(st,_,rnd)) -> (st,pr,rnd)
+
+instance L.HasRandomGen M where
+  nextRandom = proc () -> do
+    (st, pr, gen) <- getA -< ()
     let (r, gen') = random gen
-    put (st, pr, gen')
-    return r
+    putA -< (st, pr, gen')
+    returnA -< r
 
-instance L.Eval (Kleisli M) Val  where
+instance L.Eval M Val  where
   lookup = lookup
   boolLit = Concrete.boolLit
   and = Concrete.and
@@ -90,7 +91,6 @@ instance L.Eval (Kleisli M) Val  where
   eq = Concrete.eq
   fixEval = Concrete.fixEval
 
-instance L.Run (Kleisli M) Val where
-  fixRun = Concrete.fixRun
+instance L.Run M Val where
   store = store
   if_ = Concrete.if_

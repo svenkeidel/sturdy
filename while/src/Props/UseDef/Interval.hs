@@ -1,12 +1,10 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.UseDef.Interval where
 
-import Prelude (String, const, ($), (.), fst, snd, (<$>))
-import qualified Prelude
+import Prelude (String, ($), (.), fst, snd, fmap)
 
 import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
@@ -22,17 +20,16 @@ import Data.Powerset
 
 import Control.Arrow
 import Control.Arrow.Fail
+import Control.Arrow.Fix
+import Control.Arrow.State
 import Control.Arrow.Utils
 
-import Control.Monad.State hiding (State)
-import Control.Monad.Except
-
 lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c LiftedTrace) => c (Text,Label) Val
-lookup = (proc (x,l) -> modifyProp -< powmap (TrUse x l :))
+lookup = modifyProp (arr $ \((x,l),tr) -> powmap (TrUse x l :) tr)
      &&> Interval.lookup
 
 store :: (ArrowChoice c, HasStore c Store, HasProp c LiftedTrace) => c (Text,Val,Label) ()
-store = (proc (x,_,l) -> modifyProp -< powmap (TrDef x l :))
+store = modifyProp (arr $ \((x,_,l),tr) -> powmap (TrDef x l :) tr)
     &&> Interval.store
 
 ----------
@@ -40,24 +37,28 @@ store = (proc (x,_,l) -> modifyProp -< powmap (TrDef x l :))
 ----------
 
 type State = (Store,LiftedTrace)
-type M = StateT State (Except String)
-runM :: [Statement] -> Error String ((),State)
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,liftedTrace initTrace)
+initState :: State
+initState = (initStore, liftedTrace initTrace)
 
-run :: [Statement] -> Error String (Store,LiftedTrace)
-run = fmap (\(_,(st,pr)) -> (st,fmap Prelude.reverse pr)) . runM
+type In a = (State,a)
+type Out a = Error String (State,a)
+type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
 
-instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli $ const (fst <$> get)
-  putStore = Kleisli $ \st -> modify (\(_,pr) -> (st,pr))
-  modifyStore = Kleisli $ \f -> modify (first f)
+runM :: [Statement] -> Error String (State,())
+runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
-instance L.HasProp (Kleisli M) LiftedTrace where
-  getProp = Kleisli $ const (snd <$> get)
-  putProp = Kleisli $ \pr -> modify (\(st,_) -> (st,pr))
-  modifyProp = Kleisli $ \f -> modify (second f)
+run :: [Statement] -> Error String (Store,())
+run = fmap (first fst) . runM
 
-instance L.Eval (Kleisli M) Val  where
+instance L.HasStore M Store where
+  getStore = getA >>> arr fst
+  putStore = modifyA $ arr $ \(st,(_,rnd)) -> (st,rnd)
+
+instance L.HasProp M LiftedTrace where
+  getProp = getA >>> arr snd
+  putProp = modifyA $ arr $ \(pr,(st,_)) -> (st,pr)
+
+instance L.Eval M Val  where
   lookup = lookup
   boolLit = Interval.boolLit
   and = Interval.and
@@ -72,7 +73,6 @@ instance L.Eval (Kleisli M) Val  where
   eq = Interval.eq
   fixEval = Interval.fixEval
 
-instance L.Run (Kleisli M) Val where
-  fixRun = Interval.fixRun
+instance L.Run M Val where
   store = store
   if_ = Interval.if_

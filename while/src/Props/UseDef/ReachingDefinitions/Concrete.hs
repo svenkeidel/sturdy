@@ -5,7 +5,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.UseDef.ReachingDefinitions.Concrete where
 
-import Prelude (String, ($), (.),(<$>),const)
+import Prelude (String, ($), (.), fmap)
 
 import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
@@ -22,15 +22,15 @@ import qualified Data.Set as Set
 import Data.Order
 
 import Control.Arrow
+import Control.Arrow.Fail
+import Control.Arrow.Fix
+import Control.Arrow.State
 import Control.Arrow.Utils
-
-import Control.Monad.State hiding (State)
-import Control.Monad.Except
 
 import System.Random
 
 store :: (ArrowChoice c, HasStore c Store, HasProp c Prop) => c (Text,Val,Label) ()
-store = (proc (x,v,l) -> modifyProp -< \(ReachingDefs ds) -> ReachingDefs $ Map.insert x (Set.singleton l) ds)
+store = modifyProp (arr $ \((x,_,l),ReachingDefs ds) -> ReachingDefs $ Map.insert x (Set.singleton l) ds)
                          -- all previous defs of `x` are killed and `l` is generated
     &&> Concrete.store
 
@@ -39,34 +39,38 @@ store = (proc (x,v,l) -> modifyProp -< \(ReachingDefs ds) -> ReachingDefs $ Map.
 ----------
 
 type State = (Store,Prop,StdGen)
-type M = StateT State (Except String)
-runM :: [Statement] -> Error String ((),State)
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,bottom,mkStdGen 0)
+initState :: State
+initState = (initStore, bottom, mkStdGen 0)
 
-run :: [Statement] -> Error String (Store,Prop)
-run = fmap (\(_,(st,pr,_)) -> (st,pr)) . runM
+type In a = (State,a)
+type Out a = Error String (State,a)
+type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
 
-runLifted :: [Statement] -> Error String (LiftedStore,Prop)
+runM :: [Statement] -> Error String (State,())
+runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
+
+run :: [Statement] -> Error String (Store,())
+run = fmap (first $ \(st,_,_) -> st) . runM
+
+runLifted :: [Statement] -> Error String (LiftedStore,())
 runLifted = fmap (first liftStore) . run
 
-instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli $ const ((\ (st, _, _) -> st) <$> get)
-  putStore = Kleisli $ \st -> modify (\(_,pr,gen) -> (st,pr,gen))
-  modifyStore = Kleisli $ \f -> modify (\(st,pr,gen) -> (f st,pr,gen))
+instance L.HasStore M Store where
+  getStore = getA >>> arr (\(st, _, _) -> st)
+  putStore = modifyA $ arr $ \(st,(_,pr,rnd)) -> (st,pr,rnd)
 
-instance L.HasProp (Kleisli M) Prop where
-  getProp = Kleisli $ const ((\ (_, pr, _) -> pr) <$> get)
-  putProp = Kleisli $ \pr -> modify (\(st,_,gen) -> (st,pr,gen))
-  modifyProp = Kleisli $ \f -> modify (\(st,pr,gen) -> (st,f pr,gen))
+instance L.HasProp M Prop where
+  getProp = getA >>> arr (\(_, pr, _) -> pr)
+  putProp = modifyA $ arr $ \(pr,(st,_,rnd)) -> (st,pr,rnd)
 
-instance L.HasRandomGen (Kleisli M) where
-  nextRandom = Kleisli $ \() -> do
-    (st, pr, gen) <- get
+instance L.HasRandomGen M where
+  nextRandom = proc () -> do
+    (st, pr, gen) <- getA -< ()
     let (r, gen') = random gen
-    put (st, pr, gen')
-    return r
+    putA -< (st, pr, gen')
+    returnA -< r
 
-instance L.Eval (Kleisli M) Val  where
+instance L.Eval M Val  where
   lookup = Concrete.lookup
   boolLit = Concrete.boolLit
   and = Concrete.and
@@ -81,7 +85,6 @@ instance L.Eval (Kleisli M) Val  where
   eq = Concrete.eq
   fixEval = Concrete.fixEval
 
-instance L.Run (Kleisli M) Val where
-  fixRun = Concrete.fixRun
+instance L.Run M Val where
   store = store
   if_ = Concrete.if_

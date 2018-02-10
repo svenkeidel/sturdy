@@ -2,12 +2,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.FailedReads.Interval where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (||), (/), const, ($), (.), fst, snd)
-import qualified Prelude as Prelude
+import Prelude (String, Maybe(..), ($), (.), fst, snd, fmap, uncurry)
 
-import WhileLanguage (HasStore(..), HasProp(..), Statement, Expr, Label)
+import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
 
 import Vals.Interval.Val
@@ -17,26 +17,22 @@ import Props.FailedReads.Prop
 
 import Data.Error
 import Data.Text (Text)
-import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Control.Arrow
 import Control.Arrow.Fail
-import Control.Arrow.Utils
-
-import Control.Monad.State
-import Control.Monad.Except
+import Control.Arrow.Fix
+import Control.Arrow.State
 
 
 lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store, HasProp c AProp) => c (Text,Label) Val
-lookup = proc (x,l) -> do
-  store <- getStore -< x
+lookup = proc (x,_) -> do
+  store <- getStore -< ()
   case Map.lookup x store of
     Just v -> returnA -< v
     Nothing -> do
-      modifyProp -< Set.insert x
+      modifyProp (arr $ uncurry Set.insert) -< x
       failA -< "variable not found"
 
 
@@ -44,24 +40,29 @@ lookup = proc (x,l) -> do
 -- Arrows
 ----------
 
-type M = StateT (Store,AProp) (Except String)
-runM :: [Statement] -> Error String ((),(Store,AProp))
-runM ss = fromEither $ runExcept $ runStateT (runKleisli L.run ss) (initStore,initAProp)
+type State = (Store,AProp)
+initState :: State
+initState = (initStore, initAProp)
 
-run :: [Statement] -> Error String (Store,AProp)
-run = fmap snd . runM
+type In a = (State,a)
+type Out a = Error String (State,a)
+type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
 
-instance L.HasStore (Kleisli M) Store where
-  getStore = Kleisli $ \_ -> get >>= return . fst
-  putStore = Kleisli $ \st -> modify (\(_,y) -> (st,y))
-  modifyStore = Kleisli $ \f -> modify (\(st,y) -> (f st,y))
+runM :: [Statement] -> Error String (State,())
+runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
-instance L.HasProp (Kleisli M) AProp where
-  getProp = Kleisli $ \_ -> get >>= return . snd
-  putProp = Kleisli $ \pr -> modify (\(x,_) -> (x,pr))
-  modifyProp = Kleisli $ \f -> modify (\(x,pr) -> (x,f pr))
+run :: [Statement] -> Error String (Store,())
+run = fmap (first fst) . runM
 
-instance L.Eval (Kleisli M) Val  where
+instance L.HasStore M Store where
+  getStore = getA >>> arr fst
+  putStore = modifyA $ arr $ \(st,(_,rnd)) -> (st,rnd)
+
+instance L.HasProp M AProp where
+  getProp = getA >>> arr snd
+  putProp = modifyA $ arr $ \(pr,(st,_)) -> (st,pr)
+
+instance L.Eval M Val  where
   lookup = lookup
   boolLit = Interval.boolLit
   and = Interval.and
@@ -76,7 +77,6 @@ instance L.Eval (Kleisli M) Val  where
   eq = Interval.eq
   fixEval = Interval.fixEval
 
-instance L.Run (Kleisli M) Val where
-  fixRun = Interval.fixRun
+instance L.Run M Val where
   store = Interval.store
   if_ = Interval.if_
