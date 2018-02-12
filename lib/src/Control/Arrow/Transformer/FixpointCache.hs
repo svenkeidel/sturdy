@@ -8,7 +8,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE CPP #-}
--- {-# OPTIONS_GHC -DTRACE #-}
+{-# OPTIONS_GHC -DTRACE #-}
 module Control.Arrow.Transformer.FixpointCache(CacheArrow,runCacheArrow,runCacheArrow',liftCache) where
 
 import           Prelude hiding (id,(.),lookup)
@@ -65,11 +65,11 @@ instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y)
     m <- lookupCache -< x
     case m of
       Just y -> do
-        returnA -< trace (printf "%s <- memoize -< %s\t(HIT)" (show y) (show x)) y
+        returnA -< trace (printf "%s <- fixA f -< %s\t(HIT)" (show y) (show x)) y
       Nothing -> do
-        updateCache -< trace (printf "memoize -< %s\t\t(MISS)\nout(%s) := ⊥" (show x) (show x)) (x, bottom)
+        updateCache -< trace (printf "fixA f -< %s\t\t(MISS)\nout(%s) := ⊥" (show x) (show x)) (x, bottom)
         y <- loop -< x
-        returnA -< trace (printf "%s <- memoize -< %s" (show y) (show x)) y
+        returnA -< trace (printf "%s <- fixA f -< %s" (show y) (show x)) y
       where
         loop = proc x -> do
           yOld <- fromJust ^<< lookupCache -< x
