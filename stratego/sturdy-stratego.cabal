@@ -26,7 +26,6 @@ library
                        Data.TypedResult,
                        Data.Term,
                        Data.TermEnv,
-                       Data.UncertainResult,
                        Syntax,
                        Signature,
                        Utils,

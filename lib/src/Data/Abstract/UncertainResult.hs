@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Arrows #-}
-module Data.UncertainResult where
+module Data.Abstract.UncertainResult where
 
 import Control.Arrow
 import Control.Monad
@@ -50,7 +50,6 @@ instance MonadPlus UncertainResult where
     (SuccessOrFail x, Fail) -> SuccessOrFail x
     (Fail, SuccessOrFail y) -> SuccessOrFail y
     (SuccessOrFail x, SuccessOrFail _) -> SuccessOrFail x
-
 
 instance PreOrd a => PreOrd (UncertainResult a) where
   m1 ⊑ m2 = case (m1,m2) of

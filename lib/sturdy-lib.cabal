@@ -53,6 +53,7 @@ library
                        Data.Abstract.Powerset,
                        Data.Abstract.Sign,
                        Data.Abstract.Store,
+                       Data.Abstract.UncertainResult,
                        Data.Abstract.Widening,
 
                        Control.Arrow.Const,
