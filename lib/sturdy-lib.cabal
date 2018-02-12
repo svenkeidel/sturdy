@@ -69,7 +69,7 @@ library
                        Control.Arrow.Store,
                        Control.Arrow.Writer,
                        Control.Arrow.Try,
-                       Control.Arrow.Utils
+                       Control.Arrow.Utils,
 
                        Control.Arrow.Abstract.Alloc,
 
@@ -95,6 +95,7 @@ library
                        Control.Arrow.Transformer.Abstract.Store,
                        -- Control.Arrow.Transformer.Abstract.LiveVariables,
                        Control.Arrow.Transformer.Abstract.ReachingDefinitions,
+                       Control.Arrow.Transformer.Abstract.Uncertain
                        
                        -- TODO: delete
                        Control.Monad.Deduplicate,
