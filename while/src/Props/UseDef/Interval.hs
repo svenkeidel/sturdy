@@ -4,7 +4,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.UseDef.Interval where
 
-import Prelude (String, ($), (.), fst, snd, fmap)
+import Prelude (String, ($), (.), fst, snd, fmap,reverse)
 
 import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
@@ -38,7 +38,7 @@ store = modifyProp (arr $ \((x,_,l),tr) -> powmap (TrDef x l :) tr)
 
 type State = (Store,LiftedTrace)
 initState :: State
-initState = (initStore, liftedTrace initTrace)
+initState = (initStore, liftTrace initTrace)
 
 type In a = (State,a)
 type Out a = Error String (State,a)
@@ -47,8 +47,8 @@ type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
 runM :: [Statement] -> Error String (State,())
 runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
-run :: [Statement] -> Error String (Store,())
-run = fmap (first fst) . runM
+run :: [Statement] -> Error String (Store,LiftedTrace)
+run = fmap (second (fmap reverse) . fst) . runM
 
 instance L.HasStore M Store where
   getStore = getA >>> arr fst

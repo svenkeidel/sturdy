@@ -46,8 +46,8 @@ type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
 runM :: [Statement] -> Error String (State,())
 runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
-run :: [Statement] -> Error String (Store,())
-run = fmap (first fst) . runM
+run :: [Statement] -> Error String (Store,AProp Val)
+run = fmap fst . runM
 
 instance L.HasStore M Store where
   getStore = getA >>> arr fst

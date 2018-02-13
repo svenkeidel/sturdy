@@ -49,11 +49,11 @@ type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
 runM :: [Statement] -> Error String (State,())
 runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
-run :: [Statement] -> Error String (Store,())
-run = fmap (first $ \(st,_,_) -> st) . runM
+run :: [Statement] -> Error String (Store,CProp)
+run = fmap ((\(st,pr,_) -> (st,reverse pr)) . fst) . runM
 
-runLifted :: [Statement] -> Error String (LiftedStore,())
-runLifted = fmap (first liftStore) . run
+runLifted :: [Statement] -> Error String (LiftedStore,LiftedCProp)
+runLifted = fmap (liftStore *** liftCProp) . run
 
 instance L.HasStore M Store where
   getStore = getA >>> arr (\(st, _, _) -> st)

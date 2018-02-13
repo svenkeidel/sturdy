@@ -5,7 +5,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.UseDef.Concrete where
 
-import Prelude (String, ($), (.), fmap)
+import Prelude (String, ($), (.), fmap,fst,reverse)
 
 import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
@@ -51,11 +51,11 @@ type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
 runM :: [Statement] -> Error String (State,())
 runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
-run :: [Statement] -> Error String (Store,())
-run = fmap (first $ \(st,_,_) -> st) . runM
+run :: [Statement] -> Error String (Store,Trace)
+run = fmap ((\(st,pr,_) -> (st,reverse pr)) . fst) . runM
 
-runLifted :: [Statement] -> Error String (LiftedStore,())
-runLifted = fmap (first liftStore) . run
+runLifted :: [Statement] -> Error String (LiftedStore,LiftedTrace)
+runLifted = fmap (liftStore *** liftTrace) . run
 
 instance L.HasStore M Store where
   getStore = getA >>> arr (\(st, _, _) -> st)

@@ -33,8 +33,8 @@ initTrace = []
 
 type LiftedTrace = Pow Trace
 
-liftedTrace :: Trace -> LiftedTrace
-liftedTrace = singleton
+liftTrace :: Trace -> LiftedTrace
+liftTrace = singleton
 
 -- ---------------
 -- -- Prop: use-def/def-use relations

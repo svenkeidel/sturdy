@@ -5,7 +5,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Props.FailedReads.Concrete where
 
-import Prelude (String, Maybe(..), ($), (.), uncurry, fmap)
+import Prelude (String, Maybe(..), ($), (.), uncurry, fmap,fst)
 
 import WhileLanguage (HasStore(..), HasProp(..), Statement, Label)
 import qualified WhileLanguage as L
@@ -52,10 +52,10 @@ type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
 runM :: [Statement] -> Error String (State,())
 runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
-run :: [Statement] -> Error String (Store,())
-run = fmap (first $ \(st,_,_) -> st) . runM
+run :: [Statement] -> Error String (Store,CProp)
+run = fmap ((\(st,pr,_) -> (st,pr)) . fst) . runM
 
-runLifted :: [Statement] -> Error String (LiftedStore,())
+runLifted :: [Statement] -> Error String (LiftedStore,CProp)
 runLifted = fmap (first liftStore) . run
 
 instance L.HasStore M Store where
