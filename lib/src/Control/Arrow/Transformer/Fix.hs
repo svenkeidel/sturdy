@@ -4,7 +4,6 @@
 {-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.Fix where
 
-import Prelude hiding ((.))
 import Control.Arrow
 import Control.Arrow.Class.Fix
 import Control.Category
@@ -25,8 +24,8 @@ deriving instance Complete y => Complete (Fix a b x y)
 
 --deriving instance CoComplete y => CoComplete (Fix a b x y)
 instance CoComplete y => CoComplete (Fix a b x y) where
-  Fix f ⊓ Fix g = Fix (\x -> f x ⊓ f x)
+  Fix f ⊓ Fix g = Fix (\x -> f x ⊓ g x)
 
 --deriving instance UpperBounded y => UpperBounded (Fix a b x y)
 instance UpperBounded y => UpperBounded (Fix a b x y) where
-  top = Fix (\_ -> top)
+  top = Fix $ const top
