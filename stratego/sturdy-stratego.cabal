@@ -72,10 +72,12 @@ test-suite specs
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base,
+                       containers,
                        hspec,
                        sturdy-lib,
                        sturdy-stratego,
                        text,
+                       tree-automata,
                        unordered-containers,
                        QuickCheck
   default-language:    Haskell2010

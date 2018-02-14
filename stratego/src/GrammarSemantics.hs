@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -21,7 +22,7 @@ import           Control.Arrow.Try
 import           Control.Arrow.Transformer.Abstract.Uncertain
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
-import           Control.Category
+import           Control.Category hiding ((.))
 
 import           Data.Abstract.UncertainResult
 import           Data.Constructor
@@ -44,6 +45,27 @@ runInterp (Interp f) i senv tenv a = runUncertain (runState (runReader f)) (tenv
 
 eval :: Int -> Strat -> StratEnv -> TermEnv -> Grammar -> UncertainResult (TermEnv, Grammar)
 eval i s = runInterp (eval' s) i
+
+-- Create grammars -----------------------------------------------------------------------------------
+
+sortToName :: Sort -> Name
+sortToName sort = case sort of
+  Sort (SortId name) -> name
+  _ -> error "Parametric polymorphism is not yet supported"
+
+toRhs :: (Constructor,Fun) -> Rhs
+toRhs (Constructor constr, Fun sorts _) = Ctor constr (map sortToName sorts)
+
+toProd :: (Sort, [(Constructor,Fun)]) -> (Name, [Rhs])
+toProd (sort, rhs) = (sortToName sort, map toRhs rhs)
+
+createGrammar :: Signature -> Grammar
+createGrammar (Signature (_, sorts) _) = Grammar start prods
+  where
+    start = "Start"
+    startProd = (start, map (Eps . sortToName) (LM.keys sorts))
+    builtins = [("String", [ Ctor "String" []]), ("INT", [ Ctor "INT" []])]
+    prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
 
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader (StratEnv, Int) Interp
