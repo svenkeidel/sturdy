@@ -71,3 +71,7 @@ instance Complete a => Complete (UncertainResult a) where
     (Fail, SuccessOrFail y) -> SuccessOrFail y
     (SuccessOrFail x, SuccessOrFail y) -> SuccessOrFail (x ⊔ y)
 
+fromMaybe :: Maybe a -> UncertainResult a
+fromMaybe m = case m of
+  Just a -> Success a
+  Nothing -> Fail

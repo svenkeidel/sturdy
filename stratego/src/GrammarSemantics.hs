@@ -4,9 +4,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module GrammarSemantics where
 
-import           SharedSemantics
+import           SharedSemantics hiding (all)
 import           Signature
 import           Syntax hiding (Fail)
 
@@ -28,6 +29,7 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as LM
 import           Data.Hashable
 import qualified Data.Map as M
+import           Data.Order
 import           Data.Term
 import           Data.TermEnv
 
@@ -49,6 +51,25 @@ deriving instance ArrowState TermEnv Interp
 
 instance Complete z => ArrowTry x y z Interp where
   tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
+
+instance PreOrd Grammar where
+  (⊑) = subsetOf
+
+instance Complete Grammar where
+  (⊔) = union
+
+instance PreOrd TermEnv where
+  TermEnv env1 ⊑ TermEnv env2 =
+    all (\v -> fromMaybe (LM.lookup v env1) ⊑ fromMaybe (LM.lookup v env2)) (dom env2)
+
+instance Complete TermEnv where
+  TermEnv env1' ⊔ TermEnv env2' = go (dom env1') env1' env2' LM.empty
+    where
+      go vars env1 env2 env3 = case vars of
+        (v:vs) -> case (LM.lookup v env1, LM.lookup v env2) of
+          (Just t1, Just t2) -> go vs env1 env2 (LM.insert v (t1 ⊔ t2) env3)
+          _                  -> go vs env1 env2 env3
+        [] -> TermEnv env3
 
 instance ArrowFix' Interp Grammar where
   fixA' f = undefined
@@ -84,3 +105,7 @@ instance IsTermEnv TermEnv Grammar Interp where
   insertTerm = undefined
   deleteTermVars = undefined
   unionTermEnvs = undefined
+
+-- Helpers -------------------------------------------------------------------------------------------
+dom :: HashMap TermVar t -> [TermVar]
+dom = LM.keys
