@@ -6,12 +6,12 @@ module WildcardSemanticsSpec(main, spec) where
 import           Prelude hiding (map)
     
 import qualified ConcreteSemantics as C
-import           SharedSemantics
-import           Soundness
+-- import           SharedSemantics
+-- import           Soundness
 import           Syntax hiding (Fail)
 import qualified WildcardSemantics as W
 
-import           Control.Arrow
+-- import           Control.Arrow
 
 import qualified Data.HashMap.Lazy as M
 import           Data.Result hiding (map)
@@ -99,10 +99,11 @@ spec = do
   --     sound M.empty lookupTermVar lookupTermVar 
 
   where
-    sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
-    sound' s xs = sound M.empty (C.fromFoldable $ fmap (second termEnv) xs) (eval' s) (eval' s :: W.Interp W.Term W.Term)
+    -- sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
+    -- sound' s xs = sound M.empty (C.fromFoldable $ fmap (second termEnv) xs) (eval' s) (eval' s :: W.Interp W.Term W.Term)
+    sound' s xs = pendingWith "cannot compute due to bottom element"
 
-    termEnv = C.TermEnv . M.fromList
+    -- termEnv = C.TermEnv . M.fromList
 
     showLub :: C.Term -> C.Term -> String
     showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: W.Term) 
