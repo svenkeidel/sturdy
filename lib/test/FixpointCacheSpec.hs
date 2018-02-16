@@ -56,7 +56,7 @@ spec = do
     let fact f = proc n -> do
           ifLowerThan 1 (proc _ -> returnA -< 1)
                         (proc n -> do {x <- f -< (n-1); returnA -< n * x}) -< n
-    in it "fact [-∞,∞] should produce [1,∞]" $
+    in it "fact [-inf,inf] should produce [1,inf]" $
          runCacheArrow (fixA fact :: Cache IV IV) (I.Interval NegInfinity Infinity) `shouldBe` I.Interval 1 Infinity
 
   describe "the analysis of foo" $
@@ -81,7 +81,7 @@ spec = do
           Odd -> ifLowerThan 0 (proc _ -> returnA -< false)
                                 (ifLowerThan 1 (proc _ -> returnA -< true)
                                                (proc x -> f -< (Even,x-1))) -< x
-    in it "even([-∞,∞]) should produce top" $
+    in it "even([-inf,inf]) should produce top" $
          runCacheArrow (fixA evenOdd) (Even,I.Interval 0 Infinity) `shouldBe` top
 
   describe "the ackermann function" $
@@ -90,7 +90,7 @@ spec = do
            ifLowerThan 0 (proc _ -> returnA -< n+1)
                          (proc m' -> ifLowerThan 0 (proc _ -> f -< (m'-1,1))
                                                    (proc n' -> do { x <- f -< (m,n'-1); f -< (m'-1,x)}) -<< n) -<< m
-    in it "ackerman ([0,∞], [0,∞]) should be [0,∞] " $
+    in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $
          runCacheArrow (fixA ackermann) (I.Interval 0 Infinity,I.Interval 0 Infinity)
            `shouldBe` I.Interval 1 Infinity
 
