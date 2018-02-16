@@ -10,7 +10,10 @@ import Data.Hashable
 import GHC.Generics
 
 -- |Bounded invokes the least upper bound operator until the element reaches a given limit.
-data Bounded a = Bounded a a deriving (Eq,Generic)
+data Bounded a = Bounded a a deriving (Generic)
+
+instance Eq a => Eq (Bounded a) where
+  Bounded _ x == Bounded _ y = x == y
 
 instance Show a => Show (Bounded a) where
   show (Bounded a b) = "min {" ++ show a ++ ", " ++ show b ++ "}"
@@ -29,6 +32,9 @@ instance (Complete a, UpperBounded a) => Widening (Bounded a) where
     | otherwise = Bounded b top
     where
       b = b1 ⊔ b2
+
+instance LowerBounded a => LowerBounded (Bounded a) where
+  bottom = Bounded bottom bottom
 
 -- | Arithmetic operations are lifted to the elements and bounds are joined. This makes all operations associative.
 instance (Num a, LowerBounded a, Complete a) => Num (Bounded a) where

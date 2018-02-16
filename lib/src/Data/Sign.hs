@@ -3,6 +3,8 @@ module Data.Sign where
 
 import Data.Order
 import Data.Hashable
+import Data.Widening
+
 import GHC.Generics
 
 data Sign = Bot | Negative | Zero | Positive | Top
@@ -63,6 +65,8 @@ instance Complete Sign where
   Zero ⊔ Zero = Zero
   Positive ⊔ Positive = Positive
   _ ⊔ _ = Top
+
+instance Widening Sign
 
 instance LowerBounded Sign where
   bottom = Bot

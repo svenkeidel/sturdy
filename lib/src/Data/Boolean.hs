@@ -4,6 +4,7 @@ module Data.Boolean where
 
 import qualified Prelude as P
 import           Data.Order
+import           Data.Widening
 
 class Logic b where
   true :: b
@@ -78,3 +79,5 @@ instance LowerBounded AbsBool where
 
 instance UpperBounded AbsBool where
   top = Top
+
+instance Widening AbsBool where

@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DefaultSignatures #-}
 module Data.Widening where
 
 import Control.Arrow
@@ -13,6 +14,17 @@ class PreOrd a => Widening a where
   -- Furthermore, iterating ▽ on an ascending chain has to stabilize:
   -- Let x1, x2, ... xn be an infinite ascending chain, then x1, x1 ▽ x2, (x1 ▽ x2) ▽ x3, ... (similar to left fold) has a limit.
   (▽) :: a -> a -> a
+
+  default (▽) :: Complete a => a -> a -> a
+  (▽) = (⊔)
+
+instance (Widening a,Widening b) => Widening (a,b) where
+  (a1,b1) ▽ (a2,b2) = (a1 ▽ a2, b1 ▽ b2) 
+
+instance Widening ()
+
+instance Widening b => Widening (a -> b) where
+  f ▽ g = \x -> f x ▽ g x
 
 -- it holds that for all f, lfp f ⊑ widenedLfp f
 widenedLfp :: (Widening a, LowerBounded a) => (a -> a) -> a
@@ -34,9 +46,6 @@ instance (Complete a, UpperBounded a) => Widening (Fueled a) where
 
 instance Widening (m b) => Widening (Kleisli m a b) where
   Kleisli f ▽ Kleisli g = Kleisli $ f ▽ g
-
-instance Widening b => Widening (a -> b) where
-  f ▽ g = \x -> f x ▽ g x
 
 instance Widening (m a) => Widening (ReaderT r m a) where
   ReaderT f ▽ ReaderT g = ReaderT $ f ▽ g
