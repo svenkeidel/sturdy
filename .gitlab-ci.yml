@@ -7,14 +7,8 @@ before_script:
 
 stages:
   - test
-  - hlint
 
 stack-test:
   stage: test
   script:
     - stack test
-
-hlint:
-  stage: hlint
-  script: 
-    for dir in */; do printf "\n#### Running hlint on %s\n" "$dir" && hlint "$dir" --cross; done
