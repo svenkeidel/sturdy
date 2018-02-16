@@ -30,7 +30,10 @@ instance (Num n, Complete n, LowerBounded n, CoComplete n, UpperBounded n) => Nu
   (*) = withBounds2 (*)
   negate Bot = Bot
   negate (Interval i1 i2) = Interval (negate i2) (negate i1)
-  abs = withBounds1 abs
+  abs Bot = Bot
+  abs (Interval i j)
+    | 0 ⊑ i = Interval i j
+    | otherwise = Interval 0 (i ⊔ j)
   signum = withBounds1 signum
   fromInteger = constant . fromInteger
 

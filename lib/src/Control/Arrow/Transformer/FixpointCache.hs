@@ -8,7 +8,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE CPP #-}
-{-# OPTIONS_GHC -DTRACE #-}
+-- {-# OPTIONS_GHC -DTRACE #-}
 module Control.Arrow.Transformer.FixpointCache(CacheArrow,runCacheArrow,runCacheArrow',liftCache) where
 
 import           Prelude hiding (id,(.),lookup)

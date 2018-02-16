@@ -4,11 +4,13 @@
 {-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.Fix where
 
+import Prelude hiding ((.))
+
 import Control.Arrow
 import Control.Arrow.Class.Fix
 import Control.Category
 
-import           Data.Order
+import Data.Order
 
 newtype Fix a b x y = Fix { runFix :: x -> y }
   deriving (Arrow,ArrowChoice,ArrowApply)
