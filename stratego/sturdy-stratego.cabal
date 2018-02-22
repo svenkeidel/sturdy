@@ -20,10 +20,8 @@ library
                        -O2
                        -fprof-auto
   exposed-modules:     Control.Arrow.Apply,
-                       Control.Monad.Result,
                        Data.ATerm,
                        Data.Constructor,
-                       Data.Result,
                        Data.Complete,
                        Data.TypedResult,
                        Data.Term,

@@ -1,12 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OrderSpec(main, spec) where
 
-import qualified WildcardSemantics as A
-import           Data.Order
-import           Data.Result
-import qualified Data.HashMap.Lazy as M
-import qualified Data.Powerset as P
 import qualified Data.AbstractPowerset as A
+import qualified Data.HashMap.Lazy as M
+import           Data.Order
+import qualified Data.Powerset as P
+import qualified WildcardSemantics as A
 
 import           Test.Hspec
 
@@ -17,7 +16,7 @@ spec :: Spec
 spec = do
   
   it "ordering on abstract powersets is correct" $
-    ( pow [Success (A.Cons "f" [A.Cons "g" [], A.Cons "h" []]), Fail] ⊑ pow [Success A.Wildcard, Fail] )
+    ( pow [Right (A.Cons "f" [A.Cons "g" [], A.Cons "h" []]), Left ()] ⊑ pow [Right A.Wildcard, Left ()] )
          `shouldBe` True
 
   it "ordering on environments" $
@@ -25,13 +24,13 @@ spec = do
          `shouldBe` True
 
   it "ordering of abstract powersets of results is correct" $ do
-    pow [Fail] ⊑ pow [Success (A.Wildcard,termEnv []), Fail]
+    pow [Left ()] ⊑ pow [Right (A.Wildcard,termEnv []), Left ()]
          `shouldBe` True
 
-    pow [Success (A.Cons "g" [], termEnv [])] ⊑ pow [Success (A.Wildcard,termEnv []), Fail]
+    pow [Right (A.Cons "g" [], termEnv [])] ⊑ pow [Right (A.Wildcard,termEnv []), Left ()]
          `shouldBe` True
 
-    pow [Success (A.Wildcard, termEnv [])] ⊑ pow [Success (A.Cons "g" [],termEnv []), Fail]
+    pow [Right (A.Wildcard, termEnv [])] ⊑ pow [Right (A.Cons "g" [],termEnv []), Left ()]
          `shouldBe` False
 
   where

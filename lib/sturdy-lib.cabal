@@ -33,6 +33,7 @@ library
                        Data.Utils
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
+                       Control.Arrow.Either,
                        Control.Arrow.Environment,
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
@@ -40,6 +41,7 @@ library
                        Control.Arrow.Try,
                        Control.Arrow.State,
                        Control.Arrow.Reader,
+                       Control.Arrow.Powerset,
                        Control.Monad.Deduplicate,
                        Control.Monad.Join,
                        Control.Monad.Try,
@@ -50,13 +52,14 @@ library
                        Control.Arrow.Class.Fix,
                        Control.Arrow.Class.Environment,
                        Control.Arrow.Transformer.BoundedEnvironment,
+                       Control.Arrow.Transformer.Either,
                        Control.Arrow.Transformer.Environment,
                        Control.Arrow.Transformer.Reader,
                        Control.Arrow.Transformer.State,
                        Control.Arrow.Transformer.FixpointCache,
                        Control.Arrow.Transformer.Fix,
-                       Control.Arrow.Transformer.Fail
-
+                       Control.Arrow.Transformer.Fail,
+                       Control.Arrow.Transformer.Powerset
   build-depends:       base,
                        containers,
                        hashable,

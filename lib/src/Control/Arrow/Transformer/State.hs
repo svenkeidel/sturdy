@@ -7,15 +7,18 @@ module Control.Arrow.Transformer.State(StateArrow(..),liftState) where
 
 import Prelude hiding (id,(.),lookup)
 
-import Control.Category
 import Control.Arrow
-import Control.Arrow.Class.Fail
-import Control.Arrow.Class.State
-import Control.Arrow.Class.Reader
 import Control.Arrow.Class.Environment
+import Control.Arrow.Class.Fail
 import Control.Arrow.Class.Fix
+import Control.Arrow.Class.Reader
+import Control.Arrow.Class.State
+import Control.Arrow.Deduplicate
+import Control.Arrow.Try
 import Control.Arrow.Utils
+import Control.Category
 
+import Data.Hashable
 import Data.Order
 
 newtype StateArrow s c x y = StateArrow { runStateArrow :: c (s,x) (s,y) }
@@ -59,6 +62,18 @@ instance ArrowEnv x y env c => ArrowEnv x y env (StateArrow r c) where
 
 instance ArrowFix (s,x) (s,y) c => ArrowFix x y (StateArrow s c) where
   fixA f = StateArrow (fixA (runStateArrow . f . StateArrow))
+
+instance ArrowTry (s,x) (s,y) (s,z) c => ArrowTry x y z (StateArrow s c) where
+  tryA (StateArrow f) (StateArrow g) (StateArrow h) = StateArrow $ tryA f g h
+
+instance ArrowZero c => ArrowZero (StateArrow s c) where
+  zeroArrow = liftState zeroArrow
+
+instance ArrowPlus c => ArrowPlus (StateArrow s c) where
+  StateArrow f <+> StateArrow g = StateArrow (f <+> g)
+
+instance (Eq s, Hashable s, ArrowDeduplicate c) => ArrowDeduplicate (StateArrow s c) where
+  dedupA (StateArrow f) = StateArrow (dedupA f)
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (StateArrow s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (StateArrow s c x y)
