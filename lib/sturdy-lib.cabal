@@ -39,7 +39,6 @@ library
                        Control.Arrow.Environment,
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
-                       Control.Arrow.Join,
                        Control.Arrow.Reader,
                        Control.Arrow.Powerset,
                        Control.Arrow.State,
@@ -48,7 +47,6 @@ library
 
                        -- TODO: delete
                        Control.Monad.Deduplicate,
-                       Control.Monad.Join,
                        Control.Monad.Try
 
   other-modules:
