@@ -9,7 +9,7 @@
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE CPP #-}
 -- {-# OPTIONS_GHC -DTRACE #-}
-module Control.Arrow.Transformer.FixpointCache(CacheArrow,runCacheArrow,runCacheArrow',liftCache) where
+module Control.Arrow.Transformer.FixCache(CacheArrow,runCacheArrow,runCacheArrow',liftCache) where
 
 import           Prelude hiding (id,(.),lookup)
 import           Data.Function (fix)

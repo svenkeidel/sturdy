@@ -26,24 +26,24 @@ import           Data.Order
 import           Data.Store (Store)
 import qualified Data.Store as S
 
-type Alloc a addr b c = BoundedEnv a addr b c a addr
-newtype BoundedEnv a addr b c x y = BoundedEnv ( ReaderArrow (Alloc a addr b c, HashMap a addr) (StateArrow (Store addr b) c) x y )
+type Alloc var addr val c = BoundedEnv var addr val c var addr
+newtype BoundedEnv var addr val c x y = BoundedEnv ( ReaderArrow (Alloc var addr val c, HashMap var addr) (StateArrow (Store addr val) c) x y )
   deriving (Category,Arrow,ArrowChoice)
 
-runBoundedEnv :: (Eq a, Hashable a, Eq addr, Hashable addr, Complete b, ArrowChoice c, ArrowApply c)
-              => BoundedEnv a addr b c x y -> c (Alloc a addr b c,HashMap a b,x) y
+runBoundedEnv :: (Eq var, Hashable var, Eq addr, Hashable addr, Complete val, ArrowChoice c, ArrowApply c)
+              => BoundedEnv var addr val c x y -> c (Alloc var addr val c,HashMap var val,x) y
 runBoundedEnv f =
   let BoundedEnv (ReaderArrow (StateArrow f')) = proc (bs,x) -> do
        env <- getEnv -< ()
        env' <- bindings -< (bs,env)
        localEnv f -< (env',x)
-  in (\(alloc,env,x) -> (S.empty,((alloc,H.empty),(H.toList env,x)))) ^>> f' >>^ snd
+  in (\(al,env,x) -> (S.empty,((al,H.empty),(H.toList env,x)))) ^>> f' >>^ snd
 
-liftBoundedEnv :: Arrow c => c x y -> BoundedEnv a addr b c x y
+liftBoundedEnv :: Arrow c => c x y -> BoundedEnv var addr vaal c x y
 liftBoundedEnv f = BoundedEnv (liftReader (liftState f))
 
-instance (Eq a, Hashable a, Eq addr, Hashable addr, Complete b, ArrowApply c) =>
-  ArrowEnv a b (HashMap a addr) (BoundedEnv a addr b c) where
+instance (Eq var, Hashable var, Eq addr, Hashable addr, Complete val, ArrowApply c) =>
+  ArrowEnv var val (HashMap var addr) (BoundedEnv var addr val c) where
   lookup = proc x -> do
     env <- getEnv -< ()
     store <- getStore -< ()
@@ -52,52 +52,54 @@ instance (Eq a, Hashable a, Eq addr, Hashable addr, Complete b, ArrowApply c) =>
       S.lookup addr store
   getEnv = BoundedEnv (pi2 <<< askA)
   extendEnv = proc (x,y,env) -> do
-    alloc <- BoundedEnv (pi1 <<< askA) -< ()
-    addr <- localEnv alloc -<< (env,x)
+    addr <- localEnv alloc -< (env,x)
     store <- getStore -< ()
     putStore -< S.insertWith (⊔) addr y store
     returnA -< H.insert x addr env
-  localEnv (BoundedEnv (ReaderArrow f)) = BoundedEnv (ReaderArrow ((\((alloc,_),(env,a)) -> ((alloc,env),a)) ^>> f))
+  localEnv (BoundedEnv (ReaderArrow f)) = BoundedEnv (ReaderArrow ((\((al,_),(env,a)) -> ((al,env),a)) ^>> f))
 
-instance ArrowReader r c => ArrowReader r (BoundedEnv a addr b c) where
+instance ArrowReader r c => ArrowReader r (BoundedEnv var addr val c) where
   askA = liftBoundedEnv askA
   localA (BoundedEnv (ReaderArrow (StateArrow f))) = BoundedEnv $ ReaderArrow $ StateArrow $ 
     (\(e,(s,(r,x))) -> (r,(e,(s,x)))) ^>> localA f
 
-instance ArrowState s c => ArrowState s (BoundedEnv a addr b c) where
+instance ArrowState s c => ArrowState s (BoundedEnv var addr val c) where
   getA = liftBoundedEnv getA
   putA = liftBoundedEnv putA
 
-instance ArrowFail e c => ArrowFail e (BoundedEnv a addr b c) where
+instance ArrowFail e c => ArrowFail e (BoundedEnv var addr val c) where
   failA = liftBoundedEnv failA
 
-instance ArrowApply c => ArrowApply (BoundedEnv a addr b c) where
+instance ArrowApply c => ArrowApply (BoundedEnv var addr val c) where
   app = BoundedEnv $ (\(BoundedEnv f,x) -> (f,x)) ^>> app
 
-getStore :: Arrow c => BoundedEnv a addr b c () (Store addr b)
+getStore :: Arrow c => BoundedEnv var addr val c () (Store addr val)
 getStore = BoundedEnv getA
 {-# INLINE getStore #-}
 
-putStore :: Arrow c => BoundedEnv a addr b c (Store addr b) ()
+putStore :: Arrow c => BoundedEnv var addr val c (Store addr val) ()
 putStore = BoundedEnv putA
 {-# INLINE putStore #-}
 
-instance (ArrowApply c, ArrowFix (HashMap a addr,Store addr b,x) (Store addr b,y) c) => ArrowFix x y (BoundedEnv a addr b c) where
-  fixA f = lift $ proc (a,e,s,x) -> do
-    fixA (unlift a . f . lift') -<< (e,s,x)
+alloc :: ArrowApply c => BoundedEnv var addr val c var addr
+alloc = proc v -> do
+  (a,_) <- BoundedEnv askA -< ()
+  a -<< v
+{-# INLINE alloc #-}
+
+instance (ArrowApply c, ArrowFix (HashMap var addr,Store addr val,x) (Store addr val,y) c) => ArrowFix x y (BoundedEnv var addr val c) where
+  fixA f = BoundedEnv $ ReaderArrow $ StateArrow $ proc (s,((a,e),x)) -> do
+    fixA (unlift a . f . lift) -<< (e,s,x)
     where
-      lift :: Arrow c => c (Alloc a addr b c, HashMap a addr,Store addr b,x) (Store addr b,y) -> BoundedEnv a addr b c x y
-      lift g = BoundedEnv (ReaderArrow (StateArrow ((\(s,((a,e),x)) -> (a,e,s,x)) ^>> g)))
+      lift :: Arrow c => c (HashMap var addr,Store addr val,x) (Store addr val,y) -> BoundedEnv var addr val c x y
+      lift g = BoundedEnv (ReaderArrow (StateArrow ((\(s,((_,e),x)) -> (e,s,x)) ^>> g)))
 
-      lift' :: Arrow c => c (HashMap a addr,Store addr b,x) (Store addr b,y) -> BoundedEnv a addr b c x y
-      lift' g = BoundedEnv (ReaderArrow (StateArrow ((\(s,((_,e),x)) -> (e,s,x)) ^>> g)))
-
-      unlift :: Arrow c => Alloc a addr b c -> BoundedEnv a addr b c x y -> c (HashMap a addr,Store addr b,x) (Store addr b,y)
+      unlift :: Arrow c => Alloc var addr val c -> BoundedEnv var addr val c x y -> c (HashMap var addr,Store addr val,x) (Store addr val,y)
       unlift a (BoundedEnv (ReaderArrow (StateArrow g))) = (\(s,e,x) -> (e,((a,s),x))) ^>> g
 
 
-deriving instance PreOrd (c (Store addr b,((Alloc a addr b c,HashMap a addr),x)) (Store addr b,y)) => PreOrd (BoundedEnv a addr b c x y)
-deriving instance Complete (c (Store addr b,((Alloc a addr b c,HashMap a addr),x)) (Store addr b,y)) => Complete (BoundedEnv a addr b c x y)
-deriving instance CoComplete (c (Store addr b,((Alloc a addr b c,HashMap a addr),x)) (Store addr b,y)) => CoComplete (BoundedEnv a addr b c x y)
-deriving instance LowerBounded (c (Store addr b,((Alloc a addr b c,HashMap a addr),x)) (Store addr b,y)) => LowerBounded (BoundedEnv a addr b c x y)
-deriving instance UpperBounded (c (Store addr b,((Alloc a addr b c,HashMap a addr),x)) (Store addr b,y)) => UpperBounded (BoundedEnv a addr b c x y)
+deriving instance PreOrd (c (Store addr val,((Alloc var addr val c,HashMap var addr),x)) (Store addr val,y)) => PreOrd (BoundedEnv var addr val c x y)
+deriving instance Complete (c (Store addr val,((Alloc var addr val c,HashMap var addr),x)) (Store addr val,y)) => Complete (BoundedEnv var addr val c x y)
+deriving instance CoComplete (c (Store addr val,((Alloc var addr val c,HashMap var addr),x)) (Store addr val,y)) => CoComplete (BoundedEnv var addr val c x y)
+deriving instance LowerBounded (c (Store addr val,((Alloc var addr val c,HashMap var addr),x)) (Store addr val,y)) => LowerBounded (BoundedEnv var addr val c x y)
+deriving instance UpperBounded (c (Store addr val,((Alloc var addr val c,HashMap var addr),x)) (Store addr val,y)) => UpperBounded (BoundedEnv var addr val c x y)

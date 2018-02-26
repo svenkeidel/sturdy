@@ -30,7 +30,9 @@ library
                        Data.FreeCoCompletion,
                        Data.Widening,
                        Data.Store,
-                       Data.Utils
+                       Data.Utils,
+
+                       Control.Arrow.Contour,
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
                        Control.Arrow.Either,
@@ -38,28 +40,36 @@ library
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
                        Control.Arrow.Join,
-                       Control.Arrow.Try,
-                       Control.Arrow.State,
                        Control.Arrow.Reader,
                        Control.Arrow.Powerset,
+                       Control.Arrow.State,
+                       Control.Arrow.Try,
+                       Control.Arrow.Utils,
+
+                       -- TODO: delete
                        Control.Monad.Deduplicate,
                        Control.Monad.Join,
-                       Control.Monad.Try,
-                       Control.Arrow.Utils
-  other-modules:       Control.Arrow.Class.Reader,
-                       Control.Arrow.Class.State,
+                       Control.Monad.Try
+
+  other-modules:
+                       Control.Arrow.Class.Contour,
+                       Control.Arrow.Class.Environment,
                        Control.Arrow.Class.Fail,
                        Control.Arrow.Class.Fix,
-                       Control.Arrow.Class.Environment,
+                       Control.Arrow.Class.Reader,
+                       Control.Arrow.Class.State,
+
                        Control.Arrow.Transformer.BoundedEnvironment,
+                       Control.Arrow.Transformer.Contour,
                        Control.Arrow.Transformer.Either,
                        Control.Arrow.Transformer.Environment,
-                       Control.Arrow.Transformer.Reader,
-                       Control.Arrow.Transformer.State,
-                       Control.Arrow.Transformer.FixpointCache,
+                       Control.Arrow.Transformer.FixCache,
                        Control.Arrow.Transformer.Fix,
                        Control.Arrow.Transformer.Fail,
-                       Control.Arrow.Transformer.Powerset
+                       Control.Arrow.Transformer.Powerset,
+                       Control.Arrow.Transformer.Reader,
+                       Control.Arrow.Transformer.State
+
   build-depends:       base,
                        containers,
                        hashable,
