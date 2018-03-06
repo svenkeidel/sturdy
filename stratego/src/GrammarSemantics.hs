@@ -9,7 +9,7 @@
 module GrammarSemantics where
 
 import           SharedSemantics hiding (all)
-import           Signature
+import           Signature hiding (Top)
 import           Syntax hiding (Fail)
 
 import           Control.Arrow
@@ -31,19 +31,29 @@ import qualified Data.HashMap.Lazy as LM
 import           Data.Hashable
 import qualified Data.Map as M
 import           Data.Order
-import           Data.Term
+import           Data.Term hiding (wildcard)
 import           Data.TermEnv
 
 import           TreeAutomata
 
-newtype TermEnv = TermEnv (HashMap TermVar Grammar) deriving (Show, Eq, Hashable)
+data Term = RTG Grammar | Top deriving (Eq)
+
+instance Show Term where
+  show Top = "⊤"
+  show (RTG g) = show g
+
+instance Hashable Term where
+  hashWithSalt s (RTG g) = s `hashWithSalt` g
+  hashWithSalt s Top = s `hashWithSalt` (2::Int)
+
+newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
 newtype Interp a b = Interp (Reader (StratEnv, Int) (State TermEnv (Uncertain (->))) a b)
-  deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, ArrowPlus, ArrowZero, Category)
+  deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, ArrowPlus, ArrowZero, Category, Complete, PreOrd)
 
 runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> UncertainResult (TermEnv, b)
 runInterp (Interp f) i senv tenv a = runUncertain (runState (runReader f)) (tenv, ((senv, i), a))
 
-eval :: Int -> Strat -> StratEnv -> TermEnv -> Grammar -> UncertainResult (TermEnv, Grammar)
+eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> UncertainResult (TermEnv, Term)
 eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
@@ -74,11 +84,15 @@ deriving instance ArrowState TermEnv Interp
 instance Complete z => ArrowTry x y z Interp where
   tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
 
-instance PreOrd Grammar where
-  (⊑) = subsetOf
+instance PreOrd Term where
+  Top ⊑ _ = False
+  _ ⊑ Top = True
+  RTG g1 ⊑ RTG g2 = g1 `subsetOf` g2
 
-instance Complete Grammar where
-  (⊔) = union
+instance Complete Term where
+  Top ⊔ _ = Top
+  _ ⊔ Top = Top
+  RTG g1 ⊔ RTG g2 = RTG (g1 `union` g2)
 
 instance PreOrd TermEnv where
   TermEnv env1 ⊑ TermEnv env2 =
@@ -93,8 +107,25 @@ instance Complete TermEnv where
           _                  -> go vs env1 env2 env3
         [] -> TermEnv env3
 
-instance ArrowFix' Interp Grammar where
-  fixA' f = undefined
+instance ArrowFix' Interp Term where
+  -- TODO: this should be rewritten to use the fixpoint caching algorithm.
+  fixA' f z = proc x -> do
+    i <- getFuel -< ()
+    if i <= 0
+    then top -< ()
+    else do
+      env <- askA >>^ fst -< ()
+      localFuel (f (fixA' f) z) -< ((env,i-1),x)
+    where
+      getFuel = Interp (askA >>^ snd)
+      localFuel (Interp g) = Interp $ proc ((env,i),a) -> localA g -< ((env,i),a)
+
+instance UpperBounded (Interp () Term) where
+  -- TODO: We can be more precise here by returning `wildcard ctxt`, where `ctxt`
+  -- is the constructorInfo of the current subject grammar. There is, however, no
+  -- way of obtaining this signature. If there turns out to be, we can get rid
+  -- of the `Term` type and go back to directly using `Grammar`s instead.
+  top = proc () -> success ⊔ failA' -< Top
 
 instance ArrowFail () Interp where
   failA = Interp failA
@@ -106,7 +137,7 @@ instance HasStratEnv Interp where
     r <- localA f -< ((senv,i),a)
     returnA -< r
 
-instance IsTerm Grammar Interp where
+instance IsTerm Term Interp where
   matchTermAgainstConstructor matchSubterms = undefined
   matchTermAgainstExplode matchCons matchSubterms = undefined
   matchTermAgainstNumber = undefined
@@ -120,7 +151,7 @@ instance IsTerm Grammar Interp where
   numberLiteral = undefined
   stringLiteral = undefined
 
-instance IsTermEnv TermEnv Grammar Interp where
+instance IsTermEnv TermEnv Term Interp where
   getTermEnv = getA
   putTermEnv = putA
   lookupTermVar f g = undefined
