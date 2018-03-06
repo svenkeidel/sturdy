@@ -24,6 +24,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category hiding ((.))
 
+import           Data.Abstract.FreeCompletion
 import           Data.Abstract.UncertainResult
 import           Data.Constructor
 import           Data.HashMap.Lazy (HashMap)
@@ -36,15 +37,7 @@ import           Data.TermEnv
 
 import           TreeAutomata
 
-data Term = RTG Grammar | Top deriving (Eq)
-
-instance Show Term where
-  show Top = "⊤"
-  show (RTG g) = show g
-
-instance Hashable Term where
-  hashWithSalt s (RTG g) = s `hashWithSalt` g
-  hashWithSalt s Top = s `hashWithSalt` (2::Int)
+type Term = FreeCompletion Grammar
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
 newtype Interp a b = Interp (Reader (StratEnv, Int) (State TermEnv (Uncertain (->))) a b)
@@ -84,15 +77,11 @@ deriving instance ArrowState TermEnv Interp
 instance Complete z => ArrowTry x y z Interp where
   tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
 
-instance PreOrd Term where
-  Top ⊑ _ = False
-  _ ⊑ Top = True
-  RTG g1 ⊑ RTG g2 = g1 `subsetOf` g2
+instance PreOrd Grammar where
+  (⊑) = subsetOf
 
-instance Complete Term where
-  Top ⊔ _ = Top
-  _ ⊔ Top = Top
-  RTG g1 ⊔ RTG g2 = RTG (g1 `union` g2)
+instance Complete Grammar where
+  (⊔) = union
 
 instance PreOrd TermEnv where
   TermEnv env1 ⊑ TermEnv env2 =

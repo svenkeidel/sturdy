@@ -3,11 +3,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Data.Abstract.FreeCompletion where
 
-import Control.Monad
 import Control.Applicative
-
-import Data.Order
+import Control.Monad
 import Data.Hashable
+import Data.Order
 
 import GHC.Generics
 
