@@ -27,6 +27,7 @@ import           Control.Category hiding ((.))
 import           Data.Abstract.FreeCompletion
 import           Data.Abstract.UncertainResult
 import           Data.Constructor
+import           Data.Foldable (foldr')
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as LM
 import           Data.Hashable
@@ -143,10 +144,18 @@ instance IsTerm Term Interp where
 instance IsTermEnv TermEnv Term Interp where
   getTermEnv = getA
   putTermEnv = putA
-  lookupTermVar f g = undefined
-  insertTerm = undefined
-  deleteTermVars = undefined
-  unionTermEnvs = undefined
+  lookupTermVar f g = proc (v,TermEnv env) ->
+    case LM.lookup v env of
+      Just t -> f -< t
+      Nothing ->
+        (proc () -> do
+          putTermEnv -< TermEnv (LM.insert v Top env)
+          f -< Top)
+        ⊔ g
+        -<< ()
+  insertTerm = arr $ \(v,t,TermEnv env) -> TermEnv (LM.insert v t env)
+  deleteTermVars = arr $ \(vars,TermEnv env) -> TermEnv (foldr' LM.delete env vars)
+  unionTermEnvs = arr (\(vars,TermEnv e1,TermEnv e2) -> TermEnv (LM.union e1 (foldr' LM.delete e2 vars)))
 
 -- Helpers -------------------------------------------------------------------------------------------
 dom :: HashMap TermVar t -> [TermVar]
