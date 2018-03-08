@@ -5,8 +5,7 @@
 module Shared where
 
 import           Prelude hiding (succ, pred, lookup)
-import           PCF (Expr)
-import qualified PCF as E
+import           PCF (Expr(..))
 
 import           Control.Arrow
 import           Control.Arrow.Fix
@@ -18,29 +17,33 @@ import           Text.Printf
 
 eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c, IsVal v c, IsClosure v env c) => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
-  E.Var x -> do
+  Var x -> do
     m <- lookup -< x
     case m of
       Just v -> returnA -< v
       Nothing -> failA -< printf "Variable \"%s\" not bound" (unpack x)
-  E.Lam x e -> do
+  Lam x e -> do
     env <- getEnv -< ()
-    closure -< (x, e, env)
-  E.App e1 e2 -> do
+    closure -< (Lam x e, env)
+  App e1 e2 -> do
     fun <- ev -< e1
     arg <- ev -< e2
     applyClosure ev -< (fun, arg)
-  E.Y e -> ev -< E.App e (E.Y e)
-  E.Zero -> zero -< ()
-  E.Succ e -> do
+  Zero -> zero -< ()
+  Succ e -> do
     v <- ev -< e
     succ -< v
-  E.Pred e -> do
+  Pred e -> do
     v <- ev -< e
     pred -< v
-  E.IfZero e1 e2 e3 -> do
+  IfZero e1 e2 e3 -> do
     v1 <- ev -< e1
     ifZero ev ev -< (v1, (e2, e3))
+  Y e -> do
+    fun <- ev -< e
+    env <- getEnv -< ()
+    arg <- closure -< (Y e, env)
+    applyClosure ev -< (fun, arg)
 
 class Arrow c => IsVal v c | c -> v where
   succ :: c v v
@@ -49,5 +52,5 @@ class Arrow c => IsVal v c | c -> v where
   ifZero :: c x v -> c y v -> c (v, (x, y)) v
 
 class Arrow c => IsClosure v env c | c -> env, c -> v where
-  closure :: c (Text, Expr, env) v
+  closure :: c (Expr, env) v
   applyClosure :: c Expr v -> c (v, v) v

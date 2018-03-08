@@ -5,7 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DeriveGeneric #-}
-module FixpointCacheSpec where
+module FixCacheSpec where
 
 import           Prelude hiding (lookup,Bounded)
 
@@ -42,27 +42,27 @@ spec = do
   describe "the analysis of the fibonacci numbers" $
     let fib f =
           ifLowerThan 0
-            (proc _ -> returnA -< 0)
-            (ifLowerThan 1 (proc _ -> returnA -< 1)
+            (proc _ -> returnA -< bounded 0 0)
+            (ifLowerThan 1 (proc _ -> returnA -< bounded 1 1)
                            (proc n -> do
-                              x <- f -< n-1
-                              y <- f -< n-2
+                              x <- f -< n - bounded 1 1
+                              y <- f -< n - bounded 2 2
                               returnA -< x + y))
-        bounded = Bounded (I.Interval 0 100)
+        bounded i j = Bounded (I.Interval (-500) 500) (I.Interval i j)
 
     in it "should memoize numbers that have been computed before already" $ do
-         runCacheArrow (fixA fib :: Cache IV IV) (bounded (I.Interval 5 10)) `shouldBe` (bounded (I.Interval 5 55))
-         runCacheArrow (fixA fib :: Cache IV IV) (bounded (I.Interval 0 Infinity)) `shouldBe` (bounded top)
+         runCacheArrow (fixA fib :: Cache IV IV) (bounded 5 10) `shouldBe` (bounded 5 55)
+         runCacheArrow (fixA fib :: Cache IV IV) (bounded 0 Infinity) `shouldBe` (bounded NegInfinity Infinity)
 
   describe "the analysis of the factorial function" $
     let fact f = proc n -> do
-          ifLowerThan 1 (proc _ -> returnA -< 1)
-                        (proc n -> do {x <- f -< (n-1); returnA -< n * x}) -< n
-        bound = I.Interval NegInfinity Infinity
+          ifLowerThan 1 (proc _ -> returnA -< bounded 1 1)
+                        (proc n -> do {x <- f -< (n-bounded 1 1); returnA -< n * x}) -< n
+        bounded i j = Bounded (I.Interval NegInfinity Infinity) (I.Interval i j)
     in it "fact [-inf,inf] should produce [1,inf]" $
 
-         runCacheArrow (fixA fact :: Cache IV IV) (Bounded bound (I.Interval NegInfinity Infinity))
-           `shouldBe` (Bounded bound (I.Interval 1 Infinity))
+         runCacheArrow (fixA fact :: Cache IV IV) (bounded NegInfinity Infinity)
+           `shouldBe` bounded 1 Infinity
 
   describe "the analysis of foo" $
     let foo :: Cache Sign Sign -> Cache Sign Sign
@@ -83,26 +83,27 @@ spec = do
         evenOdd f = proc (e,x) -> case e of
           Even -> ifLowerThan 0 (proc _ -> returnA -< true)
                                 (ifLowerThan 1 (proc _ -> returnA -< false)
-                                               (proc x -> f -< (Odd,x-1))) -< x
+                                               (proc x -> f -< (Odd,x-bounded 1 1))) -< x
           Odd -> ifLowerThan 0 (proc _ -> returnA -< false)
                                 (ifLowerThan 1 (proc _ -> returnA -< true)
-                                               (proc x -> f -< (Even,x-1))) -< x
+                                               (proc x -> f -< (Even,x-bounded 1 1))) -< x
 
-        bound = I.Interval NegInfinity Infinity
+        bounded i j = Bounded (I.Interval NegInfinity Infinity) (I.Interval i j)
     in it "even([-inf,inf]) should produce top" $
-         runCacheArrow (fixA evenOdd) (Even,Bounded bound (I.Interval 0 Infinity)) `shouldBe` top
+         runCacheArrow (fixA evenOdd) (Even,bounded 0 Infinity) `shouldBe` top
 
   describe "the ackermann function" $
     let ackermann :: Cache (IV,IV) IV -> Cache (IV,IV) IV
         ackermann f = proc (m,n) ->
-           ifLowerThan 0 (proc _ -> returnA -< n+1)
-                         (proc m' -> ifLowerThan 0 (proc _ -> f -< (m'-1,1))
-                                                   (proc n' -> do { x <- f -< (m,n'-1); f -< (m'-1,x)}) -<< n) -<< m
+           ifLowerThan 0 (proc _ -> returnA -< n + bounded 1 1)
+                         (proc m' -> ifLowerThan 0 (proc _ -> f -< (m'- bounded 1 1, bounded 1 1))
+                                                   (proc n' -> do x <- f -< (m,n'-bounded 1 1)
+                                                                  f -< (m'- bounded 1 1,x)) -<< n) -<< m
 
-        bounded = Bounded (I.Interval (-50) 50)
+        bounded i j = Bounded (I.Interval (-50) 50) (I.Interval i j)
     in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runCacheArrow (fixA ackermann) (bounded (I.Interval 0 Infinity), bounded (I.Interval 0 Infinity))
-           `shouldBe` (bounded top)
+         runCacheArrow (fixA ackermann) (bounded 0 Infinity, bounded 0 Infinity)
+           `shouldBe` (bounded NegInfinity Infinity)
 
   describe "the analyis of a diverging program" $
     let diverge :: Cache Int Sign -> Cache Int Sign
@@ -125,18 +126,18 @@ spec = do
   describe "the analysis of a stateful program" $
     let timesTwo :: StateCache IV () -> StateCache IV ()
         timesTwo f = proc n -> case n of
-          0 -> returnA -< ()
+          Bounded (I.Interval (-50) 50) (I.Interval 0 0) -> returnA -< ()
           _ -> do
             s <- getA -< ()
-            putA -< s+ bounded 1
-            f -< (n-1)
+            putA -< s + bounded 1
+            f -< (n- bounded 1)
             s' <- getA -< ()
             putA -< s'+ bounded 1
 
-        bounded = Bounded (I.Interval 0 20) . fromIntegral
+        bounded = Bounded (I.Interval (-50) 50) . fromIntegral
     in it "should cache the state of the program" $
          runCacheArrow' (runStateArrow (fixA timesTwo)) (bounded 0,bounded 5) `shouldBe`
-           (S.fromList [((bounded n,5-bounded n),(10-bounded n,())) | n <- [0..5::Int]],(10,()))
+           (S.fromList [((bounded n,bounded 5-bounded n),(bounded 10-bounded n,())) | n <- [0..5::Int]],(bounded 10,()))
   where
 
     ifLowerThan :: (Num n, Ord n, LowerBounded x, ArrowChoice c, Complete (c (Bounded (Interval n), Bounded (Interval n)) x)) => n -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x
@@ -145,12 +146,12 @@ spec = do
       I.Interval m n
         | n <= l -> f -< b
         | l < m -> g -< b
-        | otherwise -> joined f g -< (toBot $ Bounded o (I.Interval m l), toBot $ Bounded o (I.Interval (l+1) n))
+        | otherwise -> joined f g -< (Bounded o (toBot (I.Interval m l)), Bounded o (toBot (I.Interval (l+1) n)))
 
-    toBot :: Ord n => Bounded (Interval n) -> Bounded (Interval n)
-    toBot (Bounded o I.Bot) = Bounded o I.Bot
-    toBot x@(Bounded o (I.Interval m n))
-      | n < m = Bounded o I.Bot
+    toBot :: Ord n => (Interval n) -> (Interval n)
+    toBot I.Bot = I.Bot
+    toBot x@(I.Interval m n)
+      | n < m = I.Bot
       | otherwise = x
 
 data EvenOdd = Even | Odd deriving (Eq,Generic,Show)

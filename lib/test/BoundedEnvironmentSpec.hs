@@ -1,5 +1,10 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module BoundedEnvironmentSpec where
 
 import           Prelude hiding (lookup)
@@ -8,7 +13,6 @@ import           Control.Arrow.Environment
 import           Control.Arrow.State
 
 import           Data.Interval
-import qualified Data.HashMap.Lazy as M
 import           Data.Text (Text)
 
 import           Test.Hspec
@@ -19,6 +23,12 @@ main = hspec spec
 type Val = Interval Int
 type Addr = Int
 type Ar = BoundedEnv Text Addr Val (StateArrow Addr (->))
+
+instance ArrowAlloc Text Addr Val (StateArrow Addr (->)) where
+  alloc = proc _ -> do
+    addr <- getA -< ()
+    putA -< (succ addr `mod` 5)
+    returnA -< addr
 
 spec :: Spec
 spec = do
@@ -49,16 +59,18 @@ spec = do
           env0 <- getEnv -< ()
           env1 <- extendEnv -< ("a",1,env0)
           localEnv
-            (proc env1 -> do
+            (proc () -> do
+               env1 <- getEnv -< ()
                env2 <- extendEnv -< ("b",2,env1)
                extendEnv -< ("c",3,env2))
-            -< (env1,env1)
+            -< (env1,())
           env4 <- extendEnv -< ("d",4,env1)
           localEnv
-            (proc env4 -> do
+            (proc () -> do
+               env4 <- getEnv -< ()
                env5 <- extendEnv -< ("e",5,env4)
                extendEnv -< ("f",6,env5))
-            -< (env4,env4)
+            -< (env4,())
           env7 <- extendEnv -< ("g",7,env4)
           localEnv f -< (env7,x)
   
@@ -71,10 +83,4 @@ spec = do
     it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Just (Interval 2 7)
 
   where
-    runTests s x = snd (runStateArrow (runBoundedEnv (s lookup)) (0,(alloc,M.empty,x))) 
-
-    alloc :: Alloc Text Addr Val (StateArrow Addr (->))
-    alloc = proc _ -> do
-      addr <- getA -< ()
-      putA -< (succ addr `mod` 5)
-      returnA -< addr
+    runTests s x = snd (runStateArrow (runBoundedEnv (s lookup)) (0,([],x)))

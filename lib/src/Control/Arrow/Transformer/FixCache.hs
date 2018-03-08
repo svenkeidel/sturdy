@@ -8,7 +8,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE CPP #-}
--- {-# OPTIONS_GHC -DTRACE #-}
+{-# OPTIONS_GHC -DTRACE #-}
 module Control.Arrow.Transformer.FixCache(CacheArrow,runCacheArrow,runCacheArrow',liftCache) where
 
 import           Prelude hiding (id,(.),lookup)
@@ -31,6 +31,8 @@ import           Debug.Trace
 import           Text.Printf
 #endif
 
+-- The main idea of this fixpoint caching algorithm is due to David Darais et. al., Abstract Definitional Interpreters (Functional Pearl), ICFP' 17
+-- We made some changes to the algorithm to simplify it.
 newtype CacheArrow a b x y = CacheArrow (((Store a b,Store a b),x) -> (Store a b,y))
 
 runCacheArrow :: CacheArrow a b x y -> (x -> y)
@@ -61,32 +63,33 @@ instance ArrowApply (CacheArrow i o) where
   app = CacheArrow $ (\(io,(CacheArrow f,x)) -> (f,(io,x))) ^>> app
 
 #ifdef TRACE
-instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y)
+instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Widening y)
   => ArrowFix x y (CacheArrow x y) where
-  fixA f = trace (printf "fixA fact") $ proc x -> do
+  fixA f = trace (printf "fixA f") $ proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
-    y <- localInCache (trace (printf "\tfix (memoize . fact)") $ fix (memoize . f)) -< (old,x)
+    y <- localInCache (fix (memoize . f)) -< (old,x)
     new <- getOutCache -< ()
     if new ⊑ old -- We are in the reductive set of `f` and have overshot the fixpoint
     then returnA -< y
     else fixA f -< x
 
-memoize :: (Show x, Show y, Eq x, Hashable x, LowerBounded y, Complete y) => CacheArrow x y x y -> CacheArrow x y x y
+memoize :: (Show x, Show y, Eq x, Hashable x, LowerBounded y, Widening y) => CacheArrow x y x y -> CacheArrow x y x y
 memoize f = proc x -> do
-  m <- lookupOutCache -< trace (printf "\t\tmemoize -< %s" (show x)) x
+  m <- lookupOutCache -< trace (printf "\tmemoize -< %s" (show x)) x
   case m of
     Just y -> do
-      returnA -< trace (printf "\t\t%s <- memoize -< %s" (show y) (show x)) y
+      returnA -< trace (printf "\t%s <- memoize -< %s" (show y) (show x)) y
     Nothing -> do
       yOld <- lookupInCache -< x
-      writeOutCache -< trace (printf "\t\tout(%s) := %s" (show x) (show (fromMaybe bottom yOld))) (x, fromMaybe bottom yOld)
-      y <- f -< trace (printf "\t\tfact -< %s" (show x)) x
+      writeOutCache -< trace (printf "\tout(%s) := %s" (show x) (show (fromMaybe bottom yOld))) (x, fromMaybe bottom yOld)
+      y <- f -< trace (printf "\tf -< %s" (show x)) x
       yCached <- lookupOutCache -< x
-      updateOutCache -< trace (printf "\t\tout(%s) := %s ⊔ %s = %s" (show x) (show (fromJust yCached)) (show y) (show (fromJust yCached ⊔ y)))
-                         (trace (printf "\t\t%s <- fact -< %s" (show y) (show x))
-                        (x, y))
-      returnA -< trace (printf "\t\t%s <- memoize -< %s" (show y) (show x)) y
+      updateOutCache -< (x, y)
+      yNew <- lookupOutCache -< x
+      returnA -< trace (printf "\t%s <- f -< %s\n" (show y) (show x) ++
+                        printf "\tout(%s) := %s ▽ %s = %s\n" (show x) (show (fromJust yCached)) (show y) (show yNew) ++
+                        printf "\t%s <- memoize -< %s" (show y) (show x)) y
 
 #else
 instance (Eq x, Hashable x, LowerBounded y, Widening y)

@@ -16,21 +16,24 @@ cabal-version:       >=1.10
 
 library
   ghc-options:         -Wall
-  exposed-modules:     Data.Order,
+  exposed-modules:
                        Data.AbstractPowerset,
                        Data.Boolean,
                        Data.Bounded,
+                       Data.Environment,
+                       Data.Error,
+                       Data.FreeCoCompletion,
+                       Data.FreeCompletion,
+                       Data.GaloisConnection,
                        Data.InfiniteNumbers,
                        Data.Interval,
+                       Data.Label,
+                       Data.Order,
                        Data.Powerset,
                        Data.Sign,
-                       Data.GaloisConnection,
-                       Data.Error,
-                       Data.FreeCompletion,
-                       Data.FreeCoCompletion,
-                       Data.Widening,
                        Data.Store,
                        Data.Utils,
+                       Data.Widening,
 
                        Control.Arrow.Contour,
                        Control.Arrow.Debug,
@@ -43,14 +46,14 @@ library
                        Control.Arrow.Powerset,
                        Control.Arrow.State,
                        Control.Arrow.Try,
-                       Control.Arrow.Utils,
+                       Control.Arrow.Utils
 
                        -- TODO: delete
                        Control.Monad.Deduplicate,
                        Control.Monad.Try
 
   other-modules:
-                       Control.Arrow.Class.Contour,
+                       Control.Arrow.Class.Alloc,
                        Control.Arrow.Class.Environment,
                        Control.Arrow.Class.Fail,
                        Control.Arrow.Class.Fix,
@@ -70,7 +73,7 @@ library
 
   build-depends:       base,
                        containers,
-                       hashable,
+                       hashable >= 1.2.5.0,
                        mtl,
                        numeric-limits,
                        text,
@@ -86,7 +89,7 @@ test-suite specs
   build-depends:     base,
                      hspec,
                      sturdy-lib,
-                     hashable,
+                     hashable >= 1.2.5.0,
                      unordered-containers,
                      text
   default-language:  Haskell2010

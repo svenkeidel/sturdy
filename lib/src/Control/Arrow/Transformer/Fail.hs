@@ -3,18 +3,18 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE Arrows #-}
 module Control.Arrow.Transformer.Fail(ErrorArrow(..),liftError) where
 
 import           Prelude hiding (id,(.),lookup)
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Class.Environment
 import           Control.Arrow.Class.Fail
+import           Control.Arrow.Class.Fix
 import           Control.Arrow.Class.Reader
 import           Control.Arrow.Class.State
-import           Control.Arrow.Class.Environment
-import           Control.Arrow.Class.Fix
-import           Control.Monad (join)
 
 import           Data.Error
 import           Data.Order
@@ -27,7 +27,12 @@ liftError f = ErrorArrow (f >>> arr Success)
 
 instance ArrowChoice c => Category (ErrorArrow r c) where
   id = liftError id
-  ErrorArrow f . ErrorArrow g = ErrorArrow $ g >>> toEither ^>> right f >>^ (fromEither >>> join)
+  ErrorArrow f . ErrorArrow g = ErrorArrow $ proc x -> do
+    ey <- g -< x
+    case ey of
+      Bot -> returnA -< Bot
+      Error e -> returnA -< Error e
+      Success y -> f -< y
 
 instance ArrowChoice c => Arrow (ErrorArrow r c) where
   arr f = liftError (arr f)
@@ -36,12 +41,14 @@ instance ArrowChoice c => Arrow (ErrorArrow r c) where
 
 injectRight :: (Error e a,x) -> Error e (a,x)
 injectRight (er,x) = case er of
+  Bot -> Bot
   Error e -> Error e
   Success a -> Success (a,x)
 {-# INLINE injectRight #-}
 
 injectLeft :: (x, Error e a) -> Error e (x,a)
 injectLeft (x,er) = case er of
+  Bot -> Bot
   Error e -> Error e
   Success a -> Success (x,a)
 {-# INLINE injectLeft #-}
@@ -52,6 +59,7 @@ instance ArrowChoice c => ArrowChoice (ErrorArrow r c) where
 
 commuteLeft :: Either (Error e x) y -> Error e (Either x y)
 commuteLeft e0 = case e0 of
+  Left Bot -> Bot
   Left (Error e) -> Error e
   Left (Success x) -> Success (Left x)
   Right y -> Success (Right y)
@@ -60,6 +68,7 @@ commuteLeft e0 = case e0 of
 commuteRight :: Either x (Error e y) -> Error e (Either x y)
 commuteRight e0 = case e0 of
   Left x -> Success (Left x)
+  Right Bot -> Bot
   Right (Error e) -> Error e
   Right (Success x) -> Success (Right x)
 {-# INLINE commuteRight #-}

@@ -14,8 +14,8 @@ library
   exposed-modules:   Concrete,
                      IntervalAnalysis,
                      PCF,
-                     Shared,
-                     SignAnalysis
+                     Shared
+                     -- SignAnalysis
   build-depends:     base,
                      hashable,
                      sturdy-lib,

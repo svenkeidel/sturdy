@@ -11,22 +11,21 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment
 import           Data.Error
-import qualified Data.HashMap.Lazy as M
+import           Data.Environment (Env)
 import           Data.Hashable
 import           Data.Text (Text)
 import           GHC.Generics
 
-import           PCF (Expr)
+import           PCF (Expr(..))
 import           Shared
 
-data Closure = Closure Text Expr Env deriving (Eq,Show,Generic)
-type Env = M.HashMap Text Val
+data Closure = Closure Expr (Env Text Val) deriving (Eq,Show,Generic)
 
 data Val = NumVal Int | ClosureVal Closure deriving (Eq, Show,Generic)
 
-type Interp = Environment Text Val (ErrorArrow String (Fix (Env,Expr) (Error String Val)))
+type Interp = Environment Text Val (ErrorArrow String (Fix (Env Text Val,Expr) (Error String Val)))
 
-evalConcrete :: Env -> Expr -> Error String Val
+evalConcrete :: [(Text,Val)] -> Expr -> Error String Val
 evalConcrete env e = runFix (runErrorArrow (runEnvironment eval)) (env,e)
 
 instance IsVal Val Interp where
@@ -42,12 +41,16 @@ instance IsVal Val Interp where
     NumVal _ -> g -< y
     _ -> failA -< "Expected a number as condition for 'ifZero'"
 
-instance IsClosure Val Env Interp where
-  closure = arr $ \(x, e, env) -> ClosureVal $ Closure x e env
+instance IsClosure Val (Env Text Val) Interp where
+  closure = arr $ \(e, env) -> ClosureVal $ Closure e env
   applyClosure f = proc (fun, arg) -> case fun of
-    ClosureVal (Closure x body env) -> do
-      env' <- extendEnv -< (x,arg,env)
-      localEnv f -< (env', body)
+    ClosureVal (Closure e env) -> case e of
+      Lam x body -> do
+        env' <- extendEnv -< (x,arg,env)
+        localEnv f -< (env', body)
+      _ -> do
+        fun' <- localEnv f -< (env, e)
+        applyClosure f -< (fun',arg)
     _ -> failA -< "Expected a closure"
 
 instance Hashable Closure

@@ -5,12 +5,14 @@ module Data.Store(Store,subsetKeys,empty,lookup,insert,insertWith,(!),keys,toLis
 
 import           Prelude hiding (lookup)
 
-import           Data.Order
-import           Data.Hashable
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as S
+import           Data.Hashable
+import           Data.Order
+import           Data.Widening
+
 import           Text.Printf
 
 newtype Store a b = Store (HashMap a b) deriving (Eq,Functor,Foldable,Traversable,Hashable)
@@ -30,6 +32,9 @@ instance (Eq a, Hashable a, Complete b) => Complete (Store a b) where
 instance (Eq a, Hashable a, CoComplete b) => CoComplete (Store a b) where
   Store m1 ⊓ Store m2 = Store (H.intersectionWith (⊓) m1 m2)
 
+instance (Eq a, Hashable a, Widening b) => Widening (Store a b) where
+  Store m1 ▽ Store m2 = Store (H.unionWith (▽) m1 m2)
+
 instance (Eq a, Hashable a, PreOrd b) => LowerBounded (Store a b) where
   bottom = empty
 
@@ -42,6 +47,7 @@ subset s1 s2 = S.size (S.intersection s1 s2) == S.size s1
 empty :: Store a b
 empty = Store H.empty
 
+-- TODO: Lookup is unsound, because of the unorderd `Maybe` type. Easy fix is be to use the `Error` type.
 lookup :: (Eq a, Hashable a) => a -> Store a b -> Maybe b
 lookup a (Store m) = H.lookup a m
 

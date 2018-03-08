@@ -4,9 +4,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.Powerset where
 
-import           Prelude hiding ((.))
+import           Prelude hiding ((.),seq)
 
 import           Control.Category
 import           Control.Applicative
@@ -22,6 +23,7 @@ import qualified Data.HashSet as H
 import           Data.Foldable (foldl',toList)
 import           Data.List (intercalate)
 import           Data.Order
+import           Data.Widening
 
 import GHC.Generics (Generic)
 
@@ -39,6 +41,8 @@ instance (Eq a, Hashable a) => Eq (Pow a) where
 instance (Eq a, Hashable a) => Complete (Pow a) where
   as ⊔ bs = as `union` bs
 
+instance (Eq a, Hashable a) => Widening (Pow a)
+
 instance Show a => Show (Pow a) where
   show (Pow a) = "{" ++ intercalate ", " (show <$> toList a) ++ "}"
 
@@ -48,7 +52,7 @@ instance (Eq a, Hashable a) => Hashable (Pow a) where
 instance Hashable a => Hashable (Set a) where
   hashWithSalt salt seq = foldl hashWithSalt salt seq
 
-instance (Hashable k,Hashable v) => Hashable (Map k v) where
+instance Hashable v => Hashable (Map k v) where
   hashWithSalt salt seq = foldl hashWithSalt salt seq
 
 empty :: Pow a

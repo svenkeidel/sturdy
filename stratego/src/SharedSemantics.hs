@@ -137,8 +137,11 @@ match = proc (p,t) -> case p of
     success -< t
   S.Var x ->
     lookupTermVar'
-      (proc t' -> do t'' <- equal -< (t,t'); insertTerm' -< (x,t''); returnA -< t'')
-      (proc () -> do insertTerm' -< (x,t); returnA -< t) -<< x
+      (proc t' -> do t'' <- equal -< (t,t')
+                     insertTerm' -< (x,t'')
+                     returnA -< t'')
+      (proc () -> do insertTerm' -< (x,t)
+                     returnA -< t) -<< x
   S.Cons c ts ->
     matchTermAgainstConstructor (zipWithA match) -< (c,ts,t)
   S.Explode c ts ->

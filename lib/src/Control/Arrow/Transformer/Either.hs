@@ -9,7 +9,6 @@ module Control.Arrow.Transformer.Either(EitherArrow(..),liftEither) where
 import Prelude hiding (id,lookup)
 
 import Control.Arrow
-import Control.Arrow.Class.Environment
 import Control.Arrow.Class.Fail
 import Control.Arrow.Class.Reader
 import Control.Arrow.Class.State
@@ -79,11 +78,11 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (EitherArrow e c) whe
   askA = liftEither askA
   localA (EitherArrow f) = EitherArrow (localA f)
 
-instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (EitherArrow e c) where
-  lookup = liftEither lookup
-  getEnv = liftEither getEnv
-  extendEnv = liftEither extendEnv
-  localEnv (EitherArrow f) = EitherArrow (localEnv f)
+-- instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (EitherArrow e c) where
+--   lookup = liftEither lookup
+--   getEnv = liftEither getEnv
+--   extendEnv = liftEither extendEnv
+--   localEnv (EitherArrow f) = EitherArrow (localEnv f)
 
 instance ArrowChoice c => ArrowTry x y z (EitherArrow e c) where
   tryA (EitherArrow f) (EitherArrow g) (EitherArrow h) = EitherArrow $ proc x -> do
