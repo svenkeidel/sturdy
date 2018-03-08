@@ -12,6 +12,7 @@ data UncertainResult a
   = Success a
   | Fail
   | SuccessOrFail a
+  deriving (Eq, Show)
 
 instance Functor UncertainResult where
   fmap f = proc r -> case r of

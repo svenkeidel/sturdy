@@ -11,6 +11,7 @@ module GrammarSemantics where
 import           SharedSemantics hiding (all)
 import           Signature hiding (Top)
 import           Syntax hiding (Fail)
+import           Utils
 
 import           Control.Arrow
 import           Control.Arrow.Deduplicate
@@ -128,16 +129,47 @@ instance HasStratEnv Interp where
     returnA -< r
 
 instance IsTerm Term Interp where
-  matchTermAgainstConstructor matchSubterms = undefined
-  matchTermAgainstExplode matchCons matchSubterms = undefined
-  matchTermAgainstNumber = undefined
-  matchTermAgainstString = undefined
+  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,t) -> case t of
+    Lower a -> let (Grammar s ps) = epsilonClosure a
+      in case M.lookup s ps of
+      Just rhss -> do
+        let gs = [ Lower (Grammar nt ps) | Ctor c' ts' <- rhss, c == c', eqLength ts ts', nt <- ts' ]
+        _ <- matchSubterms -< (ts, gs)
+        returnA -< t
+      Nothing -> failA -< ()
+    Top -> do
+      _ <- matchSubterms -< (ts, [ Top | _ <- [1 .. length ts]])
+      returnA ⊔ failA' -< t
 
-  equal = undefined
+  matchTermAgainstExplode matchCons matchSubterms = undefined
+
+  matchTermAgainstNumber = proc (_,t) -> case t of
+    Lower a -> let (Grammar s ps) = epsilonClosure a
+      in case M.lookup s ps of
+      Just rhss -> if elem (Ctor "INT" []) rhss
+        then returnA -< t
+        else failA -< ()
+      Nothing -> failA -< ()
+    Top -> success ⊔ failA' -< numberGrammar
+
+  matchTermAgainstString = proc (_,t) -> case t of
+    Lower a -> let (Grammar s ps) = epsilonClosure a
+      in case M.lookup s ps of
+      Just rhss -> if elem (Ctor "String" []) rhss
+        then returnA -< t
+        else failA -< ()
+      Nothing -> failA -< ()
+    Top -> returnA ⊔ failA' -< stringGrammar
+
+  equal = proc (t1,t2) -> if t1 == t2
+    then returnA -< t1
+    else failA -< ()
+
   convertFromList = undefined
   mapSubterms f = undefined
 
   cons = undefined
+
   numberLiteral = undefined
   stringLiteral = undefined
 
@@ -160,3 +192,15 @@ instance IsTermEnv TermEnv Term Interp where
 -- Helpers -------------------------------------------------------------------------------------------
 dom :: HashMap TermVar t -> [TermVar]
 dom = LM.keys
+
+stringGrammar :: Term
+stringGrammar = Lower (Grammar start prods) where
+  start = uniqueStart
+  prods = M.fromList [(start, [ Eps "String" ])
+                     ,("String", [ Ctor "String" []])]
+
+numberGrammar :: Term
+numberGrammar = Lower (Grammar start prods) where
+  start = uniqueStart
+  prods = M.fromList [(start, [ Eps "INT" ])
+                     ,("INT", [ Ctor "INT" []])]
