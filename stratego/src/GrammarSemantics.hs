@@ -168,10 +168,14 @@ instance IsTerm Term Interp where
   convertFromList = undefined
   mapSubterms f = undefined
 
-  cons = undefined
+  cons = proc (Constructor c,ts) -> let start = uniqueStart () in if null ts
+    then returnA -< Lower (Grammar start $ M.fromList [(start, [ Ctor c [] ])])
+    else let ss = [ s | Lower (Grammar s _) <- ts ]
+             (Grammar _ ps) = foldr1 union [ g | Lower g <- ts ]
+         in returnA -< Lower (Grammar start $ M.insertWith (++) start [ Ctor c ss ] ps)
 
-  numberLiteral = undefined
-  stringLiteral = undefined
+  numberLiteral = proc _ -> returnA -< numberGrammar
+  stringLiteral = proc _ -> returnA -< stringGrammar
 
 instance IsTermEnv TermEnv Term Interp where
   getTermEnv = getA
@@ -195,12 +199,12 @@ dom = LM.keys
 
 stringGrammar :: Term
 stringGrammar = Lower (Grammar start prods) where
-  start = uniqueStart
+  start = uniqueStart ()
   prods = M.fromList [(start, [ Eps "String" ])
                      ,("String", [ Ctor "String" []])]
 
 numberGrammar :: Term
 numberGrammar = Lower (Grammar start prods) where
-  start = uniqueStart
+  start = uniqueStart ()
   prods = M.fromList [(start, [ Eps "INT" ])
                      ,("INT", [ Ctor "INT" []])]

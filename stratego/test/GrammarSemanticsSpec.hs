@@ -99,6 +99,91 @@ spec = do
     --          $ sound' (Match matchPattern) [(t2,[]),(t3,[])]
       pendingWith "Soundness will come later"
 
+  describe "Build" $ do
+
+    it "should build a builtin string literal" $
+      eval 1 (Build (StringLiteral "foo")) LM.empty (termEnv []) (Lower empty) `shouldBe`
+        Success (termEnv [], stringGrammar)
+
+    it "should build a builtin number literal" $
+      eval 1 (Build (NumberLiteral 1)) LM.empty (termEnv []) (Lower empty) `shouldBe`
+        Success (termEnv [], numberGrammar)
+
+    it "a string grammar should not be build on a number literal" $
+      eval 1 (Build (NumberLiteral 1)) LM.empty (termEnv []) (Lower empty) `shouldNotBe`
+        Success (termEnv [], stringGrammar)
+
+    it "a number grammar should not be build on a string literal" $
+      eval 1 (Match (StringLiteral "x")) LM.empty (termEnv []) (Lower empty) `shouldNotBe`
+        Success (termEnv [], numberGrammar)
+
+    it "should build a simple constant PCF expression" $
+      let zero = Grammar "Start0" $ M.fromList [("Start0", [Ctor "Zero" []])]
+      in eval 1 (Build (Cons "Zero" [])) LM.empty (termEnv []) (Lower empty) `shouldBe`
+       Success (termEnv [], Lower zero)
+
+    it "should build a nested PCF expression" $
+      let grammar = Grammar "Start4" $ M.fromList [("Start4", [ Ctor "Succ" ["Start5"]])
+                                                  ,("Start5", [ Ctor "Zero" []])]
+      in eval 1 (Build (Cons "Succ" [Cons "Zero" []])) LM.empty (termEnv []) (Lower empty) `shouldBe`
+        Success (termEnv [], Lower grammar)
+
+    it "should build a constructor with more than one argument" $
+      let grammar = Grammar "Start" $ M.fromList [("Start", [ Ctor "Ifz" ["Start1", "Start2", "Start1"]])
+                                                  ,("Start1", [ Ctor "Zero" [] ])
+                                                  ,("Start2", [ Ctor "Succ" ["Start1"]])]
+      in eval 1 (Build (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) LM.empty (termEnv []) (Lower empty) `shouldBe`
+        Success (termEnv [], Lower grammar)
+
+    it "build should be inverse to match" $
+      let term = NumberLiteral 1
+      in eval 2 (Match term `Seq` Build term) LM.empty (termEnv []) numberGrammar `shouldBe`
+         Success (termEnv [], numberGrammar)
+
+    it "should throw away the current subject grammar if needed" $
+      let tenv = termEnv [("x", numberGrammar)]
+      in eval 1 (Build (Var "x")) LM.empty tenv stringGrammar `shouldBe`
+         Success (tenv, numberGrammar)
+
+    it "should lookup variables" $
+      let term = Lower pcf
+          tenv = termEnv [("x", Lower pcf)]
+      in eval 1 (Build (Var "x")) LM.empty tenv (Lower empty) `shouldBe` Success (tenv,term)
+
+    it "should merge two variables into one grammar" $
+      let tenv = termEnv [("x", numberGrammar), ("y", stringGrammar)]
+      in eval 1 (Build (Cons "foo" [Var "x", Var "y"])) LM.empty tenv (Lower empty) `shouldBe`
+         Success (tenv, Lower (Grammar "Start" $ M.fromList [("Start", [ Ctor "foo" ["Start1", "Start2" ]])
+                                                            ,("Start1", [ Ctor "INT" []])
+                                                            ,("Start2", [ Ctor "String" []])]))
+
+    it "should support linear pattern matching" $
+      let tenv = termEnv [("x", numberGrammar)]
+      in eval 1 (Build (Cons "foo" [Var "x", Var "x"])) LM.empty tenv (Lower empty) `shouldBe`
+         Success (tenv, Lower (Grammar "Start" $ M.fromList [("Start", [ Ctor "foo" ["Start1", "Start1" ]])
+                                                            ,("Start1", [ Ctor "INT" []])]))
+
+    it "should merge a variable and the given subject grammar" $
+      let tenv = termEnv [("x", numberGrammar)]
+      in eval 1 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) LM.empty tenv (Lower pcf) `shouldBe`
+         Success (tenv, Lower (Grammar "Start" $ M.fromList [("Start", [ Ctor "Ifz" ["Start1", "Start2", "Start3"]])
+                                                  ,("Start1", [ Ctor "INT" [] ])
+                                                  ,("Start2", [ Ctor "Succ" ["Start1"]])
+                                                  ,("Start3", [ Ctor "Zero" []])]))
+
+    it "should be sound" $ do
+      -- [t1,t2,t3] <- C.similarTerms 3 7 2 10
+      -- matchPattern <- C.similarTermPattern t1 3
+      -- let vars = patternVars' matchPattern
+      -- buildPattern <- arbitraryTermPattern 5 2 $
+      --   if not (null vars) then elements vars else arbitrary
+      -- return $ counterexample
+      --            (printf "match pattern: %s\nbuild pattern: %s\nt2: %s\nt3: %s\nlub t2 t3 = %s"
+      --               (show matchPattern) (show buildPattern) (show t2) (show t3)
+      --               (showLub t2 t3))
+      --        $ sound' (Match matchPattern `Seq` Build buildPattern) [(t2,[]),(t3,[])]
+      pendingWith "Soundness will come later"
+
   where
     termEnv = TermEnv . LM.fromList
 
