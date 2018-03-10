@@ -119,8 +119,14 @@ instance PreOrd b => PreOrd (a -> b) where
 instance LowerBounded b => LowerBounded (a -> b) where
   bottom = const bottom
 
+instance UpperBounded b => UpperBounded (a -> b) where
+  top = const top
+
 instance Complete b => Complete (a -> b) where
   f ⊔ g = \x -> f x ⊔ g x
+
+instance CoComplete b => CoComplete (a -> b) where
+  f ⊓ g = \x -> f x ⊓ g x
 
 instance (Ord k,PreOrd v) => PreOrd (Map k v) where
   c1 ⊑ c2 = M.keysSet c1 `S.isSubsetOf` M.keysSet c2 && all (\k -> (c1 M.! k) ⊑ (c2 M.! k)) (M.keys c1)

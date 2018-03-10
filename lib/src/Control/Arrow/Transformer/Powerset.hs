@@ -19,7 +19,7 @@ import           Control.Monad (join)
 
 import qualified Data.AbstractPowerset as A
 import           Data.Order
-import           Data.Sequence
+import           Data.Sequence hiding (lookup)
 
 newtype PowersetArrow c x y = PowersetArrow { runPowersetArrow :: c x (A.Pow y)}
 

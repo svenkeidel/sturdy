@@ -28,7 +28,7 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
   App e1 e2 -> do
     fun <- ev -< e1
     arg <- ev -< e2
-    applyClosure ev -< (fun, arg)
+    applyClosure' ev -< (fun, arg)
   Zero -> zero -< ()
   Succ e -> do
     v <- ev -< e
@@ -43,7 +43,16 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
     fun <- ev -< e
     env <- getEnv -< ()
     arg <- closure -< (Y e, env)
-    applyClosure ev -< (fun, arg)
+    applyClosure' ev -< (fun, arg)
+  where
+     applyClosure' ev = applyClosure $ proc ((e,env),arg) -> case e of
+       Lam x body -> do
+         env' <- extendEnv -< (x,arg,env)
+         localEnv ev -< (env', body)
+       _ -> do
+         fun' <- localEnv ev -< (env, e)
+         applyClosure' ev -< (fun',arg)
+
 
 class Arrow c => IsVal v c | c -> v where
   succ :: c v v
@@ -53,4 +62,4 @@ class Arrow c => IsVal v c | c -> v where
 
 class Arrow c => IsClosure v env c | c -> env, c -> v where
   closure :: c (Expr, env) v
-  applyClosure :: c Expr v -> c (v, v) v
+  applyClosure :: c ((Expr,env),v) v -> c (v, v) v

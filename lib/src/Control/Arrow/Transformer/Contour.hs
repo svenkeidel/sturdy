@@ -111,8 +111,8 @@ instance (ArrowFix x y c, ArrowApply c, Label x l, Hashable l) => ArrowFix x y (
 instance Arrow c => ArrowAlloc var (var,Contour l) val (ContourArrow l c) where
   alloc = ContourArrow $ \l -> proc (x,_,_) -> returnA -< (x,l)
 
-deriving instance PreOrd (Contour l -> c x y) => PreOrd (ContourArrow l c x y)
-deriving instance LowerBounded (Contour l -> c x y) => LowerBounded (ContourArrow l c x y)
-deriving instance Complete (Contour l -> c x y) => Complete (ContourArrow l c x y)
-deriving instance CoComplete (Contour l -> c x y) => CoComplete (ContourArrow l c x y)
-deriving instance UpperBounded (Contour l -> c x y) => UpperBounded (ContourArrow l c x y)
+deriving instance PreOrd (c x y) => PreOrd (ContourArrow l c x y)
+deriving instance LowerBounded (c x y) => LowerBounded (ContourArrow l c x y)
+deriving instance Complete (c x y) => Complete (ContourArrow l c x y)
+deriving instance CoComplete (c x y) => CoComplete (ContourArrow l c x y)
+deriving instance UpperBounded (c x y) => UpperBounded (ContourArrow l c x y)

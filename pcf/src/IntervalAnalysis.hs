@@ -98,14 +98,7 @@ instance IsClosure Val (Env Text Addr) Interp where
   closure = arr $ \(e, env) -> ClosureVal (S.singleton (Closure e env))
   applyClosure f = proc (fun, arg) -> case fun of
     Top -> returnA -< Top
-    ClosureVal cls -> lubA (proc (Closure e env) -> case e of
-      Lam x body -> do
-        env' <- extendEnv -< (x,arg,env)
-        localEnv f -< (env', body)
-      _ -> do
-        fun' <- localEnv f -< (env, e)
-        applyClosure f -< (fun',arg)
-      ) -<< toList cls
+    ClosureVal cls -> lubA (proc (Closure e env,arg) -> f -< ((e,env),arg)) -< [ (c,arg) | c <- toList cls] 
     NumVal _ -> failA -< "Expected a closure"
     Bot -> returnA -< Bot
 
