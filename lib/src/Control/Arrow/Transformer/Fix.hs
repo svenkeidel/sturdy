@@ -15,6 +15,9 @@ import Data.Order
 newtype Fix a b x y = Fix { runFix :: x -> y }
   deriving (Arrow,ArrowChoice,ArrowApply)
 
+liftFix :: (x -> y) -> Fix a b x y
+liftFix = Fix
+
 deriving instance Category (Fix a b)
 
 instance ArrowFix x y (Fix x y) where

@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
-module Control.Arrow.Transformer.Fail(ErrorArrow(..),liftError) where
+module Control.Arrow.Transformer.Error(ErrorArrow(..),liftError) where
 
 import           Prelude hiding (id,(.),lookup)
 

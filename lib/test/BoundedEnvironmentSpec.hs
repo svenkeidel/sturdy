@@ -74,13 +74,13 @@ spec = do
           env7 <- extendEnv -< ("g",7,env4)
           localEnv f -< (env7,x)
   
-    it "env(a) = [1,6]" $ runTests setup "a" `shouldBe` Just (Interval 1 6)
+    it "env(a) = [1,6]" $ runTests setup "a" `shouldBe` Just (Interval 1 1)
     it "env(b) = Nothing" $ runTests setup "b" `shouldBe` Nothing
     it "env(c) = Nothing" $ runTests setup "c" `shouldBe` Nothing
     it "env(d) = [4,4]" $ runTests setup "d" `shouldBe` Just (Interval 4 4)
     it "env(e) = Nothing" $ runTests setup "e" `shouldBe` Nothing
     it "env(f) = Nothing" $ runTests setup "f" `shouldBe` Nothing
-    it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Just (Interval 2 7)
+    it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Just (Interval 7 7)
 
   where
     runTests s x = snd (runStateArrow (runBoundedEnv (s lookup)) (0,([],x)))

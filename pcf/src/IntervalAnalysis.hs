@@ -8,7 +8,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module IntervalAnalysis where
 
-import           Prelude hiding (id,Bounded)
+import           Prelude hiding (Bounded)
 
 import           Control.Arrow
 import           Control.Arrow.Fail
@@ -35,11 +35,11 @@ import           Data.Widening
     
 import           GHC.Generics
 
-import           PCF (Expr(Lam))
+import           PCF (Expr)
 import           Shared
 
 type IV = Interval (InfiniteNumber Int)
-data Closure = Closure Expr (Env Text Addr) deriving (Eq,Generic)
+data Closure = Closure Expr (Env Text Addr,Store Addr Val) deriving (Eq,Generic)
 data Val = Bot | NumVal (Bounded IV) | ClosureVal (HashSet Closure) | Top deriving (Eq, Generic)
 
 instance Show Val where
@@ -58,7 +58,7 @@ type Interp =
       (ContourArrow Expr
         (ErrorArrow String
           (CacheArrow (Env Text Addr,Store Addr Val,(IV,Expr))
-                      (Error String (Store Addr Val,Val))))))
+                      (Error String Val)))))
 
 evalInterval :: Int -> IV -> [(Text,Val)] -> Expr -> Error String Val
 evalInterval k bound env e =
@@ -94,11 +94,12 @@ instance IsVal Val Interp where
     (Bot, _) -> returnA -< Bot
 
 
-instance IsClosure Val (Env Text Addr) Interp where
+instance IsClosure Val (Env Text Addr,Store Addr Val) Interp where
   closure = arr $ \(e, env) -> ClosureVal (S.singleton (Closure e env))
   applyClosure f = proc (fun, arg) -> case fun of
     Top -> returnA -< Top
-    ClosureVal cls -> lubA (proc (Closure e env,arg) -> f -< ((e,env),arg)) -< [ (c,arg) | c <- toList cls] 
+    ClosureVal cls -> lubA (proc (Closure e env,arg) -> f -< ((e,env),arg))
+                        -< [ (c,arg) | c <- toList cls] 
     NumVal _ -> failA -< "Expected a closure"
     Bot -> returnA -< Bot
 

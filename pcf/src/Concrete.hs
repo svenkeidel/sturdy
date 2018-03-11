@@ -45,7 +45,7 @@ instance IsClosure Val (Env Text Val) Interp where
   closure = arr $ \(e, env) -> ClosureVal $ Closure e env
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal (Closure e env) -> f -< ((e,env),arg)
-    _ -> failA -< "Expected a closure"
+    NumVal _ -> failA -< "Expected a closure"
 
 instance Hashable Closure
 instance Hashable Val
