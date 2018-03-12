@@ -5,6 +5,7 @@ import           SharedSpecs
 
 import           Data.Bounded
 import           Data.Error
+import           Data.Order
 import qualified Data.Interval as I
 import           Data.InfiniteNumbers
 import           IntervalAnalysis
@@ -48,6 +49,10 @@ spec = do
         -- at some point addition is called with add [-1,0] [2,2] and [-1,0] fails the bound check and the top interval is returned.
         evalInterval 10 lim [("x", bounded 0 1)] (App (App add "x") two) `shouldBe` Success (bounded NegInfinity Infinity)
 
+    it "should terminate for the non terminating program" $
+      let lim = I.Interval 0 5
+      in evalInterval 5 lim [] (Y (Lam "x" "x")) `shouldBe` Success bottom 
+
     -- it "should analyze the factorial function correctly" $
     --   evalInterval 3 lim [] (App fix (Lam "fac" (Lam "x" (IfZero "x" one (App (App mult "x") (App "fact" (Pred "x"))))))) `shouldBe`
     --     Success (NumVal (Bounded lim 0))
@@ -55,6 +60,8 @@ spec = do
 
 
   where
+    fix = Lam "f" (App (Lam "x" (App "f" (Lam "v" (App (App "x" "x") "v"))))
+                       (Lam "x" (App "f" (Lam "v" (App (App "x" "x") "v")))))
     -- mult = App fix $ Lam "mult" $ Lam "x" $ Lam "y" $
     --   IfZero "x" Zero (App (App add "y") (App (App "mult" (Pred "x")) "y"))
 

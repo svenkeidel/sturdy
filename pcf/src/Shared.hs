@@ -49,9 +49,10 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
        Lam x body -> do
          env' <- extendEnv -< (x,arg,env)
          localEnv ev -< (env', body)
-       _ -> do
-         fun' <- localEnv ev -< (env, e)
+       Y e' -> do
+         fun' <- localEnv ev -< (env, e')
          applyClosure' ev -< (fun',arg)
+       _ -> failA -< "found unexpected epxression in closure: " ++ show e
 
 
 class Arrow c => IsVal v c | c -> v where
