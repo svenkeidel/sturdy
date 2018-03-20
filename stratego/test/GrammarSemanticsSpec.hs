@@ -184,6 +184,21 @@ spec = do
       --        $ sound' (Match matchPattern `Seq` Build buildPattern) [(t2,[]),(t3,[])]
       pendingWith "Soundness will come later"
 
+  describe "Scope" $ do
+    it "should hide declare variables" $ do
+      let tenv = termEnv [("x", numberGrammar)]
+      eval 1 (Scope ["x"] (Build "x")) LM.empty tenv numberGrammar `shouldBe`
+        Success (tenv, Top)
+      eval 2 (Scope ["x"] (Match "x")) LM.empty tenv numberGrammar `shouldBe`
+        Success (tenv, numberGrammar)
+
+    it "should make non-declared variables available" $ do
+      let tenv = termEnv [("x", numberGrammar)]
+      eval 2 (Scope ["y"] (Build "x")) LM.empty tenv numberGrammar `shouldBe`
+        Success (tenv, numberGrammar)
+      eval 2 (Scope ["y"] (Match "z")) LM.empty tenv numberGrammar `shouldBe`
+        Success (termEnv [("x", numberGrammar), ("z", numberGrammar)], numberGrammar)
+
   where
     termEnv = TermEnv . LM.fromList
 
