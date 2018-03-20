@@ -166,7 +166,12 @@ instance IsTerm Term Interp where
     else failA -< ()
 
   convertFromList = undefined
-  mapSubterms f = undefined
+
+  mapSubterms f = proc t -> case t of
+    Lower g -> do
+      gs' <- f -< map (Lower) (permutate g)
+      returnA -< Lower (union' [ a | Lower a <- gs'])
+    Top -> returnA -< Top
 
   cons = proc (Constructor c,ts) -> let start = uniqueStart () in if null ts
     then returnA -< Lower (Grammar start $ M.fromList [(start, [ Ctor c [] ])])
