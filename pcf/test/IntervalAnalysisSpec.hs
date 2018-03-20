@@ -51,7 +51,10 @@ spec = do
 
     it "should terminate for the non terminating program" $
       let lim = I.Interval 0 5
-      in evalInterval 5 lim [] (Y (Lam "x" "x")) `shouldBe` Success bottom 
+      in do evalInterval 5 lim [] (Y (Lam "x" "x")) `shouldSatisfy`
+              \c -> case c of Success (ClosureVal _) -> True; _ -> False
+            evalInterval 5 lim [] (Y (Lam "f" (Lam "x" (App "f" "x")))) `shouldSatisfy`
+              \c -> case c of Success (ClosureVal _) -> True; _ -> False
 
     -- it "should analyze the factorial function correctly" $
     --   evalInterval 3 lim [] (App fix (Lam "fac" (Lam "x" (IfZero "x" one (App (App mult "x") (App "fact" (Pred "x"))))))) `shouldBe`

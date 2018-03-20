@@ -113,6 +113,21 @@ instance (Complete a, Complete b) => Complete (a,b) where
 instance (CoComplete a, CoComplete b) => CoComplete (a,b) where
   (a1,b1) ⊓ (a2,b2) = (a1 ⊓ a2, b1 ⊓ b2)
 
+instance (PreOrd a,PreOrd b,PreOrd c) => PreOrd (a,b,c) where
+  (a1,b1,c1) ⊑ (a2,b2,c2) = a1 ⊑ a2 && b1 ⊑ b2 && c1 ⊑ c2 
+
+instance (LowerBounded a,LowerBounded b,LowerBounded c) => LowerBounded (a,b,c) where
+  bottom = (bottom,bottom,bottom)
+
+instance (UpperBounded a,UpperBounded b,UpperBounded c) => UpperBounded (a,b,c) where
+  top = (top,top,top)
+
+instance (Complete a, Complete b, Complete c) => Complete (a,b,c) where
+  (a1,b1,c1) ⊔ (a2,b2,c2) = (a1 ⊔ a2, b1 ⊔ b2, c1 ⊔ c2)
+
+instance (CoComplete a, CoComplete b, CoComplete c) => CoComplete (a,b,c) where
+  (a1,b1,c1) ⊓ (a2,b2,c2) = (a1 ⊓ a2, b1 ⊓ b2, c1 ⊓ c2)
+
 instance PreOrd b => PreOrd (a -> b) where
   _ ⊑ _ = error "f ⊑ g  iff  forall x. f x ⊑ g x"
 

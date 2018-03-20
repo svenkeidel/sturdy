@@ -13,13 +13,14 @@ import           Control.Category
 import           Control.Monad
 import           Control.Monad.Deduplicate
 
-import           Data.Sequence (Seq)
+import           Data.Sequence (Seq,(<|))
 import           Data.Hashable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
 import           Data.Foldable (foldl',toList)
 import           Data.List (intercalate)
 import           Data.Order
+import           Data.Widening
 
 import           GHC.Generics (Generic)
 
@@ -34,6 +35,11 @@ instance (Eq a, Hashable a) => Eq (Pow a) where
 instance PreOrd a => Complete (Pow a) where
   as ⊔ bs = as `union` bs
 
+instance PreOrd a => Widening (Pow a)
+
+instance PreOrd a => LowerBounded (Pow a) where
+  bottom = empty
+
 instance Show a => Show (Pow a) where
   show (Pow a) = "{" ++ intercalate ", " (show <$> toList a) ++ "}"
 
@@ -45,6 +51,9 @@ empty = mempty
 
 singleton :: a -> Pow a
 singleton = Pow . return
+
+insert :: a -> Pow a -> Pow a
+insert a (Pow as) = Pow (a <| as)
 
 union :: Pow a -> Pow a -> Pow a
 union = mappend

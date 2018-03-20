@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Store(Store,subsetKeys,empty,lookup,insert,insertWith,(!),keys,toList,fromList) where
+module Data.Store(Store,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList) where
 
 import           Prelude hiding (lookup)
 
@@ -56,6 +56,9 @@ insert a b (Store m) = Store (H.insert a b m)
 
 insertWith :: (Eq a, Hashable a) => (b -> b -> b) -> a -> b -> Store a b -> Store a b
 insertWith f a b (Store m) = Store (H.insertWith f a b m)
+
+adjust :: (Eq a, Hashable a) => (b -> b) -> a -> Store a b -> Store a b
+adjust f a (Store m) = Store (H.adjust f a m)
 
 (!) :: (Eq a, Hashable a) => Store a b -> a -> b
 Store m ! a = m H.! a

@@ -21,6 +21,9 @@ class PreOrd a => Widening a where
 instance (Widening a,Widening b) => Widening (a,b) where
   (a1,b1) ▽ (a2,b2) = (a1 ▽ a2, b1 ▽ b2) 
 
+instance (Widening a,Widening b,Widening c) => Widening (a,b,c) where
+  (a1,b1,c1) ▽ (a2,b2,c2) = (a1 ▽ a2, b1 ▽ b2,  c1 ▽ c2) 
+
 instance Widening ()
 
 instance Widening b => Widening (a -> b) where
