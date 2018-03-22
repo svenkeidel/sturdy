@@ -60,15 +60,15 @@ spec = do
         Success (termEnv [], pcf)
 
     it "should introduce one variable" $
-      let (Grammar _ ps) = pcf
-          pcf_exp = Grammar "Exp" ps
+      let ps = productions pcf
+          pcf_exp = grammar "Exp" ps
       in geval 1 (Match (Cons "Succ" ["x"])) (termEnv []) pcf `shouldBe`
         Success (termEnv [("x", pcf_exp)], pcf)
 
     it "should introduce multiple variables and support linear pattern matching" $
-      let (Grammar _ ps) = pcf
-          pcf_exp = Grammar "Exp" ps
-          pcf_var = Grammar "String" ps
+      let ps = productions pcf
+          pcf_exp = grammar "Exp" ps
+          pcf_var = grammar "String" ps
       in geval 2 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["y"])) (termEnv []) pcf `shouldBe`
          Success (termEnv [("x", pcf_exp), ("y", pcf_var)], pcf)
 
@@ -117,22 +117,22 @@ spec = do
         Success (termEnv [], numberGrammar)
 
     it "should build a simple constant PCF expression" $
-      let zero = Grammar "Start0" $ M.fromList [("Start0", [Ctor "Zero" []])]
+      let zero = grammar "Start0" $ M.fromList [("Start0", [Ctor "Zero" []])]
       in geval 1 (Build (Cons "Zero" [])) (termEnv []) empty `shouldBe`
        Success (termEnv [], zero)
 
     it "should build a nested PCF expression" $
-      let grammar = Grammar "Start4" $ M.fromList [("Start4", [ Ctor "Succ" ["Start5"]])
-                                                  ,("Start5", [ Ctor "Zero" []])]
+      let g = grammar "Start4" $ M.fromList [("Start4", [ Ctor "Succ" ["Start5"]])
+                                            ,("Start5", [ Ctor "Zero" []])]
       in geval 1 (Build (Cons "Succ" [Cons "Zero" []])) (termEnv []) empty `shouldBe`
-        Success (termEnv [], grammar)
+        Success (termEnv [], g)
 
     it "should build a constructor with more than one argument" $
-      let grammar = Grammar "Start" $ M.fromList [("Start", [ Ctor "Ifz" ["Start1", "Start2", "Start1"]])
-                                                  ,("Start1", [ Ctor "Zero" [] ])
-                                                  ,("Start2", [ Ctor "Succ" ["Start1"]])]
+      let g = grammar "Start" $ M.fromList [("Start", [ Ctor "Ifz" ["Start1", "Start2", "Start1"]])
+                                           ,("Start1", [ Ctor "Zero" [] ])
+                                           ,("Start2", [ Ctor "Succ" ["Start1"]])]
       in geval 1 (Build (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) (termEnv []) empty `shouldBe`
-        Success (termEnv [], grammar)
+        Success (termEnv [], g)
 
     it "build should be inverse to match" $
       let term = NumberLiteral 1
@@ -151,20 +151,20 @@ spec = do
     it "should merge two variables into one grammar" $
       let tenv = termEnv [("x", numberGrammar), ("y", stringGrammar)]
       in geval 1 (Build (Cons "foo" [Var "x", Var "y"])) tenv empty `shouldBe`
-         Success (tenv, Grammar "Start" $ M.fromList [("Start", [ Ctor "foo" ["Start1", "Start2" ]])
+         Success (tenv, grammar "Start" $ M.fromList [("Start", [ Ctor "foo" ["Start1", "Start2" ]])
                                                      ,("Start1", [ Ctor "INT" []])
                                                      ,("Start2", [ Ctor "String" []])])
 
     it "should support linear pattern matching" $
       let tenv = termEnv [("x", numberGrammar)]
       in geval 1 (Build (Cons "foo" [Var "x", Var "x"])) tenv empty `shouldBe`
-         Success (tenv, Grammar "Start" $ M.fromList [("Start", [ Ctor "foo" ["Start1", "Start1" ]])
+         Success (tenv, grammar "Start" $ M.fromList [("Start", [ Ctor "foo" ["Start1", "Start1" ]])
                                                      ,("Start1", [ Ctor "INT" []])])
 
     it "should merge a variable and the given subject grammar" $
       let tenv = termEnv [("x", numberGrammar)]
       in geval 1 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv pcf `shouldBe`
-         Success (tenv, Grammar "Start" $ M.fromList [("Start", [ Ctor "Ifz" ["Start1", "Start2", "Start3"]])
+         Success (tenv, grammar "Start" $ M.fromList [("Start", [ Ctor "Ifz" ["Start1", "Start2", "Start3"]])
                                                      ,("Start1", [ Ctor "INT" [] ])
                                                      ,("Start2", [ Ctor "Succ" ["Start1"]])
                                                      ,("Start3", [ Ctor "Zero" []])])
@@ -199,11 +199,11 @@ spec = do
 
   where
     geval :: Int -> Strat -> TermEnv -> Term -> UncertainResult (TermEnv, Term)
-    geval i strat tenv grammar = eval i strat (alphabet grammar) LM.empty tenv grammar
+    geval i strat tenv g = eval i strat (alphabet g) LM.empty tenv g
 
     termEnv = TermEnv . LM.fromList
 
-    pcf = Grammar "Start" $ M.fromList [
+    pcf = grammar "Start" $ M.fromList [
       ("Start", [ Eps "Exp"
                 , Eps "Type" ])
       , ("Exp", [ Ctor "Abs" ["String", "Type", "Exp"]

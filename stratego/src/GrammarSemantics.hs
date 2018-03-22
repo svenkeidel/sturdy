@@ -61,13 +61,13 @@ toRhs :: (Constructor,Fun) -> Rhs
 toRhs (Constructor constr, Fun sorts _) = Ctor constr (map sortToName sorts)
 
 toProd :: (Sort, [(Constructor,Fun)]) -> (Name, [Rhs])
-toProd (sort, rhs) = (sortToName sort, map toRhs rhs)
+toProd (sort, rhss) = (sortToName sort, map toRhs rhss)
 
 createGrammar :: Signature -> Grammar
-createGrammar (Signature (_, sorts) _) = Grammar start prods
+createGrammar (Signature (_, sorts) _) = grammar startSymbol prods
   where
-    start = "Start"
-    startProd = (start, map (Eps . sortToName) (LM.keys sorts))
+    startSymbol = "Start"
+    startProd = (startSymbol, map (Eps . sortToName) (LM.keys sorts))
     builtins = [("String", [ Ctor "String" []]), ("INT", [ Ctor "INT" []])]
     prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
 
@@ -131,31 +131,26 @@ instance HasStratEnv Interp where
 
 instance IsTerm Term Interp where
   matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,t) -> do
-    let (Grammar s ps) = epsilonClosure t
-      in case M.lookup s ps of
-      Just rhss -> do
-        let gs = [ Grammar nt ps | Ctor c' ts' <- rhss, c == c', eqLength ts ts', nt <- ts' ]
-        _ <- matchSubterms -< (ts, gs)
-        returnA -< t
-      Nothing -> failA -< ()
+   let g = epsilonClosure t
+     in case rhs g (start g) of
+       [] -> failA -< ()
+       rhss -> do
+         let ps = productions g
+             gs = [ grammar nt ps | Ctor c' ts' <- rhss, c == c', eqLength ts ts', nt <- ts' ]
+         _ <- matchSubterms -< (ts, gs)
+         returnA -< t
 
   matchTermAgainstExplode matchCons matchSubterms = undefined
 
-  matchTermAgainstNumber = proc (_,t) -> do
-    let (Grammar s ps) = epsilonClosure t
-      in case M.lookup s ps of
-      Just rhss -> if elem (Ctor "INT" []) rhss
-        then returnA -< t
-        else failA -< ()
-      Nothing -> failA -< ()
+  matchTermAgainstNumber = proc (_,t) ->
+    if produces t "INT"
+      then returnA -< t
+      else failA -< ()
 
-  matchTermAgainstString = proc (_,t) -> do
-    let (Grammar s ps) = epsilonClosure t
-      in case M.lookup s ps of
-      Just rhss -> if elem (Ctor "String" []) rhss
-        then returnA -< t
-        else failA -< ()
-      Nothing -> failA -< ()
+  matchTermAgainstString = proc (_,t) ->
+    if produces t "String"
+      then returnA -< t
+      else failA -< ()
 
   equal = proc (t1,t2) -> if t1 == t2
     then returnA -< t1
@@ -167,12 +162,7 @@ instance IsTerm Term Interp where
     ts' <- f -< permutate t
     returnA -< union' ts'
 
-  cons = proc (Constructor c,ts) -> let start = uniqueStart () in if null ts
-    then returnA -< Grammar start $ M.fromList [(start, [ Ctor c [] ])]
-    else let ss = [ s | Grammar s _ <- ts ]
-             (Grammar _ ps) = union' ts
-         in returnA -< Grammar start $ M.insertWith (++) start [ Ctor c ss ] ps
-
+  cons = proc (Constructor c,ts) -> returnA -< combine c ts
   numberLiteral = proc _ -> returnA -< numberGrammar
   stringLiteral = proc _ -> returnA -< stringGrammar
 
@@ -198,13 +188,7 @@ dom :: HashMap TermVar t -> [TermVar]
 dom = LM.keys
 
 stringGrammar :: Term
-stringGrammar = Grammar start prods where
-  start = uniqueStart ()
-  prods = M.fromList [(start, [ Eps "String" ])
-                     ,("String", [ Ctor "String" []])]
+stringGrammar = singleton "String"
 
 numberGrammar :: Term
-numberGrammar = Grammar start prods where
-  start = uniqueStart ()
-  prods = M.fromList [(start, [ Eps "INT" ])
-                     ,("INT", [ Ctor "INT" []])]
+numberGrammar = singleton "INT"
