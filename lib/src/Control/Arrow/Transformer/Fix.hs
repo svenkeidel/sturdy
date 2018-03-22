@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE CPP #-}
 module Control.Arrow.Transformer.Fix where
 
 import Prelude hiding ((.))
@@ -12,6 +13,11 @@ import Control.Category
 
 import Data.Order
 
+#ifdef TRACE
+import           Debug.Trace
+import           Text.Printf
+#endif
+
 newtype Fix a b x y = Fix { runFix :: x -> y }
   deriving (Arrow,ArrowChoice,ArrowApply)
 
@@ -20,8 +26,13 @@ liftFix = Fix
 
 deriving instance Category (Fix a b)
 
+#ifdef TRACE
+instance (Show x, Show y) => ArrowFix x y (Fix x y) where
+  fixA f = Fix (\x -> let y = runFix (f (fixA f)) x in trace (printf "%s <- eval(%s)" (show y) (show x)) y)
+#else
 instance ArrowFix x y (Fix x y) where
   fixA f = Fix (runFix (f (fixA f)))
+#endif
 
 deriving instance PreOrd y => PreOrd (Fix a b x y)
 deriving instance LowerBounded y => LowerBounded (Fix a b x y)

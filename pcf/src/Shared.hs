@@ -50,7 +50,7 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
          env' <- extendEnv -< (x,arg,env)
          localEnv ev -< (env', body)
        Y e' -> do
-         fun' <- localEnv ev -< (env, e')
+         fun' <- localEnv ev -< (env, Y e')
          applyClosure' ev -< (fun',arg)
        _ -> failA -< "found unexpected epxression in closure: " ++ show e
 

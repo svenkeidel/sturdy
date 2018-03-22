@@ -19,10 +19,9 @@ import           GHC.Generics
 import           PCF (Expr(..))
 import           Shared
 
-data Closure = Closure Expr (Env Text Val) deriving (Eq,Show,Generic)
-
-data Val = NumVal Int | ClosureVal Closure deriving (Eq, Show,Generic)
-
+data Closure = Closure Expr (Env Text Val) deriving (Eq,Generic)
+data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
+         
 type Interp = Environment Text Val (ErrorArrow String (Fix (Env Text Val,Expr) (Error String Val)))
 
 evalConcrete :: [(Text,Val)] -> Expr -> Error String Val
@@ -49,3 +48,9 @@ instance IsClosure Val (Env Text Val) Interp where
 
 instance Hashable Closure
 instance Hashable Val
+
+instance Show Closure where
+  show (Closure e env) = show (e,env)
+instance Show Val where
+  show (NumVal n) = show n
+  show (ClosureVal c) = show c

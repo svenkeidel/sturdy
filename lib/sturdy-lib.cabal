@@ -14,8 +14,16 @@ build-type:          Simple
 extra-source-files:  
 cabal-version:       >=1.10
 
+flag trace
+  Description: Enable tracing
+  Default:     False
+
 library
-  ghc-options:         -Wall
+  if flag(trace) {
+    ghc-options:         -Wall -DTRACE
+  } else {
+    ghc-options:         -Wall
+  }
   exposed-modules:
                        Data.AbstractPowerset,
                        Data.Boolean,

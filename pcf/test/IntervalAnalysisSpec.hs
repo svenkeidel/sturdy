@@ -5,7 +5,6 @@ import           SharedSpecs
 
 import           Data.Bounded
 import           Data.Error
-import           Data.Order
 import qualified Data.Interval as I
 import           Data.InfiniteNumbers
 import           IntervalAnalysis
@@ -63,13 +62,12 @@ spec = do
 
 
   where
-    fix = Lam "f" (App (Lam "x" (App "f" (Lam "v" (App (App "x" "x") "v"))))
-                       (Lam "x" (App "f" (Lam "v" (App (App "x" "x") "v")))))
+    -- fix = Lam "f" (App (Lam "x" (App "f" (Lam "v" (App (App "x" "x") "v"))))
+    --                   (Lam "x" (App "f" (Lam "v" (App (App "x" "x") "v")))))
     -- mult = App fix $ Lam "mult" $ Lam "x" $ Lam "y" $
     --   IfZero "x" Zero (App (App add "y") (App (App "mult" (Pred "x")) "y"))
 
-    add = Y $ Lam "add" $ Lam "x" $ Lam "y" $
-      IfZero "x" "y" (Succ (App (App "add" (Pred "x")) "y"))
+    add = Y $ Lam "add" $ Lam "x" $ Lam "y" $ IfZero "x" "y" (Succ (App (App "add" (Pred "x")) "y"))
 
     zero = Zero
     one = Succ zero
