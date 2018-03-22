@@ -33,48 +33,48 @@ spec = do
 
   describe "Match" $ do
     it "should match a builtin string literal" $
-      eval 1 (Match (StringLiteral "x")) LM.empty (termEnv []) stringGrammar `shouldBe`
+      geval 1 (Match (StringLiteral "x")) (termEnv []) stringGrammar `shouldBe`
         Success (termEnv [], stringGrammar)
 
     it "should match a builtin number literal" $
-      eval 1 (Match (NumberLiteral 1)) LM.empty (termEnv []) numberGrammar `shouldBe`
+      geval 1 (Match (NumberLiteral 1)) (termEnv []) numberGrammar `shouldBe`
         Success (termEnv [], numberGrammar)
 
     it "a string grammar should not match a number literal" $
-      eval 1 (Match (NumberLiteral 1)) LM.empty (termEnv []) stringGrammar `shouldBe`
+      geval 1 (Match (NumberLiteral 1)) (termEnv []) stringGrammar `shouldBe`
         Fail
 
     it "a number grammar should not match a string literal" $
-      eval 1 (Match (StringLiteral "x")) LM.empty (termEnv []) numberGrammar `shouldBe`
+      geval 1 (Match (StringLiteral "x")) (termEnv []) numberGrammar `shouldBe`
         Fail
 
     it "should match a PCF expression" $
-      eval 1 (Match (Cons "Zero" [])) LM.empty (termEnv []) (Lower pcf) `shouldBe`
+      geval 1 (Match (Cons "Zero" [])) (termEnv []) (Lower pcf) `shouldBe`
         Success (termEnv [], Lower pcf)
 
     it "should match a nested PCF expression" $
-      eval 1 (Match (Cons "Succ" [Cons "Zero" []])) LM.empty (termEnv []) (Lower pcf) `shouldBe`
+      geval 1 (Match (Cons "Succ" [Cons "Zero" []])) (termEnv []) (Lower pcf) `shouldBe`
         Success (termEnv [], Lower pcf)
 
     it "should match a constructor with more than one argument" $
-      eval 1 (Match (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) LM.empty (termEnv []) (Lower pcf) `shouldBe`
+      geval 1 (Match (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) (termEnv []) (Lower pcf) `shouldBe`
         Success (termEnv [], Lower pcf)
 
     it "should introduce one variable" $
       let (Grammar _ ps) = pcf
           pcf_exp = Grammar "Exp" ps
-      in eval 1 (Match (Cons "Succ" ["x"])) LM.empty (termEnv []) (Lower pcf) `shouldBe`
+      in geval 1 (Match (Cons "Succ" ["x"])) (termEnv []) (Lower pcf) `shouldBe`
         Success (termEnv [("x", Lower pcf_exp)], Lower pcf)
 
     it "should introduce multiple variables and support linear pattern matching" $
       let (Grammar _ ps) = pcf
           pcf_exp = Grammar "Exp" ps
           pcf_var = Grammar "String" ps
-      in eval 2 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["y"])) LM.empty (termEnv []) (Lower pcf) `shouldBe`
+      in geval 2 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["y"])) (termEnv []) (Lower pcf) `shouldBe`
          Success (termEnv [("x", Lower pcf_exp), ("y", Lower pcf_var)], Lower pcf)
 
     it "should support linear pattern matching" $
-      eval 2 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["x"])) LM.empty (termEnv []) (Lower pcf) `shouldBe`
+      geval 2 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["x"])) (termEnv []) (Lower pcf) `shouldBe`
         Fail
 
     it "should succeed when exploding literals" $
@@ -102,70 +102,70 @@ spec = do
   describe "Build" $ do
 
     it "should build a builtin string literal" $
-      eval 1 (Build (StringLiteral "foo")) LM.empty (termEnv []) (Lower empty) `shouldBe`
+      geval 1 (Build (StringLiteral "foo")) (termEnv []) (Lower empty) `shouldBe`
         Success (termEnv [], stringGrammar)
 
     it "should build a builtin number literal" $
-      eval 1 (Build (NumberLiteral 1)) LM.empty (termEnv []) (Lower empty) `shouldBe`
+      geval 1 (Build (NumberLiteral 1)) (termEnv []) (Lower empty) `shouldBe`
         Success (termEnv [], numberGrammar)
 
     it "a string grammar should not be build on a number literal" $
-      eval 1 (Build (NumberLiteral 1)) LM.empty (termEnv []) (Lower empty) `shouldNotBe`
+      geval 1 (Build (NumberLiteral 1)) (termEnv []) (Lower empty) `shouldNotBe`
         Success (termEnv [], stringGrammar)
 
     it "a number grammar should not be build on a string literal" $
-      eval 1 (Match (StringLiteral "x")) LM.empty (termEnv []) (Lower empty) `shouldNotBe`
+      geval 1 (Match (StringLiteral "x")) (termEnv []) (Lower empty) `shouldNotBe`
         Success (termEnv [], numberGrammar)
 
     it "should build a simple constant PCF expression" $
       let zero = Grammar "Start0" $ M.fromList [("Start0", [Ctor "Zero" []])]
-      in eval 1 (Build (Cons "Zero" [])) LM.empty (termEnv []) (Lower empty) `shouldBe`
+      in geval 1 (Build (Cons "Zero" [])) (termEnv []) (Lower empty) `shouldBe`
        Success (termEnv [], Lower zero)
 
     it "should build a nested PCF expression" $
       let grammar = Grammar "Start4" $ M.fromList [("Start4", [ Ctor "Succ" ["Start5"]])
                                                   ,("Start5", [ Ctor "Zero" []])]
-      in eval 1 (Build (Cons "Succ" [Cons "Zero" []])) LM.empty (termEnv []) (Lower empty) `shouldBe`
+      in geval 1 (Build (Cons "Succ" [Cons "Zero" []])) (termEnv []) (Lower empty) `shouldBe`
         Success (termEnv [], Lower grammar)
 
     it "should build a constructor with more than one argument" $
       let grammar = Grammar "Start" $ M.fromList [("Start", [ Ctor "Ifz" ["Start1", "Start2", "Start1"]])
                                                   ,("Start1", [ Ctor "Zero" [] ])
                                                   ,("Start2", [ Ctor "Succ" ["Start1"]])]
-      in eval 1 (Build (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) LM.empty (termEnv []) (Lower empty) `shouldBe`
+      in geval 1 (Build (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) (termEnv []) (Lower empty) `shouldBe`
         Success (termEnv [], Lower grammar)
 
     it "build should be inverse to match" $
       let term = NumberLiteral 1
-      in eval 2 (Match term `Seq` Build term) LM.empty (termEnv []) numberGrammar `shouldBe`
+      in geval 2 (Match term `Seq` Build term) (termEnv []) numberGrammar `shouldBe`
          Success (termEnv [], numberGrammar)
 
     it "should throw away the current subject grammar if needed" $
       let tenv = termEnv [("x", numberGrammar)]
-      in eval 1 (Build (Var "x")) LM.empty tenv stringGrammar `shouldBe`
+      in geval 1 (Build (Var "x")) tenv stringGrammar `shouldBe`
          Success (tenv, numberGrammar)
 
     it "should lookup variables" $
       let term = Lower pcf
           tenv = termEnv [("x", Lower pcf)]
-      in eval 1 (Build (Var "x")) LM.empty tenv (Lower empty) `shouldBe` Success (tenv,term)
+      in geval 1 (Build (Var "x")) tenv (Lower empty) `shouldBe` Success (tenv,term)
 
     it "should merge two variables into one grammar" $
       let tenv = termEnv [("x", numberGrammar), ("y", stringGrammar)]
-      in eval 1 (Build (Cons "foo" [Var "x", Var "y"])) LM.empty tenv (Lower empty) `shouldBe`
+      in geval 1 (Build (Cons "foo" [Var "x", Var "y"])) tenv (Lower empty) `shouldBe`
          Success (tenv, Lower (Grammar "Start" $ M.fromList [("Start", [ Ctor "foo" ["Start1", "Start2" ]])
                                                             ,("Start1", [ Ctor "INT" []])
                                                             ,("Start2", [ Ctor "String" []])]))
 
     it "should support linear pattern matching" $
       let tenv = termEnv [("x", numberGrammar)]
-      in eval 1 (Build (Cons "foo" [Var "x", Var "x"])) LM.empty tenv (Lower empty) `shouldBe`
+      in geval 1 (Build (Cons "foo" [Var "x", Var "x"])) tenv (Lower empty) `shouldBe`
          Success (tenv, Lower (Grammar "Start" $ M.fromList [("Start", [ Ctor "foo" ["Start1", "Start1" ]])
                                                             ,("Start1", [ Ctor "INT" []])]))
 
     it "should merge a variable and the given subject grammar" $
       let tenv = termEnv [("x", numberGrammar)]
-      in eval 1 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) LM.empty tenv (Lower pcf) `shouldBe`
+      in geval 1 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv (Lower pcf) `shouldBe`
          Success (tenv, Lower (Grammar "Start" $ M.fromList [("Start", [ Ctor "Ifz" ["Start1", "Start2", "Start3"]])
                                                   ,("Start1", [ Ctor "INT" [] ])
                                                   ,("Start2", [ Ctor "Succ" ["Start1"]])
@@ -187,19 +187,23 @@ spec = do
   describe "Scope" $ do
     it "should hide declare variables" $ do
       let tenv = termEnv [("x", numberGrammar)]
-      eval 1 (Scope ["x"] (Build "x")) LM.empty tenv numberGrammar `shouldBe`
-        Success (tenv, Top)
-      eval 2 (Scope ["x"] (Match "x")) LM.empty tenv numberGrammar `shouldBe`
+      let (Lower n) = numberGrammar
+      geval 1 (Scope ["x"] (Build "x")) tenv numberGrammar `shouldBe`
+        Success (tenv, Lower (wildcard (alphabet n)))
+      geval 2 (Scope ["x"] (Match "x")) tenv numberGrammar `shouldBe`
         Success (tenv, numberGrammar)
 
     it "should make non-declared variables available" $ do
       let tenv = termEnv [("x", numberGrammar)]
-      eval 2 (Scope ["y"] (Build "x")) LM.empty tenv numberGrammar `shouldBe`
+      geval 2 (Scope ["y"] (Build "x")) tenv numberGrammar `shouldBe`
         Success (tenv, numberGrammar)
-      eval 2 (Scope ["y"] (Match "z")) LM.empty tenv numberGrammar `shouldBe`
+      geval 2 (Scope ["y"] (Match "z")) tenv numberGrammar `shouldBe`
         Success (termEnv [("x", numberGrammar), ("z", numberGrammar)], numberGrammar)
 
   where
+    geval :: Int -> Strat -> TermEnv -> Term -> UncertainResult (TermEnv, Term)
+    geval i strat tenv (Lower grammar) = eval i strat (alphabet grammar) LM.empty tenv (Lower grammar)
+
     termEnv = TermEnv . LM.fromList
 
     pcf = Grammar "Start" $ M.fromList [

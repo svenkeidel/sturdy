@@ -42,13 +42,13 @@ import           TreeAutomata
 type Term = FreeCompletion Grammar
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
-newtype Interp a b = Interp (Reader (StratEnv, Int) (State TermEnv (Uncertain (->))) a b)
+newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet) (State TermEnv (Uncertain (->))) a b)
   deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, ArrowPlus, ArrowZero, Category, Complete, PreOrd)
 
-runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> UncertainResult (TermEnv, b)
-runInterp (Interp f) i senv tenv a = runUncertain (runState (runReader f)) (tenv, ((senv, i), a))
+runInterp :: Interp a b -> Int -> Alphabet -> StratEnv -> TermEnv -> a -> UncertainResult (TermEnv, b)
+runInterp (Interp f) i alph senv tenv a = runUncertain (runState (runReader f)) (tenv, ((senv, i, alph), a))
 
-eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> UncertainResult (TermEnv, Term)
+eval :: Int -> Strat -> Alphabet -> StratEnv -> TermEnv -> Term -> UncertainResult (TermEnv, Term)
 eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
@@ -72,8 +72,12 @@ createGrammar (Signature (_, sorts) _) = Grammar start prods
     builtins = [("String", [ Ctor "String" []]), ("INT", [ Ctor "INT" []])]
     prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
 
+sigToAlphabet :: Signature -> Alphabet
+sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
+  alph = map (\(c,v) -> (sortToName c,length v)) $ LM.toList sorts
+
 -- Instances -----------------------------------------------------------------------------------------
-deriving instance ArrowReader (StratEnv, Int) Interp
+deriving instance ArrowReader (StratEnv, Int, Alphabet) Interp
 deriving instance ArrowState TermEnv Interp
 
 instance Complete z => ArrowTry x y z Interp where
@@ -105,27 +109,25 @@ instance ArrowFix' Interp Term where
     if i <= 0
     then top -< ()
     else do
-      env <- askA >>^ fst -< ()
-      localFuel (f (fixA' f) z) -< ((env,i-1),x)
+      (env,_,alph) <- askA -< ()
+      localFuel (f (fixA' f) z) -< ((env,i-1,alph),x)
     where
-      getFuel = Interp (askA >>^ snd)
-      localFuel (Interp g) = Interp $ proc ((env,i),a) -> localA g -< ((env,i),a)
+      getFuel = Interp (askA >>^ (\(_,b,_) -> b))
+      localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> localA g -< ((env,i,alph),a)
 
 instance UpperBounded (Interp () Term) where
-  -- TODO: We can be more precise here by returning `wildcard ctxt`, where `ctxt`
-  -- is the constructorInfo of the current subject grammar. There is, however, no
-  -- way of obtaining this signature. If there turns out to be, we can get rid
-  -- of the `Term` type and go back to directly using `Grammar`s instead.
-  top = proc () -> success ⊔ failA' -< Top
+  top = proc () -> do
+    (_,_,alph) <- askA -< ()
+    success ⊔ failA' -< Lower (wildcard alph)
 
 instance ArrowFail () Interp where
   failA = Interp failA
 
 instance HasStratEnv Interp where
-  readStratEnv = Interp (const () ^>> askA >>^ fst)
+  readStratEnv = Interp (const () ^>> askA >>^ (\(a,_,_) -> a))
   localStratEnv senv f = proc a -> do
-    i <- (askA >>^ snd) -< ()
-    r <- localA f -< ((senv,i),a)
+    (_,i,alph) <- askA -< ()
+    r <- localA f -< ((senv,i,alph),a)
     returnA -< r
 
 instance IsTerm Term Interp where
