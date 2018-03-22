@@ -25,7 +25,6 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category hiding ((.))
 
-import           Data.Abstract.FreeCompletion
 import           Data.Abstract.UncertainResult
 import           Data.Constructor
 import           Data.Foldable (foldr')
@@ -39,7 +38,7 @@ import           Data.TermEnv
 
 import           TreeAutomata
 
-type Term = FreeCompletion Grammar
+type Term = Grammar
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
 newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet) (State TermEnv (Uncertain (->))) a b)
@@ -83,10 +82,10 @@ deriving instance ArrowState TermEnv Interp
 instance Complete z => ArrowTry x y z Interp where
   tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
 
-instance PreOrd Grammar where
+instance PreOrd Term where
   (⊑) = subsetOf
 
-instance Complete Grammar where
+instance Complete Term where
   (⊔) = union
 
 instance PreOrd TermEnv where
@@ -118,7 +117,7 @@ instance ArrowFix' Interp Term where
 instance UpperBounded (Interp () Term) where
   top = proc () -> do
     (_,_,alph) <- askA -< ()
-    success ⊔ failA' -< Lower (wildcard alph)
+    success ⊔ failA' -< wildcard alph
 
 instance ArrowFail () Interp where
   failA = Interp failA
@@ -131,37 +130,32 @@ instance HasStratEnv Interp where
     returnA -< r
 
 instance IsTerm Term Interp where
-  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,t) -> case t of
-    Lower a -> let (Grammar s ps) = epsilonClosure a
+  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,t) -> do
+    let (Grammar s ps) = epsilonClosure t
       in case M.lookup s ps of
       Just rhss -> do
-        let gs = [ Lower (Grammar nt ps) | Ctor c' ts' <- rhss, c == c', eqLength ts ts', nt <- ts' ]
+        let gs = [ Grammar nt ps | Ctor c' ts' <- rhss, c == c', eqLength ts ts', nt <- ts' ]
         _ <- matchSubterms -< (ts, gs)
         returnA -< t
       Nothing -> failA -< ()
-    Top -> do
-      _ <- matchSubterms -< (ts, [ Top | _ <- [1 .. length ts]])
-      returnA ⊔ failA' -< t
 
   matchTermAgainstExplode matchCons matchSubterms = undefined
 
-  matchTermAgainstNumber = proc (_,t) -> case t of
-    Lower a -> let (Grammar s ps) = epsilonClosure a
+  matchTermAgainstNumber = proc (_,t) -> do
+    let (Grammar s ps) = epsilonClosure t
       in case M.lookup s ps of
       Just rhss -> if elem (Ctor "INT" []) rhss
         then returnA -< t
         else failA -< ()
       Nothing -> failA -< ()
-    Top -> success ⊔ failA' -< numberGrammar
 
-  matchTermAgainstString = proc (_,t) -> case t of
-    Lower a -> let (Grammar s ps) = epsilonClosure a
+  matchTermAgainstString = proc (_,t) -> do
+    let (Grammar s ps) = epsilonClosure t
       in case M.lookup s ps of
       Just rhss -> if elem (Ctor "String" []) rhss
         then returnA -< t
         else failA -< ()
       Nothing -> failA -< ()
-    Top -> returnA ⊔ failA' -< stringGrammar
 
   equal = proc (t1,t2) -> if t1 == t2
     then returnA -< t1
@@ -169,17 +163,15 @@ instance IsTerm Term Interp where
 
   convertFromList = undefined
 
-  mapSubterms f = proc t -> case t of
-    Lower g -> do
-      gs' <- f -< map (Lower) (permutate g)
-      returnA -< Lower (union' [ a | Lower a <- gs'])
-    Top -> returnA -< Top
+  mapSubterms f = proc t -> do
+    ts' <- f -< permutate t
+    returnA -< union' ts'
 
   cons = proc (Constructor c,ts) -> let start = uniqueStart () in if null ts
-    then returnA -< Lower (Grammar start $ M.fromList [(start, [ Ctor c [] ])])
-    else let ss = [ s | Lower (Grammar s _) <- ts ]
-             (Grammar _ ps) = foldr1 union [ g | Lower g <- ts ]
-         in returnA -< Lower (Grammar start $ M.insertWith (++) start [ Ctor c ss ] ps)
+    then returnA -< Grammar start $ M.fromList [(start, [ Ctor c [] ])]
+    else let ss = [ s | Grammar s _ <- ts ]
+             (Grammar _ ps) = union' ts
+         in returnA -< Grammar start $ M.insertWith (++) start [ Ctor c ss ] ps
 
   numberLiteral = proc _ -> returnA -< numberGrammar
   stringLiteral = proc _ -> returnA -< stringGrammar
@@ -192,8 +184,9 @@ instance IsTermEnv TermEnv Term Interp where
       Just t -> f -< t
       Nothing ->
         (proc () -> do
-          putTermEnv -< TermEnv (LM.insert v Top env)
-          f -< Top)
+            t <- top -< ()
+            putTermEnv -< TermEnv (LM.insert v t env)
+            f -< t)
         ⊔ g
         -<< ()
   insertTerm = arr $ \(v,t,TermEnv env) -> TermEnv (LM.insert v t env)
@@ -205,13 +198,13 @@ dom :: HashMap TermVar t -> [TermVar]
 dom = LM.keys
 
 stringGrammar :: Term
-stringGrammar = Lower (Grammar start prods) where
+stringGrammar = Grammar start prods where
   start = uniqueStart ()
   prods = M.fromList [(start, [ Eps "String" ])
                      ,("String", [ Ctor "String" []])]
 
 numberGrammar :: Term
-numberGrammar = Lower (Grammar start prods) where
+numberGrammar = Grammar start prods where
   start = uniqueStart ()
   prods = M.fromList [(start, [ Eps "INT" ])
                      ,("INT", [ Ctor "INT" []])]
