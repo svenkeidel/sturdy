@@ -5,17 +5,18 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Abstract.Contour(Contour,empty,push,toList,size,maxSize,ContourArrow,runContourArrow,liftContour) where
+module Control.Arrow.Transformer.Abstract.Contour(Contour,empty,push,toList,size,maxSize,ContourArrow,runContourArrow) where
 
 import           Prelude hiding (id,(.),lookup)
 
 import           Control.Arrow
 import           Control.Arrow.Abstract.Alloc
+import           Control.Arrow.Environment
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Lift
 import           Control.Arrow.Reader
 import           Control.Arrow.State
-import           Control.Arrow.Fail
-import           Control.Arrow.Environment
-import           Control.Arrow.Fix
 import           Control.Arrow.Transformer.Reader
 
 import           Control.Category
@@ -56,47 +57,37 @@ resize cont@(Contour {..})
 toList :: Contour -> [Label]
 toList = F.toList . contour
 
-newtype ContourArrow c a b = ContourArrow (ReaderArrow Contour c a b)
-
-liftContour :: Arrow c => c a b -> ContourArrow c a b
-liftContour f = ContourArrow (liftReader f)
+newtype ContourArrow c a b = ContourArrow (Reader Contour c a b)
 
 runContourArrow :: Arrow c => Int -> ContourArrow c a b -> c a b
-runContourArrow n (ContourArrow (ReaderArrow f)) = (\a -> (empty n,a)) ^>> f
-
-deriving instance Arrow c => Category (ContourArrow c)
-deriving instance Arrow c => Arrow (ContourArrow c)
-deriving instance ArrowChoice c => ArrowChoice (ContourArrow c)
-deriving instance ArrowState s c => ArrowState s (ContourArrow c)
-instance ArrowApply c => ArrowApply (ContourArrow c) where
-  app = ContourArrow $ (\(ContourArrow f,x) -> (f,x)) ^>> app
-
-instance ArrowReader r c => ArrowReader r (ContourArrow c) where
-  askA = liftContour askA
-  localA (ContourArrow (ReaderArrow f)) = ContourArrow (ReaderArrow ((\(c,(r,x)) -> (r,(c,x))) ^>> localA f))
-
-deriving instance ArrowFail e c => ArrowFail e (ContourArrow c)
-instance ArrowEnv x y env c => ArrowEnv x y env (ContourArrow c) where
-  lookup = liftContour lookup
-  getEnv = liftContour getEnv
-  extendEnv = liftContour extendEnv
-  localEnv (ContourArrow (ReaderArrow f)) = ContourArrow (ReaderArrow ((\(c,(r,x)) -> (r,(c,x))) ^>> localEnv f))
+runContourArrow n (ContourArrow (Reader f)) = (\a -> (empty n,a)) ^>> f
 
 instance (ArrowFix x y c, ArrowApply c, HasLabel x) => ArrowFix x y (ContourArrow c) where
   -- Pushes the label of the last argument on the contour.
-  fixA f = ContourArrow $ ReaderArrow $ proc (c,x) -> fixA (unlift c . f . lift) -<< x
+  fixA f = ContourArrow $ Reader $ proc (c,x) -> fixA (unlift c . f . lift) -<< x
     where
-      lift :: Arrow c => c x y -> ContourArrow c x y
-      lift = liftContour
-
       unlift :: (HasLabel x, ArrowApply c) => Contour -> ContourArrow c x y -> c x y
-      unlift c (ContourArrow (ReaderArrow f')) = proc x -> do
+      unlift c (ContourArrow (Reader f')) = proc x -> do
         y <- f' -< (push (label x) c, x)
         returnA -< y
 
 instance Arrow c => ArrowAlloc var (var,Contour) val (ContourArrow c) where
-  alloc = ContourArrow $ ReaderArrow $ proc (l,(x,_,_)) -> returnA -< (x,l)
+  alloc = ContourArrow $ Reader $ proc (l,(x,_,_)) -> returnA -< (x,l)
 
+instance ArrowApply c => ArrowApply (ContourArrow c) where
+  app = ContourArrow $ (\(ContourArrow f,x) -> (f,x)) ^>> app
+
+instance ArrowReader r c => ArrowReader r (ContourArrow c) where
+  askA = lift askA
+  localA (ContourArrow (Reader f)) = ContourArrow (Reader ((\(c,(r,x)) -> (r,(c,x))) ^>> localA f))
+
+deriving instance Arrow c => Category (ContourArrow c)
+deriving instance Arrow c => Arrow (ContourArrow c)
+deriving instance ArrowLift ContourArrow
+deriving instance ArrowChoice c => ArrowChoice (ContourArrow c)
+deriving instance ArrowState s c => ArrowState s (ContourArrow c)
+deriving instance ArrowFail e c => ArrowFail e (ContourArrow c)
+deriving instance ArrowEnv x y env c => ArrowEnv x y env (ContourArrow c)
 deriving instance PreOrd (c (Contour,x) y) => PreOrd (ContourArrow c x y)
 deriving instance LowerBounded (c (Contour,x) y) => LowerBounded (ContourArrow c x y)
 deriving instance Complete (c (Contour,x) y) => Complete (ContourArrow c x y)

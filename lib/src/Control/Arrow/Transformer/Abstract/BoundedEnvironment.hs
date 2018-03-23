@@ -7,18 +7,19 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ConstraintKinds #-}
-module Control.Arrow.Transformer.Abstract.BoundedEnvironment(Environment,runEnvironment,liftEnvironment,ArrowAlloc(..)) where
+module Control.Arrow.Transformer.Abstract.BoundedEnvironment(Environment,runEnvironment,ArrowAlloc(..)) where
 
-import           Prelude hiding ((.),id)
-import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Abstract.Alloc
 import           Control.Arrow.Environment
-import           Control.Arrow.Reader
-import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Lift
+import           Control.Arrow.Reader
+import           Control.Arrow.State
 import           Control.Arrow.Transformer.Reader
+import           Control.Category
+import           Prelude hiding ((.),id)
 
 import           Data.Order
 import           Data.Identifiable
@@ -33,49 +34,41 @@ import           Text.Printf
 -- The galois connection for environment store pairs ensures that if
 -- an variable is bound to an address in the environment, then the
 -- address has an binding in the store.
-newtype Environment var addr val c x y = Environment ( ReaderArrow (Env var addr,Store addr val) c x y )
+newtype Environment var addr val c x y = Environment ( Reader (Env var addr,Store addr val) c x y )
 
 runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c,LowerBounded (c () val))
                => Environment var addr val c x y -> c ([(var,val)],x) y
 runEnvironment f =
-  let Environment (ReaderArrow f') = proc (bs,x) -> do
+  let Environment (Reader f') = proc (bs,x) -> do
        env <- getEnv -< ()
        env' <- bindings -< (bs,env)
        localEnv f -< (env',x)
   in (const (E.empty,S.empty) &&& id) ^>> f'
 
-liftEnvironment :: Arrow c => c x y -> Environment var addr val c x y
-liftEnvironment f = Environment (liftReader f)
+instance ArrowLift (Environment var addr val) where
+  lift f = Environment (lift f)
 
 instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c, LowerBounded (c () val)) =>
   ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
-  lookup = Environment $ ReaderArrow $ proc ((env,store),x) -> do
+  lookup = Environment $ Reader $ proc ((env,store),x) -> do
     case do {addr <- E.lookup x env; S.lookup addr store} of
       Success v -> returnA -< v
       Fail _ -> failA -< printf "variable %s not found" (show x)
       Bot -> bottom -< ()
   getEnv = Environment askA
   extendEnv = proc (x,y,(env,store)) -> do
-    addr <- liftEnvironment alloc -< (x,env,store)
+    addr <- lift alloc -< (x,env,store)
     returnA -< (E.insert x addr env,S.insertWith (⊔) addr y store)
-  localEnv (Environment (ReaderArrow f)) = Environment (ReaderArrow ((\(_,(e,a)) -> (e,a)) ^>> f))
+  localEnv (Environment (Reader f)) = Environment (Reader ((\(_,(e,a)) -> (e,a)) ^>> f))
 
 instance ArrowReader r c => ArrowReader r (Environment var addr val c) where
-  askA = liftEnvironment askA
-  localA (Environment (ReaderArrow f)) = Environment $ ReaderArrow $ (\(env,(r,x)) -> (r,(env,x))) ^>> localA f
+  askA = lift askA
+  localA (Environment (Reader f)) = Environment $ Reader $ (\(env,(r,x)) -> (r,(env,x))) ^>> localA f
 
 instance ArrowApply c => ArrowApply (Environment var addr val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app
 
-instance ArrowFix (Env var addr,Store addr val,x) y c => ArrowFix x y (Environment var addr val c) where
-  fixA f = Environment $ ReaderArrow $ proc ((e,s),x) -> fixA (unlift . f . lift) -< (e,s,x)
-    where
-      lift :: Arrow c => c (Env var addr,Store addr val,x) y -> Environment var addr val c x y
-      lift g = Environment (ReaderArrow ((\((e,s),x) -> (e,s,x)) ^>> g))
-
-      unlift :: Arrow c => Environment var addr val c x y -> c (Env var addr,Store addr val,x) y
-      unlift (Environment (ReaderArrow g)) = (\(e,s,x) -> ((e,s),x)) ^>> g
-
+deriving instance ArrowFix ((Env var addr,Store addr val),x) y c => ArrowFix x y (Environment var addr val c)
 deriving instance Arrow c => Category (Environment var addr val c)
 deriving instance Arrow c => Arrow (Environment var addr val c)
 deriving instance ArrowChoice c => ArrowChoice (Environment var addr val c)

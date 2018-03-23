@@ -8,7 +8,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE CPP #-}
-module Control.Arrow.Transformer.Abstract.Fix(CacheArrow,runCacheArrow,runCacheArrow',liftCache) where
+module Control.Arrow.Transformer.Abstract.Fix(Fix,runFix,runFix',liftFix) where
 
 import           Prelude hiding (id,(.),lookup)
 import           Data.Function (fix)
@@ -18,7 +18,6 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Utils
 import           Control.Category
 
-import           Data.Hashable (Hashable)
 import           Data.Order
 import           Data.Identifiable
     
@@ -34,34 +33,34 @@ import           Text.Printf
 
 -- The main idea of this fixpoint caching algorithm is due to David Darais et. al., Abstract Definitional Interpreters (Functional Pearl), ICFP' 17
 -- We made some changes to the algorithm to simplify it.
-newtype CacheArrow a b x y = CacheArrow (((Store a b,Store a b),x) -> (Store a b,y))
+newtype Fix a b x y = Fix (((Store a b,Store a b),x) -> (Store a b,y))
 
-runCacheArrow :: CacheArrow a b x y -> (x -> y)
-runCacheArrow f = runCacheArrow' f >>^ snd
+runFix :: Fix a b x y -> (x -> y)
+runFix f = runFix' f >>^ snd
 
-runCacheArrow' :: CacheArrow a b x y -> (x -> (Store a b,y))
-runCacheArrow' (CacheArrow f) = (\x -> ((S.empty,S.empty),x)) ^>> f
+runFix' :: Fix a b x y -> (x -> (Store a b,y))
+runFix' (Fix f) = (\x -> ((S.empty,S.empty),x)) ^>> f
 
-liftCache :: (x -> y) -> CacheArrow a b x y
-liftCache f = CacheArrow ((\((_,o),x) -> (o,x)) ^>> second f)
+liftFix :: (x -> y) -> Fix a b x y
+liftFix f = Fix ((\((_,o),x) -> (o,x)) ^>> second f)
 
-instance Category (CacheArrow i o) where
-  id = liftCache id
-  CacheArrow f . CacheArrow g = CacheArrow $ proc ((i,o),x) -> do
+instance Category (Fix i o) where
+  id = liftFix id
+  Fix f . Fix g = Fix $ proc ((i,o),x) -> do
     (o',y) <- g -< ((i,o),x)
     f -< ((i,o'),y)
 
-instance Arrow (CacheArrow i o) where
-  arr f = liftCache (arr f)
-  first (CacheArrow f) = CacheArrow $ (\((i,o),(x,y)) -> (((i,o),x),y)) ^>> first f >>^ (\((o,x'),y) -> (o,(x',y)))
-  second (CacheArrow f) = CacheArrow $ (\((i,o),(x,y)) -> (x,((i,o),y))) ^>> second f >>^ (\(x,(o,y')) -> (o,(x,y')))
+instance Arrow (Fix i o) where
+  arr f = liftFix (arr f)
+  first (Fix f) = Fix $ (\((i,o),(x,y)) -> (((i,o),x),y)) ^>> first f >>^ (\((o,x'),y) -> (o,(x',y)))
+  second (Fix f) = Fix $ (\((i,o),(x,y)) -> (x,((i,o),y))) ^>> second f >>^ (\(x,(o,y')) -> (o,(x,y')))
 
-instance ArrowChoice (CacheArrow i o) where
-  left (CacheArrow f) = CacheArrow $ (\((i,o),e) -> injectRight (o,injectLeft ((i,o),e))) ^>> left f >>^ eject
-  right (CacheArrow f) = CacheArrow $ (\((i,o),e) -> injectRight ((i,o),injectLeft (o,e))) ^>> right f >>^ eject
+instance ArrowChoice (Fix i o) where
+  left (Fix f) = Fix $ (\((i,o),e) -> injectRight (o,injectLeft ((i,o),e))) ^>> left f >>^ eject
+  right (Fix f) = Fix $ (\((i,o),e) -> injectRight ((i,o),injectLeft (o,e))) ^>> right f >>^ eject
 
-instance ArrowApply (CacheArrow i o) where
-  app = CacheArrow $ (\(io,(CacheArrow f,x)) -> (f,(io,x))) ^>> app
+instance ArrowApply (Fix i o) where
+  app = Fix $ (\(io,(Fix f,x)) -> (f,(io,x))) ^>> app
 
 #ifdef TRACE
 instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Widening y)
@@ -93,8 +92,8 @@ memoize f = proc x -> do
                         printf "\t%s <- memoize -< %s" (show y) (show x)) y
 
 #else
-instance (Eq x, Hashable x, LowerBounded y, Widening y)
-  => ArrowFix x y (CacheArrow x y) where
+instance (Identifiable x, LowerBounded y, Widening y)
+  => ArrowFix x y (Fix x y) where
   fixA f = proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
@@ -104,7 +103,7 @@ instance (Eq x, Hashable x, LowerBounded y, Widening y)
     then returnA -< y
     else fixA f -< x
 
-memoize :: (Eq x, Hashable x, LowerBounded y, Widening y) => CacheArrow x y x y -> CacheArrow x y x y
+memoize :: (Identifiable x, LowerBounded y, Widening y) => Fix x y x y -> Fix x y x y
 memoize f = proc x -> do
   m <- lookupOutCache -< x
   case m of
@@ -119,29 +118,29 @@ memoize f = proc x -> do
     Bot -> bottom -< ()
 #endif
 
-lookupOutCache :: (Identifiable x) => CacheArrow x y x (Error () y)
-lookupOutCache = CacheArrow $ \((_,o),x) -> (o,S.lookup x o)
+lookupOutCache :: Identifiable x => Fix x y x (Error () y)
+lookupOutCache = Fix $ \((_,o),x) -> (o,S.lookup x o)
 
-lookupInCache :: (Identifiable x) => CacheArrow x y x (Error () y)
-lookupInCache = CacheArrow $ \((i,o),x) -> (o,S.lookup x i)
+lookupInCache :: Identifiable x => Fix x y x (Error () y)
+lookupInCache = Fix $ \((i,o),x) -> (o,S.lookup x i)
 
-writeOutCache :: (Eq x, Hashable x) => CacheArrow x y (x,y) ()
-writeOutCache = CacheArrow $ \((_,o),(x,y)) -> (S.insert x y o,())
+writeOutCache :: Identifiable x => Fix x y (x,y) ()
+writeOutCache = Fix $ \((_,o),(x,y)) -> (S.insert x y o,())
 
-getOutCache :: CacheArrow x y () (Store x y)
-getOutCache = CacheArrow $ (\((_,o),()) -> (o,o))
+getOutCache :: Fix x y () (Store x y)
+getOutCache = Fix $ (\((_,o),()) -> (o,o))
 
-setOutCache :: CacheArrow x y (Store x y) ()
-setOutCache = CacheArrow $ (\((_,_),o) -> (o,()))
+setOutCache :: Fix x y (Store x y) ()
+setOutCache = Fix $ (\((_,_),o) -> (o,()))
 
-localInCache :: CacheArrow x y x y -> CacheArrow x y (Store x y,x) y
-localInCache (CacheArrow f) = CacheArrow (\((_,o),(i,x)) -> f ((i,o),x))
+localInCache :: Fix x y x y -> Fix x y (Store x y,x) y
+localInCache (Fix f) = Fix (\((_,o),(i,x)) -> f ((i,o),x))
 
-updateOutCache :: (Eq x, Hashable x, Widening y) => CacheArrow x y (x,y) ()
-updateOutCache = CacheArrow $ \((_,o),(x,y)) -> (S.insertWith (flip (▽)) x y o,())
+updateOutCache :: (Identifiable x, Widening y) => Fix x y (x,y) ()
+updateOutCache = Fix $ \((_,o),(x,y)) -> (S.insertWith (flip (▽)) x y o,())
 
-deriving instance PreOrd (((Store a b,Store a b),x) -> (Store a b,y)) => PreOrd (CacheArrow a b x y)
-deriving instance Complete (((Store a b,Store a b),x) -> (Store a b,y)) => Complete (CacheArrow a b x y)
-deriving instance CoComplete (((Store a b,Store a b),x) -> (Store a b,y)) => CoComplete (CacheArrow a b x y)
-deriving instance LowerBounded (((Store a b,Store a b),x) -> (Store a b,y)) => LowerBounded (CacheArrow a b x y)
-deriving instance UpperBounded (((Store a b,Store a b),x) -> (Store a b,y)) => UpperBounded (CacheArrow a b x y)
+deriving instance PreOrd (((Store a b,Store a b),x) -> (Store a b,y)) => PreOrd (Fix a b x y)
+deriving instance Complete (((Store a b,Store a b),x) -> (Store a b,y)) => Complete (Fix a b x y)
+deriving instance CoComplete (((Store a b,Store a b),x) -> (Store a b,y)) => CoComplete (Fix a b x y)
+deriving instance LowerBounded (((Store a b,Store a b),x) -> (Store a b,y)) => LowerBounded (Fix a b x y)
+deriving instance UpperBounded (((Store a b,Store a b),x) -> (Store a b,y)) => UpperBounded (Fix a b x y)

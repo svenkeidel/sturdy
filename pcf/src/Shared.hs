@@ -4,24 +4,19 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Shared where
 
-import           Prelude hiding (succ, pred, lookup)
-import           PCF (Expr(..))
+import Prelude hiding (succ, pred, lookup)
+import PCF (Expr(..))
 
-import           Control.Arrow
-import           Control.Arrow.Fix
-import           Control.Arrow.Fail
-import           Control.Arrow.Environment
+import Control.Arrow
+import Control.Arrow.Fix
+import Control.Arrow.Fail
+import Control.Arrow.Environment
 
-import           Data.Text (Text,unpack)
-import           Text.Printf
+import Data.Text (Text)
 
 eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c, IsVal v c, IsClosure v env c) => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
-  Var x _ -> do
-    m <- lookup -< x
-    case m of
-      Just v -> returnA -< v
-      Nothing -> failA -< printf "Variable \"%s\" not bound" (unpack x)
+  Var x _ -> lookup -< x
   Lam x e l -> do
     env <- getEnv -< ()
     closure -< (Lam x e l, env)
@@ -53,7 +48,6 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
          fun' <- localEnv ev -< (env, Y e' l)
          applyClosure' ev -< (fun',arg)
        _ -> failA -< "found unexpected epxression in closure: " ++ show e
-
 
 class Arrow c => IsVal v c | c -> v where
   succ :: c v v

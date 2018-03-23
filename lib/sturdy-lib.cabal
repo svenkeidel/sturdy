@@ -70,14 +70,14 @@ library
                        Control.Arrow.Transformer.State,
 
                        Control.Arrow.Transformer.Concrete.Environment,
-                       Control.Arrow.Transformer.Concrete.Error,
+                       Control.Arrow.Transformer.Concrete.Except,
                        Control.Arrow.Transformer.Concrete.Fix,
                        Control.Arrow.Transformer.Concrete.Store,
 
                        Control.Arrow.Transformer.Abstract.Environment,
                        Control.Arrow.Transformer.Abstract.Contour,
                        Control.Arrow.Transformer.Abstract.BoundedEnvironment,
-                       Control.Arrow.Transformer.Abstract.Error,
+                       Control.Arrow.Transformer.Abstract.Except,
                        Control.Arrow.Transformer.Abstract.Fix,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,

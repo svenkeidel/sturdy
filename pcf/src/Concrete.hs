@@ -8,12 +8,13 @@ import Prelude
 
 import Control.Arrow
 import Control.Arrow.Fail
-import Control.Arrow.Fix
-import Control.Arrow.Environment
+import Control.Arrow.Transformer.Concrete.Environment
+import Control.Arrow.Transformer.Concrete.Error
+import Control.Arrow.Transformer.Concrete.Fix
 import Control.Monad.State
 
-import Data.Error
-import Data.Environment (Env)
+import Data.Concrete.Error
+import Data.Concrete.Environment (Env)
 import Data.Hashable
 import Data.Text (Text)
 import Data.Label

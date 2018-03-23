@@ -15,24 +15,28 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.Environment
-import           Control.Arrow.Contour hiding (toList)
+import           Control.Arrow.Transformer.Abstract.Contour hiding (toList)
+import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
+import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Reader
 import           Control.Monad.State hiding (lift)
 
-import           Data.Bounded
-import           Data.Environment(Env)
-import           Data.Error (Error)
+import           Data.Abstract.Bounded
+import           Data.Abstract.Environment(Env)
+import           Data.Abstract.Error (Error)
 import           Data.Foldable (toList)
 import           Data.Hashable
 import           Data.HashSet(HashSet)
 import qualified Data.HashSet as S
-import           Data.InfiniteNumbers
-import           Data.Interval (Interval)
-import qualified Data.Interval as I
+import           Data.Abstract.InfiniteNumbers
+import           Data.Abstract.Interval (Interval)
+import qualified Data.Abstract.Interval as I
 import           Data.Label
 import           Data.Order
-import           Data.Store (Store)
+import           Data.Abstract.Store (Store)
 import           Data.Text (Text)
-import           Data.Widening
+import           Data.Abstract.Widening
     
 import           GHC.Generics
 
@@ -55,7 +59,7 @@ instance Show Closure where
 type Addr = (Text,Contour)
 type Interp =
   ReaderArrow IV
-    (BoundedEnv Text Addr Val
+    (Environment Text Addr Val
       (ContourArrow
         (ErrorArrow String
           (CacheArrow (Env Text Addr,Store Addr Val,(IV,Expr))
@@ -66,7 +70,7 @@ evalInterval k bound env e =
   runCacheArrow
     (runErrorArrow
       (runContourArrow k
-        (runBoundedEnv
+        (runEnvironment
           (runReaderArrow (eval :: Interp Expr Val)))))
     (env,(bound,generate e))
 
