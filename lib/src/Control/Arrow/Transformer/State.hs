@@ -3,16 +3,16 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
-module Control.Arrow.Transformer.State(StateArrow(..),liftState) where
+module Control.Arrow.Transformer.State(StateArrow(..),liftState,evalState) where
 
 import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
-import Control.Arrow.Class.Environment
-import Control.Arrow.Class.Fail
-import Control.Arrow.Class.Fix
-import Control.Arrow.Class.Reader
-import Control.Arrow.Class.State
+import Control.Arrow.Environment
+import Control.Arrow.Fail
+import Control.Arrow.Fix
+import Control.Arrow.Reader
+import Control.Arrow.State
 import Control.Arrow.Deduplicate
 import Control.Arrow.Try
 import Control.Arrow.Utils
@@ -22,6 +22,9 @@ import Data.Hashable
 import Data.Order
 
 newtype StateArrow s c x y = StateArrow { runStateArrow :: c (s,x) (s,y) }
+
+evalState :: Arrow c => StateArrow s c x y -> c (s,x) y
+evalState f = runStateArrow f >>> pi2
 
 instance Category c => Category (StateArrow s c) where
   id = StateArrow id

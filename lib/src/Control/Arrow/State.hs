@@ -1,7 +1,24 @@
-module Control.Arrow.State
-  (module Control.Arrow.Class.State,
-   module Control.Arrow.Transformer.State
-) where
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE Arrows #-}
+module Control.Arrow.State where
 
-import Control.Arrow.Class.State
-import Control.Arrow.Transformer.State
+import Prelude hiding (id,(.))
+import Control.Category
+import Control.Arrow
+import Control.Monad.State
+
+class Arrow c => ArrowState s c | c -> s where
+  getA :: c () s
+  putA :: c s ()
+
+modifyA :: ArrowState s c => c (x,s) s -> c x ()
+modifyA f = proc x -> do
+  s <- getA -< ()
+  putA <<< f -< (x,s)
+
+instance MonadState s m => ArrowState s (Kleisli m) where
+  getA = Kleisli (const get)
+  putA = Kleisli put

@@ -25,64 +25,66 @@ library
     ghc-options:         -Wall
   }
   exposed-modules:
-                       Data.AbstractPowerset,
                        Data.Boolean,
-                       Data.Bounded,
-                       Data.Environment,
-                       Data.Error,
-                       Data.FreeCoCompletion,
-                       Data.FreeCompletion,
                        Data.GaloisConnection,
-                       Data.InfiniteNumbers,
-                       Data.Interval,
+                       Data.Identifiable,
                        Data.Label,
                        Data.Order,
-                       Data.Powerset,
-                       Data.Sign,
-                       Data.Store,
                        Data.Utils,
-                       Data.Widening,
+  
+                       Data.Concrete.Boolean,
+                       Data.Concrete.Environment,
+                       Data.Concrete.Error,
+                       Data.Concrete.Powerset,
+                       Data.Concrete.Store,
 
-                       Control.Arrow.Contour,
+                       Data.Abstract.Boolean,
+                       Data.Abstract.Bounded,
+                       Data.Abstract.Environment,
+                       Data.Abstract.Error,
+                       Data.Abstract.FreeCoCompletion,
+                       Data.Abstract.FreeCompletion,
+                       Data.Abstract.InfiniteNumbers,
+                       Data.Abstract.Interval,
+                       Data.Abstract.Powerset,
+                       Data.Abstract.Sign,
+                       Data.Abstract.Store,
+                       Data.Abstract.Widening,
+
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
-                       Control.Arrow.Either,
                        Control.Arrow.Environment,
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
                        Control.Arrow.Reader,
-                       Control.Arrow.Powerset,
                        Control.Arrow.Property,
                        Control.Arrow.State,
                        Control.Arrow.Store,
                        Control.Arrow.Try,
                        Control.Arrow.Utils
 
+                       Control.Arrow.Abstract.Alloc,
+
+                       Control.Arrow.Transformer.Property,
+                       Control.Arrow.Transformer.Reader,
+                       Control.Arrow.Transformer.State,
+
+                       Control.Arrow.Transformer.Concrete.Environment,
+                       Control.Arrow.Transformer.Concrete.Error,
+                       Control.Arrow.Transformer.Concrete.Fix,
+                       Control.Arrow.Transformer.Concrete.Store,
+
+                       Control.Arrow.Transformer.Abstract.Environment,
+                       Control.Arrow.Transformer.Abstract.Contour,
+                       Control.Arrow.Transformer.Abstract.BoundedEnvironment,
+                       Control.Arrow.Transformer.Abstract.Error,
+                       Control.Arrow.Transformer.Abstract.Fix,
+                       Control.Arrow.Transformer.Abstract.Powerset,
+                       Control.Arrow.Transformer.Abstract.Store,
+                       
                        -- TODO: delete
                        Control.Monad.Deduplicate,
                        Control.Monad.Try
-
-  other-modules:
-                       Control.Arrow.Class.Alloc,
-                       Control.Arrow.Class.Environment,
-                       Control.Arrow.Class.Fail,
-                       Control.Arrow.Class.Fix,
-                       Control.Arrow.Class.Property,
-                       Control.Arrow.Class.Reader,
-                       Control.Arrow.Class.State,
-                       Control.Arrow.Class.Store,
-
-                       Control.Arrow.Transformer.BoundedEnvironment,
-                       Control.Arrow.Transformer.Contour,
-                       Control.Arrow.Transformer.Either,
-                       Control.Arrow.Transformer.Environment,
-                       Control.Arrow.Transformer.Error,
-                       Control.Arrow.Transformer.Fix,
-                       Control.Arrow.Transformer.FixCache,
-                       Control.Arrow.Transformer.Powerset,
-                       Control.Arrow.Transformer.Property,
-                       Control.Arrow.Transformer.Reader,
-                       Control.Arrow.Transformer.State
 
   build-depends:       base,
                        containers,

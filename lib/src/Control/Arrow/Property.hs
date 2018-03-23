@@ -1,7 +1,7 @@
-module Control.Arrow.Property
-  (module Control.Arrow.Class.Property,
-   module Control.Arrow.Transformer.Property
-) where
+{-# LANGUAGE MultiParamTypeClasses #-}
+module Control.Arrow.Property where
 
-import Control.Arrow.Class.Property
-import Control.Arrow.Transformer.Property
+import Control.Arrow
+
+class Arrow c => HasProp p c where
+  modifyProp :: (c (x,p) p) -> c x ()

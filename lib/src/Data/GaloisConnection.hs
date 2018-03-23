@@ -9,8 +9,9 @@ import           Data.Hashable
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Order
-import           Data.Powerset
-import           Data.Error
+import           Data.Concrete.Powerset
+import qualified Data.Concrete.Error as Con
+import qualified Data.Abstract.Error as Abs
 import           Control.Arrow
 
 -- | A galois connection consisting of an abstraction function alpha
@@ -42,10 +43,10 @@ instance (Galois (m y) (n y'), Galois x x') => Galois (Kleisli m x y) (Kleisli n
   gamma (Kleisli f) = Kleisli (gamma . f . alpha)
 
 instance (Eq a, Hashable a, Galois (Pow a) a', Eq b, Hashable b, Complete b', Galois (Pow b) b')
-    => Galois (Pow (Either a b)) (Error a' b') where
+    => Galois (Pow (Con.Error a b)) (Abs.Error a' b') where
   alpha = lifted $ \e -> case e of
-    Left x -> Error (alphaSing x)
-    Right y -> Success (alphaSing y)
+    Con.Fail x -> Abs.Fail (alphaSing x)
+    Con.Success y -> Abs.Success (alphaSing y)
   gamma = error "noncomputable"
 
 -- instance (PreOrd b', Eq a',Hashable a',Galois x x', Galois y y') => Galois (Fix a b x y) (CacheArrow a' b' x' y') where

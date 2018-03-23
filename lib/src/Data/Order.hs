@@ -192,6 +192,14 @@ instance Complete Double where
 instance CoComplete Double where
   (⊓) = min
 
+instance PreOrd a => PreOrd (Maybe a) where
+  Just x ⊑ Just y = x ⊑ y 
+  Nothing ⊑ Nothing = True
+  _ ⊑ _ = False
+  Just x ≈ Just y = x ≈ y 
+  Nothing ≈ Nothing = True
+  _ ≈ _ = False
+
 instance PreOrd a => LowerBounded (Set a) where
   bottom = S.empty
 

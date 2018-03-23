@@ -7,24 +7,28 @@
 {-# LANGUAGE DeriveGeneric #-}
 module FixCacheSpec where
 
-import           Prelude hiding (lookup,Bounded)
+import           Prelude hiding (lookup,Bounded,Bool(..))
 
 import           Control.Arrow
 import           Control.Arrow.Fix
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.State
 import           Control.Arrow.Fail
 import           Control.Arrow.State
 
-import           Data.Boolean(AbsBool,Logic(..))
-import           Data.Bounded
-import           Data.Error
+import           Data.Boolean(Logic(..))
+import           Data.Abstract.Boolean(Bool)
+import           Data.Abstract.Bounded
+import           Data.Abstract.Error
 import           Data.Hashable
-import           Data.InfiniteNumbers
-import           Data.Interval (Interval)
-import qualified Data.Interval as I
+import           Data.Abstract.InfiniteNumbers
+import           Data.Abstract.Interval (Interval)
+import qualified Data.Abstract.Interval as I
 import           Data.Order
-import           Data.Sign (Sign)
-import qualified Data.Sign as S
-import qualified Data.Store as S
+import           Data.Abstract.Sign (Sign)
+import qualified Data.Abstract.Sign as S
+import qualified Data.Abstract.Store as S
 import           GHC.Generics
 
 import           Test.Hspec
@@ -79,7 +83,7 @@ spec = do
          runCacheArrow (fixA foo :: Cache Sign Sign) S.Positive `shouldBe` S.Top
 
   describe "the even and odd functions" $
-    let evenOdd :: Cache (EvenOdd,IV) AbsBool -> Cache (EvenOdd,IV) AbsBool
+    let evenOdd :: Cache (EvenOdd,IV) Bool -> Cache (EvenOdd,IV) Bool
         evenOdd f = proc (e,x) -> case e of
           Even -> ifLowerThan 0 (proc _ -> returnA -< true)
                                 (ifLowerThan 1 (proc _ -> returnA -< false)
@@ -121,7 +125,7 @@ spec = do
           _ -> f -< (n-1)
     in it "should fail, but update the fixpoint cache" $
          runCacheArrow' (runErrorArrow (fixA recurseFail)) 5
-            `shouldBe` (S.fromList [(n,Error ()) | n <- [0..5]], Error ())
+            `shouldBe` (S.fromList [(n,Fail ()) | n <- [0..5]], Fail ())
 
   describe "the analysis of a stateful program" $
     let timesTwo :: StateCache IV () -> StateCache IV ()

@@ -3,7 +3,6 @@
 module Control.Arrow.Utils where
 
 import Control.Arrow
-import Control.Arrow.Class.Fail
 
 mapA :: ArrowChoice c => c x y -> c [x] [y]
 mapA f = proc l -> case l of
@@ -63,6 +62,3 @@ eject :: Either (r,a) (r,b) -> (r,Either a b)
 eject e = case e of
   Left (r,a) -> (r,Left a)
   Right (r,b) -> (r,Right b)
-
-failA' :: ArrowFail () c => c a b
-failA' = arr (const ()) >>> failA

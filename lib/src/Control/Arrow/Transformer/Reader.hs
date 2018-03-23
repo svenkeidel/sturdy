@@ -8,11 +8,11 @@ module Control.Arrow.Transformer.Reader(ReaderArrow(..),liftReader) where
 import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
-import Control.Arrow.Class.Environment
-import Control.Arrow.Class.Fail
-import Control.Arrow.Class.Fix
-import Control.Arrow.Class.Reader
-import Control.Arrow.Class.State
+import Control.Arrow.Environment
+import Control.Arrow.Fail
+import Control.Arrow.Fix
+import Control.Arrow.Reader
+import Control.Arrow.State
 import Control.Arrow.Deduplicate
 import Control.Arrow.Try
 import Control.Arrow.Utils

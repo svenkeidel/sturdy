@@ -9,11 +9,11 @@ import Prelude hiding ((.))
 
 import Control.Arrow
 import Control.Arrow.Transformer.State
-import Control.Arrow.Class.State
-import Control.Arrow.Class.Reader
-import Control.Arrow.Class.Fail
-import Control.Arrow.Class.Fix
-import Control.Arrow.Class.Property
+import Control.Arrow.State
+import Control.Arrow.Reader
+import Control.Arrow.Fail
+import Control.Arrow.Fix
+import Control.Arrow.Property
 
 import Control.Category
 
