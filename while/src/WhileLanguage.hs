@@ -3,15 +3,17 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DeriveGeneric #-}
-module WhileLanguage(module Label, module WhileLanguage) where
+module WhileLanguage where
 
 import Prelude hiding (lookup, and, or, not, div)
 
-import Label
+import Data.Label
 
 import Control.Arrow
 import Control.Arrow.Fix
 import Control.Arrow.Utils
+import Control.Arrow.Store
+import Control.Arrow.Fail
 
 import Data.Text (Text)
 import Data.Hashable
@@ -20,20 +22,36 @@ import Data.Order
 import GHC.Generics
 import System.Random
 
-data Expr = Var Text Label
-          | BoolLit Bool Label
-          | And Expr Expr Label
-          | Or Expr Expr Label
-          | Not Expr Label
-          | NumLit Double Label
-          | RandomNum Label
-          | Add Expr Expr Label
-          | Sub Expr Expr Label
-          | Mul Expr Expr Label
-          | Div Expr Expr Label
-          | Eq Expr Expr Label
+data Expr
+  = Var Text Label
+  | BoolLit Bool Label
+  | And Expr Expr Label
+  | Or Expr Expr Label
+  | Not Expr Label
+  | NumLit Double Label
+  | RandomNum Label
+  | Add Expr Expr Label
+  | Sub Expr Expr Label
+  | Mul Expr Expr Label
+  | Div Expr Expr Label
+  | Eq Expr Expr Label
   deriving (Show,Ord,Eq,Generic)
 
+instance HasLabel Expr where
+  label e = case e of 
+    Var _ l -> l
+    BoolLit _ l -> l
+    And _ _ l -> l
+    Or _ _ l -> l
+    Not _ l -> l
+    NumLit _ l -> l
+    RandomNum l -> l
+    Add _ _ l -> l
+    Sub _ _ l -> l
+    Mul _ _ l -> l
+    Div _ _ l -> l
+    Eq _ _ l -> l
+    
 instance Hashable Expr where
 
 instance PreOrd Expr where
@@ -45,34 +63,18 @@ data Statement = While Expr [Statement] Label
                | Assign Text Expr Label
   deriving (Show,Ord,Eq)
 
-label :: Statement -> Label
-label (While _ _ l) = l
-label (If _ _ _ l) = l
-label (Assign _ _ l) = l
+instance HasLabel Statement where
+  label s = case s of 
+    While _ _ l -> l
+    If _ _ _ l -> l
+    Assign _ _ l -> l
 
 type Prog = [Statement]
-
-class Arrow c => HasStore c st where
-  getStore :: c () st
-  putStore :: c st ()
-  modifyStore :: (c (x,st) st) -> c x ()
-  modifyStore f = proc x -> do
-    st <- getStore -< ()
-    putStore <<< f -< (x,st)
-
-class Arrow c => HasProp c pr where
-  getProp :: c () pr
-  putProp :: c pr ()
-  modifyProp :: (c (x,pr) pr) -> c x ()
-  modifyProp f = proc x -> do
-    pr <- getProp -< ()
-    putProp <<< f -< (x,pr)
 
 class HasRandomGen c where
   nextRandom :: Random a => c () a
 
-class ArrowChoice c => Eval c v | c -> v where
-  lookup :: c (Text,Label) v
+class Arrow c => Eval v c | c -> v where
   boolLit :: c (Bool,Label) v
   and :: c (v,v,Label) v
   or :: c (v,v,Label) v
@@ -84,11 +86,13 @@ class ArrowChoice c => Eval c v | c -> v where
   mul :: c (v,v,Label) v
   div :: c (v,v,Label) v
   eq :: c (v,v,Label) v
+  
+class FixEval v c | c -> v where
   fixEval :: (c Expr v -> c Expr v) -> c Expr v
 
-eval :: Eval c v => c Expr v
+eval :: (ArrowFail String c, ArrowStore (Text,Label) v c, ArrowChoice c, FixEval v c, Eval v c) => c Expr v
 eval = fixEval $ \ev -> proc e -> case e of
-  Var x l -> lookup -< (x,l)
+  Var x l -> lookup' -< (x,l)
   BoolLit b l -> boolLit -< (b,l)
   And e1 e2 l -> do
     v1 <- ev -< e1
@@ -125,17 +129,16 @@ eval = fixEval $ \ev -> proc e -> case e of
     eq -< (v1,v2,l)
 
 class Run c v | c -> v where
-  store :: c (Text,v,Label) ()
   if_ :: c [Statement] () -> c [Statement] () -> c (v,([Statement],[Statement]),Label) ()
 
-run :: (Run c v, Eval c v, ArrowFix [Statement] () c) => c [Statement] ()
+run :: (ArrowFix [Statement] () c, ArrowFail String c, ArrowChoice c, ArrowStore (Text,Label) v c, Run c v, FixEval v c, Eval v c) => c [Statement] ()
 run = fixA $ \run' -> voidA $ mapA $ step run'
 
-step :: (Run c v, Eval c v) => c [Statement] () -> c Statement ()
+step :: (ArrowFail String c, ArrowChoice c, ArrowStore (Text,Label) v c, Run c v, FixEval v c, Eval v c) => c [Statement] () -> c Statement ()
 step steps = proc stmt -> case stmt of
   Assign x e l -> do
     v <- eval -< e
-    store -< (x,v,l)
+    store -< ((x,l),v)
   If cond b1 b2 l -> do
     b <- eval -< cond
     if_ steps steps -< (b,(b1,b2),l)

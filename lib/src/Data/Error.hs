@@ -93,6 +93,7 @@ zipError :: Eq e => (Error e a1, Error e a2) -> Error e (a1,a2)
 zipError (Bot, Bot) = Bot
 zipError (Error e1, Error e2) | e1 == e2 = Error e1
 zipError (Success a1, Success a2) = Success (a1, a2)
+zipError _ = error "cannot zip these error values"
 
 mapError :: (a1 -> b1) -> (a2 -> b2) -> Error e (a1, a2) -> Error e (b1, b2)
 mapError _ _ Bot = Bot

@@ -4,28 +4,32 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Concrete where
 
-import           Prelude
+import Prelude
 
-import           Control.Arrow
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Environment
-import           Data.Error
-import           Data.Environment (Env)
-import           Data.Hashable
-import           Data.Text (Text)
-import           GHC.Generics
+import Control.Arrow
+import Control.Arrow.Fail
+import Control.Arrow.Fix
+import Control.Arrow.Environment
+import Control.Monad.State
 
-import           PCF (Expr(..))
-import           Shared
+import Data.Error
+import Data.Environment (Env)
+import Data.Hashable
+import Data.Text (Text)
+import Data.Label
+
+import GHC.Generics
+
+import PCF (Expr(..))
+import Shared
 
 data Closure = Closure Expr (Env Text Val) deriving (Eq,Generic)
 data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
          
-type Interp = Environment Text Val (ErrorArrow String (Fix (Env Text Val,Expr) (Error String Val)))
+type Interp = Environment Text Val (ErrorArrow String Fix)
 
-evalConcrete :: [(Text,Val)] -> Expr -> Error String Val
-evalConcrete env e = runFix (runErrorArrow (runEnvironment eval)) (env,e)
+evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
+evalConcrete env e = runFix (runErrorArrow (runEnvironment eval)) (env,generate e)
 
 instance IsVal Val Interp where
   succ = proc x -> case x of

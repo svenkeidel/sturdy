@@ -16,6 +16,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.Environment
 import           Control.Arrow.Contour hiding (toList)
+import           Control.Monad.State hiding (lift)
 
 import           Data.Bounded
 import           Data.Environment(Env)
@@ -51,23 +52,23 @@ instance Show Val where
 instance Show Closure where
   show (Closure e _) = show e
 
-type Addr = (Text,Contour Expr)
+type Addr = (Text,Contour)
 type Interp =
   ReaderArrow IV
     (BoundedEnv Text Addr Val
-      (ContourArrow Expr
+      (ContourArrow
         (ErrorArrow String
           (CacheArrow (Env Text Addr,Store Addr Val,(IV,Expr))
                       (Error String Val)))))
 
-evalInterval :: Int -> IV -> [(Text,Val)] -> Expr -> Error String Val
+evalInterval :: Int -> IV -> [(Text,Val)] -> State Label Expr -> Error String Val
 evalInterval k bound env e =
   runCacheArrow
     (runErrorArrow
       (runContourArrow k
         (runBoundedEnv
           (runReaderArrow (eval :: Interp Expr Val)))))
-    (env,(bound,e))
+    (env,(bound,generate e))
 
 instance IsVal Val Interp where
   succ = proc x -> case x of
@@ -127,8 +128,8 @@ instance Widening Val where
   NumVal x ▽ NumVal y = NumVal (x ▽ y)
   x ▽ y =  x ⊔ y
 
-instance Label (Env Text Addr,Store (Text, Contour Expr) Val,(IV, Expr)) Expr where
-  getLabel (_,_,(_,e)) = e
+instance HasLabel (Env Text Addr,Store (Text, Contour) Val,(IV, Expr)) where
+  label (_,_,(_,e)) = label e
 
 instance Hashable Closure
 instance Hashable Val

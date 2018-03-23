@@ -52,7 +52,9 @@ library
                        Control.Arrow.Fix,
                        Control.Arrow.Reader,
                        Control.Arrow.Powerset,
+                       Control.Arrow.Property,
                        Control.Arrow.State,
+                       Control.Arrow.Store,
                        Control.Arrow.Try,
                        Control.Arrow.Utils
 
@@ -65,17 +67,20 @@ library
                        Control.Arrow.Class.Environment,
                        Control.Arrow.Class.Fail,
                        Control.Arrow.Class.Fix,
+                       Control.Arrow.Class.Property,
                        Control.Arrow.Class.Reader,
                        Control.Arrow.Class.State,
+                       Control.Arrow.Class.Store,
 
                        Control.Arrow.Transformer.BoundedEnvironment,
                        Control.Arrow.Transformer.Contour,
                        Control.Arrow.Transformer.Either,
                        Control.Arrow.Transformer.Environment,
-                       Control.Arrow.Transformer.FixCache,
-                       Control.Arrow.Transformer.Fix,
                        Control.Arrow.Transformer.Error,
+                       Control.Arrow.Transformer.Fix,
+                       Control.Arrow.Transformer.FixCache,
                        Control.Arrow.Transformer.Powerset,
+                       Control.Arrow.Transformer.Property,
                        Control.Arrow.Transformer.Reader,
                        Control.Arrow.Transformer.State
 

@@ -17,40 +17,40 @@ import           Text.Printf
 
 eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c, IsVal v c, IsClosure v env c) => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
-  Var x -> do
+  Var x _ -> do
     m <- lookup -< x
     case m of
       Just v -> returnA -< v
       Nothing -> failA -< printf "Variable \"%s\" not bound" (unpack x)
-  Lam x e -> do
+  Lam x e l -> do
     env <- getEnv -< ()
-    closure -< (Lam x e, env)
-  App e1 e2 -> do
+    closure -< (Lam x e l, env)
+  App e1 e2 _ -> do
     fun <- ev -< e1
     arg <- ev -< e2
     applyClosure' ev -< (fun, arg)
-  Zero -> zero -< ()
-  Succ e -> do
+  Zero _ -> zero -< ()
+  Succ e _ -> do
     v <- ev -< e
     succ -< v
-  Pred e -> do
+  Pred e _ -> do
     v <- ev -< e
     pred -< v
-  IfZero e1 e2 e3 -> do
+  IfZero e1 e2 e3 _ -> do
     v1 <- ev -< e1
     ifZero ev ev -< (v1, (e2, e3))
-  Y e -> do
+  Y e l -> do
     fun <- ev -< e
     env <- getEnv -< ()
-    arg <- closure -< (Y e, env)
+    arg <- closure -< (Y e l, env)
     applyClosure' ev -< (fun, arg)
   where
      applyClosure' ev = applyClosure $ proc ((e,env),arg) -> case e of
-       Lam x body -> do
+       Lam x body _ -> do
          env' <- extendEnv -< (x,arg,env)
          localEnv ev -< (env', body)
-       Y e' -> do
-         fun' <- localEnv ev -< (env, Y e')
+       Y e' l -> do
+         fun' <- localEnv ev -< (env, Y e' l)
          applyClosure' ev -< (fun',arg)
        _ -> failA -< "found unexpected epxression in closure: " ++ show e
 

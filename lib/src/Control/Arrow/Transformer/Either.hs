@@ -19,7 +19,7 @@ import Control.Monad (join)
 
 import Data.Order
 
-newtype EitherArrow e c x y = EitherArrow { runEitherArrow :: c x (Either e y)}
+newtype EitherArrow e c x y = EitherArrow { runEitherArrow :: c x (Either e y) }
 
 liftEither :: Arrow c => c x y -> EitherArrow e c x y
 liftEither f = EitherArrow (f >>> arr Right)
