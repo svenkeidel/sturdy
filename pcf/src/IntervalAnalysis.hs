@@ -12,12 +12,10 @@ import           Prelude hiding (Bounded)
 
 import           Control.Arrow
 import           Control.Arrow.Fail
-import           Control.Arrow.Fix
 import           Control.Arrow.Reader
-import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.Contour hiding (toList)
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
-import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Reader
 import           Control.Monad.State hiding (lift)
@@ -58,20 +56,20 @@ instance Show Closure where
 
 type Addr = (Text,Contour)
 type Interp =
-  ReaderArrow IV
+  Reader IV
     (Environment Text Addr Val
       (ContourArrow
-        (ErrorArrow String
-          (CacheArrow (Env Text Addr,Store Addr Val,(IV,Expr))
-                      (Error String Val)))))
+        (Except String
+          (Fix ((Env Text Addr,Store Addr Val),(IV,Expr))
+               (Error String Val)))))
 
 evalInterval :: Int -> IV -> [(Text,Val)] -> State Label Expr -> Error String Val
 evalInterval k bound env e =
-  runCacheArrow
-    (runErrorArrow
+  runFix
+    (runExcept
       (runContourArrow k
         (runEnvironment
-          (runReaderArrow (eval :: Interp Expr Val)))))
+          (runReader (eval :: Interp Expr Val)))))
     (env,(bound,generate e))
 
 instance IsVal Val Interp where
@@ -132,8 +130,8 @@ instance Widening Val where
   NumVal x ▽ NumVal y = NumVal (x ▽ y)
   x ▽ y =  x ⊔ y
 
-instance HasLabel (Env Text Addr,Store (Text, Contour) Val,(IV, Expr)) where
-  label (_,_,(_,e)) = label e
+instance HasLabel ((Env Text Addr,Store (Text, Contour) Val),(IV, Expr)) where
+  label ((_,_),(_,e)) = label e
 
 instance Hashable Closure
 instance Hashable Val

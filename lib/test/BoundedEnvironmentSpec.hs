@@ -80,11 +80,11 @@ spec = do
           localEnv lookup -< (env7,x)
   
     it "env(a) = [1,6]" $ runTests setup "a" `shouldBe` Success (Interval 1 1)
-    it "env(b) = Nothing" $ runTests setup "b" `shouldBe` Fail "variable \"b\" not found"
-    it "env(c) = Nothing" $ runTests setup "c" `shouldBe` Fail "variable \"c\" not found"
+    it "env(b) = Nothing" $ runTests setup "b" `shouldBe` Fail "Variable \"b\" not bound"
+    it "env(c) = Nothing" $ runTests setup "c" `shouldBe` Fail "Variable \"c\" not bound"
     it "env(d) = [4,4]" $ runTests setup "d" `shouldBe` Success (Interval 4 4)
-    it "env(e) = Nothing" $ runTests setup "e" `shouldBe` Fail "variable \"e\" not found"
-    it "env(f) = Nothing" $ runTests setup "f" `shouldBe` Fail "variable \"f\" not found"
+    it "env(e) = Nothing" $ runTests setup "e" `shouldBe` Fail "Variable \"e\" not bound"
+    it "env(f) = Nothing" $ runTests setup "f" `shouldBe` Fail "Variable \"f\" not bound"
     it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Success (Interval 7 7)
 
   where

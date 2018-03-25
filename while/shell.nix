@@ -2,7 +2,7 @@
 
 let
   hsEnv = pkgs.haskellPackages.ghcWithPackages(p: with p; [
-    Cabal cabal-install hlint text containers hspec mtl numeric-limits criterion fgl arrows
+    Cabal cabal-install hlint text containers hspec mtl numeric-limits criterion fgl
     (p.callPackage ../lib/default.nix { })
   ]);
 

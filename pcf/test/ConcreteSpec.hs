@@ -4,7 +4,7 @@ module ConcreteSpec where
 import Prelude hiding (succ,pred)
 import SharedSpecs
 import Concrete
-import Data.Error
+import Data.Concrete.Error
 import PCF
 import Test.Hspec
 
@@ -13,7 +13,7 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  sharedSpec evalConcrete (NumVal . fromIntegral)
+  sharedSpec (\env e -> toEither (evalConcrete env e)) (NumVal . fromIntegral)
 
   describe "behavior specific to concrete semantics" $
     it "should analyse addition correctly" $ do

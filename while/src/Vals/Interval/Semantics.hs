@@ -3,165 +3,152 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Vals.Interval.Semantics where
 
-import Prelude (String, Double, Maybe(..), Bool(..), Eq(..), Num(..), (&&), (/), const, ($))
+import           Prelude hiding (Bool(..))
+import qualified Prelude as P
 
-import WhileLanguage (HasStore(..), Statement, Label)
-import qualified WhileLanguage as L
-import Vals.Interval.Val
-import qualified Data.Interval as I
+import           Expressions
+import           Shared
+import qualified Vals.Concrete.Semantics as Concrete
 
-import Data.Order
-import Data.Error
+import           Data.Abstract.Boolean (Bool)
+import qualified Data.Abstract.Boolean as B
+import           Data.Abstract.Error (Error)
+import           Data.Abstract.Interval (Interval)
+import qualified Data.Abstract.Interval as I
+import           Data.Abstract.Store (Store)
+import qualified Data.Abstract.Store as S
+import           Data.Abstract.Widening
+import qualified Data.Boolean as B
+import           Data.Concrete.Powerset
+import           Data.GaloisConnection
+import           Data.Hashable
+import           Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Text (Text)
+import           Data.Order
+import           Data.Text (Text)
 
-import Control.Arrow
-import Control.Arrow.Fail
-import Control.Arrow.Fix
-import Control.Arrow.State
+import           Control.Arrow
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.State
+import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Abstract.Store
+import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.Fix
 
------------
--- Eval
------------
+import           System.Random
+import           GHC.Generics
 
-lookup :: (ArrowChoice c, ArrowFail String c, HasStore c Store) => c (Text,Label) Val
-lookup = proc (x,_) -> do
-  st <- getStore -< ()
-  case Map.lookup x st of
-    Just v -> returnA -< v
-    Nothing -> failA -< "variable not found"
+data Val = Bot | BoolVal Bool | NumVal (Interval Double) | Top deriving (Eq,Generic)
 
-boolLit :: Arrow c => c (Bool,Label) Val
-boolLit = arr $ \(b,_) -> BoolVal b
+type Interp = StoreArrow Text Val (Except String (Fix (Store Text Val,[Statement]) (Error String (Store Text Val,()))))
 
-and :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
-and = proc (v1,v2,_) -> case (v1,v2) of
-  (BoolVal False,_) -> returnA -< BoolVal False
-  (_,BoolVal False) -> returnA -< BoolVal False
-  (BoolVal True,BoolVal True) -> returnA -< BoolVal True
-  (Top,_) -> returnA -< Top
-  (_,Top) -> returnA -< Top
-  _ -> failA -< "Expected two booleans as arguments for 'and'"
+run :: [Statement] -> Error String (Store Text Val)
+run ss = _ $ runFix (runExcept (runStore (Shared.run :: Interp [Statement] ()))) (S.empty,ss)
 
-or :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
-or = proc (v1,v2,_) -> case (v1,v2) of
-  (BoolVal True,_) -> returnA -< BoolVal True
-  (_,BoolVal True) -> returnA -< BoolVal True
-  (BoolVal False,BoolVal False) -> returnA -< BoolVal False
-  (Top,_) -> returnA -< Top
-  (_,Top) -> returnA -< Top
-  _ -> failA -< "Expected two booleans as arguments for 'or'"
+instance IsVal Val Interp where
+  boolLit = arr $ \(b,_) -> case b of
+    P.True -> BoolVal true
+    P.False -> BoolVal false
+  and = proc (v1,v2,_) -> case (v1,v2) of
+    (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.and` b2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
+    _ -> failA -< "Expected two booleans as arguments for 'and'"
+  or = proc (v1,v2,_) -> case (v1,v2) of
+    (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.or` b2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
+    _ -> failA -< "Expected two booleans as arguments for 'ord'"
+  not = proc (v,_) -> case v of
+    BoolVal b -> returnA -< BoolVal (B.not b)
+    Top -> returnA -< Top
+    _ -> failA -< "Expected a boolean as argument for 'not'"
+  numLit = arr $ \(x,_) -> NumVal (I.Interval x x)
+  randomNum = arr $ const $ NumVal top
+  add = proc (v1,v2,_) -> case (v1,v2) of
+    (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
+    _ -> failA -< "Expected two numbers as arguments for 'add'"
+  sub = proc (v1,v2,_) -> case (v1,v2) of
+    (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
+    _ -> failA -< "Expected two numbers as arguments for 'sub'"
+  mul = proc (v1,v2,_) -> case (v1,v2) of
+    (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
+    _ -> failA -< "Expected two numbers as arguments for 'mul'"
+  div = proc (v1,v2,_) -> case (v1,v2) of
+    (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 / n2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
+    _ -> failA -< "Expected two numbers as arguments for 'mul'"
+  eq = proc (v1,v2,_) -> case (v1,v2) of
+    (NumVal (I.Interval m1 m2),NumVal (I.Interval n1 n2))
+      | m1 == m2 && n1 == n2 && m1 == m2 -> returnA -< BoolVal B.True
+      | m2 < n1 || n2 < m1 -> returnA -< BoolVal B.False
+      | otherwise -> returnA -< BoolVal B.Top
+    (NumVal _,NumVal _)   -> returnA -< Top
+    (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
+    (Top,_) -> returnA -< Top
+    (_,Top) -> returnA -< Top
+    _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
 
-not :: (ArrowChoice c, ArrowFail String c) => c (Val,Label) Val
-not = proc (v,_) -> case v of
-  BoolVal True -> returnA -< BoolVal False
-  BoolVal False -> returnA -< BoolVal True
-  Top -> returnA -< Top
-  _ -> failA -< "Expected a boolean as argument for 'not'"
-
-numLit :: Arrow c => c (Double,Label) Val
-numLit = arr $ \(x,_) -> NumVal (I.Interval x x)
-
-randomNum :: Arrow c => c Label Val
-randomNum = arr $ const $ NumVal top
-
-add :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
-add = proc (v1,v2,_) -> case (v1,v2) of
-  (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
-  (Top,_) -> returnA -< Top
-  (_,Top) -> returnA -< Top
-  _ -> failA -< "Expected two numbers as arguments for 'add'"
-
-sub :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
-sub = proc (v1,v2,_) -> case (v1,v2) of
-  (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
-  (Top,_) -> returnA -< Top
-  (_,Top) -> returnA -< Top
-  _ -> failA -< "Expected two numbers as arguments for 'sub'"
-
-mul:: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
-mul = proc (v1,v2,_) -> case (v1,v2) of
-  (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
-  (Top,_) -> returnA -< Top
-  (_,Top) -> returnA -< Top
-  _ -> failA -< "Expected two numbers as arguments for 'mul'"
-
-div :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
-div = proc (v1,v2,_) -> case (v1,v2) of
-  (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 / n2)
-  (Top,_) -> returnA -< Top
-  (_,Top) -> returnA -< Top
-  _ -> failA -< "Expected two numbers as arguments for 'mul'"
-
-eq :: (ArrowChoice c, ArrowFail String c) => c (Val,Val,Label) Val
-eq = proc (v1,v2,_) -> case (v1,v2) of
-  (NumVal (I.Interval m1 m2),NumVal (I.Interval n1 n2)) | m1 == m2 && n1 == n2 -> returnA -< BoolVal (m1 == n1)
-  (NumVal _,NumVal _)   -> returnA -< Top
-  (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
-  (Top,_) -> returnA -< Top
-  (_,Top) -> returnA -< Top
-  _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
-
-fixEval :: Arrow c => (c L.Expr v -> c L.Expr v) -> c L.Expr v
-fixEval f = f (fixEval f)
+instance Run Val Interp where
+  if_ f1 f2 = proc (v,(x,y),_) -> case v of
+    BoolVal B.True -> f1 -< x
+    BoolVal B.False -> f2 -< y
+    BoolVal B.Top -> joined f1 f2 -< (x,y)
+    Top -> top -< ()
+    _ -> failA -< "Expected boolean as argument for 'if'"
 
 
+instance HasStore Val Interp
 
-----------
--- Run
-----------
+instance PreOrd Val where
+  Bot ⊑ _ = True
+  _ ⊑ Top = True
+  BoolVal b1 ⊑ BoolVal b2 = b1 == b2
+  NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
+  _ ⊑ _ = False
 
-store :: (ArrowChoice c, HasStore c Store) => c (Text,Val,L.Label) ()
-store = modifyStore (arr $ \((x,v,_),st) -> Map.insert x v st)
+instance LowerBounded Val where
+  bottom = Bot
+instance UpperBounded Val where
+  top = Top
 
-if_ :: (ArrowChoice c, ArrowFail String c, Complete (c ([L.Statement],[L.Statement]) ()))
-    => c [L.Statement] () -> c [L.Statement] () -> c (Val,([L.Statement],[L.Statement]),L.Label) ()
-if_ f1 f2 = proc (v,(x,y),_) -> case v of
-  BoolVal True -> f1 -< x
-  BoolVal False -> f2 -< y
-  Top -> joined f1 f2 -< (x,y)
-  _ -> failA -< "Expected boolean as argument for 'if'"
+instance Complete Val where
+  BoolVal b1 ⊔ BoolVal b2 = if b1 == b2 then BoolVal b1 else Top
+  NumVal n1 ⊔ NumVal n2 = NumVal $ n1 ⊔ n2
+  Bot ⊔ a = a
+  a ⊔ Bot = a
+  _ ⊔ _ = Top
 
-----------
--- Arrows
-----------
+instance Widening Val where
+  BoolVal b1 ▽ BoolVal b2 = BoolVal (b1 ⊔ b2)
+  NumVal n1 ▽ NumVal n2 = NumVal (n1 ▽ n2)
 
-type State = Store
-initState :: State
-initState = initStore
+instance Galois (Pow Concrete.Val) Val where
+  alpha = lifted lift
+    where lift (Concrete.BoolVal b) = BoolVal b
+          lift (Concrete.NumVal n) = NumVal $ I.Interval n n
+  gamma Bot = mempty
+  gamma (BoolVal b) = return $ Concrete.BoolVal b
+  gamma (NumVal (I.Interval m n)) = fromFoldable [Concrete.NumVal x | x <- [m..n]]
+  gamma (NumVal I.Bot) = mempty
+  gamma Top = gamma (BoolVal True) `union` gamma (BoolVal False) `union` gamma (NumVal top)
 
-type In a = (State,a)
-type Out a = Error String (State,a)
-type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
+instance Show Val where
+  show Bot = "⊥"
+  show (NumVal iv) = show iv
+  show (BoolVal b) = show b
+  show Top = "⊤"
 
-runM :: [Statement] -> Error String (State,())
-runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
-
-run :: [Statement] -> Error String (Store,())
-run = runM
-
-instance HasStore M Store where
-  getStore = getA
-  putStore = putA
-
-instance L.Eval M Val  where
-  lookup = lookup
-  boolLit = boolLit
-  and = and
-  or = or
-  not = not
-  numLit = numLit
-  randomNum = randomNum
-  add = add
-  sub = sub
-  mul = mul
-  div = div
-  eq = eq
-  fixEval = fixEval
-
-instance L.Run M Val where
-  store = store
-  if_ = if_
+instance Hashable Val

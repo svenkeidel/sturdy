@@ -5,7 +5,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.State(State(..),evalState,execState) where
 
-import Prelude hiding (id,(.),lookup)
+import Prelude hiding (id,(.),lookup,read)
 
 import Control.Arrow
 import Control.Arrow.Deduplicate
@@ -15,6 +15,7 @@ import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
+import Control.Arrow.Store
 import Control.Arrow.Try
 import Control.Arrow.Utils
 import Control.Category
@@ -65,6 +66,10 @@ instance ArrowEnv x y env c => ArrowEnv x y env (State r c) where
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (State f) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
+
+instance ArrowStore var val c => ArrowStore var val (State r c) where
+  read = lift read
+  write = lift write
 
 instance ArrowFix (s,x) (s,y) c => ArrowFix x y (State s c) where
   fixA f = State (fixA (runState . f . State))

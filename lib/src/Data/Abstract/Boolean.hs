@@ -1,13 +1,17 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Data.Abstract.Boolean where
 
 import Prelude hiding (Bool(..))
 import qualified Prelude as P
 
-import Data.Boolean
-import Data.Order
 import Data.Abstract.Widening
+import Data.Boolean
+import Data.Hashable
+import Data.Order
 
-data Bool = Bot | True | False | Top deriving (Eq)
+import GHC.Generics
+
+data Bool = Bot | True | False | Top deriving (Eq,Generic)
 
 instance Show Bool where
   show Bot = "⊥"
@@ -61,3 +65,5 @@ instance UpperBounded Bool where
   top = Top
 
 instance Widening Bool where
+
+instance Hashable Bool

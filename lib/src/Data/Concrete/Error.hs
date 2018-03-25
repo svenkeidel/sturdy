@@ -13,3 +13,7 @@ instance (Show e,Show a) => Show (Error e a) where
 instance (Hashable e, Hashable a) => Hashable (Error e a) where
   hashWithSalt s (Fail e) = s `hashWithSalt` (1 :: Int) `hashWithSalt` e
   hashWithSalt s (Success a) = s `hashWithSalt` (2 :: Int) `hashWithSalt` a
+
+toEither :: Error e x -> Either e x
+toEither (Fail e) = Left e
+toEither (Success e) = Right e

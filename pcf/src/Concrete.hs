@@ -9,7 +9,7 @@ import Prelude
 import Control.Arrow
 import Control.Arrow.Fail
 import Control.Arrow.Transformer.Concrete.Environment
-import Control.Arrow.Transformer.Concrete.Error
+import Control.Arrow.Transformer.Concrete.Except
 import Control.Arrow.Transformer.Concrete.Fix
 import Control.Monad.State
 
@@ -27,10 +27,10 @@ import Shared
 data Closure = Closure Expr (Env Text Val) deriving (Eq,Generic)
 data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
          
-type Interp = Environment Text Val (ErrorArrow String Fix)
+type Interp = Environment Text Val (Except String Fix)
 
 evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
-evalConcrete env e = runFix (runErrorArrow (runEnvironment eval)) (env,generate e)
+evalConcrete env e = runFix (runExcept (runEnvironment eval)) (env,generate e)
 
 instance IsVal Val Interp where
   succ = proc x -> case x of

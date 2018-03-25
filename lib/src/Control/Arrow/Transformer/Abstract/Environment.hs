@@ -37,7 +37,7 @@ instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c, LowerBo
   lookup = Environment $ Reader $ proc (env,x) -> do
     case E.lookup x env of
       Success y -> returnA -< y
-      Fail _ -> failA -< printf "variable %s not found" (show x)
+      Fail _ -> failA -< printf "Variable %s not bound" (show x)
       Bot -> bottom -< ()
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> E.insert x y env

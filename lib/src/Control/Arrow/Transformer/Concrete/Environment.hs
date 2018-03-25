@@ -38,7 +38,7 @@ instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c) => Arro
     env <- getEnv -< ()
     case E.lookup x env of
       Success y -> returnA -< y
-      Fail _ -> failA -< printf "variable %s not found" (show x)
+      Fail _ -> failA -< printf "Variable %s not bound" (show x)
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (localA f)

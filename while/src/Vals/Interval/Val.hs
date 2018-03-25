@@ -47,7 +47,3 @@ instance Galois (Pow Concrete.Val) Val where
   gamma (NumVal I.Bot) = mempty
   gamma Top = gamma (BoolVal True) `union` gamma (BoolVal False) `union` gamma (NumVal top)
 
-type Store = Map Text Val
-initStore :: Store
-initStore = Map.empty
-

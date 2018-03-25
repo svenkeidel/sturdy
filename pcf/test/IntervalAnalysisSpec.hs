@@ -4,11 +4,11 @@ module IntervalAnalysisSpec where
 import           Prelude hiding (succ,pred)
 import           SharedSpecs
 
-import           Data.Bounded
-import           Data.Error
-import qualified Data.Interval as I
-import           Data.InfiniteNumbers
-import           IntervalAnalysis
+import           Data.Abstract.Bounded
+import           Data.Abstract.Error
+import qualified Data.Abstract.Interval as I
+import           Data.Abstract.InfiniteNumbers
+import           IntervalAnalysis hiding (Bot)
 import           PCF
 import           Test.Hspec
 
@@ -19,7 +19,7 @@ spec :: Spec
 spec = do
   let lim = I.Interval (-100) 100
       bounded = Bounded lim
-    in sharedSpec (evalInterval 3 lim) (NumVal . bounded . fromIntegral)
+    in sharedSpec (\env e -> toEither $ evalInterval 3 lim env e) (NumVal . bounded . fromIntegral)
 
   describe "behavior specific to interval analysis" $ do
     it "should execute both branches on IfZero on interval containing zero" $
@@ -65,3 +65,8 @@ spec = do
 
     one = succ zero
     two = succ one
+
+    toEither :: Error String a -> Either String a
+    toEither (Fail e) = Left e
+    toEither (Success x) = Right x
+    toEither Bot = Left "bottom"

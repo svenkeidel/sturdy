@@ -9,11 +9,13 @@ module Control.Arrow.Transformer.Abstract.Store where
 
 import Control.Arrow
 import Control.Arrow.Fail
+import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Transformer.State
+import Control.Arrow.Utils
 import Control.Category
 
 import Data.Abstract.Error
@@ -26,14 +28,23 @@ import Text.Printf
 
 newtype StoreArrow var val c x y = StoreArrow (State (Store var val) c x y)
 
+runStore :: StoreArrow var val c x y -> c (Store var val, x) (Store var val, y)
+runStore (StoreArrow (State f)) = f
+
+evalStore :: Arrow c => StoreArrow var val c x y -> c (Store var val, x) y
+evalStore f = runStore f >>> pi2
+
+execStore :: Arrow c => StoreArrow var val c x y -> c (Store var val, x) (Store var val)
+execStore f = runStore f >>> pi1
+
 instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c, Complete (c ((Store var val,val),var) (Store var val,val)), LowerBounded (c () (Store var val,val))) =>
   ArrowStore var val (StoreArrow var val c) where
-  lookup =
+  read =
     StoreArrow $ State $ proc (s,var) -> case S.lookup var s of
       Success v -> joined returnA (proc var -> failA -< printf "could not find variable" (show var)) -< ((s,v),var)
       Fail _ -> failA -< printf "could not find variable" (show var)
       Bot -> bottom -< ()
-  store = StoreArrow (State (arr (\(s,(x,v)) -> (S.insert x v s,()))))
+  write = StoreArrow (State (arr (\(s,(x,v)) -> (S.insert x v s,()))))
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   getA = lift getA
@@ -45,6 +56,7 @@ deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)
 deriving instance ArrowLift (StoreArrow var val)
 deriving instance ArrowReader r c => ArrowReader r (StoreArrow var val c)
 deriving instance ArrowFail e c => ArrowFail e (StoreArrow var val c)
+deriving instance ArrowFix (Store var val, x) (Store var val, y) c => ArrowFix x y (StoreArrow var val c)
 deriving instance PreOrd (c (Store var val,x) (Store var val,y)) => PreOrd (StoreArrow var val c x y)
 deriving instance Complete (c (Store var val,x) (Store var val,y)) => Complete (StoreArrow var val c x y)
 deriving instance CoComplete (c (Store var val,x) (Store var val,y)) => CoComplete (StoreArrow var val c x y)
