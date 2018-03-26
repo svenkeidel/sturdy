@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OrderSpec(main, spec) where
 
-import qualified Data.AbstractPowerset as A
+import qualified Data.Abstract.Powerset as A
+import qualified Data.Concrete.Powerset as P
 import qualified Data.HashMap.Lazy as M
 import           Data.Order
-import qualified Data.Powerset as P
 import qualified WildcardSemantics as A
 
 import           Test.Hspec

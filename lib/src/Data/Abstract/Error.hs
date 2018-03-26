@@ -7,8 +7,9 @@ module Data.Abstract.Error where
 
 import Control.Monad
 import Control.Monad.Except
-import Data.Order
 import Data.Abstract.Widening
+import Data.Hashable
+import Data.Order
 
 import Data.Monoidal
 
@@ -20,6 +21,10 @@ data Error e a = Fail e | Success a
 instance (Show e,Show a) => Show (Error e a) where
   show (Fail e) = "Error " ++ show e
   show (Success a) = show a
+
+instance (Hashable e, Hashable a) => Hashable (Error e a) where
+  hashWithSalt s (Fail e)  = s `hashWithSalt` (0::Int) `hashWithSalt` e
+  hashWithSalt s (Success a) = s `hashWithSalt` (1::Int) `hashWithSalt`  a
 
 instance PreOrd a => PreOrd (Error e a) where
   Fail _ ⊑ Success _ = True

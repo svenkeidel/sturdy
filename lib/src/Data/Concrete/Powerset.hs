@@ -86,3 +86,6 @@ dedup = fromFoldable . toHashSet
 
 powmap :: (a -> b) -> Pow a -> Pow b
 powmap = fmap
+
+unions :: Pow (Pow a) -> Pow a
+unions = join

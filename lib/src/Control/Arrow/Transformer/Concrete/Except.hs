@@ -6,19 +6,21 @@
 {-# LANGUAGE Arrows #-}
 module Control.Arrow.Transformer.Concrete.Except(Except(..)) where
 
-import           Prelude hiding (id,(.),lookup)
+import Prelude hiding (id,(.),lookup)
 
-import           Control.Arrow
-import           Control.Arrow.Environment
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Lift
-import           Control.Arrow.Reader
-import           Control.Arrow.State
-import           Control.Category
+import Control.Arrow
+import Control.Arrow.Deduplicate
+import Control.Arrow.Environment
+import Control.Arrow.Fail
+import Control.Arrow.Fix
+import Control.Arrow.Lift
+import Control.Arrow.Reader
+import Control.Arrow.State
+import Control.Arrow.Try
+import Control.Category
 
-import           Data.Concrete.Error
-import           Data.Order
+import Data.Concrete.Error
+import Data.Order
 
 newtype Except e c x y = Except { runExcept :: c x (Error e y) }
 
@@ -90,6 +92,26 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) wh
 
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fixA f = Except (fixA (runExcept . f . Except))
+
+instance ArrowChoice c => ArrowZero (Except () c) where
+  zeroArrow = proc _ -> failA -< ()
+
+instance ArrowChoice c => ArrowPlus (Except () c) where
+  Except f <+> Except g = Except $ proc x -> do
+    e <- f -< x
+    case e of
+      Success y -> returnA -< Success y
+      Fail _ -> g -< x
+
+instance ArrowChoice c => ArrowDeduplicate (Except e c) where
+  dedupA = returnA
+
+instance ArrowChoice c => ArrowTry x y z (Except e c) where
+  tryA (Except f) (Except g) (Except h) = Except $ proc x -> do
+    e <- f -< x
+    case e of
+      Success y -> g -< y
+      Fail _ -> h -< x
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)
