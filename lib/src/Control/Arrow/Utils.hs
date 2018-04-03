@@ -42,23 +42,3 @@ foldA f = proc (l,a) -> case l of
     a' <- f -< (a,x)
     foldA f -< (xs,a')
   [] -> returnA -< a
-
-injectLeft :: (r,Either a b) -> Either (r,a) b
-injectLeft (r,e) = case e of
-  Left a -> Left (r,a)
-  Right b -> Right b
-
-injectRight :: (r,Either a b) -> Either a (r,b)
-injectRight (r,e) = case e of
-  Left a -> Left a
-  Right b -> Right (r,b)
-
-injectBoth :: (r,Either a b) -> Either (r,a) (r,b)
-injectBoth (r,e) = case e of
-  Left a -> Left (r,a)
-  Right b -> Right (r,b)
-
-eject :: Either (r,a) (r,b) -> (r,Either a b)
-eject e = case e of
-  Left (r,a) -> (r,Left a)
-  Right (r,b) -> (r,Right b)

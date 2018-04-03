@@ -22,6 +22,7 @@ import Control.Category
 
 import Data.Hashable
 import Data.Order
+import Data.Monoidal
 
 newtype State s c x y = State { runState :: c (s,x) (s,y) }
 
@@ -40,12 +41,11 @@ instance ArrowLift (State r) where
 
 instance Arrow c => Arrow (State s c) where
   arr f = lift (arr f)
-  first (State f) = State $ (\(s,(x,y)) -> ((s,x),y)) ^>> first f >>^ (\((s',x'),y) -> (s',(x',y)))
-  second (State f) = State $ (\(s,(x,y)) -> (x,(s,y))) ^>> second f >>^ (\(x,(s',y')) -> (s',(x,y')))
+  first (State f) = State $ to assoc ^>> first f >>^ from assoc
 
 instance ArrowChoice c => ArrowChoice (State s c) where
-  left (State f) = State $ injectBoth ^>> left f >>^ eject
-  right (State f) = State $ injectBoth ^>> right f >>^ eject
+  State f +++ State g = State $ to distribute ^>> f +++ g >>^ from distribute
+  State f ||| State g = State $ to distribute ^>> f ||| g
 
 instance ArrowApply c => ArrowApply (State s c) where
   app = State $ (\(s,(State f,b)) -> (f,(s,b))) ^>> app

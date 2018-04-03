@@ -13,7 +13,6 @@ import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Except
-import           Control.Arrow.Transformer.Abstract.Floor
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Fail
 import           Control.Arrow.State
@@ -22,14 +21,16 @@ import           Data.Boolean(Logic(..))
 import           Data.Abstract.Boolean(Bool)
 import           Data.Abstract.Bounded
 import           Data.Abstract.Error
-import           Data.Hashable
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
-import           Data.Order
 import           Data.Abstract.Sign (Sign)
-import           Data.Abstract.Floored (Floored)
 import qualified Data.Abstract.Store as S
+import           Data.Abstract.Terminating
+
+import           Data.Order
+import           Data.Hashable
+
 import           GHC.Generics
 
 import           Test.Hspec
@@ -37,9 +38,9 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Cache x y = Floor (Fix x (Floored y)) x y
+type Cache x y = Fix x y x y
 type ErrorFix x y = Except () (Fix x (Error () y)) x y
-type StateFix x y = State IV (Floor (Fix (IV,x) (Floored (IV,y)))) x y
+type StateFix x y = State IV (Fix (IV,x) (IV,y)) x y
 type IV = Bounded (Interval (InfiniteNumber Int))
 
 spec :: Spec
@@ -57,8 +58,8 @@ spec = do
         bounded i j = Bounded (I.Interval (-500) 500) (I.Interval i j)
 
     in it "should memoize numbers that have been computed before already" $ do
-         runFix (runFloor (fixA fib :: Cache IV IV)) (bounded 5 10) `shouldBe` return (bounded 5 55)
-         runFix (runFloor (fixA fib :: Cache IV IV)) (bounded 0 Infinity) `shouldBe` return (bounded NegInfinity Infinity)
+         runFix (fixA fib :: Cache IV IV) (bounded 5 10) `shouldBe` return (bounded 5 55)
+         runFix (fixA fib :: Cache IV IV) (bounded 0 Infinity) `shouldBe` return (bounded NegInfinity Infinity)
 
   describe "the analysis of the factorial function" $
     let fact f = proc n -> do
@@ -67,7 +68,7 @@ spec = do
         bounded i j = Bounded (I.Interval NegInfinity Infinity) (I.Interval i j)
     in it "fact [-inf,inf] should produce [1,inf]" $
 
-         runFix (runFloor (fixA fact :: Cache IV IV)) (bounded NegInfinity Infinity)
+         runFix (fixA fact :: Cache IV IV) (bounded NegInfinity Infinity)
            `shouldBe` return (bounded 1 Infinity)
 
   describe "the even and odd functions" $
@@ -82,7 +83,7 @@ spec = do
 
         bounded i j = Bounded (I.Interval NegInfinity Infinity) (I.Interval i j)
     in it "even([-inf,inf]) should produce top" $
-         runFix (runFloor (fixA evenOdd)) (Even,bounded 0 Infinity) `shouldBe` top
+         runFix (fixA evenOdd) (Even,bounded 0 Infinity) `shouldBe` top
 
   describe "the ackermann function" $
     let ackermann :: Cache (IV,IV) IV -> Cache (IV,IV) IV
@@ -94,7 +95,7 @@ spec = do
 
         bounded i j = Bounded (I.Interval (-50) 50) (I.Interval i j)
     in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runFix (runFloor (fixA ackermann)) (bounded 0 Infinity, bounded 0 Infinity)
+         runFix (fixA ackermann) (bounded 0 Infinity, bounded 0 Infinity)
            `shouldBe` return (bounded NegInfinity Infinity)
 
   describe "the analyis of a diverging program" $
@@ -103,7 +104,7 @@ spec = do
           0 -> f -< 0
           _ -> f -< (n-1)
     in it "should terminate with bottom" $
-         runFix (runFloor (fixA diverge)) 5
+         runFix (fixA diverge) 5
            `shouldBe` bottom
 
   describe "the analysis of a failing program" $
@@ -113,7 +114,7 @@ spec = do
           _ -> f -< (n-1)
     in it "should fail, but update the fixpoint cache" $
          runFix' (runExcept (fixA recurseFail)) 5
-            `shouldBe` (S.fromList [(n,Fail ()) | n <- [0..5]], Fail ())
+            `shouldBe` (S.fromList [(n,Terminating (Fail ())) | n <- [0..5]], return (Fail ()))
 
   describe "the analysis of a stateful program" $
     let timesTwo :: StateFix IV () -> StateFix IV ()
@@ -128,9 +129,8 @@ spec = do
 
         bounded = Bounded (I.Interval (-50) 50) . fromIntegral
     in it "should cache the state of the program" $
-         runFix' (runFloor (runState (fixA timesTwo))) (bounded 0,bounded 5) `shouldBe`
-           (S.fromList [((bounded n,bounded 5-bounded n),return (bounded 10-bounded n,())) | n <- [0..5::Int]],
-                 return (bounded 10,()))
+         runFix' (runState (fixA timesTwo)) (bounded 0,bounded 5) `shouldBe`
+           (S.fromList [((bounded n,bounded 5-bounded n),return (bounded 10-bounded n,())) | n <- [0..5::Int]], return (bounded 10,()))
   where
 
     ifLowerThan :: (Num n, Ord n, ArrowChoice c, Complete (c (Bounded (Interval n), Bounded (Interval n)) x)) => n -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x

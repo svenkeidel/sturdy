@@ -19,7 +19,7 @@ import Control.Arrow.State
 
 import Data.Abstract.Error
 import Data.Order
-import Data.Utils
+import Data.Monoidal
 
 newtype Except e c x y = Except { runExcept :: c x (Error e y) }
 
@@ -31,7 +31,6 @@ instance ArrowChoice c => Category (Except r c) where
   Except f . Except g = Except $ proc x -> do
     ey <- g -< x
     case ey of
-      Bot -> returnA -< Bot
       Fail e -> returnA -< Fail e
       Success y -> f -< y
 
@@ -41,8 +40,9 @@ instance ArrowChoice c => Arrow (Except r c) where
   second (Except f) = Except $ second f >>^ strength2
 
 instance ArrowChoice c => ArrowChoice (Except r c) where
-  left (Except f) = Except $ left f >>^ costrength1
-  right (Except f) = Except $ right f >>^ costrength2
+  left (Except f) = Except $ left f >>^ strength1
+  right (Except f) = Except $ right f >>^ strength2
+  Except f ||| Except g = Except (f ||| g)
 
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Except e c) where
   app = Except $ first runExcept ^>> app

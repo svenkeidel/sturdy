@@ -20,6 +20,7 @@ import Control.Arrow.Utils
 import Control.Category
 
 import Data.Order
+import Data.Monoidal
 
 newtype Reader r c x y = Reader { runReader :: c (r,x) y }
 
@@ -32,12 +33,11 @@ instance Arrow c => Category (Reader r c) where
 
 instance Arrow c => Arrow (Reader r c) where
   arr f = lift (arr f)
-  first (Reader f) = Reader $ (\(r,(x,y)) -> ((r,x),y)) ^>> first f
-  second (Reader f) = Reader $ (\(r,(x,y)) -> (x,(r,y))) ^>> second f
+  first (Reader f) = Reader $ to assoc ^>> first f
 
 instance ArrowChoice c => ArrowChoice (Reader r c) where
-  left (Reader f) = Reader $ injectLeft ^>> left f
-  right (Reader f) = Reader $ injectRight ^>> right f
+  Reader f +++ Reader g = Reader (to distribute ^>> f +++ g)
+  Reader f ||| Reader g = Reader (to distribute ^>> f ||| g)
 
 instance ArrowApply c => ArrowApply (Reader r c) where
   app = Reader $ (\(r,(Reader f,b)) -> (f,(r,b))) ^>> app

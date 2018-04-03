@@ -36,7 +36,7 @@ import           Text.Printf
 -- address has an binding in the store.
 newtype Environment var addr val c x y = Environment ( Reader (Env var addr,Store addr val) c x y )
 
-runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c,LowerBounded (c () val))
+runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c)
                => Environment var addr val c x y -> c ([(var,val)],x) y
 runEnvironment f =
   let Environment (Reader f') = proc (bs,x) -> do
@@ -48,13 +48,12 @@ runEnvironment f =
 instance ArrowLift (Environment var addr val) where
   lift f = Environment (lift f)
 
-instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c, LowerBounded (c () val)) =>
+instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c) =>
   ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
   lookup = Environment $ Reader $ proc ((env,store),x) -> do
     case do {addr <- E.lookup x env; S.lookup addr store} of
       Success v -> returnA -< v
       Fail _ -> failA -< printf "Variable %s not bound" (show x)
-      Bot -> bottom -< ()
   getEnv = Environment askA
   extendEnv = proc (x,y,(env,store)) -> do
     addr <- lift alloc -< (x,env,store)

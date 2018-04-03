@@ -37,13 +37,12 @@ evalStore f = runStore f >>> pi2
 execStore :: Arrow c => StoreArrow var val c x y -> c (Store var val, x) (Store var val)
 execStore f = runStore f >>> pi1
 
-instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c, Complete (c ((Store var val,val),var) (Store var val,val)), LowerBounded (c () (Store var val,val))) =>
+instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c, Complete (c ((Store var val,val),var) (Store var val,val))) =>
   ArrowStore var val (StoreArrow var val c) where
   read =
     StoreArrow $ State $ proc (s,var) -> case S.lookup var s of
       Success v -> joined returnA (proc var -> failA -< printf "could not find variable" (show var)) -< ((s,v),var)
       Fail _ -> failA -< printf "could not find variable" (show var)
-      Bot -> bottom -< ()
   write = StoreArrow (State (arr (\(s,(x,v)) -> (S.insert x v s,()))))
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
