@@ -52,8 +52,8 @@ run ss = _ $ runFix (runExcept (runStore (Shared.run :: Interp [Statement] ())))
 
 instance IsVal Val Interp where
   boolLit = arr $ \(b,_) -> case b of
-    P.True -> BoolVal true
-    P.False -> BoolVal false
+    P.True -> BoolVal B.True
+    P.False -> BoolVal B.False
   and = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.and` b2)
     (Top,_) -> returnA -< Top
@@ -106,18 +106,18 @@ instance Run Val Interp where
     BoolVal B.True -> f1 -< x
     BoolVal B.False -> f2 -< y
     BoolVal B.Top -> joined f1 f2 -< (x,y)
-    Top -> top -< ()
+    Top -> joined f1 f2 -< (x,y)
     _ -> failA -< "Expected boolean as argument for 'if'"
 
 
 instance HasStore Val Interp
 
 instance PreOrd Val where
-  Bot ⊑ _ = True
-  _ ⊑ Top = True
+  Bot ⊑ _ = P.True
+  _ ⊑ Top = P.True
   BoolVal b1 ⊑ BoolVal b2 = b1 == b2
   NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
-  _ ⊑ _ = False
+  _ ⊑ _ = P.False
 
 instance LowerBounded Val where
   bottom = Bot
@@ -137,13 +137,13 @@ instance Widening Val where
 
 instance Galois (Pow Concrete.Val) Val where
   alpha = lifted lift
-    where lift (Concrete.BoolVal b) = BoolVal b
+    where lift (Concrete.BoolVal b) = BoolVal (alphaSing b)
           lift (Concrete.NumVal n) = NumVal $ I.Interval n n
   gamma Bot = mempty
-  gamma (BoolVal b) = return $ Concrete.BoolVal b
+  gamma (BoolVal b) = Concrete.BoolVal <$> gamma b
   gamma (NumVal (I.Interval m n)) = fromFoldable [Concrete.NumVal x | x <- [m..n]]
   gamma (NumVal I.Bot) = mempty
-  gamma Top = gamma (BoolVal True) `union` gamma (BoolVal False) `union` gamma (NumVal top)
+  gamma Top = gamma (BoolVal B.Top) `union` gamma (NumVal top)
 
 instance Show Val where
   show Bot = "⊥"

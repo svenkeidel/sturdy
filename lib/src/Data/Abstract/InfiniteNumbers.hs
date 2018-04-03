@@ -57,31 +57,35 @@ instance (Num a, Ord a) => Num (InfiniteNumber a) where
   negate NegInfinity = Infinity
   negate (Number n) = Number (negate n)
 
-instance PreOrd a => PreOrd (InfiniteNumber a) where
+instance Ord a => PreOrd (InfiniteNumber a) where
   NegInfinity ⊑ _ = True
   _ ⊑ NegInfinity = False
   _ ⊑ Infinity = True
   Infinity ⊑ _ = False
-  Number n ⊑ Number m = n ⊑ m
+  Number n ⊑ Number m = n <= m
 
-instance PreOrd a => LowerBounded (InfiniteNumber a) where
+instance Ord a => LowerBounded (InfiniteNumber a) where
   bottom = NegInfinity
 
-instance PreOrd a => UpperBounded (InfiniteNumber a) where
+instance Ord a => UpperBounded (InfiniteNumber a) where
   top = Infinity
 
-instance (PreOrd a, Complete a) => Complete (InfiniteNumber a) where
+instance Ord a => Complete (InfiniteNumber a) where
   NegInfinity ⊔ x = x
   x ⊔ NegInfinity = x
   Infinity ⊔ _ = Infinity
   _ ⊔ Infinity = Infinity
-  Number n ⊔ Number m = Number (n ⊔ m)
+  Number n ⊔ Number m = Number (max n m)
 
-instance (PreOrd a, CoComplete a) => CoComplete (InfiniteNumber a) where
+instance Ord a => CoComplete (InfiniteNumber a) where
   NegInfinity ⊓ _ = NegInfinity
   _ ⊓ NegInfinity = NegInfinity
   Infinity ⊓ x = x
   x ⊓ Infinity = x
-  Number n ⊓ Number m = Number (n ⊓ m)
+  Number n ⊓ Number m = Number (min n m)
+
+instance Bounded (InfiniteNumber n) where
+  minBound = NegInfinity
+  maxBound = Infinity
 
 instance Hashable a => Hashable (InfiniteNumber a)

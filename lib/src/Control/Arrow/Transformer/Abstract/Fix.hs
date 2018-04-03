@@ -63,8 +63,8 @@ instance ArrowApply (Fix i o) where
   app = Fix $ (\(io,(Fix f,x)) -> (f,(io,x))) ^>> app
 
 #ifdef TRACE
-instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Widening y)
-  => ArrowFix x y (CacheArrow x y) where
+instance (Show x, Show y, Identifiable x, LowerBounded y, Widening y)
+  => ArrowFix x y (Fix x y) where
   fixA f = trace (printf "fixA f") $ proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
@@ -74,22 +74,24 @@ instance (Show x, Show y, Eq x, Hashable x, LowerBounded y, Widening y)
     then returnA -< y
     else fixA f -< x
 
-memoize :: (Show x, Show y, Eq x, Hashable x, LowerBounded y, Widening y) => CacheArrow x y x y -> CacheArrow x y x y
+memoize :: (Show x, Show y, Identifiable x, LowerBounded y, Widening y) => Fix x y x y -> Fix x y x y
 memoize f = proc x -> do
   m <- lookupOutCache -< trace (printf "\tmemoize -< %s" (show x)) x
   case m of
-    Just y -> do
+    Success y -> do
       returnA -< trace (printf "\t%s <- memoize -< %s" (show y) (show x)) y
-    Nothing -> do
+    Fail _ -> do
       yOld <- lookupInCache -< x
-      writeOutCache -< trace (printf "\tout(%s) := %s" (show x) (show (fromMaybe bottom yOld))) (x, fromMaybe bottom yOld)
+      writeOutCache -< trace (printf "\tout(%s) := %s" (show x) (show (fromError bottom yOld))) (x, fromError bottom yOld)
       y <- f -< trace (printf "\tf -< %s" (show x)) x
       yCached <- lookupOutCache -< x
       updateOutCache -< (x, y)
       yNew <- lookupOutCache -< x
       returnA -< trace (printf "\t%s <- f -< %s\n" (show y) (show x) ++
-                        printf "\tout(%s) := %s ▽ %s = %s\n" (show x) (show (fromJust yCached)) (show y) (show yNew) ++
+                        printf "\tout(%s) := %s ▽ %s = %s\n" (show x) (show yCached) (show y) (show yNew) ++
                         printf "\t%s <- memoize -< %s" (show y) (show x)) y
+    Bot -> bottom -< ()
+
 
 #else
 instance (Identifiable x, LowerBounded y, Widening y)

@@ -19,10 +19,9 @@ flag trace
   Default:     False
 
 library
+  ghc-options:         -Wall
   if flag(trace) {
-    ghc-options:         -Wall -DTRACE
-  } else {
-    ghc-options:         -Wall
+    cpp-options:       -DTRACE
   }
   exposed-modules:
                        Data.Boolean,
@@ -42,8 +41,8 @@ library
                        Data.Abstract.Bounded,
                        Data.Abstract.Environment,
                        Data.Abstract.Error,
-                       Data.Abstract.FreeCoCompletion,
-                       Data.Abstract.FreeCompletion,
+                       Data.Abstract.Floored,
+                       Data.Abstract.Topped,
                        Data.Abstract.InfiniteNumbers,
                        Data.Abstract.Interval,
                        Data.Abstract.Powerset,
@@ -79,6 +78,7 @@ library
                        Control.Arrow.Transformer.Abstract.BoundedEnvironment,
                        Control.Arrow.Transformer.Abstract.Except,
                        Control.Arrow.Transformer.Abstract.Fix,
+                       Control.Arrow.Transformer.Abstract.Floor,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
                        
@@ -90,7 +90,6 @@ library
                        containers,
                        hashable >= 1.2.5.0,
                        mtl,
-                       numeric-limits,
                        text,
                        unordered-containers
   hs-source-dirs:      src/

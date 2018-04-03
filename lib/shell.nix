@@ -5,14 +5,14 @@ let
   inherit (nixpkgs) pkgs;
 
   f = { mkDerivation, base, containers, hashable, hspec, mtl
-      , numeric-limits, stdenv, text, unordered-containers, cabal-install
+      , stdenv, text, unordered-containers, cabal-install
       }:
       mkDerivation {
         pname = "sturdy-lib";
         version = "0.1.0.0";
         src = ./.;
         libraryHaskellDepends = [
-          base containers hashable mtl numeric-limits text
+          base containers hashable mtl text
           unordered-containers cabal-install
         ];
         testHaskellDepends = [ base hspec text unordered-containers ];

@@ -6,19 +6,20 @@
 {-# LANGUAGE Arrows #-}
 module Control.Arrow.Transformer.Abstract.Except(Except(..)) where
 
-import           Prelude hiding (id,(.),lookup)
+import Prelude hiding (id,(.),lookup)
 
-import           Control.Category
-import           Control.Arrow
-import           Control.Arrow.Environment
-import           Control.Arrow.Fail
-import           Control.Arrow.Lift
-import           Control.Arrow.Fix
-import           Control.Arrow.Reader
-import           Control.Arrow.State
+import Control.Category
+import Control.Arrow
+import Control.Arrow.Environment
+import Control.Arrow.Fail
+import Control.Arrow.Lift
+import Control.Arrow.Fix
+import Control.Arrow.Reader
+import Control.Arrow.State
 
-import           Data.Abstract.Error
-import           Data.Order
+import Data.Abstract.Error
+import Data.Order
+import Data.Utils
 
 newtype Except e c x y = Except { runExcept :: c x (Error e y) }
 
@@ -36,42 +37,12 @@ instance ArrowChoice c => Category (Except r c) where
 
 instance ArrowChoice c => Arrow (Except r c) where
   arr f = lift (arr f)
-  first (Except f) = Except $ first f >>^ injectRight
-  second (Except f) = Except $ second f >>^ injectLeft
-
-injectRight :: (Error e a,x) -> Error e (a,x)
-injectRight (er,x) = case er of
-  Bot -> Bot
-  Fail e -> Fail e
-  Success a -> Success (a,x)
-{-# INLINE injectRight #-}
-
-injectLeft :: (x, Error e a) -> Error e (x,a)
-injectLeft (x,er) = case er of
-  Bot -> Bot
-  Fail e -> Fail e
-  Success a -> Success (x,a)
-{-# INLINE injectLeft #-}
+  first (Except f) = Except $ first f >>^ strength1
+  second (Except f) = Except $ second f >>^ strength2
 
 instance ArrowChoice c => ArrowChoice (Except r c) where
-  left (Except f) = Except $ left f >>^ commuteLeft
-  right (Except f) = Except $ right f >>^ commuteRight
-
-commuteLeft :: Either (Error e x) y -> Error e (Either x y)
-commuteLeft e0 = case e0 of
-  Left Bot -> Bot
-  Left (Fail e) -> Fail e
-  Left (Success x) -> Success (Left x)
-  Right y -> Success (Right y)
-{-# INLINE commuteLeft #-}
-
-commuteRight :: Either x (Error e y) -> Error e (Either x y)
-commuteRight e0 = case e0 of
-  Left x -> Success (Left x)
-  Right Bot -> Bot
-  Right (Fail e) -> Fail e
-  Right (Success x) -> Success (Right x)
-{-# INLINE commuteRight #-}
+  left (Except f) = Except $ left f >>^ costrength1
+  right (Except f) = Except $ right f >>^ costrength2
 
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Except e c) where
   app = Except $ first runExcept ^>> app

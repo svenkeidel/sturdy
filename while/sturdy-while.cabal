@@ -10,45 +10,44 @@ extra-source-files:
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     WhileLanguage,
-                       Label
+  exposed-modules:     Expressions,
+                       Shared,
+                       Label,
 
-                       Vals.Concrete.Val
                        Vals.Concrete.Semantics
 
-                       Vals.Interval.Val
                        Vals.Interval.Semantics
 
-                       Vals.Symbolic.Val
-                       Vals.Symbolic.Semantics
+                       -- Vals.Symbolic.Val
+                       -- Vals.Symbolic.Semantics
 
-                       Props.FailedReads.Prop
-                       Props.FailedReads.Concrete
-                       Props.FailedReads.Interval
+                       -- Props.FailedReads.Prop
+                       -- Props.FailedReads.Concrete
+                       -- Props.FailedReads.Interval
 
-                       Props.ReadVars.Prop
-                       Props.ReadVars.Concrete
-                       Props.ReadVars.Interval
+                       -- Props.ReadVars.Prop
+                       -- Props.ReadVars.Concrete
+                       -- Props.ReadVars.Interval
 
-                       Props.LiveVariables.Prop
-                       Props.LiveVariables.Concrete
-                       Props.LiveVariables.Interval
+                       -- Props.LiveVariables.Prop
+                       -- Props.LiveVariables.Concrete
+                       -- Props.LiveVariables.Interval
 
-                       Props.ControlFlow.Prop
-                       Props.ControlFlow.Concrete
-                       Props.ControlFlow.Interval
+                       -- Props.ControlFlow.Prop
+                       -- Props.ControlFlow.Concrete
+                       -- Props.ControlFlow.Interval
 
-                       Props.UseDef.Prop
-                       Props.UseDef.Concrete
-                       Props.UseDef.Interval
+                       -- Props.UseDef.Prop
+                       -- Props.UseDef.Concrete
+                       -- Props.UseDef.Interval
 
-                       Props.UseDef.ReachingDefinitions.Prop
-                       Props.UseDef.ReachingDefinitions.Concrete
-                       Props.UseDef.ReachingDefinitions.Interval
+                       -- Props.UseDef.ReachingDefinitions.Prop
+                       -- Props.UseDef.ReachingDefinitions.Concrete
+                       -- Props.UseDef.ReachingDefinitions.Interval
 
-                       Props.UseDef.DeadStores.Prop
-                       Props.UseDef.DeadStores.Concrete
-                       Props.UseDef.DeadStores.Interval
+                       -- Props.UseDef.DeadStores.Prop
+                       -- Props.UseDef.DeadStores.Concrete
+                       -- Props.UseDef.DeadStores.Interval
 
 
   ghc-options:         -Wall

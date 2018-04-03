@@ -4,6 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.Concrete.Powerset where
 
@@ -15,15 +16,18 @@ import           Control.Monad
 import           Control.Monad.Deduplicate
 
 import           Data.Sequence (Seq)
+import qualified Data.Sequence as S
 import           Data.Hashable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
-import           Data.Foldable (foldl',toList)
+import           Data.Foldable (foldl')
+import qualified Data.Foldable as F
 import           Data.List (intercalate)
 import           Data.Order
 import           Data.Identifiable
 
 import GHC.Generics (Generic)
+import GHC.Exts
 
 newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, MonadPlus, Monoid, Foldable, Traversable, Generic)
 
@@ -44,6 +48,11 @@ instance Show a => Show (Pow a) where
 
 instance (Identifiable a) => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
+
+instance IsList (Pow a) where
+  type Item (Pow a) = a
+  toList = F.toList
+  fromList = Pow . S.fromList
 
 empty :: Pow a
 empty = mempty

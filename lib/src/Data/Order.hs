@@ -12,8 +12,6 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import           Data.Text (Text)
 
-import           Numeric.Limits
-
 import           Control.Arrow
 import           Control.Monad.State
 import           Control.Monad.Reader
@@ -33,8 +31,8 @@ class PreOrd x => Complete x where
 class PreOrd x => LowerBounded x where
   bottom :: x
 
-lub :: (Foldable f, Complete x, LowerBounded x) => f x -> x
-lub = foldr (⊔) bottom
+lub :: (Foldable f, Complete x) => f x -> x
+lub = foldr1 (⊔)
 
 joined :: (Arrow c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
 joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
@@ -50,9 +48,9 @@ joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
 --             (arr (\((x2,x1), b) -> (x1, b))) >>> arr fst >>> f1   ::  c ((x2,x1,b)) r
 --             (arr (\((x2,x1),b) -> (x2,b)) >>> arr fst >>> f2   ::     c ((x2,x1),b) r
 
-lubA :: (ArrowChoice c, LowerBounded y, Complete (c (x,[x]) y)) => c x y -> c [x] y
+lubA :: (ArrowChoice c, Complete (c (x,[x]) y), LowerBounded (c () y)) => c x y -> c [x] y
 lubA f = proc l -> case l of
-  [] -> returnA -< bottom
+  [] -> bottom -< ()
   -- (x:xs) -> (f -< x) ⊔ (lubA f -< xs) causes an type error.
   (x:xs) -> joined f (lubA f) -< (x, xs)
 
@@ -64,8 +62,8 @@ class PreOrd x => CoComplete x where
 class PreOrd x => UpperBounded x where
   top :: x
 
-glb :: (Foldable f, CoComplete x, UpperBounded x) => f x -> x
-glb = foldr (⊓) top
+glb :: (Foldable f, CoComplete x) => f x -> x
+glb = foldr1 (⊓)
 
 instance (PreOrd e, PreOrd a) => PreOrd (Either e a) where
   Left e1 ⊑ Left e2 = e1 ⊑ e2
@@ -167,30 +165,6 @@ instance PreOrd Int where
 instance PreOrd Double where
   (⊑) = (<=)
   (≈) = (==)
-
-instance LowerBounded Int where
-  bottom = minBound
-
-instance UpperBounded Int where
-  top = maxBound
-
-instance Complete Int where
-  (⊔) = max
-
-instance CoComplete Int where
-  (⊓) = min
-
-instance LowerBounded Double where
-  bottom = minValue
-
-instance UpperBounded Double where
-  top = maxValue
-
-instance Complete Double where
-  (⊔) = max
-
-instance CoComplete Double where
-  (⊓) = min
 
 instance PreOrd a => PreOrd (Maybe a) where
   Just x ⊑ Just y = x ⊑ y 

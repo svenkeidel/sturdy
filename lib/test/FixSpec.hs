@@ -13,6 +13,7 @@ import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.Floor
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Fail
 import           Control.Arrow.State
@@ -27,7 +28,7 @@ import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import           Data.Order
 import           Data.Abstract.Sign (Sign)
-import qualified Data.Abstract.Sign as S
+import           Data.Abstract.Floored (Floored)
 import qualified Data.Abstract.Store as S
 import           GHC.Generics
 
@@ -36,15 +37,16 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Cache x y = Fix x y x y
+type Cache x y = Floor (Fix x (Floored y)) x y
 type ErrorFix x y = Except () (Fix x (Error () y)) x y
-type StateFix x y = State IV (Fix (IV,x) (IV,y)) x y
+type StateFix x y = State IV (Floor (Fix (IV,x) (Floored (IV,y)))) x y
 type IV = Bounded (Interval (InfiniteNumber Int))
 
 spec :: Spec
 spec = do
   describe "the analysis of the fibonacci numbers" $
-    let fib f =
+    let fib :: Cache IV IV -> Cache IV IV
+        fib f =
           ifLowerThan 0
             (proc _ -> returnA -< bounded 0 0)
             (ifLowerThan 1 (proc _ -> returnA -< bounded 1 1)
@@ -55,8 +57,8 @@ spec = do
         bounded i j = Bounded (I.Interval (-500) 500) (I.Interval i j)
 
     in it "should memoize numbers that have been computed before already" $ do
-         runFix (fixA fib :: Cache IV IV) (bounded 5 10) `shouldBe` (bounded 5 55)
-         runFix (fixA fib :: Cache IV IV) (bounded 0 Infinity) `shouldBe` (bounded NegInfinity Infinity)
+         runFix (runFloor (fixA fib :: Cache IV IV)) (bounded 5 10) `shouldBe` return (bounded 5 55)
+         runFix (runFloor (fixA fib :: Cache IV IV)) (bounded 0 Infinity) `shouldBe` return (bounded NegInfinity Infinity)
 
   describe "the analysis of the factorial function" $
     let fact f = proc n -> do
@@ -65,22 +67,8 @@ spec = do
         bounded i j = Bounded (I.Interval NegInfinity Infinity) (I.Interval i j)
     in it "fact [-inf,inf] should produce [1,inf]" $
 
-         runFix (fixA fact :: Cache IV IV) (bounded NegInfinity Infinity)
-           `shouldBe` bounded 1 Infinity
-
-  describe "the analysis of foo" $
-    let foo :: Cache Sign Sign -> Cache Sign Sign
-        foo f = proc s -> case s of
-          S.Positive -> f -< S.Negative
-          S.Negative -> do
-            x <- f -< S.Positive
-            returnA -< S.Negative ⊔ g x
-          _ -> error "undefined" -< ()
-        g S.Bot = S.Bot
-        g _ = S.Positive
-
-    in it "foo positive should produce top" $ do
-         runFix (fixA foo :: Cache Sign Sign) S.Positive `shouldBe` S.Top
+         runFix (runFloor (fixA fact :: Cache IV IV)) (bounded NegInfinity Infinity)
+           `shouldBe` return (bounded 1 Infinity)
 
   describe "the even and odd functions" $
     let evenOdd :: Cache (EvenOdd,IV) Bool -> Cache (EvenOdd,IV) Bool
@@ -94,7 +82,7 @@ spec = do
 
         bounded i j = Bounded (I.Interval NegInfinity Infinity) (I.Interval i j)
     in it "even([-inf,inf]) should produce top" $
-         runFix (fixA evenOdd) (Even,bounded 0 Infinity) `shouldBe` top
+         runFix (runFloor (fixA evenOdd)) (Even,bounded 0 Infinity) `shouldBe` top
 
   describe "the ackermann function" $
     let ackermann :: Cache (IV,IV) IV -> Cache (IV,IV) IV
@@ -106,8 +94,8 @@ spec = do
 
         bounded i j = Bounded (I.Interval (-50) 50) (I.Interval i j)
     in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runFix (fixA ackermann) (bounded 0 Infinity, bounded 0 Infinity)
-           `shouldBe` (bounded NegInfinity Infinity)
+         runFix (runFloor (fixA ackermann)) (bounded 0 Infinity, bounded 0 Infinity)
+           `shouldBe` return (bounded NegInfinity Infinity)
 
   describe "the analyis of a diverging program" $
     let diverge :: Cache Int Sign -> Cache Int Sign
@@ -115,7 +103,7 @@ spec = do
           0 -> f -< 0
           _ -> f -< (n-1)
     in it "should terminate with bottom" $
-         runFix (fixA diverge) 5
+         runFix (runFloor (fixA diverge)) 5
            `shouldBe` bottom
 
   describe "the analysis of a failing program" $
@@ -140,23 +128,18 @@ spec = do
 
         bounded = Bounded (I.Interval (-50) 50) . fromIntegral
     in it "should cache the state of the program" $
-         runFix' (runState (fixA timesTwo)) (bounded 0,bounded 5) `shouldBe`
-           (S.fromList [((bounded n,bounded 5-bounded n),(bounded 10-bounded n,())) | n <- [0..5::Int]],(bounded 10,()))
+         runFix' (runFloor (runState (fixA timesTwo))) (bounded 0,bounded 5) `shouldBe`
+           (S.fromList [((bounded n,bounded 5-bounded n),return (bounded 10-bounded n,())) | n <- [0..5::Int]],
+                 return (bounded 10,()))
   where
 
-    ifLowerThan :: (Num n, Ord n, LowerBounded x, ArrowChoice c, Complete (c (Bounded (Interval n), Bounded (Interval n)) x)) => n -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x
+    ifLowerThan :: (Num n, Ord n, ArrowChoice c, Complete (c (Bounded (Interval n), Bounded (Interval n)) x)) => n -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x
     ifLowerThan l f g = proc b@(Bounded o x) -> case x of
-      I.Bot -> returnA -< bottom
       I.Interval m n
         | n <= l -> f -< b
         | l < m -> g -< b
-        | otherwise -> joined f g -< (Bounded o (toBot (I.Interval m l)), Bounded o (toBot (I.Interval (l+1) n)))
-
-    toBot :: Ord n => (Interval n) -> (Interval n)
-    toBot I.Bot = I.Bot
-    toBot x@(I.Interval m n)
-      | n < m = I.Bot
-      | otherwise = x
+        | m <= l && l+1 <= n -> joined f g -< (Bounded o (I.Interval m l), Bounded o (I.Interval (l+1) n))
+        | otherwise -> f -< Bounded o (I.Interval m l)
 
 data EvenOdd = Even | Odd deriving (Eq,Generic,Show)
 instance Hashable EvenOdd

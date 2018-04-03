@@ -8,7 +8,7 @@ import           Data.Abstract.Bounded
 import           Data.Abstract.Error
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.InfiniteNumbers
-import           IntervalAnalysis hiding (Bot)
+import           IntervalAnalysis
 import           PCF
 import           Test.Hspec
 

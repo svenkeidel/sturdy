@@ -35,7 +35,7 @@ instance LowerBounded a => LowerBounded (Bounded a) where
   bottom = Bounded bottom bottom
 
 -- | Arithmetic operations are lifted to the elements and bounds are joined. This makes all operations associative.
-instance (Num a, LowerBounded a, Complete a, UpperBounded a) => Num (Bounded a) where
+instance (Num a, Complete a, UpperBounded a) => Num (Bounded a) where
   (+) = lift2 (+)
   (*) = lift2 (*)
   abs = lift abs

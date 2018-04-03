@@ -1,27 +1,27 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-module Data.Abstract.FreeCompletion where
+module Data.Abstract.Topped where
 
 import Data.Order
 import Control.Monad
 import Control.Applicative
 
-data FreeCompletion a = Lower a | Top deriving (Functor,Traversable,Foldable)
+data Topped a = Lower a | Top deriving (Functor,Traversable,Foldable)
 
-instance Show a => Show (FreeCompletion a) where
+instance Show a => Show (Topped a) where
   show Top = "⊤"
   show (Lower a) = show a
 
-instance Applicative FreeCompletion where
+instance Applicative Topped where
   pure = return
   (<*>) = ap
 
-instance Monad FreeCompletion where
+instance Monad Topped where
   return = Lower
   Lower x >>= k = k x
   Top >>= _ = Top
 
-instance PreOrd a => PreOrd (FreeCompletion a) where
+instance PreOrd a => PreOrd (Topped a) where
   _ ⊑ Top = True
   Top ⊑ _ = False
   Lower a ⊑ Lower b = a ⊑ b
@@ -30,7 +30,7 @@ instance PreOrd a => PreOrd (FreeCompletion a) where
   Lower a ≈ Lower b = a ≈ b
   _ ≈ _ = False
 
-instance PreOrd a => Complete (FreeCompletion a) where
+instance PreOrd a => Complete (Topped a) where
   Lower a ⊔ Lower b
     | a ⊑ b = Lower b
     | b ⊑ a = Lower a
@@ -38,18 +38,18 @@ instance PreOrd a => Complete (FreeCompletion a) where
   Top ⊔ _ = Top
   _ ⊔ Top = Top
 
-instance CoComplete a => CoComplete (FreeCompletion a) where
+instance CoComplete a => CoComplete (Topped a) where
   Lower a ⊓ Lower b = Lower (a ⊓ b) 
   x ⊓ Top = x
   Top ⊓ y = y
 
-instance PreOrd a => UpperBounded (FreeCompletion a) where
+instance PreOrd a => UpperBounded (Topped a) where
   top = Top
 
-instance LowerBounded a => LowerBounded (FreeCompletion a) where
+instance LowerBounded a => LowerBounded (Topped a) where
   bottom = Lower bottom
 
-instance Num a => Num (FreeCompletion a) where
+instance Num a => Num (Topped a) where
   (+) = liftA2 (+)
   (*) = liftA2 (*)
   negate = fmap negate
@@ -57,6 +57,6 @@ instance Num a => Num (FreeCompletion a) where
   signum = fmap signum
   fromInteger = pure . fromInteger
 
-instance Fractional a => Fractional (FreeCompletion a) where
+instance Fractional a => Fractional (Topped a) where
   (/) = liftA2 (/)
   fromRational = pure . fromRational

@@ -1,17 +1,19 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Data.GaloisConnection where
 
 import           Data.Hashable
-import           Data.Map (Map)
-import qualified Data.Map as Map
 import           Data.Order
 import           Data.Concrete.Powerset
 import qualified Data.Concrete.Error as Con
 import qualified Data.Abstract.Error as Abs
+import qualified Data.Concrete.Boolean as Con
+import qualified Data.Abstract.Boolean as Abs
+import qualified Data.Abstract.Interval as Abs
 import           Control.Arrow
 
 -- | A galois connection consisting of an abstraction function alpha
@@ -20,10 +22,6 @@ import           Control.Arrow
 class (PreOrd x, PreOrd y) => Galois x y where
   alpha :: x -> y
   gamma :: y -> x
-
-instance {-# OVERLAPS #-} (PreOrd a, PreOrd b, a ~ b) => Galois a b where
-  alpha = id
-  gamma = id
 
 instance (Galois x x', Galois y y') => Galois (x,y) (x',y') where
   alpha (x,y) = (alpha x, alpha y)
@@ -34,9 +32,18 @@ instance (Eq (x,y), Hashable (x,y), Galois (Pow x) x', Galois (Pow y) y')
   alpha m = (alpha (fst <$> m),alpha (snd <$> m))
   gamma m = cartesian (gamma (fst m),gamma (snd m))
 
-instance (Galois v1 v2, Ord k) => Galois (Map k v1) (Map k v2) where
-  alpha = Map.map alpha
-  gamma = Map.map gamma
+instance Galois (Pow Con.Bool) Abs.Bool where
+  alpha = lifted $ \b -> case b of
+    Con.True -> Abs.True
+    Con.False -> Abs.False
+  gamma x = case x of
+    Abs.Top   -> [Con.True, Con.False]
+    Abs.True  -> [Con.True]
+    Abs.False -> [Con.False]
+
+instance (Hashable a, Eq a, Ord a, Enum a) => Galois (Pow a) (Abs.Interval a) where
+  alpha x = Abs.Interval (minimum x) (maximum x)
+  gamma (Abs.Interval x y) = [x..y]
 
 instance (Galois (m y) (n y'), Galois x x') => Galois (Kleisli m x y) (Kleisli n x' y') where
   alpha (Kleisli f) = Kleisli (alpha . f . gamma)
@@ -49,19 +56,8 @@ instance (Eq a, Hashable a, Galois (Pow a) a', Eq b, Hashable b, Complete b', Ga
     Con.Success y -> Abs.Success (alphaSing y)
   gamma = error "noncomputable"
 
--- instance (PreOrd b', Eq a',Hashable a',Galois x x', Galois y y') => Galois (Fix a b x y) (CacheArrow a' b' x' y') where
---   alpha f = liftCache (alpha . runFix f . gamma)
---   gamma f = liftFix (gamma . runCacheArrow f . alpha)
-
--- instance Galois (c x (Either e y)) (c' x' (Error e' y')) => Galois (EitherArrow e c x y) (ErrorArrow e' c' x' y') where
---   alpha (EitherArrow f) = ErrorArrow (alpha f)
---   gamma (ErrorArrow f) = EitherArrow (gamma f)
-
--- instance Galois (c x y) (c' x' y') => Galois (Environment var val c x y) (BoundedEnv var var val c' x' y') where
---   alpha (Environment )
-
 alphaSing :: Galois (Pow x) x' => x -> x'
 alphaSing = alpha . (return :: x -> Pow x)
 
-lifted :: (Complete y, LowerBounded y) => (x -> y) -> Pow x -> y
-lifted lift = foldr ((⊔) . lift) bottom
+lifted :: Complete y => (x -> y) -> Pow x -> y
+lifted lift = foldr1 (⊔) . fmap lift

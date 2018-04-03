@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Data.Concrete.Boolean(Prelude.Bool) where
+module Data.Concrete.Boolean(Prelude.Bool(..)) where
 
 import Prelude
 import Data.Boolean

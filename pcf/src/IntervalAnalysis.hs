@@ -43,10 +43,9 @@ import           Shared
 
 type IV = Interval (InfiniteNumber Int)
 data Closure = Closure Expr (Env Text Addr,Store Addr Val) deriving (Eq,Generic)
-data Val = Bot | NumVal (Bounded IV) | ClosureVal (HashSet Closure) | Top deriving (Eq, Generic)
+data Val = NumVal (Bounded IV) | ClosureVal (HashSet Closure) | Top deriving (Eq, Generic)
 
 instance Show Val where
-  show Bot = "⊥"
   show (NumVal iv) = show iv
   show (ClosureVal cls) = show cls
   show Top = "⊤"
@@ -77,12 +76,10 @@ instance IsVal Val Interp where
     Top -> returnA -< Top
     NumVal n -> returnA -< NumVal $ lift (+ 1) n
     ClosureVal _ -> failA -< "Expected a number as argument for 'succ'"
-    Bot -> returnA -< Bot
   pred = proc x -> case x of
     Top -> returnA -< Top
     NumVal n -> returnA -< NumVal $ lift (+ negate 1) n
     ClosureVal _ -> failA -< "Expected a number as argument for 'pred'"
-    Bot -> returnA -< Bot
   zero = proc _ -> do
     b <- askA -< ()
     returnA -< (NumVal (Bounded b 0))
@@ -92,10 +89,7 @@ instance IsVal Val Interp where
       | (i1, i2) == (0, 0) -> f -< x
       | i1 > 0 || i2 < 0 -> g -< y
       | otherwise -> (f -< x) ⊔ (g -< y)
-    (NumVal (Bounded _ I.Bot), _) -> returnA -< Bot
     (ClosureVal _, _) -> failA -< "Expected a number as condition for 'ifZero'"
-    (Bot, _) -> returnA -< Bot
-
 
 instance IsClosure Val (Env Text Addr,Store Addr Val) Interp where
   closure = arr $ \(e, env) -> ClosureVal (S.singleton (Closure e env))
@@ -104,21 +98,14 @@ instance IsClosure Val (Env Text Addr,Store Addr Val) Interp where
     ClosureVal cls -> lubA (proc (Closure e env,arg) -> f -< ((e,env),arg))
                         -< [ (c,arg) | c <- toList cls] 
     NumVal _ -> failA -< "Expected a closure"
-    Bot -> returnA -< Bot
 
 instance PreOrd Val where
-  Bot ⊑ _ = True
   _ ⊑ Top = True
   NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
   ClosureVal c1 ⊑ ClosureVal c2 = all (`elem` c2) c1
   _ ⊑ _ = False
 
-instance LowerBounded Val where
-  bottom = Bot
-
 instance Complete Val where
-  Bot ⊔ x = x
-  x ⊔ Bot = x
   Top ⊔ _ = Top
   _ ⊔ Top = Top
   NumVal x ⊔ NumVal y = NumVal (x ⊔ y)

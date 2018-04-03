@@ -1,28 +1,31 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-module Data.Abstract.FreeCoCompletion where
+module Data.Abstract.Floored where
 
-import Data.Order
 import Control.Monad
 import Control.Applicative
 
-data FreeCoCompletion a = Bottom | Greater a deriving (Functor,Traversable,Foldable)
+import Data.Order
+import Data.Abstract.Widening
 
-instance Show a => Show (FreeCoCompletion a) where
+-- Free cocompletion of a type
+data Floored a = Bottom | Greater a deriving (Eq,Functor,Traversable,Foldable)
+
+instance Show a => Show (Floored a) where
   show Bottom = "⊥"
   show (Greater a) = show a
 
-instance Applicative FreeCoCompletion where
+instance Applicative Floored where
   pure = return
   (<*>) = ap
 
-instance Monad FreeCoCompletion where
+instance Monad Floored where
   return = Greater
   Greater x >>= k = k x
   Bottom >>= _ = Bottom
 
-instance PreOrd a => PreOrd (FreeCoCompletion a) where
-  Bottom ⊑ _ = False
+instance PreOrd a => PreOrd (Floored a) where
+  Bottom ⊑ _ = True
   _ ⊑ Bottom = False
   Greater a ⊑ Greater b = a ⊑ b
 
@@ -30,12 +33,17 @@ instance PreOrd a => PreOrd (FreeCoCompletion a) where
   Greater a ≈ Greater b = a ≈ b
   _ ≈ _ = False
 
-instance Complete a => Complete (FreeCoCompletion a) where
+instance Complete a => Complete (Floored a) where
   Greater a ⊔ Greater b = Greater (a ⊔ b) 
   x ⊔ Bottom = x
   Bottom ⊔ y = y
 
-instance PreOrd a => CoComplete (FreeCoCompletion a) where
+instance Widening a => Widening (Floored a) where
+  Greater a ▽ Greater b = Greater (a ▽ b) 
+  x ▽ Bottom = x
+  Bottom ▽ y = y
+
+instance PreOrd a => CoComplete (Floored a) where
   Greater a ⊓ Greater b
     | a ⊑ b = Greater a
     | b ⊑ a = Greater b
@@ -43,13 +51,13 @@ instance PreOrd a => CoComplete (FreeCoCompletion a) where
   Bottom ⊓ _ = Bottom
   _ ⊓ Bottom = Bottom
 
-instance UpperBounded a => UpperBounded (FreeCoCompletion a) where
+instance UpperBounded a => UpperBounded (Floored a) where
   top = Greater top
 
-instance PreOrd a => LowerBounded (FreeCoCompletion a) where
+instance PreOrd a => LowerBounded (Floored a) where
   bottom = Bottom
 
-instance Num a => Num (FreeCoCompletion a) where
+instance Num a => Num (Floored a) where
   (+) = liftA2 (+)
   (*) = liftA2 (*)
   negate = fmap negate
@@ -57,6 +65,6 @@ instance Num a => Num (FreeCoCompletion a) where
   signum = fmap signum
   fromInteger = pure . fromInteger
 
-instance Fractional a => Fractional (FreeCoCompletion a) where
+instance Fractional a => Fractional (Floored a) where
   (/) = liftA2 (/)
   fromRational = pure . fromRational
