@@ -20,6 +20,7 @@ import           Control.Monad (join)
 
 import           Data.Abstract.Powerset (Pow)
 import qualified Data.Abstract.Powerset as A
+import           Data.Monoidal
 import           Data.Order
 import           Data.Sequence
 
@@ -46,20 +47,8 @@ instance ArrowChoice c => Arrow (Powerset c) where
   second (Powerset f) = Powerset $ second f >>^ \(n,pow) -> A.cartesian (A.singleton n, pow)
 
 instance ArrowChoice c => ArrowChoice (Powerset c) where
-  left (Powerset f) = Powerset $ left f >>^ commuteLeft
-  right (Powerset f) = Powerset $ right f >>^ commuteRight
-
-commuteLeft :: Either (Pow c) d -> Pow (Either c d)
-commuteLeft e0 = case e0 of
-  Left (A.Pow e) -> A.fromFoldable $ fmap Left e
-  Right f -> A.singleton (Right f)
-{-# INLINE commuteLeft #-}
-
-commuteRight :: Either d (Pow c) -> Pow (Either d c)
-commuteRight e0 = case e0 of
-  Left e -> A.singleton (Left e)
-  Right (A.Pow e) -> A.fromFoldable $ fmap Right e
-{-# INLINE commuteRight #-}
+  left (Powerset f) = Powerset $ left f >>^ strength1
+  right (Powerset f) = Powerset $ right f >>^ strength2
 
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Powerset c) where
   app = Powerset $ first runPowerset ^>> app

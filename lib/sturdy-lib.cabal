@@ -57,6 +57,7 @@ library
                        Control.Arrow.Environment,
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
+                       Control.Arrow.Lift,
                        Control.Arrow.Reader,
                        Control.Arrow.Property,
                        Control.Arrow.State,

@@ -18,7 +18,6 @@ import           Control.Arrow.Deduplicate
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Try
-import           Control.Arrow.Utils hiding (mapA,zipWithA)
 import           Control.Category
 
 import qualified Data.HashMap.Lazy as M
