@@ -22,6 +22,7 @@ import Control.Category
 import Data.Abstract.Error
 import Data.Order
 import Data.Monoidal
+import Data.Identifiable
 
 newtype Except e c x y = Except { runExcept :: c x (Error e y) }
 
@@ -30,11 +31,7 @@ instance ArrowLift (Except e) where
 
 instance ArrowChoice c => Category (Except r c) where
   id = lift id
-  Except f . Except g = Except $ proc x -> do
-    ey <- g -< x
-    case ey of
-      Fail e -> returnA -< Fail e
-      Success y -> f -< y
+  Except f . Except g = Except $ g >>> toEither ^>> arr Fail ||| f
 
 instance ArrowChoice c => Arrow (Except r c) where
   arr f = lift (arr f)
@@ -45,6 +42,7 @@ instance ArrowChoice c => ArrowChoice (Except r c) where
   left (Except f) = Except $ left f >>^ strength1
   right (Except f) = Except $ right f >>^ strength2
   Except f ||| Except g = Except (f ||| g)
+  Except f +++ Except g = Except $ f +++ g >>^ from distribute
 
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Except e c) where
   app = Except $ first runExcept ^>> app
@@ -76,18 +74,18 @@ instance ArrowChoice c => ArrowPlus (Except () c) where
   Except f <+> Except g = Except $ proc x -> do
     e <- f -< x
     case e of
-      Success y -> returnA -< Success y
-      Fail _ -> g -< x
+      Fail e' -> g -< x
+      Success y -> joined (arr Success) g -< (y,x)
 
-instance ArrowChoice c => ArrowDeduplicate (Except e c) where
-  dedupA = returnA
-
-instance ArrowChoice c => ArrowTry x y z (Except e c) where
+instance (ArrowChoice c, Complete (c (y,x) (Error e z))) => ArrowTry x y z (Except e c) where
   tryA (Except f) (Except g) (Except h) = Except $ proc x -> do
     e <- f -< x
     case e of
-      Success y -> g -< y
+      Success y -> joined g h -< (y,x)
       Fail _ -> h -< x
+
+instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
+  dedupA (Except f) = Except (dedupA f)
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)

@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Data.Abstract.Bounded where
 
 import Prelude hiding (Bounded)
@@ -8,6 +9,9 @@ import Data.Hashable
 
 -- |Bounded invokes the least upper bound operator until the element reaches a given limit.
 data Bounded a = Bounded a a
+
+bounded :: (?bound :: a) => a -> Bounded a
+bounded = Bounded ?bound
 
 instance Eq a => Eq (Bounded a) where
   Bounded _ x == Bounded _ y = x == y

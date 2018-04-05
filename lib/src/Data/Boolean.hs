@@ -8,4 +8,4 @@ class Logic b where
   and :: b -> b -> b
   or :: b -> b -> b
   not :: b -> b
-
+  eq :: Eq a => a -> a -> b

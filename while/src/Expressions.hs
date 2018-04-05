@@ -15,7 +15,7 @@ data Expr
   | And Expr Expr Label
   | Or Expr Expr Label
   | Not Expr Label
-  | NumLit Double Label
+  | NumLit Int Label
   | RandomNum Label
   | Add Expr Expr Label
   | Sub Expr Expr Label

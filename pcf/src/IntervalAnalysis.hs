@@ -12,29 +12,31 @@ import           Prelude hiding (Bounded)
 
 import           Control.Arrow
 import           Control.Arrow.Fail
-import           Control.Arrow.Reader
+import           Control.Arrow.Const
 import           Control.Arrow.Transformer.Abstract.Contour hiding (toList)
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.Const
 import           Control.Monad.State hiding (lift)
 
-import           Data.Abstract.Bounded
-import           Data.Abstract.Environment(Env)
-import           Data.Abstract.Error (Error)
 import           Data.Foldable (toList)
 import           Data.Hashable
 import           Data.HashSet(HashSet)
 import qualified Data.HashSet as S
+import           Data.Label
+import           Data.Order
+import           Data.Text (Text)
+
+import           Data.Abstract.Bounded
+import           Data.Abstract.Environment(Env)
+import           Data.Abstract.Error (Error)
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
-import           Data.Label
-import           Data.Order
 import           Data.Abstract.Store (Store)
-import           Data.Text (Text)
 import           Data.Abstract.Widening
+import           Data.Abstract.Terminating
     
 import           GHC.Generics
 
@@ -55,21 +57,21 @@ instance Show Closure where
 
 type Addr = (Text,Contour)
 type Interp =
-  Reader IV
+  Const IV
     (Environment Text Addr Val
       (ContourArrow
         (Except String
-          (Fix ((Env Text Addr,Store Addr Val),(IV,Expr))
+          (Fix ((Env Text Addr,Store Addr Val),Expr)
                (Error String Val)))))
 
-evalInterval :: Int -> IV -> [(Text,Val)] -> State Label Expr -> Error String Val
+evalInterval :: Int -> IV -> [(Text,Val)] -> State Label Expr -> Terminating (Error String Val)
 evalInterval k bound env e =
   runFix
     (runExcept
       (runContourArrow k
         (runEnvironment
-          (runReader (eval :: Interp Expr Val)))))
-    (env,(bound,generate e))
+          (runConst bound (eval :: Interp Expr Val)))))
+    (env,generate e)
 
 instance IsVal Val Interp where
   succ = proc x -> case x of
@@ -81,7 +83,7 @@ instance IsVal Val Interp where
     NumVal n -> returnA -< NumVal $ lift (+ negate 1) n
     ClosureVal _ -> failA -< "Expected a number as argument for 'pred'"
   zero = proc _ -> do
-    b <- askA -< ()
+    b <- askConst -< ()
     returnA -< (NumVal (Bounded b 0))
   ifZero f g = proc v -> case v of
     (Top, (x,y)) -> (f -< x) ⊔ (g -< y)
@@ -117,8 +119,8 @@ instance Widening Val where
   NumVal x ▽ NumVal y = NumVal (x ▽ y)
   x ▽ y =  x ⊔ y
 
-instance HasLabel ((Env Text Addr,Store (Text, Contour) Val),(IV, Expr)) where
-  label ((_,_),(_,e)) = label e
+instance HasLabel ((Env Text Addr,Store (Text, Contour) Val),Expr) where
+  label ((_,_),e) = label e
 
 instance Hashable Closure
 instance Hashable Val

@@ -17,3 +17,4 @@ instance Logic Bool where
     (False,False) -> false
   not False = true
   not True = false
+  eq = (==)

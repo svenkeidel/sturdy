@@ -42,3 +42,6 @@ foldA f = proc (l,a) -> case l of
     a' <- f -< (a,x)
     foldA f -< (xs,a')
   [] -> returnA -< a
+
+duplicate :: Arrow c => c x (x,x)
+duplicate = arr (\x -> (x,x))

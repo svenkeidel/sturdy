@@ -52,6 +52,7 @@ library
                        Data.Abstract.Store,
                        Data.Abstract.Widening,
 
+                       Control.Arrow.Const,
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
                        Control.Arrow.Environment,
@@ -70,6 +71,8 @@ library
                        Control.Arrow.Transformer.Property,
                        Control.Arrow.Transformer.Reader,
                        Control.Arrow.Transformer.State,
+                       Control.Arrow.Transformer.Const,
+                       Control.Arrow.Transformer.Static,
 
                        Control.Arrow.Transformer.Concrete.Environment,
                        Control.Arrow.Transformer.Concrete.Except,

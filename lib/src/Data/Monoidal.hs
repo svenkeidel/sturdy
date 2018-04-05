@@ -28,33 +28,34 @@ instance Monoidal Either where
       assocFrom (Left (Right b)) = Right (Left b)
       assocFrom (Right c) = Right (Right c)
 
-class Monoidal m => Commutative m where
-  commute :: a `m` b -> b `m` a
 
-instance Commutative (,) where
-  commute (a,b) = (b,a)
+class Strong m where
+  strength :: Applicative f => f a `m` b -> f (a `m` b)
 
-instance Commutative Either where
-  commute (Left a) = Right a
-  commute (Right a) = Left a
-
-class StrongMonoidal m where
-  strength :: Monad f => f a `m` b -> f (a `m` b)
-
-strength1 :: (StrongMonoidal m, Monad f) => f a `m` b -> f (a `m` b)
+strength1 :: (Strong m, Applicative f) => f a `m` b -> f (a `m` b)
 strength1 = strength
 {-# INLINE strength1 #-}
 
-strength2 :: (Commutative m, StrongMonoidal m, Monad f) => a `m` f b -> f (a `m` b)
+strength2 :: (Symmetric m, Strong m, Applicative f) => a `m` f b -> f (a `m` b)
 strength2 = fmap commute . strength . commute
 {-# INLINE strength2 #-}
 
-instance StrongMonoidal (,) where
+instance Strong (,) where
   strength (f,b) = fmap (\a -> (a,b)) f
 
-instance StrongMonoidal Either where
+instance Strong Either where
   strength (Left f) = fmap Left f
-  strength (Right b) = return (Right b)
+  strength (Right b) = pure (Right b)
+
+class Monoidal m => Symmetric m where
+  commute :: a `m` b -> b `m` a
+
+instance Symmetric (,) where
+  commute (a,b) = (b,a)
+
+instance Symmetric Either where
+  commute (Left a) = Right a
+  commute (Right a) = Left a
 
 class Distributive m n where
   distribute :: Iso (a `m` (b `n` c)) ((a `m` b) `n` (a `m` c))

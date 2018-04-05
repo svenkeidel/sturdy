@@ -79,7 +79,7 @@ class Arrow c => IsVal v c | c -> v where
   and :: c (v,v,Label) v
   or :: c (v,v,Label) v
   not :: c (v,Label) v
-  numLit :: c (Double,Label) v
+  numLit :: c (Int,Label) v
   randomNum :: c Label v
   add :: c (v,v,Label) v
   sub :: c (v,v,Label) v

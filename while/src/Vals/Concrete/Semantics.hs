@@ -29,7 +29,7 @@ import           System.Random
 
 import           GHC.Generics (Generic)
 
-data Val = BoolVal Bool | NumVal Double deriving (Eq, Show, Generic)
+data Val = BoolVal Bool | NumVal Int deriving (Eq, Show, Generic)
 type Interp = State StdGen (StoreArrow Text Val (Except String Fix))
 
 run :: [Statement] -> Error String (Store Text Val)
@@ -62,7 +62,7 @@ instance IsVal Val Interp where
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
     _ -> failA -< "Expected two numbers as arguments for 'mul'"
   div = proc (v1,v2,_) -> case (v1,v2) of
-    (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 / n2)
+    (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 `Prelude.div` n2)
     _ -> failA -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 == n2)

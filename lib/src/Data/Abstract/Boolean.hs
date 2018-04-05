@@ -22,19 +22,22 @@ instance Logic Bool where
   true = True
   false = False
   and b1 b2 = case (b1,b2) of
-    (True,True) -> true
-    (False,_) -> false
-    (_,False) -> false
+    (True,True) -> True
+    (False,_) -> False
+    (_,False) -> False
     (_,_) -> Top
   or b1 b2 = case (b1,b2) of
-    (True,_) -> true
-    (_,True) -> true
-    (False,False) -> false
+    (True,_) -> True
+    (_,True) -> True
+    (False,False) -> False
     (_,_) -> Top
   not b = case b of
-    True -> false
-    False -> true
+    True -> False
+    False -> True
     Top -> Top
+  eq a b
+    | a == b = True
+    | otherwise = False
 
 instance PreOrd Bool where
   _ ⊑ Top = P.True

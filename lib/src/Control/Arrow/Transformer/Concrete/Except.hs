@@ -19,8 +19,9 @@ import Control.Arrow.State
 import Control.Arrow.Try
 import Control.Category
 
-import Data.Concrete.Error
-import Data.Order
+import Data.Abstract.Error
+import Data.Monoidal
+import Data.Identifiable
 
 newtype Except e c x y = Except { runExcept :: c x (Error e y) }
 
@@ -29,46 +30,18 @@ instance ArrowLift (Except e) where
 
 instance ArrowChoice c => Category (Except r c) where
   id = lift id
-  Except f . Except g = Except $ proc x -> do
-    ey <- g -< x
-    case ey of
-      Fail e -> returnA -< Fail e
-      Success y -> f -< y
+  Except f . Except g = Except $ g >>> toEither ^>> arr Fail ||| f
 
 instance ArrowChoice c => Arrow (Except r c) where
   arr f = lift (arr f)
-  first (Except f) = Except $ first f >>^ injectRight
-  second (Except f) = Except $ second f >>^ injectLeft
-
-injectRight :: (Error e a,x) -> Error e (a,x)
-injectRight (er,x) = case er of
-  Fail e -> Fail e
-  Success a -> Success (a,x)
-{-# INLINE injectRight #-}
-
-injectLeft :: (x, Error e a) -> Error e (x,a)
-injectLeft (x,er) = case er of
-  Fail e -> Fail e
-  Success a -> Success (x,a)
-{-# INLINE injectLeft #-}
+  first (Except f) = Except $ first f >>^ strength1
+  second (Except f) = Except $ second f >>^ strength2
 
 instance ArrowChoice c => ArrowChoice (Except r c) where
-  left (Except f) = Except $ left f >>^ commuteLeft
-  right (Except f) = Except $ right f >>^ commuteRight
-
-commuteLeft :: Either (Error e x) y -> Error e (Either x y)
-commuteLeft e0 = case e0 of
-  Left (Fail e) -> Fail e
-  Left (Success x) -> Success (Left x)
-  Right y -> Success (Right y)
-{-# INLINE commuteLeft #-}
-
-commuteRight :: Either x (Error e y) -> Error e (Either x y)
-commuteRight e0 = case e0 of
-  Left x -> Success (Left x)
-  Right (Fail e) -> Fail e
-  Right (Success x) -> Success (Right x)
-{-# INLINE commuteRight #-}
+  left (Except f) = Except $ left f >>^ strength1
+  right (Except f) = Except $ right f >>^ strength2
+  Except f ||| Except g = Except (f ||| g)
+  Except f +++ Except g = Except $ f +++ g >>^ from distribute
 
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Except e c) where
   app = Except $ first runExcept ^>> app
@@ -94,27 +67,17 @@ instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) 
   fixA f = Except (fixA (runExcept . f . Except))
 
 instance ArrowChoice c => ArrowZero (Except () c) where
-  zeroArrow = proc _ -> failA -< ()
+  zeroArrow = arr (const ()) >>> failA
 
 instance ArrowChoice c => ArrowPlus (Except () c) where
-  Except f <+> Except g = Except $ proc x -> do
-    e <- f -< x
-    case e of
-      Success y -> returnA -< Success y
-      Fail _ -> g -< x
-
-instance ArrowChoice c => ArrowDeduplicate (Except e c) where
-  dedupA = returnA
+  Except f <+> Except g = Except $ (\x -> (x,x)) ^>> first f >>> hasSucceeded ^>> (arr Success ||| g)
 
 instance ArrowChoice c => ArrowTry x y z (Except e c) where
-  tryA (Except f) (Except g) (Except h) = Except $ proc x -> do
-    e <- f -< x
-    case e of
-      Success y -> g -< y
-      Fail _ -> h -< x
+  tryA (Except f) (Except g) (Except h) = Except $ (\x -> (x,x)) ^>> first f >>> hasSucceeded ^>> (g ||| h)
 
-deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
-deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)
-deriving instance Complete (c x (Error e y)) => Complete (Except e c x y)
-deriving instance CoComplete (c x (Error e y)) => CoComplete (Except e c x y)
-deriving instance UpperBounded (c x (Error e y)) => UpperBounded (Except e c x y)
+hasSucceeded :: (Error e b,a) -> Either b a
+hasSucceeded (Fail _,a) = Right a
+hasSucceeded (Success b,_) = Left b
+
+instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
+  dedupA (Except f) = Except (dedupA f)
