@@ -66,12 +66,6 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) wh
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fixA f = Except (fixA (runExcept . f . Except))
 
-instance ArrowChoice c => ArrowZero (Except () c) where
-  zeroArrow = arr (const ()) >>> failA
-
-instance ArrowChoice c => ArrowPlus (Except () c) where
-  Except f <+> Except g = Except $ (\x -> (x,x)) ^>> first f >>> hasSucceeded ^>> (arr Success ||| g)
-
 instance ArrowChoice c => ArrowTry x y z (Except e c) where
   tryA (Except f) (Except g) (Except h) = Except $ (\x -> (x,x)) ^>> first f >>> hasSucceeded ^>> (g ||| h)
 

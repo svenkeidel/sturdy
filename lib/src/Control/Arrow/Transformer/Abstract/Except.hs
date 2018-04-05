@@ -67,16 +67,6 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) wh
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fixA f = Except (fixA (runExcept . f . Except))
 
-instance ArrowChoice c => ArrowZero (Except () c) where
-  zeroArrow = proc _ -> failA -< ()
-
-instance ArrowChoice c => ArrowPlus (Except () c) where
-  Except f <+> Except g = Except $ proc x -> do
-    e <- f -< x
-    case e of
-      Fail e' -> g -< x
-      Success y -> joined (arr Success) g -< (y,x)
-
 instance (ArrowChoice c, Complete (c (y,x) (Error e z))) => ArrowTry x y z (Except e c) where
   tryA (Except f) (Except g) (Except h) = Except $ proc x -> do
     e <- f -< x
