@@ -41,12 +41,12 @@ joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
 -- joined f1 f2 = proc (x1,x2) -> (f1 -< x1) ⊔ (f2 -< x2)
 
 -- This is what the compiler desugars it to (we simplified it):
--- joined = \ @ t_a8le    @ t_a8ld    @ t_a8m7    @ t_a8m3    @ t_a8m5    @ t_a8lm    @ t_a8li    @ t_a8lk    $dArrow_a8pD    $dArrow_a8pE    $dArrow_a8pF    f1_a8kp    f2_a8kq ->
---       (arr (\(x1, x2) -> ((x2, x1), ())) )
---       >>>
---       (op
---             (arr (\((x2,x1), b) -> (x1, b))) >>> arr fst >>> f1   ::  c ((x2,x1,b)) r
---             (arr (\((x2,x1),b) -> (x2,b)) >>> arr fst >>> f2   ::     c ((x2,x1),b) r
+-- joined = 
+--   (arr (\(x1, x2) -> ((x2, x1), ())) )
+--   >>>
+--   (op
+--         (arr (\((x2,x1), b) -> (x1, b))) >>> arr fst >>> f1   ::  c ((x2,x1,b)) r
+--         (arr (\((x2,x1),b) -> (x2,b)) >>> arr fst >>> f2   ::     c ((x2,x1),b) r
 
 lubA :: (ArrowChoice c, Complete (c (x,[x]) y), LowerBounded (c () y)) => c x y -> c [x] y
 lubA f = proc l -> case l of

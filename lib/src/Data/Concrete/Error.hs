@@ -4,6 +4,7 @@ module Data.Concrete.Error where
 
 import Data.Hashable
 import Data.Monoidal
+import Control.Monad
 
 data Error e x = Fail e | Success x
   deriving (Eq, Functor)
@@ -15,6 +16,15 @@ instance (Show e,Show a) => Show (Error e a) where
 instance (Hashable e, Hashable a) => Hashable (Error e a) where
   hashWithSalt s (Fail e) = s `hashWithSalt` (1 :: Int) `hashWithSalt` e
   hashWithSalt s (Success a) = s `hashWithSalt` (2 :: Int) `hashWithSalt` a
+
+instance Applicative (Error e) where
+  pure = return
+  (<*>) = ap
+
+instance Monad (Error e) where
+  return = Success
+  Fail e >>= _ = Fail e
+  Success a >>= k = k a
 
 toEither :: Error e x -> Either e x
 toEither (Fail e) = Left e

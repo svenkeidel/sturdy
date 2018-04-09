@@ -19,7 +19,7 @@ import Control.Arrow.State
 import Control.Arrow.Try
 import Control.Category
 
-import Data.Abstract.Error
+import Data.Concrete.Error
 import Data.Monoidal
 import Data.Identifiable
 

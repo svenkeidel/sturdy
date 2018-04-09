@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module IntervalAnalysis where
 
@@ -64,13 +65,13 @@ type Interp =
           (Fix ((Env Text Addr,Store Addr Val),Expr)
                (Error String Val)))))
 
-evalInterval :: Int -> IV -> [(Text,Val)] -> State Label Expr -> Terminating (Error String Val)
-evalInterval k bound env e =
+evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error String Val)
+evalInterval k env e =
   runFix
     (runExcept
       (runContourArrow k
         (runEnvironment
-          (runConst bound (eval :: Interp Expr Val)))))
+          (runConst ?bound (eval :: Interp Expr Val)))))
     (env,generate e)
 
 instance IsVal Val Interp where
