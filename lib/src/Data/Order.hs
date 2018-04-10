@@ -13,8 +13,6 @@ import qualified Data.IntSet as IS
 import           Data.Text (Text)
 
 import           Control.Arrow
-import           Control.Monad.State
-import           Control.Monad.Reader
 
 -- | Reflexive, transitive order
 class PreOrd x where
@@ -183,24 +181,6 @@ instance PreOrd a => LowerBounded (Set a) where
 
 instance (Ord k, PreOrd v) => LowerBounded (Map k v) where
   bottom = M.empty
-
-instance PreOrd (m (a,s)) => PreOrd (StateT s m a) where
-  _ ⊑ _ = error "StateT f ⊑ StateT g  iff  forall x. f x ⊑ g x"
-
-instance LowerBounded (m (a,s)) => LowerBounded (StateT s m a) where
-  bottom = StateT (const bottom)
-
-instance Complete (m (a,s)) => Complete (StateT s m a) where
-  StateT f ⊔ StateT g = StateT $ \s -> f s ⊔ g s
-
-instance PreOrd (m a) => PreOrd (ReaderT e m a) where
-  _ ⊑ _ = error "ReaderT f ⊑ ReaderT g  iff  forall x. f x ⊑ g x"
-
-instance LowerBounded (m a) => LowerBounded (ReaderT r m a) where
-  bottom = ReaderT (const bottom)
-
-instance Complete (m a) => Complete (ReaderT r m a) where
-  ReaderT f ⊔ ReaderT g = ReaderT $ \r -> f r ⊔ g r
 
 instance PreOrd (m b) => PreOrd (Kleisli m a b) where
   _ ⊑ _ = error "Kleisli f ⊑ Kleisli g  iff  forall x. f x ⊑ g x"

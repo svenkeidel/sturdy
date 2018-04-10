@@ -94,11 +94,6 @@ library
                        -- Control.Arrow.Transformer.Abstract.LiveVariables,
                        Control.Arrow.Transformer.Abstract.ReachingDefinitions,
                        Control.Arrow.Transformer.Abstract.Uncertain
-                       
-                       -- TODO: delete
-                       Control.Monad.Deduplicate,
-                       Control.Monad.Try
-
   build-depends:       base,
                        containers,
                        hashable,

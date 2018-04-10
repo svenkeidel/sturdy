@@ -11,7 +11,6 @@ import           Prelude hiding ((.))
 import           Control.Applicative hiding (empty)
 import           Control.Category
 import           Control.Monad
-import           Control.Monad.Deduplicate
 
 import           Data.Sequence (Seq,(<|))
 import           Data.Hashable
@@ -75,6 +74,3 @@ size = length
 
 dedup :: (Hashable a, Eq a) => Pow a -> Pow a
 dedup = fromFoldable . toHashSet
-
-instance MonadDeduplicate Pow where
-  dedup = fromFoldable . toHashSet

@@ -13,7 +13,6 @@ import           Prelude hiding ((.),seq)
 import           Control.Category
 import           Control.Applicative
 import           Control.Monad
-import           Control.Monad.Deduplicate
 
 import           Data.Sequence (Seq)
 import qualified Data.Sequence as S
@@ -77,9 +76,6 @@ fromFoldable = foldMap return
 
 size :: Foldable f => f a -> Int
 size = length
-
-instance MonadDeduplicate Pow where
-  dedup = fromFoldable . toHashSet
 
 dedup :: (Identifiable a) => Pow a -> Pow a
 dedup = fromFoldable . toHashSet
