@@ -30,6 +30,20 @@ spec = do
         Left e -> fail (show e)
         Right m -> createGrammar (signature m) `shouldBe` pcf
 
+  describe "Utilities" $ do
+    it "convertToList should work" $
+      convertToList [ stringGrammar "foo", stringGrammar "bar", stringGrammar "baz" ]
+        `shouldBe` Term (grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Cons") [ "S1", "S2" ] ])
+                                                  ,("S1", [ Ctor (StringLit "foo") [] ])
+                                                  ,("S2", [ Ctor (Constr "Cons") [ "S3", "S4" ] ])
+                                                  ,("S3", [ Ctor (StringLit "bar") [] ])
+                                                  ,("S4", [ Ctor (Constr "Cons") [ "S5", "S6" ] ])
+                                                  ,("S5", [ Ctor (StringLit "baz") [] ])
+                                                  ,("S6", [ Ctor (Constr "Nil") [] ] )]))
+
+    it "convertToList should work on an empty list" $
+      convertToList [] `shouldBe` Term (grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Nil") [] ])]))
+
   describe "Match" $ do
     it "should match an identical builtin string literal" $
       geval 1 (Match (StringLiteral "x")) (termEnv []) (stringGrammar "x") `shouldBe`

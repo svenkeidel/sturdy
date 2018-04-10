@@ -166,6 +166,13 @@ instance IsTerm Term Interp where
   numberLiteral = arr numberGrammar
   stringLiteral = arr stringGrammar
 
+instance TermUtils Term where
+  convertToList ts = case ts of
+    (x:xs) -> Term (addConstructor (Constr "Cons") [fromTerm x, fromTerm (convertToList xs)])
+    [] -> Term (singleton (Constr "Nil"))
+  size (Term g) = TreeAutomata.size g
+  height (Term g) = TreeAutomata.height g
+
 instance IsTermEnv TermEnv Term Interp where
   getTermEnv = getA
   putTermEnv = putA
