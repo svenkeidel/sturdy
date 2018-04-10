@@ -8,6 +8,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module GrammarSemantics where
 
+import           Prelude hiding (id)
+
 import           SharedSemantics hiding (all)
 import           Signature hiding (Top)
 import           Syntax hiding (Fail)
@@ -35,19 +37,21 @@ import qualified Data.Map as M
 import           Data.Order
 import           Data.Term hiding (wildcard)
 import           Data.TermEnv
+import           Data.Text (Text)
 
 import           TreeAutomata
 
-type Term = Grammar
+data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
+newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
-newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet) (State TermEnv (Uncertain (->))) a b)
+newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Uncertain (->))) a b)
   deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, ArrowPlus, ArrowZero, Category, Complete, PreOrd)
 
-runInterp :: Interp a b -> Int -> Alphabet -> StratEnv -> TermEnv -> a -> UncertainResult (TermEnv, b)
+runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> UncertainResult (TermEnv, b)
 runInterp (Interp f) i alph senv tenv a = runUncertain (runState (runReader f)) (tenv, ((senv, i, alph), a))
 
-eval :: Int -> Strat -> Alphabet -> StratEnv -> TermEnv -> Term -> UncertainResult (TermEnv, Term)
+eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> UncertainResult (TermEnv, Term)
 eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
@@ -57,35 +61,41 @@ sortToName sort = case sort of
   Sort (SortId name) -> name
   _ -> error "Parametric polymorphism is not yet supported"
 
-toRhs :: (Constructor,Fun) -> Rhs
-toRhs (Constructor constr, Fun sorts _) = Ctor constr (map sortToName sorts)
+toRhs :: (Constructor,Fun) -> Rhs Constr
+toRhs (Constructor constr, Fun sorts _) = Ctor (Constr constr) (map sortToName sorts)
 
-toProd :: (Sort, [(Constructor,Fun)]) -> (Name, [Rhs])
+toProd :: (Sort, [(Constructor,Fun)]) -> (Name, [Rhs Constr])
 toProd (sort, rhss) = (sortToName sort, map toRhs rhss)
 
-createGrammar :: Signature -> Grammar
+createGrammar :: Signature -> GrammarBuilder Constr
 createGrammar (Signature (_, sorts) _) = grammar startSymbol prods
   where
     startSymbol = "Start"
     startProd = (startSymbol, map (Eps . sortToName) (LM.keys sorts))
-    builtins = [("String", [ Ctor "String" []]), ("INT", [ Ctor "INT" []])]
+    -- TODO: what to do with these builtins?
+    builtins = [("String", [ Ctor (Constr "String") []]) ]
     prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
 
-sigToAlphabet :: Signature -> Alphabet
+sigToAlphabet :: Signature -> Alphabet Constr
 sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
-  alph = map (\(c,v) -> (sortToName c,length v)) $ LM.toList sorts
+  alph = map (\(c,v) -> (Constr (sortToName c),length v)) $ LM.toList sorts
 
 -- Instances -----------------------------------------------------------------------------------------
-deriving instance ArrowReader (StratEnv, Int, Alphabet) Interp
+deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
 deriving instance ArrowState TermEnv Interp
 
 instance Complete z => ArrowTry x y z Interp where
   tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
 
-instance PreOrd Term where
+instance Hashable Constr where
+  hashWithSalt s (Constr c) = s `hashWithSalt` (0::Int) `hashWithSalt` c
+  hashWithSalt s (StringLit s') = s `hashWithSalt` (1::Int) `hashWithSalt` s'
+  hashWithSalt s (NumLit n) = s `hashWithSalt` (2::Int) `hashWithSalt` n
+
+instance PreOrd (GrammarBuilder Constr) where
   (⊑) = subsetOf
 
-instance Complete Term where
+instance Complete (GrammarBuilder Constr) where
   (⊔) = union
 
 instance PreOrd TermEnv where
@@ -117,7 +127,11 @@ instance ArrowFix' Interp Term where
 instance UpperBounded (Interp () Term) where
   top = proc () -> do
     (_,_,alph) <- askA -< ()
-    success ⊔ failA' -< wildcard alph
+    success ⊔ failA' -< Term (wildcard alph)
+
+instance PreOrd a => LowerBounded (Interp () a) where
+  -- TODO: correct?
+  bottom = failA
 
 instance ArrowFail () Interp where
   failA = Interp failA
@@ -130,41 +144,27 @@ instance HasStratEnv Interp where
     returnA -< r
 
 instance IsTerm Term Interp where
-  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,t) -> do
-   let g = epsilonClosure t
-     in case rhs g (start g) of
-       [] -> failA -< ()
-       rhss -> do
-         let ps = productions g
-             gs = [ grammar nt ps | Ctor c' ts' <- rhss, c == c', eqLength ts ts', nt <- ts' ]
-         _ <- matchSubterms -< (ts, gs)
-         returnA -< t
+  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,Term g) -> do
+    lubA (reconstruct <<< second matchSubterms <<< checkConstructorAndLength c ts) -<< toSubterms g
 
   matchTermAgainstExplode matchCons matchSubterms = undefined
 
-  matchTermAgainstNumber = proc (_,t) ->
-    if produces t "INT"
-      then returnA -< t
-      else failA -< ()
+  matchTermAgainstNumber = proc (n,g) -> matchLit -< (g, NumLit n)
+  matchTermAgainstString = proc (s,g) -> matchLit -< (g, StringLit s)
 
-  matchTermAgainstString = proc (_,t) ->
-    if produces t "String"
-      then returnA -< t
-      else failA -< ()
-
-  equal = proc (t1,t2) -> if t1 == t2
-    then returnA -< t1
-    else failA -< ()
+  equal = proc (Term g1, Term g2) -> case intersection g1 g2 of
+    g | isEmpty g -> failA -< ()
+      | otherwise -> returnA ⊔ failA' -< Term (normalize g)
 
   convertFromList = undefined
 
-  mapSubterms f = proc t -> do
-    ts' <- f -< permutate t
-    returnA -< union' ts'
+  mapSubterms f = proc (Term g) -> do
+    g' <- lubA (fromSubterms . return ^<< second (fromTerms ^<< f)) -< [ (c, toTerms gs) | (c, gs) <- toSubterms g ]
+    returnA -< Term g'
 
-  cons = proc (Constructor c,ts) -> returnA -< combine c ts
-  numberLiteral = proc _ -> returnA -< numberGrammar
-  stringLiteral = proc _ -> returnA -< stringGrammar
+  cons = proc (Constructor c,ts) -> returnA -< Term (addConstructor (Constr c) (fromTerms ts))
+  numberLiteral = arr numberGrammar
+  stringLiteral = arr stringGrammar
 
 instance IsTermEnv TermEnv Term Interp where
   getTermEnv = getA
@@ -187,8 +187,33 @@ instance IsTermEnv TermEnv Term Interp where
 dom :: HashMap TermVar t -> [TermVar]
 dom = LM.keys
 
-stringGrammar :: Term
-stringGrammar = singleton "String"
+toTerms :: [GrammarBuilder Constr] -> [Term]
+toTerms = map Term
 
-numberGrammar :: Term
-numberGrammar = singleton "INT"
+fromTerms :: [Term] -> [GrammarBuilder Constr]
+fromTerms = map fromTerm
+
+fromTerm :: Term -> GrammarBuilder Constr
+fromTerm (Term g) = g
+
+reconstruct :: Interp (Text, [Term]) Term
+reconstruct = proc (c, ts) -> returnA -< (Term (fromSubterms [(Constr c, fromTerms ts)]))
+
+checkConstructorAndLength :: Text -> [t'] -> Interp (Constr, [GrammarBuilder Constr]) (Text, ([t'], [Term]))
+checkConstructorAndLength c ts = proc (c', gs) -> case c' of
+  Constr c'' | eqLength ts gs && c == c'' -> returnA -< (c, (ts, toTerms gs))
+             | otherwise -> failA -< ()
+  _ -> failA -< ()
+
+matchLit :: Interp (Term, Constr) Term
+-- TODO: check if production to n has empty argument list? This should be the case by design.
+matchLit = proc (Term g,l) -> case g `produces` l of
+  True | isSingleton g -> returnA -< Term g
+       | otherwise -> returnA ⊔ failA' -< Term g
+  False -> failA -< ()
+
+stringGrammar :: Text -> Term
+stringGrammar s = Term (singleton (StringLit s))
+
+numberGrammar :: Int -> Term
+numberGrammar n = Term (singleton (NumLit n))
