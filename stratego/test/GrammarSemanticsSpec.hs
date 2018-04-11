@@ -147,20 +147,20 @@ spec = do
         Success (termEnv [], numberGrammar 42)
 
     it "should build a simple constant PCF expression" $
-      let zero = grammar "Start0" $ M.fromList [("Start0", [Ctor (Constr "Zero") []])]
+      let zero = grammar "S0" $ M.fromList [("S0", [Ctor (Constr "Zero") []])]
       in geval 1 (Build (Cons "Zero" [])) (termEnv []) (Term empty) `shouldBe`
        Success (termEnv [], Term zero)
 
     it "should build a nested PCF expression" $
-      let g = grammar "Start4" $ M.fromList [("Start4", [ Ctor (Constr "Succ") ["Start5"]])
-                                            ,("Start5", [ Ctor (Constr "Zero") []])]
+      let g = grammar "S0" $ M.fromList [("S0", [ Ctor (Constr "Succ") ["S1"]])
+                                        ,("S1", [ Ctor (Constr "Zero") []])]
       in geval 1 (Build (Cons "Succ" [Cons "Zero" []])) (termEnv []) (Term empty) `shouldBe`
         Success (termEnv [], Term g)
 
     it "should build a constructor with more than one argument" $
-      let g = grammar "Start" $ M.fromList [("Start", [ Ctor (Constr "Ifz") ["Start1", "Start2", "Start1"]])
-                                           ,("Start1", [ Ctor (Constr "Zero") [] ])
-                                           ,("Start2", [ Ctor (Constr "Succ") ["Start1"]])]
+      let g = grammar "S" $ M.fromList [("S", [ Ctor (Constr "Ifz") ["S1", "S2", "S1"]])
+                                       ,("S1", [ Ctor (Constr "Zero") [] ])
+                                       ,("S2", [ Ctor (Constr "Succ") ["S1"]])]
       in geval 1 (Build (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) (termEnv []) (Term empty) `shouldBe`
         Success (termEnv [], Term g)
 
@@ -181,23 +181,23 @@ spec = do
     it "should merge two variables into one grammar" $
       let tenv = termEnv [("x", numberGrammar 42), ("y", stringGrammar "x")]
       in geval 1 (Build (Cons "foo" [Var "x", Var "y"])) tenv (Term empty) `shouldBe`
-         Success (tenv, Term $ grammar "Start" $ M.fromList [("Start", [ Ctor (Constr "foo") ["Start1", "Start2" ]])
-                                                            ,("Start1", [ Ctor (NumLit 42) [] ])
-                                                            ,("Start2", [ Ctor (StringLit "x") [] ])])
+         Success (tenv, Term $ grammar "S" $ M.fromList [("S", [ Ctor (Constr "foo") ["S1", "S2" ]])
+                                                        ,("S1", [ Ctor (NumLit 42) [] ])
+                                                        ,("S2", [ Ctor (StringLit "x") [] ])])
 
     it "should support linear pattern matching" $
       let tenv = termEnv [("x", numberGrammar 42)]
       in geval 1 (Build (Cons "foo" [Var "x", Var "x"])) tenv (Term empty) `shouldBe`
-         Success (tenv, Term $ grammar "Start" $ M.fromList [("Start", [ Ctor (Constr "foo") ["Start1", "Start1" ]])
-                                                            ,("Start1", [ Ctor (NumLit 42) [] ])
-                                                            ,("Start2", [ Ctor (NumLit 42) [] ])])
+         Success (tenv, Term $ grammar "S" $ M.fromList [("S", [ Ctor (Constr "foo") ["S1", "S1" ]])
+                                                        ,("S1", [ Ctor (NumLit 42) [] ])
+                                                        ,("S2", [ Ctor (NumLit 42) [] ])])
 
     it "should merge a variable and the given subject grammar" $
       let tenv = termEnv [("x", numberGrammar 42)]
       in geval 1 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv (Term pcf) `shouldBe`
-         Success (tenv, Term $ grammar "Start" $ M.fromList [("Start", [ Ctor (Constr "Ifz") ["Start1", "Start2", "Start3"]])
-                                                            ,("Start2", [ Ctor (Constr "Succ") ["Start1"]])
-                                                            ,("Start3", [ Ctor (Constr "Zero") []])])
+         Success (tenv, Term $ grammar "S" $ M.fromList [("S", [ Ctor (Constr "Ifz") ["S1", "S2", "S3"]])
+                                                        ,("S2", [ Ctor (Constr "Succ") ["S1"]])
+                                                        ,("S3", [ Ctor (Constr "Zero") []])])
 
     it "should be sound" $ do
       -- [t1,t2,t3] <- C.similarTerms 3 7 2 10
@@ -234,9 +234,8 @@ spec = do
 
     termEnv = TermEnv . LM.fromList
 
-    pcf = grammar "Start" $ M.fromList [
-      ("Start", [ Eps "Exp"
-                , Eps "Type" ])
+    pcf = grammar "S" $ M.fromList [
+      ("S", [ Eps "Exp", Eps "Type" ])
       , ("Exp", [ Ctor (Constr "Abs") ["String", "Type", "Exp"]
                 , Ctor (Constr "App") ["Exp", "Exp"]
                 , Ctor (Constr "Ifz") ["Exp", "Exp", "Exp"]
