@@ -61,7 +61,7 @@ data Term
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 
 newtype Interp a b = Interp (Reader StratEnv (State TermEnv (Except () (->))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowZero,ArrowPlus,ArrowDeduplicate)
+  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowDeduplicate)
 
 runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error () (TermEnv,b)
 runInterp (Interp f) senv tenv t = runExcept (runState (runReader f)) (tenv, (senv, t))

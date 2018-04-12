@@ -85,12 +85,6 @@ instance ArrowFix (s,x) (s,y) c => ArrowFix x y (State s c) where
 instance ArrowTry (s,x) (s,y) (s,z) c => ArrowTry x y z (State s c) where
   tryA (State f) (State g) (State h) = State $ tryA f g h
 
-instance ArrowZero c => ArrowZero (State s c) where
-  zeroArrow = lift zeroArrow
-
-instance ArrowPlus c => ArrowPlus (State s c) where
-  State f <+> State g = State (f <+> g)
-
 instance (Eq s, Hashable s, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
   dedupA (State f) = State (dedupA f)
 

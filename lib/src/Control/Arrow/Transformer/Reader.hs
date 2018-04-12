@@ -73,12 +73,6 @@ instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where
 instance ArrowTry (r,x) (r,y) z c => ArrowTry x y z (Reader r c) where
   tryA (Reader f) (Reader g) (Reader h) = Reader $ tryA (pi1 &&& f) g h
 
-instance ArrowZero c => ArrowZero (Reader r c) where
-  zeroArrow = lift zeroArrow
-
-instance ArrowPlus c => ArrowPlus (Reader r c) where
-  Reader f <+> Reader g = Reader (f <+> g)
-
 instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
   dedupA (Reader f) = Reader (dedupA f)
 

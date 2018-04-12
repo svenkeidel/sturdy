@@ -13,7 +13,7 @@ import           Syntax (TermPattern)
 import qualified Syntax as S
 import           Utils
 
-import           Control.Arrow
+import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
@@ -28,7 +28,7 @@ import           Data.Hashable
 import           Text.Printf
 
 -- Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowTry t t t c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c, ArrowPlus c, ArrowApply c, ArrowFix' c t,
+eval' :: (ArrowChoice c, ArrowTry t t t c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c, ArrowApply c, ArrowFix' c t,
           ArrowFail () c, ArrowDeduplicate c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c)
       => (Strat -> c t t)
@@ -52,7 +52,7 @@ guardedChoice = tryA
 sequence :: Category c => c x y -> c y z -> c x z
 sequence f g = f >>> g
 
-one :: (ArrowChoice c, ArrowFail () c, ArrowPlus c) => c t t -> c [t] [t]
+one :: (ArrowChoice c, ArrowFail () c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c) => c t t -> c [t] [t]
 one f = proc l -> case l of
   (t:ts) -> do
     (t',ts') <- first f <+> second (one f) -< (t,ts)
@@ -92,7 +92,7 @@ let_ ss body interp = proc a -> do
   senv <- readStratEnv -< ()
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a 
 
-call :: (ArrowChoice c, ArrowFail () c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c, ArrowPlus c, ArrowApply c,
+call :: (ArrowChoice c, ArrowFail () c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c, ArrowApply c,
          IsTermEnv env t c, HasStratEnv c)
      => StratVar
      -> [Strat]

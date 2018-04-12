@@ -34,7 +34,6 @@ import           Control.DeepSeq
 import           Control.Monad
 
 import           Data.Abstract.Error
-import           Data.Abstract.FreeCompletion
 import qualified Data.Abstract.Powerset as A
 import qualified Data.Concrete.Powerset as CP
 import           Data.Constructor
@@ -60,7 +59,7 @@ data Term
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 newtype Interp a b = Interp (Reader (StratEnv,Int) (State TermEnv (Except () (Powerset (->)))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowZero,ArrowPlus,ArrowDeduplicate,PreOrd,Complete)
+  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowDeduplicate,PreOrd,Complete)
 
 runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> A.Pow (Error () (TermEnv,b))
 runInterp (Interp f) i senv tenv a = runPowerset (runExcept (runState (runReader f))) (tenv, ((senv,i), a))
@@ -75,7 +74,7 @@ emptyEnv = TermEnv M.empty
 deriving instance ArrowReader (StratEnv, Int) Interp
 deriving instance ArrowState TermEnv Interp
 
-instance ArrowTry x y z Interp where
+instance PreOrd z => ArrowTry x y z Interp where
   tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
 
 instance ArrowFail () Interp where

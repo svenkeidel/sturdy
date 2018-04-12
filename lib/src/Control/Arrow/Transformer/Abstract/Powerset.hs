@@ -18,18 +18,17 @@ import           Control.Arrow.State
 import           Control.Category
 import           Control.Monad (join)
 
-import           Data.Abstract.Powerset (Pow)
 import qualified Data.Abstract.Powerset as A
 import           Data.Monoidal
 import           Data.Order
 import           Data.Sequence
 
-newtype Powerset c x y = Powerset { runPowerset :: c x (Pow y)}
+newtype Powerset c x y = Powerset { runPowerset :: c x (A.Pow y)}
 
 instance ArrowLift Powerset where
   lift f = Powerset $ f >>^ A.singleton
 
-mapPow :: ArrowChoice c => c x y -> c (Pow x) (Pow y)
+mapPow :: ArrowChoice c => c x y -> c (A.Pow x) (A.Pow y)
 mapPow f = proc (A.Pow s) -> case viewl s of
   EmptyL -> returnA -< A.empty
   (x :< xs) -> do
@@ -69,12 +68,6 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) wh
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Powerset f) = Powerset $ localEnv f
-
-instance (ArrowChoice c, ArrowZero c) => ArrowZero (Powerset c) where
-  zeroArrow = lift zeroArrow
-
-instance (ArrowChoice c, ArrowPlus c) => ArrowPlus (Powerset c) where
-  Powerset f <+> Powerset g = Powerset (f <+> g)
 
 instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) where
   dedupA (Powerset f) = Powerset (dedupA f)

@@ -10,3 +10,6 @@ class Arrow c => ArrowDeduplicate c where
 
 instance MonadDeduplicate m => ArrowDeduplicate (Kleisli m) where
   dedupA (Kleisli f) = Kleisli $ \x -> dedup (f x)
+
+instance ArrowDeduplicate (->) where
+  dedupA = returnA
