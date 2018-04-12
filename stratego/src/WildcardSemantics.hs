@@ -248,9 +248,8 @@ instance PreOrd Term where
 instance Complete Term where
   t1 ⊔ t2 = case (t1,t2) of
     (Cons c ts, Cons c' ts')
-      | c == c' -> case Lower ts ⊔ Lower ts' of
-        Lower ts'' -> Cons c ts''
-        _          -> Wildcard
+      | c == c' && ts ⊑ ts' -> Cons c ts'
+      | c == c' && ts' ⊑ ts -> Cons c ts
       | otherwise -> Wildcard
     (StringLiteral s, StringLiteral s')
       | s == s' -> StringLiteral s
@@ -271,7 +270,7 @@ instance Galois (CP.Pow C.Term) Term where
   gamma = error "Infinite"
 
 instance Show Term where
-  show (Cons c ts) = show c ++ show ts
+  show (Cons c ts) = show c ++ if null ts then "" else show ts
   show (StringLiteral s) = show s
   show (NumberLiteral n) = show n
   show Wildcard = "_"
