@@ -4,19 +4,25 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Vals.Interval.Semantics where
+module ValueSemantics.Interval where
 
-import           Prelude hiding (Bool(..),Bounded(..))
+import           Prelude hiding (Bool(..),Bounded(..),(==),(/))
 import qualified Prelude as P
 
-import           Expressions
-import           Shared
-import qualified Vals.Concrete.Semantics as Concrete
+import           Syntax
+import           SharedSemantics
+import qualified SharedSemantics as Shared
 
 import           Data.Abstract.Boolean (Bool)
-import           Data.Abstract.Bounded
 import qualified Data.Abstract.Boolean as B
+import           Data.Abstract.Bounded hiding (lift)
 import           Data.Abstract.Error (Error(..))
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
@@ -26,44 +32,40 @@ import           Data.Abstract.Terminating
 import           Data.Abstract.Widening
 
 import qualified Data.Boolean as B
-import           Data.Concrete.Powerset
-import           Data.GaloisConnection
+import           Data.Equality
 import           Data.Hashable
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.Numeric
 import           Data.Order
+import           Data.Label
 import           Data.Text (Text)
 
+import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Const
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.State
-import           Control.Arrow.Reader
-import           Control.Arrow.Transformer.State
-import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Transformer.Abstract.Store
+import           Control.Arrow.Store
+import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Store
+import           Control.Monad.State
 
-import           System.Random
 import           GHC.Generics
 
 type IV = Interval Int
 data Val = BoolVal Bool | NumVal (Bounded IV) | Top deriving (Eq,Generic)
 
-type Interp = Reader IV (StoreArrow Text Val (Except String (Fix (Store Text Val,(IV,[Statement])) (Error String (Store Text Val,())))))
+newtype Interp c x y = Interp (Const IV (StoreArrow Text Val (Except String c)) x y)
+type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,x) (Error String (Store Text Val,y)) c)
 
-run :: IV -> [Statement] -> Terminating (Error String (Store Text Val))
-run bound ss =
-  fmap fst <$>
-    runFix
-      (runExcept
-        (runStore
-          (runReader
-            (Shared.run :: Interp [Statement] ()))))
-  (S.empty,(bound,ss))
+runInterp :: IV -> Interp c x y -> c (Store Text Val,x) (Error String (Store Text Val,y))
+runInterp b (Interp f) = runExcept (runStore (runConst b f))
 
-instance IsVal Val Interp where
+run :: (?bound :: IV) => [State Label Statement] -> Terminating (Error String (Store Text Val))
+run ss = fmap fst <$> runFix (runInterp ?bound (Shared.run :: Fix [Statement] () (Interp (~>)) [Statement] ())) (S.empty,generate (sequence ss))
+
+instance ArrowChoice c => IsVal Val (Interp c) where
   boolLit = arr $ \(b,_) -> case b of
     P.True -> BoolVal B.True
     P.False -> BoolVal B.False
@@ -82,9 +84,11 @@ instance IsVal Val Interp where
     Top -> returnA -< Top
     _ -> failA -< "Expected a boolean as argument for 'not'"
   numLit = proc (x,_) -> do
-    b <- askA -< ()
+    b <- askConst -< ()
     returnA -< NumVal (Bounded b (I.Interval x x))
-  randomNum = arr $ const $ NumVal top
+  randomNum = proc _ -> do
+    b <- askConst -< ()
+    returnA -< NumVal (Bounded b top)
   add = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
     (Top,_) -> returnA -< Top
@@ -101,25 +105,27 @@ instance IsVal Val Interp where
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'mul'"
   div = proc (v1,v2,_) -> case (v1,v2) of
-    (NumVal n1,NumVal n2) -> case n1 `I.div` n2 of
+    (NumVal n1,NumVal n2) -> case n1 / n2 of
       Fail e -> failA -< e
       Success n3 -> returnA -< NumVal n3
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2,_) -> case (v1,v2) of
-    (NumVal (I.Interval m1 m2),NumVal (I.Interval n1 n2))
-      | m1 == m2 && n1 == n2 && m1 == m2 -> returnA -< BoolVal B.True
-      | m2 < n1 || n2 < m1 -> returnA -< BoolVal B.False
-      | otherwise -> returnA -< BoolVal B.Top
-    (NumVal _,NumVal _)   -> returnA -< Top
-    (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (B.eq b1 b2)
+    (NumVal x,NumVal y) -> returnA -< BoolVal (x == y)
+    (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
+  lt = proc (v1,v2,_) -> case (v1,v2) of
+    (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 < n2)
+    (Top,_)   -> returnA -< Top
+    (_,Top)   -> returnA -< Top
+    _ -> failA -< "Expected two numbers as arguments for 'lt'"
 
-instance Run Val Interp where
-  if_ f1 f2 = proc (v,(x,y),_) -> case v of
+instance (Complete (c (Store Text Val,(x,y)) (Error String (Store Text Val,z))), ArrowChoice c)
+  => Conditional Val x y z (Interp c) where
+  if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True -> f1 -< x
     BoolVal B.False -> f2 -< y
     BoolVal B.Top -> joined f1 f2 -< (x,y)
@@ -127,11 +133,20 @@ instance Run Val Interp where
     _ -> failA -< "Expected boolean as argument for 'if'"
 
 
-instance HasStore Val Interp
+deriving instance ArrowChoice c => Category (Interp c)
+deriving instance ArrowChoice c => Arrow (Interp c)
+deriving instance ArrowChoice c => ArrowChoice (Interp c)
+deriving instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Interp c)
+deriving instance ArrowChoice c => ArrowFail String (Interp c)
+deriving instance ArrowChoice c => ArrowConst IV (Interp c)
+deriving instance (ArrowChoice c, ArrowFix (Store Text Val,x) (Error String (Store Text Val,y)) c) => ArrowFix x y (Interp c)
+deriving instance (Complete (c ((Store Text Val,Val),Text) (Error String (Store Text Val,Val))), ArrowChoice c) => ArrowStore Text Val (Interp c)
+deriving instance (PreOrd (c (Store Text Val,x) (Error String (Store Text Val,y)))) => PreOrd (Interp c x y)
+deriving instance (Complete (c (Store Text Val,x) (Error String (Store Text Val,y)))) => Complete (Interp c x y)
 
 instance PreOrd Val where
   _ ⊑ Top = P.True
-  BoolVal b1 ⊑ BoolVal b2 = b1 == b2
+  BoolVal b1 ⊑ BoolVal b2 = b1 P.== b2
   NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
   _ ⊑ _ = P.False
 
@@ -139,21 +154,23 @@ instance UpperBounded Val where
   top = Top
 
 instance Complete Val where
-  BoolVal b1 ⊔ BoolVal b2 = if b1 == b2 then BoolVal b1 else Top
+  BoolVal b1 ⊔ BoolVal b2 = BoolVal $ b1 ⊔ b2
   NumVal n1 ⊔ NumVal n2 = NumVal $ n1 ⊔ n2
   _ ⊔ _ = Top
 
 instance Widening Val where
   BoolVal b1 ▽ BoolVal b2 = BoolVal (b1 ⊔ b2)
   NumVal n1 ▽ NumVal n2 = NumVal (n1 ▽ n2)
+  _ ▽ _ = Top
 
-instance Galois (Pow Concrete.Val) Val where
-  alpha = lifted lift
-    where lift (Concrete.BoolVal b) = BoolVal (alphaSing b)
-          lift (Concrete.NumVal n) = NumVal $ I.Interval n n
-  gamma (BoolVal b) = Concrete.BoolVal <$> gamma b
-  gamma (NumVal (I.Interval m n)) = fromFoldable [Concrete.NumVal x | x <- [m..n]]
-  gamma Top = gamma (BoolVal B.Top) `union` gamma (NumVal top)
+-- instance Galois (IV -> Pow Concrete.Val) (IV -> Val) where
+--   alpha x = \b -> let ?bound = b in lifted lift (x b)
+--     where lift (Concrete.BoolVal b) = BoolVal (alphaSing b)
+--           lift (Concrete.NumVal n) = NumVal $ bounded (I.Interval n n)
+--   gamma x b = case x b of
+--     BoolVal y -> Concrete.BoolVal <$> gamma y
+--     NumVal (Bounded _ y) -> Concrete.NumVal <$> gamma y
+--     Top -> gamma (\(_::IV) -> BoolVal B.Top) b `union` gamma (\(_::IV) -> (NumVal (Bounded b top))) b
 
 instance Show Val where
   show (NumVal iv) = show iv

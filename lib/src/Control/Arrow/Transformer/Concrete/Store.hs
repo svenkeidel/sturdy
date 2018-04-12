@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Store where
 
 import Prelude hiding ((.))
@@ -58,4 +59,6 @@ deriving instance Arrow c => Arrow (StoreArrow var val c)
 deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)
 deriving instance ArrowReader r c => ArrowReader r (StoreArrow var val c)
 deriving instance ArrowFail e c => ArrowFail e (StoreArrow var val c)
+
+type instance Fix x y (StoreArrow var val c) = StoreArrow var val (Fix (Store var val,x) (Store var val,y) c)
 deriving instance ArrowFix (Store var val, x) (Store var val, y) c => ArrowFix x y (StoreArrow var val c)

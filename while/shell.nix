@@ -1,7 +1,15 @@
 { pkgs ? import <nixpkgs> {} }:
 
 let
-  hsEnv = pkgs.haskellPackages.ghcWithPackages(p: with p; [
+  haskellPackagesWithProfiling = pkgs.haskellPackages.override {
+    overrides = self: super: {
+      mkDerivation = args: super.mkDerivation (args // {
+        enableLibraryProfiling = true;
+      });
+    };
+  };
+
+  hsEnv = haskellPackagesWithProfiling.ghcWithPackages(p: with p; [
     Cabal cabal-install hlint text containers hspec mtl numeric-limits criterion fgl
     (p.callPackage ../lib/default.nix { })
   ]);

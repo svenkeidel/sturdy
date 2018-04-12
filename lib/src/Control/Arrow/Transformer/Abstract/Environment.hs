@@ -5,6 +5,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.Environment where
 
 import Prelude hiding ((.))
@@ -49,13 +50,14 @@ instance ArrowReader r c => ArrowReader r (Environment var val c) where
   askA = lift askA
   localA (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> localA f))
 
+type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
+deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (Environment var val c)
 deriving instance Arrow c => Category (Environment var val c)
 deriving instance Arrow c => Arrow (Environment var val c)
 deriving instance ArrowLift (Environment var val)
 deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
 deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
-deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (Environment var val c)
 deriving instance PreOrd (c (Env var val,x) y) => PreOrd (Environment var val c x y)
 deriving instance Complete (c (Env var val,x) y) => Complete (Environment var val c x y)
 deriving instance CoComplete (c (Env var val,x) y) => CoComplete (Environment var val c x y)

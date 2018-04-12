@@ -19,13 +19,16 @@ import           Control.Monad.Reader
 -- | Reflexive, transitive order
 class PreOrd x where
   (⊑) :: x -> x -> Bool
+  infix 4 ⊑
 
   (≈) :: x -> x -> Bool
   x ≈ y = x ⊑ y && y ⊑ x
+  infix 4 ≈
 
 -- | Order with all least upper bounds
 class PreOrd x => Complete x where
   (⊔) :: x -> x -> x
+  infix 5 ⊔
 
 -- | Order with a least element
 class PreOrd x => LowerBounded x where
@@ -57,6 +60,7 @@ lubA f = proc l -> case l of
 -- | Order with all greatest lower bounds
 class PreOrd x => CoComplete x where
   (⊓) :: x -> x -> x
+  infix 5 ⊓
 
 -- | Order with a greatest element
 class PreOrd x => UpperBounded x where

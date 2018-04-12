@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Data.Abstract.Boolean where
 
 import Prelude hiding (Bool(..))
@@ -35,9 +37,6 @@ instance Logic Bool where
     True -> False
     False -> True
     Top -> Top
-  eq a b
-    | a == b = True
-    | otherwise = False
 
 instance PreOrd Bool where
   _ ⊑ Top = P.True

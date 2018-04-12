@@ -18,31 +18,34 @@ import Control.Arrow.Transformer.State
 
 import Control.Category
 
-newtype PropertyArrow p c x y = PropertyArrow (State p c x y) 
+newtype Property p c x y = Property (State p c x y) 
 
-instance ArrowLift (PropertyArrow r) where
-  lift f = PropertyArrow (lift f)
+property :: c (p,x) (p,y) -> Property p c x y
+property = Property . State
 
-runProperty :: PropertyArrow p c x y -> c (p,x) (p,y)
-runProperty (PropertyArrow (State f)) = f
+instance ArrowLift (Property r) where
+  lift f = Property (lift f)
 
-instance Arrow c => HasProp p (PropertyArrow p c) where
-  modifyProp (PropertyArrow (State f)) =
-    PropertyArrow (State ((\(p,x) -> (p,(x,p))) ^>> f >>^ (\(_,p) -> (p,()))))
+runProperty :: Property p c x y -> c (p,x) (p,y)
+runProperty (Property (State f)) = f
 
-deriving instance Category c => Category (PropertyArrow p c) 
-deriving instance Arrow c => Arrow (PropertyArrow p c) 
-deriving instance ArrowChoice c => ArrowChoice (PropertyArrow p c) 
-deriving instance ArrowReader r c => ArrowReader r (PropertyArrow p c)
-deriving instance ArrowFail e c => ArrowFail e (PropertyArrow p c)
+instance Arrow c => HasProp p (Property p c) where
+  modifyProp (Property (State f)) =
+    Property (State ((\(p,x) -> (p,(x,p))) ^>> f >>^ (\(_,p) -> (p,()))))
 
-instance ArrowApply c => ArrowApply (PropertyArrow p c) where
-  app = PropertyArrow (State (arr (\(p,(PropertyArrow (State f),b)) -> (f,(p,b))) >>> app))
+deriving instance Category c => Category (Property p c) 
+deriving instance Arrow c => Arrow (Property p c) 
+deriving instance ArrowChoice c => ArrowChoice (Property p c) 
+deriving instance ArrowReader r c => ArrowReader r (Property p c)
+deriving instance ArrowFail e c => ArrowFail e (Property p c)
 
-instance ArrowState s c => ArrowState s (PropertyArrow p c) where
+instance ArrowApply c => ArrowApply (Property p c) where
+  app = Property (State (arr (\(p,(Property (State f),b)) -> (f,(p,b))) >>> app))
+
+instance ArrowState s c => ArrowState s (Property p c) where
   getA = lift getA
   putA = lift putA
 
-instance ArrowFix (p,x) (p,y) c => ArrowFix x y (PropertyArrow p c) where
-  fixA f = PropertyArrow (State (fixA (runProperty . f . PropertyArrow . State)))
+instance ArrowFix (p,x) (p,y) c => ArrowFix x y (Property p c) where
+  fixA f = Property (State (fixA (runProperty . f . Property . State)))
 

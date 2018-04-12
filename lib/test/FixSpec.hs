@@ -39,9 +39,9 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Cache x y = Fix x y x y
-type ErrorFix x y = Except () (Fix x (Error () y)) x y
-type StateFix x y = State IV (Fix (IV,x) (IV,y)) x y
+type Cache x y = Fix x y (~>) x y
+type ErrorFix x y = Fix x y (Except () (~>)) x y
+type StateFix x y = Fix x y (State IV (~>)) x y
 type IV = Bounded (Interval (InfiniteNumber Int))
 
 spec :: Spec

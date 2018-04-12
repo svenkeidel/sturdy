@@ -1,10 +1,16 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Data.Abstract.Interval where
 
-import Prelude hiding (div)
-import qualified Prelude
+import Prelude hiding (div,Bool(..),(==),(/))
+import qualified Prelude as P
 import Data.Hashable
 import Data.Order
+import Data.Numeric
+
+import Data.Abstract.Boolean
+import Data.Abstract.Equality
 import Data.Abstract.Error
 
 import GHC.Generics
@@ -32,19 +38,19 @@ instance (Num n, Ord n) => Num (Interval n) where
   signum = withBounds1 signum
   fromInteger = constant . fromInteger
 
-instance (Fractional n, Ord n, Bounded n) => Fractional (Interval n) where
+instance Numeric (Interval Int) (Error String) where
   Interval i1 i2 / Interval j1 j2
-    | j1 <= 0 && 0 <= j2 = top
-    | otherwise = withBounds2 (/) (Interval i1 i2) (Interval j1 j2)
-  fromRational = constant . fromRational
+      | j1 P.== 0 && j2 P.== 0 = Fail "divided by 0 error"
+      | j1 P.== 0 && 0  <   j2 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval (j1+1) j2
+      | j1 <    0 && j2 P.== 0 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval j1 (j2-1)
+      | j1 <    0 && 0  <   j2 = Fail "divided by 0 error" ⊔ Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
+      | otherwise = Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
 
-div :: Integral n => Interval n -> Interval n -> Error String (Interval n)
-div x@(Interval i1 i2) (Interval j1 j2)
-    | j1 == 0 && j2 == 0 = Fail "divided by 0 error"
-    | j1 == 0 && 0 < j2 = Fail "divided by 0 error" ⊔ div x (Interval (j1+1) j2)
-    | j1 <  0 && j2 == 0 = Fail "divided by 0 error" ⊔ div x (Interval j1 (j2-1))
-    | j1 <  0 && 0 < j2 = Fail "divided by 0 error" ⊔ Success (withBounds2 (Prelude.div) (Interval i1 i2) (Interval j1 j2))
-    | otherwise = Success (withBounds2 (Prelude.div) (Interval i1 i2) (Interval j1 j2))
+instance Ord n => Equality (Interval n) where
+  Interval i1 i2 == Interval j1 j2
+      | i1 P.== i2 && j1 P.== j2 && i1 P.== j1 = True
+      | j2 < i1 || i2 < j1 = False
+      | otherwise = Top
 
 instance Hashable n => Hashable (Interval n)
 

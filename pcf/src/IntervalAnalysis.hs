@@ -6,14 +6,19 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module IntervalAnalysis where
 
 import           Prelude hiding (Bounded)
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Const
+import           Control.Arrow.Fix
+import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.Contour hiding (toList)
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
 import           Control.Arrow.Transformer.Abstract.Except
@@ -57,22 +62,26 @@ instance Show Closure where
   show (Closure e _) = show e
 
 type Addr = (Text,Contour)
-type Interp =
-  Const IV
-    (Environment Text Addr Val
-      (ContourArrow
-        (Except String
-          (Fix ((Env Text Addr,Store Addr Val),Expr)
-               (Error String Val)))))
+newtype Interp x y =
+  Interp (
+    Fix Expr Val 
+      (Const IV
+        (Environment Text Addr Val
+          (ContourArrow
+            (Except String
+              (~>))))) x y)
 
-evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error String Val)
-evalInterval k env e =
+runInterp :: Interp x y -> IV -> Int -> [(Text,Val)] -> x -> Terminating (Error String y)
+runInterp (Interp f) b k env x = 
   runFix
     (runExcept
       (runContourArrow k
         (runEnvironment
-          (runConst ?bound (eval :: Interp Expr Val)))))
-    (env,generate e)
+          (runConst b f))))
+    (env,x)
+
+evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error String Val)
+evalInterval k env e = runInterp eval ?bound k env (generate e)
 
 instance IsVal Val Interp where
   succ = proc x -> case x of
@@ -101,6 +110,17 @@ instance IsClosure Val (Env Text Addr,Store Addr Val) Interp where
     ClosureVal cls -> lubA (proc (Closure e env,arg) -> f -< ((e,env),arg))
                         -< [ (c,arg) | c <- toList cls] 
     NumVal _ -> failA -< "Expected a closure"
+
+deriving instance Category Interp
+deriving instance Arrow Interp
+deriving instance ArrowChoice Interp
+deriving instance ArrowFail String Interp
+deriving instance ArrowConst IV Interp
+deriving instance ArrowEnv Text Val (Env Text (Text,Contour), Store (Text,Contour) Val) Interp
+deriving instance ArrowFix Expr Val Interp
+deriving instance PreOrd y => PreOrd (Interp x y)
+deriving instance Complete y => Complete (Interp x y)
+deriving instance PreOrd y => LowerBounded (Interp x y)
 
 instance PreOrd Val where
   _ ⊑ Top = True

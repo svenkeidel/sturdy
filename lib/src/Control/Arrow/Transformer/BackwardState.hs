@@ -3,8 +3,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.State(State(..),evalState,execState) where
+module Control.Arrow.Transformer.BackwardState where
 
 import Prelude hiding (id,(.),lookup,read)
 
@@ -25,77 +26,82 @@ import Data.Hashable
 import Data.Order
 import Data.Monoidal
 
--- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype State s c x y = State { runState :: c (s,x) (s,y) }
 
-evalState :: Arrow c => State s c x y -> c (s,x) y
-evalState f = runState f >>> pi2
+evalBackwardState :: Arrow c => State s c x y -> c (s,x) y
+evalBackwardState f = runState f >>> pi2
 
-execState :: Arrow c => State s c x y -> c (s,x) s
-execState f = runState f >>> pi1
+execBackwardState :: Arrow c => State s c x y -> c (s,x) s
+execBackwardState f = runState f >>> pi1
 
-instance Category c => Category (State s c) where
+instance ArrowLoop c => Category (State s c) where
   id = State id
-  State f . State g = State (f . g)
+  State f . State g = State $ proc (s1,x) -> do
+    rec (s3,y) <- g -< (s2,x)
+        (s2,z) <- f -< (s1,y)
+    returnA -< (s3,z)
 
 instance ArrowLift (State r) where
   lift f = State (second f)
 
-instance Arrow c => Arrow (State s c) where
+instance ArrowLoop c => Arrow (State s c) where
   arr f = lift (arr f)
   first (State f) = State $ (\(s,(b,c)) -> ((s,b),c)) ^>> first f >>^ (\((s,d),c) -> (s,(d,c)))
   second (State f) = State $ (\(s,(a,b)) -> (a,(s,b))) ^>> second f >>^ (\(a,(s,c)) -> (s,(a,c)))
-  State f &&& State g = State $ (\(s,x) -> ((s,x),x)) ^>> first f >>> (\((s,y),x) -> ((s,x),y)) ^>> first g >>^ (\((s,z),y) -> (s,(y,z)))
-  State f *** State g = State $ (\(s,(x,y)) -> ((s,x),y)) ^>> first f >>> (\((s,y),x) -> ((s,x),y)) ^>> first g >>^ (\((s,z),y) -> (s,(y,z)))
+  State f &&& State g = State $ proc (s1,x) -> do
+    rec (s3,y) <- f -< (s2,x)
+        (s2,z) <- g -< (s1,x)
+    returnA -< (s3,(y,z))
+  State f *** State g = State $ proc (s1,(x,y)) -> do
+    rec (s3,x') <- f -< (s2,x)
+        (s2,y') <- g -< (s1,y)
+    returnA -< (s3,(x',y'))
 
-instance ArrowChoice c => ArrowChoice (State s c) where
+instance (ArrowLoop c, ArrowChoice c) => ArrowChoice (State s c) where
   left (State f) = State (to distribute ^>> left f >>^ from distribute)
   right (State f) = State (to distribute ^>> right f >>^ from distribute)
   State f +++ State g = State $ to distribute ^>> f +++ g >>^ from distribute
   State f ||| State g = State $ to distribute ^>> f ||| g
 
-instance ArrowApply c => ArrowApply (State s c) where
+instance (ArrowLoop c, ArrowApply c) => ArrowApply (State s c) where
   app = State $ (\(s,(State f,b)) -> (f,(s,b))) ^>> app
 
-instance Arrow c => ArrowState s (State s c) where
-  getA = State (arr (\(a,()) -> (a,a)))
-  putA = State (arr (\(_,s) -> (s,())))
+instance (ArrowLoop c) => ArrowState s (State s c) where
+  getA = State $ arr (\(s,_) -> (s,s))
+  putA = State $ arr (\(_,s) -> (s,()))
 
-instance ArrowFail e c => ArrowFail e (State s c) where
+instance (ArrowLoop c, ArrowFail e c) => ArrowFail e (State s c) where
   failA = lift failA
 
-instance ArrowReader r c => ArrowReader r (State s c) where
+instance (ArrowLoop c, ArrowReader r c) => ArrowReader r (State s c) where
   askA = lift askA
   localA (State f) = State $ (\(s,(r,x)) -> (r,(s,x))) ^>> localA f
 
-instance ArrowEnv x y env c => ArrowEnv x y env (State s c) where
+instance (ArrowLoop c, ArrowEnv x y env c) => ArrowEnv x y env (State r c) where
   lookup = lift lookup
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (State f) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
 
-instance ArrowStore var val c => ArrowStore var val (State s c) where
+instance (ArrowLoop c, ArrowStore var val c) => ArrowStore var val (State r c) where
   read = lift read
   write = lift write
 
 type instance Fix x y (State s c) = State s (Fix (s,x) (s,y) c)
-instance ArrowFix (s,x) (s,y) c => ArrowFix x y (State s c) where
+instance (ArrowLoop c, ArrowFix (s,x) (s,y) c) => ArrowFix x y (State s c) where
   fixA f = State (fixA (runState . f . State))
 
-instance ArrowTry (s,x) (s,y) (s,z) c => ArrowTry x y z (State s c) where
+instance (ArrowLoop c, ArrowTry (s,x) (s,y) (s,z) c) => ArrowTry x y z (State s c) where
   tryA (State f) (State g) (State h) = State $ tryA f g h
 
-instance ArrowZero c => ArrowZero (State s c) where
+instance (ArrowLoop c, ArrowZero c) => ArrowZero (State s c) where
   zeroArrow = lift zeroArrow
 
-instance ArrowPlus c => ArrowPlus (State s c) where
+instance (ArrowLoop c, ArrowPlus c) => ArrowPlus (State s c) where
   State f <+> State g = State (f <+> g)
 
-instance (Eq s, Hashable s, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
+instance (Eq s, Hashable s, ArrowLoop c, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
   dedupA (State f) = State (dedupA f)
-
-instance ArrowLoop c => ArrowLoop (State s c) where
-  loop (State f) = State $ loop ((\((s,b),d) -> (s,(b,d))) ^>> f >>^ (\(s,(b,d)) -> ((s,b),d)))
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (State s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (State s c x y)

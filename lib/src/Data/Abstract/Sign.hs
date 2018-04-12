@@ -1,11 +1,21 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Data.Abstract.Sign where
 
-import Data.Order
-import Data.Hashable
-import Data.Abstract.Widening
+import           Prelude hiding ((==),(/),Bool(..))
+import qualified Prelude as P
 
-import GHC.Generics
+import           Data.Order
+import           Data.Hashable
+import           Data.Numeric
+
+import           Data.Abstract.Equality
+import           Data.Abstract.Widening
+import           Data.Abstract.Error
+import qualified Data.Abstract.Boolean as B
+
+import           GHC.Generics
 
 data Sign = Negative | Zero | Positive | Top
   deriving (Show,Eq,Generic)
@@ -32,7 +42,9 @@ instance Num Sign where
   negate Top = Top
 
   abs Zero = Zero
-  abs _ = Positive
+  abs Positive = Positive
+  abs Negative = Positive
+  abs Top = Top
 
   signum Negative = Negative
   signum Positive = Positive
@@ -40,15 +52,33 @@ instance Num Sign where
   signum Top = Top
 
   fromInteger n
-    | n == 0 = Zero
+    | n P.== 0 = Zero
     | n < 0 = Negative
     | otherwise = Positive
 
+instance Numeric Sign (Error String) where
+  Negative / Negative = Success Positive
+  Positive / Negative = Success Negative
+  Negative / Positive = Success Negative
+  Positive / Positive = Success Positive
+  _ / Top  = Fail "divided by 0" ⊔ Success Top
+  Top / _  = Success Top
+  _ / Zero = Fail "divided by 0"
+  Zero / _ = Success Zero
+
+instance Equality Sign where
+  Zero == Zero = B.True
+  Negative == Negative = B.Top
+  Positive == Positive = B.Top
+  Top == _ = B.Top
+  _ == Top = B.Top
+  _ == _ = B.False
+
 instance PreOrd Sign where
-  Negative ⊑ Negative = True
-  Zero ⊑ Zero = True
-  Positive ⊑ Positive = True
-  _ ⊑ _ = False
+  Negative ⊑ Negative = P.True
+  Zero ⊑ Zero = P.True
+  Positive ⊑ Positive = P.True
+  _ ⊑ _ = P.False
 
 instance Complete Sign where
   Negative ⊔ Negative = Negative

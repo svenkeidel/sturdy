@@ -5,6 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.Contour(Contour,empty,push,toList,size,maxSize,ContourArrow,runContourArrow) where
 
 import           Prelude hiding (id,(.),lookup)
@@ -62,6 +63,7 @@ newtype ContourArrow c a b = ContourArrow (Reader Contour c a b)
 runContourArrow :: Arrow c => Int -> ContourArrow c a b -> c a b
 runContourArrow n (ContourArrow (Reader f)) = (\a -> (empty n,a)) ^>> f
 
+type instance Fix x y (ContourArrow c) = ContourArrow (Fix x y c)
 instance (ArrowFix x y c, ArrowApply c, HasLabel x) => ArrowFix x y (ContourArrow c) where
   -- Pushes the label of the last argument on the contour.
   fixA f = ContourArrow $ Reader $ proc (c,x) -> fixA (unlift c . f . lift) -<< x
@@ -88,6 +90,7 @@ deriving instance ArrowChoice c => ArrowChoice (ContourArrow c)
 deriving instance ArrowState s c => ArrowState s (ContourArrow c)
 deriving instance ArrowFail e c => ArrowFail e (ContourArrow c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (ContourArrow c)
+
 deriving instance PreOrd (c (Contour,x) y) => PreOrd (ContourArrow c x y)
 deriving instance LowerBounded (c (Contour,x) y) => LowerBounded (ContourArrow c x y)
 deriving instance Complete (c (Contour,x) y) => Complete (ContourArrow c x y)

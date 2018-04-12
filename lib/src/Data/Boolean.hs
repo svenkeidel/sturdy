@@ -8,4 +8,17 @@ class Logic b where
   and :: b -> b -> b
   or :: b -> b -> b
   not :: b -> b
-  eq :: Eq a => a -> a -> b
+
+instance Logic Bool where
+  true = True
+  false = False
+  and b1 b2 = case (b1,b2) of
+    (True,True) -> true
+    (False,_) -> false
+    (_,False) -> false
+  or b1 b2 = case (b1,b2) of
+    (True,_) -> true
+    (_,True) -> true
+    (False,False) -> false
+  not False = true
+  not True = false

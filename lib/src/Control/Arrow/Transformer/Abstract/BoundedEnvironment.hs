@@ -6,7 +6,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.BoundedEnvironment(Environment,runEnvironment,ArrowAlloc(..)) where
 
 import           Control.Arrow
@@ -67,6 +67,7 @@ instance ArrowReader r c => ArrowReader r (Environment var addr val c) where
 instance ArrowApply c => ArrowApply (Environment var addr val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app
 
+type instance Fix x y (Environment var addr val c) = Environment var addr val (Fix ((Env var addr,Store addr val),x) y c)
 deriving instance ArrowFix ((Env var addr,Store addr val),x) y c => ArrowFix x y (Environment var addr val c)
 deriving instance Arrow c => Category (Environment var addr val c)
 deriving instance Arrow c => Arrow (Environment var addr val c)

@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.Except(Except(..)) where
 
 import Prelude hiding (id,(.),lookup)
@@ -47,6 +48,13 @@ instance ArrowChoice c => ArrowChoice (Except r c) where
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Except e c) where
   app = Except $ first runExcept ^>> app
 
+instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Except e c) where
+  loop (Except f) = Except $ loop $ proc (b,d) -> do
+    e <- f -< (b,d)
+    case e of
+      Fail e' -> returnA -< (Fail e',d)
+      Success (c,d') -> returnA -< (Success c,d')
+
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (Except e c) where
   getA = lift getA
   putA = lift putA
@@ -64,6 +72,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) wh
   extendEnv = lift extendEnv
   localEnv (Except f) = Except (localEnv f)
 
+type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fixA f = Except (fixA (runExcept . f . Except))
 

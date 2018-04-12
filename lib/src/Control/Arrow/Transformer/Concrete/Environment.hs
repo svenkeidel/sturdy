@@ -5,6 +5,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Environment where
 
 import           Prelude hiding ((.))
@@ -56,4 +57,6 @@ deriving instance ArrowLift (Environment var val)
 deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
 deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
+
+type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
 deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (Environment var val c)

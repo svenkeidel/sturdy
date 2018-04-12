@@ -11,6 +11,10 @@ import Data.Abstract.Widening
 -- Free cocompletion of a type
 data Terminating a = NonTerminating | Terminating a deriving (Eq,Functor,Traversable,Foldable)
 
+fromTerminating :: a -> Terminating a -> a
+fromTerminating _ (Terminating a) = a
+fromTerminating a NonTerminating = a
+
 instance Show a => Show (Terminating a) where
   show NonTerminating = "⊥"
   show (Terminating a) = show a
