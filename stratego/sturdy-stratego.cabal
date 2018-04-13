@@ -74,6 +74,7 @@ test-suite specs
   build-depends:       base,
                        containers,
                        hspec,
+                       mtl,
                        sturdy-lib,
                        sturdy-stratego,
                        text,

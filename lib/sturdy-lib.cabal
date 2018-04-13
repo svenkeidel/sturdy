@@ -86,6 +86,7 @@ library
                        Control.Arrow.Transformer.Concrete.Fix,
                        Control.Arrow.Transformer.Concrete.Store,
 
+                       Control.Arrow.Transformer.Abstract.Completion,
                        Control.Arrow.Transformer.Abstract.Environment,
                        Control.Arrow.Transformer.Abstract.Contour,
                        Control.Arrow.Transformer.Abstract.BoundedEnvironment,

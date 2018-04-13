@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -10,7 +12,7 @@ module GrammarSemantics where
 
 import           Prelude hiding (id)
 
-import           SharedSemantics hiding (all)
+import           SharedSemantics hiding (all,sequence)
 import           Signature hiding (Top)
 import           Syntax hiding (Fail)
 import           Utils
@@ -22,11 +24,13 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Try
+import           Control.Arrow.Transformer.Abstract.Completion
 import           Control.Arrow.Transformer.Abstract.Uncertain
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category hiding ((.))
 
+import           Data.Abstract.FreeCompletion
 import           Data.Abstract.UncertainResult
 import           Data.Constructor
 import           Data.Foldable (foldr')
@@ -45,13 +49,13 @@ data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
 newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
-newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Uncertain (->))) a b)
-  deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, ArrowPlus, ArrowZero, Category, Complete, PreOrd)
+newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Uncertain (Completion (->)))) a b)
+  deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, Category, PreOrd)
 
-runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> UncertainResult (TermEnv, b)
-runInterp (Interp f) i alph senv tenv a = runUncertain (runState (runReader f)) (tenv, ((senv, i, alph), a))
+runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> FreeCompletion (UncertainResult (TermEnv, b))
+runInterp (Interp f) i alph senv tenv a = runCompletion (runUncertain (runState (runReader f))) (tenv, ((senv, i, alph), a))
 
-eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> UncertainResult (TermEnv, Term)
+eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> FreeCompletion (UncertainResult (TermEnv, Term))
 eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
@@ -83,8 +87,9 @@ sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
 deriving instance ArrowState TermEnv Interp
+deriving instance (Complete (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Uncertain (Completion (->)))) a b), PreOrd b) => Complete (Interp a b)
 
-instance Complete z => ArrowTry x y z Interp where
+instance (PreOrd z, Complete (FreeCompletion z)) => ArrowTry x y z Interp where
   tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
 
 instance Hashable Constr where
@@ -142,6 +147,22 @@ instance HasStratEnv Interp where
     (_,i,alph) <- askA -< ()
     r <- localA f -< ((senv,i,alph),a)
     returnA -< r
+
+instance Complete (FreeCompletion Term) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = Top
+
+instance Complete (FreeCompletion TermEnv) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = Top
+
+instance Complete (FreeCompletion (GrammarBuilder Constr)) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = Top
+
+instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]) where
+  Lower xs ⊔ Lower ys | eqLength xs ys = sequence (zipWith (\x y -> Lower x ⊔ Lower y) xs ys)
+  _ ⊔ _ = Top
 
 instance IsTerm Term Interp where
   matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,Term g) -> do

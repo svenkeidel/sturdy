@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 module Data.Abstract.FreeCompletion where
@@ -35,13 +37,12 @@ instance PreOrd a => PreOrd (FreeCompletion a) where
   Lower a ≈ Lower b = a ≈ b
   _ ≈ _ = False
 
-instance PreOrd a => Complete (FreeCompletion a) where
-  Lower a ⊔ Lower b
-    | a ⊑ b = Lower b
-    | b ⊑ a = Lower a
-    | otherwise = Top
-  Top ⊔ _ = Top
-  _ ⊔ Top = Top
+instance (PreOrd a, Complete (FreeCompletion a),
+          PreOrd b, Complete (FreeCompletion b)) => Complete (FreeCompletion (a,b)) where
+  Lower (a1,b1) ⊔ Lower (a2,b2) = case (Lower a1 ⊔ Lower a2, Lower b1 ⊔ Lower b2) of
+    (Lower a, Lower b) -> Lower (a,b)
+    (_, _) -> Top
+  _ ⊔ _ = Top
 
 instance CoComplete a => CoComplete (FreeCompletion a) where
   Lower a ⊓ Lower b = Lower (a ⊓ b) 

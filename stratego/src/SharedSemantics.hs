@@ -92,8 +92,7 @@ let_ ss body interp = proc a -> do
   senv <- readStratEnv -< ()
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a 
 
-call :: (ArrowChoice c, ArrowFail () c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c, ArrowApply c,
-         IsTermEnv env t c, HasStratEnv c)
+call :: (ArrowChoice c, ArrowFail () c, ArrowApply c, IsTermEnv env t c, HasStratEnv c)
      => StratVar
      -> [Strat]
      -> [TermVar]
