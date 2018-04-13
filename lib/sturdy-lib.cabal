@@ -47,6 +47,8 @@ library
                        Data.Abstract.Error,
                        Data.Abstract.Terminating,
                        Data.Abstract.InfiniteNumbers,
+                       Data.Abstract.FreeCompletion,
+                       Data.Abstract.FreeCoCompletion,
                        Data.Abstract.Interval,
                        Data.Abstract.Powerset,
                        Data.Abstract.Sign,
