@@ -17,6 +17,7 @@ import Control.Arrow.State
 import Control.Arrow.Deduplicate
 import Control.Arrow.Try
 import Control.Arrow.Lift
+import Control.Arrow.Writer
 import Control.Arrow.Utils
 import Control.Category
 
@@ -56,6 +57,9 @@ instance Arrow c => ArrowReader r (Reader r c) where
 instance ArrowState s c => ArrowState s (Reader r c) where
   getA = lift getA
   putA = lift putA
+
+instance ArrowWriter w c => ArrowWriter w (Reader r c) where
+  tellA = lift tellA
 
 instance ArrowFail e c => ArrowFail e (Reader r c) where
   failA = lift failA

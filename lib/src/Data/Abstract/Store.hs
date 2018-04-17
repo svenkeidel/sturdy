@@ -1,9 +1,9 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Abstract.Store(Store,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList) where
+module Data.Abstract.Store(Store,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map) where
 
-import           Prelude hiding (lookup)
+import           Prelude hiding (lookup,map)
 
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
@@ -40,6 +40,9 @@ instance (Identifiable a, Widening b) => Widening (Store a b) where
 
 instance (Identifiable a, PreOrd b) => LowerBounded (Store a b) where
   bottom = empty
+
+map :: (Identifiable a', Complete b') => ((a,b) -> Maybe (a',b')) -> Store a b -> Store a' b'
+map f (Store h) = Store (H.fromListWith (⊔) [ (a,b) | Just (a,b) <- fmap f (H.toList h)])
 
 subsetKeys :: Identifiable a => HashMap a b -> HashMap a b -> Bool
 subsetKeys m1 m2 = subset (S.fromMap (H.map (const ()) m1)) (S.fromMap (H.map (const ()) m2))

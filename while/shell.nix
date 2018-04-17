@@ -4,7 +4,7 @@ let
   haskellPackagesWithProfiling = pkgs.haskellPackages.override {
     overrides = self: super: {
       mkDerivation = args: super.mkDerivation (args // {
-        enableLibraryProfiling = true;
+        enableLibraryProfiling = false;
       });
     };
   };

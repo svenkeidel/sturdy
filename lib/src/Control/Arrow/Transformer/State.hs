@@ -18,6 +18,7 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Try
+import Control.Arrow.Writer
 import Control.Arrow.Utils
 import Control.Category
 
@@ -67,6 +68,9 @@ instance ArrowFail e c => ArrowFail e (State s c) where
 instance ArrowReader r c => ArrowReader r (State s c) where
   askA = lift askA
   localA (State f) = State $ (\(s,(r,x)) -> (r,(s,x))) ^>> localA f
+
+instance ArrowWriter w c => ArrowWriter w (State s c) where
+  tellA = lift tellA
 
 instance ArrowEnv x y env c => ArrowEnv x y env (State s c) where
   lookup = lift lookup

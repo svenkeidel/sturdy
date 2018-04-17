@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Data.Abstract.Interval where
 
-import Prelude hiding (div,Bool(..),(==),(/))
+import Prelude hiding (div,Bool(..),(==),(/),(<),Ordering)
 import qualified Prelude as P
 import Data.Hashable
 import Data.Order
@@ -11,6 +11,7 @@ import Data.Numeric
 
 import Data.Abstract.Boolean
 import Data.Abstract.Equality
+import Data.Abstract.Ordering
 import Data.Abstract.Error
 
 import GHC.Generics
@@ -40,17 +41,23 @@ instance (Num n, Ord n) => Num (Interval n) where
 
 instance Numeric (Interval Int) (Error String) where
   Interval i1 i2 / Interval j1 j2
-      | j1 P.== 0 && j2 P.== 0 = Fail "divided by 0 error"
-      | j1 P.== 0 && 0  <   j2 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval (j1+1) j2
-      | j1 <    0 && j2 P.== 0 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval j1 (j2-1)
-      | j1 <    0 && 0  <   j2 = Fail "divided by 0 error" ⊔ Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
-      | otherwise = Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
+    | j1 P.== 0 && j2 P.== 0 = Fail "divided by 0 error"
+    | j1 P.== 0 && 0  P.< j2 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval (j1+1) j2
+    | j1 P.<  0 && j2 P.== 0 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval j1 (j2-1)
+    | j1 P.<  0 && 0  P.< j2 = Fail "divided by 0 error" ⊔ Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
+    | otherwise = Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
 
 instance Ord n => Equality (Interval n) where
   Interval i1 i2 == Interval j1 j2
-      | i1 P.== i2 && j1 P.== j2 && i1 P.== j1 = True
-      | j2 < i1 || i2 < j1 = False
-      | otherwise = Top
+    | i1 P.== i2 && j1 P.== j2 && i1 P.== j1 = True
+    | j2 P.< i1 || i2 P.< j1 = False
+    | otherwise = Top
+
+instance Ord n => Ordering (Interval n) where
+  Interval i1 i2 < Interval j1 j2
+    | i2 P.< j1 = True
+    | j2 P.< i1 = False
+    | otherwise = Top
 
 instance Hashable n => Hashable (Interval n)
 

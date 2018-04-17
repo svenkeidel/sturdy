@@ -4,7 +4,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Data.Abstract.Bounded where
 
-import Prelude hiding (Bounded,(==),(/))
+import Prelude hiding (Bounded,(==),(/),(<),Ordering)
 import qualified Prelude as P
     
 import Data.Order
@@ -12,6 +12,7 @@ import Data.Hashable
 import Data.Numeric
 
 import Data.Abstract.Equality
+import Data.Abstract.Ordering
 import Data.Abstract.Widening
 import Data.Abstract.Error
 
@@ -62,6 +63,9 @@ instance (UpperBounded a, Complete a, Numeric a (Error e)) => Numeric (Bounded a
 
 instance Equality a => Equality (Bounded a) where
   Bounded _ a == Bounded _ b = a == b
+
+instance Ordering a => Ordering (Bounded a) where
+  Bounded _ a < Bounded _ b = a < b
 
 lift :: (UpperBounded a) => (a -> a) -> Bounded a -> Bounded a
 lift f (Bounded b a)

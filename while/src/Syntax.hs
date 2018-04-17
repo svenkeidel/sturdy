@@ -85,6 +85,7 @@ instance HasLabel Expr where
     Mul _ _ l -> l
     Div _ _ l -> l
     Eq _ _ l -> l
+    Lt _ _ l -> l
     
 instance Hashable Expr where
 

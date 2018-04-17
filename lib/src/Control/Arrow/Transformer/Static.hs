@@ -5,6 +5,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 module Control.Arrow.Transformer.Static where
 
 import Prelude hiding (id,(.),lookup,read)
@@ -18,6 +19,7 @@ import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
+import Control.Arrow.Writer
 
 import Data.Order
 
@@ -51,6 +53,9 @@ instance (Applicative f, ArrowState s c) => ArrowState s (Static f c) where
 instance (Applicative f, ArrowReader r c) => ArrowReader r (Static f c) where
   askA = lift askA
   localA (Static f) = Static $ localA <$> f
+
+instance (Applicative f, ArrowWriter w c) => ArrowWriter w (Static f c) where
+  tellA = lift tellA
 
 instance (Applicative f, ArrowFail e c) => ArrowFail e (Static f c) where
   failA = lift failA

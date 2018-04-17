@@ -15,6 +15,7 @@ import           ValueSemantics.Interval
 
 import           Data.Text (Text)
 import           Data.Label
+import           Data.Identifiable
 
 import           Data.Abstract.Terminating
 import           Data.Abstract.Error (Error)
@@ -24,20 +25,20 @@ import qualified Data.Abstract.Store as S
 import           Control.Arrow
 import           Control.Arrow.Fix 
 import           Control.Arrow.Lift
-import qualified Control.Arrow.Transformer.BackwardState as S
-import           Control.Arrow.Transformer.Abstract.LiveVariables (LiveVars, LiveVariables(..),runLiveVariables)
+import           Control.Arrow.Transformer.Writer
+import           Control.Arrow.Transformer.Abstract.LiveVariables (LiveVarsTrans, LiveVariables(..),runLiveVariables)
 import qualified Control.Arrow.Transformer.Abstract.LiveVariables as L
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Monad.State(State)
 
-run :: (?bound :: IV) => [State Label Statement] -> Store (Store Text Val, (LiveVars Text,[Statement])) (Terminating (Error String (Store Text Val, LiveVars Text)))
+run :: (?bound :: IV) => [State Label Statement] -> Store (Store Text Val, [Statement]) (Terminating (Error String (Store Text Val, L.LiveVarsTrans Text)))
 run ss = fmap (fmap (fmap (second fst))) $ fst $
   runFix'
     (runInterp ?bound
        (runLiveVariables (Shared.run :: Fix [Statement] () (LiveVariables Text (Interp (~>))) [Statement] ())))
-    (S.empty,(L.empty, generate (sequence ss)))
+    (S.empty,generate (sequence ss))
 
-instance (ArrowLoop c, IsVal val c) => IsVal val (LiveVariables v c) where
+instance (Identifiable v, IsVal val c) => IsVal val (LiveVariables v c) where
   boolLit = lift boolLit
   and = lift and
   or = lift or
@@ -49,7 +50,8 @@ instance (ArrowLoop c, IsVal val c) => IsVal val (LiveVariables v c) where
   mul = lift mul
   div = lift div
   eq = lift eq
+  lt = lift lt
 
-instance (ArrowLoop c, Conditional val (LiveVars v,x) (LiveVars v,y) (LiveVars v,z) c) => Conditional val x y z (LiveVariables v c) where
-  if_ (LiveVariables (S.State f1)) (LiveVariables (S.State f2)) = LiveVariables $ S.State $ proc (l,(v,(x,y))) -> if_ f1 f2 -< (v,((l,x),(l,y)))
+instance (Identifiable v, Conditional val x y (LiveVarsTrans v,z) c) => Conditional val x y z (LiveVariables v c) where
+  if_ (LiveVariables (Writer f1)) (LiveVariables (Writer f2)) = LiveVariables $ Writer $ proc (v,(x,y)) -> if_ f1 f2 -< (v,(x,y))
 

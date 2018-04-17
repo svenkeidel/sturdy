@@ -13,7 +13,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ValueSemantics.Interval where
 
-import           Prelude hiding (Bool(..),Bounded(..),(==),(/))
+import           Prelude hiding (Bool(..),Bounded(..),(==),(/),(<))
 import qualified Prelude as P
 
 import           Syntax
@@ -30,9 +30,10 @@ import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 import           Data.Abstract.Terminating
 import           Data.Abstract.Widening
+import           Data.Abstract.Ordering
+import           Data.Abstract.Equality
 
 import qualified Data.Boolean as B
-import           Data.Equality
 import           Data.Hashable
 import           Data.Numeric
 import           Data.Order

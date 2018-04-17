@@ -1,12 +1,17 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Data.Abstract.FreeCompletion where
 
-import Data.Order
 import Control.Monad
 import Control.Applicative
 
-data FreeCompletion a = Lower a | Top deriving (Functor,Traversable,Foldable)
+import Data.Order
+import Data.Hashable
+
+import GHC.Generics
+
+data FreeCompletion a = Lower a | Top deriving (Eq,Functor,Traversable,Foldable,Generic)
 
 instance Show a => Show (FreeCompletion a) where
   show Top = "⊤"
@@ -60,3 +65,5 @@ instance Num a => Num (FreeCompletion a) where
 instance Fractional a => Fractional (FreeCompletion a) where
   (/) = liftA2 (/)
   fromRational = pure . fromRational
+
+instance Hashable a => Hashable (FreeCompletion a)
