@@ -5,8 +5,6 @@ module GrammarSemanticsSpec(main, spec) where
 import           GrammarSemantics
 import           Syntax hiding (Fail)
 
-import           Control.Monad.State
-
 import           Data.ATerm
 import           Data.Abstract.FreeCompletion
 import           Data.Abstract.UncertainResult
@@ -221,7 +219,7 @@ spec = do
       let tenv = termEnv [("x", numberGrammar 42)]
           Term n = numberGrammar 42
       geval 1 (Scope ["x"] (Build "x")) tenv (numberGrammar 42) `shouldBe`
-        Lower (Success (tenv, Term (wildcard (alphabet (evalState n 0)))))
+        Lower (Success (tenv, Term (wildcard (alphabet n))))
       geval 2 (Scope ["x"] (Match "x")) tenv (numberGrammar 42) `shouldBe`
         Lower (Success (tenv, numberGrammar 42))
 
@@ -232,9 +230,87 @@ spec = do
       geval 2 (Scope ["y"] (Match "z")) tenv (numberGrammar 42) `shouldBe`
         Lower (Success (termEnv [("x", numberGrammar 42), ("z", numberGrammar 42)], numberGrammar 42))
 
+  describe "Let" $ do
+    it "should apply a single function call" $ do
+      let t = grammar "S" (M.fromList [("S", [ Ctor (Constr "Tuple") ["F", "G"] ])
+                                      ,("F", [ Ctor (StringLit "foo") [] ])
+                                      ,("G", [ Ctor (StringLit "bar") [] ])])
+          t' = grammar "S" (M.fromList [("S", [ Ctor (Constr "Tuple") ["G", "F"] ])
+                                       ,("F", [ Ctor (StringLit "foo") [] ])
+                                       ,("G", [ Ctor (StringLit "bar") [] ])])
+          tenv = termEnv []; tenv' = termEnv [("x",Term t)]
+      -- TODO: fuel [1,4] gives exactly t', fuel [5,10] gives a lot of duplicate production rules.
+      geval 10 (Let [("swap", swap')] (Match "x" `Seq` Call "swap" [] [])) tenv (Term t)
+        `shouldBe` Lower (SuccessOrFail (tenv', Term t'))
+
+    it "should support recursion" $ do
+      let t = convertToList (map numberGrammar [2, 3, 4])
+          tenv = termEnv []; tenv' = termEnv [("x",t)]
+      -- TODO: fuel < 13 makes it fail.
+      geval 13 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) tenv t
+        `shouldBe` Lower (Success (tenv', convertToList (map numberGrammar [1, 1, 1])))
+
+  describe "Call" $ do
+    it "should apply a single function call" $ do
+      let senv = LM.fromList [("swap", Closure swap' LM.empty)]
+          t = grammar "S" (M.fromList [("S", [ Ctor (Constr "Tuple") ["F", "G"] ])
+                                      ,("F", [ Ctor (StringLit "foo") [] ])
+                                      ,("G", [ Ctor (StringLit "bar") [] ])])
+          t' = grammar "S" (M.fromList [("S", [ Ctor (Constr "Tuple") ["G", "F"] ])
+                                       ,("F", [ Ctor (StringLit "foo") [] ])
+                                       ,("G", [ Ctor (StringLit "bar") [] ])])
+          tenv = termEnv []; tenv' = termEnv [("x",Term t)]
+      -- TODO: fuel [1,4] gives exactly t', fuel [5,10] gives a lot of duplicate production rules.
+      geval' 10 (Match "x" `Seq` Call "swap" [] []) senv tenv (Term t)
+        `shouldBe` Lower (Success (tenv', Term t'))
+
+    it "should support a singleton list in recursive applications" $ do
+      let senv = LM.fromList [("map", Closure map' LM.empty)]
+          t = convertToList (map numberGrammar [2])
+          tenv = termEnv []; tenv' = termEnv [("x",t)]
+      -- TODO: fuel < 12 makes it fail.
+      geval' 12 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
+        `shouldBe`
+           Lower (Success (tenv', convertToList (map numberGrammar [1])))
+
+    it "should support recursion on a list of numbers" $ do
+      let senv = LM.fromList [("map", Closure map' LM.empty)]
+          t = convertToList (map numberGrammar [2, 3, 4])
+          tenv = termEnv []; tenv' = termEnv [("x",t)]
+      -- TODO: fuel < 12 makes it fail.
+      geval' 12 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
+        `shouldBe`
+           Lower (Success (tenv', convertToList (map numberGrammar [1, 1, 1])))
+
+    it "should support recursion on a list of strings" $ do
+      let senv = LM.fromList [("map", Closure map' LM.empty)]
+          t = convertToList (map stringGrammar ["foo", "bar", "baz"])
+          tenv = termEnv []; tenv' = termEnv [("x",t)]
+      -- TODO: fuel < 12 makes it fail.
+      geval' 12 (Match "x" `Seq` Call "map" [Build (StringLiteral "ni")] ["x"]) senv tenv t
+        `shouldBe`
+           Lower (Success (tenv', convertToList (map stringGrammar ["ni", "ni", "ni"])))
+
+    it "should be sound" $ do
+  --     i <- choose (0,10)
+  --     j <- choose (0,10)
+  --     l <- C.similarTerms i 7 2 10
+  --     let (l1,l2) = splitAt j l
+  --     let t1 = convertToList l1
+  --     let t2 = convertToList l2
+  --     return $ counterexample (printf "t: %s\n" (showLub t1 t2))
+  --            $ sound' (Let [("map", map)]
+  --                 (Match "x" `Seq`
+  --                  Call "map" [Build 1] ["x"]))
+  --                 [(t1,[]),(t2,[])]
+      pendingWith "Soundness comes later"
+
   where
+    geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> FreeCompletion (UncertainResult (TermEnv, Term))
+    geval' i strat senv tenv g = eval i strat (alphabet (fromTerm g)) senv tenv g
+
     geval :: Int -> Strat -> TermEnv -> Term -> FreeCompletion (UncertainResult (TermEnv, Term))
-    geval i strat tenv (Term g) = eval i strat (alphabet (evalState g 0)) LM.empty tenv (Term g)
+    geval i strat tenv g = geval' i strat LM.empty tenv g
 
     termEnv = TermEnv . LM.fromList
 
@@ -251,3 +327,20 @@ spec = do
                  , Ctor (Constr "Num") [] ])
       , ("String", [ Ctor (Constr "String") [] ])
       ]
+
+    swap' = Strategy [] [] (Scope ["x","y"] (
+                               Match (Cons "Tuple" ["x","y"])
+                               `Seq`
+                               Build (Cons "Tuple" ["y","x"]))
+                                                  )
+    map' = Strategy ["f"] ["l"] (Scope ["x","xs","x'","xs'"] (
+                                    Build "l" `Seq`
+                                      GuardedChoice
+                                      (Match (Cons "Cons" ["x","xs"]))
+                                      (Build "x" `Seq`
+                                        Call "f" [] [] `Seq`
+                                        Match "x'" `Seq`
+                                        Call "map" ["f"] ["xs"] `Seq`
+                                        Match "xs'" `Seq`
+                                        Build (Cons "Cons" ["x'", "xs'"]))
+                                      (Build (Cons "Nil" []))))
