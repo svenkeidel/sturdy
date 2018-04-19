@@ -18,9 +18,9 @@ import Syntax
 
 type Prog = [Statement]
   
-eval :: (ArrowChoice c, ArrowStore Text v c, IsVal v c) => c Expr v
+eval :: (ArrowChoice c, ArrowStore Text v Label c, IsVal v c) => c Expr v
 eval = proc e -> case e of
-  Var x l -> lookup -< (x,l)
+  Var x l -> read -< (x,l)
   BoolLit b l -> boolLit -< (b,l)
   And e1 e2 l -> do
     v1 <- eval -< e1
@@ -59,15 +59,12 @@ eval = proc e -> case e of
     v1 <- eval -< e1
     v2 <- eval -< e2
     lt -< (v1,v2,l)
-  where
-    lookup = proc (x,_) -> read -< x
 
-
-run :: (ArrowFix [Statement] () c, ArrowChoice c, ArrowStore Text v c, Conditional v [Statement] [Statement] () c, IsVal v c) => c [Statement] ()
+run :: (ArrowFix [Statement] () c, ArrowChoice c, ArrowStore Text v Label c, Conditional v [Statement] [Statement] () c, IsVal v c) => c [Statement] ()
 run = fixA $ \run' -> proc stmts -> case stmts of
   (Assign x e l:ss) -> do
     v <- eval -< e
-    store -< (x,v,l)
+    write -< (x,v,l)
     run' -< ss
   (If cond b1 b2 _:ss) -> do
     b <- eval -< cond
@@ -77,8 +74,6 @@ run = fixA $ \run' -> proc stmts -> case stmts of
     run' -< If cond (body ++ [While cond body l]) [] l : ss
   [] ->
     returnA -< ()
-  where
-    store = proc (x,v,_) -> write -< (x,v)
 
 class Arrow c => IsVal v c | c -> v where
   boolLit :: c (Bool,Label) v

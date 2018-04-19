@@ -31,9 +31,9 @@ instance Monoid w => ArrowLift (Writer w) where
 
 instance (Monoid w, Arrow c) => Category (Writer w c) where
   id = Writer (arr mempty &&& id)
-  Writer f . Writer g = Writer $ proc x -> do
-    (w1,y) <- g -< x
-    (w2,z) <- f -< y
+  Writer g . Writer f = Writer $ proc x -> do
+    (w1,y) <- f -< x
+    (w2,z) <- g -< y
     returnA -< (w1 <> w2,z)
 
 instance (Monoid w, Arrow c) => Arrow (Writer w c) where
@@ -72,7 +72,7 @@ instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (Writer w c) where
   extendEnv = lift extendEnv
   localEnv (Writer f) = Writer (localEnv f)
 
-instance (Monoid w, ArrowStore var val c) => ArrowStore var val (Writer w c) where
+instance (Monoid w, ArrowStore var val lab c) => ArrowStore var val lab (Writer w c) where
   read = lift read
   write = lift write
 

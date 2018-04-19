@@ -15,12 +15,15 @@ library
 
                        ValueSemantics.Concrete
                        ValueSemantics.Interval
+                       ValueSemantics.Symbolic
+                       ValueSemantics.ControlFlow
 
                        -- Vals.Symbolic.Val
                        -- Vals.Symbolic.Semantics
 
                        -- PropertySemantics.FailedReads
-                       PropertySemantics.LiveVariables
+                       -- PropertySemantics.LiveVariables
+                       PropertySemantics.ReachingDefinitions
 
                        -- Props.FailedReads.Prop
                        -- Props.FailedReads.Concrete

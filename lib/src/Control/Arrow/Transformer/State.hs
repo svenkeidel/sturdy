@@ -78,7 +78,7 @@ instance ArrowEnv x y env c => ArrowEnv x y env (State s c) where
   extendEnv = lift extendEnv
   localEnv (State f) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
 
-instance ArrowStore var val c => ArrowStore var val (State s c) where
+instance ArrowStore var val lab c => ArrowStore var val lab (State s c) where
   read = lift read
   write = lift write
 

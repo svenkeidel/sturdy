@@ -7,7 +7,7 @@ import Control.Monad.State
 
 import Data.Label
 
-import Data.Text (Text)
+import Data.Text (Text,unpack)
 import Data.Hashable
 import Data.Order
 import Data.String
@@ -28,7 +28,32 @@ data Expr
   | Div Expr Expr Label
   | Eq Expr Expr Label
   | Lt Expr Expr Label
-  deriving (Show,Ord,Eq,Generic)
+  deriving (Ord,Eq,Generic)
+
+instance Show Expr where
+  showsPrec d e0 = case e0 of
+    Var x _ -> showString (unpack x)
+    BoolLit x _ -> literal x
+    And e1 e2 _ -> binOp " && " e1 e2
+    Or e1 e2 _ -> binOp " || " e1 e2
+    Not e _ -> unOp "!" e
+    NumLit x _ -> literal x
+    RandomNum _ -> showString "rand"
+    Add e1 e2 _ -> binOp " + " e1 e2
+    Sub e1 e2 _ -> binOp " - " e1 e2
+    Mul e1 e2 _ -> binOp " * " e1 e2
+    Div e1 e2 _ -> binOp " / " e1 e2
+    Eq e1 e2 _ -> binOp " == " e1 e2
+    Lt e1 e2 _ -> binOp " < " e1 e2
+    where
+      literal :: Show x => x -> ShowS
+      literal = shows
+      unOp x e = showParen (d > app_prec) $ showString x . showsPrec (app_prec + 1) e
+      binOp x e1 e2 = showParen (d > app_prec)
+        $ showsPrec (app_prec + 1) e1
+        . showString x
+        . showsPrec (app_prec + 1) e2
+      app_prec = 10
 
 instance IsString (State Label Expr) where
   fromString x = Var (fromString x) <$> fresh
@@ -53,6 +78,9 @@ false = BoolLit False <$> fresh
 
 -- randomNum :: State Label Expr
 -- randomNum = RandomNum <$> fresh
+
+(<) :: State Label Expr -> State Label Expr -> State Label Expr
+e1 < e2 = Lt <$> e1 <*> e2 <*> fresh
 
 (~=) :: State Label Expr -> State Label Expr -> State Label Expr
 e1 ~= e2 = Eq <$> e1 <*> e2 <*> fresh
@@ -97,17 +125,25 @@ data Statement
   = While Expr [Statement] Label
   | If Expr [Statement] [Statement] Label
   | Assign Text Expr Label
-  deriving (Show,Ord,Eq,Generic)
+  deriving (Ord,Eq,Generic)
+
+instance Show Statement where
+  showsPrec _ e0 = case e0 of
+    Assign x e _ -> showString (unpack x) . showString " := " . shows e
+    While e body _ -> showString "while" . showParen True (shows e) . showString " " . shows body
+    If e ifB elseB _ -> showString "if" . showParen True (shows e) . showString " " . shows ifB . showString " " . shows elseB
 
 while :: State Label Expr -> [State Label Statement] -> State Label Statement
-while cond body = While <$> cond <*> sequence body <*> fresh
+while cond body = do
+  l <- fresh
+  While <$> cond <*> sequence body <*> pure l
 
 ifExpr :: State Label Expr -> [State Label Statement] -> [State Label Statement] -> State Label Statement
 ifExpr cond ifBranch elseBranch = If <$> cond <*> sequence ifBranch <*> sequence elseBranch <*> fresh
 
 (=:) :: Text -> State Label Expr -> State Label Statement
 x =: e = Assign x <$> e <*> fresh
-
+infix 0 =:
 
 instance HasLabel Statement where
   label s = case s of 
@@ -118,3 +154,13 @@ instance HasLabel Statement where
 instance Hashable Statement where
 
 type Prog = [Statement]
+
+blocks :: Prog -> [Statement]
+blocks = concatMap go
+  where
+    go :: Statement -> [Statement]
+    go s = case s of
+      Assign {} -> [s]
+      If _ ss1 ss2 _ -> s : concatMap go (ss1 ++ ss2)
+      While _ ss _ -> s : concatMap go ss
+

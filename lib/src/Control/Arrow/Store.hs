@@ -8,6 +8,6 @@ import Prelude hiding (lookup,id)
 
 import Control.Arrow
 
-class Arrow c => ArrowStore var val c | c -> var, c -> val where
-  read :: c var val
-  write :: c (var,val) ()
+class Arrow c => ArrowStore var val lab c | c -> var, c -> val where
+  read :: c (var,lab) val
+  write :: c (var,val,lab) ()

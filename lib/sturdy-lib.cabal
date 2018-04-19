@@ -92,7 +92,8 @@ library
                        Control.Arrow.Transformer.Abstract.Fix,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
-                       Control.Arrow.Transformer.Abstract.LiveVariables,
+                       -- Control.Arrow.Transformer.Abstract.LiveVariables,
+                       Control.Arrow.Transformer.Abstract.ReachingDefinitions,
                        
                        -- TODO: delete
                        Control.Monad.Deduplicate,

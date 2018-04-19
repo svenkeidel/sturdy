@@ -56,7 +56,7 @@ instance Ord n => Equality (Interval n) where
 instance Ord n => Ordering (Interval n) where
   Interval i1 i2 < Interval j1 j2
     | i2 P.< j1 = True
-    | j2 P.< i1 = False
+    | j2 P.<= i1 = False
     | otherwise = Top
 
 instance Hashable n => Hashable (Interval n)

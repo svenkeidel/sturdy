@@ -31,9 +31,9 @@ import           Data.Ord
 import qualified Data.List as L
 
 import           Data.Abstract.FreeCompletion
-import           Data.Abstract.Error hiding (fromError)
+import           Data.Abstract.Error
 import qualified Data.Abstract.Store as S
-import           Data.Abstract.Terminating hiding (fromTerminating)
+import           Data.Abstract.Terminating
 import           Data.Abstract.Widening
 
 import           Test.Hspec
@@ -45,7 +45,7 @@ main = hspec spec
 newtype Interp x y = Interp {runInterp :: Fix [(Int,Statement)] () (LiveVariables Text (StoreArrow Text (FreeCompletion Expr) (Except String (~>)))) x y}
 
 data Statement = Text := Expr | IfZero Expr [(Int,Statement)] [(Int,Statement)] | WhileZero Expr [(Int,Statement)] deriving (Show,Eq,Generic)
-data Expr = Lit Int | Var Text deriving (Show,Eq,Generic)
+data Expr = Lit Int | Var Text | Add Expr Expr deriving (Show,Eq,Generic)
 
 run :: (ArrowFix [(Int,Statement)] () c, ArrowChoice c, ArrowStore Text v c, IsVal v c) => c [(Int,Statement)] ()
 run = fixA $ \run' -> proc stmts -> case stmts of
@@ -64,16 +64,22 @@ run = fixA $ \run' -> proc stmts -> case stmts of
 
 class IsVal v c | c -> v where
   lit :: c Int v
+  add :: c (v,v) v
   ifZero :: c [(Int,Statement)] () -> c [(Int,Statement)] () -> c (v,[(Int,Statement)],[(Int,Statement)]) ()
 
 instance IsVal (FreeCompletion Expr) Interp where
   lit = arr (Lower . Lit)
-  ifZero f g = proc (_,x,y) -> joined f g -< (x,y)
+  add = arr (\(e1,e2) -> Add <$> e1 <*> e2)
+  ifZero (Interp f) (Interp g) = Interp $ proc (_,x,y) -> joined f g -< (x,y)
 
 eval :: (IsVal v c, ArrowChoice c, ArrowStore Text v c) => c Expr v
 eval = proc e -> case e of
   Lit n -> lit -< n
   Var x -> read -< x
+  Add e1 e2 -> do
+    v1 <- eval -< e1
+    v2 <- eval -< e2
+    add -< (v1,v2)
 
 spec :: Spec
 spec = do
@@ -97,6 +103,23 @@ spec = do
                  ,      (3,([],[]))
                  ]
 
+  it "x:=1; z:=2; if(2) {y:=x} {y:=x}; x:=y+z" $ do
+    runAnalysis [ (0,"x" := Lit 1)
+                , (1,"z" := Lit 2)
+                , (2,IfZero (Lit 2)
+                        [(3,"y" := Var "x")]
+                        [(4,"y" := Var "x")])
+                , (5,"x" := Add (Var "y") (Var "z"))
+                ]
+      `shouldBe`
+                [ (0,([],["x"]))
+                , (1,(["x"],["x","z"]))
+                , (2,(["x","z"],["x","z"]))
+                ,    (3,(["x","z"],["y","z"]))
+                ,    (4,(["x","z"],["y","z"]))
+                , (5,(["y","z"],[]))
+                ]
+
   it "x:=1; while(2){y:=x}; z:=y" $ do
     runAnalysis   [ (0,"x" := Lit 1)
                   , (1,WhileZero (Lit 2)
@@ -116,17 +139,9 @@ runAnalysis ss =
   S.map (\((_,l),q) -> case l of
                          [] -> Nothing;
                          ((i,_):_) ->
-                            let trans = (fst (snd (fromError (fromTerminating q))))
+                            let trans = (fst (snd (fromError (error "error") (fromTerminating (error "non terminating") q))))
                             in Just (i,(L.entry trans, L.exit trans))) $
   fst $ runFix' (runExcept (runStore (runLiveVariables (runInterp (run :: Interp [(Int,Statement)] ()))))) (S.empty,ss)
-  where
-    fromTerminating :: Terminating a -> a
-    fromTerminating (Terminating a) = a
-    fromTerminating NonTerminating = error "non terminating"
-
-    fromError :: Error String a -> a
-    fromError (Success x) = x
-    fromError (Fail e) = error e
 
 instance Hashable Statement
 instance Hashable Expr

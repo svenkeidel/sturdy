@@ -43,12 +43,12 @@ instance ArrowLift (StoreArrow var val) where
   lift f = StoreArrow (lift f)
 
 instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c) =>
-  ArrowStore var val (StoreArrow var val c) where
+  ArrowStore var val lab (StoreArrow var val c) where
   read =
-    StoreArrow $ State $ proc (s,var) -> case S.lookup var s of
+    StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
       Success v -> returnA -< (s,v)
-      Fail _ -> failA -< printf "could not find variable" (show var)
-  write = StoreArrow (State (arr (\(s,(x,v)) -> (S.insert x v s,()))))
+      Fail _ -> failA -< printf "Variable %s not bound" (show var)
+  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   getA = lift getA

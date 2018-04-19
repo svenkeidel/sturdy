@@ -104,11 +104,10 @@ memoize (FixArrow f) = FixArrow $ \((inCache, outCache),x) -> do
     Success y -> trace (printf "\t%s <- memoize -< %s" (show y) (show x)) (outCache,y)
     Fail _ ->
       let yOld = fromError bottom (S.lookup x inCache)
-          outCache' = trace (printf "\tout(%s) := %s" (show x) (show yOld)) (S.insert x yOld outCache)
+          outCache' = S.insert x yOld outCache
           (outCache'',y) = trace (printf "\tf -< %s" (show x)) (f ((inCache, outCache'),x))
           outCache''' = S.insertWith (flip (▽)) x y outCache''
       in trace (printf "\t%s <- f -< %s\n" (show y) (show x) ++
-                printf "\tout(%s) := %s ▽ %s = %s\n" (show x) (show yOld) (show y) (show (S.lookup x outCache''')) ++
                 printf "\t%s <- memoize -< %s" (show y) (show x))
                   (outCache''',y)
 

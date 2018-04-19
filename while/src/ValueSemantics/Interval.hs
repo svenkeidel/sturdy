@@ -30,7 +30,7 @@ import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 import           Data.Abstract.Terminating
 import           Data.Abstract.Widening
-import           Data.Abstract.Ordering
+import qualified Data.Abstract.Ordering as O
 import           Data.Abstract.Equality
 
 import qualified Data.Boolean as B
@@ -119,20 +119,19 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
   lt = proc (v1,v2,_) -> case (v1,v2) of
-    (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 < n2)
+    (NumVal n1,NumVal n2) -> returnA -< BoolVal (n1 O.< n2)
     (Top,_)   -> returnA -< Top
     (_,Top)   -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'lt'"
 
-instance (Complete (c (Store Text Val,(x,y)) (Error String (Store Text Val,z))), ArrowChoice c)
+instance (Complete (Interp c (x,y) z), UpperBounded z, ArrowChoice c)
   => Conditional Val x y z (Interp c) where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True -> f1 -< x
     BoolVal B.False -> f2 -< y
     BoolVal B.Top -> joined f1 f2 -< (x,y)
-    Top -> joined f1 f2 -< (x,y)
+    Top -> returnA -< top
     _ -> failA -< "Expected boolean as argument for 'if'"
-
 
 deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)
@@ -141,9 +140,10 @@ deriving instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowConst IV (Interp c)
 deriving instance (ArrowChoice c, ArrowFix (Store Text Val,x) (Error String (Store Text Val,y)) c) => ArrowFix x y (Interp c)
-deriving instance (Complete (c ((Store Text Val,Val),Text) (Error String (Store Text Val,Val))), ArrowChoice c) => ArrowStore Text Val (Interp c)
+deriving instance (Complete (c ((Store Text Val,Val),Text) (Error String (Store Text Val,Val))), ArrowChoice c) => ArrowStore Text Val Label (Interp c)
 deriving instance (PreOrd (c (Store Text Val,x) (Error String (Store Text Val,y)))) => PreOrd (Interp c x y)
 deriving instance (Complete (c (Store Text Val,x) (Error String (Store Text Val,y)))) => Complete (Interp c x y)
+deriving instance (UpperBounded (c (Store Text Val,x) (Error String (Store Text Val,y)))) => UpperBounded (Interp c x y)
 
 instance PreOrd Val where
   _ ⊑ Top = P.True

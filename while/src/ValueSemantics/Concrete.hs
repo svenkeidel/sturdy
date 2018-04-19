@@ -10,6 +10,7 @@
 module ValueSemantics.Concrete where
 
 import           Prelude
+import qualified Prelude as P
 
 import           Syntax
 import           SharedSemantics hiding (run)
@@ -20,6 +21,7 @@ import qualified Data.Concrete.Store as S
 import           Data.Concrete.Store (Store)
 import           Data.Hashable
 import           Data.Text (Text)
+import           Data.Label
 
 import           Control.Category
 import           Control.Arrow
@@ -76,11 +78,11 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 `Prelude.div` n2)
     _ -> failA -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2,_) -> case (v1,v2) of
-    (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 == n2)
-    (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
+    (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.== n2)
+    (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 P.== b2)
     _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
   lt = proc (v1,v2,_) -> case (v1,v2) of
-    (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 < n2)
+    (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.< n2)
     _ -> failA -< "Expected two numbers as arguments for 'lt'"
 
 instance ArrowChoice c => Conditional Val x y z (Interp c) where
@@ -95,6 +97,6 @@ deriving instance ArrowChoice c => ArrowChoice (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowState StdGen (Interp c)
 deriving instance (ArrowFix (Store Text Val,(StdGen,x)) (Error String (Store Text Val,(StdGen,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
-deriving instance ArrowChoice c => ArrowStore Text Val (Interp c)
+deriving instance ArrowChoice c => ArrowStore Text Val Label (Interp c)
 
 instance Hashable Val
