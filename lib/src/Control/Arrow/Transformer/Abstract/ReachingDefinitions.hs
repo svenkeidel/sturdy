@@ -19,6 +19,7 @@ import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Store
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Writer
 
 import           Data.Identifiable
 import           Data.Order
@@ -62,10 +63,15 @@ instance (Identifiable v, Identifiable l) => IsList (ReachingDefs v l) where
   toList (ReachingDefs vs) = H.toList vs
   toList Top = error "toList ⊤"
 
-newtype ReachingDefinitions v l c x y = ReachingDefinitions (State (ReachingDefs v l) c x y)
+instance Monoid (ReachingDefs v l) where
+  mempty = empty
+  mappend _ r = r
 
-runReachingDefinitions :: ReachingDefinitions v l c x y -> c (ReachingDefs v l,x) (ReachingDefs v l,y)
-runReachingDefinitions (ReachingDefinitions f) = runState f
+newtype ReachingDefinitions v l c x y = ReachingDefinitions (State (ReachingDefs v l) (Writer (ReachingDefs v l) c) x y)
+
+runReachingDefinitions :: ReachingDefinitions v l c x y
+                       -> c (ReachingDefs v l,x) (ReachingDefs v l,(ReachingDefs v l,y))
+runReachingDefinitions (ReachingDefinitions f) = runWriter (runState f)
 
 instance (Identifiable var, Identifiable lab, ArrowStore var val lab c)
   => ArrowStore var val lab (ReachingDefinitions var lab c) where
@@ -74,14 +80,14 @@ instance (Identifiable var, Identifiable lab, ArrowStore var val lab c)
     write -< (x,v,l)
     returnA -< (ReachingDefs (H.insert (x,Just l) (H.filter (\(y,_) -> x /= y) defs)),())
 
-type instance Fix x y (ReachingDefinitions v l c) = ReachingDefinitions v l (Fix (ReachingDefs v l,x) (ReachingDefs v l,y) c)
-instance (ArrowFix (ReachingDefs v l,x) (ReachingDefs v l,y) c) => ArrowFix x y (ReachingDefinitions v l c) where
-  fixA f = ReachingDefinitions $ State $ fixA $ \g ->
-    runReachingDefinitions $ f $ ReachingDefinitions $ State $
-      (\(defs,x) -> ((defs,x),defs)) ^>> first g >>^ (\((_,y),defs) -> (defs,y))
+type instance Fix x y (ReachingDefinitions v l c) = ReachingDefinitions v l (Fix (ReachingDefs v l,x) (ReachingDefs v l,(ReachingDefs v l,y)) c)
+instance (ArrowFix (ReachingDefs v l,x) (ReachingDefs v l,(ReachingDefs v l,y)) c) => ArrowFix x y (ReachingDefinitions v l c) where
+  fixA f = ReachingDefinitions $ State $ Writer $ fixA $ \g ->
+    runReachingDefinitions $ f $ ReachingDefinitions $ State $ Writer $
+      (\(defs,x) -> ((defs,x),defs)) ^>> first g >>^ (\((_,(entry,y)),exit) -> (exit,(entry,y)))
 
 instance ArrowLift (ReachingDefinitions v l) where
-  lift f = ReachingDefinitions (lift f)
+  lift f = ReachingDefinitions (lift (lift f))
 
 instance (ArrowApply c) => ArrowApply (ReachingDefinitions v l c) where
   app = ReachingDefinitions ((\(ReachingDefinitions f,x) -> (f,x)) ^>> app)

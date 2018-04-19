@@ -24,8 +24,8 @@ import qualified Data.Abstract.Store as S
 import           Control.Arrow.Fix 
 import           Control.Arrow.Lift
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Writer
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
-import qualified Control.Arrow.Transformer.Abstract.ReachingDefinitions as R
 import           Control.Arrow.Transformer.Abstract.Fix
 
 run :: [Statement] -> ReachingDefs Text Label -> [(Statement,(ReachingDefs Text Label,ReachingDefs Text Label))]
@@ -61,7 +61,7 @@ instance (IsVal val c) => IsVal val (ReachingDefinitions v l c) where
   eq = lift eq
   lt = lift lt
 
-instance (Conditional val (ReachingDefs v l,x) (ReachingDefs v l,y) (ReachingDefs v l,z) c)
+instance (Conditional val (ReachingDefs v l,x) (ReachingDefs v l,y) (ReachingDefs v l,(ReachingDefs v l,z)) c)
   => Conditional val x y z (ReachingDefinitions v l c) where
-  if_ (ReachingDefinitions (State f1)) (ReachingDefinitions (State f2)) =
-    ReachingDefinitions $ State $ proc (defs,(v,(x,y))) -> if_ f1 f2 -< (v,((defs,x),(defs,y)))
+  if_ (ReachingDefinitions (State (Writer f1))) (ReachingDefinitions (State (Writer f2))) =
+    ReachingDefinitions $ State $ Writer $ proc (defs,(v,(x,y))) -> if_ f1 f2 -< (v,((defs,x),(defs,y)))
