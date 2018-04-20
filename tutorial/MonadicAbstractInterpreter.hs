@@ -4,17 +4,13 @@ module MonadicAbstractInterpreter where
 
 import Prelude hiding (True,False)
 import qualified Prelude as P
-import Control.Monad
-import Data.Map (Map)
+
+import           Control.Monad
+
+import           Data.Map (Map)
 import qualified Data.Map as Store
 
-data Expr
-  = Var String
-  | BoolLit Bool
-  | And Expr Expr
-  | NumLit Int
-  | Add Expr Expr
-  | Lt Expr Expr
+import           Syntax
 
 data Val = BoolVal AbsBool | NumVal Interval | TopVal
 data AbsBool = True | False | TopBool
@@ -76,12 +72,6 @@ put st = M (\_ -> Right (st,()))
 
 throw :: String -> M a
 throw er = M (\_ -> Left er)
-
-
-data Statement
-  = Assign String Expr               -- x := y + z
-  | If Expr [Statement] [Statement]  -- if(x < y) {x:=1} else {y:=2}
-  | While Expr [Statement]
 
 -- run :: Store -> [Statement] -> Either String Store
 run :: [Statement] -> M ()
