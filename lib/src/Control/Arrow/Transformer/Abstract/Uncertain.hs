@@ -33,7 +33,15 @@ instance ArrowChoice c => Category (Uncertain c) where
     g' <- g -< x
     case g' of
       Success a -> f -< a
-      SuccessOrFail a -> f -< a
+      SuccessOrFail a -> do
+        f' <- f -< a
+        case f' of
+          -- At first glance, this looks unsound because the effects or fail
+          -- might be passed on to the failure case. However, the only effect
+          -- currently passed on is FreeCompletion. But if f produces Top,
+          -- then f \/ failA produces Top, and so does the current solution.
+          Success a' -> returnA -< SuccessOrFail a'
+          _ -> returnA -< f'
       Fail -> returnA -< Fail
 
 instance ArrowChoice c => Arrow (Uncertain c) where
