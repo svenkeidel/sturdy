@@ -56,29 +56,29 @@ eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
 
-sortToName :: Sort -> Name
-sortToName sort = case sort of
-  Sort (SortId name) -> name
+sortToNonterm :: Sort -> Nonterm
+sortToNonterm sort = case sort of
+  Sort (SortId nt) -> nt
   _ -> error "Parametric polymorphism is not yet supported"
 
 toRhs :: (Constructor,Fun) -> Rhs Constr
-toRhs (Constructor constr, Fun sorts _) = Ctor (Constr constr) (map sortToName sorts)
+toRhs (Constructor constr, Fun sorts _) = Ctor (Constr constr) (map sortToNonterm sorts)
 
-toProd :: (Sort, [(Constructor,Fun)]) -> (Name, [Rhs Constr])
-toProd (sort, rhss) = (sortToName sort, map toRhs rhss)
+toProd :: (Sort, [(Constructor,Fun)]) -> (Nonterm, [Rhs Constr])
+toProd (sort, rhss) = (sortToNonterm sort, map toRhs rhss)
 
 createGrammar :: Signature -> GrammarBuilder Constr
 createGrammar (Signature (_, sorts) _) = grammar startSymbol prods
   where
     startSymbol = "Start"
-    startProd = (startSymbol, map (Eps . sortToName) (LM.keys sorts))
+    startProd = (startSymbol, map (Eps . sortToNonterm) (LM.keys sorts))
     -- TODO: what to do with these builtins?
     builtins = [("String", [ Ctor (Constr "String") []]) ]
     prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
 
 sigToAlphabet :: Signature -> Alphabet Constr
 sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
-  alph = map (\(c,v) -> (Constr (sortToName c),length v)) $ LM.toList sorts
+  alph = map (\(c,v) -> (Constr (sortToNonterm c),length v)) $ LM.toList sorts
 
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
