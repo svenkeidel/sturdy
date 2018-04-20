@@ -7,13 +7,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module GrammarSemantics where
 
 import           Prelude hiding (id)
 
+import qualified ConcreteSemantics as C
 import           SharedSemantics hiding (all,sequence)
 import           Signature hiding (Top)
+import           Soundness
 import           Syntax hiding (Fail)
 import           Utils
 
@@ -32,8 +34,10 @@ import           Control.Category hiding ((.))
 
 import           Data.Abstract.FreeCompletion
 import           Data.Abstract.UncertainResult
+import qualified Data.Concrete.Powerset as C
 import           Data.Constructor
 import           Data.Foldable (foldr')
+import           Data.GaloisConnection
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as LM
 import           Data.Hashable
@@ -44,6 +48,9 @@ import           Data.TermEnv
 import           Data.Text (Text)
 
 import           TreeAutomata
+
+import           Test.QuickCheck hiding (Success)
+import           Text.Printf
 
 data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
 newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
@@ -210,6 +217,30 @@ instance IsTermEnv TermEnv Term Interp where
   insertTerm = arr $ \(v,t,TermEnv env) -> TermEnv (LM.insert v t env)
   deleteTermVars = arr $ \(vars,TermEnv env) -> TermEnv (foldr' LM.delete env vars)
   unionTermEnvs = arr (\(vars,TermEnv e1,TermEnv e2) -> TermEnv (LM.union e1 (foldr' LM.delete e2 vars)))
+
+instance Galois (C.Pow C.Term) (GrammarBuilder Constr) where
+  alpha = lub . fmap go
+    where
+      go (C.Cons (Constructor c) ts) = addConstructor (Constr c) (fmap go ts)
+      go (C.StringLiteral s) = fromTerm (stringGrammar s)
+      go (C.NumberLiteral n) = fromTerm (numberGrammar n)
+  gamma = error "Uncomputable"
+
+instance Galois (C.Pow C.Term) (GrammarBuilder Constr) => Galois (C.Pow C.Term) Term where
+  alpha = Term . alpha
+  gamma = error "Uncomputable"
+
+instance Galois (C.Pow C.TermEnv) TermEnv where
+  alpha = lub . fmap (\(C.TermEnv e) -> TermEnv (fmap alphaSing e))
+  gamma = undefined
+
+instance Soundness (StratEnv, Alphabet Constr) Interp where
+  sound (senv,alph) xs f g = forAll (choose (2,3)) $ \i ->
+    let con :: FreeCompletion (UncertainResult (TermEnv,_))
+        con = Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
+        abst :: FreeCompletion (UncertainResult (TermEnv,_))
+        abst = runInterp g i alph senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+    in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 -- Helpers -------------------------------------------------------------------------------------------
 dom :: HashMap TermVar t -> [TermVar]

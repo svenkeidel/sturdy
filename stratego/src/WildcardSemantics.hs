@@ -209,7 +209,7 @@ instance ArrowFix' Interp Term where
       getFuel = Interp (askA >>^ snd)
       localFuel (Interp g) = Interp $ proc ((env,i),a) -> localA g -< ((env,i),a)
 
-instance Soundness Interp where
+instance Soundness StratEnv Interp where
   sound senv xs f g = forAll (choose (0,3)) $ \i ->
     let con :: A.Pow (Error () (TermEnv,_))
         con = A.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)

@@ -15,6 +15,7 @@ import qualified Data.Abstract.Error as Abs
 import qualified Data.Concrete.Boolean as Con
 import qualified Data.Abstract.Boolean as Abs
 import qualified Data.Abstract.Interval as Abs
+import qualified Data.Abstract.UncertainResult as AbsU
 import           Control.Arrow
 
 -- | A galois connection consisting of an abstraction function alpha
@@ -55,6 +56,12 @@ instance (Eq a, Hashable a, Galois (Con.Pow a) a', Eq b, Hashable b, Complete b'
   alpha = lifted $ \e -> case e of
     Con.Fail x -> Abs.Fail (alphaSing x)
     Con.Success y -> Abs.Success (alphaSing y)
+  gamma = error "noncomputable"
+
+instance (Eq a, Hashable a, Complete a', Galois (Con.Pow a) a') => Galois (Con.Pow (Con.Error () a)) (AbsU.UncertainResult a') where
+  alpha = lifted $ \b -> case b of
+    Con.Fail _ -> AbsU.Fail
+    Con.Success y -> AbsU.Success (alphaSing y)
   gamma = error "noncomputable"
 
 instance Galois (Con.Pow a) a' => Galois (Con.Pow a) (Abs.Pow a') where
