@@ -79,6 +79,7 @@ library
                        Control.Arrow.Transformer.Const,
                        Control.Arrow.Transformer.Static,
                        Control.Arrow.Transformer.BackwardState,
+                       Control.Arrow.Transformer.GreatestFixPoint,
 
                        Control.Arrow.Transformer.Concrete.Environment,
                        Control.Arrow.Transformer.Concrete.Except,
