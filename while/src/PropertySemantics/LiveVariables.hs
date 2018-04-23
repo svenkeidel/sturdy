@@ -28,7 +28,7 @@ import           Control.Arrow.Lift
 import           Control.Arrow.Transformer.Writer
 import           Control.Arrow.Transformer.Abstract.LiveVariables
 import qualified Control.Arrow.Transformer.Abstract.LiveVariables as L
-import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Monad.State(State)
 
 run :: (?bound :: IV) => [State Label Statement] -> [(Statement,(LiveVars Text,LiveVars Text))]
@@ -42,7 +42,7 @@ run statements =
          let trans = fst (snd (fromError (error "error") (fromTerminating (error "non terminating") v)))
          in Just (s,(L.entry trans, L.exit trans))) $
   fst $
-  runFix'
+  runLeastFixPoint'
     (runInterp ?bound
        (runLiveVariables (Shared.run :: Fix [Statement] () (LiveVariables Text (Interp (~>))) [Statement] ())))
     (S.empty,generate (sequence statements))

@@ -22,7 +22,7 @@ import           Control.Arrow.Transformer.Abstract.LiveVariables
 import qualified Control.Arrow.Transformer.Abstract.LiveVariables as L
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Except
-import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
 import           Data.Text (Text)
 import           Data.Hashable
@@ -141,7 +141,7 @@ runAnalysis ss =
                          ((i,_):_) ->
                             let trans = (fst (snd (fromError (error "error") (fromTerminating (error "non terminating") q))))
                             in Just (i,(L.entry trans, L.exit trans))) $
-  fst $ runFix' (runExcept (runStore (runLiveVariables (runInterp (run :: Interp [(Int,Statement)] ()))))) (S.empty,ss)
+  fst $ runLeastFixPoint' (runExcept (runStore (runLiveVariables (runInterp (run :: Interp [(Int,Statement)] ()))))) (S.empty,ss)
 
 instance Hashable Statement
 instance Hashable Expr

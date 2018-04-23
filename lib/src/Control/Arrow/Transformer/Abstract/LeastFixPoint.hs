@@ -13,7 +13,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -DTRACE #-}
-module Control.Arrow.Transformer.Abstract.Fix(type (~>),runFix,runFix',liftFix) where
+module Control.Arrow.Transformer.Abstract.LeastFixPoint(type (~>),runLeastFixPoint,runLeastFixPoint',liftLeastFixPoint) where
 
 import           Prelude hiding (id,(.),lookup)
 import           Data.Function (fix)
@@ -41,54 +41,54 @@ import           Text.Printf
 -- We made some changes to the algorithm to simplify it.
 
 data (~>) x y
-type instance Fix a b (~>) = FixArrow a b
+type instance Fix a b (~>) = LeastFixPointArrow a b
 
-newtype FixArrow a b x y = FixArrow (((Store a (Terminating b), Store a (Terminating b)),x) -> (Store a (Terminating b), Terminating y))
+newtype LeastFixPointArrow a b x y = LeastFixPointArrow (((Store a (Terminating b), Store a (Terminating b)),x) -> (Store a (Terminating b), Terminating y))
 
-runFix :: Fix a b (~>) x y -> (x -> Terminating y)
-runFix f = runFix' f >>^ snd
+runLeastFixPoint :: Fix a b (~>) x y -> (x -> Terminating y)
+runLeastFixPoint f = runLeastFixPoint' f >>^ snd
 
-runFix' :: Fix a b (~>) x y -> (x -> (Store a (Terminating b), Terminating y))
-runFix' (FixArrow f) = (\x -> ((S.empty,S.empty),x)) ^>> f
+runLeastFixPoint' :: Fix a b (~>) x y -> (x -> (Store a (Terminating b), Terminating y))
+runLeastFixPoint' (LeastFixPointArrow f) = (\x -> ((S.empty,S.empty),x)) ^>> f
 
-liftFix :: (x -> y) -> FixArrow a b x y
-liftFix f = FixArrow ((\((_,o),x) -> (o,x)) ^>> second (f ^>> Terminating))
+liftLeastFixPoint :: (x -> y) -> LeastFixPointArrow a b x y
+liftLeastFixPoint f = LeastFixPointArrow ((\((_,o),x) -> (o,x)) ^>> second (f ^>> Terminating))
 
-instance Category (FixArrow i o) where
-  id = liftFix id
-  FixArrow f . FixArrow g = FixArrow $ proc ((i,o),x) -> do
+instance Category (LeastFixPointArrow i o) where
+  id = liftLeastFixPoint id
+  LeastFixPointArrow f . LeastFixPointArrow g = LeastFixPointArrow $ proc ((i,o),x) -> do
     (o',y) <- g -< ((i,o),x)
     case y of
       NonTerminating -> returnA -< (o,NonTerminating)
       Terminating y' -> f -< ((i,o'),y')
 
-instance Arrow (FixArrow i o) where
-  arr f = liftFix (arr f)
-  first (FixArrow f) = FixArrow $ to assoc ^>> first f >>^ (\((o,x'),y) -> (o,strength1 (x',y)))
+instance Arrow (LeastFixPointArrow i o) where
+  arr f = liftLeastFixPoint (arr f)
+  first (LeastFixPointArrow f) = LeastFixPointArrow $ to assoc ^>> first f >>^ (\((o,x'),y) -> (o,strength1 (x',y)))
 
-instance ArrowChoice (FixArrow i o) where
-  left (FixArrow f) = FixArrow $ \((i,o),e) -> case e of
+instance ArrowChoice (LeastFixPointArrow i o) where
+  left (LeastFixPointArrow f) = LeastFixPointArrow $ \((i,o),e) -> case e of
     Left x -> second (fmap Left) (f ((i,o),x))
     Right y -> (o,return (Right y))
-  right (FixArrow f) = FixArrow $ \((i,o),e) -> case e of
+  right (LeastFixPointArrow f) = LeastFixPointArrow $ \((i,o),e) -> case e of
     Left x -> (o,return (Left x))
     Right y -> second (fmap Right) (f ((i,o),y))
-  FixArrow f ||| FixArrow g = FixArrow $ \((i,o),e) -> case e of
+  LeastFixPointArrow f ||| LeastFixPointArrow g = LeastFixPointArrow $ \((i,o),e) -> case e of
     Left x -> f ((i,o),x)
     Right y -> g ((i,o),y)
 
-instance ArrowLoop (FixArrow i o) where
-  loop (FixArrow f) = FixArrow $ loop $ \(((i,o),b),d) ->
+instance ArrowLoop (LeastFixPointArrow i o) where
+  loop (LeastFixPointArrow f) = LeastFixPointArrow $ loop $ \(((i,o),b),d) ->
     case f ((i,o),(b,d)) of
       (o',Terminating (c,d')) -> ((o',Terminating c),d')
       (o',NonTerminating) -> ((o',NonTerminating),d)
 
-instance ArrowApply (FixArrow i o) where
-  app = FixArrow $ (\(io,(FixArrow f,x)) -> (f,(io,x))) ^>> app
+instance ArrowApply (LeastFixPointArrow i o) where
+  app = LeastFixPointArrow $ (\(io,(LeastFixPointArrow f,x)) -> (f,(io,x))) ^>> app
 
 #ifdef TRACE
 instance (Show x, Show y, Identifiable x, Widening y)
-  => ArrowFix x y (FixArrow x y) where
+  => ArrowFix x y (LeastFixPointArrow x y) where
   fixA f = trace (printf "fixA f") $ proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
@@ -98,8 +98,8 @@ instance (Show x, Show y, Identifiable x, Widening y)
     then returnA -< y
     else fixA f -< x
 
-memoize :: (Show x, Show y, Identifiable x, Widening y) => FixArrow x y x y -> FixArrow x y x y
-memoize (FixArrow f) = FixArrow $ \((inCache, outCache),x) -> do
+memoize :: (Show x, Show y, Identifiable x, Widening y) => LeastFixPointArrow x y x y -> LeastFixPointArrow x y x y
+memoize (LeastFixPointArrow f) = LeastFixPointArrow $ \((inCache, outCache),x) -> do
   case trace (printf "\tmemoize -< %s" (show x)) (S.lookup x outCache) of
     Success y -> trace (printf "\t%s <- memoize -< %s" (show y) (show x)) (outCache,y)
     Fail _ ->
@@ -112,7 +112,7 @@ memoize (FixArrow f) = FixArrow $ \((inCache, outCache),x) -> do
                   (outCache''',y)
 
 #else
-instance (Identifiable x, Widening y) => ArrowFix x y (FixArrow x y) where
+instance (Identifiable x, Widening y) => ArrowFix x y (LeastFixPointArrow x y) where
   fixA f = proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
@@ -122,8 +122,8 @@ instance (Identifiable x, Widening y) => ArrowFix x y (FixArrow x y) where
     then returnA -< y
     else fixA f -< x
 
-memoize :: (Identifiable x, Widening y) => FixArrow x y x y -> FixArrow x y x y
-memoize (FixArrow f) = FixArrow $ \((inCache, outCache),x) -> do
+memoize :: (Identifiable x, Widening y) => LeastFixPointArrow x y x y -> LeastFixPointArrow x y x y
+memoize (LeastFixPointArrow f) = LeastFixPointArrow $ \((inCache, outCache),x) -> do
   case S.lookup x outCache of
     Success y -> (outCache,y)
     Fail _ ->
@@ -133,17 +133,17 @@ memoize (FixArrow f) = FixArrow $ \((inCache, outCache),x) -> do
       in (S.insertWith (flip (▽)) x y outCache'',y)
 #endif
 
-getOutCache :: FixArrow x y () (Store x (Terminating y))
-getOutCache = FixArrow $ (\((_,o),()) -> (o,return o))
+getOutCache :: LeastFixPointArrow x y () (Store x (Terminating y))
+getOutCache = LeastFixPointArrow $ (\((_,o),()) -> (o,return o))
 
-setOutCache :: FixArrow x y (Store x (Terminating y)) ()
-setOutCache = FixArrow $ (\((_,_),o) -> (o,return ()))
+setOutCache :: LeastFixPointArrow x y (Store x (Terminating y)) ()
+setOutCache = LeastFixPointArrow $ (\((_,_),o) -> (o,return ()))
 
-localInCache :: FixArrow x y x y -> FixArrow x y (Store x (Terminating y),x) y
-localInCache (FixArrow f) = FixArrow (\((_,o),(i,x)) -> f ((i,o),x))
+localInCache :: LeastFixPointArrow x y x y -> LeastFixPointArrow x y (Store x (Terminating y),x) y
+localInCache (LeastFixPointArrow f) = LeastFixPointArrow (\((_,o),(i,x)) -> f ((i,o),x))
 
-deriving instance (Identifiable a, PreOrd b, PreOrd y) => PreOrd (FixArrow a b x y)
-deriving instance (Identifiable a, Complete b, Complete y) => Complete (FixArrow a b x y)
-deriving instance (Identifiable a, CoComplete b, CoComplete y) => CoComplete (FixArrow a b x y)
-deriving instance (Identifiable a, PreOrd b, PreOrd y) => LowerBounded (FixArrow a b x y)
--- deriving instance (Identifiable a, UpperBounded b, UpperBounded y) => UpperBounded (Fix a b x y)
+deriving instance (Identifiable a, PreOrd b, PreOrd y) => PreOrd (LeastFixPointArrow a b x y)
+deriving instance (Identifiable a, Complete b, Complete y) => Complete (LeastFixPointArrow a b x y)
+deriving instance (Identifiable a, CoComplete b, CoComplete y) => CoComplete (LeastFixPointArrow a b x y)
+deriving instance (Identifiable a, PreOrd b, PreOrd y) => LowerBounded (LeastFixPointArrow a b x y)
+-- deriving instance (Identifiable a, UpperBounded b, UpperBounded y) => UpperBounded (LeastFixPoint a b x y)

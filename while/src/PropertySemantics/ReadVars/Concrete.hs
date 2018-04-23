@@ -35,7 +35,7 @@ type Interp = PropertyArrow CProp Concrete.Interp
 runInterp :: [Statement] -> Error String (State,CProp)
 runInterp ss =
   second fst <$>
-    runFix (runErrorArrow (runStateArrow (runProperty run)))
+    runLeastFixPoint (runErrorArrow (runStateArrow (runProperty run)))
       ((initStore, mkStdGen 0), (initCProp, ss))
 
 instance HasStore Interp Store where

@@ -26,7 +26,7 @@ import           Control.Arrow.Lift
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Writer
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
-import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
 run :: [Statement] -> ReachingDefs Text Label -> [(Statement,(ReachingDefs Text Label,ReachingDefs Text Label))]
 run stmts defs =
@@ -40,7 +40,7 @@ run stmts defs =
       _ -> Nothing;
         ) $
   fst $
-  runFix'
+  runLeastFixPoint'
     (runInterp
        (runReachingDefinitions
         (Shared.run :: Fix [Statement] () (ReachingDefinitions Text Label (Interp (~>))) [Statement] ())))

@@ -44,10 +44,10 @@ initState = (initStore, initCProp, mkStdGen 0)
 
 type In a = (State,a)
 type Out a = Error String (State,a)
-type M = StateArrow State (ErrorArrow String (Fix (In [Statement]) (Out ())))
+type M = StateArrow State (ErrorArrow String (LeastFixPoint (In [Statement]) (Out ())))
 
 runM :: [Statement] -> Error String (State,())
-runM ss = runFix (runErrorArrow (runStateArrow L.run)) (initState, ss)
+runM ss = runLeastFixPoint (runErrorArrow (runStateArrow L.run)) (initState, ss)
 
 run :: [Statement] -> Error String (Store,CProp)
 run = fmap ((\(st,pr,_) -> (st,reverse pr)) . fst) . runM

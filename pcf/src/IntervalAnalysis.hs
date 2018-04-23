@@ -22,7 +22,7 @@ import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.Contour hiding (toList)
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
 import           Control.Arrow.Transformer.Abstract.Except
-import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Const
 import           Control.Monad.State hiding (lift)
 
@@ -73,7 +73,7 @@ newtype Interp x y =
 
 runInterp :: Interp x y -> IV -> Int -> [(Text,Val)] -> x -> Terminating (Error String y)
 runInterp (Interp f) b k env x = 
-  runFix
+  runLeastFixPoint
     (runExcept
       (runContourArrow k
         (runEnvironment
