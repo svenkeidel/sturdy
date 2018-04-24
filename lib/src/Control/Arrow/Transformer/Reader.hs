@@ -3,79 +3,85 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
-module Control.Arrow.Transformer.Reader(ReaderArrow(..),liftReader) where
+{-# LANGUAGE TypeFamilies #-}
+module Control.Arrow.Transformer.Reader(Reader(..)) where
 
 import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
-import Control.Arrow.Class.Environment
-import Control.Arrow.Class.Fail
-import Control.Arrow.Class.Fix
-import Control.Arrow.Class.Reader
-import Control.Arrow.Class.State
+import Control.Arrow.Environment
+import Control.Arrow.Fail
+import Control.Arrow.Fix
+import Control.Arrow.Reader
+import Control.Arrow.State
 import Control.Arrow.Deduplicate
 import Control.Arrow.Try
+import Control.Arrow.Lift
+import Control.Arrow.Writer
 import Control.Arrow.Utils
 import Control.Category
 
 import Data.Order
+import Data.Monoidal
 
-newtype ReaderArrow r c x y = ReaderArrow { runReaderArrow :: c (r,x) y }
+-- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
+newtype Reader r c x y = Reader { runReader :: c (r,x) y }
 
-liftReader :: Arrow c => c x y -> ReaderArrow r c x y
-liftReader f = ReaderArrow (pi2 >>> f)
+instance ArrowLift (Reader r) where
+  lift f = Reader (pi2 >>> f)
 
-instance Arrow c => Category (ReaderArrow r c) where
-  id = liftReader id
-  ReaderArrow f . ReaderArrow g = ReaderArrow $ (\(r,x) -> (r,(r,x))) ^>> f . second g
+instance Arrow c => Category (Reader r c) where
+  id = lift id
+  Reader f . Reader g = Reader $ (\(r,x) -> (r,(r,x))) ^>> f . second g
 
-instance Arrow c => Arrow (ReaderArrow r c) where
-  arr f = liftReader (arr f)
-  first (ReaderArrow f) = ReaderArrow $ (\(r,(x,y)) -> ((r,x),y)) ^>> first f
-  second (ReaderArrow f) = ReaderArrow $ (\(r,(x,y)) -> (x,(r,y))) ^>> second f
+instance Arrow c => Arrow (Reader r c) where
+  arr f = lift (arr f)
+  first (Reader f) = Reader $ (\(r,(b,d)) -> ((r,b),d)) ^>> first f
+  second (Reader f) = Reader $ (\(r,(b,d)) -> (b,(r,d))) ^>> second f
+  Reader f &&& Reader g = Reader $ f &&& g
+  Reader f *** Reader g = Reader $ (\(r,(b,d)) -> ((r,b),(r,d))) ^>> f *** g
 
-instance ArrowChoice c => ArrowChoice (ReaderArrow r c) where
-  left (ReaderArrow f) = ReaderArrow $ injectLeft ^>> left f
-  right (ReaderArrow f) = ReaderArrow $ injectRight ^>> right f
+instance ArrowChoice c => ArrowChoice (Reader r c) where
+  left (Reader f) = Reader $ to distribute ^>> mmap id pi2  ^>> left f
+  right (Reader f) = Reader $ to distribute ^>> mmap pi2 id ^>> right f
+  Reader f +++ Reader g = Reader (to distribute ^>> f +++ g)
+  Reader f ||| Reader g = Reader (to distribute ^>> f ||| g)
 
-instance ArrowApply c => ArrowApply (ReaderArrow r c) where
-  app = ReaderArrow $ (\(r,(ReaderArrow f,b)) -> (f,(r,b))) ^>> app
+instance ArrowApply c => ArrowApply (Reader r c) where
+  app = Reader $ (\(r,(Reader f,b)) -> (f,(r,b))) ^>> app
 
-instance Arrow c => ArrowReader r (ReaderArrow r c) where
-  askA = ReaderArrow pi1
-  localA (ReaderArrow f) = ReaderArrow $ (\(_,(r,x)) -> (r,x)) ^>> f
+instance Arrow c => ArrowReader r (Reader r c) where
+  askA = Reader pi1
+  localA (Reader f) = Reader $ (\(_,(r,x)) -> (r,x)) ^>> f
 
-instance ArrowState s c => ArrowState s (ReaderArrow r c) where
-  getA = liftReader getA
-  putA = liftReader putA
+instance ArrowState s c => ArrowState s (Reader r c) where
+  getA = lift getA
+  putA = lift putA
 
-instance ArrowFail e c => ArrowFail e (ReaderArrow r c) where
-  failA = liftReader failA
+instance ArrowWriter w c => ArrowWriter w (Reader r c) where
+  tellA = lift tellA
 
-instance ArrowEnv x y env c => ArrowEnv x y env (ReaderArrow r c) where
-  lookup = liftReader lookup
-  getEnv = liftReader getEnv
-  extendEnv = liftReader extendEnv
-  localEnv (ReaderArrow f) = ReaderArrow ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
+instance ArrowFail e c => ArrowFail e (Reader r c) where
+  failA = lift failA
 
-instance ArrowFix (r,x) y c => ArrowFix x y (ReaderArrow r c) where
-  fixA f = ReaderArrow (fixA (runReaderArrow . f . ReaderArrow))
+instance ArrowEnv x y env c => ArrowEnv x y env (Reader r c) where
+  lookup = lift lookup
+  getEnv = lift getEnv
+  extendEnv = lift extendEnv
+  localEnv (Reader f) = Reader ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
 
-instance ArrowTry (r,x) (r,y) (r,z) c => ArrowTry x y z (ReaderArrow r c) where
-  tryA (ReaderArrow f) (ReaderArrow g) (ReaderArrow h) = ReaderArrow $
-    tryA (pi1 &&& f) (pi1 &&& g) (pi1 &&& h) >>> pi2
+type instance Fix x y (Reader r c) = Reader r (Fix (r,x) y c)
+instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where
+  fixA f = Reader (fixA (runReader . f . Reader))
 
-instance ArrowZero c => ArrowZero (ReaderArrow r c) where
-  zeroArrow = liftReader zeroArrow
+instance ArrowTry (r,x) (r,y) z c => ArrowTry x y z (Reader r c) where
+  tryA (Reader f) (Reader g) (Reader h) = Reader $ tryA (pi1 &&& f) g h
 
-instance ArrowPlus c => ArrowPlus (ReaderArrow r c) where
-  ReaderArrow f <+> ReaderArrow g = ReaderArrow (f <+> g)
+instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
+  dedupA (Reader f) = Reader (dedupA f)
 
-instance ArrowDeduplicate c => ArrowDeduplicate (ReaderArrow r c) where
-  dedupA (ReaderArrow f) = ReaderArrow (dedupA f)
-
-deriving instance PreOrd (c (r,x) y) => PreOrd (ReaderArrow r c x y)
-deriving instance LowerBounded (c (r,x) y) => LowerBounded (ReaderArrow r c x y)
-deriving instance Complete (c (r,x) y) => Complete (ReaderArrow r c x y)
-deriving instance CoComplete (c (r,x) y) => CoComplete (ReaderArrow r c x y)
-deriving instance UpperBounded (c (r,x) y) => UpperBounded (ReaderArrow r c x y)
+deriving instance PreOrd (c (r,x) y) => PreOrd (Reader r c x y)
+deriving instance LowerBounded (c (r,x) y) => LowerBounded (Reader r c x y)
+deriving instance Complete (c (r,x) y) => Complete (Reader r c x y)
+deriving instance CoComplete (c (r,x) y) => CoComplete (Reader r c x y)
+deriving instance UpperBounded (c (r,x) y) => UpperBounded (Reader r c x y)

@@ -24,15 +24,19 @@ import           Control.Arrow
 import           Control.Arrow.Apply
 import           Control.Arrow.Debug
 import           Control.Arrow.Deduplicate
-import           Control.Arrow.Either
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
+import           Control.Arrow.Transformer.Concrete.Except
+import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.State
 import           Control.Arrow.Try
 import           Control.Category
-import           Control.Monad.Reader
+import           Control.Monad (join)
+import           Control.Monad.Reader (replicateM)
 
+import           Data.Concrete.Error
 import           Data.Constructor
 import           Data.Foldable (foldr')
 import           Data.HashMap.Lazy (HashMap)
@@ -56,20 +60,21 @@ data Term
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 
-newtype Interp a b = Interp (ReaderArrow StratEnv (StateArrow TermEnv (EitherArrow () (->))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowZero,ArrowPlus,ArrowDeduplicate)
+newtype Interp a b = Interp (Reader StratEnv (State TermEnv (Except () (->))) a b)
+  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowDeduplicate)
 
-runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Either () (TermEnv,b)
-runInterp (Interp f) senv tenv t = runEitherArrow (runStateArrow (runReaderArrow f)) (tenv, (senv, t))
+runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error () (TermEnv,b)
+runInterp (Interp f) senv tenv t = runExcept (runState (runReader f)) (tenv, (senv, t))
 
-eval :: Strat -> StratEnv -> TermEnv -> Term -> Either () (TermEnv,Term)
+eval :: Strat -> StratEnv -> TermEnv -> Term -> Error () (TermEnv,Term)
 eval s = runInterp (eval' s)
 
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowReader StratEnv Interp
-deriving instance ArrowTry Term Term Term Interp
-deriving instance ArrowTry (Term,[Term]) (Term,[Term]) (Term,[Term]) Interp
+
+instance ArrowTry x y z Interp where
+  tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
 
 instance ArrowFix' Interp Term where
   fixA' f = f (fixA' f)

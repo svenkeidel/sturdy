@@ -12,8 +12,6 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import           Data.Text (Text)
 
-import           Numeric.Limits
-
 import           Control.Arrow
 import           Control.Monad.State
 import           Control.Monad.Reader
@@ -21,20 +19,23 @@ import           Control.Monad.Reader
 -- | Reflexive, transitive order
 class PreOrd x where
   (⊑) :: x -> x -> Bool
+  infix 4 ⊑
 
   (≈) :: x -> x -> Bool
   x ≈ y = x ⊑ y && y ⊑ x
+  infix 4 ≈
 
 -- | Order with all least upper bounds
 class PreOrd x => Complete x where
   (⊔) :: x -> x -> x
+  infix 5 ⊔
 
 -- | Order with a least element
 class PreOrd x => LowerBounded x where
   bottom :: x
 
-lub :: (Foldable f, Complete x, LowerBounded x) => f x -> x
-lub = foldr (⊔) bottom
+lub :: (Foldable f, Complete x) => f x -> x
+lub = foldr1 (⊔)
 
 joined :: (Arrow c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
 joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
@@ -43,29 +44,30 @@ joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
 -- joined f1 f2 = proc (x1,x2) -> (f1 -< x1) ⊔ (f2 -< x2)
 
 -- This is what the compiler desugars it to (we simplified it):
--- joined = \ @ t_a8le    @ t_a8ld    @ t_a8m7    @ t_a8m3    @ t_a8m5    @ t_a8lm    @ t_a8li    @ t_a8lk    $dArrow_a8pD    $dArrow_a8pE    $dArrow_a8pF    f1_a8kp    f2_a8kq ->
---       (arr (\(x1, x2) -> ((x2, x1), ())) )
---       >>>
---       (op
---             (arr (\((x2,x1), b) -> (x1, b))) >>> arr fst >>> f1   ::  c ((x2,x1,b)) r
---             (arr (\((x2,x1),b) -> (x2,b)) >>> arr fst >>> f2   ::     c ((x2,x1),b) r
+-- joined = 
+--   (arr (\(x1, x2) -> ((x2, x1), ())) )
+--   >>>
+--   (op
+--         (arr (\((x2,x1), b) -> (x1, b))) >>> arr fst >>> f1   ::  c ((x2,x1,b)) r
+--         (arr (\((x2,x1),b) -> (x2,b)) >>> arr fst >>> f2   ::     c ((x2,x1),b) r
 
-lubA :: (ArrowChoice c, LowerBounded y, Complete (c (x,[x]) y)) => c x y -> c [x] y
+lubA :: (ArrowChoice c, Complete (c (x,[x]) y), LowerBounded (c () y)) => c x y -> c [x] y
 lubA f = proc l -> case l of
-  [] -> returnA -< bottom
+  [] -> bottom -< ()
   -- (x:xs) -> (f -< x) ⊔ (lubA f -< xs) causes an type error.
   (x:xs) -> joined f (lubA f) -< (x, xs)
 
 -- | Order with all greatest lower bounds
 class PreOrd x => CoComplete x where
   (⊓) :: x -> x -> x
+  infix 5 ⊓
 
 -- | Order with a greatest element
 class PreOrd x => UpperBounded x where
   top :: x
 
-glb :: (Foldable f, CoComplete x, UpperBounded x) => f x -> x
-glb = foldr (⊓) top
+glb :: (Foldable f, CoComplete x) => f x -> x
+glb = foldr1 (⊓)
 
 instance (PreOrd e, PreOrd a) => PreOrd (Either e a) where
   Left e1 ⊑ Left e2 = e1 ⊑ e2
@@ -168,29 +170,13 @@ instance PreOrd Double where
   (⊑) = (<=)
   (≈) = (==)
 
-instance LowerBounded Int where
-  bottom = minBound
-
-instance UpperBounded Int where
-  top = maxBound
-
-instance Complete Int where
-  (⊔) = max
-
-instance CoComplete Int where
-  (⊓) = min
-
-instance LowerBounded Double where
-  bottom = minValue
-
-instance UpperBounded Double where
-  top = maxValue
-
-instance Complete Double where
-  (⊔) = max
-
-instance CoComplete Double where
-  (⊓) = min
+instance PreOrd a => PreOrd (Maybe a) where
+  Just x ⊑ Just y = x ⊑ y 
+  Nothing ⊑ Nothing = True
+  _ ⊑ _ = False
+  Just x ≈ Just y = x ≈ y 
+  Nothing ≈ Nothing = True
+  _ ≈ _ = False
 
 instance PreOrd a => LowerBounded (Set a) where
   bottom = S.empty
@@ -233,4 +219,3 @@ instance LowerBounded a => LowerBounded (Identity a) where
 
 instance Complete a => Complete (Identity a) where
   Identity x ⊔ Identity y = Identity $ x ⊔ y
-  

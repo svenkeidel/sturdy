@@ -1,0 +1,41 @@
+name:                sturdy-tutorial
+version:             0.1.0.0
+license:             BSD3
+license-file:        LICENSE
+author:              Sven Keidel
+maintainer:          svenkeidel@gmail.com
+category:            Language
+build-type:          Simple
+extra-source-files:
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Syntax,
+                       DirectStyle,
+                       MonadicStyle,
+                       ArrowStyle
+
+
+  ghc-options:         -Wall
+  build-depends:       base,
+                       containers,
+                       mtl,
+                       sturdy-lib,
+                       text
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+test-suite specs
+  type:                exitcode-stdio-1.0
+  ghc-options:         -Wall
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base,
+                       containers,
+                       hspec,
+                       hspec-core,
+                       sturdy-lib,
+                       sturdy-tutorial,
+                       text,
+                       QuickCheck
+  default-language:    Haskell2010

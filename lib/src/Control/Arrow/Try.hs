@@ -15,6 +15,9 @@ import Control.Monad.Try
 class Arrow c => ArrowTry x y z c where
   tryA :: c x y -> c y z -> c x z -> c x z
 
+(<+>) :: (ArrowTry x y y c) => c x y -> c x y -> c x y
+f <+> g = tryA f id g
+
 success :: ArrowTry a a a c => c a a
 success = id
 

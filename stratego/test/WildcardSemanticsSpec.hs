@@ -6,25 +6,26 @@ module WildcardSemanticsSpec(main, spec) where
 import           Prelude hiding (map)
     
 import qualified ConcreteSemantics as C
--- import           SharedSemantics
--- import           Soundness
+import           SharedSemantics
+import           Soundness
 import           Syntax hiding (Fail)
 import qualified WildcardSemantics as W
 
--- import           Control.Arrow
+import           Control.Arrow
 
+import           Data.Abstract.Error
+import qualified Data.Abstract.Powerset as A
+import qualified Data.Concrete.Powerset as C
+import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as M
 import           Data.Order
-import           Data.GaloisConnection
-import           Data.Term(TermUtils(..))
-import qualified Data.Powerset as C
-import qualified Data.AbstractPowerset as A
+import           Data.Term (TermUtils(..))
     
 import           Text.Printf
 
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
-import           Test.QuickCheck
+import           Test.QuickCheck hiding (Success)
 
 main :: IO ()
 main = hspec spec
@@ -41,12 +42,12 @@ spec = do
                    Call "map" [Build 1] ["x"])) t
         `shouldBe'`
            C.fromFoldable
-             [ Right $ convertToList [1]
-             , Right $ convertToList [1,1]
-             , Right $ convertToList [1,1,1]
-             , Left ()
-             , Left ()
-             , Right (cons 1 (cons 1 (cons 1 (cons W.Wildcard W.Wildcard))))]
+             [ Success $ convertToList [1]
+             , Success $ convertToList [1,1]
+             , Success $ convertToList [1,1,1]
+             , Fail ()
+             , Fail ()
+             , Success (cons 1 (cons 1 (cons 1 (cons W.Wildcard W.Wildcard))))]
 
   describe "call" $
     prop "should be sound" $ do
@@ -94,19 +95,18 @@ spec = do
 
   -- describe "lookupTermVar" $
   --   prop "should be sound" $ do
-  --     sound M.empty lookupTermVar lookupTermVar 
+  --     sound M.empty lookupTermVar lookupTermVar
 
   where
-    -- sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
-    -- sound' s xs = sound M.empty (C.fromFoldable $ fmap (second termEnv) xs) (eval' s) (eval' s :: W.Interp W.Term W.Term)
-    sound' s xs = pendingWith "cannot compute due to bottom element"
+    sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
+    sound' s xs = sound M.empty (C.fromFoldable $ fmap (second termEnv) xs) (eval' s) (eval' s :: W.Interp W.Term W.Term)
 
-    -- termEnv = C.TermEnv . M.fromList
+    termEnv = C.TermEnv . M.fromList
 
     showLub :: C.Term -> C.Term -> String
     showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: W.Term) 
 
-    shouldBe' :: A.Pow (Either () W.Term) -> A.Pow (Either () W.Term) -> Property
+    shouldBe' :: A.Pow (Error () W.Term) -> A.Pow (Error () W.Term) -> Property
     shouldBe' s1 s2 = counterexample (printf "%s < %s\n" (show s1) (show s2)) (s2 ⊑ s1 `shouldBe` True)
     infix 1 `shouldBe'`
 
@@ -122,5 +122,5 @@ spec = do
                Build (Cons "Cons" ["x'", "xs'"]))
               (Build (Cons "Nil" []))))
 
-    weval :: Int -> Strat -> W.Term -> A.Pow (Either () (W.TermEnv,W.Term))
+    weval :: Int -> Strat -> W.Term -> A.Pow (Error () (W.TermEnv,W.Term))
     weval i s = W.eval i s M.empty (W.TermEnv M.empty)

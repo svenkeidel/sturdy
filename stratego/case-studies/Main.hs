@@ -4,7 +4,7 @@ module Main where
 
 import           Syntax hiding (Fail)
 import qualified WildcardSemantics as W
-import qualified Data.AbstractPowerset as W
+import qualified Data.Abstract.Powerset as W
 
 import qualified Pretty.Haskell as H
 -- import qualified Pretty.JavaScript as J
@@ -18,6 +18,7 @@ import qualified Criterion.Measurement as CM
 import qualified Criterion.Types as CT
 
 import           Data.ATerm
+import           Data.Abstract.Error
 import           Data.Foldable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
@@ -160,7 +161,7 @@ measure analysisName action = do
 
 type Analysis t = String -> String -> Int -> HashSet t -> IO ()
 
-caseStudy :: (Strat -> StratEnv -> W.TermEnv -> W.Term -> W.Pow (Either () (W.TermEnv,W.Term))) -> String -> String -> IO (HashSet W.Term)
+caseStudy :: (Strat -> StratEnv -> W.TermEnv -> W.Term -> W.Pow (Error () (W.TermEnv,W.Term))) -> String -> String -> IO (HashSet W.Term)
 caseStudy eval name function = do
   printf "------------------ case study: %s ----------------------\n" name
   file <- TIO.readFile =<< getDataFileName (printf "case-studies/%s/%s.aterm" name name)
@@ -173,5 +174,5 @@ caseStudy eval name function = do
       _ <- CM.measure (CT.nfIO (return terms)) 1
       return terms
  where
-   filterResults = fmap (\r -> case r of Right (_,t) -> t; Left _ -> error "")
-                 . filter (\r -> case r of Right _ -> True; Left _ -> False)
+   filterResults = fmap (\r -> case r of Success (_,t) -> t; Fail _ -> error "")
+                 . filter (\r -> case r of Success _ -> True; Fail _ -> False)

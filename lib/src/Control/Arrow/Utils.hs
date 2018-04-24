@@ -3,7 +3,6 @@
 module Control.Arrow.Utils where
 
 import Control.Arrow
-import Control.Arrow.Class.Fail
 
 mapA :: ArrowChoice c => c x y -> c [x] [y]
 mapA f = proc l -> case l of
@@ -44,25 +43,5 @@ foldA f = proc (l,a) -> case l of
     foldA f -< (xs,a')
   [] -> returnA -< a
 
-injectLeft :: (r,Either a b) -> Either (r,a) b
-injectLeft (r,e) = case e of
-  Left a -> Left (r,a)
-  Right b -> Right b
-
-injectRight :: (r,Either a b) -> Either a (r,b)
-injectRight (r,e) = case e of
-  Left a -> Left a
-  Right b -> Right (r,b)
-
-injectBoth :: (r,Either a b) -> Either (r,a) (r,b)
-injectBoth (r,e) = case e of
-  Left a -> Left (r,a)
-  Right b -> Right (r,b)
-
-eject :: Either (r,a) (r,b) -> (r,Either a b)
-eject e = case e of
-  Left (r,a) -> (r,Left a)
-  Right (r,b) -> (r,Right b)
-
-failA' :: ArrowFail () c => c a b
-failA' = arr (const ()) >>> failA
+duplicate :: Arrow c => c x (x,x)
+duplicate = arr (\x -> (x,x))

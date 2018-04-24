@@ -8,11 +8,16 @@
 module BoundedEnvironmentSpec where
 
 import           Prelude hiding (lookup)
+
 import           Control.Arrow
 import           Control.Arrow.Environment
 import           Control.Arrow.State
+import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
+import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.State
 
-import           Data.Interval
+import           Data.Abstract.Interval
+import           Data.Abstract.Error
 import           Data.Text (Text)
 
 import           Test.Hspec
@@ -22,9 +27,9 @@ main = hspec spec
 
 type Val = Interval Int
 type Addr = Int
-type Ar = BoundedEnv Text Addr Val (StateArrow Addr (->))
+type Ar = Environment Text Addr Val (State Addr (Except String (->)))
 
-instance ArrowAlloc Text Addr Val (StateArrow Addr (->)) where
+instance ArrowAlloc Text Addr Val (State Addr (Except String (->))) where
   alloc = proc _ -> do
     addr <- getA -< ()
     putA -< (succ addr `mod` 5)
@@ -33,8 +38,8 @@ instance ArrowAlloc Text Addr Val (StateArrow Addr (->)) where
 spec :: Spec
 spec = do
   context "env = [a -> 1, b -> 2, c -> 3, d -> 4, e -> 5, f -> 6, g -> 7] with allocation strategy (addr+1)%5" $ do
-    let setup :: Ar x y -> Ar x y
-        setup f = proc x -> do
+    let setup :: Ar Text Val
+        setup = proc x -> do
           env0 <- getEnv -< ()
           env1 <- extendEnv -< ("a",1,env0)
           env2 <- extendEnv -< ("b",2,env1)
@@ -43,19 +48,19 @@ spec = do
           env5 <- extendEnv -< ("e",5,env4)
           env6 <- extendEnv -< ("f",6,env5)
           env7 <- extendEnv -< ("g",7,env6)
-          localEnv f -< (env7,x)
+          localEnv lookup -< (env7,x)
   
-    it "env(a) = [1,6]" $ runTests setup "a" `shouldBe` Just (Interval 1 6)
-    it "env(b) = [2,6]" $ runTests setup "b" `shouldBe` Just (Interval 2 7)
-    it "env(c) = [3,3]" $ runTests setup "c" `shouldBe` Just (Interval 3 3)
-    it "env(d) = [4,4]" $ runTests setup "d" `shouldBe` Just (Interval 4 4)
-    it "env(e) = [5,5]" $ runTests setup "e" `shouldBe` Just (Interval 5 5)
-    it "env(f) = [1,6]" $ runTests setup "f" `shouldBe` Just (Interval 1 6)
-    it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Just (Interval 2 7)
+    it "env(a) = [1,6]" $ runTests setup "a" `shouldBe` Success (Interval 1 6)
+    it "env(b) = [2,6]" $ runTests setup "b" `shouldBe` Success (Interval 2 7)
+    it "env(c) = [3,3]" $ runTests setup "c" `shouldBe` Success (Interval 3 3)
+    it "env(d) = [4,4]" $ runTests setup "d" `shouldBe` Success (Interval 4 4)
+    it "env(e) = [5,5]" $ runTests setup "e" `shouldBe` Success (Interval 5 5)
+    it "env(f) = [1,6]" $ runTests setup "f" `shouldBe` Success (Interval 1 6)
+    it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Success (Interval 2 7)
 
   context "env = [a -> 1, d -> 4, g -> 7] with allocation strategy (addr+1)%5" $ do
-    let setup :: Ar x y -> Ar x y
-        setup f = proc x -> do
+    let setup :: Ar Text Val
+        setup = proc x -> do
           env0 <- getEnv -< ()
           env1 <- extendEnv -< ("a",1,env0)
           localEnv
@@ -72,15 +77,15 @@ spec = do
                extendEnv -< ("f",6,env5))
             -< (env4,())
           env7 <- extendEnv -< ("g",7,env4)
-          localEnv f -< (env7,x)
+          localEnv lookup -< (env7,x)
   
-    it "env(a) = [1,6]" $ runTests setup "a" `shouldBe` Just (Interval 1 1)
-    it "env(b) = Nothing" $ runTests setup "b" `shouldBe` Nothing
-    it "env(c) = Nothing" $ runTests setup "c" `shouldBe` Nothing
-    it "env(d) = [4,4]" $ runTests setup "d" `shouldBe` Just (Interval 4 4)
-    it "env(e) = Nothing" $ runTests setup "e" `shouldBe` Nothing
-    it "env(f) = Nothing" $ runTests setup "f" `shouldBe` Nothing
-    it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Just (Interval 7 7)
+    it "env(a) = [1,6]" $ runTests setup "a" `shouldBe` Success (Interval 1 1)
+    it "env(b) = Nothing" $ runTests setup "b" `shouldBe` Fail "Variable \"b\" not bound"
+    it "env(c) = Nothing" $ runTests setup "c" `shouldBe` Fail "Variable \"c\" not bound"
+    it "env(d) = [4,4]" $ runTests setup "d" `shouldBe` Success (Interval 4 4)
+    it "env(e) = Nothing" $ runTests setup "e" `shouldBe` Fail "Variable \"e\" not bound"
+    it "env(f) = Nothing" $ runTests setup "f" `shouldBe` Fail "Variable \"f\" not bound"
+    it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Success (Interval 7 7)
 
   where
-    runTests s x = snd (runStateArrow (runBoundedEnv (s lookup)) (0,([],x)))
+    runTests s x = runExcept (evalState (runEnvironment s) ) (0,([],x))

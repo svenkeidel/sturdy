@@ -2,30 +2,43 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Concrete where
 
-import           Prelude
+import Prelude
 
-import           Control.Arrow
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Environment
-import           Data.Error
-import           Data.Environment (Env)
-import           Data.Hashable
-import           Data.Text (Text)
-import           GHC.Generics
+import Control.Category
+import Control.Arrow
+import Control.Arrow.Fail
+import Control.Arrow.Environment
+import Control.Arrow.Fix
+import Control.Arrow.Transformer.Concrete.Environment
+import Control.Arrow.Transformer.Concrete.Except
+import Control.Arrow.Transformer.Concrete.Fix
+import Control.Monad.State
 
-import           PCF (Expr(..))
-import           Shared
+import Data.Concrete.Error
+import Data.Concrete.Environment (Env)
+import Data.Hashable
+import Data.Text (Text)
+import Data.Label
+
+import GHC.Generics
+
+import PCF (Expr(..))
+import Shared
 
 data Closure = Closure Expr (Env Text Val) deriving (Eq,Generic)
 data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
          
-type Interp = Environment Text Val (ErrorArrow String (Fix (Env Text Val,Expr) (Error String Val)))
+newtype Interp x y = Interp (Fix Expr Val (Environment Text Val (Except String (->))) x y)
 
-evalConcrete :: [(Text,Val)] -> Expr -> Error String Val
-evalConcrete env e = runFix (runErrorArrow (runEnvironment eval)) (env,e)
+runInterp :: Interp x y -> [(Text,Val)] -> x -> Error String y
+runInterp (Interp f) env x = runFix (runExcept (runEnvironment f)) (env,x)
+
+evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
+evalConcrete env e = runInterp eval env (generate e)
 
 instance IsVal Val Interp where
   succ = proc x -> case x of
@@ -45,6 +58,13 @@ instance IsClosure Val (Env Text Val) Interp where
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal (Closure e env) -> f -< ((e,env),arg)
     NumVal _ -> failA -< "Expected a closure"
+
+deriving instance Category Interp
+deriving instance Arrow Interp
+deriving instance ArrowChoice Interp
+deriving instance ArrowFail String Interp
+deriving instance ArrowEnv Text Val (Env Text Val) Interp
+deriving instance ArrowFix Expr Val Interp
 
 instance Hashable Closure
 instance Hashable Val

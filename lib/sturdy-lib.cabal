@@ -19,71 +19,90 @@ flag trace
   Default:     False
 
 library
+  ghc-options:         -Wall
   if flag(trace) {
-    ghc-options:         -Wall -DTRACE
-  } else {
-    ghc-options:         -Wall
+    cpp-options:       -DTRACE
   }
   exposed-modules:
-                       Data.AbstractPowerset,
                        Data.Boolean,
-                       Data.Bounded,
-                       Data.Environment,
-                       Data.Error,
-                       Data.FreeCoCompletion,
-                       Data.FreeCompletion,
+                       Data.Monoidal,
                        Data.GaloisConnection,
-                       Data.InfiniteNumbers,
-                       Data.Interval,
+                       Data.Identifiable,
                        Data.Label,
+                       Data.Numeric,
                        Data.Order,
-                       Data.Powerset,
-                       Data.Sign,
-                       Data.Store,
                        Data.Utils,
-                       Data.Widening,
+  
+                       Data.Concrete.Boolean,
+                       Data.Concrete.Environment,
+                       Data.Concrete.Error,
+                       Data.Concrete.Powerset,
+                       Data.Concrete.Store,
 
-                       Control.Arrow.Contour,
+                       Data.Abstract.Equality,
+                       Data.Abstract.Ordering,
+                       Data.Abstract.Boolean,
+                       Data.Abstract.Bounded,
+                       Data.Abstract.Environment,
+                       Data.Abstract.Error,
+                       Data.Abstract.Terminating,
+                       Data.Abstract.InfiniteNumbers,
+                       Data.Abstract.FreeCompletion,
+                       Data.Abstract.FreeCoCompletion,
+                       Data.Abstract.Interval,
+                       Data.Abstract.Powerset,
+                       Data.Abstract.Sign,
+                       Data.Abstract.Store,
+                       Data.Abstract.Widening,
+
+                       Control.Arrow.Const,
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
-                       Control.Arrow.Either,
                        Control.Arrow.Environment,
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
+                       Control.Arrow.Lift,
                        Control.Arrow.Reader,
-                       Control.Arrow.Powerset,
+                       Control.Arrow.Property,
                        Control.Arrow.State,
+                       Control.Arrow.Store,
+                       Control.Arrow.Writer,
                        Control.Arrow.Try,
                        Control.Arrow.Utils
 
+                       Control.Arrow.Abstract.Alloc,
+
+                       Control.Arrow.Transformer.Property,
+                       Control.Arrow.Transformer.Reader,
+                       Control.Arrow.Transformer.State,
+                       Control.Arrow.Transformer.Writer,
+                       Control.Arrow.Transformer.Const,
+                       Control.Arrow.Transformer.Static,
+                       Control.Arrow.Transformer.BackwardState,
+
+                       Control.Arrow.Transformer.Concrete.Environment,
+                       Control.Arrow.Transformer.Concrete.Except,
+                       Control.Arrow.Transformer.Concrete.Fix,
+                       Control.Arrow.Transformer.Concrete.Store,
+
+                       Control.Arrow.Transformer.Abstract.Environment,
+                       Control.Arrow.Transformer.Abstract.Contour,
+                       Control.Arrow.Transformer.Abstract.BoundedEnvironment,
+                       Control.Arrow.Transformer.Abstract.Except,
+                       Control.Arrow.Transformer.Abstract.Fix,
+                       Control.Arrow.Transformer.Abstract.Powerset,
+                       Control.Arrow.Transformer.Abstract.Store,
+                       -- Control.Arrow.Transformer.Abstract.LiveVariables,
+                       Control.Arrow.Transformer.Abstract.ReachingDefinitions,
+                       
                        -- TODO: delete
                        Control.Monad.Deduplicate,
                        Control.Monad.Try
 
-  other-modules:
-                       Control.Arrow.Class.Alloc,
-                       Control.Arrow.Class.Environment,
-                       Control.Arrow.Class.Fail,
-                       Control.Arrow.Class.Fix,
-                       Control.Arrow.Class.Reader,
-                       Control.Arrow.Class.State,
-
-                       Control.Arrow.Transformer.BoundedEnvironment,
-                       Control.Arrow.Transformer.Contour,
-                       Control.Arrow.Transformer.Either,
-                       Control.Arrow.Transformer.Environment,
-                       Control.Arrow.Transformer.FixCache,
-                       Control.Arrow.Transformer.Fix,
-                       Control.Arrow.Transformer.Error,
-                       Control.Arrow.Transformer.Powerset,
-                       Control.Arrow.Transformer.Reader,
-                       Control.Arrow.Transformer.State
-
   build-depends:       base,
                        containers,
-                       hashable >= 1.2.5.0,
+                       hashable,
                        mtl,
-                       numeric-limits,
                        text,
                        unordered-containers
   hs-source-dirs:      src/
@@ -97,7 +116,7 @@ test-suite specs
   build-depends:     base,
                      hspec,
                      sturdy-lib,
-                     hashable >= 1.2.5.0,
+                     hashable,
                      unordered-containers,
                      text
   default-language:  Haskell2010

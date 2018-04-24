@@ -16,39 +16,38 @@ import           SharedSemantics
 import           Soundness
 import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
-    
+
 import           Control.Arrow
 import           Control.Arrow.Apply
 import           Control.Arrow.Deduplicate
-import           Control.Arrow.Either
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Powerset
 import           Control.Arrow.Reader
 import           Control.Arrow.State
+import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.Powerset
+import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.State
 import           Control.Arrow.Try
-import           Control.Arrow.Utils (failA')
 import           Control.Category
 import           Control.DeepSeq
-import           Control.Monad.Reader
+import           Control.Monad
 
+import           Data.Abstract.Error
+import qualified Data.Abstract.Powerset as A
+import qualified Data.Concrete.Powerset as CP
 import           Data.Constructor
-import           Data.Error
 import           Data.Foldable (foldr')
+import           Data.GaloisConnection
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.Order
-import           Data.GaloisConnection
-import           Data.FreeCompletion
-import           Data.Powerset hiding (size)
-import qualified Data.Powerset as P
-import qualified Data.AbstractPowerset as A
 import           Data.Term
 import           Data.TermEnv
 import           Data.Text (Text)
 
-import           Test.QuickCheck
+import           Test.QuickCheck hiding (Success)
 import           Text.Printf
 
 data Term
@@ -59,13 +58,13 @@ data Term
     deriving (Eq)
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
-newtype Interp a b = Interp (ReaderArrow (StratEnv,Int) (StateArrow TermEnv (EitherArrow () (PowersetArrow (->)))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowZero,ArrowPlus,ArrowDeduplicate,PreOrd,Complete)
+newtype Interp a b = Interp (Reader (StratEnv,Int) (State TermEnv (Except () (Powerset (->)))) a b)
+  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowDeduplicate,PreOrd,Complete)
 
-runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> A.Pow (Either () (TermEnv,b))
-runInterp (Interp f) i senv tenv a = runPowersetArrow (runEitherArrow (runStateArrow (runReaderArrow f))) (tenv, ((senv,i), a))
+runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> A.Pow (Error () (TermEnv,b))
+runInterp (Interp f) i senv tenv a = runPowerset (runExcept (runState (runReader f))) (tenv, ((senv,i), a))
 
-eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> A.Pow (Either () (TermEnv,Term))
+eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> A.Pow (Error () (TermEnv,Term))
 eval i s = runInterp (eval' s) i
 
 emptyEnv :: TermEnv
@@ -74,8 +73,9 @@ emptyEnv = TermEnv M.empty
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader (StratEnv, Int) Interp
 deriving instance ArrowState TermEnv Interp
-deriving instance ArrowTry Term Term Term Interp
-deriving instance ArrowTry (Term,[Term]) (Term,[Term]) (Term,[Term]) Interp
+
+instance PreOrd z => ArrowTry x y z Interp where
+  tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
 
 instance ArrowFail () Interp where
   failA = Interp failA
@@ -211,9 +211,9 @@ instance ArrowFix' Interp Term where
 
 instance Soundness Interp where
   sound senv xs f g = forAll (choose (0,3)) $ \i ->
-    let con :: A.Pow (Either () (TermEnv,_))
+    let con :: A.Pow (Error () (TermEnv,_))
         con = A.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
-        abst :: A.Pow (Either () (TermEnv,_))
+        abst :: A.Pow (Error () (TermEnv,_))
         abst = A.dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
@@ -247,9 +247,8 @@ instance PreOrd Term where
 instance Complete Term where
   t1 ⊔ t2 = case (t1,t2) of
     (Cons c ts, Cons c' ts')
-      | c == c' -> case Lower ts ⊔ Lower ts' of
-        Lower ts'' -> Cons c ts''
-        _             -> Wildcard
+      | c == c' && ts ⊑ ts' -> Cons c ts'
+      | c == c' && ts' ⊑ ts -> Cons c ts
       | otherwise -> Wildcard
     (StringLiteral s, StringLiteral s')
       | s == s' -> StringLiteral s
@@ -261,13 +260,7 @@ instance Complete Term where
     (_, Wildcard) -> Wildcard
     (_, _) -> Wildcard
 
-instance LowerBounded Term where
-  bottom = undefined
-
-instance LowerBounded TermEnv where
-  bottom = emptyEnv
-
-instance Galois (P.Pow C.Term) Term where
+instance Galois (CP.Pow C.Term) Term where
   alpha = lub . fmap go
     where
       go (C.Cons c ts) = Cons c (fmap go ts)
@@ -276,7 +269,7 @@ instance Galois (P.Pow C.Term) Term where
   gamma = error "Infinite"
 
 instance Show Term where
-  show (Cons c ts) = show c ++ show ts
+  show (Cons c ts) = show c ++ if null ts then "" else show ts
   show (StringLiteral s) = show s
   show (NumberLiteral n) = show n
   show Wildcard = "_"
@@ -344,12 +337,8 @@ instance Complete TermEnv where
           _                 -> go vs env1 env2 env3
         [] -> TermEnv env3
 
-instance Galois (Pow C.TermEnv) TermEnv where
+instance Galois (CP.Pow C.TermEnv) TermEnv where
   alpha = lub . fmap (\(C.TermEnv e) -> TermEnv (fmap alphaSing e))
-  gamma = undefined
-
-instance (PreOrd (Either () x'), Eq x, Hashable x, Eq x', Hashable x', Galois (Pow x) x') => Galois (Pow (Either () x)) (A.Pow (Either () x')) where
-  alpha = P.fromFoldable . fmap (fmap alphaSing)
   gamma = undefined
 
 -- prim :: (ArrowTry p, ArrowAppend p, IsTerm t p, IsTermEnv (AbstractTermEnv t) t p)
