@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE StandaloneDeriving #-}
-module MonadicAbstractInterpreter where
+module IntervalSemantics where
 
 import Prelude hiding (True,False)
 import qualified Prelude as P

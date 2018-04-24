@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
-module SharedArrowBasedInterpreter where
+module SharedSemantics where
 
 import Prelude hiding (lookup,and)
 
