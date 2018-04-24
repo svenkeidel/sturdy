@@ -1,13 +1,13 @@
 # Sturdy Tutorial
 
-The aim of this tutorial is explain different styles interpreters for the while-language and how concrete and abstract interpreters can be described by the same generic implementation.
+The aim of this tutorial is to explain different styles interpreters for the while-language and how concrete and abstract interpreters can be described by the same generic implementation.
 Context of this tutorial is the while-language, an imperative programming language with assignments, if-statements and while loops.
 The abstract syntax of this language can be found in `Syntax.hs` in the `src/` folder.
 
 ## Styles
 
 - Direct Style: All effects of the language are explicit. Failure and the store are propagated explicitly.
-- Monadic Style: Monads abstract over the effects of a programming language. The propagation of failure and the store are implicit. Only if necessary, the current store can be retrieved from the monad, or an exception can be thrown.
+- Monadic Style: Monads abstract over the effects of a programming language. The propagation of failure and the store are implicit. The current store is retrieved if necessary from the monad with the `get` operation and stored with the `put` operations. Exceptions can be thrown with the `throw` operation.
 - Arrow Style: Arrows also abstract over the effects of a programming language. However, in comparision to monads, arrows allow to describe effects on the input of the computation, not only the output.
 
 ## Semantics
