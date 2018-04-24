@@ -9,7 +9,7 @@ import qualified Data.Map as Store
 
 import           Syntax
 
-data Val = BoolVal Bool | NumVal Int
+data Val = BoolVal Bool | NumVal Int deriving (Show,Eq)
 type Store = Map String Val
 
 -- eval :: Store -> Expr -> Either String Val
