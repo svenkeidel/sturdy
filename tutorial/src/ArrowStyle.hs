@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 module ArrowStyle where
 
