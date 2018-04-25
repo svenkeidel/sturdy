@@ -84,6 +84,9 @@ instance Complete a => Complete (UncertainResult a) where
     (Fail, SuccessOrFail y) -> SuccessOrFail y
     (SuccessOrFail x, SuccessOrFail y) -> SuccessOrFail (x ⊔ y)
 
+instance PreOrd a => LowerBounded (UncertainResult a) where
+  bottom = Fail
+
 instance (PreOrd a, Complete (FreeCompletion a)) => Complete (FreeCompletion (UncertainResult a)) where
   Lower m1 ⊔ Lower m2 = sequenceA (fmap Lower m1 ⊔ fmap Lower m2)
   _ ⊔ _ = Top

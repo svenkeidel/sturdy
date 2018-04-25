@@ -94,10 +94,10 @@ sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
 deriving instance ArrowState TermEnv Interp
-deriving instance (Complete (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Uncertain (Completion (->)))) a b), PreOrd b) => Complete (Interp a b)
-
-instance (PreOrd z, Complete (FreeCompletion z)) => ArrowTry x y z Interp where
-  tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
+deriving instance ArrowFail () Interp
+deriving instance (PreOrd z, Complete (FreeCompletion z)) => ArrowTry x y z Interp
+deriving instance (PreOrd b, Complete (FreeCompletion b)) => Complete (Interp a b)
+deriving instance PreOrd b => LowerBounded (Interp a b)
 
 instance Hashable Constr where
   hashWithSalt s (Constr c) = s `hashWithSalt` (0::Int) `hashWithSalt` c
@@ -126,27 +126,12 @@ instance Complete TermEnv where
 instance ArrowFix' Interp Term where
   -- TODO: this should be rewritten to use the fixpoint caching algorithm.
   fixA' f z = proc x -> do
-    i <- getFuel -< ()
+    (env,i,alph) <- askA -< ()
     if i <= 0
-    then top -< ()
-    else do
-      (env,_,alph) <- askA -< ()
-      localFuel (f (fixA' f) z) -< ((env,i-1,alph),x)
+      then top' -< ()
+      else localFuel (f (fixA' f) z) -< ((env,i-1,alph),x)
     where
-      getFuel = Interp (askA >>^ (\(_,b,_) -> b))
       localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> localA g -< ((env,i,alph),a)
-
-instance UpperBounded (Interp () Term) where
-  top = proc () -> do
-    (_,_,alph) <- askA -< ()
-    success ⊔ failA' -< Term (wildcard alph)
-
-instance PreOrd a => LowerBounded (Interp () a) where
-  -- TODO: correct?
-  bottom = failA
-
-instance ArrowFail () Interp where
-  failA = Interp failA
 
 instance HasStratEnv Interp where
   readStratEnv = Interp (const () ^>> askA >>^ (\(a,_,_) -> a))
@@ -209,7 +194,7 @@ instance IsTermEnv TermEnv Term Interp where
       Just t -> f -< t
       Nothing ->
         (proc () -> do
-            t <- top -< ()
+            t <- top' -< ()
             putTermEnv -< TermEnv (LM.insert v t env)
             f -< t)
         ⊔ g
@@ -246,6 +231,9 @@ instance Soundness (StratEnv, Alphabet Constr) Interp where
 dom :: HashMap TermVar t -> [TermVar]
 dom = LM.keys
 
+thrd :: (a,b,c) -> c
+thrd (_,_,c) = c
+
 toTerms :: [GrammarBuilder Constr] -> [Term]
 toTerms = map Term
 
@@ -263,6 +251,9 @@ checkConstructorAndLength c ts = proc (c', gs) -> case c' of
   Constr c'' | eqLength ts gs && c == c'' -> returnA -< (c, (ts, toTerms gs))
              | otherwise -> failA -< ()
   _ -> failA -< ()
+
+top' :: Interp () Term
+top' = proc () -> returnA ⊔ failA' <<< (Term . wildcard . thrd ^<< askA) -< ()
 
 matchLit :: Interp (Term, Constr) Term
 -- TODO: check if production to n has empty argument list? This should be the case by design.
