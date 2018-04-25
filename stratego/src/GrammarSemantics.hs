@@ -167,6 +167,7 @@ instance IsTerm Term Interp where
 
   equal = proc (Term g1, Term g2) -> case intersection g1 g2 of
     g | isEmpty g -> failA -< ()
+      | isSingleton g1 && isSingleton g2 -> returnA -< Term (normalize g)
       | otherwise -> returnA ⊔ failA' -< Term (normalize g)
 
   convertFromList = undefined
