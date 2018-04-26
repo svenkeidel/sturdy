@@ -69,6 +69,7 @@ instance PreOrd a => PreOrd (UncertainResult a) where
     (Fail, Fail) -> True
     (Success a, Success b) -> a ⊑ b
     (Success a, SuccessOrFail b) -> a ⊑ b
+    (SuccessOrFail a, SuccessOrFail b) -> a ⊑ b
     (Fail, SuccessOrFail _) -> True
     (_, _) -> False
 
