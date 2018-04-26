@@ -37,4 +37,10 @@ spec = do
       let program = EObject [("a", ENumber 2.0), ("b", ENumber 3.0)]
       eval scope program `shouldBe` VObject [("a", VNumber 2.0), ("b", VNumber 3.0)]
   
+  describe "identifiers" $ do
+    it "single identifier" $ do 
+      let program = EId "a"
+      let scopeWithId = Scope (insert "a" (VNumber 1.0) (values scope)) (parent scope)
+      eval scopeWithId program `shouldBe` VNumber 1.0
+    
   where scope = emptyScope

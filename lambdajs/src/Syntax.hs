@@ -40,8 +40,8 @@ data Expr
     | ENull
     | ELambda [Ident] Expr
     | EObject [(String, Expr)]
+    | EId Ident
     -- Todo:
-    -- | EId Ident
     -- | EOp Op [Expr]
     -- | EApp Expr [Expr]
     -- | ELet [(Ident, Expr)] Expr
