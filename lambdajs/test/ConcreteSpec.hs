@@ -43,4 +43,12 @@ spec = do
       let scopeWithId = Scope (insert "a" (VNumber 1.0) (values scope)) (parent scope)
       eval scopeWithId program `shouldBe` VNumber 1.0
     
+  describe "operators" $ do
+    it "integer addition" $ do
+      let program = EOp ONumPlus [(ENumber 1.0), (ENumber 2.0)]
+      eval scope program `shouldBe` VNumber 3.0
+    it "string addition" $ do
+      let program = EOp OStrPlus [(EString "a"), (EString "b")]
+      eval scope program `shouldBe` VString "ab"
+  
   where scope = emptyScope

@@ -31,6 +31,12 @@ get (Scope values parent) field =
 emptyScope :: Scope
 emptyScope = Scope empty Nothing
 
+evalOp :: Scope -> Op -> [Value] -> Value
+evalOp s ONumPlus [(VNumber a), (VNumber b)] =
+    VNumber (a + b)
+evalOp s OStrPlus [(VString a), (VString b)] = 
+    VString (a ++ b)    
+
 eval :: Scope -> Expr -> Value
 eval _ (ENumber d) = VNumber d
 eval _ (EString s) = VString s
@@ -44,3 +50,5 @@ eval s (EObject fields) =
 eval s (EId id) = case get s id of 
     Nothing -> VUndefined
     Just val -> val
+eval s (EOp op exps) = evalOp s op (map (eval s) exps)
+

@@ -7,8 +7,8 @@ type Label = String
 
 data Op
     = ONumPlus
+    | OStrPlus
     -- Todo:
-    -- | OStrPlus
     -- | OMul | ODiv | OMod | OSub
     -- | OLt  | OStrLt
     -- | OBAnd | OBOr | OBXOr | OBNot
@@ -31,7 +31,8 @@ data Op
     -- | OObjCanDelete
     -- | OMathExp | OMathLog | OMathCos | OMathSin | OMathAbs | OMathPow
     -- | ORegExpMatch | ORegExpQuote
-  
+    deriving (Show, Eq)
+
 data Expr
     = ENumber Double
     | EString String
@@ -41,8 +42,8 @@ data Expr
     | ELambda [Ident] Expr
     | EObject [(String, Expr)]
     | EId Ident
+    | EOp Op [Expr]
     -- Todo:
-    -- | EOp Op [Expr]
     -- | EApp Expr [Expr]
     -- | ELet [(Ident, Expr)] Expr
     -- | ESetRef Expr Expr
