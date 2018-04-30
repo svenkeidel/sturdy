@@ -81,8 +81,24 @@ evalOp s OPrimToNum [(VNumber a)] = VNumber a
 evalOp s OPrimToNum [(VString st)] = VNumber (read st :: Double)
 evalOp s OPrimToNum [(VBool b)] = if b then VNumber 1.0 else VNumber 0.0
 evalOp s OPrimToNum [(VNull)] = VNumber 0
-evalOp s OPrimToNum [(VUndefined)] = VNumber (0.0/0.0)
+evalOp s OPrimToNum [(VUndefined)] = VNumber (0/0)
 -- #todo object conversions -> valueOf call
+
+-- primitive to string operator
+evalOp s OPrimToStr [(VNumber a)]  = VString $ show a
+evalOp s OPrimToStr [(VString st)] = VString st
+evalOp s OPrimToStr [(VBool b)]    = VString $ show b
+evalOp s OPrimToStr [(VNull)]      = VString "null"
+evalOp s OPrimToStr [(VUndefined)] = VString "undefined"
+evalOp s OPrimToStr [(VObject _)]  = VString "object"
+
+-- primitive to bool operator
+evalOp s OPrimToBool [(VNumber a)]  = VBool $ (a /= 0.0) && (not (isNaN a))
+evalOp s OPrimToBool [(VString st)] = VBool $ not $ st == ""
+evalOp s OPrimToBool [(VBool b)]    = VBool b
+evalOp s OPrimToBool [(VNull)]      = VBool False
+evalOp s OPrimToBool [(VUndefined)] = VBool False
+evalOp s OPrimToBool [(VObject _)]  = VBool True
 
 -- typeOf operator
 evalOp s OTypeof [(VNumber _)]   = VString "number"

@@ -132,5 +132,47 @@ spec = do
     it "undefined to number" $ do
       let program = EOp OPrimToNum [(EUndefined)]
       eval scope program `shouldSatisfy` (\a -> a /= a)
- 
+    
+    -- primitive to string
+    it "number to string" $ do
+      let program = EOp OPrimToStr [(ENumber 1.0)]
+      eval scope program `shouldBe` VString "1.0"
+    it "string to string" $ do
+      let program = EOp OPrimToStr [(EString "1.0")]
+      eval scope program `shouldBe` VString "1.0"
+    it "null to string" $ do
+      let program = EOp OPrimToStr [(ENull)]
+      eval scope program `shouldBe` VString "null"
+    it "undefined to string" $ do
+      let program = EOp OPrimToStr [(EUndefined)]
+      eval scope program `shouldBe` VString "undefined"
+    it "object to string" $ do
+      let program = EOp OPrimToStr [(EObject [])]
+      eval scope program `shouldBe` VString "object"
+
+    -- primitive to bool
+    it "number to bool" $ do
+      let program = EOp OPrimToBool [(ENumber 1.0)]
+      eval scope program `shouldBe` VBool True
+    it "nan to bool" $ do
+      let program = EOp OPrimToBool [(ENumber $ 0.0/0.0)]
+      eval scope program `shouldBe` VBool False
+    it "zero to bool" $ do
+      let program = EOp OPrimToBool [(ENumber 0.0)]
+      eval scope program `shouldBe` VBool False
+    it "string to bool" $ do
+      let program = EOp OPrimToBool [(EString "1.0")]
+      eval scope program `shouldBe` VBool True
+    it "empty string to bool" $ do
+      let program = EOp OPrimToBool [(EString "")]
+      eval scope program `shouldBe` VBool False
+    it "null to bool" $ do
+      let program = EOp OPrimToBool [(ENull)]
+      eval scope program `shouldBe` VBool False
+    it "undefined to bool" $ do
+      let program = EOp OPrimToBool [(EUndefined)]
+      eval scope program `shouldBe` VBool False
+    it "object to bool" $ do
+      let program = EOp OPrimToBool [(EObject [])]
+      eval scope program `shouldBe` VBool True
   where scope = emptyScope

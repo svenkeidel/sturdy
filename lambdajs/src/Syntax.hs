@@ -17,8 +17,8 @@ data Op
     | OTypeof 
     -- ? | OSurfaceTypeof
     | OPrimToNum
-    -- | OPrimToStr
-    -- | OPrimToBool
+    | OPrimToStr
+    | OPrimToBool
     | OIsPrim
     -- | OHasOwnProp
     -- | OToInteger | OToInt32 | OToUInt32
