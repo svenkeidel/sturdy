@@ -40,6 +40,7 @@ spec = do
       eval scopeWithId program `shouldBe` VNumber 1.0
     
   describe "operators" $ do
+    -- numer operators
     it "number addition" $ do
       let program = EOp ONumPlus [(ENumber 1.0), (ENumber 2.0)]
       eval scope program `shouldBe` VNumber 3.0
@@ -59,6 +60,7 @@ spec = do
       let program = EOp OLt [(ENumber 3.0), (ENumber 4.0)]
       eval scope program `shouldBe` VBool True
 
+    -- string operators
     it "string addition" $ do
       let program = EOp OStrPlus [(EString "a"), (EString "b")]
       eval scope program `shouldBe` VString "ab"
@@ -72,6 +74,7 @@ spec = do
       let program = EOp OStrStartsWith [(EString "abc"), (EString "a")]
       eval scope program `shouldBe` VBool True
 
+    -- bool operators
     it "bool and" $ do
       let program = EOp OBAnd [(EBool True), (EBool False)]
       eval scope program `shouldBe` VBool False
@@ -85,6 +88,7 @@ spec = do
       let program = EOp OBNot [(EBool True)]
       eval scope program `shouldBe` VBool False
 
+    -- typeof
     it "typeof number" $ do
       let program = EOp OTypeof [(ENumber 1.0)]
       eval scope program `shouldBe` VString "number"
@@ -104,6 +108,7 @@ spec = do
       let program = EOp OTypeof [(EObject [])]
       eval scope program `shouldBe` VString "object"   
   
+    -- is primitive
     it "is primitive number" $ do
       let program = EOp OIsPrim [(ENumber 1.0)]
       eval scope program `shouldBe` VBool True
@@ -114,4 +119,18 @@ spec = do
       let program = EOp OIsPrim [(EObject [])]
       eval scope program `shouldBe` VBool False
 
+    -- primitive to number
+    it "number to number" $ do
+      let program = EOp OPrimToNum [(ENumber 1.0)]
+      eval scope program `shouldBe` VNumber 1.0
+    it "string to number" $ do
+      let program = EOp OPrimToNum [(EString "1.0")]
+      eval scope program `shouldBe` VNumber 1.0
+    it "null to number" $ do
+      let program = EOp OPrimToNum [(ENull)]
+      eval scope program `shouldBe` VNumber 0.0
+    it "undefined to number" $ do
+      let program = EOp OPrimToNum [(EUndefined)]
+      eval scope program `shouldSatisfy` (\a -> a /= a)
+ 
   where scope = emptyScope

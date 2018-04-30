@@ -14,9 +14,9 @@ data Op
     -- | OLShift | OSpRShift | OZfRShift
     -- | OStrictEq
     -- | OAbstractEq
-    | OTypeof
-    -- | OSurfaceTypeof
-    -- | OPrimToNum
+    | OTypeof 
+    -- ? | OSurfaceTypeof
+    | OPrimToNum
     -- | OPrimToStr
     -- | OPrimToBool
     | OIsPrim

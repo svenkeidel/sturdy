@@ -34,6 +34,7 @@ emptyScope :: Scope
 emptyScope = Scope empty Nothing
 
 evalOp :: Scope -> Op -> [Value] -> Value
+-- number operators
 evalOp s ONumPlus [(VNumber a), (VNumber b)] =
     VNumber (a + b)
 evalOp s OMul [(VNumber a), (VNumber b)] =
@@ -47,6 +48,7 @@ evalOp s OSub [(VNumber a), (VNumber b)] =
 evalOp s OLt [(VNumber a), (VNumber b)] =
     VBool (a < b)
 
+-- string operators
 evalOp s OStrPlus [(VString a), (VString b)] = 
     VString (a ++ b)
 evalOp s OStrLt [(VString a), (VString b)] =
@@ -56,6 +58,7 @@ evalOp s OStrLen [(VString a)] =
 evalOp s OStrStartsWith [(VString a), (VString b)] =
     VBool $ isPrefixOf b a
 
+-- boolean operators
 evalOp s OBAnd [(VBool a), (VBool b)] = 
     VBool (a && b)
 evalOp s OBOr [(VBool a), (VBool b)] = 
@@ -65,6 +68,7 @@ evalOp s OBXOr [(VBool a), (VBool b)] =
 evalOp s OBNot [(VBool a)] = 
     VBool (not a)
 
+-- isPrimitive operator
 evalOp s OIsPrim [(VNumber _)]  = VBool True
 evalOp s OIsPrim [(VString _)]  = VBool True
 evalOp s OIsPrim [(VBool _)]    = VBool True
@@ -72,6 +76,15 @@ evalOp s OIsPrim [(VNull)]      = VBool True
 evalOp s OIsPrim [(VUndefined)] = VBool True
 evalOp s OIsPrim [(VObject _)]  = VBool False
 
+-- primitive to number operator
+evalOp s OPrimToNum [(VNumber a)] = VNumber a
+evalOp s OPrimToNum [(VString st)] = VNumber (read st :: Double)
+evalOp s OPrimToNum [(VBool b)] = if b then VNumber 1.0 else VNumber 0.0
+evalOp s OPrimToNum [(VNull)] = VNumber 0
+evalOp s OPrimToNum [(VUndefined)] = VNumber (0.0/0.0)
+-- #todo object conversions -> valueOf call
+
+-- typeOf operator
 evalOp s OTypeof [(VNumber _)]   = VString "number"
 evalOp s OTypeof [(VString _)]   = VString "string"
 evalOp s OTypeof [(VBool _)]     = VString "boolean"
@@ -79,6 +92,7 @@ evalOp s OTypeof [(VUndefined)]  = VString "undefined"
 evalOp s OTypeof [(VNull)]       = VString "object"
 evalOp s OTypeof [(VLambda _ _)] = VString "function"
 evalOp s OTypeof [(VObject _)]   = VString "object"
+
 
 eval :: Scope -> Expr -> Value
 eval _ (ENumber d) = VNumber d
