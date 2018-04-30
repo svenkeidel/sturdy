@@ -12,6 +12,7 @@ import Syntax
 
 import Data.Map (Map, empty, findWithDefault, lookup, fromList, insert)
 import qualified Data.Map as Map
+import Data.Fixed (mod')
 
 data Scope = Scope (Map String Value) (Maybe Scope)
 parent :: Scope -> Maybe Scope
@@ -34,8 +35,17 @@ emptyScope = Scope empty Nothing
 evalOp :: Scope -> Op -> [Value] -> Value
 evalOp s ONumPlus [(VNumber a), (VNumber b)] =
     VNumber (a + b)
+evalOp s OMul [(VNumber a), (VNumber b)] =
+    VNumber (a * b)
+evalOp s ODiv [(VNumber a), (VNumber b)] =
+    VNumber (a / b)
+evalOp s OMod [(VNumber a), (VNumber b)] =
+    VNumber (mod' a b)
+evalOp s OSub [(VNumber a), (VNumber b)] =
+    VNumber (a - b)
 evalOp s OStrPlus [(VString a), (VString b)] = 
-    VString (a ++ b)    
+    VString (a ++ b)
+
 
 eval :: Scope -> Expr -> Value
 eval _ (ENumber d) = VNumber d

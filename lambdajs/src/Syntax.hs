@@ -8,8 +8,8 @@ type Label = String
 data Op
     = ONumPlus
     | OStrPlus
+    | OMul | ODiv | OMod | OSub
     -- Todo:
-    -- | OMul | ODiv | OMod | OSub
     -- | OLt  | OStrLt
     -- | OBAnd | OBOr | OBXOr | OBNot
     -- | OLShift | OSpRShift | OZfRShift
