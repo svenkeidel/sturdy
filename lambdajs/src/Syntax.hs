@@ -11,7 +11,7 @@ data Op
     | OMul | ODiv | OMod | OSub
     | OLt  | OStrLt
     | OBAnd | OBOr | OBXOr | OBNot
-    -- | OLShift | OSpRShift | OZfRShift
+    | OLShift | OSpRShift | OZfRShift
     -- | OStrictEq
     -- | OAbstractEq
     | OTypeof 

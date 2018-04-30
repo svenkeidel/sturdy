@@ -14,6 +14,8 @@ import Data.Map (Map, empty, findWithDefault, lookup, fromList, insert)
 import qualified Data.Map as Map
 import Data.Fixed (mod')
 import Data.List (isPrefixOf)
+import Data.Bits (shift, bit)
+import Data.Word (Word32)
 
 data Scope = Scope (Map String Value) (Maybe Scope)
 parent :: Scope -> Maybe Scope
@@ -47,6 +49,13 @@ evalOp s OSub [(VNumber a), (VNumber b)] =
     VNumber (a - b)
 evalOp s OLt [(VNumber a), (VNumber b)] =
     VBool (a < b)
+-- shift operators
+evalOp s OLShift [(VNumber a), (VNumber b)] = 
+    VNumber $ fromInteger $ shift (truncate a) (truncate b)
+evalOp s OSpRShift [(VNumber a), (VNumber b)] =
+    VNumber $ fromInteger $ shift (truncate a) (- (truncate b))
+evalOp s OZfRShift [(VNumber a), (VNumber b)] =
+    VNumber $ fromInteger $ shift (fromIntegral $ (truncate a :: Word32)) (- (truncate b))
 
 -- string operators
 evalOp s OStrPlus [(VString a), (VString b)] = 

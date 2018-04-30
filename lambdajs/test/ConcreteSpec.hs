@@ -175,4 +175,19 @@ spec = do
     it "object to bool" $ do
       let program = EOp OPrimToBool [(EObject [])]
       eval scope program `shouldBe` VBool True
+
+    -- shifts
+    it "left shift" $ do
+      let program = EOp OLShift [(ENumber 2.0), (ENumber 2.0)]
+      eval scope program `shouldBe` VNumber 8.0
+    it "neg sign preserving right shift" $ do
+      let program = EOp OSpRShift [(ENumber (-2.0)), (ENumber 3.0)]
+      eval scope program `shouldBe` VNumber (-1.0)
+    it "sign preserving right shift" $ do
+      let program = EOp OSpRShift [(ENumber 8.0), (ENumber 2.0)]
+      eval scope program `shouldBe` VNumber 2.0
+    it "zero filling right shift" $ do
+      let program = EOp OZfRShift [(ENumber (-2.0)), (ENumber 3.0)]
+      eval scope program `shouldBe` VNumber 536870911
+            
   where scope = emptyScope
