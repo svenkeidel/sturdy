@@ -9,24 +9,23 @@ data Op
     = ONumPlus
     | OStrPlus
     | OMul | ODiv | OMod | OSub
-    -- Todo:
-    -- | OLt  | OStrLt
-    -- | OBAnd | OBOr | OBXOr | OBNot
+    | OLt  | OStrLt
+    | OBAnd | OBOr | OBXOr | OBNot
     -- | OLShift | OSpRShift | OZfRShift
     -- | OStrictEq
     -- | OAbstractEq
-    -- | OTypeof
+    | OTypeof
     -- | OSurfaceTypeof
     -- | OPrimToNum
     -- | OPrimToStr
     -- | OPrimToBool
-    -- | OIsPrim
+    | OIsPrim
     -- | OHasOwnProp
     -- | OToInteger | OToInt32 | OToUInt32
     -- | OPrint -- ^for Rhino
     -- | OStrContains | OStrSplitRegExp | OStrSplitStrExp -- ^for Regexes
-    -- | OStrStartsWith -- ^for forin
-    -- | OStrLen
+    | OStrStartsWith -- ^for forin
+    | OStrLen
     -- | OObjIterHasNext | OObjIterNext | OObjIterKey -- ^more forin
     -- | OObjCanDelete
     -- | OMathExp | OMathLog | OMathCos | OMathSin | OMathAbs | OMathPow
