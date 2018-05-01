@@ -106,6 +106,15 @@ spec = do
       in geval 1 (Match (Cons "Succ" ["x"])) (termEnv []) (Term g) `shouldBe`
         Lower (SuccessOrFail (termEnv [("x", Term g')], Term g))
 
+    it "should introduce one variable 2" $
+      let g = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
+                                       ,("S1", [ Ctor (Constr "Succ") [ "S2" ] ])
+                                       ,("S2", [ Ctor (Constr "Zero") [] ])])
+          g' = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
+                                        ,("S1", [ Ctor (Constr "Zero") [] ])])
+      in geval 10 (Match (Cons "Succ" ["x"])) (termEnv []) (Term g) `shouldBe`
+        Lower (SuccessOrFail (termEnv [("x", Term g')], Term g))
+
     it "should introduce multiple variables and support linear pattern matching" $ do
       let g = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
                                        ,("S1", [ Ctor (Constr "Succ") [ "S2" ] ])
@@ -179,6 +188,12 @@ spec = do
       let term = NumberLiteral 1
       in geval 2 (Match term `Seq` Build term) (termEnv []) (numberGrammar 1) `shouldBe`
          Lower (Success (termEnv [], numberGrammar 1))
+
+    it "build should be inverse to match with a more complicated term" $
+      let term = Cons "Cons" [Var "x", Var "xs"]
+          g = convertToList [numberGrammar 1]
+      in geval 2 (Match term `Seq` Build term) (termEnv []) g `shouldBe`
+         Lower (SuccessOrFail (termEnv [("x", numberGrammar 1), ("xs", Term (singleton (Constr "Nil")))], g))
 
     it "should throw away the current subject grammar if needed" $
       let tenv = termEnv [("x", numberGrammar 42)]
