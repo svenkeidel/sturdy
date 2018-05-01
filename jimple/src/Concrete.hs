@@ -71,9 +71,29 @@ eval = proc e -> case e of
           (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) + f))
           (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 + f2))
           (_,_) -> throw -< "Expected two numbers as arguments for +"
-      -- Minus ->
-      -- Mult ->
-      -- Div ->
+      Minus ->
+        case (v1, v2) of
+          (VInt n1, VInt n2) -> returnA -< (VInt (n1 - n2))
+          (VFloat f, VInt n) -> returnA -< (VFloat (f - (fromIntegral n)))
+          (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) - f))
+          (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 - f2))
+          (_,_) -> throw -< "Expected two numbers as arguments for -"
+      Mult ->
+        case (v1, v2) of
+          (VInt n1, VInt n2) -> returnA -< (VInt (n1 * n2))
+          (VFloat f, VInt n) -> returnA -< (VFloat (f * (fromIntegral n)))
+          (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) * f))
+          (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 * f2))
+          (_,_) -> throw -< "Expected two numbers as arguments for *"
+      Div ->
+        case (v1, v2) of
+          (_, VInt 0) -> throw -< "Cannot divide by zero"
+          (_, VFloat 0.0) -> throw -< "Cannot divide by zero"
+          (VInt n1, VInt n2) -> returnA -< (VFloat ((fromIntegral n1) / (fromIntegral n2)))
+          (VFloat f, VInt n) -> returnA -< (VFloat (f / (fromIntegral n)))
+          (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) / f))
+          (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 / f2))
+          (_,_) -> throw -< "Expected two numbers as arguments for /"
   -- EUnop Unop Immediate
   EImmediate i ->
     case i of
