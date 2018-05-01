@@ -12,23 +12,23 @@ data Op
     | OLt  | OStrLt
     | OBAnd | OBOr | OBXOr | OBNot
     | OLShift | OSpRShift | OZfRShift
-    -- | OStrictEq
-    -- | OAbstractEq
+    | OStrictEq
+    | OAbstractEq
     | OTypeof 
     -- ? | OSurfaceTypeof
     | OPrimToNum
     | OPrimToStr
     | OPrimToBool
     | OIsPrim
-    -- | OHasOwnProp
-    -- | OToInteger | OToInt32 | OToUInt32
+    | OHasOwnProp
+    | OToInteger | OToInt32 | OToUInt32
     -- | OPrint -- ^for Rhino
     -- | OStrContains | OStrSplitRegExp | OStrSplitStrExp -- ^for Regexes
     | OStrStartsWith -- ^for forin
     | OStrLen
     -- | OObjIterHasNext | OObjIterNext | OObjIterKey -- ^more forin
     -- | OObjCanDelete
-    -- | OMathExp | OMathLog | OMathCos | OMathSin | OMathAbs | OMathPow
+    | OMathExp | OMathLog | OMathCos | OMathSin | OMathAbs | OMathPow
     -- | ORegExpMatch | ORegExpQuote
     deriving (Show, Eq)
 
@@ -42,8 +42,7 @@ data Expr
     | EObject [(String, Expr)]
     | EId Ident
     | EOp Op [Expr]
-    -- Todo:
-    -- | EApp Expr [Expr]
+    | EApp Expr [Expr]
     -- | ELet [(Ident, Expr)] Expr
     -- | ESetRef Expr Expr
     -- | ERef Expr

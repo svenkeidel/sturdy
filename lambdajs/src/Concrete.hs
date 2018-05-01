@@ -21,6 +21,9 @@ data Scope = Scope (Map String Value) (Maybe Scope)
 parent :: Scope -> Maybe Scope
 parent (Scope _ p) = p
 
+setParent :: Scope -> Scope -> Scope
+setParent (Scope vals _) parent = Scope vals (Just parent)
+
 values :: Scope -> Map String Value
 values (Scope v _) = v
 
@@ -35,89 +38,121 @@ get (Scope values parent) field =
 emptyScope :: Scope
 emptyScope = Scope empty Nothing
 
-evalOp :: Scope -> Op -> [Value] -> Value
+evalOp :: Op -> [Value] -> Value
 -- number operators
-evalOp s ONumPlus [(VNumber a), (VNumber b)] =
+evalOp ONumPlus [(VNumber a), (VNumber b)] =
     VNumber (a + b)
-evalOp s OMul [(VNumber a), (VNumber b)] =
+evalOp OMul [(VNumber a), (VNumber b)] =
     VNumber (a * b)
-evalOp s ODiv [(VNumber a), (VNumber b)] =
+evalOp ODiv [(VNumber a), (VNumber b)] =
     VNumber (a / b)
-evalOp s OMod [(VNumber a), (VNumber b)] =
+evalOp OMod [(VNumber a), (VNumber b)] =
     VNumber (mod' a b)
-evalOp s OSub [(VNumber a), (VNumber b)] =
+evalOp OSub [(VNumber a), (VNumber b)] =
     VNumber (a - b)
-evalOp s OLt [(VNumber a), (VNumber b)] =
+evalOp OLt [(VNumber a), (VNumber b)] =
     VBool (a < b)
+evalOp OToInteger [(VNumber a)] = VNumber $ fromInteger (truncate a)
+evalOp OToInt32 [(VNumber a)] = 
+    let n = mod (truncate a) ((2^32) :: Integer) in
+        if n > (2^31) then VNumber $ fromInteger $ n - (2^32)
+        else VNumber $ fromInteger $ n
+evalOp OToUInt32 [(VNumber a)] = VNumber $ fromInteger $ mod (abs $ truncate a) (2^32)
+
 -- shift operators
-evalOp s OLShift [(VNumber a), (VNumber b)] = 
+evalOp OLShift [(VNumber a), (VNumber b)] = 
     VNumber $ fromInteger $ shift (truncate a) (truncate b)
-evalOp s OSpRShift [(VNumber a), (VNumber b)] =
+evalOp OSpRShift [(VNumber a), (VNumber b)] =
     VNumber $ fromInteger $ shift (truncate a) (- (truncate b))
-evalOp s OZfRShift [(VNumber a), (VNumber b)] =
+evalOp OZfRShift [(VNumber a), (VNumber b)] =
     VNumber $ fromInteger $ shift (fromIntegral $ (truncate a :: Word32)) (- (truncate b))
 
 -- string operators
-evalOp s OStrPlus [(VString a), (VString b)] = 
+evalOp OStrPlus [(VString a), (VString b)] = 
     VString (a ++ b)
-evalOp s OStrLt [(VString a), (VString b)] =
+evalOp OStrLt [(VString a), (VString b)] =
     VBool (a < b)
-evalOp s OStrLen [(VString a)] =
+evalOp OStrLen [(VString a)] =
     VNumber $ fromIntegral $ length a
-evalOp s OStrStartsWith [(VString a), (VString b)] =
+evalOp OStrStartsWith [(VString a), (VString b)] =
     VBool $ isPrefixOf b a
 
 -- boolean operators
-evalOp s OBAnd [(VBool a), (VBool b)] = 
+evalOp OBAnd [(VBool a), (VBool b)] = 
     VBool (a && b)
-evalOp s OBOr [(VBool a), (VBool b)] = 
+evalOp OBOr [(VBool a), (VBool b)] = 
     VBool (a || b)
-evalOp s OBXOr [(VBool a), (VBool b)] = 
+evalOp OBXOr [(VBool a), (VBool b)] = 
     VBool (a /= b)
-evalOp s OBNot [(VBool a)] = 
+evalOp OBNot [(VBool a)] = 
     VBool (not a)
 
 -- isPrimitive operator
-evalOp s OIsPrim [(VNumber _)]  = VBool True
-evalOp s OIsPrim [(VString _)]  = VBool True
-evalOp s OIsPrim [(VBool _)]    = VBool True
-evalOp s OIsPrim [(VNull)]      = VBool True
-evalOp s OIsPrim [(VUndefined)] = VBool True
-evalOp s OIsPrim [(VObject _)]  = VBool False
+evalOp OIsPrim [(VNumber _)]  = VBool True
+evalOp OIsPrim [(VString _)]  = VBool True
+evalOp OIsPrim [(VBool _)]    = VBool True
+evalOp OIsPrim [(VNull)]      = VBool True
+evalOp OIsPrim [(VUndefined)] = VBool True
+evalOp OIsPrim [(VObject _)]  = VBool False
 
 -- primitive to number operator
-evalOp s OPrimToNum [(VNumber a)] = VNumber a
-evalOp s OPrimToNum [(VString st)] = VNumber (read st :: Double)
-evalOp s OPrimToNum [(VBool b)] = if b then VNumber 1.0 else VNumber 0.0
-evalOp s OPrimToNum [(VNull)] = VNumber 0
-evalOp s OPrimToNum [(VUndefined)] = VNumber (0/0)
+evalOp OPrimToNum [(VNumber a)] = VNumber a
+evalOp OPrimToNum [(VString st)] = VNumber (read st :: Double)
+evalOp OPrimToNum [(VBool b)] = if b then VNumber 1.0 else VNumber 0.0
+evalOp OPrimToNum [(VNull)] = VNumber 0
+evalOp OPrimToNum [(VUndefined)] = VNumber (0/0)
 -- #todo object conversions -> valueOf call
 
 -- primitive to string operator
-evalOp s OPrimToStr [(VNumber a)]  = VString $ show a
-evalOp s OPrimToStr [(VString st)] = VString st
-evalOp s OPrimToStr [(VBool b)]    = VString $ show b
-evalOp s OPrimToStr [(VNull)]      = VString "null"
-evalOp s OPrimToStr [(VUndefined)] = VString "undefined"
-evalOp s OPrimToStr [(VObject _)]  = VString "object"
+evalOp OPrimToStr [(VNumber a)]  = VString $ show a
+evalOp OPrimToStr [(VString st)] = VString st
+evalOp OPrimToStr [(VBool b)]    = VString $ show b
+evalOp OPrimToStr [(VNull)]      = VString "null"
+evalOp OPrimToStr [(VUndefined)] = VString "undefined"
+evalOp OPrimToStr [(VObject _)]  = VString "object"
 
 -- primitive to bool operator
-evalOp s OPrimToBool [(VNumber a)]  = VBool $ (a /= 0.0) && (not (isNaN a))
-evalOp s OPrimToBool [(VString st)] = VBool $ not $ st == ""
-evalOp s OPrimToBool [(VBool b)]    = VBool b
-evalOp s OPrimToBool [(VNull)]      = VBool False
-evalOp s OPrimToBool [(VUndefined)] = VBool False
-evalOp s OPrimToBool [(VObject _)]  = VBool True
+evalOp OPrimToBool [(VNumber a)]  = VBool $ (a /= 0.0) && (not (isNaN a))
+evalOp OPrimToBool [(VString st)] = VBool $ not $ st == ""
+evalOp OPrimToBool [(VBool b)]    = VBool b
+evalOp OPrimToBool [(VNull)]      = VBool False
+evalOp OPrimToBool [(VUndefined)] = VBool False
+evalOp OPrimToBool [(VObject _)]  = VBool True
 
 -- typeOf operator
-evalOp s OTypeof [(VNumber _)]   = VString "number"
-evalOp s OTypeof [(VString _)]   = VString "string"
-evalOp s OTypeof [(VBool _)]     = VString "boolean"
-evalOp s OTypeof [(VUndefined)]  = VString "undefined"
-evalOp s OTypeof [(VNull)]       = VString "object"
-evalOp s OTypeof [(VLambda _ _)] = VString "function"
-evalOp s OTypeof [(VObject _)]   = VString "object"
+evalOp OTypeof [(VNumber _)]   = VString "number"
+evalOp OTypeof [(VString _)]   = VString "string"
+evalOp OTypeof [(VBool _)]     = VString "boolean"
+evalOp OTypeof [(VUndefined)]  = VString "undefined"
+evalOp OTypeof [(VNull)]       = VString "object"
+evalOp OTypeof [(VLambda _ _)] = VString "function"
+evalOp OTypeof [(VObject _)]   = VString "object"
 
+-- equality operators
+evalOp OStrictEq [a, b] = VBool $ a == b
+evalOp OAbstractEq [(VNumber a), (VNumber b)] = VBool $ a == b
+evalOp OAbstractEq [(VNull), (VUndefined)] = VBool True
+evalOp OAbstractEq [(VUndefined), (VNull)] = VBool True
+evalOp OAbstractEq [(VNumber a), (VString b)] = 
+    VBool $ (VNumber a) == (evalOp OPrimToNum [(VString b)])
+evalOp OAbstractEq [(VString a), (VNumber b)] =
+    VBool $ (evalOp OPrimToNum [(VString a)]) == (VNumber b)
+evalOp OAbstractEq [(VBool a), (VNumber b)] =
+    VBool $ (evalOp OPrimToNum [(VBool a)]) == (VNumber b)
+evalOp OAbstractEq [(VNumber a), (VBool b)] =
+    VBool $ (VNumber a) == (evalOp OPrimToNum [(VBool b)])
+
+-- math operators
+evalOp OMathExp [(VNumber a)] = VNumber $ exp a
+evalOp OMathLog [(VNumber a)] = VNumber $ log a
+evalOp OMathCos [(VNumber a)] = VNumber $ cos a
+evalOp OMathSin [(VNumber a)] = VNumber $ sin a
+evalOp OMathAbs [(VNumber a)] = VNumber $ abs a
+evalOp OMathPow [(VNumber a), (VNumber b)] = VNumber $ a ** b
+
+-- object operators
+evalOp OHasOwnProp [(VObject fields), (VString field)] =
+    VBool $ any (\(name, value) -> (name == field)) fields
 
 eval :: Scope -> Expr -> Value
 eval _ (ENumber d) = VNumber d
@@ -132,5 +167,9 @@ eval s (EObject fields) =
 eval s (EId id) = case get s id of 
     Nothing -> VUndefined
     Just val -> val
-eval s (EOp op exps) = evalOp s op (map (eval s) exps)
-
+eval s (EOp op exps) = evalOp op (map (eval s) exps)
+-- #todo fix order of argument evaluation
+eval s (EApp (ELambda params body) args) = eval scope body
+    where scope = Scope (fromList (zip params (map (eval s) args))) (Just s)
+        
+    
