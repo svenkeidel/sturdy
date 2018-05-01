@@ -1,0 +1,32 @@
+public int stepPoly(int)
+{
+    java.io.PrintStream r1;
+    Example r0;
+    int i0;
+
+    r0 := @this;
+
+    i0 := @parameter0;
+
+    if i0 >= 0 goto label0;
+
+    r1 = java.lang.System.out;
+
+    r1.println("error");
+
+    return -1;
+
+ label0:
+    if i0 > 5 goto label1;
+
+    i0 = i0 * i0;
+
+    return i0;
+
+ label1:
+    i0 = i0 * 5;
+
+    i0 = i0 + 16;
+
+    return i0;
+}

@@ -1,0 +1,78 @@
+public class ThrowCatchExample extends java.lang.Object
+{
+
+    public void <init>()
+    {
+        ThrowCatchExample r0;
+
+        r0 := @this: ThrowCatchExample;
+
+        specialinvoke r0.<java.lang.Object: void <init>()>();
+
+        return;
+    }
+
+    public int foo()
+    {
+        ThrowCatchExample r0;
+        int[] $r3;
+        int $i1, $i2, $i3, $i4;
+        java.lang.ArrayIndexOutOfBoundsException $r4;
+
+        r0 := @this: ThrowCatchExample;
+
+        $r3 = newarray (int)[3];
+
+        $r3[0] = 1;
+
+        $r3[1] = 2;
+
+        $r3[2] = 3;
+
+     label1:
+        $i1 = specialinvoke r0.<ThrowCatchExample: int id(int[],int)>($r3, 2);
+
+        $i2 = 2 * 2;
+
+        $i3 = specialinvoke r0.<ThrowCatchExample: int id(int[],int)>($r3, $i2);
+
+        $i4 = $i1 + $i3;
+
+     label2:
+        return $i4;
+
+     label3:
+        $r4 := @caughtexception;
+
+        return -10;
+
+        catch java.lang.ArrayIndexOutOfBoundsException from label1 to label2 with label3;
+    }
+
+    private int id(int[], int) throws java.lang.ArrayIndexOutOfBoundsException
+    {
+        ThrowCatchExample r0;
+        int[] r1;
+        int i0, $i1;
+        java.lang.ArrayIndexOutOfBoundsException $r2;
+
+        r0 := @this: ThrowCatchExample;
+
+        r1 := @parameter0: int[];
+
+        i0 := @parameter1: int;
+
+        if i0 <= 2 goto label1;
+
+        $r2 = new java.lang.ArrayIndexOutOfBoundsException;
+
+        specialinvoke $r2.<java.lang.ArrayIndexOutOfBoundsException: void <init>()>();
+
+        throw $r2;
+
+     label1:
+        $i1 = r1[i0];
+
+        return $i1;
+    }
+}
