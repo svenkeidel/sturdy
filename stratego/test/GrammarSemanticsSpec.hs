@@ -2,22 +2,33 @@
 {-# LANGUAGE FlexibleContexts #-}
 module GrammarSemanticsSpec(main, spec) where
 
+import qualified ConcreteSemantics as C
 import           GrammarSemantics
+import           SharedSemantics
+import           Soundness
 import           Syntax hiding (Fail)
+
+import           Control.Arrow
 
 import           Data.ATerm
 import           Data.Abstract.FreeCompletion
 import           Data.Abstract.UncertainResult
+import qualified Data.Concrete.Powerset as C
+import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as LM
 import qualified Data.Map as M
 import           Data.Term hiding (wildcard)
 import qualified Data.Text.IO as TIO
 
-import           TreeAutomata
-
 import           Paths_sturdy_stratego
 
 import           Test.Hspec
+import           Test.Hspec.QuickCheck
+import           Test.QuickCheck hiding (Success)
+
+import           Text.Printf
+
+import           TreeAutomata
 
 main :: IO ()
 main = hspec spec
@@ -114,21 +125,19 @@ spec = do
     --        Right (tenv', 1)
       pendingWith "Explosion is not yet implemented"
 
-    it "should handle inconsistent environments" $
-    --   let t1 = C.Cons "f" []
-    --       t2 = C.Cons "g" []
-    --   sound' (Match "x") [(t1, [("x", t1)]), (t2, [("y", t2)])]
-      pendingWith "Soundness will come later"
+    it "should handle inconsistent environments" $ do
+      let t1 = C.Cons "f" []
+          t2 = C.Cons "g" []
+      sound' (Match "x") [(t1, [("x", t1)]), (t2, [("y", t2)])]
 
-    it "should be sound" $
-    --   [t1,t2,t3] <- C.similarTerms 3 7 2 10
-    --   matchPattern <- C.similarTermPattern t1 3
-    --   return $ counterexample
-    --              (printf "pattern: %s\n %s ⊔ %s = %s"
-    --                 (show matchPattern) (show t2) (show t3)
-    --                 (showLub t2 t3))
-    --          $ sound' (Match matchPattern) [(t2,[]),(t3,[])]
-      pendingWith "Soundness will come later"
+    prop "should be sound" $ do
+      [t1,t2,t3] <- C.similarTerms 3 7 2 10
+      matchPattern <- C.similarTermPattern t1 3
+      return $ counterexample
+                 (printf "pattern: %s\n %s ⊔ %s = %s"
+                    (show matchPattern) (show t2) (show t3)
+                    (showLub t2 t3))
+             $ sound' (Match matchPattern) [(t2,[]),(t3,[])]
 
   describe "Build" $ do
 
@@ -201,18 +210,16 @@ spec = do
                                                                ,("S2", [ Ctor (Constr "Succ") ["S1"]])
                                                                ,("S3", [ Ctor (Constr "Zero") []])]))
 
-    it "should be sound" $ do
-      -- [t1,t2,t3] <- C.similarTerms 3 7 2 10
-      -- matchPattern <- C.similarTermPattern t1 3
-      -- let vars = patternVars' matchPattern
-      -- buildPattern <- arbitraryTermPattern 5 2 $
-      --   if not (null vars) then elements vars else arbitrary
-      -- return $ counterexample
-      --            (printf "match pattern: %s\nbuild pattern: %s\nt2: %s\nt3: %s\nlub t2 t3 = %s"
-      --               (show matchPattern) (show buildPattern) (show t2) (show t3)
-      --               (showLub t2 t3))
-      --        $ sound' (Match matchPattern `Seq` Build buildPattern) [(t2,[]),(t3,[])]
-      pendingWith "Soundness will come later"
+    prop "should be sound" $ do
+      [t1,t2,t3] <- C.similarTerms 3 7 2 10
+      matchPattern <- C.similarTermPattern t1 3
+      let vars = patternVars' matchPattern
+      buildPattern <- arbitraryTermPattern 5 2 (if not (null vars) then elements vars else arbitrary)
+      return $ counterexample
+               (printf "match pattern: %s\nbuild pattern: %s\nt2: %s\nt3: %s\nlub t2 t3 = %s"
+                 (show matchPattern) (show buildPattern) (show t2) (show t3)
+                 (showLub t2 t3))
+             $ sound' (Match matchPattern `Seq` Build buildPattern) [(t2,[]),(t3,[])]
 
   describe "Scope" $ do
     it "should hide declared variables" $ do
@@ -292,19 +299,15 @@ spec = do
       geval' 12 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
         `shouldBe` Lower (SuccessOrFail (tenv', Term t'))
 
-    it "should be sound" $ do
-  --     i <- choose (0,10)
-  --     j <- choose (0,10)
-  --     l <- C.similarTerms i 7 2 10
-  --     let (l1,l2) = splitAt j l
-  --     let t1 = convertToList l1
-  --     let t2 = convertToList l2
-  --     return $ counterexample (printf "t: %s\n" (showLub t1 t2))
-  --            $ sound' (Let [("map", map)]
-  --                 (Match "x" `Seq`
-  --                  Call "map" [Build 1] ["x"]))
-  --                 [(t1,[]),(t2,[])]
-      pendingWith "Soundness comes later"
+    prop "should be sound" $ do
+      i <- choose (0,10)
+      j <- choose (0,10)
+      l <- C.similarTerms i 7 2 10
+      let (l1,l2) = splitAt j l
+      let t1 = convertToList l1
+      let t2 = convertToList l2
+      return $ counterexample (printf "t: %s\n" (showLub t1 t2))
+             $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
 
   where
     geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> FreeCompletion (UncertainResult (TermEnv, Term))
@@ -313,7 +316,18 @@ spec = do
     geval :: Int -> Strat -> TermEnv -> Term -> FreeCompletion (UncertainResult (TermEnv, Term))
     geval i strat tenv g = geval' i strat LM.empty tenv g
 
+    sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
+    sound' s xs = sound r pow f g where
+      r = (LM.empty, alphabet (alpha ((C.fromFoldable (fmap fst xs)::C.Pow C.Term))))
+      pow = C.fromFoldable $ fmap (second termEnv') xs
+      f = eval' s :: C.Interp C.Term C.Term
+      g = eval' s :: Interp Term Term
+
     termEnv = TermEnv . LM.fromList
+    termEnv' = C.TermEnv . LM.fromList
+
+    showLub :: C.Term -> C.Term -> String
+    showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: Term)
 
     pcf = grammar "S" $ M.fromList [
       ("S", [ Eps "Exp", Eps "Type" ])
