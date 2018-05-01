@@ -67,8 +67,8 @@ eval = proc e -> case e of
       Plus ->
         case (v1, v2) of
           (VInt n1, VInt n2) -> returnA -< (VInt (n1 + n2))
-          -- (VFloat f, VInt n) -> returnA -< (VFloat (f + n))
-          -- (VInt n, VFloat f) -> returnA -< (VFloat (n + f))
+          (VFloat f, VInt n) -> returnA -< (VFloat (f + (fromIntegral n)))
+          (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) + f))
           (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 + f2))
           (_,_) -> throw -< "Expected two numbers as arguments for +"
       -- Minus ->
@@ -77,7 +77,11 @@ eval = proc e -> case e of
   -- EUnop Unop Immediate
   EImmediate i ->
     case i of
-  --     ILocalName String -> returnA <- VLocalName
+      ILocalName x -> do
+        st <- get -< ()
+        case Store.lookup x st of
+          Just v -> returnA -< v
+          Nothing -> throw -< "Variable not in scope"
       IInt n -> returnA -< (VInt n)
       IFloat f -> returnA -< (VFloat f)
       IString s -> returnA -< (VString s)
@@ -99,7 +103,7 @@ throw = Arr (\er _ -> Left er)
 
 run :: Arr [Statement] ()
 run = proc stmts -> case stmts of
-  (x : rest) -> do
+  (_ : rest) -> do
     run -< rest
   [] ->
     returnA -< ()
