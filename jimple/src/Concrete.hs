@@ -145,8 +145,8 @@ eval = proc e -> case e of
     INull -> returnA -< VNull
   _ -> throw -< "Undefined expression"
 
-eval' :: Store -> Expr -> Either String (Store, Val)
-eval' store expr = runArr eval expr store
+eval' :: Store -> Expr -> Either String Val
+eval' store expr = right snd (runArr eval expr store)
 
 get :: Arr () Store
 get = Arr (\() st -> Right (st,st))
