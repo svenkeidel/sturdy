@@ -3,7 +3,7 @@ module ConcreteSpec where
 import Concrete
 import Syntax
 
-import qualified Data.Map as Store
+import qualified Data.Map as Map
 
 import Test.Hspec
 
@@ -15,7 +15,7 @@ spec = do
   describe "Literals" $ do
     it "LocalName lookup" $ do
       let expr = EImmediate (ILocalName "x")
-      let st = Store.insert "x" (VInt 2) store
+      let st = (Map.empty, Map.fromList [("x", Just (VInt 2))])
       eval' st expr `shouldBe` Right (st, VInt 2)
     it "Integer literals" $ do
       let expr = EImmediate (IInt 7)
@@ -50,4 +50,4 @@ spec = do
       let expr = EBinop (IInt 3) Mod (IFloat 2.5)
       eval' store expr `shouldBe` Right (store, VFloat 0.5)
 
-  where store = Store.empty
+  where store = (Map.empty, Map.empty)
