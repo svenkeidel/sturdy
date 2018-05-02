@@ -160,12 +160,38 @@ put = Arr (\st _ -> Right (st,()))
 throw :: Arr String a
 throw = Arr (\er _ -> Left er)
 
-run :: Arr [Statement] ()
-run = proc stmts -> case stmts of
-  (_ : rest) -> do
-    run -< rest
-  [] ->
-    returnA -< ()
+run :: Arr ([Statement], Int) ()
+run = proc (stmts, i) -> if i == length stmts
+  then returnA -< ()
+  else case stmts !! i of
+    -- Label LabelName
+    -- Breakpoint
+    -- Entermonitor Immediate
+    -- Exitmonitor Immediate
+    -- Tableswitch Immediate [CaseStatement]
+    -- Lookupswitch Immediate [CaseStatement]
+    -- Identity LocalName AtIdentifier Type
+    -- IdentityNoType LocalName AtIdentifier
+    Assign var e -> do
+      v <- eval -< e
+      (static, dynamic) <- get -< ()
+      case var of
+        VLocal localName -> case Map.lookup localName dynamic of
+          Just _ -> put -< (static, Map.insert localName (Just v) dynamic)
+          Nothing -> throw -< "Variable not declared"
+        VReference _ -> throw -< "undefined yet"
+      run -< (stmts, i + 1)
+    -- If Expr GotoStatement
+    -- Goto GotoStatement
+    -- Nop
+    -- Ret (Maybe Immediate)
+    -- Return (Maybe Immediate)
+    -- Throw Immediate
+    -- Invoke Expr
+    _ -> run -< (stmts, i + 1)
+
+run' :: Store -> [Statement] -> Either String Store
+run' st stmts = right fst (runArr run (stmts, 0) st)
 
 instance Category Arr where
   id = Arr (\x st -> Right (st,x))

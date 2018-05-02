@@ -57,4 +57,10 @@ spec = do
       let expr = EBinop (IInt 3) Mod (IFloat 2.5)
       eval' store expr `shouldBe` Right (store, VFloat 0.5)
 
+  describe "Simple Statements" $ do
+    it "i0 = 2 + 3" $ do
+      let stmts = [Assign (VLocal "i0") (EBinop (IInt 2) Plus (IInt 3))]
+      let st = (Map.empty, Map.fromList [("i0", Just (VInt 5))])
+      run' st stmts `shouldBe` Right st
+
   where store = (Map.empty, Map.empty)
