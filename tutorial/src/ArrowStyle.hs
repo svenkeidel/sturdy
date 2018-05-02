@@ -12,7 +12,7 @@ import           Syntax
 data Val = BoolVal Bool | NumVal Int deriving (Show,Eq)
 type Store = Map String Val
 
-newtype Arr x y = Arr {runArr :: x -> Store -> Either String (Store,y)}
+newtype Arr x y = Arr {runArr :: (Store,x) -> Either String (Store,y)}
 
 -- eval :: Store -> Expr -> Either String Val
 eval :: Arr Expr Val
@@ -44,13 +44,13 @@ eval = proc e -> case e of
       (_,_) -> throw -< "Expected two numbers as arguments for +"
 
 get :: Arr () Store
-get = Arr (\() st -> Right (st,st))
+get = Arr (\(st,()) -> Right (st,st))
 
 put :: Arr Store ()
-put = Arr (\st _ -> Right (st,()))
+put = Arr (\(st,_) -> Right (st,()))
 
 throw :: Arr String a
-throw = Arr (\er _ -> Left er)
+throw = Arr (\(_,er) -> Left er)
 
 -- run :: Store -> [Statement] -> Either String Store
 run :: Arr [Statement] ()
@@ -73,23 +73,23 @@ run = proc stmts -> case stmts of
     returnA -< ()
 
 run' :: [Statement] -> Store -> Either String Store
-run' stmts st = right fst (runArr run stmts st)
+run' stmts st = right fst (runArr run (st,stmts))
 
 instance Category Arr where
-  id = Arr (\x st -> Right (st,x))
-  Arr f . Arr g = Arr $ \x st -> case g x st of
+  id = Arr (\(st,x) -> Right (st,x))
+  Arr f . Arr g = Arr $ \(st,x) -> case g (st,x) of
     Left er -> Left er
-    Right (st',y) -> f y st'
+    Right (st',y) -> f (st',y)
 
 instance Arrow Arr where
-  arr f = Arr (\x st -> Right (st,f x))
-  first (Arr f) = Arr $ \(x,y) st -> case f x st of
+  arr f = Arr (\(st,x) -> Right (st,f x))
+  first (Arr f) = Arr $ \(st,(x,y)) -> case f (st,x) of
     Left er -> Left er
     Right (st',z) -> Right (st',(z,y))
 
 instance ArrowChoice Arr where
-  left (Arr f) = Arr $ \e st -> case e of
-    Left x -> case f x st of
+  left (Arr f) = Arr $ \(st,e) -> case e of
+    Left x -> case f (st,x) of
       Left er -> Left er
       Right (st',y) -> Right (st',Left y)
     Right z -> Right (st,Right z)

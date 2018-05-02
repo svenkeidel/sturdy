@@ -21,7 +21,7 @@ import           Control.Monad (join)
 import qualified Data.Abstract.Powerset as A
 import           Data.Monoidal
 import           Data.Order
-import           Data.Sequence
+import           Data.Sequence hiding (lookup)
 
 newtype Powerset c x y = Powerset { runPowerset :: c x (A.Pow y)}
 
