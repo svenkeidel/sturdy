@@ -561,9 +561,9 @@ data Immediate
 --     {mult}  mult |
 --     {div}   div;
 data Binop
-  = And
-  | Or
-  | Xor
+  = And     -- Bytewise operator
+  | Or      -- Bytewise operator
+  | Xor     -- Bytewise operator
   | Mod
   | Cmp
   | Cmpg
@@ -574,9 +574,9 @@ data Binop
   | Cmpge
   | Cmplt
   | Cmple
-  | Shl
-  | Shr
-  | Ushr
+  | Shl     -- Bytewise operator
+  | Shr     -- Bytewise operator
+  | Ushr    -- Bytewise operator
   | Plus
   | Minus
   | Mult

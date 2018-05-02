@@ -34,11 +34,20 @@ spec = do
       eval' store expr `shouldBe` Right (store, VNull)
 
   describe "Simple Expressions" $ do
-    it "Addition" $ do
+    it "8 + 2" $ do
       let expr = EBinop (IInt 8) Plus (IInt 2)
       eval' store expr `shouldBe` Right (store, VInt 10)
-    it "Division by zero" $ do
+    it "8 / 0" $ do
       let expr = EBinop (IInt 8) Div (IInt 0)
       eval' store expr `shouldBe` Left "Cannot divide by zero"
+    it "3 < 3.5" $ do
+      let expr = EBinop (IInt 3) Cmplt (IFloat 3.5)
+      eval' store expr `shouldBe` Right (store, VBool True)
+    it "3 != 'three'" $ do
+      let expr = EBinop (IInt 3) Cmpne (IString "three")
+      eval' store expr `shouldBe` Right (store, VBool True)
+    it "3 % 2.5" $ do
+      let expr = EBinop (IInt 3) Mod (IFloat 2.5)
+      eval' store expr `shouldBe` Right (store, VFloat 0.5)
 
   where store = Store.empty

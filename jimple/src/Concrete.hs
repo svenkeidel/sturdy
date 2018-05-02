@@ -4,6 +4,8 @@ module Concrete where
 import           Control.Category
 import           Control.Arrow
 
+import           Data.Fixed
+
 import           Data.Map (Map)
 import qualified Data.Map as Store
 
@@ -14,6 +16,7 @@ data Val
   | VFloat Float
   | VString String
   | VClass String
+  | VBool Bool
   | VNull
   | VArray Val
   | VFixedArray Val Int deriving (Eq)
@@ -25,6 +28,7 @@ instance Show Val where
   show (VFloat f) = show f
   show (VString s) = s
   show (VClass c) = "<" ++ c ++ ">"
+  show (VBool b) = show b
   show (VNull) = "null"
   show (VArray v) = (show v) ++ "[]"
   show (VFixedArray v l) = (show v) ++ "[" ++ (show l) ++ "]"
@@ -51,62 +55,82 @@ eval = proc e -> case e of
       -- And ->
       -- Or ->
       -- Xor ->
-      -- Mod ->
+      Mod -> case (v1, v2) of
+        (VInt x1, VInt x2) -> returnA -< (VInt (x1 `mod` x2))
+        (VInt x1, VFloat x2) -> returnA -< (VFloat ((fromIntegral x1) `mod'` x2))
+        (VFloat x1, VInt x2) -> returnA -< (VFloat (x1 `mod'` (fromIntegral x2)))
+        (VFloat x1, VFloat x2) -> returnA -< (VFloat (x1 `mod'` x2))
+        (_, _) -> throw -< "Expected two numbers as arguments for >"
       -- Cmp ->
       -- Cmpg ->
       -- Cmpl ->
-      -- Cmpeq ->
-      -- Cmpne ->
-      -- Cmpgt ->
-      -- Cmpge ->
-      -- Cmplt ->
-      -- Cmple ->
+      Cmpeq -> returnA -< (VBool (v1 == v2))
+      Cmpne -> returnA -< (VBool (v1 /= v2))
+      Cmpgt -> case (v1, v2) of
+        (VInt x1, VInt x2) -> returnA -< (VBool (x1 > x2))
+        (VInt x1, VFloat x2) -> returnA -< (VBool (fromIntegral x1 > x2))
+        (VFloat x1, VInt x2) -> returnA -< (VBool (x1 > fromIntegral x2))
+        (VFloat x1, VFloat x2) -> returnA -< (VBool (x1 > x2))
+        (_, _) -> throw -< "Expected two numbers as arguments for >"
+      Cmpge -> case (v1, v2) of
+        (VInt x1, VInt x2) -> returnA -< (VBool (x1 >= x2))
+        (VInt x1, VFloat x2) -> returnA -< (VBool (fromIntegral x1 >= x2))
+        (VFloat x1, VInt x2) -> returnA -< (VBool (x1 >= fromIntegral x2))
+        (VFloat x1, VFloat x2) -> returnA -< (VBool (x1 >= x2))
+        (_, _) -> throw -< "Expected two numbers as arguments for >="
+      Cmplt -> case (v1, v2) of
+        (VInt x1, VInt x2) -> returnA -< (VBool (x1 < x2))
+        (VInt x1, VFloat x2) -> returnA -< (VBool (fromIntegral x1 < x2))
+        (VFloat x1, VInt x2) -> returnA -< (VBool (x1 < fromIntegral x2))
+        (VFloat x1, VFloat x2) -> returnA -< (VBool (x1 < x2))
+        (_, _) -> throw -< "Expected two numbers as arguments for <"
+      Cmple -> case (v1, v2) of
+        (VInt x1, VInt x2) -> returnA -< (VBool (x1 <= x2))
+        (VInt x1, VFloat x2) -> returnA -< (VBool (fromIntegral x1 <= x2))
+        (VFloat x1, VInt x2) -> returnA -< (VBool (x1 <= fromIntegral x2))
+        (VFloat x1, VFloat x2) -> returnA -< (VBool (x1 <= x2))
+        (_, _) -> throw -< "Expected two numbers as arguments for <="
       -- Shl ->
       -- Shr ->
       -- Ushr ->
-      Plus ->
-        case (v1, v2) of
-          (VInt n1, VInt n2) -> returnA -< (VInt (n1 + n2))
-          (VFloat f, VInt n) -> returnA -< (VFloat (f + (fromIntegral n)))
-          (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) + f))
-          (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 + f2))
-          (_,_) -> throw -< "Expected two numbers as arguments for +"
-      Minus ->
-        case (v1, v2) of
-          (VInt n1, VInt n2) -> returnA -< (VInt (n1 - n2))
-          (VFloat f, VInt n) -> returnA -< (VFloat (f - (fromIntegral n)))
-          (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) - f))
-          (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 - f2))
-          (_,_) -> throw -< "Expected two numbers as arguments for -"
-      Mult ->
-        case (v1, v2) of
-          (VInt n1, VInt n2) -> returnA -< (VInt (n1 * n2))
-          (VFloat f, VInt n) -> returnA -< (VFloat (f * (fromIntegral n)))
-          (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) * f))
-          (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 * f2))
-          (_,_) -> throw -< "Expected two numbers as arguments for *"
-      Div ->
-        case (v1, v2) of
-          (_, VInt 0) -> throw -< "Cannot divide by zero"
-          (_, VFloat 0.0) -> throw -< "Cannot divide by zero"
-          (VInt n1, VInt n2) -> returnA -< (VFloat ((fromIntegral n1) / (fromIntegral n2)))
-          (VFloat f, VInt n) -> returnA -< (VFloat (f / (fromIntegral n)))
-          (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) / f))
-          (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 / f2))
-          (_,_) -> throw -< "Expected two numbers as arguments for /"
+      Plus -> case (v1, v2) of
+        (VInt n1, VInt n2) -> returnA -< (VInt (n1 + n2))
+        (VFloat f, VInt n) -> returnA -< (VFloat (f + (fromIntegral n)))
+        (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) + f))
+        (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 + f2))
+        (_, _) -> throw -< "Expected two numbers as arguments for +"
+      Minus -> case (v1, v2) of
+        (VInt n1, VInt n2) -> returnA -< (VInt (n1 - n2))
+        (VFloat f, VInt n) -> returnA -< (VFloat (f - (fromIntegral n)))
+        (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) - f))
+        (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 - f2))
+        (_, _) -> throw -< "Expected two numbers as arguments for -"
+      Mult -> case (v1, v2) of
+        (VInt n1, VInt n2) -> returnA -< (VInt (n1 * n2))
+        (VFloat f, VInt n) -> returnA -< (VFloat (f * (fromIntegral n)))
+        (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) * f))
+        (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 * f2))
+        (_, _) -> throw -< "Expected two numbers as arguments for *"
+      Div -> case (v1, v2) of
+        (_, VInt 0) -> throw -< "Cannot divide by zero"
+        (_, VFloat 0.0) -> throw -< "Cannot divide by zero"
+        (VInt n1, VInt n2) -> returnA -< (VFloat ((fromIntegral n1) / (fromIntegral n2)))
+        (VFloat f, VInt n) -> returnA -< (VFloat (f / (fromIntegral n)))
+        (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) / f))
+        (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 / f2))
+        (_, _) -> throw -< "Expected two numbers as arguments for /"
   -- EUnop Unop Immediate
-  EImmediate i ->
-    case i of
-      ILocalName x -> do
-        st <- get -< ()
-        case Store.lookup x st of
-          Just v -> returnA -< v
-          Nothing -> throw -< "Variable not in scope"
-      IInt n -> returnA -< (VInt n)
-      IFloat f -> returnA -< (VFloat f)
-      IString s -> returnA -< (VString s)
-      IClass c -> returnA -< (VClass c)
-      INull -> returnA -< VNull
+  EImmediate i -> case i of
+    ILocalName x -> do
+      st <- get -< ()
+      case Store.lookup x st of
+        Just v -> returnA -< v
+        Nothing -> throw -< "Variable not in scope"
+    IInt n -> returnA -< (VInt n)
+    IFloat f -> returnA -< (VFloat f)
+    IString s -> returnA -< (VString s)
+    IClass c -> returnA -< (VClass c)
+    INull -> returnA -< VNull
   _ -> throw -< "Undefined expression"
 
 eval' :: Store -> Expr -> Either String (Store, Val)
