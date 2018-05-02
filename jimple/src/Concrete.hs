@@ -119,7 +119,17 @@ eval = proc e -> case e of
         (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) / f))
         (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 / f2))
         (_, _) -> throw -< "Expected two numbers as arguments for /"
-  -- EUnop Unop Immediate
+  EUnop op i -> do
+    v <- eval -< EImmediate i
+    case op of
+      Lengthof -> case v of
+        VArray xs -> returnA -< (VInt (length xs))
+        VFixedArray _ l -> returnA -< (VInt l)
+        _ -> throw -< "Expected an array as argument for lengthof"
+      Neg -> case v of
+        VInt n -> returnA -< (VInt (-n))
+        VFloat f -> returnA -< (VFloat (-f))
+        _ -> throw -< "Expected a number as argument for -"
   EImmediate i -> case i of
     ILocalName x -> do
       st <- getDynamic -< ()

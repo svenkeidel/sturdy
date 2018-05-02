@@ -34,6 +34,13 @@ spec = do
       eval' store expr `shouldBe` Right (store, VNull)
 
   describe "Simple Expressions" $ do
+    it "-3" $ do
+      let expr = EUnop Neg (IInt 3)
+      eval' store expr `shouldBe` Right (store, VInt (-3))
+    it "lengthof [1, 2, 3]" $ do
+      let expr = EUnop Lengthof (ILocalName "x")
+      let st = (Map.empty, Map.fromList [("x", Just (VArray [VInt 1, VInt 2, VInt 3]))])
+      eval' st expr `shouldBe` Right (st, VInt 3)
     it "8 + 2" $ do
       let expr = EBinop (IInt 8) Plus (IInt 2)
       eval' store expr `shouldBe` Right (store, VInt 10)
