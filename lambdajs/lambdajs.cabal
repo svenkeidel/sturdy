@@ -1,0 +1,34 @@
+name:           lambdajs
+version:        0.1.0.0
+description:    Please see the README on Github at <https://github.com/githubuser/lambdajs#readme>
+homepage:       https://github.com/githubuser/lambdajs#readme
+bug-reports:    https://github.com/githubuser/lambdajs/issues
+author:         Author name here
+maintainer:     example@example.com
+license:        BSD3
+build-type:     Simple
+cabal-version:  >= 1.10
+
+library
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+    , containers
+  exposed-modules:
+      Concrete,
+      Syntax
+  default-language: Haskell2010
+
+test-suite lambdajs-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , lambdajs
+    , hspec
+    , containers
+  default-language: Haskell2010
