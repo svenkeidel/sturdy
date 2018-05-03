@@ -6,6 +6,7 @@ import           Control.Category
 import           Control.Arrow
 
 import           Data.Fixed
+import           Data.List
 
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -160,9 +161,9 @@ put = Arr (\st _ -> Right (st,()))
 throw :: Arr String a
 throw = Arr (\er _ -> Left er)
 
-run :: Arr ([Statement], Int) ()
+run :: Arr ([Statement], Int) (Maybe Val)
 run = proc (stmts, i) -> if i == length stmts
-  then returnA -< ()
+  then returnA -< Nothing
   else case stmts !! i of
     -- Label LabelName
     -- Breakpoint
@@ -181,17 +182,32 @@ run = proc (stmts, i) -> if i == length stmts
           Nothing -> throw -< "Variable not declared"
         VReference _ -> throw -< "undefined yet"
       run -< (stmts, i + 1)
+    If e label -> do
+      v <- eval -< e
+      case v of
+        VBool True -> do
+          case ((Label label) `elemIndex` stmts) of
+            Just j -> run -< (stmts, j)
+            Nothing -> throw -< "Undefined label: " ++ label
+        VBool False -> run -< (stmts, i + 1)
+        _ -> throw -< "Expected a boolean expression for if statement"
     -- If Expr GotoStatement
-    -- Goto GotoStatement
+    Goto label -> case ((Label label) `elemIndex` stmts) of
+      Just j -> run -< (stmts, j)
+      Nothing -> throw -< "Undefined label: " ++ label
     -- Nop
     -- Ret (Maybe Immediate)
-    -- Return (Maybe Immediate)
+    Return e -> case e of
+      Just immediate -> do
+        v <- eval -< EImmediate immediate
+        returnA -< Just v
+      Nothing -> returnA -< Nothing
     -- Throw Immediate
     -- Invoke Expr
     _ -> run -< (stmts, i + 1)
 
-run' :: Store -> [Statement] -> Either String Store
-run' st stmts = right fst (runArr run (stmts, 0) st)
+run' :: Store -> [Statement] -> Either String (Store, Maybe Val)
+run' st stmts = runArr run (stmts, 0) st
 
 instance Category Arr where
   id = Arr (\x st -> Right (st,x))

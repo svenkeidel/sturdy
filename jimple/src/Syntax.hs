@@ -157,7 +157,7 @@ type Identifier = String
 data AtIdentifier
   = IDParameter Int
   | IDThis
-  | IDCoughtException
+  | IDCoughtException deriving (Eq)
 --
 --   bool_constant = 'true' | 'false';
 --   integer_constant = (dec_constant | hex_constant | oct_constant) 'L'?;
@@ -256,7 +256,7 @@ data Member
 --     {nonvoid} nonvoid_type;
 data Type
   = TVoid
-  | Tnonvoid NonvoidType
+  | Tnonvoid NonvoidType deriving (Eq)
 --
 --   parameter_list =
 --     {single} parameter |
@@ -303,7 +303,7 @@ data BaseType
   | TFloat
   | TDouble
   | TNull
-  | TClass String
+  | TClass String deriving (Eq)
 
 --   nonvoid_type =
 --     {base}   base_type_no_name array_brackets* |
@@ -334,7 +334,7 @@ type Declaration = (JimpleType, LocalNameList)
 --     {nonvoid} nonvoid_type;
 data JimpleType
   = JTUnknown
-  | JTNonvoid NonvoidType
+  | JTNonvoid NonvoidType deriving (Eq)
 --
 --   local_name =
 --     name;
@@ -378,7 +378,7 @@ data Statement
   | Ret (Maybe Immediate)
   | Return (Maybe Immediate)
   | Throw Immediate
-  | Invoke Expr
+  | Invoke Expr deriving (Eq)
 
 --
 --   label_name =
@@ -387,14 +387,14 @@ type LabelName = Identifier
 --
 --   case_stmt =
 --     case_label colon goto_stmt;
-data CaseStatement = CaseStatement CaseLabel GotoStatement
+type CaseStatement = (CaseLabel, GotoStatement)
 --
 --   case_label =
 --     {constant} case minus? integer_constant |
 --     {default}  default;
 data CaseLabel
   = CLConstant Int
-  | CLDefault
+  | CLDefault deriving (Eq)
 --
 --   goto_stmt =
 --     goto label_name semicolon;
@@ -425,7 +425,7 @@ data Expr
   | EReference Reference
   | EBinop Immediate Binop Immediate
   | EUnop Unop Immediate
-  | EImmediate Immediate
+  | EImmediate Immediate deriving (Eq)
 --
 --   new_expr =
 --     {simple} new base_type |
@@ -434,7 +434,7 @@ data Expr
 data NewExpr
   = NewSimple BaseType
   | NewArray NonvoidType FixedArrayDescriptor
-  | NewMulti BaseType [ArrayDescriptor]
+  | NewMulti BaseType [ArrayDescriptor] deriving (Eq)
 --
 --   array_descriptor =
 --     l_bracket immediate? r_bracket;
@@ -445,7 +445,7 @@ type ArrayDescriptor = Maybe Immediate
 --     {local}     local_name;
 data Variable
   = VReference Reference
-  | VLocal LocalName
+  | VLocal LocalName deriving (Eq)
 --
 --   bool_expr =
 --     {binop} binop_expr |
@@ -461,7 +461,7 @@ data InvokeExpr
   | VirtualInvoke LocalName MethodSignature (Maybe ArgList)
   | InterfaceInvoke LocalName MethodSignature (Maybe ArgList)
   | StaticInvoke MethodSignature (Maybe ArgList)
-  | DynamicInvoke String UnnamedMethodSignature (Maybe ArgList) MethodSignature (Maybe ArgList)
+  | DynamicInvoke String UnnamedMethodSignature (Maybe ArgList) MethodSignature (Maybe ArgList) deriving (Eq)
 --
 --   binop_expr =
 --     [left]:immediate binop [right]:immediate;
@@ -478,7 +478,7 @@ data InvokeExpr
 --     cmplt type l_paren parameter_list? r_paren cmpgt;
 data UnnamedMethodSignature = UnnamedMethodSignature { returnType :: Type
                                                      , parameters :: ParameterList
-                                                     }
+                                                     } deriving (Eq)
 --
 --   method_signature =
 --     cmplt [class_name]:class_name [first]:colon type [method_name]:name  l_paren parameter_list? r_paren cmpgt;
@@ -486,7 +486,7 @@ data MethodSignature = MethodSignature { className :: ClassName
                                        , returnType :: Type
                                        , methodName :: Name
                                        , parameters :: Maybe ParameterList
-                                       }
+                                       } deriving (Eq)
 --
 --   reference =
 --     {array} array_ref |
@@ -494,7 +494,7 @@ data MethodSignature = MethodSignature { className :: ClassName
 data Reference
   = ArrayReference Identifier FixedArrayDescriptor
   | FieldReference LocalName FieldSignature
-  | SignatureReference FieldSignature
+  | SignatureReference FieldSignature deriving (Eq)
 --
 --   array_ref =
 --     {ident} identifier fixed_array_descriptor |
@@ -509,7 +509,7 @@ data Reference
 data FieldSignature = FieldSignature { className :: ClassName
                                      , fieldType :: Type
                                      , fieldName :: Name
-                                     }
+                                     } deriving (Eq)
 --
 --   fixed_array_descriptor =
 --     l_bracket immediate r_bracket;
@@ -529,7 +529,7 @@ data Immediate
   | IFloat Float
   | IString String
   | IClass String
-  | INull
+  | INull deriving (Eq)
 
 --
 --   constant =
@@ -580,14 +580,14 @@ data Binop
   | Plus
   | Minus
   | Mult
-  | Div
+  | Div deriving (Eq)
 --
 --   unop =
 --     {lengthof} lengthof |
 --     {neg}      neg;
 data Unop
   = Lengthof
-  | Neg
+  | Neg deriving (Eq)
 --
 -- class_name =
 --     {quoted} quoted_name |

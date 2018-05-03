@@ -58,9 +58,16 @@ spec = do
       eval' store expr `shouldBe` Right (VFloat 0.5)
 
   describe "Simple Statements" $ do
-    it "i0 = 2 + 3" $ do
+    it "i0 = 2 + 3;" $ do
       let stmts = [Assign (VLocal "i0") (EBinop (IInt 2) Plus (IInt 3))]
       let st = (Map.empty, Map.fromList [("i0", Just (VInt 5))])
-      run' st stmts `shouldBe` Right st
+      run' st stmts `shouldBe` Right (st, Nothing)
+    it "if 2 <= 3 goto l2; l1: return 1; l2: return 0;" $ do
+      let stmts = [If (EBinop (IInt 2) Cmple (IInt 3)) "l2",
+                   Label "l1",
+                   Return (Just (IInt 1)),
+                   Label "l2",
+                   Return (Just (IInt 0))]
+      run' store stmts `shouldBe` Right (store, Just (VInt 0))
 
   where store = (Map.empty, Map.empty)
