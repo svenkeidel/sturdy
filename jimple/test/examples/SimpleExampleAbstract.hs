@@ -6,45 +6,45 @@ objectInitSignature = MethodSignature {
   className = "java.lang.Object",
   returnType = TVoid,
   methodName = "<init>",
-  parameters = Nothing
+  parameters = []
 }
 
 printStreamSignature = FieldSignature {
-  className: "java.lang.System",
-  fieldType: TClass "java.io.PrintStream",
-  fieldName: "out",
+  className = "java.lang.System",
+  fieldType = TClass "java.io.PrintStream",
+  fieldName = "out"
 }
 
 printlnSignature = MethodSignature {
   className = "java.io.PrintStream",
   returnType = TVoid,
   methodName = "println",
-  parameters = Just [TClass "java.lang.Object"]
+  parameters = [TClass "java.lang.Object"]
 }
 
 initSignature = MethodSignature {
   className = "SimpleExample",
   returnType = TVoid,
   methodName = "<init>",
-  parameters = Nothing
+  parameters = []
 }
 
 initMethod = Method {
   modifiers = [Public],
   returnType = TVoid,
   name = "<init>",
-  parameters = Nothing,
-  throws = Nothing,
+  parameters = [],
+  throws = [],
   body = MFull {
     declarations = [
       (TClass "SimpleExample", ["r0"])
     ],
     statements = [
-      Identity "r0" (IDThis) (TClass "SimpleExample"),
-      Invoke EInvoke SpecialInvoke "r0" objectInitSignature Nothing,
+      Identity "r0" IDThis (TClass "SimpleExample"),
+      Invoke SpecialInvoke "r0" objectInitSignature [],
       Return Nothing
     ],
-    catchClauses = [],
+    catchClauses = []
   }
 }
 
@@ -52,10 +52,10 @@ mainMethod = Method {
   modifiers = [Public, Static],
   returnType = TVoid,
   name = "main",
-  parameters = Just [
+  parameters = [
     TArray (TClass "java.lang.String")
   ],
-  throws = Nothing,
+  throws = [],
   body = MFull {
     declarations = [
       (TArray (TClass "java.lang.String"), ["r0"]),
@@ -64,11 +64,11 @@ mainMethod = Method {
     statements = [
       Identity "r0" (IDParameter 0) (TClass "java.lang.String"),
       Assign VLocal "$r2" ENew NewSimple TClass "SimpleExample",
-      Invoke EInvoke SpecialInvoke "$r2" initSignature Nothing,
-      Invoke EInvoke VirtualInvoke "$r2" fooSignature Nothing,
+      Invoke SpecialInvoke "$r2" initSignature [],
+      Invoke VirtualInvoke "$r2" fooSignature [],
       Return Nothing
     ],
-    catchClauses = [],
+    catchClauses = []
   }
 }
 
@@ -76,25 +76,25 @@ fooSignature = MethodSignature {
   className = "SimpleExample",
   returnType = TVoid,
   methodName = "foo",
-  parameters = Nothing
+  parameters = []
 }
 
 fooMethod = Method {
   modifiers = [Public],
   returnType = TVoid,
   name = "foo",
-  parameters = Nothing,
-  throws = Nothing,
+  parameters = [],
+  throws = [],
   body = MFull {
     declarations = [
       (TClass "SimpleExample", ["r0"]),
       (TArray TInt, ["r1", "r2", "r3"]),
       (TInt, ["i1", "i2", "$i3", "$i4", "$i5", "$i6", "$i7",
               "$i8", "$i9", "$i10", "$i11", "$i12", "i13", "i14"]),
-      (TClass "java.io.PrintStream", ["$r5"]),
+      (TClass "java.io.PrintStream", ["$r5"])
     ],
     statements = [
-      Identity "r0" (IDThis) (TClass "SimpleExample"),
+      Identity "r0" IDThis (TClass "SimpleExample"),
       Assign (VLocal "r1") (ENew NewArray TInt (IInt 8)),
       Assign (VLocal "r2") (ENew NewArray TInt (IInt 8)),
       Assign (VLocal "i13") (EImmediate IInt 0),
@@ -106,8 +106,8 @@ fooMethod = Method {
       If (EBinop (ILocalName "i13") Cmpge (IInt 8)) "label3",
       Assign (VLocal "$i5") (EReference ArrayReference "r1" ILocalName "i13"),
       Assign (VLocal "$i3") (EBinop (ILocalName "i13") Plus (IInt 1)),
-      Assign (VLocal "$i4") (EReference ArrayReference "r1" ILocalName $"i3"),
-      Assign (VLocal "$i1") (EInvoke VirtualInvoke "r0" ltSignature Just [
+      Assign (VLocal "$i4") (EReference ArrayReference "r1" ILocalName "$i3"),
+      Assign (VLocal "$i1") (EInvoke VirtualInvoke "r0" ltSignature [
         ILocalName "$i5",
         ILocalName "$i4"
       ]),
@@ -124,50 +124,43 @@ fooMethod = Method {
       Goto "label2",
       Label "label3",
       Assign (VLocal "$r5") EReference SignatureReference printStreamSignature,
-      Invoke VirtualInvoke "$r5" printlnSignature, Just ILocalName "r3",
+      Invoke VirtualInvoke "$r5" printlnSignature [ILocalName "r3"],
       Goto "label1"
     ],
-    catchClauses = [],
-  },
+    catchClauses = []
+  }
 }
 
 ltSignature = MethodSignature {
   className = "SimpleExample",
   returnType = TInt,
   methodName = "lt",
-  parameters = Just [TInt, TInt]
+  parameters = [TInt, TInt]
 }
 
 ltMethod = Method {
   modifiers = [Public],
   returnType = TInt,
   name = "lt",
-  parameters = Just [TInt, TInt],
-  throws = Nothing,
+  parameters = [TInt, TInt],
+  throws = [],
   body = MFull {
     declarations = [
       (TClass "SimpleExample", ["r0"]),
       (TInt, ["i0", "i1"])
     ],
     statements = [
-      Identity "r0" (IDThis) (TClass "SimpleExample"),
-      Identity "i0" (IDParameter 0) (TInt),
-      Identity "i1" (IDParameter 1) (TInt),
+      Identity "r0" IDThis (TClass "SimpleExample"),
+      Identity "i0" (IDParameter 0) TInt,
+      Identity "i1" (IDParameter 1) TInt,
       If (EBinop (ILocalName "i0") Cmple (ILocalName "i1")) "label1",
       Return (Just IInt 1),
       Label "label1",
       Return (Just IInt 0)
     ],
-    catchClauses = [],
-  },
+    catchClauses = []
+  }
 }
-
-fileBody = [
-  initMethod,
-  mainMethod,
-  fooMethod,
-  ltMethod,
-]
 
 file = File {
   modifiers = [Public],
@@ -175,5 +168,10 @@ file = File {
   className = "SimpleExample",
   extends = Just "java.lang.Object",
   implements = Nothing,
-  body = fileBody
+  body = [
+    initMethod,
+    mainMethod,
+    fooMethod,
+    ltMethod
+  ]
 }
