@@ -81,13 +81,28 @@ isPositiveVInt :: Val -> Bool
 isPositiveVInt (VInt n) = n > 0
 isPositiveVInt _ = False
 
-mapEval :: Arr [Immediate] [Val]
-mapEval = proc xs -> case xs of
+evalImmediateList :: Arr [Immediate] [Val]
+evalImmediateList = proc xs -> case xs of
   (x':xs') -> do
-    v <- eval -< (EImmediate x')
-    vs <- mapEval -< xs'
+    v <- evalImmediate -< x'
+    vs <- evalImmediateList -< xs'
     returnA -< (v:vs)
   [] -> returnA -< []
+
+evalImmediate :: Arr Immediate Val
+evalImmediate = proc i -> case i of
+  ILocalName x -> do
+    st <- getDynamic -< ()
+    case Map.lookup x st of
+      Just v -> case v of
+        Just a -> returnA -< a
+        Nothing -> throw -< "Variable not initialized"
+      Nothing -> throw -< "Variable not in scope"
+  IInt n -> returnA -< (VInt n)
+  IFloat f -> returnA -< (VFloat f)
+  IString s -> returnA -< (VString s)
+  IClass c -> returnA -< (VClass c)
+  INull -> returnA -< VNull
 
 eval :: Arr Expr Val
 eval = proc e -> case e of
@@ -97,14 +112,14 @@ eval = proc e -> case e of
       else throw -< "Expected a nonvoid base type for new"
     NewArray t i -> if isNonvoidType t
       then do
-        v <- eval -< EImmediate i
+        v <- evalImmediate -< i
         if isPositiveVInt v
           then returnA -< (defaultArray t [v])
           else throw -< "Expected a positive integer for newarray size"
       else throw -< "Expected a nonvoid type for newarray"
     NewMulti t is -> if isBaseType t
       then do
-        vs <- mapEval -< is
+        vs <- evalImmediateList -< is
         if all isPositiveVInt vs
           then returnA -< (defaultArray t vs)
           else throw -< "Expected positive integers for newmultiarray sizes"
@@ -114,8 +129,8 @@ eval = proc e -> case e of
   -- EInvoke InvokeExpr
   -- EReference Reference
   EBinop i1 op i2 -> do
-    v1 <- eval -< EImmediate i1
-    v2 <- eval -< EImmediate i2
+    v1 <- evalImmediate -< i1
+    v2 <- evalImmediate -< i2
     case op of
       -- And ->
       -- Or ->
@@ -165,7 +180,7 @@ eval = proc e -> case e of
         (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 / f2))
         (_, _) -> throw -< "Expected two numbers as arguments for /"
   EUnop op i -> do
-    v <- eval -< EImmediate i
+    v <- evalImmediate -< i
     case op of
       Lengthof -> case v of
         VArray xs -> returnA -< (VInt (length xs))
@@ -174,19 +189,9 @@ eval = proc e -> case e of
         VInt n -> returnA -< (VInt (-n))
         VFloat f -> returnA -< (VFloat (-f))
         _ -> throw -< "Expected a number as argument for -"
-  EImmediate i -> case i of
-    ILocalName x -> do
-      st <- getDynamic -< ()
-      case Map.lookup x st of
-        Just v -> case v of
-          Just a -> returnA -< a
-          Nothing -> throw -< "Variable not initialized"
-        Nothing -> throw -< "Variable not in scope"
-    IInt n -> returnA -< (VInt n)
-    IFloat f -> returnA -< (VFloat f)
-    IString s -> returnA -< (VString s)
-    IClass c -> returnA -< (VClass c)
-    INull -> returnA -< VNull
+  EImmediate i -> do
+    v <- evalImmediate -< i
+    returnA -< v
   _ -> throw -< "Undefined expression"
 
 eval' :: Store -> Expr -> Either String Val
@@ -241,7 +246,7 @@ run = proc (stmts, i) -> if i == length stmts
     -- Ret (Maybe Immediate)
     Return e -> case e of
       Just immediate -> do
-        v <- eval -< EImmediate immediate
+        v <- evalImmediate -< immediate
         returnA -< Just v
       Nothing -> returnA -< Nothing
     -- Throw Immediate
