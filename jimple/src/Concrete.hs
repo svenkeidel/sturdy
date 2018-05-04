@@ -209,6 +209,19 @@ put = Arr (\st _ -> Right (st,()))
 throw :: Arr String a
 throw = Arr (\er _ -> Left er)
 
+goto :: Arr ([Statement], String) (Maybe Val)
+goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
+  Just i -> run -< (stmts, i)
+  Nothing -> throw -< "Undefined label: " ++ label
+
+matchCases :: Arr ([CaseStatement], Int) String
+matchCases = proc (cases, v) -> case cases of
+  ((CLConstant n, label): cases') -> if v == n
+    then returnA -< label
+    else matchCases -< (cases', v)
+  ((CLDefault, label): _) -> returnA -< label
+  [] -> throw -< "No cases match value " ++ show v
+
 run :: Arr ([Statement], Int) (Maybe Val)
 run = proc (stmts, i) -> if i == length stmts
   then returnA -< Nothing
@@ -217,8 +230,20 @@ run = proc (stmts, i) -> if i == length stmts
     -- Breakpoint
     -- Entermonitor Immediate
     -- Exitmonitor Immediate
-    -- Tableswitch Immediate [CaseStatement]
-    -- Lookupswitch Immediate [CaseStatement]
+    Tableswitch immediate cases -> do
+      v <- evalImmediate -< immediate
+      case v of
+        VInt x -> do
+          label <- matchCases -< (cases, x)
+          goto -< (stmts, label)
+        _ -> throw -< "Expected an integer as argument for switch"
+    Lookupswitch immediate cases -> do
+      v <- evalImmediate -< immediate
+      case v of
+        VInt x -> do
+          label <- matchCases -< (cases, x)
+          goto -< (stmts, label)
+        _ -> throw -< "Expected an integer as argument for switch"
     -- Identity LocalName AtIdentifier Type
     -- IdentityNoType LocalName AtIdentifier
     Assign var e -> do
@@ -233,15 +258,11 @@ run = proc (stmts, i) -> if i == length stmts
     If e label -> do
       v <- eval -< e
       case v of
-        VBool True -> case Label label `elemIndex` stmts of
-          Just j -> run -< (stmts, j)
-          Nothing -> throw -< "Undefined label: " ++ label
+        VBool True -> goto -< (stmts, label)
         VBool False -> run -< (stmts, i + 1)
         _ -> throw -< "Expected a boolean expression for if statement"
     -- If Expr GotoStatement
-    Goto label -> case Label label `elemIndex` stmts of
-      Just j -> run -< (stmts, j)
-      Nothing -> throw -< "Undefined label: " ++ label
+    Goto label -> goto -< (stmts, label)
     -- Nop
     -- Ret (Maybe Immediate)
     Return e -> case e of

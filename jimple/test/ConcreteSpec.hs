@@ -85,5 +85,27 @@ spec = do
                    Label "l2",
                    Return (Just (IInt 0))]
       run' store stmts `shouldBe` Right (store, Just (VInt 0))
+    it "lookupswitch(4) { case 0: goto l1; case 4: goto l2; default: goto l3;}; l1: return 1; l2: return 2; l3: return 3;" $ do
+      let stmts = [Lookupswitch (IInt 4) [(CLConstant 0, "l1"),
+                                          (CLConstant 4, "l2"),
+                                          (CLDefault, "l3")],
+                   Label "l1",
+                   Return (Just (IInt 1)),
+                   Label "l2",
+                   Return (Just (IInt 2)),
+                   Label "l3",
+                   Return (Just (IInt 3))]
+      run' store stmts `shouldBe` Right (store, Just (VInt 2))
+    it "lookupswitch(2) { case 0: goto l1; case 4: goto l2; default: goto l3;}; l1: return 1; l2: return 2; l3: return 3;" $ do
+      let stmts = [Lookupswitch (IInt 2) [(CLConstant 0, "l1"),
+                                          (CLConstant 4, "l2"),
+                                          (CLDefault, "l3")],
+                   Label "l1",
+                   Return (Just (IInt 1)),
+                   Label "l2",
+                   Return (Just (IInt 2)),
+                   Label "l3",
+                   Return (Just (IInt 3))]
+      run' store stmts `shouldBe` Right (store, Just (VInt 3))
 
   where store = (Map.empty, Map.empty)
