@@ -20,9 +20,9 @@ data Val
   | VClass String
   | VBool Bool
   | VNull
-  | VArray [Val]
-  | VFixedArray [Val] Int
-  | VObject (Map String Val) deriving (Eq)
+  | VArray Type [Val]
+  | VFixedArray Type [Val] Int
+  | VObject Type (Map String Val) deriving (Eq)
 
 type StaticStore = Map String (Maybe Val)
 type DynamicStore = Map String (Maybe Val)
@@ -37,7 +37,7 @@ instance Show Val where
   show (VNull) = "null"
   show (VArray v) = (show v) ++ "[]"
   show (VFixedArray v l) = (show v) ++ "[" ++ (show l) ++ "]"
-  show (VObject m) = show m
+  show (VObject t m) = show t ++ "(" ++ show m ++ ")"
 
 newtype Arr x y = Arr {
   runArr :: x -> Store -> Either String (Store, y)
@@ -61,11 +61,11 @@ numToBool op v1 v2 = case (v1, v2) of
 
 eval :: Arr Expr Val
 eval = proc e -> case e of
-  -- ENew newExpr -> do
-  --   case newExpr of
-  --     NewSimple t ->
-  --     NewArray t d ->
-  --     NewMulti t ds ->
+  ENew newExpr -> do
+    case newExpr of
+      NewSimple t -> VObject (t, 0) Map.empty
+      NewArray t d -> VObject (t, d) Map.empty
+      NewMulti t ds ->
   -- ECast NonvoidType Immediate
   -- EInstanceof Immediate NonvoidType
   -- EInvoke InvokeExpr

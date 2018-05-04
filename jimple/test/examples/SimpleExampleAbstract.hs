@@ -11,7 +11,7 @@ objectInitSignature = MethodSignature {
 
 printStreamSignature = FieldSignature {
   className: "java.lang.System",
-  fieldType: TNonvoid (TClass "java.io.PrintStream", 0),
+  fieldType: TClass "java.io.PrintStream",
   fieldName: "out",
 }
 
@@ -19,7 +19,7 @@ printlnSignature = MethodSignature {
   className = "java.io.PrintStream",
   returnType = TVoid,
   methodName = "println",
-  parameters = Just [TNonvoid (TClass "java.lang.Object", 0)]
+  parameters = Just [TClass "java.lang.Object"]
 }
 
 initSignature = MethodSignature {
@@ -37,10 +37,10 @@ initMethod = Method {
   throws = Nothing,
   body = MFull {
     declarations = [
-      (JTNonvoid (TClass "SimpleExample", 0), ["r0"])
+      (TClass "SimpleExample", ["r0"])
     ],
     statements = [
-      Identity "r0" (IDThis) (TNonvoid (TClass "SimpleExample", 0)),
+      Identity "r0" (IDThis) (TClass "SimpleExample"),
       Invoke EInvoke SpecialInvoke "r0" objectInitSignature Nothing,
       Return Nothing
     ],
@@ -53,18 +53,17 @@ mainMethod = Method {
   returnType = TVoid,
   name = "main",
   parameters = Just [
-    TNonvoid (TClass "java.lang.String", 1)
+    TArray (TClass "java.lang.String")
   ],
   throws = Nothing,
   body = MFull {
     declarations = [
-      (JTNonvoid (TClass "java.lang.String", 1), ["r0"]),
-      (JTNonvoid (TClass "SimpleExample", 0), ["$r2"])
+      (TArray (TClass "java.lang.String"), ["r0"]),
+      (TClass "SimpleExample", ["$r2"])
     ],
     statements = [
-      Identity "r0" (IDParameter 0) (TNonvoid (TClass "java.lang.String", 1)),
+      Identity "r0" (IDParameter 0) (TClass "java.lang.String"),
       Assign VLocal "$r2" ENew NewSimple TClass "SimpleExample",
-      (TNonvoid (TClass "SimpleExample", 0)),
       Invoke EInvoke SpecialInvoke "$r2" initSignature Nothing,
       Invoke EInvoke VirtualInvoke "$r2" fooSignature Nothing,
       Return Nothing
@@ -88,22 +87,21 @@ fooMethod = Method {
   throws = Nothing,
   body = MFull {
     declarations = [
-      (JTNonvoid (TClass "SimpleExample", 0), ["r0"]),
-      (JTNonvoid (TInt, 1), ["r1", "r2", "r3"]),
-      (JTNonvoid (TInt, 0), ["i1", "i2", "$i3", "$i4", "$i5", "$i6", "$i7",
-                             "$i8", "$i9", "$i10", "$i11", "$i12", "i13", "i14"
-                            ]),
-      (JTNonvoid (TClass "java.io.PrintStream", 0), ["$r5"]),
+      (TClass "SimpleExample", ["r0"]),
+      (TArray TInt, ["r1", "r2", "r3"]),
+      (TInt, ["i1", "i2", "$i3", "$i4", "$i5", "$i6", "$i7",
+              "$i8", "$i9", "$i10", "$i11", "$i12", "i13", "i14"]),
+      (TClass "java.io.PrintStream", ["$r5"]),
     ],
     statements = [
-      Identity "r0" (IDThis) (TNonvoid (TClass "SimpleExample", 0)),
-      Assign (VLocal "r1") (ENew NewArray (TInt, 0) (IInt 8)),
-      Assign (VLocal "r2") (ENew NewArray (TInt, 0) (IInt 8)),
+      Identity "r0" (IDThis) (TClass "SimpleExample"),
+      Assign (VLocal "r1") (ENew NewArray TInt (IInt 8)),
+      Assign (VLocal "r2") (ENew NewArray TInt (IInt 8)),
       Assign (VLocal "i13") (EImmediate IInt 0),
       Assign (VLocal "i14") (EImmediate IInt 0),
       Label "label1",
       Assign (VLocal "$i2") (EBinop (IInt 8) Div (IInt 2)),
-      Assign (VLocal "r3") (ENew NewArray (TInt, 0) (ILocalName "$i2")),
+      Assign (VLocal "r3") (ENew NewArray TInt (ILocalName "$i2")),
       Label "label2",
       If (EBinop (ILocalName "i13") Cmpge (IInt 8)) "label3",
       Assign (VLocal "$i5") (EReference ArrayReference "r1" ILocalName "i13"),
@@ -135,32 +133,26 @@ fooMethod = Method {
 
 ltSignature = MethodSignature {
   className = "SimpleExample",
-  returnType = TNonvoid (TInt, 0),
+  returnType = TInt,
   methodName = "lt",
-  parameters = Just [
-    TNonvoid (TInt, 0),
-    TNonvoid (TInt, 0)
-  ]
+  parameters = Just [TInt, TInt]
 }
 
 ltMethod = Method {
   modifiers = [Public],
-  returnType = TNonvoid (TInt, 0),
+  returnType = TInt,
   name = "lt",
-  parameters = Just [
-    TNonvoid (TInt, 0),
-    TNonvoid (TInt, 0)
-  ],
+  parameters = Just [TInt, TInt],
   throws = Nothing,
   body = MFull {
     declarations = [
-      (JTNonvoid (TClass "SimpleExample", 0), ["r0"]),
-      (JTNonvoid (TInt, 0), ["i0", "i1"])
+      (TClass "SimpleExample", ["r0"]),
+      (TInt, ["i0", "i1"])
     ],
     statements = [
-      Identity "r0" (IDThis) (TNonvoid (TClass "SimpleExample", 0)),
-      Identity "i0" (IDParameter 0) (TNonvoid (TInt, 0)),
-      Identity "i1" (IDParameter 1) (TNonvoid (TInt, 0)),
+      Identity "r0" (IDThis) (TClass "SimpleExample"),
+      Identity "i0" (IDParameter 0) (TInt),
+      Identity "i1" (IDParameter 1) (TInt),
       If (EBinop (ILocalName "i0") Cmple (ILocalName "i1")) "label1",
       Return (Just IInt 1),
       Label "label1",

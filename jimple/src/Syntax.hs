@@ -255,8 +255,19 @@ data Member
 --     {void}   void |
 --     {nonvoid} nonvoid_type;
 data Type
-  = TVoid
-  | Tnonvoid NonvoidType deriving (Eq)
+  = TUnknown
+  | TVoid
+  | TBoolean
+  | TByte
+  | TChar
+  | TShort
+  | TInt
+  | TLong
+  | TFloat
+  | TDouble
+  | TNull
+  | TClass String
+  | TArray Type deriving (Eq, Show)
 --
 --   parameter_list =
 --     {single} parameter |
@@ -265,7 +276,7 @@ type ParameterList = [Parameter]
 --
 --   parameter =
 --     nonvoid_type;
-type Parameter = NonvoidType
+type Parameter = Type
 --
 --   throws_clause =
 --     throws class_name_list;
@@ -293,25 +304,12 @@ type ThrowsClause = ClassNameList
 --     {double}  double |
 --     {null}    null_type |
 --     {class_name}    class_name;
-data BaseType
-  = TBoolean
-  | TByte
-  | TChar
-  | TShort
-  | TInt
-  | TLong
-  | TFloat
-  | TDouble
-  | TNull
-  | TClass String deriving (Eq)
-
+--
 --   nonvoid_type =
 --     {base}   base_type_no_name array_brackets* |
 --     {quoted} quoted_name array_brackets* |
 --     {ident}  identifier array_brackets* |
 --     {full_ident} full_identifier array_brackets*;
-type NonvoidType = (BaseType, Dimension) -- (BaseType, Dimension)
-type Dimension = Int
 --
 --   array_brackets =
 --     l_bracket r_bracket;
@@ -327,14 +325,11 @@ data MethodBody
           }
 --   declaration =
 --     jimple_type local_name_list semicolon;
-type Declaration = (JimpleType, LocalNameList)
+type Declaration = (Type, LocalNameList)
 --
 --   jimple_type =
 --     {unknown} unknown |
 --     {nonvoid} nonvoid_type;
-data JimpleType
-  = JTUnknown
-  | JTNonvoid NonvoidType deriving (Eq)
 --
 --   local_name =
 --     name;
@@ -419,8 +414,8 @@ data CatchClause = CatchClause { className :: ClassName
 --     {immediate}   immediate;
 data Expr
   = ENew NewExpr
-  | ECast NonvoidType Immediate
-  | EInstanceof Immediate NonvoidType
+  | ECast Type Immediate
+  | EInstanceof Immediate Type
   | EInvoke InvokeExpr
   | EReference Reference
   | EBinop Immediate Binop Immediate
@@ -432,9 +427,9 @@ data Expr
 --     {array}  newarray l_paren nonvoid_type r_paren fixed_array_descriptor |
 --     {multi}  newmultiarray l_paren base_type r_paren array_descriptor+;
 data NewExpr
-  = NewSimple BaseType
-  | NewArray NonvoidType FixedArrayDescriptor
-  | NewMulti BaseType [ArrayDescriptor] deriving (Eq)
+  = NewSimple Type
+  | NewArray Type FixedArrayDescriptor
+  | NewMulti Type [ArrayDescriptor] deriving (Eq)
 --
 --   array_descriptor =
 --     l_bracket immediate? r_bracket;
@@ -599,5 +594,3 @@ type ClassName = String
 --     {quoted} quoted_name |
 --     {ident}  identifier;
 type Name = String
-
--- arrayOf :: NonvoidType -> NonvoidType
