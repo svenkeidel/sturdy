@@ -204,3 +204,6 @@ eval = proc e -> case e of
 
         res <- eval -< body 
         returnA -< res
+    ELet vars body -> do
+        res <- eval -< EApp (ELambda (map fst vars) body) (map snd vars)
+        returnA -< res

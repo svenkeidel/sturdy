@@ -43,7 +43,7 @@ data Expr
     | EId Ident
     | EOp Op [Expr]
     | EApp Expr [Expr]
-    -- | ELet [(Ident, Expr)] Expr
+    | ELet [(Ident, Expr)] Expr
     -- | ESetRef Expr Expr
     -- | ERef Expr
     -- | EDeref Expr

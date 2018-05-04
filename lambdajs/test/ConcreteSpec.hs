@@ -289,4 +289,12 @@ spec = do
       it "double" $ do
         let program = EApp (ELambda ["a"] (EOp ONumPlus [(EId "a"), (EId "a")])) [(ENumber 1.0)]
         eval scope program `shouldBe` Right (VNumber 2.0)
+    describe "let expression" $ do
+      it "let single var" $ do
+        let program = ELet [("a", ENumber 1.0)] (EId "a")
+        eval scope program `shouldBe` Right (VNumber 1.0)
+      it "let double var" $ do
+        let program = ELet [("a", ENumber 1.0), ("b", ENumber 2.0)] (EOp ONumPlus [(EId "a"), (EId "b")])
+        eval scope program `shouldBe` Right (VNumber 3.0)
+
   where scope = empty
