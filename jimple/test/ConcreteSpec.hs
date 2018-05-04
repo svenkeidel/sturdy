@@ -56,12 +56,28 @@ spec = do
     it "3 % 2.5" $ do
       let expr = EBinop (IInt 3) Mod (IFloat 2.5)
       eval' store expr `shouldBe` Right (VFloat 0.5)
+    it "new boolean" $ do
+      let expr = ENew (NewSimple TBoolean)
+      eval' store expr `shouldBe` Right (VInt 0)
+    it "newmultiarray (float) [3][]" $ do
+      let expr = ENew (NewMulti TFloat [IInt 3, IInt 2])
+      eval' store expr `shouldBe` Right (VArray [VArray [VFloat 0.0, VFloat 0.0],
+                                                 VArray [VFloat 0.0, VFloat 0.0],
+                                                 VArray [VFloat 0.0, VFloat 0.0]])
 
   describe "Simple Statements" $ do
     it "i0 = 2 + 3;" $ do
       let stmts = [Assign (VLocal "i0") (EBinop (IInt 2) Plus (IInt 3))]
-      let st = (Map.empty, Map.fromList [("i0", Just (VInt 5))])
-      run' st stmts `shouldBe` Right (st, Nothing)
+      let st1 = (Map.empty, Map.fromList [("i0", Nothing)])
+      let st2 = (Map.empty, Map.fromList [("i0", Just (VInt 5))])
+      run' st1 stmts `shouldBe` Right (st2, Nothing)
+    it "xs = newarray (int)[s]; (s = 2)" $ do
+      let stmts = [Assign (VLocal "xs") (ENew (NewArray TInt (ILocalName "s")))]
+      let st1 = (Map.empty, Map.fromList [("s", Just (VInt 2)),
+                                          ("xs", Nothing)])
+      let st2 = (Map.empty, Map.fromList [("s", Just (VInt 2)),
+                                          ("xs", Just (VArray [VInt 0, VInt 0]))])
+      run' st1 stmts `shouldBe` Right (st2, Nothing)
     it "if 2 <= 3 goto l2; l1: return 1; l2: return 0;" $ do
       let stmts = [If (EBinop (IInt 2) Cmple (IInt 3)) "l2",
                    Label "l1",

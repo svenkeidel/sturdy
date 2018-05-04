@@ -14,29 +14,29 @@ import qualified Data.Map as Map
 import           Syntax
 
 data Val
-  = VInt Int
+  = VBottom
+  | VInt Int
   | VFloat Float
   | VString String
   | VClass String
   | VBool Bool
   | VNull
-  | VArray Type [Val]
-  | VFixedArray Type [Val] Int
-  | VObject Type (Map String Val) deriving (Eq)
+  | VArray [Val]
+  | VObject String (Map String Val) deriving (Eq)
 
 type StaticStore = Map String (Maybe Val)
 type DynamicStore = Map String (Maybe Val)
 type Store = (StaticStore, DynamicStore)
 
 instance Show Val where
+  show VBottom = "⊥"
   show (VInt n) = show n
   show (VFloat f) = show f
   show (VString s) = s
   show (VClass c) = "<" ++ c ++ ">"
   show (VBool b) = show b
-  show (VNull) = "null"
-  show (VArray v) = (show v) ++ "[]"
-  show (VFixedArray v l) = (show v) ++ "[" ++ (show l) ++ "]"
+  show VNull = "null"
+  show (VArray v) = show v
   show (VObject t m) = show t ++ "(" ++ show m ++ ")"
 
 newtype Arr x y = Arr {
@@ -59,13 +59,56 @@ numToBool op v1 v2 = case (v1, v2) of
   (VFloat f1, VFloat f2) -> Just (VBool (op f1 f2))
   (_, _) -> Nothing
 
+defaultValue :: Type -> Val
+defaultValue TBoolean = VInt 0
+defaultValue TByte = VInt 0
+defaultValue TChar = VInt 0
+defaultValue TShort = VInt 0
+defaultValue TInt = VInt 0
+defaultValue TLong = VInt 0
+defaultValue TFloat = VFloat 0.0
+defaultValue TDouble = VFloat 0.0
+defaultValue TNull = VNull
+defaultValue (TClass c) = VObject c Map.empty
+defaultValue _ = VBottom
+
+defaultArray :: Type -> [Val] -> Val
+defaultArray t (VInt d:ds) = VArray (replicate d (defaultArray t ds))
+defaultArray _ (_:_) = VBottom
+defaultArray t [] = defaultValue t
+
+isPositiveVInt :: Val -> Bool
+isPositiveVInt (VInt n) = n > 0
+isPositiveVInt _ = False
+
+mapEval :: Arr [Immediate] [Val]
+mapEval = proc xs -> case xs of
+  (x':xs') -> do
+    v <- eval -< (EImmediate x')
+    vs <- mapEval -< xs'
+    returnA -< (v:vs)
+  [] -> returnA -< []
+
 eval :: Arr Expr Val
 eval = proc e -> case e of
-  ENew newExpr -> do
-    case newExpr of
-      NewSimple t -> VObject (t, 0) Map.empty
-      NewArray t d -> VObject (t, d) Map.empty
-      NewMulti t ds ->
+  ENew newExpr -> case newExpr of
+    NewSimple t -> if isBaseType t
+      then returnA -< (defaultValue t)
+      else throw -< "Expected a nonvoid base type for new"
+    NewArray t i -> if isNonvoidType t
+      then do
+        v <- eval -< EImmediate i
+        if isPositiveVInt v
+          then returnA -< (defaultArray t [v])
+          else throw -< "Expected a positive integer for newarray size"
+      else throw -< "Expected a nonvoid type for newarray"
+    NewMulti t is -> if isBaseType t
+      then do
+        vs <- mapEval -< is
+        if all isPositiveVInt vs
+          then returnA -< (defaultArray t vs)
+          else throw -< "Expected positive integers for newmultiarray sizes"
+      else throw -< "Expected a nonvoid base type for newmultiarray"
   -- ECast NonvoidType Immediate
   -- EInstanceof Immediate NonvoidType
   -- EInvoke InvokeExpr
@@ -79,10 +122,11 @@ eval = proc e -> case e of
       -- Xor ->
       Mod -> case (v1, v2) of
         (VInt x1, VInt x2) -> returnA -< (VInt (x1 `mod` x2))
-        (VInt x1, VFloat x2) -> returnA -< (VFloat ((fromIntegral x1) `mod'` x2))
-        (VFloat x1, VInt x2) -> returnA -< (VFloat (x1 `mod'` (fromIntegral x2)))
+        (VInt x1, VFloat x2) -> returnA -< (VFloat (fromIntegral x1 `mod'` x2))
+        (VFloat x1, VInt x2) -> returnA -< (VFloat (x1 `mod'` fromIntegral x2))
         (VFloat x1, VFloat x2) -> returnA -< (VFloat (x1 `mod'` x2))
         (_, _) -> throw -< "Expected two numbers as arguments for mod"
+      -- Rem ->
       -- Cmp ->
       -- Cmpg ->
       -- Cmpl ->
@@ -116,8 +160,8 @@ eval = proc e -> case e of
         (_, VInt 0) -> throw -< "Cannot divide by zero"
         (_, VFloat 0.0) -> throw -< "Cannot divide by zero"
         (VInt n1, VInt n2) -> returnA -< (VInt (n1 `div` n2))
-        (VFloat f, VInt n) -> returnA -< (VFloat (f / (fromIntegral n)))
-        (VInt n, VFloat f) -> returnA -< (VFloat ((fromIntegral n) / f))
+        (VFloat f, VInt n) -> returnA -< (VFloat (f / fromIntegral n))
+        (VInt n, VFloat f) -> returnA -< (VFloat (fromIntegral n / f))
         (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 / f2))
         (_, _) -> throw -< "Expected two numbers as arguments for /"
   EUnop op i -> do
@@ -125,7 +169,6 @@ eval = proc e -> case e of
     case op of
       Lengthof -> case v of
         VArray xs -> returnA -< (VInt (length xs))
-        VFixedArray _ l -> returnA -< (VInt l)
         _ -> throw -< "Expected an array as argument for lengthof"
       Neg -> case v of
         VInt n -> returnA -< (VInt (-n))
@@ -185,14 +228,13 @@ run = proc (stmts, i) -> if i == length stmts
     If e label -> do
       v <- eval -< e
       case v of
-        VBool True -> do
-          case ((Label label) `elemIndex` stmts) of
-            Just j -> run -< (stmts, j)
-            Nothing -> throw -< "Undefined label: " ++ label
+        VBool True -> case Label label `elemIndex` stmts of
+          Just j -> run -< (stmts, j)
+          Nothing -> throw -< "Undefined label: " ++ label
         VBool False -> run -< (stmts, i + 1)
         _ -> throw -< "Expected a boolean expression for if statement"
     -- If Expr GotoStatement
-    Goto label -> case ((Label label) `elemIndex` stmts) of
+    Goto label -> case Label label `elemIndex` stmts of
       Just j -> run -< (stmts, j)
       Nothing -> throw -< "Undefined label: " ++ label
     -- Nop
