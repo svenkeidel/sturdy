@@ -2,37 +2,33 @@ module SimpleExampleSpec where
 
 import Syntax
 
-objectInitSignature = MethodSignature {
-  className = "java.lang.Object",
-  returnType = TVoid,
-  methodName = "<init>",
-  parameters = []
-}
+objectInitSignature = MethodSignature
+  "java.lang.Object"
+  TVoid
+  "<init>"
+  []
 
-printStreamSignature = FieldSignature {
-  className = "java.lang.System",
-  fieldType = TClass "java.io.PrintStream",
-  fieldName = "out"
-}
+printStreamSignature = FieldSignature
+  "java.lang.System"
+  (TClass "java.io.PrintStream")
+  "out"
 
-printlnSignature = MethodSignature {
-  className = "java.io.PrintStream",
-  returnType = TVoid,
-  methodName = "println",
-  parameters = [TClass "java.lang.Object"]
-}
+printlnSignature = MethodSignature
+  "java.io.PrintStream"
+  TVoid
+  "println"
+  [TClass "java.lang.Object"]
 
-initSignature = MethodSignature {
-  className = "SimpleExample",
-  returnType = TVoid,
-  methodName = "<init>",
-  parameters = []
-}
+initSignature = MethodSignature
+  "SimpleExample"
+  TVoid
+  "<init>"
+  []
 
 initMethod = Method {
   modifiers = [Public],
   returnType = TVoid,
-  name = "<init>",
+  methodName = "<init>",
   parameters = [],
   throws = [],
   body = MFull {
@@ -51,7 +47,7 @@ initMethod = Method {
 mainMethod = Method {
   modifiers = [Public, Static],
   returnType = TVoid,
-  name = "main",
+  methodName = "main",
   parameters = [
     TArray (TClass "java.lang.String")
   ],
@@ -82,7 +78,7 @@ fooSignature = MethodSignature {
 fooMethod = Method {
   modifiers = [Public],
   returnType = TVoid,
-  name = "foo",
+  methodName = "foo",
   parameters = [],
   throws = [],
   body = MFull {
@@ -141,7 +137,7 @@ ltSignature = MethodSignature {
 ltMethod = Method {
   modifiers = [Public],
   returnType = TInt,
-  name = "lt",
+  methodName = "lt",
   parameters = [TInt, TInt],
   throws = [],
   body = MFull {
