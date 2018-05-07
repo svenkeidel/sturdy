@@ -7,7 +7,7 @@ import Control.Category
 import Control.Arrow
 
 import Data.Fixed (mod')
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, find)
 import Data.Bits (shift, bit)
 import Data.Word (Word32)
 
@@ -60,121 +60,141 @@ put = ConcreteArr (\st _ -> Right (st, ()))
 throw :: ConcreteArr String a
 throw = ConcreteArr (\er _ -> Left er)
 
-evalOp :: Op -> [Value] -> Value
--- number operators
-evalOp ONumPlus [(VNumber a), (VNumber b)] =
-    VNumber (a + b)
-evalOp OMul [(VNumber a), (VNumber b)] =
-    VNumber (a * b)
-evalOp ODiv [(VNumber a), (VNumber b)] =
-    VNumber (a / b)
-evalOp OMod [(VNumber a), (VNumber b)] =
-    VNumber (mod' a b)
-evalOp OSub [(VNumber a), (VNumber b)] =
-    VNumber (a - b)
-evalOp OLt [(VNumber a), (VNumber b)] =
-    VBool (a < b)
-evalOp OToInteger [(VNumber a)] = VNumber $ fromInteger (truncate a)
-evalOp OToInt32 [(VNumber a)] = 
-    let n = mod (truncate a) ((2^32) :: Integer) in
-        if n > (2^31) then VNumber $ fromInteger $ n - (2^32)
-        else VNumber $ fromInteger $ n
-evalOp OToUInt32 [(VNumber a)] = VNumber $ fromInteger $ mod (abs $ truncate a) (2^32)
+evalOp :: ConcreteArr (Op, [Value]) Value
+evalOp = proc (op, vals) -> case (op, vals) of
+    -- number operators
+    (ONumPlus, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a + b)
+    (OMul, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a * b)
+    (ODiv, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a / b)
+    (OMod, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (mod' a b)
+    (OSub, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a - b)
+    (OLt, [(VNumber a), (VNumber b)]) -> returnA -< VBool (a < b)
+    (OToInteger, [(VNumber a)]) -> returnA -< VNumber $ fromInteger (truncate a)
+    (OToInt32, [(VNumber a)]) -> 
+        returnA -< (let n = mod (truncate a) (2^32 :: Integer) in
+            if n > (2^31) then VNumber $ fromInteger $ n - (2^32)
+            else VNumber $ fromInteger $ n)
+    (OToUInt32, [(VNumber a)]) -> returnA -< VNumber $ fromInteger $ mod (abs $ truncate a) (2^32)
+    -- shift operators
+    (OLShift, [(VNumber a), (VNumber b)]) ->
+        returnA -< VNumber $ fromInteger $ shift (truncate a) (truncate b)
+    (OSpRShift, [(VNumber a), (VNumber b)]) -> 
+        returnA -< VNumber $ fromInteger $ shift (truncate a) (- (truncate b))
+    (OZfRShift, [(VNumber a), (VNumber b)]) -> 
+        returnA -< VNumber $ fromInteger $ shift (fromIntegral $ (truncate a :: Word32)) (- (truncate b))
+    -- string operators
+    (OStrPlus, [(VString a), (VString b)]) -> returnA -< VString (a ++ b)
+    (OStrLt, [(VString a), (VString b)]) -> returnA -< VBool (a < b)
+    (OStrLen, [(VString a)]) -> returnA -< VNumber $ fromIntegral $ length a
+    (OStrStartsWith, [(VString a), (VString b)]) -> returnA -< VBool $ isPrefixOf b a
+    -- boolean operators
+    (OBAnd, [(VBool a), (VBool b)]) -> returnA -< VBool (a && b)
+    (OBOr, [(VBool a), (VBool b)]) -> returnA -< VBool (a || b)
+    (OBXOr, [(VBool a), (VBool b)]) -> returnA -< VBool (a /= b)
+    (OBNot, [(VBool a)]) -> returnA -< VBool (not a)
+    -- isPrimitive operator
+    (OIsPrim, [a]) -> returnA -< (case a of
+        (VNumber _) -> VBool True
+        (VString _) -> VBool True
+        (VBool _) -> VBool True
+        (VNull) -> VBool True
+        (VUndefined) -> VBool True
+        (VObject _) -> VBool False)
+    -- primToNum operator
+    -- #todo object conversions -> valueOf call
+    (OPrimToNum, [a]) -> returnA -< (case a of
+        (VNumber a) -> VNumber a
+        (VString s) -> VNumber $ (read s :: Double)
+        (VBool b) -> if b then VNumber 1.0 else VNumber 0.0
+        (VNull) -> VNumber 0
+        (VUndefined) -> VNumber (0/0))
+    -- primToStr operator
+    (OPrimToStr, [a]) -> returnA -< (case a of
+        (VNumber a) -> VString $ show a
+        (VString s) -> VString s
+        (VBool b) -> VString $ show b
+        (VNull) -> VString "null"
+        (VUndefined) -> VString "undefined"
+        (VObject _) -> VString "object")
+    -- primToBool operator
+    (OPrimToBool, [a]) -> returnA -< (case a of 
+        (VNumber a) -> VBool $ (a /= 0.0) && (not (isNaN a))
+        (VString s) -> VBool $ not $ s == ""
+        (VBool b) -> VBool b
+        (VNull) -> VBool False
+        (VUndefined) -> VBool False
+        (VObject _) -> VBool True)
+    -- typeOf operator
+    (OTypeof, [a]) -> returnA -< (case a of
+        (VNumber _) -> VString "number"
+        (VString _) -> VString "string"
+        (VBool _) -> VString "boolean"
+        (VUndefined) -> VString "undefined"
+        (VNull) -> VString "object"
+        (VLambda _ _) -> VString "function"
+        (VObject _) -> VString "object")
+    -- equality operators
+    (OStrictEq, [a, b]) -> returnA -< VBool $ a == b
+    (OAbstractEq, [(VNumber a), (VString b)]) -> do
+        res <- evalOp -< (OPrimToNum, [VString b])
+        returnA -< VBool $ (VNumber a) == res
+    (OAbstractEq, [(VString a), (VNumber b)]) -> do
+        res <- evalOp -< (OPrimToNum, [VString a])
+        returnA -< VBool $ (VNumber b) == res
+    (OAbstractEq, [(VBool a), (VNumber b)]) -> do
+        res <- evalOp -< (OPrimToNum, [VBool a])
+        returnA -< VBool $ (VNumber b) == res
+    (OAbstractEq, [(VNumber a), (VBool b)]) -> do
+        res <- evalOp -< (OPrimToNum, [VBool b])
+        returnA -< VBool $ (VNumber a) == res
+    (OAbstractEq, a) -> returnA -< (case a of
+        [(VNumber a), (VNumber b)] -> VBool $ a == b
+        [(VNull), (VUndefined)] -> VBool True
+        [(VUndefined), (VNull)] -> VBool True)
+    -- math operators
+    (OMathExp, [(VNumber a)]) -> returnA -< VNumber $ exp a
+    (OMathLog, [(VNumber a)]) -> returnA -< VNumber $ log a
+    (OMathCos, [(VNumber a)]) -> returnA -< VNumber $ cos a
+    (OMathSin, [(VNumber a)]) -> returnA -< VNumber $ sin a
+    (OMathAbs, [(VNumber a)]) -> returnA -< VNumber $ abs a
+    (OMathPow, [(VNumber a), (VNumber b)]) -> returnA -< VNumber $ a ** b
+    -- object operators
+    (OHasOwnProp, [(VObject fields), (VString field)]) -> 
+        returnA -< VBool $ any (\(name, value) -> (name == field)) fields
 
--- shift operators
-evalOp OLShift [(VNumber a), (VNumber b)] = 
-    VNumber $ fromInteger $ shift (truncate a) (truncate b)
-evalOp OSpRShift [(VNumber a), (VNumber b)] =
-    VNumber $ fromInteger $ shift (truncate a) (- (truncate b))
-evalOp OZfRShift [(VNumber a), (VNumber b)] =
-    VNumber $ fromInteger $ shift (fromIntegral $ (truncate a :: Word32)) (- (truncate b))
+getField :: ConcreteArr (Value, Value) Value
+getField = proc (VObject fields, VString fieldName) -> 
+    let fieldV = find (\(fn, fv) -> fn == fieldName) fields in
+        case fieldV of
+            -- E-GetField
+            Just (n, v) -> returnA -< v
+            Nothing -> 
+                let protoFieldV = find (\(fn, fv) -> fn == "__proto__") fields in
+                    case protoFieldV of
+                        -- E-GetField-Proto-Null
+                        Just (pn, VUndefined) -> returnA -< VUndefined
+                        -- E-GetField-Proto
+                        Just (pn, pv) -> do
+                            res <- getField -< (pv, VString fieldName)
+                            returnA -< res
+                        -- E-GetField-NotFound
+                        Nothing -> returnA -< VUndefined
 
--- string operators
-evalOp OStrPlus [(VString a), (VString b)] = 
-    VString (a ++ b)
-evalOp OStrLt [(VString a), (VString b)] =
-    VBool (a < b)
-evalOp OStrLen [(VString a)] =
-    VNumber $ fromIntegral $ length a
-evalOp OStrStartsWith [(VString a), (VString b)] =
-    VBool $ isPrefixOf b a
+deleteField :: ConcreteArr (Value, Value) Value
+deleteField = proc (VObject fields, VString name) -> do
+    filtered <- arr (\(n, fs) -> filter (\(fn, _) -> fn /= n) fs) -< (name, fields) 
+    returnA -< VObject filtered
 
--- boolean operators
-evalOp OBAnd [(VBool a), (VBool b)] = 
-    VBool (a && b)
-evalOp OBOr [(VBool a), (VBool b)] = 
-    VBool (a || b)
-evalOp OBXOr [(VBool a), (VBool b)] = 
-    VBool (a /= b)
-evalOp OBNot [(VBool a)] = 
-    VBool (not a)
-
--- isPrimitive operator
-evalOp OIsPrim [(VNumber _)]  = VBool True
-evalOp OIsPrim [(VString _)]  = VBool True
-evalOp OIsPrim [(VBool _)]    = VBool True
-evalOp OIsPrim [(VNull)]      = VBool True
-evalOp OIsPrim [(VUndefined)] = VBool True
-evalOp OIsPrim [(VObject _)]  = VBool False
-
--- primitive to number operator
-evalOp OPrimToNum [(VNumber a)] = VNumber a
-evalOp OPrimToNum [(VString st)] = VNumber (read st :: Double)
-evalOp OPrimToNum [(VBool b)] = if b then VNumber 1.0 else VNumber 0.0
-evalOp OPrimToNum [(VNull)] = VNumber 0
-evalOp OPrimToNum [(VUndefined)] = VNumber (0/0)
--- #todo object conversions -> valueOf call
-
--- primitive to string operator
-evalOp OPrimToStr [(VNumber a)]  = VString $ show a
-evalOp OPrimToStr [(VString st)] = VString st
-evalOp OPrimToStr [(VBool b)]    = VString $ show b
-evalOp OPrimToStr [(VNull)]      = VString "null"
-evalOp OPrimToStr [(VUndefined)] = VString "undefined"
-evalOp OPrimToStr [(VObject _)]  = VString "object"
-
--- primitive to bool operator
-evalOp OPrimToBool [(VNumber a)]  = VBool $ (a /= 0.0) && (not (isNaN a))
-evalOp OPrimToBool [(VString st)] = VBool $ not $ st == ""
-evalOp OPrimToBool [(VBool b)]    = VBool b
-evalOp OPrimToBool [(VNull)]      = VBool False
-evalOp OPrimToBool [(VUndefined)] = VBool False
-evalOp OPrimToBool [(VObject _)]  = VBool True
-
--- typeOf operator
-evalOp OTypeof [(VNumber _)]   = VString "number"
-evalOp OTypeof [(VString _)]   = VString "string"
-evalOp OTypeof [(VBool _)]     = VString "boolean"
-evalOp OTypeof [(VUndefined)]  = VString "undefined"
-evalOp OTypeof [(VNull)]       = VString "object"
-evalOp OTypeof [(VLambda _ _)] = VString "function"
-evalOp OTypeof [(VObject _)]   = VString "object"
-
--- equality operators
-evalOp OStrictEq [a, b] = VBool $ a == b
-evalOp OAbstractEq [(VNumber a), (VNumber b)] = VBool $ a == b
-evalOp OAbstractEq [(VNull), (VUndefined)] = VBool True
-evalOp OAbstractEq [(VUndefined), (VNull)] = VBool True
-evalOp OAbstractEq [(VNumber a), (VString b)] = 
-    VBool $ (VNumber a) == (evalOp OPrimToNum [(VString b)])
-evalOp OAbstractEq [(VString a), (VNumber b)] =
-    VBool $ (evalOp OPrimToNum [(VString a)]) == (VNumber b)
-evalOp OAbstractEq [(VBool a), (VNumber b)] =
-    VBool $ (evalOp OPrimToNum [(VBool a)]) == (VNumber b)
-evalOp OAbstractEq [(VNumber a), (VBool b)] =
-    VBool $ (VNumber a) == (evalOp OPrimToNum [(VBool b)])
-
--- math operators
-evalOp OMathExp [(VNumber a)] = VNumber $ exp a
-evalOp OMathLog [(VNumber a)] = VNumber $ log a
-evalOp OMathCos [(VNumber a)] = VNumber $ cos a
-evalOp OMathSin [(VNumber a)] = VNumber $ sin a
-evalOp OMathAbs [(VNumber a)] = VNumber $ abs a
-evalOp OMathPow [(VNumber a), (VNumber b)] = VNumber $ a ** b
-
--- object operators
-evalOp OHasOwnProp [(VObject fields), (VString field)] =
-    VBool $ any (\(name, value) -> (name == field)) fields
+updateField :: ConcreteArr (Value, Value, Value) Value
+updateField = proc (VObject fields, VString name, value) -> do
+    -- remove field from obj
+    filtered <- deleteField -< (VObject fields, VString name)
+    case filtered of
+        VObject obj -> do
+            -- add field with new value to obj
+            newFields <- arr (\(fs, n, v) -> (n, v) : fs) -< (obj, name, value) 
+            returnA -< VObject newFields
+        _ -> throw -< "Error: deleteField returned non-object value"
 
 eval :: ConcreteArr Expr Value
 eval = proc e -> case e of
@@ -194,7 +214,8 @@ eval = proc e -> case e of
             Nothing -> returnA -< VUndefined
     EOp op exps -> do
         vals <- mapA eval -< exps
-        returnA -< evalOp op vals
+        res <- evalOp -< (op, vals)
+        returnA -< res
     EApp (ELambda params body) args -> do
         vals <- mapA eval -< args
         zipped <- arr $ uncurry zip -< (params, vals)
@@ -206,4 +227,29 @@ eval = proc e -> case e of
         returnA -< res
     ELet vars body -> do
         res <- eval -< EApp (ELambda (map fst vars) body) (map snd vars)
+        returnA -< res
+    EIf cond thenBranch elseBranch -> do
+        testRes <- eval -< cond
+        case testRes of
+            VBool True -> do
+                res <- eval -< thenBranch
+                returnA -< res
+            VBool False -> do
+                res <- eval -< elseBranch
+                returnA -< res
+    EGetField objE fieldE -> do
+        fieldV <- eval -< fieldE
+        objV <- eval -< objE
+        res <- getField -< (objV, fieldV)
+        returnA -< res
+    EUpdateField objE nameE fieldE -> do
+        nameV <- eval -< nameE
+        fieldV <- eval -< fieldE
+        objV <- eval -< objE
+        res <- updateField -< (objV, nameV, fieldV)
+        returnA -< res
+    EDeleteField objE nameE -> do
+        objV <- eval -< objE
+        nameV <- eval -< nameE
+        res <- deleteField -< (objV, nameV)
         returnA -< res

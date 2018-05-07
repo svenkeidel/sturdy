@@ -47,11 +47,11 @@ data Expr
     -- | ESetRef Expr Expr
     -- | ERef Expr
     -- | EDeref Expr
-    -- | EGetField Expr Expr
-    -- | EUpdateField Expr Expr Expr
-    -- | EDeleteField Expr Expr
+    | EGetField Expr Expr
+    | EUpdateField Expr Expr Expr
+    | EDeleteField Expr Expr
     -- | ESeq Expr Expr
-    -- | EIf Expr Expr Expr
+    | EIf Expr Expr Expr
     -- | EWhile Expr Expr
     -- | ELabel Label Expr
     -- | EBreak Label Expr

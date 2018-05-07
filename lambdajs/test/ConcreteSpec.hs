@@ -280,6 +280,18 @@ spec = do
       it "has not own prop" $ do
         let program = EOp OHasOwnProp [(EObject [("a", ENumber 1.0)]), (EString "b")]
         eval scope program `shouldBe` Right (VBool False)
+      it "get field" $ do
+        let program = EGetField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]) (EString "a")
+        eval scope program `shouldBe` Right (VNumber 1.0)
+      it "get field proto" $ do
+        let program = EGetField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0), ("__proto__", (EObject [("c", ENumber 3.0)]))]) (EString "c")
+        eval scope program `shouldBe` Right (VNumber 3.0)
+      it "update field" $ do
+        let program = EGetField (EUpdateField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]) (EString "a") (ENumber 3.0)) (EString "a")
+        eval scope program `shouldBe` Right (VNumber 3.0)
+      it "delete field" $ do
+        let program = EGetField (EDeleteField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]) (EString "a")) (EString "a")
+        eval scope program `shouldBe` Right VUndefined
     
     -- lambda application
     describe "lambda application" $ do
@@ -289,6 +301,8 @@ spec = do
       it "double" $ do
         let program = EApp (ELambda ["a"] (EOp ONumPlus [(EId "a"), (EId "a")])) [(ENumber 1.0)]
         eval scope program `shouldBe` Right (VNumber 2.0)
+
+    -- let
     describe "let expression" $ do
       it "let single var" $ do
         let program = ELet [("a", ENumber 1.0)] (EId "a")
@@ -296,5 +310,15 @@ spec = do
       it "let double var" $ do
         let program = ELet [("a", ENumber 1.0), ("b", ENumber 2.0)] (EOp ONumPlus [(EId "a"), (EId "b")])
         eval scope program `shouldBe` Right (VNumber 3.0)
+
+    -- if
+    describe "if expression" $ do
+      it "if then branch" $ do
+        let program = EIf (EBool True) (ENumber 1.0) (ENumber 2.0)
+        eval scope program `shouldBe` Right (VNumber 1.0)
+      it "if else branch" $ do
+        let program = EIf (EBool False) (ENumber 1.0) (ENumber 2.0)
+        eval scope program `shouldBe` Right (VNumber 2.0)
+    
 
   where scope = empty
