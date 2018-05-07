@@ -68,16 +68,18 @@ spec = do
       let nv = ([], Map.fromList [("xs", "p0")])
       let st = (Map.empty, Map.fromList [("p0", (TArray TInt, Just (VArray [VInt 1, VInt 2, VInt 3])))])
       eval' nv st expr `shouldBe` Right (VInt 3)
-    it "(new Person()).age" $ do
+    it "p.<Person: int age>" $ do
       let personAgeSignature = FieldSignature "Person" TInt "age"
       let personObject = Map.fromList [("age", VInt 10)]
       let nv = ([], Map.fromList [("p", "p0")])
       let st = (Map.empty, Map.fromList [("p0", (TClass "Person", Just (VObject "Person" personObject)))])
       let expr = EReference (FieldReference "p" personAgeSignature)
       eval' nv st expr `shouldBe` Right (VInt 10)
-    -- it "Person.MAX_AGE" $ do
-    --   let st = (Map.fromList, Map.empty)
-    --   eval' env st expr `shouldBe` Right (VInt 100)
+    it "<Person: int MAX_AGE>" $ do
+      let maxAgeSignature = FieldSignature "Person" TInt "MAX_AGE"
+      let st = (Map.fromList [(maxAgeSignature, (Just (VInt 100)))], Map.empty)
+      let expr = EReference (SignatureReference maxAgeSignature)
+      eval' env st expr `shouldBe` Right (VInt 100)
     it "newmultiarray (float) [3][]" $ do
       let expr = ENew (NewMulti TFloat [IInt 3, IInt 2])
       eval' env store expr `shouldBe` Right (VArray [VArray [VFloat 0.0, VFloat 0.0],
