@@ -7,13 +7,32 @@ data AtIdentifier
   | IDThis
   | IDCoughtException deriving (Eq)
 
-data File = File { modifiers :: [Modifier]
+data File = File { fileModifiers :: [Modifier]
                  , fileType :: FileType
-                 , className :: String
-                 , extends :: String
+                 , fileName :: String
+                 , extends :: Maybe String
                  , implements :: [String]
                  , body :: [Member]
                  }
+
+instance Eq File where
+  (==) f1 f2 = fileName f1 == fileName f2
+
+instance Show File where
+  show f = "File {"
+           ++ show (fileModifiers f) ++ " "
+           ++ show (fileType f) ++ " "
+           ++ show (fileName f) ++ " "
+           ++ ex
+           ++ impl
+           ++ "}"
+    where
+      ex = case extends f of
+        Just c -> "extends " ++ show c
+        Nothing -> ""
+      impl = case length (implements f) of
+        0 -> ""
+        xs -> "implements " ++ show xs
 
 data Modifier
   = Abstract
@@ -30,9 +49,28 @@ data Modifier
   | Enum
   | Annotation
 
+instance Show Modifier where
+  show Abstract     = "abstract"
+  show Final        = "final"
+  show Native       = "native"
+  show Public       = "public"
+  show Protected    = "protected"
+  show Private      = "private"
+  show Static       = "static"
+  show Synchronized = "synchronized"
+  show Transient    = "transient"
+  show Volatile     = "volatile"
+  show Strictfp     = "strictfp"
+  show Enum         = "enum"
+  show Annotation   = "annotation"
+
 data FileType
   = FTClass
   | FTInterface
+
+instance Show FileType where
+  show FTClass = "class"
+  show FTInterface = "interface"
 
 data Member
   = Field { modifiers :: [Modifier]
@@ -85,8 +123,8 @@ type Declaration = (Type, [String])
 data Statement
   = Label String
   | Breakpoint
-  | Entermonitor Immediate
-  | Exitmonitor Immediate
+  -- | Entermonitor Immediate -- Don't use this!
+  -- | Exitmonitor Immediate -- Don't use this!
   | Tableswitch Immediate [CaseStatement]
   | Lookupswitch Immediate [CaseStatement]
   | Identity String AtIdentifier Type
@@ -138,25 +176,27 @@ data InvokeExpr
   | StaticInvoke MethodSignature [Immediate]
   | DynamicInvoke String UnnamedMethodSignature [Immediate] MethodSignature [Immediate] deriving (Eq)
 
-data UnnamedMethodSignature = UnnamedMethodSignature { returnType :: Type
-                                                     , parameters :: [Type]
-                                                     } deriving (Eq)
+data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Eq)
 
-data MethodSignature = MethodSignature { className :: String
-                                       , returnType :: Type
-                                       , methodName :: String
-                                       , parameters :: [Type]
-                                       } deriving (Eq)
+data MethodSignature = MethodSignature String Type String [Type] deriving (Eq)
 
 data Reference
   = ArrayReference String Immediate
   | FieldReference String FieldSignature
   | SignatureReference FieldSignature deriving (Eq)
 
-data FieldSignature = FieldSignature { className :: String
-                                     , fieldType :: Type
-                                     , fieldName :: String
-                                     } deriving (Eq)
+data FieldSignature = FieldSignature String Type String deriving (Eq)
+
+instance Ord FieldSignature where
+  compare (FieldSignature c1 _ n1) (FieldSignature c2 _ n2) =
+    case compare c1 c2 of
+      LT -> LT
+      EQ -> compare n1 n2
+      GT -> GT
+
+instance Show FieldSignature where
+  show (FieldSignature c t n) =
+    "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
 
 data Immediate
   = ILocalName String
