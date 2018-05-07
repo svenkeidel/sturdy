@@ -24,8 +24,12 @@ data Val
   | VArray [Val]
   | VObject String (Map String Val) deriving (Eq)
 
-type StaticStore = Map String (Maybe Val)
-type DynamicStore = Map String (Maybe Val)
+type FileEnv = [File]
+type LocalEnv = Map String String
+type Env = (FileEnv, LocalEnv) -- Classes, local fields
+
+type StaticStore = Map FieldSignature (Maybe Val)
+type DynamicStore = Map String (Type, Maybe Val)
 type Store = (StaticStore, DynamicStore)
 
 instance Show Val where
@@ -40,7 +44,7 @@ instance Show Val where
   show (VObject t m) = show t ++ "(" ++ show m ++ ")"
 
 newtype Arr x y = Arr {
-  runArr :: x -> Store -> Either String (Store, y)
+  runArr :: x -> Env -> Store -> Either String (Env, Store, y)
 }
 
 numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
@@ -91,18 +95,51 @@ evalImmediateList = proc xs -> case xs of
 
 evalImmediate :: Arr Immediate Val
 evalImmediate = proc i -> case i of
-  ILocalName x -> do
-    st <- getDynamic -< ()
-    case Map.lookup x st of
-      Just v -> case v of
-        Just a -> returnA -< a
-        Nothing -> throw -< "Variable not initialized"
-      Nothing -> throw -< "Variable not in scope"
+  ILocalName n -> do
+    p <- lookupLocal -< n
+    (_, v) <- fetchDynamic -< p
+    case v of
+      Just v' -> returnA -< v'
+      Nothing -> throw -< "Variable not yet initialized"
   IInt n -> returnA -< (VInt n)
   IFloat f -> returnA -< (VFloat f)
   IString s -> returnA -< (VString s)
   IClass c -> returnA -< (VClass c)
   INull -> returnA -< VNull
+
+evalRef :: Arr Reference Val
+evalRef = proc ref -> case ref of
+  ArrayReference localName i -> do
+    v1 <- evalImmediate -< i
+    case v1 of
+      VInt n -> do
+        p <- lookupLocal -< localName
+        (_, v2) <- fetchDynamic -< p
+        case v2 of
+          Just v2' -> case v2' of
+            VArray xs -> if n >= 0 && n < length xs
+              then returnA -< xs !! n
+              else throwException -< "ArrayIndexOutOfBoundsException"
+            _ -> throw -< "Expected an array to lookup in"
+          Nothing -> throw -< "Variable not yet initialized"
+      _ -> throw -< "Expected an integer as array index"
+  FieldReference localName (FieldSignature c _ fieldName) -> do
+    p <- lookupLocal -< localName
+    (_, v) <- fetchDynamic -< p
+    case v of
+      Just v' -> case v' of
+        VObject c' m -> if c == c'
+          then case Map.lookup fieldName m of
+            Just x -> returnA -< x
+            Nothing -> throw -< "Field " ++ fieldName ++ " not defined for class " ++ c'
+          else throw -< "ClassNames do not correspond"
+        _ -> throw -< "Expected an object to lookup in"
+      Nothing -> throw -< "Variable not yet initialized"
+  SignatureReference fieldSignature -> do
+    (_, v) <- fetchStatic -< fieldSignature
+    case v of
+      Just v' -> returnA -< v'
+      Nothing -> throw -< "Variable not yet initialized"
 
 eval :: Arr Expr Val
 eval = proc e -> case e of
@@ -127,7 +164,7 @@ eval = proc e -> case e of
   -- ECast NonvoidType Immediate
   -- EInstanceof Immediate NonvoidType
   -- EInvoke InvokeExpr
-  -- EReference Reference
+  EReference ref -> evalRef -< ref
   EBinop i1 op i2 -> do
     v1 <- evalImmediate -< i1
     v2 <- evalImmediate -< i2
@@ -194,24 +231,59 @@ eval = proc e -> case e of
     returnA -< v
   _ -> throw -< "Undefined expression"
 
-eval' :: Store -> Expr -> Either String Val
-eval' store expr = right snd (runArr eval expr store)
+eval' :: Env -> Store -> Expr -> Either String Val
+eval' env store expr =
+  let third (_, _, x) = x
+  in right third (runArr eval expr env store)
+--
+-- get :: Arr () Store
+-- get = Arr (\() st -> Right (st,st))
+--
+-- getDynamic :: Arr () DynamicStore
+-- getDynamic = Arr (\() env, st -> Right (st, dynamic))
+--
+-- lookupDynamic :: Arr String Val
+-- lookupDynamic = Arr (\x st@(_, dynamic) ->
+--   case Map.lookup x dynamic of
+--     Just v -> case v of
+--       Just a -> Right (st, a)
+--       Nothing -> Left "Variable not initialized"
+--     Nothing -> Left "Variable not in scope")
+--
+-- put :: Arr Store ()
+-- put = Arr (\st _ -> Right (st,()))
 
-get :: Arr () Store
-get = Arr (\() st -> Right (st,st))
+lookupLocal :: Arr String String
+lookupLocal = Arr (\l env@(_, localEnv) st ->
+  case Map.lookup l localEnv of
+    Just p -> Right (env, st, p)
+    Nothing -> Left "Reference undefined")
 
-getDynamic :: Arr () DynamicStore
-getDynamic = Arr (\() st@(_, dynamic) -> Right (st, dynamic))
+fetchDynamic :: Arr String (Type, Maybe Val)
+fetchDynamic = Arr (\p env st@(_, dynamicStore) ->
+  case Map.lookup p dynamicStore of
+    Just (t, v) -> Right (env, st, (t, v))
+    Nothing -> Left "Variable not in scope")
 
-put :: Arr Store ()
-put = Arr (\st _ -> Right (st,()))
+assignDynamic :: Arr (String, (Type, Val)) ()
+assignDynamic = Arr (\(p, (t, v)) env (s, d) ->
+  Right (env, (s, Map.insert p (t, Just v) d), ()))
+
+fetchStatic :: Arr FieldSignature (Type, Maybe Val)
+fetchStatic = Arr (\fs@(FieldSignature _ t _) env st@(staticStore, _) ->
+  case Map.lookup fs staticStore of
+    Just v -> Right (env, st, (t, v))
+    Nothing -> Left "Field undefined")
 
 throw :: Arr String a
-throw = Arr (\er _ -> Left er)
+throw = Arr (\er _ _ -> Left er)
+
+throwException :: Arr String a
+throwException = Arr (\er _ _ -> Left er)
 
 goto :: Arr ([Statement], String) (Maybe Val)
 goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
-  Just i -> run -< (stmts, i)
+  Just i -> runStatements -< (stmts, i)
   Nothing -> throw -< "Undefined label: " ++ label
 
 matchCases :: Arr ([CaseStatement], Int) String
@@ -222,8 +294,8 @@ matchCases = proc (cases, v) -> case cases of
   ((CLDefault, label): _) -> returnA -< label
   [] -> throw -< "No cases match value " ++ show v
 
-run :: Arr ([Statement], Int) (Maybe Val)
-run = proc (stmts, i) -> if i == length stmts
+runStatements :: Arr ([Statement], Int) (Maybe Val)
+runStatements = proc (stmts, i) -> if i == length stmts
   then returnA -< Nothing
   else case stmts !! i of
     -- Label LabelName
@@ -248,20 +320,19 @@ run = proc (stmts, i) -> if i == length stmts
     -- IdentityNoType LocalName AtIdentifier
     Assign var e -> do
       v <- eval -< e
-      (static, dynamic) <- get -< ()
       case var of
-        VLocal localName -> case Map.lookup localName dynamic of
-          Just _ -> put -< (static, Map.insert localName (Just v) dynamic)
-          Nothing -> throw -< "Variable not declared"
-        VReference _ -> throw -< "undefined yet"
-      run -< (stmts, i + 1)
+        VLocal localName -> do
+          p <- lookupLocal -< localName
+          (t, _) <- fetchDynamic -< p
+          assignDynamic -< (p, (t, v))
+        VReference _ -> throw -< "Undefined yet" -- evalRef -< ref
+      runStatements -< (stmts, i + 1)
     If e label -> do
       v <- eval -< e
       case v of
         VBool True -> goto -< (stmts, label)
-        VBool False -> run -< (stmts, i + 1)
+        VBool False -> runStatements -< (stmts, i + 1)
         _ -> throw -< "Expected a boolean expression for if statement"
-    -- If Expr GotoStatement
     Goto label -> goto -< (stmts, label)
     -- Nop
     -- Ret (Maybe Immediate)
@@ -272,26 +343,26 @@ run = proc (stmts, i) -> if i == length stmts
       Nothing -> returnA -< Nothing
     -- Throw Immediate
     -- Invoke Expr
-    _ -> run -< (stmts, i + 1)
+    _ -> runStatements -< (stmts, i + 1)
 
-run' :: Store -> [Statement] -> Either String (Store, Maybe Val)
-run' st stmts = runArr run (stmts, 0) st
+runStatements' :: Env -> Store -> [Statement] -> Either String (Env, Store, Maybe Val)
+runStatements' env st stmts = runArr runStatements (stmts, 0) env st
 
 instance Category Arr where
-  id = Arr (\x st -> Right (st,x))
-  Arr f . Arr g = Arr $ \x st -> case g x st of
+  id = Arr (\x env st -> Right (env,st,x))
+  Arr f . Arr g = Arr $ \x env st -> case g x env st of
     Left er -> Left er
-    Right (st',y) -> f y st'
+    Right (env',st',y) -> f y env' st'
 
 instance Arrow Arr where
-  arr f = Arr (\x st -> Right (st,f x))
-  first (Arr f) = Arr $ \(x,y) st -> case f x st of
+  arr f = Arr (\x env st -> Right (env,st,f x))
+  first (Arr f) = Arr $ \(x,y) env st -> case f x env st of
     Left er -> Left er
-    Right (st',z) -> Right (st',(z,y))
+    Right (env',st',z) -> Right (env',st',(z,y))
 
 instance ArrowChoice Arr where
-  left (Arr f) = Arr $ \e st -> case e of
-    Left x -> case f x st of
+  left (Arr f) = Arr $ \e env st -> case e of
+    Left x -> case f x env st of
       Left er -> Left er
-      Right (st',y) -> Right (st',Left y)
-    Right z -> Right (st,Right z)
+      Right (env',st',y) -> Right (env',st',Left y)
+    Right z -> Right (env, st, Right z)
