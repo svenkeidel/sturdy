@@ -53,6 +53,7 @@ library
                        Data.Abstract.Powerset,
                        Data.Abstract.Sign,
                        Data.Abstract.Store,
+                       Data.Abstract.UncertainResult,
                        Data.Abstract.Widening,
 
                        Control.Arrow.Const,
@@ -68,7 +69,7 @@ library
                        Control.Arrow.Store,
                        Control.Arrow.Writer,
                        Control.Arrow.Try,
-                       Control.Arrow.Utils
+                       Control.Arrow.Utils,
 
                        Control.Arrow.Abstract.Alloc,
 
@@ -85,6 +86,7 @@ library
                        Control.Arrow.Transformer.Concrete.Fix,
                        Control.Arrow.Transformer.Concrete.Store,
 
+                       Control.Arrow.Transformer.Abstract.Completion,
                        Control.Arrow.Transformer.Abstract.Environment,
                        Control.Arrow.Transformer.Abstract.Contour,
                        Control.Arrow.Transformer.Abstract.BoundedEnvironment,
@@ -94,11 +96,7 @@ library
                        Control.Arrow.Transformer.Abstract.Store,
                        -- Control.Arrow.Transformer.Abstract.LiveVariables,
                        Control.Arrow.Transformer.Abstract.ReachingDefinitions,
-                       
-                       -- TODO: delete
-                       Control.Monad.Deduplicate,
-                       Control.Monad.Try
-
+                       Control.Arrow.Transformer.Abstract.Uncertain
   build-depends:       base,
                        containers,
                        hashable,

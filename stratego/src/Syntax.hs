@@ -379,24 +379,24 @@ arbitraryTermPattern h w var
           fmap (Cons c) $ vectorOf w' $ do
             h' <- choose (0,h-1)
             arbitraryTermPattern h' w var
-        , Explode <$> arbitraryStringPattern
-                  <*> arbitraryListPattern w'
+        -- , Explode <$> arbitraryStringPattern
+        --           <*> arbitraryListPattern w'
         ]
 
-  where
-    arbitraryStringPattern :: Gen TermPattern
-    arbitraryStringPattern =
-      oneof
-        [ Var <$> var
-        , StringLiteral <$> arbitraryLetter
-        ]
+  -- where
+  --   arbitraryStringPattern :: Gen TermPattern
+  --   arbitraryStringPattern =
+  --     oneof
+  --       [ Var <$> var
+  --       , StringLiteral <$> arbitraryLetter
+  --       ]
 
-    arbitraryListPattern :: Int -> Gen TermPattern
-    arbitraryListPattern len =
-      if len == 0
-        then return $ Cons "Nil" []
-        else do
-          h' <- choose (0,h-1)
-          tp <- arbitraryTermPattern h' w var
-          tl <- arbitraryListPattern (len-1)
-          return $ Cons "Cons" [tp,tl]
+  --   arbitraryListPattern :: Int -> Gen TermPattern
+  --   arbitraryListPattern len =
+  --     if len == 0
+  --       then return $ Cons "Nil" []
+  --       else do
+  --         h' <- choose (0,h-1)
+  --         tp <- arbitraryTermPattern h' w var
+  --         tl <- arbitraryListPattern (len-1)
+  --         return $ Cons "Cons" [tp,tl]

@@ -1,21 +1,23 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Data.Abstract.FreeCompletion where
 
-import Control.Monad
 import Control.Applicative
-
-import Data.Order
+import Control.Monad
 import Data.Hashable
+import Data.Order
 
-import GHC.Generics
-
-data FreeCompletion a = Lower a | Top deriving (Eq,Functor,Traversable,Foldable,Generic)
+data FreeCompletion a = Lower a | Top deriving (Eq,Functor,Traversable,Foldable)
 
 instance Show a => Show (FreeCompletion a) where
   show Top = "⊤"
   show (Lower a) = show a
+
+instance Hashable a => Hashable (FreeCompletion a) where
+  hashWithSalt s (Lower a) = s `hashWithSalt` a
+  hashWithSalt s Top = s `hashWithSalt` (2::Int)
 
 instance Applicative FreeCompletion where
   pure = return
@@ -35,13 +37,12 @@ instance PreOrd a => PreOrd (FreeCompletion a) where
   Lower a ≈ Lower b = a ≈ b
   _ ≈ _ = False
 
-instance PreOrd a => Complete (FreeCompletion a) where
-  Lower a ⊔ Lower b
-    | a ⊑ b = Lower b
-    | b ⊑ a = Lower a
-    | otherwise = Top
-  Top ⊔ _ = Top
-  _ ⊔ Top = Top
+instance (PreOrd a, Complete (FreeCompletion a),
+          PreOrd b, Complete (FreeCompletion b)) => Complete (FreeCompletion (a,b)) where
+  Lower (a1,b1) ⊔ Lower (a2,b2) = case (Lower a1 ⊔ Lower a2, Lower b1 ⊔ Lower b2) of
+    (Lower a, Lower b) -> Lower (a,b)
+    (_, _) -> Top
+  _ ⊔ _ = Top
 
 instance CoComplete a => CoComplete (FreeCompletion a) where
   Lower a ⊓ Lower b = Lower (a ⊓ b) 
@@ -65,5 +66,3 @@ instance Num a => Num (FreeCompletion a) where
 instance Fractional a => Fractional (FreeCompletion a) where
   (/) = liftA2 (/)
   fromRational = pure . fromRational
-
-instance Hashable a => Hashable (FreeCompletion a)

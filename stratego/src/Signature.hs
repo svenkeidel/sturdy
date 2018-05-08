@@ -3,7 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Signature(Signature, HasSignature(..), Sort(..), Fun(..), SortId(..),
+module Signature(Signature(..), HasSignature(..), Sort(..), Fun(..), SortId(..),
                  empty, insertType, lookupType, insertSubtype, subtype, inhabitants) where
 
 import           Sort

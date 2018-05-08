@@ -26,7 +26,6 @@ library
                        Data.TypedResult,
                        Data.Term,
                        Data.TermEnv,
-                       Data.UncertainResult,
                        Syntax,
                        Signature,
                        Utils,
@@ -36,7 +35,8 @@ library
                        ConcreteSemantics,
                        WildcardSemantics,
                        Soundness,
-                       Paths_sturdy_stratego
+                       Paths_sturdy_stratego,
+                       GrammarSemantics
   build-depends:       attoparsec,
                        base,
                        containers,
@@ -47,6 +47,7 @@ library
                        sturdy-lib,
                        text,
                        transformers,
+                       tree-automata,
                        unordered-containers,
                        QuickCheck
   hs-source-dirs:      src
@@ -71,10 +72,13 @@ test-suite specs
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base,
+                       containers,
                        hspec,
+                       mtl,
                        sturdy-lib,
                        sturdy-stratego,
                        text,
+                       tree-automata,
                        unordered-containers,
                        QuickCheck
   default-language:    Haskell2010

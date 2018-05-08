@@ -1,199 +1,270 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module GrammarSemantics where
 
-import           Prelude hiding (fail,all,id,(.))
-import           Syntax (Strat(..),Constructor(..),TermVar,StratEnv,TermPattern)
-import qualified Syntax as S
-import           Interpreter
+import           Prelude hiding (id)
 
+import qualified ConcreteSemantics as C
+import           SharedSemantics hiding (all,sequence)
+import           Signature hiding (Top)
+import           Soundness
+import           Syntax hiding (Fail)
+import           Utils
+
+import           Control.Arrow
+import           Control.Arrow.Deduplicate
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Reader
+import           Control.Arrow.State
+import           Control.Arrow.Try
+import           Control.Arrow.Transformer.Abstract.Completion
+import           Control.Arrow.Transformer.Abstract.Uncertain
+import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.State
+import           Control.Category hiding ((.))
+
+import           Data.Abstract.FreeCompletion
+import           Data.Abstract.UncertainResult
+import qualified Data.Concrete.Powerset as C
+import           Data.Constructor
+import           Data.Foldable (foldr')
+import           Data.GaloisConnection
 import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as M
-import           Data.Text (Text)
+import qualified Data.HashMap.Lazy as LM
 import           Data.Hashable
-import           Data.Maybe
+import qualified Data.Map as M
+import           Data.Order
+import           Data.Term hiding (wildcard)
+import           Data.TermEnv
+import           Data.Text (Text)
 
-import           Control.Category
-import           Control.Arrow hiding ((<+>))
-import           Control.Arrow.Operations
-import           Control.Arrow.Transformer.Power
-import           Control.Arrow.Transformer.Deduplicate
-import           WildcardSemantics (Term(..))
+import           TreeAutomata
 
-newtype TermRef = TermRef Int deriving (Eq,Hashable,Num)
+import           Test.QuickCheck hiding (Success)
+import           Text.Printf
 
--- All TermEnv (env,store,maxRef) satisfy
--- * forall x in env, env(x) in store
--- * maxRef not in store
-newtype TermEnv = TermEnv (HashMap TermVar TermRef, HashMap TermRef Term, TermRef)
+data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
+newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
 
-lookup :: (ArrowState TermEnv p, ArrowChoice p, Try p) => p TermVar (Maybe TermRef)
-lookup = proc ref -> do
-  TermEnv (env,_,_) <- getTermEnv -< ()
-  returnA -< M.lookup ref env
+newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
+newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Uncertain (Completion (->)))) a b)
+  deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, Category, PreOrd)
 
-deref :: (ArrowState TermEnv p, ArrowChoice p, Try p) => p TermRef Term
-deref = proc ref -> do
-  TermEnv (env,store,_) <- getTermEnv -< ()
-  case M.lookup ref store of
-    Just t -> returnA -< t
-    Nothing -> returnA -< error "failed to resolve reference"
+runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> FreeCompletion (UncertainResult (TermEnv, b))
+runInterp (Interp f) i alph senv tenv a = runCompletion (runUncertain (runState (runReader f))) (tenv, ((senv, i, alph), a))
 
-storeTerm :: ArrowState TermEnv p => p (TermRef,Term) ()
-storeTerm = proc (ref,t) -> do
-  TermEnv (env,store,maxRef) <- getTermEnv -< ()
-  putTermEnv -< TermEnv (env, M.insert ref t store, maxRef)
+eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> FreeCompletion (UncertainResult (TermEnv, Term))
+eval i s = runInterp (eval' s) i
 
-newTerm :: ArrowState TermEnv p => p Term TermRef
-newTerm = proc t -> do
-  TermEnv (env,store,maxRef) <- getTermEnv -< ()
-  let newRef = maxRef
-  putTermEnv -< TermEnv (env,M.insert newRef t store, maxRef + 1)
-  returnA -< newRef
+-- Create grammars -----------------------------------------------------------------------------------
 
-eval' :: (ArrowChoice p, ArrowState TermEnv p, ArrowAppend p, Try p, Deduplicate p, ArrowApply p)
-      => Int -> StratEnv -> Strat -> p TermRef TermRef
-eval' 0 _ _ = proc _ ->
-  fail <+> newTerm -< Wildcard
-eval' i senv s0 = dedup $ case s0 of
-  Id -> id
-  S.Fail -> fail
-  Seq s1 s2 -> eval' i senv s2 . eval' i senv s1 
-  GuardedChoice s1 s2 s3 -> try (eval' i senv s1) (eval' i senv s2) (eval' i senv s3)
-  One s -> lift (one (eval' i senv s))
-  Some s -> lift (some (eval' i senv s))
-  All s -> lift (all (eval' i senv s))
-  Scope xs s -> scope xs (eval' i senv s)
-  Match f -> undefined --proc t -> match -< (f,t)
-  Build f -> undefined --proc _ -> build -< f
-  Let bnds body -> let_ senv bnds body (eval' i)
-  Call f ss ps -> call senv f ss ps (eval' (i-1))
+sortToNonterm :: Sort -> Nonterm
+sortToNonterm sort = case sort of
+  Sort (SortId nt) -> nt
+  _ -> error "Parametric polymorphism is not yet supported"
 
--- match :: (ArrowChoice p, ArrowState TermEnv p, ArrowAppend p, Try p) => p (TermPattern,Term) Term
--- match = proc (p,t) -> case p of
---   S.Var "_" -> success -< t
---   S.Var x -> do
---     env <- getTermEnv -< ()
---     case M.lookup x env of
---       Just t' -> do
---         t'' <- equal -< (t,t')
---         putTermEnv -< M.insert x t'' env
---         success -< t''
---       Nothing -> do
---         putTermEnv -< M.insert x t env
---         fail <+> success -< t
---   S.Cons c ts -> case t of
---     Cons c' ts'
---       | c == c' && length ts == length ts' -> do
---           ts'' <- zipWith match -< (ts,ts')
---           success -< Cons c ts''
---       | otherwise -> fail -< ()
---     Wildcard -> do
---       ts'' <- zipWith match -< (ts,[Wildcard | _ <- ts])
---       fail <+> success -< Cons c ts''
---     _ -> fail -< ()
---   S.Explode c ts -> case t of
---     Cons (Constructor c') ts' -> do
---       match -< (c,StringLiteral c')
---       match -< (ts, convertToList ts')
---       success -< t
---     StringLiteral _ -> do
---       match -< (ts, convertToList [])
---       success -< t
---     NumberLiteral _ -> do
---       match -< (ts, convertToList [])
---       success -< t
---     Wildcard ->
---       (do
---         match -< (c,  Wildcard)
---         match -< (ts, Wildcard)
---         success -< t)
---       <+>
---       (do
---         match -< (ts, convertToList [])
---         success -< t)
---   S.StringLiteral s -> case t of
---     StringLiteral s'
---       | s == s' -> success -< t
---       | otherwise -> fail -< ()
---     Wildcard -> fail <+> success -< StringLiteral s
---     _ -> fail -< ()
---   S.NumberLiteral n -> case t of
---     NumberLiteral n'
---       | n == n' -> success -< t
---       | otherwise -> fail -< ()
---     Wildcard -> fail <+> success -< NumberLiteral n
---     _ -> fail -< ()
+toRhs :: (Constructor,Fun) -> Rhs Constr
+toRhs (Constructor constr, Fun sorts _) = Ctor (Constr constr) (map sortToNonterm sorts)
 
--- equal :: (ArrowChoice p, ArrowAppend p, Try p) => p (Term,Term) Term
--- equal = proc (t1,t2) -> case (t1,t2) of
---   (Cons c ts,Cons c' ts')
---     | c == c' && length ts == length ts' -> do
---       ts'' <- zipWith equal -< (ts,ts')
---       returnA -< Cons c ts''
---     | otherwise -> fail -< ()
---   (StringLiteral s, StringLiteral s')
---     | s == s' -> success -< t1
---     | otherwise -> fail -< ()
---   (NumberLiteral n, NumberLiteral n')
---     | n == n' -> success -< t1
---     | otherwise -> fail -< ()
---   (Wildcard, t) -> fail <+> success -< t
---   (t, Wildcard) -> fail <+> success -< t
---   (_,_) -> fail -< ()
+toProd :: (Sort, [(Constructor,Fun)]) -> (Nonterm, [Rhs Constr])
+toProd (sort, rhss) = (sortToNonterm sort, map toRhs rhss)
 
--- build :: (ArrowChoice p, ArrowState TermEnv p, ArrowAppend p, Try p) => p TermPattern Term
--- build = proc p -> case p of
---   S.Var x -> do
---     env <- getTermEnv -< ()
---     case M.lookup x env of
---       Just t -> returnA -< t
---       Nothing -> fail <+> success -< Wildcard
---   S.Cons c ts -> do
---     ts' <- mapA build -< ts
---     returnA -< Cons c ts'
---   S.Explode c ts -> do
---     c' <- build -< c
---     case c' of
---       StringLiteral s -> do
---         ts' <- build -< ts
---         ts'' <- convertFromList -< ts'
---         case ts'' of
---           Just tl -> success -< Cons (Constructor s) tl
---           Nothing -> fail <+> returnA -< Wildcard
---       Wildcard -> fail <+> returnA -< Wildcard
---       _ -> fail -< ()
---   S.NumberLiteral n -> returnA -< NumberLiteral n
---   S.StringLiteral s -> returnA -< StringLiteral s
+createGrammar :: Signature -> GrammarBuilder Constr
+createGrammar (Signature (_, sorts) _) = grammar startSymbol prods
+  where
+    startSymbol = "Start"
+    startProd = (startSymbol, map (Eps . sortToNonterm) (LM.keys sorts))
+    -- TODO: what to do with these builtins?
+    builtins = [("String", [ Ctor (Constr "String") []]) ]
+    prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
 
-convertToList :: [Term] -> Term
-convertToList ts = case ts of
-  (x:xs) -> Cons "Cons" [x,convertToList xs]
-  [] -> Cons "Nil" []
+sigToAlphabet :: Signature -> Alphabet Constr
+sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
+  alph = map (\(c,v) -> (Constr (sortToNonterm c),length v)) $ LM.toList sorts
 
-convertFromList :: (ArrowChoice p, Try p) => p Term (Maybe [Term])
-convertFromList = proc t -> case t of
-  Cons "Cons" [x,tl] -> do
-    xs <- convertFromList -< tl
-    returnA -< (x:) <$> xs
-  Cons "Nil" [] ->
-    returnA -< Just []
-  Wildcard -> returnA -< Nothing
-  _ -> fail -< ()
+-- Instances -----------------------------------------------------------------------------------------
+deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
+deriving instance ArrowState TermEnv Interp
+deriving instance ArrowFail () Interp
+deriving instance (PreOrd z, Complete (FreeCompletion z)) => ArrowTry x y z Interp
+deriving instance (PreOrd b, Complete (FreeCompletion b)) => Complete (Interp a b)
+deriving instance PreOrd b => LowerBounded (Interp a b)
 
-lift :: (Try p,ArrowChoice p,ArrowAppend p)
-     => p (Constructor,[Term]) (Constructor,[Term])
-     -> p TermRef TermRef
-lift p = proc r -> do
-  t <- deref -< r
-  case t of
-    Cons c ts -> do
-      (c',ts') <- p -< (c,ts)
-      returnA -< Cons c' ts'
-    StringLiteral {} -> returnA -< t
-    NumberLiteral {} -> returnA -< t
-    Wildcard -> fail <+> success -< Wildcard
+instance Hashable Constr where
+  hashWithSalt s (Constr c) = s `hashWithSalt` (0::Int) `hashWithSalt` c
+  hashWithSalt s (StringLit s') = s `hashWithSalt` (1::Int) `hashWithSalt` s'
+  hashWithSalt s (NumLit n) = s `hashWithSalt` (2::Int) `hashWithSalt` n
 
+instance PreOrd (GrammarBuilder Constr) where
+  (⊑) = subsetOf
+
+instance Complete (GrammarBuilder Constr) where
+  (⊔) = union
+
+instance PreOrd TermEnv where
+  TermEnv env1 ⊑ TermEnv env2 =
+    all (\v -> fromMaybe (LM.lookup v env1) ⊑ fromMaybe (LM.lookup v env2)) (dom env2)
+
+instance Complete TermEnv where
+  TermEnv env1' ⊔ TermEnv env2' = go (dom env1') env1' env2' LM.empty
+    where
+      go vars env1 env2 env3 = case vars of
+        (v:vs) -> case (LM.lookup v env1, LM.lookup v env2) of
+          (Just t1, Just t2) -> go vs env1 env2 (LM.insert v (t1 ⊔ t2) env3)
+          _                  -> go vs env1 env2 env3
+        [] -> TermEnv env3
+
+instance ArrowFix' Interp Term where
+  -- TODO: this should be rewritten to use the fixpoint caching algorithm.
+  fixA' f z = proc x -> do
+    (env,i,alph) <- askA -< ()
+    if i <= 0
+      then top' -< ()
+      else localFuel (f (fixA' f) z) -< ((env,i-1,alph),x)
+    where
+      localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> localA g -< ((env,i,alph),a)
+
+instance HasStratEnv Interp where
+  readStratEnv = Interp (const () ^>> askA >>^ (\(a,_,_) -> a))
+  localStratEnv senv f = proc a -> do
+    (_,i,alph) <- askA -< ()
+    r <- localA f -< ((senv,i,alph),a)
+    returnA -< r
+
+instance Complete (FreeCompletion Term) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = Top
+
+instance Complete (FreeCompletion TermEnv) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = Top
+
+instance Complete (FreeCompletion (GrammarBuilder Constr)) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = Top
+
+instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]) where
+  Lower xs ⊔ Lower ys | eqLength xs ys = sequence (zipWith (\x y -> Lower x ⊔ Lower y) xs ys)
+  _ ⊔ _ = Top
+
+instance IsTerm Term Interp where
+  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,Term g) -> do
+    lubA (reconstruct <<< second matchSubterms <<< checkConstructorAndLength c ts) -<< toSubterms g
+
+  matchTermAgainstExplode matchCons matchSubterms = undefined
+
+  matchTermAgainstNumber = proc (n,g) -> matchLit -< (g, NumLit n)
+  matchTermAgainstString = proc (s,g) -> matchLit -< (g, StringLit s)
+
+  equal = proc (Term g1, Term g2) -> case intersection g1 g2 of
+    g | isEmpty g -> failA -< ()
+      | isSingleton g1 && isSingleton g2 -> returnA -< Term (normalize g)
+      | otherwise -> returnA ⊔ failA' -< Term (normalize g)
+
+  convertFromList = undefined
+
+  mapSubterms f = proc (Term g) -> do
+    g' <- lubA (fromSubterms . return ^<< second (fromTerms ^<< f)) -< [ (c, toTerms gs) | (c, gs) <- toSubterms g ]
+    returnA -< Term g'
+
+  cons = proc (Constructor c,ts) -> returnA -< Term (addConstructor (Constr c) (fromTerms ts))
+  numberLiteral = arr numberGrammar
+  stringLiteral = arr stringGrammar
+
+instance TermUtils Term where
+  convertToList ts = case ts of
+    (x:xs) -> Term (addConstructor (Constr "Cons") [fromTerm x, fromTerm (convertToList xs)])
+    [] -> Term (singleton (Constr "Nil"))
+  size (Term g) = TreeAutomata.size g
+  height (Term g) = TreeAutomata.height g
+
+instance IsTermEnv TermEnv Term Interp where
+  getTermEnv = getA
+  putTermEnv = putA
+  lookupTermVar f g = proc (v,TermEnv env) ->
+    case LM.lookup v env of
+      Just t -> f -< t
+      Nothing ->
+        (proc () -> do
+            t <- top' -< ()
+            putTermEnv -< TermEnv (LM.insert v t env)
+            f -< t)
+        ⊔ g
+        -<< ()
+  insertTerm = arr $ \(v,t,TermEnv env) -> TermEnv (LM.insert v t env)
+  deleteTermVars = arr $ \(vars,TermEnv env) -> TermEnv (foldr' LM.delete env vars)
+  unionTermEnvs = arr (\(vars,TermEnv e1,TermEnv e2) -> TermEnv (LM.union e1 (foldr' LM.delete e2 vars)))
+
+instance Galois (C.Pow C.Term) (GrammarBuilder Constr) where
+  alpha = lub . fmap go
+    where
+      go (C.Cons (Constructor c) ts) = addConstructor (Constr c) (fmap go ts)
+      go (C.StringLiteral s) = fromTerm (stringGrammar s)
+      go (C.NumberLiteral n) = fromTerm (numberGrammar n)
+  gamma = error "Uncomputable"
+
+instance Galois (C.Pow C.Term) (GrammarBuilder Constr) => Galois (C.Pow C.Term) Term where
+  alpha = Term . alpha
+  gamma = error "Uncomputable"
+
+instance Galois (C.Pow C.TermEnv) TermEnv where
+  alpha = lub . fmap (\(C.TermEnv e) -> TermEnv (fmap alphaSing e))
+  gamma = undefined
+
+instance Soundness (StratEnv, Alphabet Constr) Interp where
+  sound (senv,alph) xs f g = forAll (choose (2,3)) $ \i ->
+    let con :: FreeCompletion (UncertainResult (TermEnv,_))
+        con = Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
+        abst :: FreeCompletion (UncertainResult (TermEnv,_))
+        abst = runInterp g i alph senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+    in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
+
+-- Helpers -------------------------------------------------------------------------------------------
+dom :: HashMap TermVar t -> [TermVar]
+dom = LM.keys
+
+thrd :: (a,b,c) -> c
+thrd (_,_,c) = c
+
+toTerms :: [GrammarBuilder Constr] -> [Term]
+toTerms = map Term
+
+fromTerms :: [Term] -> [GrammarBuilder Constr]
+fromTerms = map fromTerm
+
+fromTerm :: Term -> GrammarBuilder Constr
+fromTerm (Term g) = g
+
+reconstruct :: Interp (Text, [Term]) Term
+reconstruct = proc (c, ts) -> returnA -< (Term (fromSubterms [(Constr c, fromTerms ts)]))
+
+checkConstructorAndLength :: Text -> [t'] -> Interp (Constr, [GrammarBuilder Constr]) (Text, ([t'], [Term]))
+checkConstructorAndLength c ts = proc (c', gs) -> case c' of
+  Constr c'' | eqLength ts gs && c == c'' -> returnA -< (c, (ts, toTerms gs))
+             | otherwise -> failA -< ()
+  _ -> failA -< ()
+
+top' :: Interp () Term
+top' = proc () -> returnA ⊔ failA' <<< (Term . wildcard . thrd ^<< askA) -< ()
+
+matchLit :: Interp (Term, Constr) Term
+-- TODO: check if production to n has empty argument list? This should be the case by design.
+matchLit = proc (Term g,l) -> case g `produces` l of
+  True | isSingleton g -> returnA -< Term g
+       | otherwise -> returnA ⊔ failA' -< Term g
+  False -> failA -< ()
+
+stringGrammar :: Text -> Term
+stringGrammar s = Term (singleton (StringLit s))
+
+numberGrammar :: Int -> Term
+numberGrammar n = Term (singleton (NumLit n))

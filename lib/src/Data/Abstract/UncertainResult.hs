@@ -1,17 +1,22 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Arrows #-}
-module Data.UncertainResult where
+module Data.Abstract.UncertainResult where
 
 import Control.Arrow
 import Control.Monad
 import Control.Applicative
+
+import Data.Abstract.FreeCompletion
 import Data.Order
+import Data.Traversable
 
 data UncertainResult a
   = Success a
   | Fail
   | SuccessOrFail a
+  deriving (Eq, Show)
 
 instance Functor UncertainResult where
   fmap f = proc r -> case r of
@@ -51,12 +56,20 @@ instance MonadPlus UncertainResult where
     (Fail, SuccessOrFail y) -> SuccessOrFail y
     (SuccessOrFail x, SuccessOrFail _) -> SuccessOrFail x
 
+instance Foldable UncertainResult where
+  foldMap = foldMapDefault
+
+instance Traversable UncertainResult where
+  traverse f (Success x) = Success <$> f x
+  traverse _ Fail = pure Fail
+  traverse f (SuccessOrFail x) = SuccessOrFail <$> f x
 
 instance PreOrd a => PreOrd (UncertainResult a) where
   m1 ⊑ m2 = case (m1,m2) of
     (Fail, Fail) -> True
     (Success a, Success b) -> a ⊑ b
     (Success a, SuccessOrFail b) -> a ⊑ b
+    (SuccessOrFail a, SuccessOrFail b) -> a ⊑ b
     (Fail, SuccessOrFail _) -> True
     (_, _) -> False
 
@@ -72,3 +85,14 @@ instance Complete a => Complete (UncertainResult a) where
     (Fail, SuccessOrFail y) -> SuccessOrFail y
     (SuccessOrFail x, SuccessOrFail y) -> SuccessOrFail (x ⊔ y)
 
+instance PreOrd a => LowerBounded (UncertainResult a) where
+  bottom = Fail
+
+instance (PreOrd a, Complete (FreeCompletion a)) => Complete (FreeCompletion (UncertainResult a)) where
+  Lower m1 ⊔ Lower m2 = sequenceA (fmap Lower m1 ⊔ fmap Lower m2)
+  _ ⊔ _ = Top
+
+fromMaybe :: Maybe a -> UncertainResult a
+fromMaybe m = case m of
+  Just a -> Success a
+  Nothing -> Fail

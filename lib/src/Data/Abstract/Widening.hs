@@ -3,8 +3,6 @@
 module Data.Abstract.Widening where
 
 import Control.Arrow
-import Control.Monad.Reader
-import Control.Monad.State
 import Data.Functor.Identity
 
 import Data.Order
@@ -49,12 +47,6 @@ instance (Complete a, UpperBounded a) => Widening (Fueled a) where
 
 instance Widening (m b) => Widening (Kleisli m a b) where
   Kleisli f ▽ Kleisli g = Kleisli $ f ▽ g
-
-instance Widening (m a) => Widening (ReaderT r m a) where
-  ReaderT f ▽ ReaderT g = ReaderT $ f ▽ g
-
-instance Widening (m (a,s)) => Widening (StateT s m a) where
-  StateT f ▽ StateT g = StateT $ f ▽ g
 
 instance Widening a => Widening (Identity a) where
   Identity a ▽ Identity b = Identity $ a ▽ b
