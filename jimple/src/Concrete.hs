@@ -24,13 +24,12 @@ data Val
   | VArray [Val]
   | VObject String (Map String Val) deriving (Eq)
 
-type FileEnv = [File]
-type LocalEnv = Map String String
-type Env = (FileEnv, LocalEnv) -- Classes, local fields
+type Env = Map String String
 
+type FileStore = Map String File
 type StaticStore = Map FieldSignature (Maybe Val)
 type DynamicStore = Map String (Type, Maybe Val)
-type Store = (StaticStore, DynamicStore)
+type Store = (FileStore, StaticStore, DynamicStore)
 
 instance Show Val where
   show VBottom = "⊥"
@@ -96,7 +95,7 @@ evalImmediateList = proc xs -> case xs of
 evalImmediate :: Arr Immediate Val
 evalImmediate = proc i -> case i of
   ILocalName n -> do
-    p <- lookupLocal -< n
+    p <- lookupEnv -< n
     (_, v) <- fetchDynamic -< p
     case v of
       Just v' -> returnA -< v'
@@ -113,7 +112,7 @@ evalRef = proc ref -> case ref of
     v1 <- evalImmediate -< i
     case v1 of
       VInt n -> do
-        p <- lookupLocal -< localName
+        p <- lookupEnv -< localName
         (_, v2) <- fetchDynamic -< p
         case v2 of
           Just v2' -> case v2' of
@@ -124,7 +123,7 @@ evalRef = proc ref -> case ref of
           Nothing -> throw -< "Variable not yet initialized"
       _ -> throw -< "Expected an integer as array index"
   FieldReference localName (FieldSignature c _ fieldName) -> do
-    p <- lookupLocal -< localName
+    p <- lookupEnv -< localName
     (_, v) <- fetchDynamic -< p
     case v of
       Just v' -> case v' of
@@ -235,42 +234,25 @@ eval' :: Env -> Store -> Expr -> Either String Val
 eval' env store expr =
   let third (_, _, x) = x
   in right third (runArr eval expr env store)
---
--- get :: Arr () Store
--- get = Arr (\() st -> Right (st,st))
---
--- getDynamic :: Arr () DynamicStore
--- getDynamic = Arr (\() env, st -> Right (st, dynamic))
---
--- lookupDynamic :: Arr String Val
--- lookupDynamic = Arr (\x st@(_, dynamic) ->
---   case Map.lookup x dynamic of
---     Just v -> case v of
---       Just a -> Right (st, a)
---       Nothing -> Left "Variable not initialized"
---     Nothing -> Left "Variable not in scope")
---
--- put :: Arr Store ()
--- put = Arr (\st _ -> Right (st,()))
 
-lookupLocal :: Arr String String
-lookupLocal = Arr (\l env@(_, localEnv) st ->
-  case Map.lookup l localEnv of
+lookupEnv :: Arr String String
+lookupEnv = Arr (\l env st ->
+  case Map.lookup l env of
     Just p -> Right (env, st, p)
     Nothing -> Left "Reference undefined")
 
 fetchDynamic :: Arr String (Type, Maybe Val)
-fetchDynamic = Arr (\p env st@(_, dynamicStore) ->
+fetchDynamic = Arr (\p env st@(_, _, dynamicStore) ->
   case Map.lookup p dynamicStore of
     Just (t, v) -> Right (env, st, (t, v))
     Nothing -> Left "Variable not in scope")
 
 assignDynamic :: Arr (String, (Type, Val)) ()
-assignDynamic = Arr (\(p, (t, v)) env (s, d) ->
-  Right (env, (s, Map.insert p (t, Just v) d), ()))
+assignDynamic = Arr (\(p, (t, v)) env (f, s, d) ->
+  Right (env, (f, s, Map.insert p (t, Just v) d), ()))
 
 fetchStatic :: Arr FieldSignature (Type, Maybe Val)
-fetchStatic = Arr (\fs@(FieldSignature _ t _) env st@(staticStore, _) ->
+fetchStatic = Arr (\fs@(FieldSignature _ t _) env st@(_, staticStore, _) ->
   case Map.lookup fs staticStore of
     Just v -> Right (env, st, (t, v))
     Nothing -> Left "Field undefined")
@@ -322,7 +304,7 @@ runStatements = proc (stmts, i) -> if i == length stmts
       v <- eval -< e
       case var of
         VLocal localName -> do
-          p <- lookupLocal -< localName
+          p <- lookupEnv -< localName
           (t, _) <- fetchDynamic -< p
           assignDynamic -< (p, (t, v))
         VReference _ -> throw -< "Undefined yet" -- evalRef -< ref

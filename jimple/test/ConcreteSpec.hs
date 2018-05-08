@@ -17,8 +17,8 @@ spec = do
   describe "Literals" $ do
     it "LocalName lookup" $ do
       let expr = EImmediate (ILocalName "x")
-      let nv = ([], Map.fromList [("x", "p1")])
-      let st = (Map.empty, Map.fromList [("p1", (TInt, Just (VInt 2)))])
+      let nv = Map.fromList [("x", "p1")]
+      let st = (Map.empty, Map.empty, Map.fromList [("p1", (TInt, Just (VInt 2)))])
       eval' nv st expr `shouldBe` Right (VInt 2)
     it "Integer literals" $ do
       let expr = EImmediate (IInt 7)
@@ -42,8 +42,8 @@ spec = do
       eval' env store expr `shouldBe` Right (VInt (-3))
     it "lengthof [1, 2, 3]" $ do
       let expr = EUnop Lengthof (ILocalName "x")
-      let nv = ([], Map.fromList [("x", "p0")])
-      let st = (Map.empty, Map.fromList [("p0", (TArray TInt, Just (VArray [VInt 1, VInt 2, VInt 3])))])
+      let nv = Map.fromList [("x", "p0")]
+      let st = (Map.empty, Map.empty, Map.fromList [("p0", (TArray TInt, Just (VArray [VInt 1, VInt 2, VInt 3])))])
       eval' nv st expr `shouldBe` Right (VInt 3)
     it "8 + 2" $ do
       let expr = EBinop (IInt 8) Plus (IInt 2)
@@ -65,19 +65,19 @@ spec = do
       eval' env store expr `shouldBe` Right (VInt 0)
     it "[1, 2, 3][2]" $ do
       let expr = EReference (ArrayReference "xs" (IInt 2))
-      let nv = ([], Map.fromList [("xs", "p0")])
-      let st = (Map.empty, Map.fromList [("p0", (TArray TInt, Just (VArray [VInt 1, VInt 2, VInt 3])))])
+      let nv = Map.fromList [("xs", "p0")]
+      let st = (Map.empty, Map.empty, Map.fromList [("p0", (TArray TInt, Just (VArray [VInt 1, VInt 2, VInt 3])))])
       eval' nv st expr `shouldBe` Right (VInt 3)
     it "p.<Person: int age>" $ do
       let personAgeSignature = FieldSignature "Person" TInt "age"
       let personObject = Map.fromList [("age", VInt 10)]
-      let nv = ([], Map.fromList [("p", "p0")])
-      let st = (Map.empty, Map.fromList [("p0", (TClass "Person", Just (VObject "Person" personObject)))])
+      let nv = Map.fromList [("p", "p0")]
+      let st = (Map.empty, Map.empty, Map.fromList [("p0", (TClass "Person", Just (VObject "Person" personObject)))])
       let expr = EReference (FieldReference "p" personAgeSignature)
       eval' nv st expr `shouldBe` Right (VInt 10)
     it "<Person: int MAX_AGE>" $ do
       let maxAgeSignature = FieldSignature "Person" TInt "MAX_AGE"
-      let st = (Map.fromList [(maxAgeSignature, (Just (VInt 100)))], Map.empty)
+      let st = (Map.empty, Map.fromList [(maxAgeSignature, (Just (VInt 100)))], Map.empty)
       let expr = EReference (SignatureReference maxAgeSignature)
       eval' env st expr `shouldBe` Right (VInt 100)
     it "newmultiarray (float) [3][]" $ do
@@ -89,17 +89,17 @@ spec = do
   describe "Simple Statements" $ do
     it "i0 = 2 + 3;" $ do
       let stmts = [Assign (VLocal "i0") (EBinop (IInt 2) Plus (IInt 3))]
-      let nv = ([], Map.fromList [("i0", "p0")])
-      let st1 = (Map.empty, Map.fromList [("p0", (TInt, Nothing))])
-      let st2 = (Map.empty, Map.fromList [("p0", (TInt, Just (VInt 5)))])
+      let nv = Map.fromList [("i0", "p0")]
+      let st1 = (Map.empty, Map.empty, Map.fromList [("p0", (TInt, Nothing))])
+      let st2 = (Map.empty, Map.empty, Map.fromList [("p0", (TInt, Just (VInt 5)))])
       runStatements' nv st1 stmts `shouldBe` Right (nv, st2, Nothing)
     it "xs = newarray (int)[s]; (s = 2)" $ do
       let stmts = [Assign (VLocal "xs") (ENew (NewArray TInt (ILocalName "s")))]
-      let nv = ([], Map.fromList [("s", "p0"), ("xs", "p1")])
-      let st1 = (Map.empty, Map.fromList [("p0", (TInt, Just (VInt 2))),
-                                          ("p1", (TArray TInt, Nothing))])
-      let st2 = (Map.empty, Map.fromList [("p0", (TInt, Just (VInt 2))),
-                                          ("p1", (TArray TInt, Just (VArray [VInt 0, VInt 0])))])
+      let nv = Map.fromList [("s", "p0"), ("xs", "p1")]
+      let st1 = (Map.empty, Map.empty, Map.fromList [("p0", (TInt, Just (VInt 2))),
+                                                     ("p1", (TArray TInt, Nothing))])
+      let st2 = (Map.empty, Map.empty, Map.fromList [("p0", (TInt, Just (VInt 2))),
+                                                     ("p1", (TArray TInt, Just (VArray [VInt 0, VInt 0])))])
       runStatements' nv st1 stmts `shouldBe` Right (nv, st2, Nothing)
     it "if 2 <= 3 goto l2; l1: return 1; l2: return 0;" $ do
       let stmts = [If (EBinop (IInt 2) Cmple (IInt 3)) "l2",
@@ -135,5 +135,5 @@ spec = do
     --   run' store file `shouldBe` Right (store, Nothing)
 
   where
-    env = ([], Map.empty)
-    store = (Map.empty, Map.empty)
+    env = Map.empty
+    store = (Map.empty, Map.empty, Map.empty)
