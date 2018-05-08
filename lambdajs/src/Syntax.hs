@@ -52,7 +52,7 @@ data Expr
     | EDeleteField Expr Expr
     | ESeq Expr Expr
     | EIf Expr Expr Expr
-    -- | EWhile Expr Expr
+    | EWhile Expr Expr
     -- | ELabel Label Expr
     -- | EBreak Label Expr
     -- | EThrow Expr

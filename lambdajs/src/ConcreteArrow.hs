@@ -256,14 +256,14 @@ eval = proc e -> case e of
     ESeq f s -> do
         res <- (first eval) Control.Category.. (second eval) -< (f, s)
         returnA -< snd res
-    -- EWhile t b -> do
-    --    tres <- eval -< t
-    --    case tres of
-    --        VBool True -> do
-    --            res <- eval -< (EWhile t b) 
-    --            returnA -< res
-    --        VBool False ->
-    --            returnA -< VUndefined
-    --        _ -> throw -< "Error: Non bool value in test of while loop"
+    EWhile t b -> do
+        tres <- eval -< t
+        case tres of
+            VBool True -> do
+                res <- eval -< (EWhile t b) 
+                returnA -< res
+            VBool False ->
+                returnA -< VUndefined
+            _ -> throw -< "Error: Non bool value in test of while loop"
     -- ESetRef r v -> do
     EEval -> throw -< "Eval expression encountered, aborting"
