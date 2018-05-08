@@ -339,4 +339,18 @@ spec = do
         let program = EEval
         eval scope program `shouldSatisfy` isLeft
 
+    -- labels
+    describe "labels" $ do
+      it "caught label" $ do
+        let program = ELabel "label1" (ESeq (EBreak "label1" (ENumber 1.0)) (EUndefined))
+        eval scope program `shouldBe` Right (VNumber 1.0)
+      it "escape while" $ do
+        let program = ELabel "label1" (EWhile (EOp OStrictEq [(ENumber 1.0), (ENumber 1.0)]) (EBreak "label1" (ENumber 2.0)))
+        eval scope program `shouldBe` Right (VNumber 2.0)
+
+    -- throws
+    describe "throws" $ do
+      it "caught throws" $ do
+        let program = ECatch (EThrow (ENumber 1.0)) (ELambda ["x"] (EId "x"))
+        eval scope program `shouldBe` Right (VNumber 1.0)
   where scope = empty

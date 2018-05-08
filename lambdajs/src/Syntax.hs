@@ -53,11 +53,11 @@ data Expr
     | ESeq Expr Expr
     | EIf Expr Expr Expr
     | EWhile Expr Expr
-    -- | ELabel Label Expr
-    -- | EBreak Label Expr
-    -- | EThrow Expr
-    -- | ECatch Expr Expr
-    -- | EFinally Expr Expr
+    | ELabel Label Expr
+    | EBreak Label Expr
+    | EThrow Expr
+    | ECatch Expr Expr
+    | EFinally Expr Expr
     -- An expression that calls eval, or a related function. If EEval becomes the active expression,
     -- our model immediately aborts.
     | EEval
@@ -71,5 +71,6 @@ data Value
     | VNull
     | VLambda [Ident] Expr
     | VObject [(String, Value)]
-    | VLocation 
+    | VThrown Value
+    | VBreak Label Value
     deriving (Show, Eq)

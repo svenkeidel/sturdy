@@ -22,7 +22,6 @@ empty = Map.empty
 insert :: String -> Value -> Store -> Store
 insert s v st = Map.insert s v st
 
-
 newtype ConcreteArr x y = ConcreteArr {runArr :: x -> Store -> Either String (Store, y) } 
 
 instance Category ConcreteArr where
@@ -254,16 +253,55 @@ eval = proc e -> case e of
         res <- deleteField -< (objV, nameV)
         returnA -< res
     ESeq f s -> do
-        res <- (first eval) Control.Category.. (second eval) -< (f, s)
-        returnA -< snd res
+        res1 <- eval -< f
+        case res1 of
+            VThrown v -> returnA -< VThrown v
+            VBreak l v -> returnA -< VBreak l v
+            _ -> do 
+                res2 <- eval -< s
+                returnA -< res2
     EWhile t b -> do
         tres <- eval -< t
         case tres of
             VBool True -> do
-                res <- eval -< (EWhile t b) 
-                returnA -< res
+                bres <- eval -< b
+                case bres of
+                    VBreak l v -> returnA -< VBreak l v 
+                    VThrown v -> returnA -< VThrown v 
+                    _ -> do
+                        res <- eval -< (EWhile t b) 
+                        returnA -< res
             VBool False ->
                 returnA -< VUndefined
             _ -> throw -< "Error: Non bool value in test of while loop"
     -- ESetRef r v -> do
     EEval -> throw -< "Eval expression encountered, aborting"
+    ELabel l e -> do
+        res <- eval -< e
+        case res of
+            VBreak l1 v -> case l1 == l of
+                True -> returnA -< v
+                False -> returnA -< VBreak l1 v
+            v -> returnA -< v
+    EBreak l e -> do
+        res <- eval -< e
+        returnA -< VBreak l res
+    EThrow e -> do
+        res <- eval -< e
+        returnA -< VThrown res
+    ECatch try catch -> do
+        res1 <- eval -< try
+        case res1 of
+            VThrown v -> do
+                case catch of
+                    ELambda [x] body -> do
+                        scope <- get -< ()
+                        put -< Map.insert x v scope
+                        res <- eval -< body 
+                        returnA -< res
+                    _ -> throw -< "Error: Catch block must be of type ELambda"
+            v -> returnA -< v
+    EFinally b1 b2 -> do
+        res1 <- eval -< b1
+        res2 <- eval -< b2
+        returnA -< res1
