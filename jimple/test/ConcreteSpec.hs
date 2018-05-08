@@ -84,19 +84,18 @@ spec = do
                                                  VArray [VFloat 0.0, VFloat 0.0]])
 
   describe "Simple Statements" $ do
-    it "i0 = 2 + 3;" $ do
+    it "i0 = 2 + 3; return i0;" $ do
       let stmts = [Assign (VLocal "i0") (EBinop (IInt 2) Plus (IInt 3)),
                    Return (Just (ILocalName "i0"))]
       let nv = [(LocalPointer "i0", LocalVal (TInt, Nothing))]
       runStatementsConcrete nv stmts `shouldBe` Success (Just (VInt 5))
-    -- it "xs = newarray (int)[s]; (s = 2)" $ do
-    --   let stmts = [Assign (VLocal "xs") (ENew (NewArray TInt (ILocalName "s")))]
-    --   let nv = Map.fromList [("s", "p0"), ("xs", "p1")]
-    --   let st1 = (Map.empty, Map.empty, Map.fromList [("p0", (TInt, Just (VInt 2))),
-    --                                                  ("p1", (TArray TInt, Nothing))])
-    --   let st2 = (Map.empty, Map.empty, Map.fromList [("p0", (TInt, Just (VInt 2))),
-    --                                                  ("p1", (TArray TInt, Just (VArray [VInt 0, VInt 0])))])
-    --   runStatements' nv st1 stmts `shouldBe` Success (nv, st2, Nothing)
+    it "s = 2; xs = newarray (int)[s]; return xs;" $ do
+      let stmts = [Assign (VLocal "s") (EImmediate (IInt 2)),
+                   Assign (VLocal "xs") (ENew (NewArray TInt (ILocalName "s"))),
+                   Return (Just (ILocalName "xs"))]
+      let nv = [(LocalPointer "s", LocalVal (TInt, Nothing)),
+                (LocalPointer "xs", LocalVal (TArray TInt, Nothing))]
+      runStatementsConcrete nv stmts `shouldBe` Success (Just (VArray [VInt 0, VInt 0]))
     it "if 2 <= 3 goto l2; l1: return 1; l2: return 0;" $ do
       let stmts = [If (EBinop (IInt 2) Cmple (IInt 3)) "l2",
                    Label "l1",
