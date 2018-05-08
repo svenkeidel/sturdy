@@ -80,10 +80,11 @@ library
                        Control.Arrow.Transformer.Const,
                        Control.Arrow.Transformer.Static,
                        Control.Arrow.Transformer.BackwardState,
+                       Control.Arrow.Transformer.GreatestFixPoint,
 
                        Control.Arrow.Transformer.Concrete.Environment,
                        Control.Arrow.Transformer.Concrete.Except,
-                       Control.Arrow.Transformer.Concrete.Fix,
+                       Control.Arrow.Transformer.Concrete.LeastFixPoint,
                        Control.Arrow.Transformer.Concrete.Store,
 
                        Control.Arrow.Transformer.Abstract.Completion,
@@ -91,7 +92,7 @@ library
                        Control.Arrow.Transformer.Abstract.Contour,
                        Control.Arrow.Transformer.Abstract.BoundedEnvironment,
                        Control.Arrow.Transformer.Abstract.Except,
-                       Control.Arrow.Transformer.Abstract.Fix,
+                       Control.Arrow.Transformer.Abstract.LeastFixPoint,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
                        -- Control.Arrow.Transformer.Abstract.LiveVariables,

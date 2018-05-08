@@ -15,7 +15,7 @@ import Control.Arrow.Environment
 import Control.Arrow.Fix
 import Control.Arrow.Transformer.Concrete.Environment
 import Control.Arrow.Transformer.Concrete.Except
-import Control.Arrow.Transformer.Concrete.Fix
+import Control.Arrow.Transformer.Concrete.LeastFixPoint
 import Control.Monad.State
 
 import Data.Concrete.Error
@@ -35,7 +35,7 @@ data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
 newtype Interp x y = Interp (Fix Expr Val (Environment Text Val (Except String (->))) x y)
 
 runInterp :: Interp x y -> [(Text,Val)] -> x -> Error String y
-runInterp (Interp f) env x = runFix (runExcept (runEnvironment f)) (env,x)
+runInterp (Interp f) env x = runLeastFixPoint (runExcept (runEnvironment f)) (env,x)
 
 evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
 evalConcrete env e = runInterp eval env (generate e)
