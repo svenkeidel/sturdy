@@ -316,8 +316,24 @@ runStatements = proc (stmts, i) -> if i == length stmts
           label <- matchCases -< (cases, x)
           goto -< (stmts, label)
         _ -> failA -< "Expected an integer as argument for switch"
-    -- Identity LocalName AtIdentifier Type
-    -- IdentityNoType LocalName AtIdentifier
+    Identity localName atId t -> do
+      (t', v) <- lookupLocal -< (show atId)
+      case v of
+        Just v' -> if t == t'
+          then do
+            env <- getEnv -< ()
+            env' <- extendEnv -< (LocalPointer localName, LocalVal (t, Just v'), env)
+            localEnv runStatements -< (env', (stmts, i + 1))
+          else failA -< "Incorrect type " ++ show t ++ " for variable"
+        Nothing -> failA -< "Undefined identifier " ++ show atId
+    IdentityNoType localName atId -> do
+      (t', v) <- lookupLocal -< (show atId)
+      case v of
+        Just v' -> do
+          env <- getEnv -< ()
+          env' <- extendEnv -< (LocalPointer localName, LocalVal (t', Just v'), env)
+          localEnv runStatements -< (env', (stmts, i + 1))
+        Nothing -> failA -< "Undefined identifier " ++ show atId
     Assign var e -> do
       v <- eval -< e
       case var of

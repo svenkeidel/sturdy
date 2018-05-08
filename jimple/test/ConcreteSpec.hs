@@ -125,6 +125,14 @@ spec = do
                    Label "l3",
                    Return (Just (IInt 3))]
       runStatementsConcrete env stmts `shouldBe` Success (Just (VInt 3))
+    it "f0 := @parameter0: float; f1 = f0 * 2; return f1; (@parameter0 = 2.0)" $ do
+      let stmts = [Identity "f0" (IDParameter 0) TFloat,
+                   Assign (VLocal "f1") (EBinop (ILocalName "f0") Mult (IInt 2)),
+                   Return (Just (ILocalName "f1"))]
+      let nv = [(LocalPointer "@parameter0", LocalVal (TFloat, Just (VFloat 2.0))),
+                (LocalPointer "f0", LocalVal (TFloat, Nothing)),
+                (LocalPointer "f1", LocalVal (TFloat, Nothing))]
+      runStatementsConcrete nv stmts `shouldBe` Success (Just (VFloat 4.0))
 
     -- describe "Complete file" $ do
     --   run' store file `shouldBe` Right (store, Nothing)

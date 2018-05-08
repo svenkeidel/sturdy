@@ -9,7 +9,12 @@ import Data.Hashable
 data AtIdentifier
   = IDParameter Int
   | IDThis
-  | IDCoughtException deriving (Eq)
+  | IDCaughtException deriving (Eq)
+
+instance Show AtIdentifier where
+  show (IDParameter n) = "@parameter" ++ show n
+  show IDThis = "@this"
+  show IDCaughtException = "@caughtexception"
 
 data File = File { fileModifiers :: [Modifier]
                  , fileType :: FileType
