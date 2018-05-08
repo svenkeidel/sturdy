@@ -74,3 +74,20 @@ data Value
     | VThrown Value
     | VBreak Label Value
     deriving (Show, Eq)
+
+-- Questions
+-- How to encode throws and breaks using arrows?
+-- How to encode references?
+
+data Type
+    = TNumber
+    | TString
+    | TBool
+    | TUndefined
+    | TNull
+    | TLambda [Ident] Type
+    | TObject [(String, Type)]
+    deriving (Show, Eq)
+
+-- Questions
+-- Should this include thrown and break types?

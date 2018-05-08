@@ -18,7 +18,8 @@ library
   exposed-modules:
       Concrete,
       Syntax,
-      ConcreteArrow
+      TypeInterpreter,
+      ValueInterpreter
   default-language: Haskell2010
 
 test-suite lambdajs-test

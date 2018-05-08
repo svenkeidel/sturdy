@@ -1,8 +1,8 @@
 module ConcreteSpec where
 
 import Syntax
-import ConcreteArrow (Store, ConcreteArr, runArr, lookup, empty, insert)
-import qualified ConcreteArrow as CA (eval)
+import ValueInterpreter (Store, LJSArrow, runArr, lookup, empty, insert)
+import qualified ValueInterpreter as Interpreter (eval)
 
 import Test.Hspec
 
@@ -13,7 +13,7 @@ main :: IO ()
 main = hspec spec
 
 eval :: Store -> Expr -> Either String Value
-eval st e = case runArr (CA.eval) e st of
+eval st e = case runArr (Interpreter.eval) e st of
   Left err -> Left err
   Right (_ , v) -> Right v
 

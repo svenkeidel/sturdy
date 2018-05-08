@@ -1,5 +1,5 @@
 {-# LANGUAGE Arrows #-}
-module ConcreteArrow where
+module ValueInterpreter where
 
 import Syntax
 
@@ -14,30 +14,22 @@ import Data.Word (Word32)
 import Data.Map (Map, findWithDefault)
 import qualified Data.Map as Map
 
-type Store = Map String Value
-lookup :: String -> Store -> Maybe Value
-lookup s st = Map.lookup s st 
-empty :: Store
-empty = Map.empty
-insert :: String -> Value -> Store -> Store
-insert s v st = Map.insert s v st
+newtype LJSArrow x y = LJSArrow {runArr :: x -> Store -> Either String (Store, y) } 
 
-newtype ConcreteArr x y = ConcreteArr {runArr :: x -> Store -> Either String (Store, y) } 
-
-instance Category ConcreteArr where
-    id = ConcreteArr (\x st -> Right (st, x))
-    ConcreteArr f . ConcreteArr g = ConcreteArr $ \x st -> case g x st of
+instance Category LJSArrow where
+    id = LJSArrow (\x st -> Right (st, x))
+    LJSArrow f . LJSArrow g = LJSArrow $ \x st -> case g x st of
         Left er -> Left er
         Right (st', y) -> f y st'
 
-instance Arrow ConcreteArr where
-    arr f = ConcreteArr (\x st -> Right (st, f x))
-    first (ConcreteArr f) = ConcreteArr $ \(x, y) st -> case f x st of
+instance Arrow LJSArrow where
+    arr f = LJSArrow (\x st -> Right (st, f x))
+    first (LJSArrow f) = LJSArrow $ \(x, y) st -> case f x st of
         Left er -> Left er
         Right (st', z) -> Right (st', (z, y))
 
-instance ArrowChoice ConcreteArr where
-    left (ConcreteArr f) = ConcreteArr $ \e st -> case e of
+instance ArrowChoice LJSArrow where
+    left (LJSArrow f) = LJSArrow $ \e st -> case e of
         Left x -> case f x st of
             Left err -> Left err
             Right (st', y) -> Right (st', Left y)
@@ -50,16 +42,24 @@ mapA f = arr (\list -> case list of
     [] -> Left ()
     (x : xs) -> Right (x, xs)) >>> (arr (const []) ||| ((f *** mapA f) >>> (arr (uncurry (:)))))
 
-get :: ConcreteArr () Store
-get = ConcreteArr (\() st -> Right (st, st))
+type Store = Map String Value
+lookup :: String -> Store -> Maybe Value
+lookup s st = Map.lookup s st 
+empty :: Store
+empty = Map.empty
+insert :: String -> Value -> Store -> Store
+insert s v st = Map.insert s v st
 
-put :: ConcreteArr Store ()
-put = ConcreteArr (\st _ -> Right (st, ()))
+get :: LJSArrow () Store
+get = LJSArrow (\() st -> Right (st, st))
 
-throw :: ConcreteArr String a
-throw = ConcreteArr (\er _ -> Left er)
+put :: LJSArrow Store ()
+put = LJSArrow (\st _ -> Right (st, ()))
 
-evalOp :: ConcreteArr (Op, [Value]) Value
+throw :: LJSArrow String a
+throw = LJSArrow (\er _ -> Left er)
+
+evalOp :: LJSArrow (Op, [Value]) Value
 evalOp = proc (op, vals) -> case (op, vals) of
     -- number operators
     (ONumPlus, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a + b)
@@ -161,7 +161,7 @@ evalOp = proc (op, vals) -> case (op, vals) of
     (OHasOwnProp, [(VObject fields), (VString field)]) -> 
         returnA -< VBool $ any (\(name, value) -> (name == field)) fields
 
-getField :: ConcreteArr (Value, Value) Value
+getField :: LJSArrow (Value, Value) Value
 getField = proc (VObject fields, VString fieldName) -> 
     let fieldV = find (\(fn, fv) -> fn == fieldName) fields in
         case fieldV of
@@ -179,12 +179,12 @@ getField = proc (VObject fields, VString fieldName) ->
                         -- E-GetField-NotFound
                         Nothing -> returnA -< VUndefined
 
-deleteField :: ConcreteArr (Value, Value) Value
+deleteField :: LJSArrow (Value, Value) Value
 deleteField = proc (VObject fields, VString name) -> do
     filtered <- arr (\(n, fs) -> filter (\(fn, _) -> fn /= n) fs) -< (name, fields) 
     returnA -< VObject filtered
 
-updateField :: ConcreteArr (Value, Value, Value) Value
+updateField :: LJSArrow (Value, Value, Value) Value
 updateField = proc (VObject fields, VString name, value) -> do
     -- remove field from obj
     filtered <- deleteField -< (VObject fields, VString name)
@@ -195,7 +195,7 @@ updateField = proc (VObject fields, VString name, value) -> do
             returnA -< VObject newFields
         _ -> throw -< "Error: deleteField returned non-object value"
 
-eval :: ConcreteArr Expr Value
+eval :: LJSArrow Expr Value
 eval = proc e -> case e of
     ENumber d -> returnA -< VNumber d
     EString s -> returnA -< VString s
