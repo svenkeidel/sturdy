@@ -1,6 +1,10 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Syntax where
+
+import GHC.Generics (Generic)
+import Data.Hashable
 
 data AtIdentifier
   = IDParameter Int
@@ -100,6 +104,21 @@ data Type
   | TClass String
   | TArray Type deriving (Eq, Show)
 
+instance Hashable Type where
+  hashWithSalt s TUnknown = s `hashWithSalt` "Unknown"
+  hashWithSalt s TVoid = s `hashWithSalt` "Void"
+  hashWithSalt s TBoolean = s `hashWithSalt` "Boolean"
+  hashWithSalt s TByte = s `hashWithSalt` "Byte"
+  hashWithSalt s TChar = s `hashWithSalt` "Char"
+  hashWithSalt s TShort = s `hashWithSalt` "Short"
+  hashWithSalt s TInt = s `hashWithSalt` "Int"
+  hashWithSalt s TLong = s `hashWithSalt` "Long"
+  hashWithSalt s TFloat = s `hashWithSalt` "Float"
+  hashWithSalt s TDouble = s `hashWithSalt` "Double"
+  hashWithSalt s TNull = s `hashWithSalt` "Null"
+  hashWithSalt s (TClass c) = s `hashWithSalt` "Class" `hashWithSalt` c
+  hashWithSalt s (TArray t) = s `hashWithSalt` "Array" `hashWithSalt` t
+
 isNonvoidType :: Type -> Bool
 isNonvoidType TVoid = False
 isNonvoidType TUnknown = False
@@ -185,7 +204,11 @@ data Reference
   | FieldReference String FieldSignature
   | SignatureReference FieldSignature deriving (Eq)
 
-data FieldSignature = FieldSignature String Type String deriving (Eq)
+data FieldSignature = FieldSignature String Type String deriving (Generic, Eq)
+
+instance Hashable FieldSignature where
+  hashWithSalt s (FieldSignature c t n) =
+    s `hashWithSalt` c `hashWithSalt` t `hashWithSalt` n
 
 instance Ord FieldSignature where
   compare (FieldSignature c1 _ n1) (FieldSignature c2 _ n2) =

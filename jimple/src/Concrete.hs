@@ -1,15 +1,35 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Concrete where
 
-import           Control.Category
-import           Control.Arrow
+import Prelude hiding (lookup)
 
 import           Data.Fixed
-import           Data.List
+import           Data.List (replicate, elemIndex)
+
+import           Data.Concrete.Error
 
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Hashable
+import           Data.Concrete.Environment (Env)
+
+import           Control.Category
+
+import           Control.Arrow
+import           Control.Arrow.Fail
+import           Control.Arrow.Environment
+import           Control.Arrow.Transformer.Concrete.Environment
+import           Control.Arrow.Transformer.Concrete.Except
+
+import           GHC.Generics (Generic)
 
 import           Syntax
 
@@ -24,13 +44,6 @@ data Val
   | VArray [Val]
   | VObject String (Map String Val) deriving (Eq)
 
-type Env = Map String String
-
-type FileStore = Map String File
-type StaticStore = Map FieldSignature (Maybe Val)
-type DynamicStore = Map String (Type, Maybe Val)
-type Store = (FileStore, StaticStore, DynamicStore)
-
 instance Show Val where
   show VBottom = "⊥"
   show (VInt n) = show n
@@ -42,9 +55,36 @@ instance Show Val where
   show (VArray v) = show v
   show (VObject t m) = show t ++ "(" ++ show m ++ ")"
 
-newtype Arr x y = Arr {
-  runArr :: x -> Env -> Store -> Either String (Env, Store, y)
-}
+data Pointer
+  = FilePointer String
+  | FieldPointer FieldSignature
+  | LocalPointer String deriving (Show, Eq, Generic)
+
+instance Hashable Pointer
+
+data GeneralVal
+  = FileVal File
+  | FieldVal (Maybe Val)
+  | LocalVal (Type, Maybe Val) deriving (Show, Eq)
+
+newtype Interp x y = Interp (Environment Pointer GeneralVal (Except String (->)) x y)
+deriving instance Category Interp
+deriving instance Arrow Interp
+deriving instance ArrowChoice Interp
+deriving instance ArrowFail String Interp
+deriving instance ArrowEnv Pointer GeneralVal (Env Pointer GeneralVal) Interp
+
+runInterp :: Interp x y -> [(Pointer, GeneralVal)] -> x -> Error String y
+runInterp (Interp f) env x =
+  runExcept
+    (runEnvironment f)
+  (env, x)
+
+evalConcrete :: [(Pointer, GeneralVal)] -> Expr -> Error String Val
+evalConcrete = runInterp eval
+
+runStatementsConcrete :: [(Pointer, GeneralVal)] -> [Statement] -> Error String (Maybe Val)
+runStatementsConcrete env stmts = runInterp runStatements env (stmts, 0)
 
 numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
 numToNum op v1 v2 = case (v1, v2) of
@@ -84,7 +124,7 @@ isPositiveVInt :: Val -> Bool
 isPositiveVInt (VInt n) = n > 0
 isPositiveVInt _ = False
 
-evalImmediateList :: Arr [Immediate] [Val]
+evalImmediateList :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c [Immediate] [Val]
 evalImmediateList = proc xs -> case xs of
   (x':xs') -> do
     v <- evalImmediate -< x'
@@ -92,74 +132,71 @@ evalImmediateList = proc xs -> case xs of
     returnA -< (v:vs)
   [] -> returnA -< []
 
-evalImmediate :: Arr Immediate Val
+evalImmediate :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c Immediate Val
 evalImmediate = proc i -> case i of
-  ILocalName n -> do
-    p <- lookupEnv -< n
-    (_, v) <- fetchDynamic -< p
+  ILocalName localName -> do
+    (_, v) <- lookupLocal -< localName
     case v of
       Just v' -> returnA -< v'
-      Nothing -> throw -< "Variable not yet initialized"
+      Nothing -> failA -< "Variable " ++ localName ++ " not yet initialized"
   IInt n -> returnA -< (VInt n)
   IFloat f -> returnA -< (VFloat f)
   IString s -> returnA -< (VString s)
   IClass c -> returnA -< (VClass c)
   INull -> returnA -< VNull
 
-evalRef :: Arr Reference Val
+evalRef :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c Reference Val
 evalRef = proc ref -> case ref of
   ArrayReference localName i -> do
     v1 <- evalImmediate -< i
     case v1 of
       VInt n -> do
-        p <- lookupEnv -< localName
-        (_, v2) <- fetchDynamic -< p
+        (_, v2) <- lookupLocal -< localName
         case v2 of
           Just v2' -> case v2' of
             VArray xs -> if n >= 0 && n < length xs
               then returnA -< xs !! n
-              else throwException -< "ArrayIndexOutOfBoundsException"
-            _ -> throw -< "Expected an array to lookup in"
-          Nothing -> throw -< "Variable not yet initialized"
-      _ -> throw -< "Expected an integer as array index"
+              else failA -< "ArrayIndexOutOfBoundsException"
+            _ -> failA -< "Expected an array to lookup in"
+          Nothing -> failA -< "Array not yet initialized"
+      _ -> failA -< "Expected an integer as array index"
   FieldReference localName (FieldSignature c _ fieldName) -> do
-    p <- lookupEnv -< localName
-    (_, v) <- fetchDynamic -< p
+    (_, v) <- lookupLocal -< localName
     case v of
       Just v' -> case v' of
         VObject c' m -> if c == c'
           then case Map.lookup fieldName m of
             Just x -> returnA -< x
-            Nothing -> throw -< "Field " ++ fieldName ++ " not defined for class " ++ c'
-          else throw -< "ClassNames do not correspond"
-        _ -> throw -< "Expected an object to lookup in"
-      Nothing -> throw -< "Variable not yet initialized"
+            Nothing -> failA -< "Field " ++ fieldName ++ " not defined for class " ++ c'
+          else failA -< "ClassNames do not correspond"
+        _ -> failA -< "Expected an object to lookup in"
+      Nothing -> failA -< "Object not yet initialized"
   SignatureReference fieldSignature -> do
-    (_, v) <- fetchStatic -< fieldSignature
+    (_, v) <- lookupField -< fieldSignature
     case v of
       Just v' -> returnA -< v'
-      Nothing -> throw -< "Variable not yet initialized"
+      Nothing -> failA -< "Field not yet initialized"
 
-eval :: Arr Expr Val
+eval :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c Expr Val
 eval = proc e -> case e of
   ENew newExpr -> case newExpr of
     NewSimple t -> if isBaseType t
       then returnA -< (defaultValue t)
-      else throw -< "Expected a nonvoid base type for new"
+      else failA -< "Expected a nonvoid base type for new"
     NewArray t i -> if isNonvoidType t
       then do
         v <- evalImmediate -< i
         if isPositiveVInt v
           then returnA -< (defaultArray t [v])
-          else throw -< "Expected a positive integer for newarray size"
-      else throw -< "Expected a nonvoid type for newarray"
+          else failA -< "Expected a positive integer for newarray size"
+      else failA -< "Expected a nonvoid type for newarray"
     NewMulti t is -> if isBaseType t
       then do
         vs <- evalImmediateList -< is
         if all isPositiveVInt vs
           then returnA -< (defaultArray t vs)
-          else throw -< "Expected positive integers for newmultiarray sizes"
-      else throw -< "Expected a nonvoid base type for newmultiarray"
+          else failA -< "Expected positive integers for newmultiarray sizes"
+      else failA -< "Expected a nonvoid base type for newmultiarray"
   -- ECast NonvoidType Immediate
   -- EInstanceof Immediate NonvoidType
   -- EInvoke InvokeExpr
@@ -176,7 +213,7 @@ eval = proc e -> case e of
         (VInt x1, VFloat x2) -> returnA -< (VFloat (fromIntegral x1 `mod'` x2))
         (VFloat x1, VInt x2) -> returnA -< (VFloat (x1 `mod'` fromIntegral x2))
         (VFloat x1, VFloat x2) -> returnA -< (VFloat (x1 `mod'` x2))
-        (_, _) -> throw -< "Expected two numbers as arguments for mod"
+        (_, _) -> failA -< "Expected two numbers as arguments for mod"
       -- Rem ->
       -- Cmp ->
       -- Cmpg ->
@@ -185,98 +222,79 @@ eval = proc e -> case e of
       Cmpne -> returnA -< (VBool (v1 /= v2))
       Cmpgt -> case numToBool (>) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> throw -< "Expected two numbers as arguments for >"
+        Nothing -> failA -< "Expected two numbers as arguments for >"
       Cmpge -> case numToBool (>=) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> throw -< "Expected two numbers as arguments for >="
+        Nothing -> failA -< "Expected two numbers as arguments for >="
       Cmplt -> case numToBool (<) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> throw -< "Expected two numbers as arguments for <"
+        Nothing -> failA -< "Expected two numbers as arguments for <"
       Cmple -> case numToBool (<=) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> throw -< "Expected two numbers as arguments for <="
+        Nothing -> failA -< "Expected two numbers as arguments for <="
       -- Shl ->
       -- Shr ->
       -- Ushr ->
       Plus -> case numToNum (+) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> throw -< "Expected two numbers as arguments for +"
+        Nothing -> failA -< "Expected two numbers as arguments for +"
       Minus -> case numToNum (-) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> throw -< "Expected two numbers as arguments for -"
+        Nothing -> failA -< "Expected two numbers as arguments for -"
       Mult -> case numToNum (*) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> throw -< "Expected two numbers as arguments for *"
+        Nothing -> failA -< "Expected two numbers as arguments for *"
       Div -> case (v1, v2) of
-        (_, VInt 0) -> throw -< "Cannot divide by zero"
-        (_, VFloat 0.0) -> throw -< "Cannot divide by zero"
+        (_, VInt 0) -> failA -< "Cannot divide by zero"
+        (_, VFloat 0.0) -> failA -< "Cannot divide by zero"
         (VInt n1, VInt n2) -> returnA -< (VInt (n1 `div` n2))
         (VFloat f, VInt n) -> returnA -< (VFloat (f / fromIntegral n))
         (VInt n, VFloat f) -> returnA -< (VFloat (fromIntegral n / f))
         (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 / f2))
-        (_, _) -> throw -< "Expected two numbers as arguments for /"
+        (_, _) -> failA -< "Expected two numbers as arguments for /"
   EUnop op i -> do
     v <- evalImmediate -< i
     case op of
       Lengthof -> case v of
         VArray xs -> returnA -< (VInt (length xs))
-        _ -> throw -< "Expected an array as argument for lengthof"
+        _ -> failA -< "Expected an array as argument for lengthof"
       Neg -> case v of
         VInt n -> returnA -< (VInt (-n))
         VFloat f -> returnA -< (VFloat (-f))
-        _ -> throw -< "Expected a number as argument for -"
+        _ -> failA -< "Expected a number as argument for -"
   EImmediate i -> do
     v <- evalImmediate -< i
     returnA -< v
-  _ -> throw -< "Undefined expression"
+  _ -> failA -< "Undefined expression"
 
-eval' :: Env -> Store -> Expr -> Either String Val
-eval' env store expr =
-  let third (_, _, x) = x
-  in right third (runArr eval expr env store)
+lookupLocal :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c String (Type, Maybe Val)
+lookupLocal = proc s -> do
+  gv <- lookup -< (LocalPointer s)
+  case gv of
+    LocalVal v -> returnA -< v
+    _ -> failA -< "Incorrect value bound"
 
-lookupEnv :: Arr String String
-lookupEnv = Arr (\l env st ->
-  case Map.lookup l env of
-    Just p -> Right (env, st, p)
-    Nothing -> Left "Reference undefined")
+lookupField :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c FieldSignature (Type, Maybe Val)
+lookupField = proc fs@(FieldSignature _ t _) -> do
+  gv <- lookup -< (FieldPointer fs)
+  case gv of
+    FieldVal v -> returnA -< (t, v)
+    _ -> failA -< "Incorrect value bound"
 
-fetchDynamic :: Arr String (Type, Maybe Val)
-fetchDynamic = Arr (\p env st@(_, _, dynamicStore) ->
-  case Map.lookup p dynamicStore of
-    Just (t, v) -> Right (env, st, (t, v))
-    Nothing -> Left "Variable not in scope")
-
-assignDynamic :: Arr (String, (Type, Val)) ()
-assignDynamic = Arr (\(p, (t, v)) env (f, s, d) ->
-  Right (env, (f, s, Map.insert p (t, Just v) d), ()))
-
-fetchStatic :: Arr FieldSignature (Type, Maybe Val)
-fetchStatic = Arr (\fs@(FieldSignature _ t _) env st@(_, staticStore, _) ->
-  case Map.lookup fs staticStore of
-    Just v -> Right (env, st, (t, v))
-    Nothing -> Left "Field undefined")
-
-throw :: Arr String a
-throw = Arr (\er _ _ -> Left er)
-
-throwException :: Arr String a
-throwException = Arr (\er _ _ -> Left er)
-
-goto :: Arr ([Statement], String) (Maybe Val)
+goto :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c ([Statement], String) (Maybe Val)
 goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
   Just i -> runStatements -< (stmts, i)
-  Nothing -> throw -< "Undefined label: " ++ label
+  Nothing -> failA -< "Undefined label: " ++ label
 
-matchCases :: Arr ([CaseStatement], Int) String
+matchCases :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c ([CaseStatement], Int) String
 matchCases = proc (cases, v) -> case cases of
   ((CLConstant n, label): cases') -> if v == n
     then returnA -< label
     else matchCases -< (cases', v)
   ((CLDefault, label): _) -> returnA -< label
-  [] -> throw -< "No cases match value " ++ show v
+  [] -> failA -< "No cases match value " ++ show v
 
-runStatements :: Arr ([Statement], Int) (Maybe Val)
+runStatements :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i == length stmts
   then returnA -< Nothing
   else case stmts !! i of
@@ -290,31 +308,31 @@ runStatements = proc (stmts, i) -> if i == length stmts
         VInt x -> do
           label <- matchCases -< (cases, x)
           goto -< (stmts, label)
-        _ -> throw -< "Expected an integer as argument for switch"
+        _ -> failA -< "Expected an integer as argument for switch"
     Lookupswitch immediate cases -> do
       v <- evalImmediate -< immediate
       case v of
         VInt x -> do
           label <- matchCases -< (cases, x)
           goto -< (stmts, label)
-        _ -> throw -< "Expected an integer as argument for switch"
+        _ -> failA -< "Expected an integer as argument for switch"
     -- Identity LocalName AtIdentifier Type
     -- IdentityNoType LocalName AtIdentifier
     Assign var e -> do
       v <- eval -< e
       case var of
         VLocal localName -> do
-          p <- lookupEnv -< localName
-          (t, _) <- fetchDynamic -< p
-          assignDynamic -< (p, (t, v))
-        VReference _ -> throw -< "Undefined yet" -- evalRef -< ref
-      runStatements -< (stmts, i + 1)
+          (t, _) <- lookupLocal -< localName
+          env <- getEnv -< ()
+          env' <- extendEnv -< (LocalPointer localName, LocalVal (t, Just v), env)
+          localEnv runStatements -< (env', (stmts, i + 1))
+        VReference _ -> failA -< "Undefined yet" -- evalRef -< ref
     If e label -> do
       v <- eval -< e
       case v of
         VBool True -> goto -< (stmts, label)
         VBool False -> runStatements -< (stmts, i + 1)
-        _ -> throw -< "Expected a boolean expression for if statement"
+        _ -> failA -< "Expected a boolean expression for if statement"
     Goto label -> goto -< (stmts, label)
     -- Nop
     -- Ret (Maybe Immediate)
@@ -326,25 +344,3 @@ runStatements = proc (stmts, i) -> if i == length stmts
     -- Throw Immediate
     -- Invoke Expr
     _ -> runStatements -< (stmts, i + 1)
-
-runStatements' :: Env -> Store -> [Statement] -> Either String (Env, Store, Maybe Val)
-runStatements' env st stmts = runArr runStatements (stmts, 0) env st
-
-instance Category Arr where
-  id = Arr (\x env st -> Right (env,st,x))
-  Arr f . Arr g = Arr $ \x env st -> case g x env st of
-    Left er -> Left er
-    Right (env',st',y) -> f y env' st'
-
-instance Arrow Arr where
-  arr f = Arr (\x env st -> Right (env,st,f x))
-  first (Arr f) = Arr $ \(x,y) env st -> case f x env st of
-    Left er -> Left er
-    Right (env',st',z) -> Right (env',st',(z,y))
-
-instance ArrowChoice Arr where
-  left (Arr f) = Arr $ \e env st -> case e of
-    Left x -> case f x env st of
-      Left er -> Left er
-      Right (env',st',y) -> Right (env',st',Left y)
-    Right z -> Right (env, st, Right z)
