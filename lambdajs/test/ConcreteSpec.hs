@@ -7,6 +7,7 @@ import qualified ConcreteArrow as CA (eval)
 import Test.Hspec
 
 import Data.Fixed (mod')
+import Data.Either (isLeft)
 
 main :: IO ()
 main = hspec spec
@@ -319,6 +320,23 @@ spec = do
       it "if else branch" $ do
         let program = EIf (EBool False) (ENumber 1.0) (ENumber 2.0)
         eval scope program `shouldBe` Right (VNumber 2.0)
+   
+    -- seq
+    describe "seq" $ do
+      it "environment carry-over" $ do
+        let program = (ELet [("a", EObject [("b", ENumber 1.0)])] (ESeq (EUpdateField (EId "a") (EString "b") (ENumber 2.0)) (EGetField (EId "a") (EString "b"))))
+        eval scope program `shouldBe` Right (VNumber 2.0)
+
+    -- ref
+    describe "references" $ do
+      it "set ref" $ do
+        let program = (ELet [("a", ENumber 1.0)] (ESeq (ESetRef (EId "a") (ENumber 2.0)) (EId "a")))
+        eval scope program `shouldBe` Right (VNumber 2.0)
     
+    -- eval
+    describe "eval" $ do
+      it "abort" $ do
+        let program = EEval
+        eval scope program `shouldSatisfy` isLeft
 
   where scope = empty

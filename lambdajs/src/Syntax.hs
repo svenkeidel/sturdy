@@ -44,13 +44,13 @@ data Expr
     | EOp Op [Expr]
     | EApp Expr [Expr]
     | ELet [(Ident, Expr)] Expr
-    -- | ESetRef Expr Expr
+    | ESetRef Expr Expr
     -- | ERef Expr
     -- | EDeref Expr
     | EGetField Expr Expr
     | EUpdateField Expr Expr Expr
     | EDeleteField Expr Expr
-    -- | ESeq Expr Expr
+    | ESeq Expr Expr
     | EIf Expr Expr Expr
     -- | EWhile Expr Expr
     -- | ELabel Label Expr
@@ -58,12 +58,9 @@ data Expr
     -- | EThrow Expr
     -- | ECatch Expr Expr
     -- | EFinally Expr Expr
-    -- |We use HOAS when possible so that we don't mess up bindings.  When
-    -- pretty-printing, we unravel these to use conventional bindings.
-    -- | ELet1 Expr (Ident -> Expr)
-    -- | ELet2 Expr Expr (Ident -> Ident -> Expr)
-    -- | EEval  -- ^an expression that calls eval, or a related function.  If
-              -- EEval becomes the active expression, our model immediately aborts.
+    -- An expression that calls eval, or a related function. If EEval becomes the active expression,
+    -- our model immediately aborts.
+    | EEval
     deriving (Show, Eq)
 
 data Value
@@ -74,4 +71,5 @@ data Value
     | VNull
     | VLambda [Ident] Expr
     | VObject [(String, Value)]
+    | VLocation 
     deriving (Show, Eq)
