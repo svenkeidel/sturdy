@@ -12,7 +12,7 @@ module Concrete where
 import Prelude hiding (lookup)
 
 import           Data.Fixed
-import           Data.List (replicate, elemIndex)
+import           Data.List (replicate, elemIndex, find)
 
 import           Data.Concrete.Error
 
@@ -20,8 +20,9 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Hashable
 import           Data.Concrete.Environment (Env)
+import qualified Data.Concrete.Environment as E
 
-import           Control.Category
+import           Control.Category hiding ((.))
 
 import           Control.Arrow
 import           Control.Arrow.Fail
@@ -124,6 +125,11 @@ isPositiveVInt :: Val -> Bool
 isPositiveVInt (VInt n) = n > 0
 isPositiveVInt _ = False
 
+isLocalVal :: GeneralVal -> Bool
+isLocalVal (FileVal _) = False
+isLocalVal (FieldVal _) = False
+isLocalVal (LocalVal _) = True
+
 evalImmediateList :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c [Immediate] [Val]
 evalImmediateList = proc xs -> case xs of
   (x':xs') -> do
@@ -160,14 +166,14 @@ evalRef = proc ref -> case ref of
             _ -> failA -< "Expected an array to lookup in"
           Nothing -> failA -< "Array not yet initialized"
       _ -> failA -< "Expected an integer as array index"
-  FieldReference localName (FieldSignature c _ fieldName) -> do
+  FieldReference localName (FieldSignature c _ n) -> do
     (_, v) <- lookupLocal -< localName
     case v of
       Just v' -> case v' of
         VObject c' m -> if c == c'
-          then case Map.lookup fieldName m of
+          then case Map.lookup n m of
             Just x -> returnA -< x
-            Nothing -> failA -< "Field " ++ fieldName ++ " not defined for class " ++ c'
+            Nothing -> failA -< "Field " ++ n ++ " not defined for class " ++ c'
           else failA -< "ClassNames do not correspond"
         _ -> failA -< "Expected an object to lookup in"
       Nothing -> failA -< "Object not yet initialized"
@@ -177,7 +183,7 @@ evalRef = proc ref -> case ref of
       Just v' -> returnA -< v'
       Nothing -> failA -< "Field not yet initialized"
 
-eval :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c Expr Val
+eval :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal (Env Pointer GeneralVal) c) => c Expr Val
 eval = proc e -> case e of
   ENew newExpr -> case newExpr of
     NewSimple t -> if isBaseType t
@@ -199,7 +205,16 @@ eval = proc e -> case e of
       else failA -< "Expected a nonvoid base type for newmultiarray"
   -- ECast NonvoidType Immediate
   -- EInstanceof Immediate NonvoidType
-  -- EInvoke InvokeExpr
+  EInvoke expr -> case expr of
+    StaticInvoke methodSignature@(MethodSignature _ _ _ argTypes) args -> do
+      body <- lookupMethod -< methodSignature
+      env <- getEnv -< ()
+      env' <- createMethodEnv -< (env, argTypes, args)
+      v <- localEnv runMethodBody -< (env', body)
+      case v of
+        Just v' -> returnA -< v'
+        Nothing -> failA -< "Should change method signature"
+    _ -> failA -< "Not implemented"
   EReference ref -> evalRef -< ref
   EBinop i1 op i2 -> do
     v1 <- evalImmediate -< i1
@@ -281,7 +296,22 @@ lookupField = proc fs@(FieldSignature _ t _) -> do
     FieldVal v -> returnA -< (t, v)
     _ -> failA -< "Incorrect value bound"
 
-goto :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c ([Statement], String) (Maybe Val)
+matchesSignature :: Type -> String -> [Type] -> Member -> Bool
+matchesSignature retType n argTypes Method{ methodName = a
+                                          , returnType = b
+                                          , parameters = c } = n == a && b == retType && c == argTypes
+matchesSignature _ _ _ _ = False
+
+lookupMethod :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c MethodSignature MethodBody
+lookupMethod = proc (MethodSignature c retType n argTypes) -> do
+  gv <- lookup -< (FilePointer c)
+  case gv of
+    FileVal v -> case find (matchesSignature retType n argTypes) (fileBody v) of
+      Just m -> returnA -< (methodBody m)
+      Nothing -> failA -< "Undefined method " ++ show n ++ " for class " ++ show c
+    _ -> failA -< "Undefined class " ++ show c
+
+goto :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal (Env Pointer GeneralVal) c) => c ([Statement], String) (Maybe Val)
 goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
   Just i -> runStatements -< (stmts, i)
   Nothing -> failA -< "Undefined label: " ++ label
@@ -294,7 +324,17 @@ matchCases = proc (cases, v) -> case cases of
   ((CLDefault, label): _) -> returnA -< label
   [] -> failA -< "No cases match value " ++ show v
 
-runStatements :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal env c) => c ([Statement], Int) (Maybe Val)
+createMethodEnv :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal (Env Pointer GeneralVal) c) => c (Env Pointer GeneralVal, [Type], [Immediate]) (Env Pointer GeneralVal)
+createMethodEnv = proc (env, paramTypes, args) -> do
+  let filteredEnv = filter (\(_, v) -> (not . isLocalVal) v) (E.toList env)
+  argVals <- evalImmediateList -< args
+  let typedArgVals = zip paramTypes argVals
+  let toParam n = LocalPointer ("@parameter" ++ show n)
+  let toLocal (t, v) = LocalVal (t, Just v)
+  let argEnv = zip (map toParam [0..]) (map toLocal typedArgVals)
+  returnA -< (E.fromList (filteredEnv ++ argEnv))
+
+runStatements :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal (Env Pointer GeneralVal) c) => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i == length stmts
   then returnA -< Nothing
   else case stmts !! i of
@@ -358,5 +398,23 @@ runStatements = proc (stmts, i) -> if i == length stmts
         returnA -< Just v
       Nothing -> returnA -< Nothing
     -- Throw Immediate
-    -- Invoke Expr
+    Invoke e -> do
+      eval -< EInvoke e
+      runStatements -< (stmts, i + 1)
     _ -> runStatements -< (stmts, i + 1)
+
+runMethodBody :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal (Env Pointer GeneralVal) c) => c MethodBody (Maybe Val)
+runMethodBody = proc body -> case body of
+  MEmpty -> returnA -< Nothing
+  MFull{declarations=d,statements=s,catchClauses=c} -> do
+    env <- getEnv -< ()
+    env' <- initLocalEnv -< (env, d)
+    v <- localEnv runStatements -< (env', (s, 0))
+    returnA -< v
+
+initLocalEnv :: (ArrowChoice c, ArrowFail String c, ArrowEnv Pointer GeneralVal (Env Pointer GeneralVal) c) => c (Env Pointer GeneralVal, [Declaration]) (Env Pointer GeneralVal)
+initLocalEnv = proc (env, d) -> do
+  let dec2env t s = (LocalPointer s, LocalVal (t, Nothing))
+  let decs2env (t, decs) = map (dec2env t) decs
+  let decEnv = concatMap decs2env d
+  returnA -< (E.fromList (E.toList env ++ decEnv))

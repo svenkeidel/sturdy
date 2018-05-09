@@ -85,16 +85,16 @@ spec = do
 
   describe "Simple Statements" $ do
     it "i0 = 2 + 3; return i0;" $ do
+      let nv = [(LocalPointer "i0", LocalVal (TInt, Nothing))]
       let stmts = [Assign (VLocal "i0") (EBinop (IInt 2) Plus (IInt 3)),
                    Return (Just (ILocalName "i0"))]
-      let nv = [(LocalPointer "i0", LocalVal (TInt, Nothing))]
       runStatementsConcrete nv stmts `shouldBe` Success (Just (VInt 5))
     it "s = 2; xs = newarray (int)[s]; return xs;" $ do
+      let nv = [(LocalPointer "s", LocalVal (TInt, Nothing)),
+                (LocalPointer "xs", LocalVal (TArray TInt, Nothing))]
       let stmts = [Assign (VLocal "s") (EImmediate (IInt 2)),
                    Assign (VLocal "xs") (ENew (NewArray TInt (ILocalName "s"))),
                    Return (Just (ILocalName "xs"))]
-      let nv = [(LocalPointer "s", LocalVal (TInt, Nothing)),
-                (LocalPointer "xs", LocalVal (TArray TInt, Nothing))]
       runStatementsConcrete nv stmts `shouldBe` Success (Just (VArray [VInt 0, VInt 0]))
     it "if 2 <= 3 goto l2; l1: return 1; l2: return 0;" $ do
       let stmts = [If (EBinop (IInt 2) Cmple (IInt 3)) "l2",
@@ -126,14 +126,49 @@ spec = do
                    Return (Just (IInt 3))]
       runStatementsConcrete env stmts `shouldBe` Success (Just (VInt 3))
     it "f0 := @parameter0: float; f1 = f0 * 2; return f1; (@parameter0 = 2.0)" $ do
-      let stmts = [Identity "f0" (IDParameter 0) TFloat,
-                   Assign (VLocal "f1") (EBinop (ILocalName "f0") Mult (IInt 2)),
-                   Return (Just (ILocalName "f1"))]
       let nv = [(LocalPointer "@parameter0", LocalVal (TFloat, Just (VFloat 2.0))),
                 (LocalPointer "f0", LocalVal (TFloat, Nothing)),
                 (LocalPointer "f1", LocalVal (TFloat, Nothing))]
+      let stmts = [Identity "f0" (IDParameter 0) TFloat,
+                   Assign (VLocal "f1") (EBinop (ILocalName "f0") Mult (IInt 2)),
+                   Return (Just (ILocalName "f1"))]
       runStatementsConcrete nv stmts `shouldBe` Success (Just (VFloat 4.0))
 
+  -- describe "Environment modification" $ do
+  --   it
+
+  describe "Complex statements" $ do
+    it "i0 = staticinvoke <Example: int add(int, int)>(2, 4); return i0;" $ do
+      let addMethodBody = MFull {
+        declarations = [
+          (TInt, ["i0", "i1", "i2"])
+        ],
+        statements = [
+          Identity "i0" (IDParameter 0) TInt,
+          Identity "i1" (IDParameter 1) TInt,
+          Assign (VLocal "i2") (EBinop (ILocalName "i0") Plus (ILocalName "i1")),
+          Return (Just (ILocalName "i2"))
+        ],
+        catchClauses = []
+      }
+      let addMethod = Method { methodModifiers = [Static, Public]
+                             , returnType = TInt
+                             , methodName = "add"
+                             , parameters = [TInt, TInt]
+                             , throws = []
+                             , methodBody = addMethodBody }
+      let exampleFile = File { fileModifiers = [Public]
+                             , fileType = FTClass
+                             , fileName = "Example"
+                             , extends = Nothing
+                             , implements = []
+                             , fileBody = [addMethod] }
+      let addSignature = MethodSignature "Example" TInt "add" [TInt, TInt]
+      let nv = [(LocalPointer "i0", LocalVal (TInt, Nothing)),
+                (FilePointer "Example", FileVal exampleFile)]
+      let stmts = [Assign (VLocal "i0") (EInvoke (StaticInvoke addSignature [IInt 2, IInt 4])),
+                   Return (Just (ILocalName "i0"))]
+      runStatementsConcrete nv stmts `shouldBe` Success (Just (VInt 6))
     -- describe "Complete file" $ do
     --   run' store file `shouldBe` Right (store, Nothing)
 

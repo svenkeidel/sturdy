@@ -21,7 +21,7 @@ data File = File { fileModifiers :: [Modifier]
                  , fileName :: String
                  , extends :: Maybe String
                  , implements :: [String]
-                 , body :: [Member]
+                 , fileBody :: [Member]
                  }
 
 instance Eq File where
@@ -82,16 +82,16 @@ instance Show FileType where
   show FTInterface = "interface"
 
 data Member
-  = Field { modifiers :: [Modifier]
+  = Field { fieldModifiers :: [Modifier]
           , fieldType :: Type
-          , name :: String
+          , fieldName :: String
           }
-  | Method { modifiers :: [Modifier]
+  | Method { methodModifiers :: [Modifier]
            , returnType :: Type
-           , name :: String
+           , methodName :: String
            , parameters :: [Type]
            , throws :: [String]
-           , body :: MethodBody
+           , methodBody :: MethodBody
            }
 
 data Type
@@ -200,9 +200,9 @@ data InvokeExpr
   | StaticInvoke MethodSignature [Immediate]
   | DynamicInvoke String UnnamedMethodSignature [Immediate] MethodSignature [Immediate] deriving (Eq)
 
-data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Eq)
-
 data MethodSignature = MethodSignature String Type String [Type] deriving (Eq)
+
+data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Eq)
 
 data Reference
   = ArrayReference String Immediate
