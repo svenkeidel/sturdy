@@ -1,10 +1,26 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module ValueInterpreter where
+import Prelude hiding(lookup)
 
 import Syntax
 
+import Data.Concrete.Error
+import Data.Concrete.Environment
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Transformer.Concrete.Except
+import Control.Arrow.Transformer.Concrete.Environment
+import Control.Arrow.Transformer.Concrete.Except
+import Control.Arrow.Fail
+import Control.Arrow.Environment
 
 import Data.Fixed (mod')
 import Data.List (isPrefixOf, find)
@@ -14,26 +30,18 @@ import Data.Word (Word32)
 import Data.Map (Map, findWithDefault)
 import qualified Data.Map as Map
 
-newtype LJSArrow x y = LJSArrow {runArr :: x -> Store -> Either String (Store, y) } 
+newtype LJSArrow x y = LJSArrow (Except String (Environment Ident Value (->)) x y)
+deriving instance ArrowChoice LJSArrow
+deriving instance Arrow LJSArrow
+deriving instance Category LJSArrow
+deriving instance ArrowFail String LJSArrow
+deriving instance ArrowEnv Ident Value (Data.Concrete.Environment.Env Ident Value) LJSArrow
 
-instance Category LJSArrow where
-    id = LJSArrow (\x st -> Right (st, x))
-    LJSArrow f . LJSArrow g = LJSArrow $ \x st -> case g x st of
-        Left er -> Left er
-        Right (st', y) -> f y st'
+runLJS :: LJSArrow x y -> [(Ident, Value)] -> x -> Error String y
+runLJS (LJSArrow f) env x = runEnvironment (runExcept f) (env, x)
 
-instance Arrow LJSArrow where
-    arr f = LJSArrow (\x st -> Right (st, f x))
-    first (LJSArrow f) = LJSArrow $ \(x, y) st -> case f x st of
-        Left er -> Left er
-        Right (st', z) -> Right (st', (z, y))
-
-instance ArrowChoice LJSArrow where
-    left (LJSArrow f) = LJSArrow $ \e st -> case e of
-        Left x -> case f x st of
-            Left err -> Left err
-            Right (st', y) -> Right (st', Left y)
-        Right z -> Right (st, Right z)
+runConcrete :: [(Ident, Value)] -> Expr -> Error String Value
+runConcrete = runLJS eval 
 
 -- Constructs an arrow that operates on a list of inputs producing a list of outputs.
 -- Used for evaluating a list of arguments, producing a list of values which are passed to the evalOp function.
@@ -42,24 +50,7 @@ mapA f = arr (\list -> case list of
     [] -> Left ()
     (x : xs) -> Right (x, xs)) >>> (arr (const []) ||| ((f *** mapA f) >>> (arr (uncurry (:)))))
 
-type Store = Map String Value
-lookup :: String -> Store -> Maybe Value
-lookup s st = Map.lookup s st 
-empty :: Store
-empty = Map.empty
-insert :: String -> Value -> Store -> Store
-insert s v st = Map.insert s v st
-
-get :: LJSArrow () Store
-get = LJSArrow (\() st -> Right (st, st))
-
-put :: LJSArrow Store ()
-put = LJSArrow (\st _ -> Right (st, ()))
-
-throw :: LJSArrow String a
-throw = LJSArrow (\er _ -> Left er)
-
-evalOp :: LJSArrow (Op, [Value]) Value
+evalOp :: (ArrowFail String c, ArrowChoice c) => c (Op, [Value]) Value
 evalOp = proc (op, vals) -> case (op, vals) of
     -- number operators
     (ONumPlus, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a + b)
@@ -161,7 +152,7 @@ evalOp = proc (op, vals) -> case (op, vals) of
     (OHasOwnProp, [(VObject fields), (VString field)]) -> 
         returnA -< VBool $ any (\(name, value) -> (name == field)) fields
 
-getField :: LJSArrow (Value, Value) Value
+getField :: (ArrowFail String c, ArrowChoice c) => c (Value, Value) Value
 getField = proc (VObject fields, VString fieldName) -> 
     let fieldV = find (\(fn, fv) -> fn == fieldName) fields in
         case fieldV of
@@ -179,12 +170,12 @@ getField = proc (VObject fields, VString fieldName) ->
                         -- E-GetField-NotFound
                         Nothing -> returnA -< VUndefined
 
-deleteField :: LJSArrow (Value, Value) Value
+deleteField :: ArrowFail String e => e (Value, Value) Value
 deleteField = proc (VObject fields, VString name) -> do
     filtered <- arr (\(n, fs) -> filter (\(fn, _) -> fn /= n) fs) -< (name, fields) 
     returnA -< VObject filtered
 
-updateField :: LJSArrow (Value, Value, Value) Value
+updateField :: (ArrowFail String e, ArrowChoice e) => e (Value, Value, Value) Value
 updateField = proc (VObject fields, VString name, value) -> do
     -- remove field from obj
     filtered <- deleteField -< (VObject fields, VString name)
@@ -193,9 +184,9 @@ updateField = proc (VObject fields, VString name, value) -> do
             -- add field with new value to obj
             newFields <- arr (\(fs, n, v) -> (n, v) : fs) -< (obj, name, value) 
             returnA -< VObject newFields
-        _ -> throw -< "Error: deleteField returned non-object value"
+        _ -> failA -< "Error: deleteField returned non-object value"
 
-eval :: LJSArrow Expr Value
+eval :: (ArrowFail String c, ArrowEnv Ident Value (Env Ident Value) c, ArrowChoice c) => c Expr Value
 eval = proc e -> case e of
     ENumber d -> returnA -< VNumber d
     EString s -> returnA -< VString s
@@ -207,10 +198,8 @@ eval = proc e -> case e of
         vals <- (mapA $ second eval) -< fields
         returnA -< VObject vals
     EId id -> do
-        st <- get -< ()
-        case Map.lookup id st of
-            Just v -> returnA -< v
-            Nothing -> returnA -< VUndefined
+        res <- Control.Arrow.Environment.lookup -< id
+        returnA -< res
     EOp op exps -> do
         vals <- mapA eval -< exps
         res <- evalOp -< (op, vals)
@@ -219,10 +208,8 @@ eval = proc e -> case e of
         vals <- mapA eval -< args
         zipped <- arr $ uncurry zip -< (params, vals)
 
-        scope <- get -< ()
-        put -< Map.fromList $ (Map.toList scope) ++ (zipped)
-
-        res <- eval -< body 
+        scope <- getEnv -< ()
+        res <- localEnv eval -< (Data.Concrete.Environment.fromList $ (Data.Concrete.Environment.toList scope) ++ (zipped), body) 
         returnA -< res
     ELet vars body -> do
         res <- eval -< EApp (ELambda (map fst vars) body) (map snd vars)
@@ -273,9 +260,9 @@ eval = proc e -> case e of
                         returnA -< res
             VBool False ->
                 returnA -< VUndefined
-            _ -> throw -< "Error: Non bool value in test of while loop"
+            _ -> failA -< "Error: Non bool value in test of while loop"
     -- ESetRef r v -> do
-    EEval -> throw -< "Eval expression encountered, aborting"
+    EEval -> failA -< "Eval expression encountered, aborting"
     ELabel l e -> do
         res <- eval -< e
         case res of
@@ -295,11 +282,11 @@ eval = proc e -> case e of
             VThrown v -> do
                 case catch of
                     ELambda [x] body -> do
-                        scope <- get -< ()
-                        put -< Map.insert x v scope
-                        res <- eval -< body 
+                        scope <- getEnv -< ()
+                        env' <- extendEnv -< (x, v, scope)
+                        res <- localEnv eval -< (env', body) 
                         returnA -< res
-                    _ -> throw -< "Error: Catch block must be of type ELambda"
+                    _ -> failA -< "Error: Catch block must be of type ELambda"
             v -> returnA -< v
     EFinally b1 b2 -> do
         res1 <- eval -< b1

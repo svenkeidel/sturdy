@@ -1,9 +1,11 @@
 module ConcreteSpec where
 
 import Syntax
-import ValueInterpreter (Store, LJSArrow, runArr, lookup, empty, insert)
-import qualified ValueInterpreter as Interpreter (eval)
-
+import ValueInterpreter (LJSArrow)
+import qualified ValueInterpreter as Interpreter (runLJS)
+import Data.Concrete.Environment
+import Data.Concrete.Error
+import Control.Arrow.Fail
 import Test.Hspec
 
 import Data.Fixed (mod')
@@ -12,10 +14,10 @@ import Data.Either (isLeft)
 main :: IO ()
 main = hspec spec
 
-eval :: Store -> Expr -> Either String Value
-eval st e = case runArr (Interpreter.eval) e st of
-  Left err -> Left err
-  Right (_ , v) -> Right v
+eval :: [(Ident, Value)] -> Expr -> Either String Value
+eval env e = case Interpreter.runLJS env e of
+  Fail s -> Left s
+  Success r -> Right r
 
 spec :: Spec
 spec = do
@@ -353,4 +355,4 @@ spec = do
       it "caught throws" $ do
         let program = ECatch (EThrow (ENumber 1.0)) (ELambda ["x"] (EId "x"))
         eval scope program `shouldBe` Right (VNumber 1.0)
-  where scope = empty
+  where scope = []
