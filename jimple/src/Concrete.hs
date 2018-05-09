@@ -329,7 +329,8 @@ createMethodEnv = proc (env, paramTypes, args) -> do
   let filteredEnv = filter (\(_, v) -> (not . isLocalVal) v) (E.toList env)
   argVals <- evalImmediateList -< args
   let typedArgVals = zip paramTypes argVals
-  let toParam n = LocalPointer ("@parameter" ++ show n)
+  let toParam :: Integer -> Pointer
+      toParam n = LocalPointer ("@parameter" ++ show n)
   let toLocal (t, v) = LocalVal (t, Just v)
   let argEnv = zip (map toParam [0..]) (map toLocal typedArgVals)
   returnA -< (E.fromList (filteredEnv ++ argEnv))
