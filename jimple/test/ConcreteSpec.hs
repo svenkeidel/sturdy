@@ -8,6 +8,7 @@ import qualified Data.Map as Map
 
 import Test.Hspec
 
+import Examples.FactorialExample
 -- import examples.SimpleExampleAbstract (file)
 
 main :: IO ()
@@ -146,31 +147,6 @@ spec = do
 
   describe "Complex statements" $ do
     it "i0 = staticinvoke <Example: int add(int, int)>(2, 4); return i0;" $ do
-      let addMethodBody = MFull {
-        declarations = [
-          (TInt, ["i0", "i1", "i2"])
-        ],
-        statements = [
-          Identity "i0" (IDParameter 0) TInt,
-          Identity "i1" (IDParameter 1) TInt,
-          Assign (VLocal "i2") (EBinop (ILocalName "i0") Plus (ILocalName "i1")),
-          Return (Just (ILocalName "i2"))
-        ],
-        catchClauses = []
-      }
-      let addMethod = Method { methodModifiers = [Static, Public]
-                             , returnType = TInt
-                             , methodName = "add"
-                             , parameters = [TInt, TInt]
-                             , throws = []
-                             , methodBody = addMethodBody }
-      let exampleFile = File { fileModifiers = [Public]
-                             , fileType = FTClass
-                             , fileName = "Example"
-                             , extends = Nothing
-                             , implements = []
-                             , fileBody = [addMethod] }
-      let addSignature = MethodSignature "Example" TInt "add" [TInt, TInt]
       let nv = [("i0", LocalAddr 0)]
       let st = [(LocalAddr 0,        VariableVal (TInt, defaultValue TInt)),
                 (FileAddr "Example", FileVal exampleFile)]
@@ -178,9 +154,35 @@ spec = do
                    Return (Just (ILocalName "i0"))]
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (VInt 6))
 
-    -- describe "Complete file" $ do
-    --   run' store file `shouldBe` Right (store, Nothing)
+  describe "Complete file" $ do
+    it "10! = 3628800" $ do
+      runFileConcrete file [IInt 10] `shouldBe` Success (Just (VInt 3628800))
 
   where
     env = []
     store = []
+    addMethodBody = MFull {
+      declarations = [
+        (TInt, ["i0", "i1", "i2"])
+      ],
+      statements = [
+        Identity "i0" (IDParameter 0) TInt,
+        Identity "i1" (IDParameter 1) TInt,
+        Assign (VLocal "i2") (EBinop (ILocalName "i0") Plus (ILocalName "i1")),
+        Return (Just (ILocalName "i2"))
+      ],
+      catchClauses = []
+    }
+    addMethod = Method { methodModifiers = [Static, Public]
+                       , returnType = TInt
+                       , methodName = "add"
+                       , parameters = [TInt, TInt]
+                       , throws = []
+                       , methodBody = addMethodBody }
+    exampleFile = File { fileModifiers = [Public]
+                       , fileType = FTClass
+                       , fileName = "Example"
+                       , extends = Nothing
+                       , implements = []
+                       , fileBody = [MethodMember addMethod] }
+    addSignature = MethodSignature "Example" TInt "add" [TInt, TInt]

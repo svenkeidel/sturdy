@@ -56,7 +56,7 @@ data Modifier
   | Volatile
   | Strictfp
   | Enum
-  | Annotation
+  | Annotation deriving (Eq)
 
 instance Show Modifier where
   show Abstract     = "abstract"
@@ -81,18 +81,20 @@ instance Show FileType where
   show FTClass = "class"
   show FTInterface = "interface"
 
-data Member
-  = Field { fieldModifiers :: [Modifier]
-          , fieldType :: Type
-          , fieldName :: String
-          }
-  | Method { methodModifiers :: [Modifier]
-           , returnType :: Type
-           , methodName :: String
-           , parameters :: [Type]
-           , throws :: [String]
-           , methodBody :: MethodBody
-           }
+data Member = FieldMember Field | MethodMember Method
+
+data Field = Field { fieldModifiers :: [Modifier]
+                   , fieldType :: Type
+                   , fieldName :: String
+                   }
+
+data Method = Method { methodModifiers :: [Modifier]
+                     , returnType :: Type
+                     , methodName :: String
+                     , parameters :: [Type]
+                     , throws :: [String]
+                     , methodBody :: MethodBody
+                     }
 
 data Type
   = TUnknown

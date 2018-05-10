@@ -73,7 +73,7 @@ defaultValue TLong = VInt 0
 defaultValue TFloat = VFloat 0.0
 defaultValue TDouble = VFloat 0.0
 defaultValue TNull = VNull
-defaultValue (TClass c) = VNull
+defaultValue (TClass _) = VNull
 defaultValue _ = VBottom
 
 defaultArray :: Type -> [Val] -> Val
@@ -118,7 +118,18 @@ evalConcrete = runInterp eval
 runStatementsConcrete :: [(String, Addr)] -> [(Addr, GeneralVal)] -> [Statement] -> Error String (Maybe Val)
 runStatementsConcrete env store stmts = runInterp runStatements env store (stmts, 0)
 
+runFileConcrete :: File -> [Immediate] -> Error String (Maybe Val)
+runFileConcrete file args =
+  let store = [(FileAddr (fileName file), FileVal file)]
+  in runInterp runFile [] store (file, args)
+
 ---- End of Boilerplate ----
+
+assert :: (ArrowChoice c, ArrowFail String c) => c Bool ()
+assert = proc prop ->
+    if prop
+    then returnA -< ()
+    else failA -< "Assertion failed"
 
 numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
 numToNum op v1 v2 = case (v1, v2) of
@@ -189,6 +200,30 @@ evalRef = proc ref -> case ref of
     (_, v) <- fetchField -< fieldSignature
     returnA -< v
 
+evalMethod :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Method, Maybe Addr, [Immediate]) (Maybe Val)
+evalMethod = proc (method, this, args) -> do
+  env <- createMethodEnv -< (this, parameters method, args)
+  v <- localEnv runMethodBody -< (env, methodBody method)
+  returnA -< v
+
+evalInvoke :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c InvokeExpr (Maybe Val)
+evalInvoke = proc e -> case e of
+  StaticInvoke methodSignature args -> do
+    method <- fetchMethod -< methodSignature
+    assert -< (Static `elem` (methodModifiers method))
+    evalMethod -< (method, Nothing, args)
+  VirtualInvoke localName methodSignature args -> do
+    method <- fetchMethod -< methodSignature
+    assert -< (not (Static `elem` (methodModifiers method)))
+    thisAddr <- lookup -< localName
+    evalMethod -< (method, Just thisAddr, args)
+  SpecialInvoke localName methodSignature args -> do
+    method <- fetchMethod -< methodSignature
+    assert -< (not (Static `elem` (methodModifiers method)))
+    thisAddr <- lookup -< localName
+    evalMethod -< (method, Just thisAddr, args)
+  _ -> failA -< "Not implemented"
+
 eval :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c Expr Val
 eval = proc e -> case e of
   ENew newExpr -> case newExpr of
@@ -211,15 +246,11 @@ eval = proc e -> case e of
       else failA -< "Expected a nonvoid base type for newmultiarray"
   -- ECast NonvoidType Immediate
   -- EInstanceof Immediate NonvoidType
-  EInvoke expr -> case expr of
-    StaticInvoke methodSignature@(MethodSignature _ _ _ argTypes) args -> do
-      body <- fetchMethod -< methodSignature
-      env <- createMethodEnv -< (Nothing, argTypes, args)
-      v <- localEnv runMethodBody -< (env, body)
-      case v of
-        Just v' -> returnA -< v'
-        Nothing -> failA -< "Should change method signature"
-    _ -> failA -< "Not implemented"
+  EInvoke invokeExpr -> do
+    v <- evalInvoke -< invokeExpr
+    case v of
+      Just v' -> returnA -< v'
+      Nothing -> failA -< "Method returned nothing"
   EReference ref -> evalRef -< ref
   EBinop i1 op i2 -> do
     v1 <- evalImmediate -< i1
@@ -309,18 +340,17 @@ alloc = proc _ -> do
   returnA -< (LocalAddr addr)
 
 matchesSignature :: Type -> String -> [Type] -> Member -> Bool
-matchesSignature retType n argTypes Method{ methodName = a
-                                          , returnType = b
-                                          , parameters = c } = n == a && b == retType && c == argTypes
+matchesSignature retType n argTypes (MethodMember m) =
+  methodName m == n && returnType m == retType && parameters m == argTypes
 matchesSignature _ _ _ _ = False
 
-fetchMethod :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c MethodSignature MethodBody
+fetchMethod :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c MethodSignature Method
 fetchMethod = proc (MethodSignature c retType n argTypes) -> do
   gv <- read -< (FileAddr c, ())
   case gv of
     FileVal v -> case find (matchesSignature retType n argTypes) (fileBody v) of
-      Just m -> returnA -< (methodBody m)
-      Nothing -> failA -< "Undefined method " ++ show n ++ " for class " ++ show c
+      Just (MethodMember m) -> returnA -< m
+      _ -> failA -< "Method " ++ show n ++ " not defined for class " ++ show c
     _ -> failA -< "Undefined class " ++ show c
 
 goto :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c ([Statement], String) (Maybe Val)
@@ -422,18 +452,9 @@ runStatements = proc (stmts, i) -> if i == length stmts
       Nothing -> returnA -< Nothing
     -- Throw Immediate
     Invoke e -> do
-      eval -< EInvoke e
+      evalInvoke -< e
       runStatements -< (stmts, i + 1)
     _ -> runStatements -< (stmts, i + 1)
-
-runMethodBody :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c MethodBody (Maybe Val)
-runMethodBody = proc body -> case body of
-  MEmpty -> returnA -< Nothing
-  MFull{declarations=d,statements=s,catchClauses=c} -> do
-    env <- getEnv -< ()
-    env' <- runDeclarations -< (env, d)
-    v <- localEnv runStatements -< (env', (s, 0))
-    returnA -< v
 
 runDeclaration :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Env String Addr, Declaration) (Env String Addr)
 runDeclaration = proc (env, dec) -> case dec of
@@ -452,3 +473,32 @@ runDeclarations = proc (env, decs) -> case decs of
     env'' <- runDeclaration -< (env', dec)
     returnA -< env''
   [] -> returnA -< env
+
+runMethodBody :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c MethodBody (Maybe Val)
+runMethodBody = proc body -> case body of
+  MEmpty -> returnA -< Nothing
+  MFull{declarations=d,statements=s,catchClauses=c} -> do
+    env <- getEnv -< ()
+    env' <- runDeclarations -< (env, d)
+    v <- localEnv runStatements -< (env', (s, 0))
+    returnA -< v
+
+runFile :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (File, [Immediate]) (Maybe Val)
+runFile = proc (file, args) -> do
+  let findMethodByName :: [Member] -> String -> Maybe Method
+      findMethodByName (MethodMember m:rest) name =
+        if methodName m == name
+        then Just m
+        else findMethodByName rest name
+      findMethodByName (_:rest) name = findMethodByName rest name
+      findMethodByName [] _ = Nothing
+  case findMethodByName (fileBody file) "<clinit>" of
+    Just classInitMethod -> do
+      evalMethod -< (classInitMethod, Nothing, [])
+      case findMethodByName (fileBody file) "main" of
+        Just mainMethod -> evalMethod -< (mainMethod, Nothing, args)
+        Nothing -> returnA -< Nothing
+    Nothing -> do
+      case findMethodByName (fileBody file) "main" of
+        Just mainMethod -> evalMethod -< (mainMethod, Nothing, args)
+        Nothing -> returnA -< Nothing
