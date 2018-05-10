@@ -19,7 +19,7 @@ spec = do
     it "LocalName lookup" $ do
       let expr = EImmediate (ILocalName "x")
       let nv = [("x", LocalAddr 1)]
-      let st = [(LocalAddr 1, VariableVal (TInt, Just (VInt 2)))]
+      let st = [(LocalAddr 1, VariableVal (TInt, VInt 2))]
       evalConcrete nv st expr `shouldBe` Success (VInt 2)
     it "Integer literals" $ do
       let expr = EImmediate (IInt 7)
@@ -44,7 +44,7 @@ spec = do
     it "lengthof [1, 2, 3]" $ do
       let expr = EUnop Lengthof (ILocalName "x")
       let nv = [("x", LocalAddr 1)]
-      let st = [(LocalAddr 1, VariableVal (TArray TInt, Just (VArray [VInt 1, VInt 2, VInt 3])))]
+      let st = [(LocalAddr 1, VariableVal (TArray TInt, VArray [VInt 1, VInt 2, VInt 3]))]
       evalConcrete nv st expr `shouldBe` Success (VInt 3)
     it "8 + 2" $ do
       let expr = EBinop (IInt 8) Plus (IInt 2)
@@ -67,18 +67,18 @@ spec = do
     it "[1, 2, 3][2]" $ do
       let expr = EReference (ArrayReference "xs" (IInt 2))
       let nv = [("xs", LocalAddr 1)]
-      let st = [(LocalAddr 1, VariableVal (TArray TInt, Just (VArray [VInt 1, VInt 2, VInt 3])))]
+      let st = [(LocalAddr 1, VariableVal (TArray TInt, VArray [VInt 1, VInt 2, VInt 3]))]
       evalConcrete nv st expr `shouldBe` Success (VInt 3)
     it "p.<Person: int age>" $ do
       let personAgeSignature = FieldSignature "Person" TInt "age"
       let personObject = Map.fromList [("age", VInt 10)]
       let nv = [("p", LocalAddr 1)]
-      let st = [(LocalAddr 1, VariableVal (TClass "Person", Just (VObject "Person" personObject)))]
+      let st = [(LocalAddr 1, VariableVal (TClass "Person", VObject "Person" personObject))]
       let expr = EReference (FieldReference "p" personAgeSignature)
       evalConcrete nv st expr `shouldBe` Success (VInt 10)
     it "<Person: int MAX_AGE>" $ do
       let maxAgeSignature = FieldSignature "Person" TInt "MAX_AGE"
-      let st = [(FieldAddr maxAgeSignature, VariableVal (TInt, Just (VInt 100)))]
+      let st = [(FieldAddr maxAgeSignature, VariableVal (TInt, VInt 100))]
       let expr = EReference (SignatureReference maxAgeSignature)
       evalConcrete env st expr `shouldBe` Success (VInt 100)
     it "newmultiarray (float) [3][]" $ do
@@ -90,15 +90,15 @@ spec = do
   describe "Simple Statements" $ do
     it "i0 = 2 + 3; return i0;" $ do
       let nv = [("i0", LocalAddr 1)]
-      let st = [(LocalAddr 1, VariableVal (TInt, Nothing))]
+      let st = [(LocalAddr 1, VariableVal (TInt, defaultValue TInt))]
       let stmts = [Assign (VLocal "i0") (EBinop (IInt 2) Plus (IInt 3)),
                    Return (Just (ILocalName "i0"))]
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (VInt 5))
     it "s = 2; xs = newarray (int)[s]; return xs;" $ do
       let nv = [("s", LocalAddr 0),
                 ("xs", LocalAddr 1)]
-      let st = [(LocalAddr 0, VariableVal (TInt, Nothing)),
-                (LocalAddr 1, VariableVal (TArray TInt, Nothing))]
+      let st = [(LocalAddr 0, VariableVal (TInt, defaultValue TInt)),
+                (LocalAddr 1, VariableVal (TArray TInt, defaultValue (TArray TInt)))]
       let stmts = [Assign (VLocal "s") (EImmediate (IInt 2)),
                    Assign (VLocal "xs") (ENew (NewArray TInt (ILocalName "s"))),
                    Return (Just (ILocalName "xs"))]
@@ -136,9 +136,9 @@ spec = do
       let nv = [("@parameter0", LocalAddr 0),
                 ("f0",          LocalAddr 1),
                 ("f1",          LocalAddr 2)]
-      let st = [(LocalAddr 0, VariableVal (TFloat, Just (VFloat 2.0))),
-                (LocalAddr 1, VariableVal (TFloat, Nothing)),
-                (LocalAddr 2, VariableVal (TFloat, Nothing))]
+      let st = [(LocalAddr 0, VariableVal (TFloat, VFloat 2.0)),
+                (LocalAddr 1, VariableVal (TFloat, defaultValue TFloat)),
+                (LocalAddr 2, VariableVal (TFloat, defaultValue TFloat))]
       let stmts = [Identity "f0" (IDParameter 0) TFloat,
                    Assign (VLocal "f1") (EBinop (ILocalName "f0") Mult (IInt 2)),
                    Return (Just (ILocalName "f1"))]
@@ -172,7 +172,7 @@ spec = do
                              , fileBody = [addMethod] }
       let addSignature = MethodSignature "Example" TInt "add" [TInt, TInt]
       let nv = [("i0", LocalAddr 0)]
-      let st = [(LocalAddr 0,        VariableVal (TInt, Nothing)),
+      let st = [(LocalAddr 0,        VariableVal (TInt, defaultValue TInt)),
                 (FileAddr "Example", FileVal exampleFile)]
       let stmts = [Assign (VLocal "i0") (EInvoke (StaticInvoke addSignature [IInt 2, IInt 4])),
                    Return (Just (ILocalName "i0"))]

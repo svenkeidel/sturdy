@@ -63,6 +63,24 @@ instance Show Val where
   show (VArray v) = show v
   show (VObject t m) = show t ++ "(" ++ show m ++ ")"
 
+defaultValue :: Type -> Val
+defaultValue TBoolean = VInt 0
+defaultValue TByte = VInt 0
+defaultValue TChar = VInt 0
+defaultValue TShort = VInt 0
+defaultValue TInt = VInt 0
+defaultValue TLong = VInt 0
+defaultValue TFloat = VFloat 0.0
+defaultValue TDouble = VFloat 0.0
+defaultValue TNull = VNull
+defaultValue (TClass c) = VNull
+defaultValue _ = VBottom
+
+defaultArray :: Type -> [Val] -> Val
+defaultArray t (VInt d:ds) = VArray (replicate d (defaultArray t ds))
+defaultArray _ (_:_) = VBottom
+defaultArray t [] = defaultValue t
+
 data Addr
   = LocalAddr Int
   | FieldAddr FieldSignature
@@ -72,7 +90,7 @@ instance Hashable Addr
 
 data GeneralVal
   = FileVal File
-  | VariableVal (Type, Maybe Val) deriving (Show, Eq)
+  | VariableVal (Type, Val) deriving (Show, Eq)
 
 -- Use BoundedEnvironment for store
 
@@ -118,24 +136,6 @@ numToBool op v1 v2 = case (v1, v2) of
   (VFloat f1, VFloat f2) -> Just (VBool (op f1 f2))
   (_, _) -> Nothing
 
-defaultValue :: Type -> Val
-defaultValue TBoolean = VInt 0
-defaultValue TByte = VInt 0
-defaultValue TChar = VInt 0
-defaultValue TShort = VInt 0
-defaultValue TInt = VInt 0
-defaultValue TLong = VInt 0
-defaultValue TFloat = VFloat 0.0
-defaultValue TDouble = VFloat 0.0
-defaultValue TNull = VNull
-defaultValue (TClass c) = VObject c Map.empty
-defaultValue _ = VBottom
-
-defaultArray :: Type -> [Val] -> Val
-defaultArray t (VInt d:ds) = VArray (replicate d (defaultArray t ds))
-defaultArray _ (_:_) = VBottom
-defaultArray t [] = defaultValue t
-
 isPositiveVInt :: Val -> Bool
 isPositiveVInt (VInt n) = n > 0
 isPositiveVInt _ = False
@@ -156,9 +156,7 @@ evalImmediate :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c,
 evalImmediate = proc i -> case i of
   ILocalName localName -> do
     (_, v) <- fetchLocal -< localName
-    case v of
-      Just v' -> returnA -< v'
-      Nothing -> failA -< "Variable " ++ localName ++ " not yet initialized"
+    returnA -< v
   IInt n -> returnA -< (VInt n)
   IFloat f -> returnA -< (VFloat f)
   IString s -> returnA -< (VString s)
@@ -173,29 +171,23 @@ evalRef = proc ref -> case ref of
       VInt n -> do
         (_, v2) <- fetchLocal -< localName
         case v2 of
-          Just v2' -> case v2' of
-            VArray xs -> if n >= 0 && n < length xs
-              then returnA -< xs !! n
-              else failA -< "ArrayIndexOutOfBoundsException"
-            _ -> failA -< "Expected an array to lookup in"
-          Nothing -> failA -< "Array not yet initialized"
+          VArray xs -> if n >= 0 && n < length xs
+            then returnA -< xs !! n
+            else failA -< "ArrayIndexOutOfBoundsException"
+          _ -> failA -< "Expected an array to lookup in"
       _ -> failA -< "Expected an integer as array index"
   FieldReference localName (FieldSignature c _ n) -> do
     (_, v) <- fetchLocal -< localName
     case v of
-      Just v' -> case v' of
-        VObject c' m -> if c == c'
-          then case Map.lookup n m of
-            Just x -> returnA -< x
-            Nothing -> failA -< "Field " ++ n ++ " not defined for class " ++ c'
-          else failA -< "ClassNames do not correspond"
-        _ -> failA -< "Expected an object to lookup in"
-      Nothing -> failA -< "Object not yet initialized"
+      VObject c' m -> if c == c'
+        then case Map.lookup n m of
+          Just x -> returnA -< x
+          Nothing -> failA -< "Field " ++ n ++ " not defined for class " ++ c'
+        else failA -< "ClassNames do not correspond"
+      _ -> failA -< "Expected an object to lookup in"
   SignatureReference fieldSignature -> do
     (_, v) <- fetchField -< fieldSignature
-    case v of
-      Just v' -> returnA -< v'
-      Nothing -> failA -< "Field not yet initialized"
+    returnA -< v
 
 eval :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c Expr Val
 eval = proc e -> case e of
@@ -295,7 +287,7 @@ eval = proc e -> case e of
     returnA -< v
   _ -> failA -< "Undefined expression"
 
-fetchLocal :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c String (Type, Maybe Val)
+fetchLocal :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c String (Type, Val)
 fetchLocal = proc s -> do
   addr <- lookup -< s
   val <- read -< (addr, ())
@@ -303,7 +295,7 @@ fetchLocal = proc s -> do
     VariableVal v -> returnA -< v
     FileVal _ -> failA -< "Incorrect value bound"
 
-fetchField :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c FieldSignature (Type, Maybe Val)
+fetchField :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c FieldSignature (Type, Val)
 fetchField = proc fs -> do
   gv <- read -< (FieldAddr fs, ())
   case gv of
@@ -344,7 +336,7 @@ matchCases = proc (cases, v) -> case cases of
   ((CLDefault, label): _) -> returnA -< label
   [] -> failA -< "No cases match value " ++ show v
 
-createParamEnv :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Int, [(Type, Maybe Val)]) (Env String Addr)
+createParamEnv :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Int, [(Type, Val)]) (Env String Addr)
 createParamEnv = proc (i, params) -> case params of
   (param:rest) -> do
     let toParam :: Int -> String
@@ -360,8 +352,7 @@ createParamEnv = proc (i, params) -> case params of
 createMethodEnv :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Maybe Addr, [Type], [Immediate]) (Env String Addr)
 createMethodEnv = proc (this, paramTypes, params) -> do
   paramVals <- evalImmediateList -< params
-  let maybeParamVals = map (\v -> Just v) paramVals
-  let typedParamVals = zip paramTypes maybeParamVals
+  let typedParamVals = zip paramTypes paramVals
   paramEnv <- createParamEnv -< (0, typedParamVals)
   case this of
     Just addr -> do
@@ -392,32 +383,27 @@ runStatements = proc (stmts, i) -> if i == length stmts
           goto -< (stmts, label)
         _ -> failA -< "Expected an integer as argument for switch"
     Identity localName atId t -> do
-      (t', v) <- fetchLocal -< (show atId)
-      case v of
-        Just _ -> if t == t'
-          then do
-            addr <- lookup -< (show atId)
-            env <- getEnv -< ()
-            env' <- extendEnv -< (localName, addr, env)
-            localEnv runStatements -< (env', (stmts, i + 1))
-          else failA -< "Incorrect type " ++ show t ++ " for variable"
-        Nothing -> failA -< "Undefined identifier " ++ show atId
+      (t', _) <- fetchLocal -< (show atId)
+      if t == t'
+      then do
+        addr <- lookup -< (show atId)
+        env <- getEnv -< ()
+        env' <- extendEnv -< (localName, addr, env)
+        localEnv runStatements -< (env', (stmts, i + 1))
+      else
+        failA -< "Incorrect type " ++ show t ++ " for variable"
     IdentityNoType localName atId -> do
-      (_, v) <- fetchLocal -< (show atId)
-      case v of
-        Just _ -> do
-          addr <- lookup -< (show atId)
-          env <- getEnv -< ()
-          env' <- extendEnv -< (localName, addr, env)
-          localEnv runStatements -< (env', (stmts, i + 1))
-        Nothing -> failA -< "Undefined identifier " ++ show atId
+      addr <- lookup -< (show atId)
+      env <- getEnv -< ()
+      env' <- extendEnv -< (localName, addr, env)
+      localEnv runStatements -< (env', (stmts, i + 1))
     Assign var e -> do
       v <- eval -< e
       case var of
         VLocal localName -> do
           (t, _) <- fetchLocal -< localName
           addr <- lookup -< localName
-          write -< (addr, VariableVal (t, Just v), ())
+          write -< (addr, VariableVal (t, v), ())
           runStatements -< (stmts, i + 1)
         VReference _ -> failA -< "Undefined yet" -- evalRef -< ref
     If e label -> do
@@ -454,7 +440,7 @@ runDeclaration = proc (env, dec) -> case dec of
   (t, (d:rest)) -> do
     env' <- runDeclaration -< (env, (t, rest))
     addr <- alloc -< ()
-    write -< (addr, VariableVal (t, Nothing), ())
+    write -< (addr, VariableVal (t, defaultValue t), ())
     env'' <- extendEnv -< (d, addr, env')
     returnA -< env''
   (_, []) -> returnA -< env
