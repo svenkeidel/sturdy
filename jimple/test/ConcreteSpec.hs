@@ -8,8 +8,9 @@ import qualified Data.Map as Map
 
 import Test.Hspec
 
-import Examples.FactorialExample
--- import examples.SimpleExampleAbstract (file)
+import Classes.FactorialExample
+import Classes.IllegalArgumentException
+import Classes.Object
 
 main :: IO ()
 main = hspec spec
@@ -156,7 +157,10 @@ spec = do
 
   describe "Complete file" $ do
     it "10! = 3628800" $ do
-      runFileConcrete file [IInt 10] `shouldBe` Success (Just (VInt 3628800))
+      let st = [(FileAddr "java.lang.Object", FileVal objectFile),
+                (FileAddr "java.lang.IllegalArgumentException", FileVal illegalArgumentExceptionFile),
+                (FileAddr "FactorialExample", FileVal factorialExampleFile)]
+      runFileConcrete env st factorialExampleFile [IInt 10] `shouldBe` Success (Just (VInt 3628800))
 
   where
     env = []

@@ -118,10 +118,9 @@ evalConcrete = runInterp eval
 runStatementsConcrete :: [(String, Addr)] -> [(Addr, GeneralVal)] -> [Statement] -> Error String (Maybe Val)
 runStatementsConcrete env store stmts = runInterp runStatements env store (stmts, 0)
 
-runFileConcrete :: File -> [Immediate] -> Error String (Maybe Val)
-runFileConcrete file args =
-  let store = [(FileAddr (fileName file), FileVal file)]
-  in runInterp runFile [] store (file, args)
+runFileConcrete :: [(String, Addr)] -> [(Addr, GeneralVal)] -> File -> [Immediate] -> Error String (Maybe Val)
+runFileConcrete env store file args =
+  runInterp runFile env store (file, args)
 
 ---- End of Boilerplate ----
 
