@@ -443,7 +443,11 @@ runStatements = proc (stmts, i) -> if i == length stmts
         _ -> failA -< "Expected a boolean expression for if statement"
     Goto label -> goto -< (stmts, label)
     -- Nop
-    -- Ret (Maybe Immediate)
+    Ret e -> case e of
+      Just immediate -> do
+        v <- evalImmediate -< immediate
+        returnA -< Just v
+      Nothing -> returnA -< Nothing
     Return e -> case e of
       Just immediate -> do
         v <- evalImmediate -< immediate
