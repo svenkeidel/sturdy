@@ -26,6 +26,7 @@ import qualified Data.Concrete.Environment as E
 import           Control.Category hiding ((.))
 
 import           Control.Arrow
+import           Control.Arrow.DefaultError
 import           Control.Arrow.Fail
 import           Control.Arrow.State
 import           Control.Arrow.Store
@@ -34,6 +35,8 @@ import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Environment
+
+import           Text.Printf
 
 import           GHC.Generics (Generic)
 
@@ -94,17 +97,26 @@ data GeneralVal
 
 -- Use BoundedEnvironment for store
 
-newtype Interp x y = Interp (StoreArrow Addr GeneralVal (Environment String Addr (State Int (Except String (->)))) x y)
+newtype Interp x y = Interp (StoreArrow Addr GeneralVal (Environment String Addr (State Int (Except Val (->)))) x y)
 deriving instance Category Interp
 deriving instance Arrow Interp
 deriving instance ArrowChoice Interp
-deriving instance ArrowFail String Interp
+deriving instance ArrowFail Val Interp
 deriving instance ArrowState Int Interp
 deriving instance ArrowEnv String Addr (Env String Addr) Interp
-deriving instance ArrowStore Addr GeneralVal () Interp
-deriving instance ArrowEnv String Addr (Env String Addr) (StoreArrow Addr GeneralVal (Environment String Addr (State Int (Except String (->)))))
 
-runInterp :: Interp x y -> [(String, Addr)] -> [(Addr, GeneralVal)] -> x -> Error String y
+instance ArrowDefaultError Val Interp where
+  defaultErrorA = proc s ->
+    returnA -< VString s
+
+instance ArrowDefaultError Val (State Int (Except Val (->))) where
+  defaultErrorA = proc s ->
+    returnA -< VString s
+
+deriving instance ArrowStore Addr GeneralVal () Interp
+deriving instance ArrowEnv String Addr (Env String Addr) (StoreArrow Addr GeneralVal (Environment String Addr (State Int (Except Val (->)))))
+
+runInterp :: Interp x y -> [(String, Addr)] -> [(Addr, GeneralVal)] -> x -> Error Val y
 runInterp (Interp f) env store x =
   runExcept
     (evalState
@@ -112,23 +124,23 @@ runInterp (Interp f) env store x =
         (evalStore f)))
   (length env, (env, (S.fromList store, x)))
 
-evalConcrete :: [(String, Addr)] -> [(Addr, GeneralVal)] -> Expr -> Error String Val
+evalConcrete :: [(String, Addr)] -> [(Addr, GeneralVal)] -> Expr -> Error Val Val
 evalConcrete = runInterp eval
 
-runStatementsConcrete :: [(String, Addr)] -> [(Addr, GeneralVal)] -> [Statement] -> Error String (Maybe Val)
+runStatementsConcrete :: [(String, Addr)] -> [(Addr, GeneralVal)] -> [Statement] -> Error Val (Maybe Val)
 runStatementsConcrete env store stmts = runInterp runStatements env store (stmts, 0)
 
-runFileConcrete :: [(String, Addr)] -> [(Addr, GeneralVal)] -> File -> [Immediate] -> Error String (Maybe Val)
+runFileConcrete :: [(String, Addr)] -> [(Addr, GeneralVal)] -> File -> [Immediate] -> Error Val (Maybe Val)
 runFileConcrete env store file args =
   runInterp runFile env store (file, args)
 
 ---- End of Boilerplate ----
 
-assert :: (ArrowChoice c, ArrowFail String c) => c Bool ()
+assert :: (ArrowChoice c, ArrowFail Val c) => c Bool ()
 assert = proc prop ->
     if prop
     then returnA -< ()
-    else failA -< "Assertion failed"
+    else failA -< VString "Assertion failed"
 
 numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
 numToNum op v1 v2 = case (v1, v2) of
@@ -154,7 +166,7 @@ isLocalVal :: GeneralVal -> Bool
 isLocalVal (FileVal _) = False
 isLocalVal (VariableVal _) = True
 
-evalImmediateList :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c [Immediate] [Val]
+evalImmediateList :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c [Immediate] [Val]
 evalImmediateList = proc xs -> case xs of
   (x':xs') -> do
     v <- evalImmediate -< x'
@@ -162,7 +174,7 @@ evalImmediateList = proc xs -> case xs of
     returnA -< (v:vs)
   [] -> returnA -< []
 
-evalImmediate :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c Immediate Val
+evalImmediate :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c Immediate Val
 evalImmediate = proc i -> case i of
   ILocalName localName -> do
     (_, v) <- fetchLocal -< localName
@@ -173,7 +185,7 @@ evalImmediate = proc i -> case i of
   IClass c -> returnA -< (VClass c)
   INull -> returnA -< VNull
 
-evalRef :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c Reference Val
+evalRef :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c Reference Val
 evalRef = proc ref -> case ref of
   ArrayReference localName i -> do
     v1 <- evalImmediate -< i
@@ -183,29 +195,29 @@ evalRef = proc ref -> case ref of
         case v2 of
           VArray xs -> if n >= 0 && n < length xs
             then returnA -< xs !! n
-            else failA -< "ArrayIndexOutOfBoundsException"
-          _ -> failA -< "Expected an array to lookup in"
-      _ -> failA -< "Expected an integer as array index"
+            else failA -< VString "ArrayIndexOutOfBoundsException"
+          _ -> failA -< VString "Expected an array to lookup in"
+      _ -> failA -< VString "Expected an integer as array index"
   FieldReference localName (FieldSignature c _ n) -> do
     (_, v) <- fetchLocal -< localName
     case v of
       VObject c' m -> if c == c'
         then case Map.lookup n m of
           Just x -> returnA -< x
-          Nothing -> failA -< "Field " ++ n ++ " not defined for class " ++ c'
-        else failA -< "ClassNames do not correspond"
-      _ -> failA -< "Expected an object to lookup in"
+          Nothing -> failA -< VString $ printf "Field %s not defined for class %s" n c'
+        else failA -< VString "ClassNames do not correspond"
+      _ -> failA -< VString "Expected an object to lookup in"
   SignatureReference fieldSignature -> do
     (_, v) <- fetchField -< fieldSignature
     returnA -< v
 
-evalMethod :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Method, Maybe Addr, [Immediate]) (Maybe Val)
+evalMethod :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Method, Maybe Addr, [Immediate]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
   env <- createMethodEnv -< (this, parameters method, args)
   v <- localEnv runMethodBody -< (env, methodBody method)
   returnA -< v
 
-evalInvoke :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c InvokeExpr (Maybe Val)
+evalInvoke :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c InvokeExpr (Maybe Val)
 evalInvoke = proc e -> case e of
   StaticInvoke methodSignature args -> do
     method <- fetchMethod -< methodSignature
@@ -221,35 +233,35 @@ evalInvoke = proc e -> case e of
     assert -< (not (Static `elem` (methodModifiers method)))
     thisAddr <- lookup -< localName
     evalMethod -< (method, Just thisAddr, args)
-  _ -> failA -< "Not implemented"
+  _ -> failA -< VString "Not implemented"
 
-eval :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c Expr Val
+eval :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c Expr Val
 eval = proc e -> case e of
   ENew newExpr -> case newExpr of
     NewSimple t -> if isBaseType t
       then returnA -< (defaultValue t)
-      else failA -< "Expected a nonvoid base type for new"
+      else failA -< VString "Expected a nonvoid base type for new"
     NewArray t i -> if isNonvoidType t
       then do
         v <- evalImmediate -< i
         if isPositiveVInt v
           then returnA -< (defaultArray t [v])
-          else failA -< "Expected a positive integer for newarray size"
-      else failA -< "Expected a nonvoid type for newarray"
+          else failA -< VString "Expected a positive integer for newarray size"
+      else failA -< VString "Expected a nonvoid type for newarray"
     NewMulti t is -> if isBaseType t
       then do
         vs <- evalImmediateList -< is
         if all isPositiveVInt vs
           then returnA -< (defaultArray t vs)
-          else failA -< "Expected positive integers for newmultiarray sizes"
-      else failA -< "Expected a nonvoid base type for newmultiarray"
+          else failA -< VString "Expected positive integers for newmultiarray sizes"
+      else failA -< VString "Expected a nonvoid base type for newmultiarray"
   -- ECast NonvoidType Immediate
   -- EInstanceof Immediate NonvoidType
   EInvoke invokeExpr -> do
     v <- evalInvoke -< invokeExpr
     case v of
       Just v' -> returnA -< v'
-      Nothing -> failA -< "Method returned nothing"
+      Nothing -> failA -< VString "Method returned nothing"
   EReference ref -> evalRef -< ref
   EBinop i1 op i2 -> do
     v1 <- evalImmediate -< i1
@@ -263,7 +275,7 @@ eval = proc e -> case e of
         (VInt x1, VFloat x2) -> returnA -< (VFloat (fromIntegral x1 `mod'` x2))
         (VFloat x1, VInt x2) -> returnA -< (VFloat (x1 `mod'` fromIntegral x2))
         (VFloat x1, VFloat x2) -> returnA -< (VFloat (x1 `mod'` x2))
-        (_, _) -> failA -< "Expected two numbers as arguments for mod"
+        (_, _) -> failA -< VString "Expected two numbers as arguments for mod"
       -- Rem ->
       -- Cmp ->
       -- Cmpg ->
@@ -272,65 +284,65 @@ eval = proc e -> case e of
       Cmpne -> returnA -< (VBool (v1 /= v2))
       Cmpgt -> case numToBool (>) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> failA -< "Expected two numbers as arguments for >"
+        Nothing -> failA -< VString "Expected two numbers as arguments for >"
       Cmpge -> case numToBool (>=) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> failA -< "Expected two numbers as arguments for >="
+        Nothing -> failA -< VString "Expected two numbers as arguments for >="
       Cmplt -> case numToBool (<) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> failA -< "Expected two numbers as arguments for <"
+        Nothing -> failA -< VString "Expected two numbers as arguments for <"
       Cmple -> case numToBool (<=) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> failA -< "Expected two numbers as arguments for <="
+        Nothing -> failA -< VString "Expected two numbers as arguments for <="
       -- Shl ->
       -- Shr ->
       -- Ushr ->
       Plus -> case numToNum (+) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> failA -< "Expected two numbers as arguments for +"
+        Nothing -> failA -< VString "Expected two numbers as arguments for +"
       Minus -> case numToNum (-) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> failA -< "Expected two numbers as arguments for -"
+        Nothing -> failA -< VString "Expected two numbers as arguments for -"
       Mult -> case numToNum (*) v1 v2 of
         Just v -> returnA -< v
-        Nothing -> failA -< "Expected two numbers as arguments for *"
+        Nothing -> failA -< VString "Expected two numbers as arguments for *"
       Div -> case (v1, v2) of
-        (_, VInt 0) -> failA -< "Cannot divide by zero"
-        (_, VFloat 0.0) -> failA -< "Cannot divide by zero"
+        (_, VInt 0) -> failA -< VString "Cannot divide by zero"
+        (_, VFloat 0.0) -> failA -< VString "Cannot divide by zero"
         (VInt n1, VInt n2) -> returnA -< (VInt (n1 `div` n2))
         (VFloat f, VInt n) -> returnA -< (VFloat (f / fromIntegral n))
         (VInt n, VFloat f) -> returnA -< (VFloat (fromIntegral n / f))
         (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 / f2))
-        (_, _) -> failA -< "Expected two numbers as arguments for /"
+        (_, _) -> failA -< VString "Expected two numbers as arguments for /"
   EUnop op i -> do
     v <- evalImmediate -< i
     case op of
       Lengthof -> case v of
         VArray xs -> returnA -< (VInt (length xs))
-        _ -> failA -< "Expected an array as argument for lengthof"
+        _ -> failA -< VString "Expected an array as argument for lengthof"
       Neg -> case v of
         VInt n -> returnA -< (VInt (-n))
         VFloat f -> returnA -< (VFloat (-f))
-        _ -> failA -< "Expected a number as argument for -"
+        _ -> failA -< VString "Expected a number as argument for -"
   EImmediate i -> do
     v <- evalImmediate -< i
     returnA -< v
-  _ -> failA -< "Undefined expression"
+  _ -> failA -< VString "Undefined expression"
 
-fetchLocal :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c String (Type, Val)
+fetchLocal :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c String (Type, Val)
 fetchLocal = proc s -> do
   addr <- lookup -< s
   val <- read -< (addr, ())
   case val of
     VariableVal v -> returnA -< v
-    FileVal _ -> failA -< "Incorrect value bound"
+    FileVal _ -> failA -< VString "Incorrect value bound"
 
-fetchField :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c FieldSignature (Type, Val)
+fetchField :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c FieldSignature (Type, Val)
 fetchField = proc fs -> do
   gv <- read -< (FieldAddr fs, ())
   case gv of
     VariableVal v -> returnA -< v
-    FileVal _ -> failA -< "Incorrect value bound"
+    FileVal _ -> failA -< VString "Incorrect value bound"
 
 alloc :: (ArrowState Int c) => c () Addr
 alloc = proc _ -> do
@@ -343,29 +355,29 @@ matchesSignature retType n argTypes (MethodMember m) =
   methodName m == n && returnType m == retType && parameters m == argTypes
 matchesSignature _ _ _ _ = False
 
-fetchMethod :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c MethodSignature Method
+fetchMethod :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c MethodSignature Method
 fetchMethod = proc (MethodSignature c retType n argTypes) -> do
   gv <- read -< (FileAddr c, ())
   case gv of
     FileVal v -> case find (matchesSignature retType n argTypes) (fileBody v) of
       Just (MethodMember m) -> returnA -< m
-      _ -> failA -< "Method " ++ show n ++ " not defined for class " ++ show c
-    _ -> failA -< "Undefined class " ++ show c
+      _ -> failA -< VString $ printf "Method %s not defined for class %s" (show n) (show c)
+    _ -> failA -< VString $ printf "Undefined class %s" (show c)
 
-goto :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c ([Statement], String) (Maybe Val)
+goto :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c ([Statement], String) (Maybe Val)
 goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
   Just i -> runStatements -< (stmts, i)
-  Nothing -> failA -< "Undefined label: " ++ label
+  Nothing -> failA -< VString $ printf "Undefined label: %s" label
 
-matchCases :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c ([CaseStatement], Int) String
+matchCases :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c ([CaseStatement], Int) String
 matchCases = proc (cases, v) -> case cases of
   ((CLConstant n, label): cases') -> if v == n
     then returnA -< label
     else matchCases -< (cases', v)
   ((CLDefault, label): _) -> returnA -< label
-  [] -> failA -< "No cases match value " ++ show v
+  [] -> failA -< VString $ printf "No cases match value %s" (show v)
 
-createParamEnv :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Int, [(Type, Val)]) (Env String Addr)
+createParamEnv :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Int, [(Type, Val)]) (Env String Addr)
 createParamEnv = proc (i, params) -> case params of
   (param:rest) -> do
     let toParam :: Int -> String
@@ -378,7 +390,7 @@ createParamEnv = proc (i, params) -> case params of
     returnA -< env'
   [] -> returnA -< E.empty
 
-createMethodEnv :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Maybe Addr, [Type], [Immediate]) (Env String Addr)
+createMethodEnv :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Maybe Addr, [Type], [Immediate]) (Env String Addr)
 createMethodEnv = proc (this, paramTypes, params) -> do
   paramVals <- evalImmediateList -< params
   let typedParamVals = zip paramTypes paramVals
@@ -389,7 +401,7 @@ createMethodEnv = proc (this, paramTypes, params) -> do
       returnA -< env
     Nothing -> returnA -< paramEnv
 
-runStatements :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c ([Statement], Int) (Maybe Val)
+runStatements :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i == length stmts
   then returnA -< Nothing
   else case stmts !! i of
@@ -403,14 +415,14 @@ runStatements = proc (stmts, i) -> if i == length stmts
         VInt x -> do
           label <- matchCases -< (cases, x)
           goto -< (stmts, label)
-        _ -> failA -< "Expected an integer as argument for switch"
+        _ -> failA -< VString "Expected an integer as argument for switch"
     Lookupswitch immediate cases -> do
       v <- evalImmediate -< immediate
       case v of
         VInt x -> do
           label <- matchCases -< (cases, x)
           goto -< (stmts, label)
-        _ -> failA -< "Expected an integer as argument for switch"
+        _ -> failA -< VString "Expected an integer as argument for switch"
     Identity localName atId t -> do
       (t', _) <- fetchLocal -< (show atId)
       if t == t'
@@ -420,7 +432,7 @@ runStatements = proc (stmts, i) -> if i == length stmts
         env' <- extendEnv -< (localName, addr, env)
         localEnv runStatements -< (env', (stmts, i + 1))
       else
-        failA -< "Incorrect type " ++ show t ++ " for variable"
+        failA -< VString $ printf "Incorrect type %s for variable" (show t)
     IdentityNoType localName atId -> do
       addr <- lookup -< (show atId)
       env <- getEnv -< ()
@@ -434,13 +446,13 @@ runStatements = proc (stmts, i) -> if i == length stmts
           addr <- lookup -< localName
           write -< (addr, VariableVal (t, v), ())
           runStatements -< (stmts, i + 1)
-        VReference _ -> failA -< "Undefined yet" -- evalRef -< ref
+        VReference _ -> failA -< VString "Undefined yet" -- evalRef -< ref
     If e label -> do
       v <- eval -< e
       case v of
         VBool True -> goto -< (stmts, label)
         VBool False -> runStatements -< (stmts, i + 1)
-        _ -> failA -< "Expected a boolean expression for if statement"
+        _ -> failA -< VString "Expected a boolean expression for if statement"
     Goto label -> goto -< (stmts, label)
     -- Nop
     Ret e -> case e of
@@ -453,13 +465,15 @@ runStatements = proc (stmts, i) -> if i == length stmts
         v <- evalImmediate -< immediate
         returnA -< Just v
       Nothing -> returnA -< Nothing
-    -- Throw Immediate
+    Throw immediate -> do
+      v <- evalImmediate -< immediate
+      failA -< v
     Invoke e -> do
       evalInvoke -< e
       runStatements -< (stmts, i + 1)
     _ -> runStatements -< (stmts, i + 1)
 
-runDeclaration :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Env String Addr, Declaration) (Env String Addr)
+runDeclaration :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Env String Addr, Declaration) (Env String Addr)
 runDeclaration = proc (env, dec) -> case dec of
   (t, (d:rest)) -> do
     env' <- runDeclaration -< (env, (t, rest))
@@ -469,7 +483,7 @@ runDeclaration = proc (env, dec) -> case dec of
     returnA -< env''
   (_, []) -> returnA -< env
 
-runDeclarations :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Env String Addr, [Declaration]) (Env String Addr)
+runDeclarations :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (Env String Addr, [Declaration]) (Env String Addr)
 runDeclarations = proc (env, decs) -> case decs of
   (dec:rest) -> do
     env' <- runDeclarations -< (env, rest)
@@ -477,7 +491,7 @@ runDeclarations = proc (env, decs) -> case decs of
     returnA -< env''
   [] -> returnA -< env
 
-runMethodBody :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c MethodBody (Maybe Val)
+runMethodBody :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c MethodBody (Maybe Val)
 runMethodBody = proc body -> case body of
   MEmpty -> returnA -< Nothing
   MFull{declarations=d,statements=s,catchClauses=c} -> do
@@ -486,7 +500,7 @@ runMethodBody = proc body -> case body of
     v <- localEnv runStatements -< (env', (s, 0))
     returnA -< v
 
-runFile :: (ArrowChoice c, ArrowFail String c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (File, [Immediate]) (Maybe Val)
+runFile :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowStore Addr GeneralVal () c, ArrowState Int c) => c (File, [Immediate]) (Maybe Val)
 runFile = proc (file, args) -> do
   let findMethodByName :: [Member] -> String -> Maybe Method
       findMethodByName (MethodMember m:rest) name =

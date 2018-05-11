@@ -53,7 +53,7 @@ spec = do
       evalConcrete env store expr `shouldBe` Success (VInt 10)
     it "8 / 0" $ do
       let expr = EBinop (IInt 8) Div (IInt 0)
-      evalConcrete env store expr `shouldBe` Fail "Cannot divide by zero"
+      evalConcrete env store expr `shouldBe` Fail (VString "Cannot divide by zero")
     it "3 < 3.5" $ do
       let expr = EBinop (IInt 3) Cmplt (IFloat 3.5)
       evalConcrete env store expr `shouldBe` Success (VBool True)
@@ -96,6 +96,9 @@ spec = do
       let stmts = [Assign (VLocal "i0") (EBinop (IInt 2) Plus (IInt 3)),
                    Return (Just (ILocalName "i0"))]
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (VInt 5))
+    it "assign non-declared variable" $ do
+      let stmts = [Assign (VLocal "s") (EImmediate (IInt 2))]
+      runStatementsConcrete env store stmts `shouldBe` Fail (VString "Variable \"s\" not bound")
     it "s = 2; xs = newarray (int)[s]; return xs;" $ do
       let nv = [("s", LocalAddr 0),
                 ("xs", LocalAddr 1)]
