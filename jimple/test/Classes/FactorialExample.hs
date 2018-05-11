@@ -1,30 +1,19 @@
-module Examples.FactorialExample where
+module Classes.FactorialExample where
 
 import Syntax
 
-initIllegalArgumentExceptionSignature :: MethodSignature
-initIllegalArgumentExceptionSignature = MethodSignature
-  "java.lang.IllegalArgumentException"
-  TVoid
-  "<init>"
-  []
+import Classes.Object
+import Classes.IllegalArgumentException
 
-objectInitSignature :: MethodSignature
-objectInitSignature = MethodSignature
-  "java.lang.Object"
-  TVoid
-  "<init>"
-  []
-
-initSignature :: MethodSignature
-initSignature = MethodSignature
+factorialExampleInitSignature :: MethodSignature
+factorialExampleInitSignature = MethodSignature
   "FactorialExample"
   TVoid
   "<init>"
   []
 
-initMethod :: Method
-initMethod = Method {
+factorialExampleInitMethod :: Method
+factorialExampleInitMethod = Method {
   methodModifiers = [Public],
   returnType = TVoid,
   methodName = "<init>",
@@ -43,8 +32,8 @@ initMethod = Method {
   }
 }
 
-mainMethod :: Method
-mainMethod = Method {
+factorialExampleMainMethod :: Method
+factorialExampleMainMethod = Method {
   methodModifiers = [Public, Static],
   returnType = TVoid,
   methodName = "main",
@@ -60,23 +49,23 @@ mainMethod = Method {
     statements = [
       Identity "r0" (IDParameter 0) (TInt),
       Assign (VLocal "$r2") (ENew (NewSimple (TClass "FactorialExample"))),
-      Invoke (SpecialInvoke "$r2" initSignature []),
-      Assign (VLocal "r1") (EInvoke (VirtualInvoke "$r2" execSignature [ILocalName "r0"])),
+      Invoke (SpecialInvoke "$r2" factorialExampleInitSignature []),
+      Assign (VLocal "r1") (EInvoke (VirtualInvoke "$r2" factorialExampleExecSignature [ILocalName "r0"])),
       Return (Just (ILocalName "r1"))
     ],
     catchClauses = []
   }
 }
 
-execSignature :: MethodSignature
-execSignature = MethodSignature
+factorialExampleExecSignature :: MethodSignature
+factorialExampleExecSignature = MethodSignature
   "FactorialExample"
   TInt
   "exec"
   [TInt]
 
-execMethod :: Method
-execMethod = Method {
+factorialExampleExecMethod :: Method
+factorialExampleExecMethod = Method {
   methodModifiers = [Private],
   returnType = TInt,
   methodName = "exec",
@@ -93,14 +82,14 @@ execMethod = Method {
       Identity "i0" (IDParameter 0) TInt,
       If (EBinop (ILocalName "i0") Cmpge (IInt 0)) "label1",
       Assign (VLocal "$r1") (ENew (NewSimple (TClass "java.lang.IllegalArgumentException"))),
-      Invoke (SpecialInvoke "$r1" initIllegalArgumentExceptionSignature [IString "Negative value for argument n"]),
+      Invoke (SpecialInvoke "$r1" illegalArgumentExceptionInitSignature [IString "Negative value for argument n"]),
       Throw (ILocalName "$r1"),
       Label "label1",
       If (EBinop (ILocalName "i0") Cmpne (IInt 0)) "label2",
       Return (Just (IInt 1)),
       Label "label2",
       Assign (VLocal "$i1") (EBinop (ILocalName "i0") Minus (IInt 1)),
-      Assign (VLocal "$i2") (EInvoke (SpecialInvoke "r0" execSignature [ILocalName "$i1"])),
+      Assign (VLocal "$i2") (EInvoke (SpecialInvoke "r0" factorialExampleExecSignature [ILocalName "$i1"])),
       Assign (VLocal "$i3") (EBinop (ILocalName "i0") Mult (ILocalName "$i2")),
       Return (Just (ILocalName "$i3"))
     ],
@@ -108,16 +97,16 @@ execMethod = Method {
   }
 }
 
-file :: File
-file = File {
+factorialExampleFile :: File
+factorialExampleFile = File {
   fileModifiers = [Public],
   fileType = FTClass,
   fileName = "FactorialExample",
   extends = Just "java.lang.Object",
   implements = [],
   fileBody = [
-    MethodMember initMethod,
-    MethodMember mainMethod,
-    MethodMember execMethod
+    MethodMember factorialExampleInitMethod,
+    MethodMember factorialExampleMainMethod,
+    MethodMember factorialExampleExecMethod
   ]
 }

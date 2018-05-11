@@ -29,7 +29,9 @@ test-suite specs
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:       ConcreteSpec,
-                       Examples.FactorialExample
+                       Classes.Object,
+                       Classes.IllegalArgumentException,
+                       Classes.FactorialExample
   build-depends:       base,
                        containers,
                        hspec,
