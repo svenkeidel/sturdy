@@ -46,7 +46,7 @@ spec = do
     it "lengthof [1, 2, 3]" $ do
       let expr = EUnop Lengthof (ILocalName "x")
       let nv = [("x", 1)]
-      let st = [(1, (TArray TInt, VArrayRef 2)),
+      let st = [(1, (TArray TInt, VRef 2)),
                 (2, (TArray TInt, VArray [VInt 1, VInt 2, VInt 3]))]
       evalConcrete nv st expr `shouldBe` Success (VInt 3)
     it "8 + 2" $ do
@@ -70,7 +70,7 @@ spec = do
     it "[1, 2, 3][2]" $ do
       let expr = EReference (ArrayReference "xs" (IInt 2))
       let nv = [("xs", 1)]
-      let st = [(1, (TArray TInt, VArrayRef 2)),
+      let st = [(1, (TArray TInt, VRef 2)),
                 (2, (TArray TInt, VArray [VInt 1, VInt 2, VInt 3]))]
       evalConcrete nv st expr `shouldBe` Success (VInt 3)
     -- it "p.<Person: int age>" $ do
@@ -173,7 +173,7 @@ spec = do
       let files = [("java.lang.Object",                   objectFile),
                    ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
                    ("FactorialExample",                   factorialExampleFile)]
-      runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject "java.lang.IllegalArgumentException" (Map.fromList [("message", VString "Negative value for argument n")]))
+      runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject "java.lang.IllegalArgumentException" (Map.fromList [(illegalArgumentExceptionMessageSignature, VString "Negative value for argument n")]))
 
   where
     env = []

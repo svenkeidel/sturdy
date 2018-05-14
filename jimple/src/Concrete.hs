@@ -46,10 +46,9 @@ data Val
   | VClass String
   | VBool Bool
   | VNull
-  | VArrayRef Addr
-  | VObjectRef Addr
+  | VRef Addr
   | VArray [Val]
-  | VObject String (Map String Val) deriving (Eq)
+  | VObject String (Map FieldSignature Val) deriving (Eq)
 
 instance Show Val where
   show VBottom = "⊥"
@@ -59,8 +58,7 @@ instance Show Val where
   show (VClass c) = "<" ++ c ++ ">"
   show (VBool b) = show b
   show VNull = "null"
-  show (VArrayRef a) = "@" ++ show a
-  show (VObjectRef a) = "@" ++ show a
+  show (VRef a) = "@" ++ show a
   show (VArray v) = show v
   show (VObject t m) = show t ++ "(" ++ show m ++ ")"
 
@@ -123,6 +121,11 @@ assert = proc prop ->
     then returnA -< ()
     else failA -< VString "Assertion failed"
 
+replace :: Int -> a -> [a] -> [a]
+replace _ _ [] = []
+replace 0 x (_:t) = x:t
+replace n x (h:t) = h:(replace (n-1) x t)
+
 numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
 numToNum op v1 v2 = case (v1, v2) of
   (VInt n1, VInt n2) -> Just (VInt (op n1 n2))
@@ -152,7 +155,7 @@ newArray =
     (s:sizes') -> do
       vals <- createVals -< (s, t, sizes')
       addr <- alloc -< (TArray t, VArray vals)
-      returnA -< VArrayRef addr
+      returnA -< VRef addr
     [] -> returnA -< defaultValue t
 
 -- int[] xs = new int[]{1,2,3}
@@ -188,37 +191,31 @@ evalImmediate = proc i -> case i of
   IClass c -> returnA -< (VClass c)
   INull -> returnA -< VNull
 
-evalRef :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState ProgramState c) => c Reference Val
+evalIndex :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState ProgramState c) => c Immediate Int
+evalIndex = proc i -> do
+  v <- evalImmediate -< i
+  case v of
+    VInt n -> returnA -< n
+    _ -> failA -< VString "Expected an integer array index"
+
+evalRef :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c Reference Val
 evalRef = proc ref -> case ref of
   ArrayReference localName i -> do
-    v <- evalImmediate -< i
-    case v of
-      VInt n -> do
-        (_, v') <- fetchLocal -< localName
-        case v' of
-          VArrayRef addr -> do
-            (_, v'') <- getLocal -< addr
-            case v'' of
-              VArray xs -> if n >= 0 && n < length xs
-                then returnA -< xs !! n
-                else failA -< VString "ArrayIndexOutOfBoundsException"
-              _ -> failA -< VString "Expected an array to lookup in"
-          _ -> failA -< VString "Expected an array to lookup in"
-      _ -> failA -< VString "Expected an integer as array index"
-  FieldReference localName (FieldSignature c _ n) -> do
-    (_, v) <- fetchLocal -< localName
-    case v of
-      VObject c' m -> if c == c'
-        then case Map.lookup n m of
-          Just x -> returnA -< x
-          Nothing -> failA -< VString $ printf "Field %s not defined for class %s" n c'
-        else failA -< VString "ClassNames do not correspond"
-      _ -> failA -< VString "Expected an object to lookup in"
+    n <- evalIndex -< i
+    (_, (_, VArray xs)) <- fetchArrayWithAddr -< localName
+    if n >= 0 && n < length xs
+    then returnA -< xs !! n
+    else failA -< VString "ArrayIndexOutOfBoundsException"
+  FieldReference localName fieldSignature -> do
+    (_, (_, VObject _ m)) <- fetchObjectWithAddr -< localName
+    case Map.lookup fieldSignature m of
+      Just x -> returnA -< x
+      Nothing -> failA -< VString $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
   SignatureReference fieldSignature -> do
     (_, v) <- fetchField -< fieldSignature
     returnA -< v
 
-evalMethod :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c (Method, Maybe Addr, [Immediate]) (Maybe Val)
+evalMethod :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c (Method, Maybe Val, [Immediate]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
   (a, m, s, files, fields, vars) <- getA -< ()
   putA -< (a, Just method, s, files, fields, vars)
@@ -236,20 +233,29 @@ evalInvoke = proc e -> case e of
   VirtualInvoke localName methodSignature args -> do
     method <- fetchMethod -< methodSignature
     assert -< (not (Static `elem` (methodModifiers method)))
-    thisAddr <- lookup -< localName
-    evalMethod -< (method, Just thisAddr, args)
+    (_, this) <- fetchLocal -< localName
+    evalMethod -< (method, Just this, args)
   SpecialInvoke localName methodSignature args -> do
     method <- fetchMethod -< methodSignature
     assert -< (not (Static `elem` (methodModifiers method)))
-    thisAddr <- lookup -< localName
-    evalMethod -< (method, Just thisAddr, args)
+    (_, this) <- fetchLocal -< localName
+    evalMethod -< (method, Just this, args)
   _ -> failA -< VString "Not implemented"
 
 eval :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c Expr Val
 eval = proc e -> case e of
   ENew newExpr -> case newExpr of
     NewSimple t -> if isBaseType t
-      then returnA -< (defaultValue t)
+      then case t of
+        TClass c -> do
+          file <- fetchFile -< c
+          let fields = foldl (\acc member -> case member of
+                                FieldMember f -> (FieldSignature c (fieldType f) (fieldName f), defaultValue (fieldType f)):acc
+                                _ -> acc) [] (fileBody file)
+          let o = VObject c (Map.fromList fields)
+          addr <- alloc -< (t, o)
+          returnA -< VRef addr
+        _ -> returnA -< (defaultValue t)
       else failA -< VString "Expected a nonvoid base type for new"
     NewArray t i -> if isNonvoidType t
       then do
@@ -330,7 +336,7 @@ eval = proc e -> case e of
     v <- evalImmediate -< i
     case op of
       Lengthof -> case v of
-        VArrayRef addr -> do
+        VRef addr -> do
           (_, v') <- getLocal -< addr
           case v' of
             VArray xs -> returnA -< (VInt (length xs))
@@ -370,6 +376,14 @@ fetchField = proc x -> do
         Nothing -> failA -< VString $ printf "Field %s not bound" (show x)
     Nothing -> failA -< VString $ printf "Field %s not bound" (show x)
 
+fetchFile :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState ProgramState c) => c String File
+fetchFile = proc n -> do
+  (_, _, _, fileStore, _, _) <- getA -< ()
+  let file = Map.lookup n fileStore
+  case file of
+    Just x -> returnA -< x
+    Nothing -> failA -< VString $ printf "File %s not loaded" (show n)
+
 alloc :: (ArrowState ProgramState c) => c (Type, Val) Addr
 alloc = proc val -> do
   (addr, m, s, files, fields, vars) <- getA -< ()
@@ -398,6 +412,29 @@ fetchMethod = proc (MethodSignature c retType n argTypes) -> do
       _ -> failA -< VString $ printf "Method %s not defined for class %s" (show n) (show c)
     Nothing -> failA -< VString $ printf "Undefined class %s" (show c)
 
+fetchRefValWithAddr :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c String (Addr, (Type, Val))
+fetchRefValWithAddr = proc localName -> do
+  (_, v) <- fetchLocal -< localName
+  case v of
+    VRef addr -> do
+      v' <- getLocal -< addr
+      returnA -< (addr, v')
+    _ -> failA -< VString $ printf "Variable %s is not a reference" (show localName)
+
+fetchArrayWithAddr :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c String (Addr, (Type, Val))
+fetchArrayWithAddr = proc localName -> do
+  (addr, (t, v)) <- fetchRefValWithAddr -< localName
+  case v of
+    VArray _ -> returnA -< (addr, (t, v))
+    _ -> failA -< VString $ printf "Variable %s not bound to an array" (show localName)
+
+fetchObjectWithAddr :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c String (Addr, (Type, Val))
+fetchObjectWithAddr = proc localName -> do
+  (addr, (t, v)) <- fetchRefValWithAddr -< localName
+  case v of
+    VObject _ _ -> returnA -< (addr, (t, v))
+    _ -> failA -< VString $ printf "Variable %s not bound to an object" (show localName)
+
 goto :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c ([Statement], String) (Maybe Val)
 goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
   Just i -> runStatements -< (stmts, i)
@@ -419,19 +456,18 @@ createParamEnv = proc (i, params) -> case params of
 
     env <- createParamEnv -< (i + 1, rest)
     addr <- alloc -< param
-    env' <- extendEnv -< (toParam i, addr, env)
-    returnA -< env'
+    extendEnv -< (toParam i, addr, env)
   [] -> returnA -< E.empty
 
-createMethodEnv :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c (Maybe Addr, [Type], [Immediate]) (Env String Addr)
+createMethodEnv :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c (Maybe Val, [Type], [Immediate]) (Env String Addr)
 createMethodEnv = proc (this, paramTypes, params) -> do
   paramVals <- evalImmediateList -< params
   let typedParamVals = zip paramTypes paramVals
   paramEnv <- createParamEnv -< (0, typedParamVals)
   case this of
-    Just addr -> do
-      env <- extendEnv -< ("@this", addr, paramEnv)
-      returnA -< env
+    Just val -> do
+      addr <- alloc -< (TUnknown, val)
+      extendEnv -< ("@this", addr, paramEnv)
     Nothing -> returnA -< paramEnv
 
 runStatements :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr (Env String Addr) c, ArrowState ProgramState c) => c ([Statement], Int) (Maybe Val)
@@ -457,15 +493,10 @@ runStatements = proc (stmts, i) -> if i == length stmts
           goto -< (stmts, label)
         _ -> failA -< VString "Expected an integer as argument for switch"
     Identity localName atId t -> do
-      (t', _) <- fetchLocal -< (show atId)
-      if t == t'
-      then do
-        addr <- lookup -< (show atId)
-        env <- getEnv -< ()
-        env' <- extendEnv -< (localName, addr, env)
-        localEnv runStatements -< (env', (stmts, i + 1))
-      else
-        failA -< VString $ printf "Incorrect type %s for variable" (show t)
+      addr <- lookup -< (show atId)
+      env <- getEnv -< ()
+      env' <- extendEnv -< (localName, addr, env)
+      localEnv runStatements -< (env', (stmts, i + 1))
     IdentityNoType localName atId -> do
       addr <- lookup -< (show atId)
       env <- getEnv -< ()
@@ -479,7 +510,25 @@ runStatements = proc (stmts, i) -> if i == length stmts
           addr <- lookup -< localName
           writeVar -< (addr, (t, v))
           runStatements -< (stmts, i + 1)
-        VReference _ -> failA -< VString "Undefined yet" -- evalRef -< ref
+        VReference ref -> case ref of
+          ArrayReference localName index -> do
+            n <- evalIndex -< index
+            (addr, (t, VArray xs)) <- fetchArrayWithAddr -< localName
+            if n >= 0 && n < length xs
+            then do
+              let xs' = replace n v xs
+              writeVar -< (addr, (t, VArray xs'))
+              runStatements -< (stmts, i + 1)
+            else failA -< VString "ArrayIndexOutOfBoundsException"
+          FieldReference localName fieldSignature -> do
+            (addr, (t, VObject c m)) <- fetchObjectWithAddr -< localName
+            if Map.member fieldSignature m
+            then do
+              let m' = Map.insert fieldSignature v m
+              writeVar -< (addr, (t, VObject c m'))
+              runStatements -< (stmts, i + 1)
+            else failA -< VString $ printf "FieldSignature %s not defined on object %s: (%s)" (show fieldSignature) (show localName) (show m)
+          SignatureReference fieldSignature -> failA -< VString "SignatureReference is not yet implemented"
     If e label -> do
       v <- eval -< e
       case v of
