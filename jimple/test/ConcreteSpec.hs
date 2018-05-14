@@ -21,7 +21,7 @@ spec = do
     it "LocalName lookup" $ do
       let expr = EImmediate (ILocalName "x")
       let nv = [("x", 1)]
-      let st = [(1, (TInt, VInt 2))]
+      let st = [(1, VInt 2)]
       evalConcrete nv st expr `shouldBe` Success (VInt 2)
     it "Integer literals" $ do
       let expr = EImmediate (IInt 7)
@@ -46,8 +46,8 @@ spec = do
     it "lengthof [1, 2, 3]" $ do
       let expr = EUnop Lengthof (ILocalName "x")
       let nv = [("x", 1)]
-      let st = [(1, (TArray TInt, VRef 2)),
-                (2, (TArray TInt, VArray [VInt 1, VInt 2, VInt 3]))]
+      let st = [(1, VRef 2),
+                (2, VArray [VInt 1, VInt 2, VInt 3])]
       evalConcrete nv st expr `shouldBe` Success (VInt 3)
     it "8 + 2" $ do
       let expr = EBinop (IInt 8) Plus (IInt 2)
@@ -70,14 +70,14 @@ spec = do
     it "[1, 2, 3][2]" $ do
       let expr = EReference (ArrayReference "xs" (IInt 2))
       let nv = [("xs", 1)]
-      let st = [(1, (TArray TInt, VRef 2)),
-                (2, (TArray TInt, VArray [VInt 1, VInt 2, VInt 3]))]
+      let st = [(1, VRef 2),
+                (2, VArray [VInt 1, VInt 2, VInt 3])]
       evalConcrete nv st expr `shouldBe` Success (VInt 3)
     -- it "p.<Person: int age>" $ do
     --   let personAgeSignature = FieldSignature "Person" TInt "age"
     --   let personObject = Map.fromList [("age", VInt 10)]
     --   let nv = [("p", 1)]
-    --   let st = [(1, (TClass "Person", VObject "Person" personObject))]
+    --   let st = [(1, (TClass "Person", VObject personObject))]
     --   let expr = EReference (FieldReference "p" personAgeSignature)
     --   evalConcrete nv st expr `shouldBe` Success (VInt 10)
     -- it "<Person: int MAX_AGE>" $ do
@@ -94,7 +94,7 @@ spec = do
   describe "Simple Statements" $ do
     it "i0 = 2 + 3; return i0;" $ do
       let nv = [("i0", 1)]
-      let st = [(1, (TInt, defaultValue TInt))]
+      let st = [(1, defaultValue TInt)]
       let stmts = [Assign (VLocal "i0") (EBinop (IInt 2) Plus (IInt 3)),
                    Return (Just (ILocalName "i0"))]
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (VInt 5))
@@ -105,9 +105,9 @@ spec = do
       let nv = [("s", 0),
                 ("xs", 1),
                 ("y", 2)]
-      let st = [(0, (TInt, defaultValue TInt)),
-                (1, (TArray TInt, defaultValue (TArray TInt))),
-                (2, (TInt, defaultValue TInt))]
+      let st = [(0, defaultValue TInt),
+                (1, defaultValue (TArray TInt)),
+                (2, defaultValue TInt)]
       let stmts = [Assign (VLocal "s") (EImmediate (IInt 2)),
                    Assign (VLocal "xs") (ENew (NewArray TInt (ILocalName "s"))),
                    Assign (VLocal "y") (EUnop Lengthof (ILocalName "xs")),
@@ -146,9 +146,9 @@ spec = do
       let nv = [("@parameter0", 0),
                 ("f0",          1),
                 ("f1",          2)]
-      let st = [(0, (TFloat, VFloat 2.0)),
-                (1, (TFloat, defaultValue TFloat)),
-                (2, (TFloat, defaultValue TFloat))]
+      let st = [(0, VFloat 2.0),
+                (1, defaultValue TFloat),
+                (2, defaultValue TFloat)]
       let stmts = [Identity "f0" (IDParameter 0) TFloat,
                    Assign (VLocal "f1") (EBinop (ILocalName "f0") Mult (IInt 2)),
                    Return (Just (ILocalName "f1"))]
@@ -173,7 +173,7 @@ spec = do
       let files = [("java.lang.Object",                   objectFile),
                    ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
                    ("FactorialExample",                   factorialExampleFile)]
-      runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject "java.lang.IllegalArgumentException" (Map.fromList [(illegalArgumentExceptionMessageSignature, VString "Negative value for argument n")]))
+      runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject (Map.fromList [(illegalArgumentExceptionMessageSignature, VString "Negative value for argument n")]))
 
   where
     env = []
