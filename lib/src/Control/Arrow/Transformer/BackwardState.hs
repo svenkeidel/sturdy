@@ -12,6 +12,7 @@ import Prelude hiding (id,(.),lookup,read)
 import Control.Arrow
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
+import Control.Arrow.Error
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
@@ -93,6 +94,9 @@ instance (ArrowLoop c, ArrowFix (s,x) (s,y) c) => ArrowFix x y (State s c) where
 
 instance (ArrowLoop c, ArrowTry (s,x) (s,y) (s,z) c) => ArrowTry x y z (State s c) where
   tryA (State f) (State g) (State h) = State $ tryA f g h
+
+instance (ArrowChoice c, ArrowLoop c, ArrowError (s,e) (s,x) (s,y) c) => ArrowError e x y (State s c) where
+  tryWithErrorA (State f) (State g) (State h) = State $ tryWithErrorA f g h
 
 instance (Eq s, Hashable s, ArrowLoop c, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
   dedupA (State f) = State (dedupA f)

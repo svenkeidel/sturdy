@@ -3,13 +3,16 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Reader(Reader(..)) where
 
 import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
+import Control.Arrow.DefaultError
 import Control.Arrow.Environment
+import Control.Arrow.Error
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
@@ -64,6 +67,9 @@ instance ArrowWriter w c => ArrowWriter w (Reader r c) where
 instance ArrowFail e c => ArrowFail e (Reader r c) where
   failA = lift failA
 
+instance ArrowDefaultError e c => ArrowDefaultError e (Reader r c) where
+  defaultErrorA = lift defaultErrorA
+
 instance ArrowEnv x y env c => ArrowEnv x y env (Reader r c) where
   lookup = lift lookup
   getEnv = lift getEnv
@@ -76,6 +82,9 @@ instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where
 
 instance ArrowTry (r,x) (r,y) z c => ArrowTry x y z (Reader r c) where
   tryA (Reader f) (Reader g) (Reader h) = Reader $ tryA (pi1 &&& f) g h
+
+instance ArrowError (r,e) (r,x) y c => ArrowError e x y (Reader r c) where
+  tryWithErrorA (Reader f) (Reader g) (Reader h) = Reader $ tryWithErrorA f (proc x -> returnA -< x) h
 
 instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
   dedupA (Reader f) = Reader (dedupA f)

@@ -2,16 +2,16 @@ name:                sturdy-lib
 
 version:             0.1.0.0
 
--- synopsis:            
+-- synopsis:
 description:         A library for abstract interpretation
 license:             BSD3
 license-file:        LICENSE
 author:              Sven Keidel
 maintainer:          svenkeidel@gmail.com
--- copyright:           
+-- copyright:
 category:            Language
 build-type:          Simple
-extra-source-files:  
+extra-source-files:
 cabal-version:       >=1.10
 
 flag trace
@@ -31,8 +31,9 @@ library
                        Data.Label,
                        Data.Numeric,
                        Data.Order,
+                       Data.Throwable,
                        Data.Utils,
-  
+
                        Data.Concrete.Boolean,
                        Data.Concrete.Environment,
                        Data.Concrete.Error,
@@ -59,7 +60,9 @@ library
                        Control.Arrow.Const,
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
+                       Control.Arrow.DefaultError,
                        Control.Arrow.Environment,
+                       Control.Arrow.Error,
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
                        Control.Arrow.Lift,
@@ -98,7 +101,7 @@ library
                        Control.Arrow.Transformer.Abstract.Store,
                        -- Control.Arrow.Transformer.Abstract.LiveVariables,
                        Control.Arrow.Transformer.Abstract.ReachingDefinitions,
-                       Control.Arrow.Transformer.Abstract.Uncertain
+                       Control.Arrow.Transformer.Abstract.Uncertain,
   other-modules:       Control.Arrow.Transformer.Effect
   build-depends:       base,
                        containers,
@@ -114,7 +117,7 @@ test-suite specs
   ghc-options:       -Wall
   hs-source-dirs:    test
   main-is:           Spec.hs
-  other-modules:     BoundedEnvironmentSpec
+  other-modules:     BoundedEnvironmentSpec,
                      FixSpec
   build-depends:     base,
                      hspec,
@@ -125,5 +128,3 @@ test-suite specs
   other-modules:     BoundedEnvironmentSpec,
                      FixSpec
   default-language:  Haskell2010
-
- 
