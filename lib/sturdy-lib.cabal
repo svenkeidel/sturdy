@@ -31,6 +31,7 @@ library
                        Data.Label,
                        Data.Numeric,
                        Data.Order,
+                       Data.Throwable,
                        Data.Utils,
                        Data.CallString,
 
@@ -61,7 +62,9 @@ library
                        Control.Arrow.Alloc,
                        Control.Arrow.Const,
                        Control.Arrow.Deduplicate,
+                       Control.Arrow.DefaultError,
                        Control.Arrow.Environment,
+                       Control.Arrow.Error,
                        Control.Arrow.Fail,
                        Control.Arrow.Except,
                        Control.Arrow.Fix,
@@ -111,6 +114,7 @@ test-suite specs
   ghc-options:       -Wall
   hs-source-dirs:    test
   main-is:           Spec.hs
+  other-modules:     BoundedEnvironmentSpec
   build-depends:     base,
                      hspec,
                      sturdy-lib,
