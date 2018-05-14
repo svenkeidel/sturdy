@@ -6,7 +6,7 @@ import Classes.Object
 
 illegalArgumentExceptionMessageSignature :: FieldSignature
 illegalArgumentExceptionMessageSignature = FieldSignature
-  "java.lang.illegalArgumentException"
+  "java.lang.IllegalArgumentException"
   (TClass "java.lang.String")
   "message"
 
