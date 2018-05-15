@@ -12,7 +12,6 @@ import Prelude hiding (id,(.),lookup,read)
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Deduplicate
-import Control.Arrow.DefaultError
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -93,12 +92,8 @@ instance ArrowChoice c => ArrowExcept x y e (Except e c) where
     _ <- f -< x
     g -< x
 
-instance ArrowChoice c => ArrowError e x y (Except e c) where
-  tryWithErrorA (Except f) (Except g) (Except h) = Except $ f >>> hasSucceededRes ^>> (g ||| h)
-
-hasSucceededRes :: Error e b -> Either b e
-hasSucceededRes (Fail e) = Right e
-hasSucceededRes (Success b) = Left b
+instance ArrowChoice c => ArrowTryCatch e x y z (Except e c) where
+  tryCatchA (Except f) (Except g) (Except h) = Except $ f >>> toEither ^>> (h ||| g)
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedup (Except f) = Except (dedup f)

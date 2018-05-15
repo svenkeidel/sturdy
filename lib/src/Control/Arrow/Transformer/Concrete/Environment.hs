@@ -55,7 +55,9 @@ instance ArrowReader r c => ArrowReader r (Environment var val c) where
   local (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
 
 deriving instance ArrowTry (Env var val,x) (Env var val,y) z c => ArrowTry x y z (Environment var val c)
-deriving instance ArrowError (Env var val,e) (Env var val,x) y c => ArrowError e x y (Environment var val c)
+
+deriving instance ArrowTryCatch (Env var val,e) (Env var val,x) (Env var val,y) (Env var val,z) c =>
+  ArrowTryCatch e x y z (Environment var val c)
 
 deriving instance Arrow c => Category (Environment var val c)
 deriving instance Arrow c => Arrow (Environment var val c)

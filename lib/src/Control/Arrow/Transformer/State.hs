@@ -12,7 +12,7 @@ import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
-import Control.Arrow.Error
+import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
@@ -97,8 +97,8 @@ instance ArrowExcept (s,x) (s,y) e c => ArrowExcept x y e (State s c) where
   tryCatch (State f) (State g) = State $ tryCatch f (from assoc ^>> g)
   finally (State f) (State g) = State $ finally f g
 
-instance ArrowError (s,e) (s,x) (s,y) c => ArrowError e x y (State s c) where
-  tryWithErrorA (State f) (State g) (State h) = State $ tryWithErrorA f g h
+instance ArrowTryCatch (s,e) (s,x) (s,y) (s,z) c => ArrowTryCatch e x y z (State s c) where
+  tryCatchA (State f) (State g) (State h) = State $ tryCatchA f g h
 
 instance (Eq s, Hashable s, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
   dedup (State f) = State (dedup f)

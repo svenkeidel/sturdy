@@ -11,6 +11,6 @@ import Control.Arrow.Fail
 
 class ArrowFail e c => ArrowDefaultError e c where
   defaultErrorA :: c String e
-
-instance ArrowFail String c => ArrowDefaultError String c where
-  defaultErrorA = proc s -> returnA -< s
+  
+-- instance ArrowFail String c => ArrowDefaultError String c where
+--   defaultErrorA = proc s -> returnA -< s

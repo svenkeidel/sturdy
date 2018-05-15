@@ -13,7 +13,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment
-import Control.Arrow.Error
+import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
@@ -74,9 +74,6 @@ instance ArrowWriter w c => ArrowWriter w (Reader r c) where
 instance ArrowFail e c => ArrowFail e (Reader r c) where
   fail = lift fail
 
-instance ArrowDefaultError e c => ArrowDefaultError e (Reader r c) where
-  defaultErrorA = lift defaultErrorA
-
 instance ArrowEnv x y env c => ArrowEnv x y env (Reader r c) where
   lookup (Reader f) (Reader g) = Reader $ (\(r,(v,a)) -> (v,(r,a))) ^>> lookup ((\(v,(r,a)) -> (r,(v,a))) ^>> f) g
   getEnv = lift getEnv
@@ -97,8 +94,9 @@ instance ArrowExcept (r,x) y e c => ArrowExcept x y e (Reader r c) where
   tryCatch (Reader f) (Reader g) = Reader $ tryCatch f (from assoc ^>> g)
   finally (Reader f) (Reader g) = Reader $ finally f g
 
-instance ArrowError (r,e) (r,x) y c => ArrowError e x y (Reader r c) where
-  tryWithErrorA (Reader f) (Reader g) (Reader h) = Reader $ tryWithErrorA f (proc x -> returnA -< x) h
+instance ArrowTryCatch (r,e) (r,x) (r,y) (r,z) c => ArrowTryCatch e x y z (Reader r c) where
+  tryCatchA (Reader f) (Reader g) (Reader h) =
+    Reader (tryCatchA (pi1 &&& f) (pi1 &&& g) (pi1 &&& h)) >>> pi2
 
 instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
   dedup (Reader f) = Reader (dedup f)

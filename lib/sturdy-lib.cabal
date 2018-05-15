@@ -64,7 +64,7 @@ library
                        Control.Arrow.Deduplicate,
                        Control.Arrow.DefaultError,
                        Control.Arrow.Environment,
-                       Control.Arrow.Error,
+                       Control.Arrow.TryCatch,
                        Control.Arrow.Fail,
                        Control.Arrow.Except,
                        Control.Arrow.Fix,
