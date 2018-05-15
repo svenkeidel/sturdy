@@ -31,7 +31,9 @@ test-suite specs
   other-modules:       ConcreteSpec,
                        Classes.Object,
                        Classes.IllegalArgumentException,
-                       Classes.FactorialExample
+                       Classes.FactorialExample,
+                       Classes.ArrayFieldExample,
+                       Classes.SingleMethodExample
   build-depends:       base,
                        containers,
                        hspec,

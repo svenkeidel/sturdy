@@ -8,6 +8,8 @@ import qualified Data.Map as Map
 
 import Test.Hspec
 
+import Classes.SingleMethodExample
+import Classes.ArrayFieldExample
 import Classes.FactorialExample
 import Classes.IllegalArgumentException
 import Classes.Object
@@ -169,11 +171,20 @@ spec = do
                    ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
                    ("FactorialExample",                   factorialExampleFile)]
       runProgramConcrete files factorialExampleFile [IInt 10] `shouldBe` Success (Just (VInt 3628800))
+    it "s = new SingleMethodExample; s.x = 2; return s.x" $ do
+      let files = [("java.lang.Object",                   objectFile),
+                   ("SingleMethodExample",                singleMethodExampleFile)]
+      runProgramConcrete files singleMethodExampleFile [] `shouldBe` Success (Just (VInt 2))
     it "(-10)! throws IllegalArgumentException" $ do
       let files = [("java.lang.Object",                   objectFile),
                    ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
                    ("FactorialExample",                   factorialExampleFile)]
       runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject (Map.fromList [(illegalArgumentExceptionMessageSignature, VString "Negative value for argument n")]))
+    it "5 -> [5, 5, 5, 5]" $ do
+      let files = [("java.lang.Object",                   objectFile),
+                   ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
+                   ("ArrayFieldExample",                  arrayFieldExampleFile)]
+      runProgramConcrete files arrayFieldExampleFile [IInt (5)] `shouldBe` Success (Just (VArray [VInt 5, VInt 5, VInt 5, VInt 5]))
 
   where
     env = []

@@ -91,7 +91,7 @@ data Method = Method { methodModifiers :: [Modifier]
                      , parameters :: [Type]
                      , throws :: [String]
                      , methodBody :: MethodBody
-                     }
+                     } deriving (Show, Eq)
 
 data Type
   = TUnknown
@@ -106,7 +106,7 @@ data Type
   | TDouble
   | TNull
   | TClass String
-  | TArray Type deriving (Eq, Show)
+  | TArray Type deriving (Show, Eq)
 
 isNonvoidType :: Type -> Bool
 isNonvoidType TVoid = False
@@ -124,7 +124,7 @@ data MethodBody
   | MFull { declarations :: [Declaration]
           , statements :: [Statement]
           , catchClauses :: [CatchClause]
-          }
+          } deriving (Show, Eq)
 
 type Declaration = (Type, [String])
 
@@ -144,19 +144,19 @@ data Statement
   | Ret (Maybe Immediate)
   | Return (Maybe Immediate)
   | Throw Immediate
-  | Invoke InvokeExpr deriving (Eq)
+  | Invoke InvokeExpr deriving (Show, Eq)
 
 type CaseStatement = (CaseLabel, String)
 
 data CaseLabel
   = CLConstant Int
-  | CLDefault deriving (Eq)
+  | CLDefault deriving (Show, Eq)
 
 data CatchClause = CatchClause { className :: String
                                , fromLabel :: String -- First label in try block
                                , toLabel   :: String -- Last label in catch block continue parsing until next label
                                , withLabel :: String -- Execute code below this label
-                               }
+                               } deriving (Show, Eq)
 
 data Expr
   = ENew NewExpr
@@ -166,32 +166,32 @@ data Expr
   | EReference Reference
   | EBinop Immediate Binop Immediate
   | EUnop Unop Immediate
-  | EImmediate Immediate deriving (Eq)
+  | EImmediate Immediate deriving (Show, Eq)
 
 data NewExpr
   = NewSimple Type
   | NewArray Type Immediate
-  | NewMulti Type [Immediate] deriving (Eq)
+  | NewMulti Type [Immediate] deriving (Show, Eq)
 
 data Variable
   = VReference Reference
-  | VLocal String deriving (Eq)
+  | VLocal String deriving (Show, Eq)
 
 data InvokeExpr
   = SpecialInvoke String MethodSignature [Immediate]
   | VirtualInvoke String MethodSignature [Immediate]
   | InterfaceInvoke String MethodSignature [Immediate]
   | StaticInvoke MethodSignature [Immediate]
-  | DynamicInvoke String UnnamedMethodSignature [Immediate] MethodSignature [Immediate] deriving (Eq)
+  | DynamicInvoke String UnnamedMethodSignature [Immediate] MethodSignature [Immediate] deriving (Show, Eq)
 
-data MethodSignature = MethodSignature String Type String [Type] deriving (Eq)
+data MethodSignature = MethodSignature String Type String [Type] deriving (Show, Eq)
 
-data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Eq)
+data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Show, Eq)
 
 data Reference
   = ArrayReference String Immediate
   | FieldReference String FieldSignature
-  | SignatureReference FieldSignature deriving (Eq)
+  | SignatureReference FieldSignature deriving (Show, Eq)
 
 data FieldSignature = FieldSignature String Type String deriving (Eq)
 
@@ -212,7 +212,7 @@ data Immediate
   | IFloat Float
   | IString String
   | IClass String
-  | INull deriving (Eq)
+  | INull deriving (Show, Eq)
 
 data Binop
   = And     -- Bytewise operator
@@ -235,8 +235,8 @@ data Binop
   | Plus
   | Minus
   | Mult
-  | Div deriving (Eq)
+  | Div deriving (Show, Eq)
 
 data Unop
   = Lengthof
-  | Neg deriving (Eq)
+  | Neg deriving (Show, Eq)
