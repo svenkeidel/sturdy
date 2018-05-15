@@ -86,10 +86,6 @@ createGrammar (Signature (_, sorts) _) = grammar startSymbol prods
     builtins = [("String", [ Ctor (Constr "String") []]) ]
     prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
 
-sigToAlphabet :: Signature -> Alphabet Constr
-sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
-  alph = map (\(c,v) -> (Constr (sortToNonterm c),length v)) $ LM.toList sorts
-
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
 deriving instance ArrowState TermEnv Interp
