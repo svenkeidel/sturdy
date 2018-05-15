@@ -37,7 +37,7 @@ runEnvironment (Environment (Reader f)) = first E.fromList ^>> f
 instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c) => ArrowEnv var val (Env var val) (Environment var val c) where
   lookup = Environment $ Reader $ proc (env,x) -> do
     case E.lookup x env of
-      Success y -> returnA -< y
+      Success y -> returnA -< Just y
       Fail _ -> failA -< printf "Variable %s not bound" (show x)
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> E.insert x y env

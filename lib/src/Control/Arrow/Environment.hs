@@ -1,13 +1,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Environment where
 
 import Control.Arrow
 import Control.Arrow.Utils
 
 class Arrow c => ArrowEnv x y env c | c -> x, c -> y, c -> env where
-  lookup :: c x y
+  lookup :: c x (Maybe y)
   getEnv :: c () env
   extendEnv :: c (x,y,env) env
   localEnv :: c a b -> c (env,a) b

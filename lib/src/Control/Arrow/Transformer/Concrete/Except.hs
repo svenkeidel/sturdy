@@ -11,9 +11,8 @@ import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
 import Control.Arrow.Deduplicate
-import Control.Arrow.DefaultError
 import Control.Arrow.Environment
-import Control.Arrow.Error
+import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
@@ -70,9 +69,6 @@ type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fixA f = Except (fixA (runExcept . f . Except))
 
-instance (ArrowChoice c, ArrowDefaultError e c) => ArrowDefaultError e (Except e c) where
-  defaultErrorA = lift defaultErrorA
-
 instance ArrowChoice c => ArrowTry x y z (Except e c) where
   tryA (Except f) (Except g) (Except h) = Except $ (\x -> (x,x)) ^>> first f >>> hasSucceeded ^>> (g ||| h)
 
@@ -80,12 +76,8 @@ hasSucceeded :: (Error e b,a) -> Either b a
 hasSucceeded (Fail _,a) = Right a
 hasSucceeded (Success b,_) = Left b
 
-instance ArrowChoice c => ArrowError e x y (Except e c) where
-  tryWithErrorA (Except f) (Except g) (Except h) = Except $ f >>> hasSucceededRes ^>> (g ||| h)
-
-hasSucceededRes :: Error e b -> Either b e
-hasSucceededRes (Fail e) = Right e
-hasSucceededRes (Success b) = Left b
+instance ArrowChoice c => ArrowTryCatch e x y z (Except e c) where
+  tryCatchA (Except f) (Except g) (Except h) = Except $ f >>> toEither ^>> (h ||| g)
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedupA (Except f) = Except (dedupA f)

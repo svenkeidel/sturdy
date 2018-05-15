@@ -62,7 +62,7 @@ library
                        Control.Arrow.Deduplicate,
                        Control.Arrow.DefaultError,
                        Control.Arrow.Environment,
-                       Control.Arrow.Error,
+                       Control.Arrow.TryCatch,
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
                        Control.Arrow.Lift,
@@ -101,7 +101,7 @@ library
                        Control.Arrow.Transformer.Abstract.Store,
                        -- Control.Arrow.Transformer.Abstract.LiveVariables,
                        Control.Arrow.Transformer.Abstract.ReachingDefinitions,
-                       Control.Arrow.Transformer.Abstract.Uncertain,
+                       Control.Arrow.Transformer.Abstract.Uncertain
   other-modules:       Control.Arrow.Transformer.Effect
   build-depends:       base,
                        containers,

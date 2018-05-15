@@ -52,7 +52,7 @@ instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoi
   ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
   lookup = Environment $ Reader $ proc ((env,store),x) -> do
     case do {addr <- E.lookup x env; S.lookup addr store} of
-      Success v -> returnA -< v
+      Success v -> returnA -< Just v
       Fail _ -> failA -< printf "Variable %s not bound" (show x)
   getEnv = Environment askA
   extendEnv = proc (x,y,(env,store)) -> do
