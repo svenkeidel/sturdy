@@ -100,7 +100,7 @@ spec = do
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (VInt 5))
     it "assign non-declared variable" $ do
       let stmts = [Assign (VLocal "s") (EImmediate (IInt 2))]
-      runStatementsConcrete env store stmts `shouldBe` Fail (VString "Variable \"s\" not bound")
+      runStatementsConcrete env store stmts `shouldBe` Fail (VString "Variable \"s\" not bounded")
     it "s = 2; xs = newarray (int)[s]; y = lengthof xs; return xs;" $ do
       let nv = [("s", 0),
                 ("xs", 1),
