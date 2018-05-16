@@ -45,5 +45,15 @@ spec = do
     let res = run ["x" =: 1, while ("x" < 10) ["x" =: "x" + 1]]
     res `shouldBe` Terminating (Success (S.fromList [("x", num 10 10)]))
 
+  it "x := 1; while(x < 10){x:= x + 1; while(x > 0) {x := x - 1}}" $ do
+    let ?bound = I.Interval (-500) 500
+    let res = run ["x" =: 1, while ("x" < 10) ["x" =: "x" + 1, while (0 < "x") ["x" =: "x" - 1 ]]]
+    res `shouldBe` NonTerminating
+
+  it "x := 1; y := 1; while(x < 3){x:= x + 1; i := 1, while(i < 2) {y := y + 1}}" $ do
+    let ?bound = I.Interval (-500) 500
+    let res = run ["x" =: 1, "y" =: 1, while ("x" < 3) ["x" =: "x" + 1, "i" =: 1, while ("i" < 2) ["i" =: "i" + 1, "y" =: "y" + 1 ]]]
+    res `shouldBe` NonTerminating
+
   where
     num i j = NumVal (bounded (I.Interval i j))
