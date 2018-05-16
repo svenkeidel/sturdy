@@ -88,7 +88,7 @@ defaultValue _ = VBottom
 type Addr = Int
 type PointerEnv = Env String Addr
 type VariableStore = Map Addr Val
-type CompilationUnits = Map String File
+type CompilationUnits = Map String CompilationUnit
 type Fields = Map FieldSignature Addr
 
 -- check PCF
@@ -118,11 +118,10 @@ deriving instance ArrowStore Addr Val () Interp
 
 -- Implement instances of Store and Environment
 
--- file -> compilationUnit
-runInterp :: Interp x y -> [(String, File)] -> [(String, Addr)] -> [(Addr, Val)] -> x -> Error Val y
-runInterp (Interp f) files env store x =
-  let fields = []
-  in runConst (Map.fromList files, Map.fromList fields)
+runInterp :: Interp x y -> [(String, CompilationUnit)] -> [(String, Addr)] -> [(Addr, Val)] -> x -> Error Val y
+runInterp (Interp f) compilationUnits env store x =
+  let fields = [] -- TODO implement field initialization
+  in runConst (Map.fromList compilationUnits, Map.fromList fields)
       (evalState
         (evalStore
           (runEnvironment
@@ -136,9 +135,9 @@ evalConcrete = runInterp eval []
 runStatementsConcrete :: [(String, Addr)] -> [(Addr, Val)] -> [Statement] -> Error Val (Maybe Val)
 runStatementsConcrete env store stmts = runInterp runStatements [] env store (stmts, 0)
 
-runProgramConcrete :: [(String, File)] -> File -> [Immediate] -> Error Val (Maybe Val)
-runProgramConcrete files mainFile args =
-  runInterp runProgram files [] [] (mainFile, args)
+runProgramConcrete :: [(String, CompilationUnit)] -> CompilationUnit -> [Immediate] -> Error Val (Maybe Val)
+runProgramConcrete compilationUnits mainUnit args =
+  runInterp runProgram compilationUnits [] [] (mainUnit, args)
 
 ---- End of Boilerplate ----
 
@@ -286,10 +285,10 @@ eval = proc e -> case e of
     NewSimple t -> if isBaseType t
       then case t of
         TClass c -> do
-          file <- fetchFile -< c
+          compilationUnit <- fetchCompilationUnit -< c
           let fields = foldl (\acc member -> case member of
                                 FieldMember f -> (FieldSignature c (fieldType f) (fieldName f), defaultValue (fieldType f)):acc
-                                _ -> acc) [] (fileBody file)
+                                _ -> acc) [] (fileBody compilationUnit)
           addr <- alloc -< (VObject c (Map.fromList fields))
           returnA -< VRef addr
         _ -> returnA -< (defaultValue t)
@@ -422,13 +421,13 @@ fetchField = proc x -> do
       getLocal -< a
     Nothing -> failA -< VString $ printf "Field %s not bound" (show x)
 
-fetchFile :: (ArrowChoice c, ArrowFail Val c, ArrowConst (CompilationUnits, Fields) c) => c String File
-fetchFile = proc n -> do
-  (files, _) <- askConst -< ()
-  let file = Map.lookup n files
-  case file of
+fetchCompilationUnit :: (ArrowChoice c, ArrowFail Val c, ArrowConst (CompilationUnits, Fields) c) => c String CompilationUnit
+fetchCompilationUnit = proc n -> do
+  (compilationUnits, _) <- askConst -< ()
+  let compilationUnit = Map.lookup n compilationUnits
+  case compilationUnit of
     Just x -> returnA -< x
-    Nothing -> failA -< VString $ printf "File %s not loaded" (show n)
+    Nothing -> failA -< VString $ printf "CompilationUnit %s not loaded" (show n)
 
 alloc :: (ArrowState Addr c, ArrowStore Addr Val () c) => c Val Addr
 alloc = proc val -> do
@@ -447,9 +446,9 @@ matchesSignature _ _ _ _ = False
 
 fetchMethod :: (ArrowChoice c, ArrowFail Val c, ArrowConst (CompilationUnits, Fields) c) => c MethodSignature Method
 fetchMethod = proc (MethodSignature c retType n argTypes) -> do
-  (files, _) <- askConst -< ()
-  let file = Map.lookup c files
-  case file of
+  (compilationUnits, _) <- askConst -< ()
+  let compilationUnit = Map.lookup c compilationUnits
+  case compilationUnit of
     Just v -> case find (matchesSignature retType n argTypes) (fileBody v) of
       Just (MethodMember m) -> returnA -< m
       _ -> failA -< VString $ printf "Method %s not defined for class %s" (show n) (show c)
@@ -705,8 +704,8 @@ unboxResultRef = proc val -> case val of
     returnA -< Just x'
   Nothing -> returnA -< Nothing
 
-runProgram :: Interp (File, [Immediate]) (Maybe Val)
-runProgram = proc (mainFile, args) -> do
+runProgram :: Interp (CompilationUnit, [Immediate]) (Maybe Val)
+runProgram = proc (mainUnit, args) -> do
   let findMethodByName :: [Member] -> String -> Maybe Method
       findMethodByName (MethodMember m:rest) name =
         if methodName m == name
@@ -714,13 +713,13 @@ runProgram = proc (mainFile, args) -> do
         else findMethodByName rest name
       findMethodByName (_:rest) name = findMethodByName rest name
       findMethodByName [] _ = Nothing
-  case findMethodByName (fileBody mainFile) "<clinit>" of
+  case findMethodByName (fileBody mainUnit) "<clinit>" of
     Just classInitMethod -> do
       evalMethod -< (classInitMethod, Nothing, [])
-      case findMethodByName (fileBody mainFile) "main" of
+      case findMethodByName (fileBody mainUnit) "main" of
         Just mainMethod -> (evalMethod >>> unboxResultRef) -< (mainMethod, Nothing, args)
         Nothing -> unboxResultRef -< Nothing
     Nothing -> do
-      case findMethodByName (fileBody mainFile) "main" of
+      case findMethodByName (fileBody mainUnit) "main" of
         Just mainMethod -> tryCatchA (evalMethod >>> unboxResultRef) (proc x -> returnA -< x) unboxErrorRef -< (mainMethod, Nothing, args)
         Nothing -> unboxResultRef -< Nothing

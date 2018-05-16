@@ -13,19 +13,19 @@ instance Show AtIdentifier where
   show IDThis = "@this"
   show IDCaughtException = "@caughtexception"
 
-data File = File { fileModifiers :: [Modifier]
-                 , fileType :: FileType
-                 , fileName :: String
-                 , extends :: Maybe String
-                 , implements :: [String]
-                 , fileBody :: [Member]
-                 }
+data CompilationUnit = CompilationUnit { fileModifiers :: [Modifier]
+                                       , fileType :: FileType
+                                       , fileName :: String
+                                       , extends :: Maybe String
+                                       , implements :: [String]
+                                       , fileBody :: [Member]
+                                       }
 
-instance Eq File where
+instance Eq CompilationUnit where
   (==) f1 f2 = fileName f1 == fileName f2
 
-instance Show File where
-  show f = "File {"
+instance Show CompilationUnit where
+  show f = "CompilationUnit {"
            ++ show (fileModifiers f) ++ " "
            ++ show (fileType f) ++ " "
            ++ show (fileName f) ++ " "
