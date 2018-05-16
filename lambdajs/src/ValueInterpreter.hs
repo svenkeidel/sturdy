@@ -29,6 +29,7 @@ import Control.Arrow.State
 import Control.Arrow.Transformer.State
 import Control.Arrow.Store
 import Control.Arrow.Utils (foldA)
+import Control.Arrow.TryCatch
 import Data.Identifiable
 import Data.Fixed (mod')
 import Data.List (isPrefixOf, find)
@@ -54,6 +55,9 @@ instance (Show Location, Identifiable Value, ArrowChoice c) => ArrowStore Locati
 
 deriving instance ArrowStore Location Value () LJSArrow
 deriving instance ArrowState Location LJSArrow
+
+instance ArrowTryCatch String Expr (Error String Value) Value LJSArrow where
+    tryCatchA (LJSArrow f) (LJSArrow g) (LJSArrow h) = LJSArrow $ tryCatchA f g h
 
 runLJS :: LJSArrow x y -> [(Ident, Location)] -> [(Location, Value)] -> x -> Error String (Location, (Store Location Value, y))
 runLJS (LJSArrow f) env env2 x = runExcept (runState (runStore (runEnvironment f))) (Location 0, (Data.Concrete.Store.fromList env2, (env, x)))
@@ -213,7 +217,11 @@ updateField = proc (VObject fields, VString name, value) -> do
             returnA -< VObject newFields
         _ -> failA -< "Error: deleteField returned non-object value"
 
-eval :: (ArrowFail String c, ArrowState Location c, ArrowEnv Ident Location (Env Ident Location) c, ArrowStore Location Value () c, ArrowChoice c) => c Expr Value
+eval :: (ArrowFail String c, 
+    ArrowState Location c,
+    ArrowEnv Ident Location (Env Ident Location) c, 
+    ArrowStore Location Value () c, ArrowChoice c,
+    ArrowTryCatch String Expr (Error String Value) Value c) => c Expr Value
 eval = proc e -> case e of
     ENumber d -> returnA -< VNumber d
     EString s -> returnA -< VString s

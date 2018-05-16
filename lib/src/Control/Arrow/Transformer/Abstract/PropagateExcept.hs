@@ -95,6 +95,9 @@ instance (ArrowChoice c, UpperBounded e, Complete (c (y,(x,e)) (Error e y))) => 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedupA (Except f) = Except (dedupA f)
 
+--instance ArrowChoice c => ArrowTryCatch e x y z (Except e c) where
+  --tryCatchA (Except f) (Except g) (Except h) = Except $ f >>> toEither ^>> (h ||| g)
+
 deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)
 deriving instance Complete (c x (Error e y)) => Complete (Except e c x y)

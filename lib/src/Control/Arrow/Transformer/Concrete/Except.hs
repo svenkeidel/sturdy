@@ -17,12 +17,7 @@ import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
-<<<<<<< HEAD
 import Control.Arrow.Except
-=======
-import Control.Arrow.Try
-import Control.Arrow.Store
->>>>>>> State and references with a new arrow transformer stack
 import Control.Category
 
 import Data.Concrete.Error

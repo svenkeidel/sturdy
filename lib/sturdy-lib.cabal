@@ -71,6 +71,7 @@ library
                        Control.Arrow.Store,
                        Control.Arrow.Writer,
                        Control.Arrow.Utils,
+                       Control.Arrow.TryCatch,
 
                        Control.Arrow.Abstract.Alloc,
                        Control.Arrow.Abstract.Join,
