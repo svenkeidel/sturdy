@@ -16,8 +16,8 @@ main = hspec spec
 
 eval :: [(Ident, Location)] -> [(Location, Value)] -> Expr -> Either String Value
 eval env st e = case Interpreter.runConcrete env st e of
-  (_, Fail s) -> Left s
-  (_, Success r) -> Right r
+  Fail s -> Left s
+  Success (_, r) -> Right r
 
 spec :: Spec
 spec = do

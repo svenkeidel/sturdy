@@ -140,16 +140,17 @@ eval = proc e -> case e of
                     True -> returnA -< thenT
                     False -> throw -< "Type Error: branches must be of the same type"
             _ -> throw -< "Type Error: if condition must be of type bool"
-    -- EGetField objE fieldE -> -- #todo problem: calculated/dynamic field names
-    -- EUpdateField objE nameE fieldE -> -- #todo problem: calculated/dynamic field names
-    -- EDeleteField objE nameE -> -- #todo problem: calculated/dynamic field names
+    -- these expressions return an object but with unknown field types
+    EGetField objE fieldE -> returnA -< TTop -- #todo problem: calculated/dynamic field names
+    EUpdateField objE nameE fieldE -> returnA -< TTop -- #todo problem: calculated/dynamic field names
+    EDeleteField objE nameE -> returnA -< TTop -- #todo problem: calculated/dynamic field names
     ESeq f s -> do
         -- #todo Consider breaks/throws in f?
         res <- eval -< s
         returnA -< res
     -- #todo Consider breaks/throws in b?
     EWhile _ _ -> returnA -< TUndefined 
-    -- EEval -> -- #todo Bottom type? Error?
+    EEval -> returnA -< TBottom -- #todo Bottom type? Error?
     -- ELabel l e -> -- #todo ?
     -- EBreak l e -> -- #todo ?
     -- EThrow e -> -- #todo ?

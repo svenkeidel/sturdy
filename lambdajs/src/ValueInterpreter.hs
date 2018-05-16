@@ -38,13 +38,12 @@ import Data.Word (Word32)
 import Data.Map (Map, findWithDefault)
 import qualified Data.Map as Map
 
-newtype LJSArrow x y = LJSArrow (Environment Ident Location (Except String (StoreArrow Location Value (->))) x y)
+newtype LJSArrow x y = LJSArrow (Environment Ident Location (StoreArrow Location Value (State Location (Except String (->)))) x y)
 deriving instance ArrowChoice LJSArrow
 deriving instance Arrow LJSArrow
 deriving instance Category LJSArrow
 deriving instance ArrowFail String LJSArrow
 deriving instance ArrowEnv Ident Location (Env Ident Location) LJSArrow
-
 
 instance (Show Location, Identifiable Value, ArrowChoice c) => ArrowStore Location Value lab (StoreArrow Location Value c) where
   read =
@@ -54,12 +53,22 @@ instance (Show Location, Identifiable Value, ArrowChoice c) => ArrowStore Locati
   write = StoreArrow (State (arr (\(s,(x,v,_)) -> (Data.Concrete.Store.insert x v s,()))))
 
 deriving instance ArrowStore Location Value () LJSArrow
+deriving instance ArrowState Location LJSArrow
 
-runLJS :: LJSArrow x y -> [(Ident, Location)] -> [(Location, Value)] -> x -> (Store Location Value, Error String y)
-runLJS (LJSArrow f) env env2 x = runStore (runExcept (runEnvironment f)) (Data.Concrete.Store.fromList env2, (env, x))
+runLJS :: LJSArrow x y -> [(Ident, Location)] -> [(Location, Value)] -> x -> Error String (Location, (Store Location Value, y))
+runLJS (LJSArrow f) env env2 x = runExcept (runState (runStore (runEnvironment f))) (Location 0, (Data.Concrete.Store.fromList env2, (env, x)))
 
-runConcrete :: [(Ident, Location)] -> [(Location, Value)] -> Expr -> (Store Location Value, Error String Value)
-runConcrete = runLJS eval
+runConcrete :: [(Ident, Location)] -> [(Location, Value)] -> Expr -> Error String (Store Location Value, Value)
+runConcrete env st exp = case runLJS eval env st exp of
+    Fail e -> Fail e
+    Success (loc, res) -> Success res
+
+
+fresh :: ArrowState Location c => c () Location 
+fresh = proc () -> do
+    Location s <- getA -< ()
+    putA -< Location $ s + 1
+    returnA -< Location $ s + 1
 
 -- Constructs an arrow that operates on a list of inputs producing a list of outputs.
 -- Used for evaluating a list of arguments, producing a list of values which are passed to the evalOp function.
@@ -204,7 +213,7 @@ updateField = proc (VObject fields, VString name, value) -> do
             returnA -< VObject newFields
         _ -> failA -< "Error: deleteField returned non-object value"
 
-eval :: (ArrowFail String c, ArrowEnv Ident Location (Env Ident Location) c, ArrowStore Location Value () c, ArrowChoice c) => c Expr Value
+eval :: (ArrowFail String c, ArrowState Location c, ArrowEnv Ident Location (Env Ident Location) c, ArrowStore Location Value () c, ArrowChoice c) => c Expr Value
 eval = proc e -> case e of
     ENumber d -> returnA -< VNumber d
     EString s -> returnA -< VString s
@@ -223,11 +232,7 @@ eval = proc e -> case e of
         res <- evalOp -< (op, vals)
         returnA -< res
     EApp (ELambda params body) args -> do
-        -- #todo generate fresh, this now overrides previous assignments
-        -- look at the environment and find 'length x' unused numbers starting from 1
-        -- this also garbage collects
-        range <- arr $ (\x -> [1..(length x)]) -< params
-        locations <- arr $ map (\x -> Location x) -< range
+        locations <- (mapA ((arr $ const ()) >>> fresh)) -< [1..(length args)]
 
         vals <- mapA eval -< args
         forStore <- arr $ uncurry zip -< (locations, vals)
@@ -297,7 +302,12 @@ eval = proc e -> case e of
                 write -< (l, val, ())
                 returnA -< VUndefined
             _ -> failA -< "Error: ESetRef lhs did not evaluate to a location"
-        
+    ERef valE -> do
+        val <- eval -< valE
+    
+        loc <- fresh -< ()
+        write -< (loc, val, ())
+        returnA -< VRef loc
     EDeref locE -> do
         loc <- eval -< locE
         case loc of 
@@ -305,7 +315,6 @@ eval = proc e -> case e of
                 val <- read -< (l, ())
                 returnA -< val
             _ -> failA -< "Error: EDeref lhs did not evaluate to a location"
-    --ERef val -> do
     EEval -> failA -< "Eval expression encountered, aborting"
     ELabel l e -> do
         res <- eval -< e

@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.Environment where
 
-import Prelude hiding ((.))
+import Prelude hiding ((.), read)
 
 import Data.Hashable
 import Data.Order
@@ -52,7 +52,7 @@ instance ArrowReader r c => ArrowReader r (Environment var val c) where
   localA (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> localA f))
 
 instance ArrowStore loc val lab c => ArrowStore loc val lab (Environment val2 val3 c) where
-  read = lift Control.Arrow.Store.read
+  read = lift read
   write = lift write
  
 type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)

@@ -14,9 +14,6 @@ data Location = Location Int
   deriving (Ord, Eq, Show, Generic)
 deriving instance Hashable Location
 
-fresh :: Location -> Location
-fresh (Location l) = Location $ (l + 1)
-
 data Op
     = ONumPlus
     | OStrPlus
@@ -58,7 +55,7 @@ data Expr
     | EApp Expr [Expr]
     | ELet [(Ident, Expr)] Expr
     | ESetRef Expr Expr
-    -- | ERef Expr
+    | ERef Expr
     | EDeref Expr
     | EGetField Expr Expr
     | EUpdateField Expr Expr Expr
@@ -102,6 +99,8 @@ data Type
     | TNull
     | TLambda [Ident] Type
     | TObject [(String, Type)]
+    | TTop
+    | TBottom
     deriving (Show, Eq, Generic)
 instance Hashable Type
 
