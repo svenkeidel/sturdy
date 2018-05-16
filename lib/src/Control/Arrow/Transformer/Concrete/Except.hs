@@ -50,6 +50,9 @@ instance ArrowChoice c => ArrowChoice (Except r c) where
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Except e c) where
   app = Except $ first runExcept ^>> app
 
+instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where
+  askConst = lift askConst
+
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (Except e c) where
   get = lift get
   put = lift put

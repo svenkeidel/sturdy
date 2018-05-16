@@ -70,6 +70,9 @@ instance Arrow c => ArrowState s (State s c) where
 instance ArrowFail e c => ArrowFail e (State s c) where
   fail = lift fail
 
+instance ArrowConst r c => ArrowConst r (State s c) where
+  askConst = lift askConst
+
 instance ArrowReader r c => ArrowReader r (State s c) where
   ask = lift ask
   local (State f) = State $ (\(s,(r,x)) -> (r,(s,x))) ^>> local f

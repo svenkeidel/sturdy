@@ -22,6 +22,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Reader
 import           Control.Arrow.Store
 import           Control.Arrow.State
+import           Control.Arrow.Store
 import           Control.Arrow.Fail
 import           Control.Arrow.Lift
 import           Control.Arrow.Except
@@ -50,9 +51,16 @@ instance (Identifiable var, ArrowChoice c) => ArrowEnv var val (Env var val) (En
 instance ArrowApply c => ArrowApply (Environment var val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app
 
+instance ArrowConst r c => ArrowConst r (Environment var val c) where
+  askConst = lift askConst
+
 instance ArrowReader r c => ArrowReader r (Environment var val c) where
   ask = lift ask
   local (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
+
+instance ArrowStore loc val lab c => ArrowStore loc val lab (Environment var val0 c) where
+  read = lift read
+  write = lift write
 
 deriving instance ArrowTry (Env var val,x) (Env var val,y) z c => ArrowTry x y z (Environment var val c)
 

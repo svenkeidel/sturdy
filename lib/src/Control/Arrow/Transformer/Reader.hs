@@ -56,6 +56,9 @@ instance ArrowChoice c => ArrowChoice (Reader r c) where
 instance ArrowApply c => ArrowApply (Reader r c) where
   app = Reader $ (\(r,(Reader f,b)) -> (f,(r,b))) ^>> app
 
+instance ArrowConst r c => ArrowConst r (Reader r' c) where
+  askConst = lift askConst
+
 instance Arrow c => ArrowReader r (Reader r c) where
   ask = Reader pi1
   local (Reader f) = Reader $ (\(_,(r,x)) -> (r,x)) ^>> f
