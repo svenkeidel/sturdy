@@ -20,19 +20,24 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Concrete.Environment (Env)
 import qualified Data.Concrete.Environment as E
+import           Data.Concrete.Store (Store)
+import qualified Data.Concrete.Store as S
 
 import           Control.Category hiding ((.))
 
 import           Control.Arrow
+import           Control.Arrow.Const
 import           Control.Arrow.Debug
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.TryCatch
 import           Control.Arrow.State
+import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Environment
+import           Control.Arrow.Transformer.Concrete.Store
 
 import           Text.Printf
 import           Debug.Trace
@@ -81,12 +86,13 @@ defaultValue _ = VBottom
 
 type Addr = Int
 
--- programState = (currentAddr, currentMethod, currentStatement, fileStore, fieldStore, variableStore)
+-- programState = (State currentAddr, Reader (currentMethod, currentStatement), Const files, Store fieldStore, Store variableStore)
 type VariableStore = Map Addr Val
 type ProgramState = (Addr, Maybe Method, Int, Map String File, Map FieldSignature Addr, VariableStore)
 type PointerEnv = Env String Addr
+type Files = Map String File
 
-newtype Interp x y = Interp (Except Val (Environment String Addr (State ProgramState (->))) x y)
+newtype Interp x y = Interp (Except Val (Reader (Maybe Method, Int) (Environment String Addr (StoreArrow Addr Val (State ProgramState (Const Files (->)))))) x y)
   deriving (Category,Arrow,ArrowChoice)
 
 instance ArrowTryCatch Val x y z Interp where
@@ -99,15 +105,19 @@ instance ArrowDebug Interp where
 
 deriving instance ArrowFail Val Interp
 deriving instance ArrowState ProgramState Interp
+deriving instance ArrowConst Files Interp
 deriving instance ArrowEnv String Addr PointerEnv Interp
 
 runInterp :: Interp x y -> [(String, File)] -> [(String, Addr)] -> [(Addr, Val)] -> x -> Error Val y
 runInterp (Interp f) files env store x =
   let state = (length env, Nothing, 0, Map.fromList files, Map.empty, Map.fromList store)
-  in evalState
-      (runEnvironment
-        (runExcept f))
-  (state, (env, x))
+  in runConst (Map.fromList files)
+      (evalState
+        (evalStore
+          (runEnvironment
+            (runReader
+              (runExcept f)))))
+  (state, (S.fromList store, (env, ((Nothing, 0), x))))
 
 evalConcrete :: [(String, Addr)] -> [(Addr, Val)] -> Expr -> Error Val Val
 evalConcrete = runInterp eval []
@@ -216,7 +226,8 @@ evalMethod :: (ArrowChoice c,
                ArrowEnv String Addr PointerEnv c,
                ArrowState ProgramState c,
                ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-               ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c) => c (Method, Maybe Val, [Immediate]) (Maybe Val)
+               ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
+               ArrowConst Files c) => c (Method, Maybe Val, [Immediate]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
   (a, m, s, files, fields, vars) <- getA -< ()
   argVals <- evalImmediateList -< args
@@ -232,7 +243,8 @@ evalInvoke :: (ArrowChoice c,
                ArrowEnv String Addr PointerEnv c,
                ArrowState ProgramState c,
                ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-               ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c) => c InvokeExpr (Maybe Val)
+               ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
+               ArrowConst Files c) => c InvokeExpr (Maybe Val)
 evalInvoke = proc e -> case e of
   StaticInvoke methodSignature args -> do
     method <- fetchMethod -< methodSignature
@@ -255,7 +267,8 @@ eval :: (ArrowChoice c,
          ArrowEnv String Addr PointerEnv c,
          ArrowState ProgramState c,
          ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-         ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c) => c Expr Val
+         ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
+         ArrowConst Files c) => c Expr Val
 eval = proc e -> case e of
   ENew newExpr -> case newExpr of
     NewSimple t -> if isBaseType t
@@ -401,10 +414,11 @@ fetchField = proc x -> do
         Nothing -> failA -< VString $ printf "Field %s not bound" (show x)
     Nothing -> failA -< VString $ printf "Field %s not bound" (show x)
 
-fetchFile :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState ProgramState c) => c String File
+fetchFile :: (ArrowChoice c, ArrowFail Val c, ArrowConst Files c) => c String File
 fetchFile = proc n -> do
-  (_, _, _, fileStore, _, _) <- getA -< ()
-  let file = Map.lookup n fileStore
+  files <- askConst -< ()
+  -- (_, _, _, fileStore, _, _) <- getA -< ()
+  let file = Map.lookup n files
   case file of
     Just x -> returnA -< x
     Nothing -> failA -< VString $ printf "File %s not loaded" (show n)
@@ -465,7 +479,8 @@ goto :: (ArrowChoice c,
          ArrowEnv String Addr PointerEnv c,
          ArrowState ProgramState c,
          ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-         ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c) => c ([Statement], String) (Maybe Val)
+         ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
+         ArrowConst Files c) => c ([Statement], String) (Maybe Val)
 goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
   Just i -> runStatements -< (stmts, i)
   Nothing -> failA -< VString $ printf "Undefined label: %s" label
@@ -513,7 +528,8 @@ catchExceptions :: (ArrowChoice c,
                    ArrowEnv String Addr PointerEnv c,
                    ArrowState ProgramState c,
                    ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-                   ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c) => [CatchClause] -> c Val (Maybe Val)
+                   ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
+                   ArrowConst Files c) => [CatchClause] -> c Val (Maybe Val)
 catchExceptions cs = proc (val) -> do
   case val of
     VRef addr -> do
@@ -545,7 +561,8 @@ runStatements :: (ArrowChoice c,
                   ArrowEnv String Addr PointerEnv c,
                   ArrowState ProgramState c,
                   ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-                  ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c) => c ([Statement], Int) (Maybe Val)
+                  ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
+                  ArrowConst Files c) => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i == length stmts
   then returnA -< Nothing
   else case stmts !! i of
@@ -656,7 +673,8 @@ runMethodBody :: (ArrowChoice c,
                   ArrowEnv String Addr PointerEnv c,
                   ArrowState ProgramState c,
                   ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-                  ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c) => c MethodBody (Maybe Val)
+                  ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
+                  ArrowConst Files c) => c MethodBody (Maybe Val)
 runMethodBody = proc body -> case body of
   MEmpty -> returnA -< Nothing
   MFull{declarations=d,statements=s} -> do
