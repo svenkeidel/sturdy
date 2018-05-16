@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -139,6 +140,17 @@ runProgramConcrete :: [(String, CompilationUnit)] -> CompilationUnit -> [Immedia
 runProgramConcrete compilationUnits mainUnit args =
   runInterp runProgram compilationUnits [] [] (mainUnit, args)
 
+type InterpConstr c = (ArrowChoice c,
+                       ArrowConst (CompilationUnits, Fields) c,
+                       ArrowEnv String Addr PointerEnv c,
+                       ArrowFail Val c,
+                       ArrowReader (Maybe Method, Int) c,
+                       ArrowState Addr c,
+                       ArrowStore Addr Val () c,
+                       ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
+                       ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
+                       ArrowTryCatch Val (Method, Maybe Val, [Immediate]) (Maybe Val) (Maybe Val) c)
+
 ---- End of Boilerplate ----
 
 assert :: (ArrowChoice c, ArrowFail Val c) => c Bool ()
@@ -230,30 +242,14 @@ evalRef = proc ref -> case ref of
       Just x -> returnA -< x
       Nothing -> failA -< VString $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
   SignatureReference fieldSignature -> fetchField -< fieldSignature
--- interpreterConstraints lang extension
-evalMethod :: (ArrowChoice c,
-               ArrowFail Val c,
-               ArrowEnv String Addr PointerEnv c,
-               ArrowState Addr c,
-               ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-               ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-               ArrowConst (CompilationUnits, Fields) c,
-               ArrowStore Addr Val () c,
-               ArrowReader (Maybe Method, Int) c) => c (Method, Maybe Val, [Immediate]) (Maybe Val)
+
+evalMethod :: InterpConstr c => c (Method, Maybe Val, [Immediate]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
   argVals <- evalImmediateList -< args
   env <- createMethodEnv -< (this, parameters method, argVals)
   localEnv (proc method -> do localA runMethodBody -< ((Just method, 0), methodBody method)) -< (env, method)
 
-evalInvoke :: (ArrowChoice c,
-               ArrowFail Val c,
-               ArrowEnv String Addr PointerEnv c,
-               ArrowState Addr c,
-               ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-               ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-               ArrowConst (CompilationUnits, Fields) c,
-               ArrowStore Addr Val () c,
-               ArrowReader (Maybe Method, Int) c) => c InvokeExpr (Maybe Val)
+evalInvoke :: InterpConstr c => c InvokeExpr (Maybe Val)
 evalInvoke = proc e -> case e of
   StaticInvoke methodSignature args -> do
     method <- fetchMethod -< methodSignature
@@ -271,15 +267,7 @@ evalInvoke = proc e -> case e of
     evalMethod -< (method, Just this, args)
   _ -> failA -< VString "Not implemented"
 
-eval :: (ArrowChoice c,
-         ArrowFail Val c,
-         ArrowEnv String Addr PointerEnv c,
-         ArrowState Addr c,
-         ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-         ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-         ArrowConst (CompilationUnits, Fields) c,
-         ArrowStore Addr Val () c,
-         ArrowReader (Maybe Method, Int) c) => c Expr Val
+eval :: InterpConstr c => c Expr Val
 eval = proc e -> case e of
   ENew newExpr -> case newExpr of
     NewSimple t -> if isBaseType t
@@ -477,15 +465,7 @@ fetchObjectWithAddr = proc localName -> do
     VObject _ _ -> returnA -< (addr, v)
     _ -> failA -< VString $ printf "Variable %s not bound to an object" (show localName)
 
-goto :: (ArrowChoice c,
-         ArrowFail Val c,
-         ArrowEnv String Addr PointerEnv c,
-         ArrowState Addr c,
-         ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-         ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-         ArrowConst (CompilationUnits, Fields) c,
-         ArrowStore Addr Val () c,
-         ArrowReader (Maybe Method, Int) c) => c ([Statement], String) (Maybe Val)
+goto :: InterpConstr c => c ([Statement], String) (Maybe Val)
 goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
   Just i -> runStatements -< (stmts, i)
   Nothing -> failA -< VString $ printf "Undefined label: %s" label
@@ -528,15 +508,7 @@ getMethodBody = proc () -> do
         MFull{} -> returnA -< methodBody m'
     Nothing -> failA -< VString "No method currently running"
 
-catchExceptions :: (ArrowChoice c,
-                   ArrowFail Val c,
-                   ArrowEnv String Addr PointerEnv c,
-                   ArrowState Addr c,
-                   ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-                   ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-                   ArrowConst (CompilationUnits, Fields) c,
-                   ArrowStore Addr Val () c,
-                   ArrowReader (Maybe Method, Int) c) => [CatchClause] -> c Val (Maybe Val)
+catchExceptions :: InterpConstr c => [CatchClause] -> c Val (Maybe Val)
 catchExceptions cs = proc (val) -> do
   case val of
     VRef addr -> do
@@ -563,15 +535,7 @@ catchExceptions cs = proc (val) -> do
         _ -> failA -< val
     _ -> failA -< val
 
-runStatements :: (ArrowChoice c,
-                  ArrowFail Val c,
-                  ArrowEnv String Addr PointerEnv c,
-                  ArrowState Addr c,
-                  ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-                  ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-                  ArrowConst (CompilationUnits, Fields) c,
-                  ArrowStore Addr Val () c,
-                  ArrowReader (Maybe Method, Int) c) => c ([Statement], Int) (Maybe Val)
+runStatements :: InterpConstr c => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i == length stmts
   then returnA -< Nothing
   else case stmts !! i of
@@ -677,15 +641,7 @@ runDeclarations = proc (env, decs) -> case decs of
     returnA -< env''
   [] -> returnA -< env
 
-runMethodBody :: (ArrowChoice c,
-                  ArrowFail Val c,
-                  ArrowEnv String Addr PointerEnv c,
-                  ArrowState Addr c,
-                  ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-                  ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-                  ArrowConst (CompilationUnits, Fields) c,
-                  ArrowStore Addr Val () c,
-                  ArrowReader (Maybe Method, Int) c) => c MethodBody (Maybe Val)
+runMethodBody :: InterpConstr c => c MethodBody (Maybe Val)
 runMethodBody = proc body -> case body of
   MEmpty -> returnA -< Nothing
   MFull{declarations=d,statements=s} -> do
@@ -704,7 +660,7 @@ unboxResultRef = proc val -> case val of
     returnA -< Just x'
   Nothing -> returnA -< Nothing
 
-runProgram :: Interp (CompilationUnit, [Immediate]) (Maybe Val)
+runProgram :: InterpConstr c => c (CompilationUnit, [Immediate]) (Maybe Val)
 runProgram = proc (mainUnit, args) -> do
   let findMethodByName :: [Member] -> String -> Maybe Method
       findMethodByName (MethodMember m:rest) name =
