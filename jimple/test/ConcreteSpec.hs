@@ -179,7 +179,7 @@ spec = do
       let files = [("java.lang.Object",                   objectFile),
                    ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
                    ("FactorialExample",                   factorialExampleFile)]
-      runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject (Map.fromList [(illegalArgumentExceptionMessageSignature, VString "Negative value for argument n")]))
+      runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject "java.lang.IllegalArgumentException" (Map.fromList [(illegalArgumentExceptionMessageSignature, VString "Negative value for argument n")]))
     it "5 -> [5, 5, 5, 5]" $ do
       let files = [("java.lang.Object",                   objectFile),
                    ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
