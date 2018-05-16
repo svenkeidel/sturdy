@@ -17,6 +17,8 @@ import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Transformer.State
 import Control.Arrow.Utils
+import Control.Arrow.Transformer.Concrete.Environment
+import Control.Arrow.Environment
 import Control.Category
 
 import Data.Abstract.Store (Store)
@@ -48,6 +50,7 @@ instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c, Complet
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   getA = lift getA
   putA = lift putA
+
 
 deriving instance Category c => Category (StoreArrow var val c)
 deriving instance Arrow c => Arrow (StoreArrow var val c)

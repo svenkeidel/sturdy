@@ -1,9 +1,21 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Syntax where
 
+import GHC.Generics (Generic)
+import Data.Hashable
 -- From LambdaJS/haskell/src/Syntax.hs
 
 type Ident = String
 type Label = String
+
+data Location = Location Int
+  deriving (Ord, Eq, Show, Generic)
+deriving instance Hashable Location
+
+fresh :: Location -> Location
+fresh (Location l) = Location $ (l + 1)
 
 data Op
     = ONumPlus
@@ -30,7 +42,8 @@ data Op
     -- | OObjCanDelete
     | OMathExp | OMathLog | OMathCos | OMathSin | OMathAbs | OMathPow
     -- | ORegExpMatch | ORegExpQuote
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic)
+instance Hashable Op
 
 data Expr
     = ENumber Double
@@ -46,7 +59,7 @@ data Expr
     | ELet [(Ident, Expr)] Expr
     | ESetRef Expr Expr
     -- | ERef Expr
-    -- | EDeref Expr
+    | EDeref Expr
     | EGetField Expr Expr
     | EUpdateField Expr Expr Expr
     | EDeleteField Expr Expr
@@ -61,7 +74,8 @@ data Expr
     -- An expression that calls eval, or a related function. If EEval becomes the active expression,
     -- our model immediately aborts.
     | EEval
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic)
+instance Hashable Expr
 
 data Value
     = VNumber Double
@@ -73,8 +87,9 @@ data Value
     | VObject [(String, Value)]
     | VThrown Value
     | VBreak Label Value
-    deriving (Show, Eq)
-
+    | VRef Location
+    deriving (Show, Eq, Generic)
+instance Hashable Value
 -- Questions
 -- How to encode throws and breaks using arrows?
 -- How to encode references?
@@ -87,7 +102,6 @@ data Type
     | TNull
     | TLambda [Ident] Type
     | TObject [(String, Type)]
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic)
+instance Hashable Type
 
--- Questions
--- Should this include thrown and break types?

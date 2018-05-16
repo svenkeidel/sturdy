@@ -16,6 +16,7 @@ library
       base >=4.7 && <5
     , containers
     , sturdy-lib
+    , hashable
   exposed-modules:
       Concrete,
       Syntax,

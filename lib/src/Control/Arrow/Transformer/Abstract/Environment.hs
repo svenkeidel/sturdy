@@ -26,6 +26,7 @@ import Control.Arrow.Except
 import Control.Arrow.Lift
 import Control.Arrow.Environment
 import Control.Arrow.Fix
+import Control.Arrow.Store
 
 import Text.Printf
 
@@ -50,6 +51,10 @@ instance ArrowReader r c => ArrowReader r (Environment var val c) where
   askA = lift askA
   localA (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> localA f))
 
+instance ArrowStore loc val lab c => ArrowStore loc val lab (Environment val2 val3 c) where
+  read = lift Control.Arrow.Store.read
+  write = lift write
+ 
 type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
 
 deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (Environment var val c)
@@ -66,3 +71,4 @@ deriving instance Complete (c (Env var val,x) y) => Complete (Environment var va
 deriving instance CoComplete (c (Env var val,x) y) => CoComplete (Environment var val c x y)
 deriving instance LowerBounded (c (Env var val,x) y) => LowerBounded (Environment var val c x y)
 deriving instance UpperBounded (c (Env var val,x) y) => UpperBounded (Environment var val c x y)
+
