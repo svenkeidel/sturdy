@@ -86,14 +86,19 @@ defaultValue (TArray _) = VNull
 defaultValue _ = VBottom
 
 type Addr = Int
-
--- programState = (State currentAddr, Reader (currentMethod, currentStatement), Const files, Store fieldStore, Store variableStore)
-type VariableStore = Map Addr Val
-type ProgramState = (Addr, Maybe Method, Int, Map String File, Map FieldSignature Addr, VariableStore)
 type PointerEnv = Env String Addr
-type Files = Map String File
+type VariableStore = Map Addr Val
+type CompilationUnits = Map String File
+type Fields = Map FieldSignature Addr
 
-newtype Interp x y = Interp (Except Val (Reader (Maybe Method, Int) (Environment String Addr (StoreArrow Addr Val (State ProgramState (Const Files (->)))))) x y)
+-- check PCF
+newtype Interp x y = Interp
+  (Except Val
+    (Reader (Maybe Method, Int)
+      (Environment String Addr
+        (StoreArrow Addr Val
+          (State Addr
+            (Const (CompilationUnits, Fields) (->)))))) x y)
   deriving (Category,Arrow,ArrowChoice)
 
 instance ArrowTryCatch Val x y z Interp where
@@ -104,23 +109,26 @@ instance ArrowDebug Interp where
     b <- f -< a
     returnA -< trace (printf "%s: %s -> %s" s (show a) (show b)) b
 
-deriving instance ArrowConst Files Interp
+deriving instance ArrowConst (CompilationUnits, Fields) Interp
 deriving instance ArrowEnv String Addr PointerEnv Interp
 deriving instance ArrowFail Val Interp
 deriving instance ArrowReader (Maybe Method, Int) Interp
-deriving instance ArrowState ProgramState Interp
+deriving instance ArrowState Addr Interp
 deriving instance ArrowStore Addr Val () Interp
 
+-- Implement instances of Store and Environment
+
+-- file -> compilationUnit
 runInterp :: Interp x y -> [(String, File)] -> [(String, Addr)] -> [(Addr, Val)] -> x -> Error Val y
 runInterp (Interp f) files env store x =
-  let state = (length env, Nothing, 0, Map.fromList files, Map.empty, Map.fromList store)
-  in runConst (Map.fromList files)
+  let fields = []
+  in runConst (Map.fromList files, Map.fromList fields)
       (evalState
         (evalStore
           (runEnvironment
             (runReader
               (runExcept f)))))
-  (state, (S.fromList store, (env, ((Nothing, 0), x))))
+  (length env + length fields, (S.fromList store, (env, ((Nothing, 0), x))))
 
 evalConcrete :: [(String, Addr)] -> [(Addr, Val)] -> Expr -> Error Val Val
 evalConcrete = runInterp eval []
@@ -161,9 +169,9 @@ numToBool op v1 v2 = case (v1, v2) of
   (VFloat f1, VFloat f2) -> Just (VBool (op f1 f2))
   (_, _) -> Nothing
 
-newArray :: (ArrowFail Val c, ArrowChoice c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c (Type, [Int]) Val
+newArray :: (ArrowFail Val c, ArrowChoice c, ArrowState Addr c, ArrowStore Addr Val () c) => c (Type, [Int]) Val
 newArray =
-  let createVals :: (ArrowFail Val c, ArrowChoice c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c (Int, Type, [Int]) [Val]
+  let createVals :: (ArrowFail Val c, ArrowChoice c, ArrowState Addr c, ArrowStore Addr Val () c) => c (Int, Type, [Int]) [Val]
       createVals = proc (s', t, sizes') -> case s' of
         0 -> returnA -< []
         n -> do
@@ -185,7 +193,7 @@ toIntList = proc vs -> case vs of
   (_:_) -> failA -< VString "Expected an integer valued array for toIntList"
   [] -> returnA -< []
 
-evalImmediateList :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c [Immediate] [Val]
+evalImmediateList :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState Addr c, ArrowStore Addr Val () c) => c [Immediate] [Val]
 evalImmediateList = proc xs -> case xs of
   (x':xs') -> do
     v <- evalImmediate -< x'
@@ -193,7 +201,7 @@ evalImmediateList = proc xs -> case xs of
     returnA -< (v:vs)
   [] -> returnA -< []
 
-evalImmediate :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c Immediate Val
+evalImmediate :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState Addr c, ArrowStore Addr Val () c) => c Immediate Val
 evalImmediate = proc i -> case i of
   ILocalName localName -> fetchLocal -< localName
   IInt n -> returnA -< (VInt n)
@@ -202,14 +210,14 @@ evalImmediate = proc i -> case i of
   IClass c -> returnA -< (VClass c)
   INull -> returnA -< VNull
 
-evalIndex :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c Immediate Int
+evalIndex :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState Addr c, ArrowStore Addr Val () c) => c Immediate Int
 evalIndex = proc i -> do
   v <- evalImmediate -< i
   case v of
     VInt n -> returnA -< n
     _ -> failA -< VString "Expected an integer array index"
 
-evalRef :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c Reference Val
+evalRef :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState Addr c, ArrowStore Addr Val () c, ArrowConst (CompilationUnits, Fields) c) => c Reference Val
 evalRef = proc ref -> case ref of
   ArrayReference localName i -> do
     n <- evalIndex -< i
@@ -223,51 +231,28 @@ evalRef = proc ref -> case ref of
       Just x -> returnA -< x
       Nothing -> failA -< VString $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
   SignatureReference fieldSignature -> fetchField -< fieldSignature
-
-
-
-evalMethod' :: (ArrowChoice c,
-               ArrowFail Val c,
-               ArrowEnv String Addr PointerEnv c,
-               ArrowState ProgramState c,
-               ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
-               ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-               ArrowConst Files c,
-               ArrowStore Addr Val () c,
-               ArrowReader (Maybe Method, Int) c) => c Method (Maybe Val)
-evalMethod' = proc method -> do
-  localA runMethodBody -< ((Just method, 0), methodBody method)
-  --
-  -- (a, m, s, files, fields, vars) <- getA -< ()
-  -- argVals <- evalImmediateList -< args
-  -- putA -< (a, Just method, s, files, fields, vars)
-  -- env <- createMethodEnv -< (this, parameters method, argVals)
-  -- v <- localEnv runMethodBody -< (env, methodBody method)
-  -- (a', _, s', files', fields', vars') <- getA -< ()
-  -- putA -< (a', m, s', files', fields', vars')
-  -- returnA -< v
-
+-- interpreterConstraints lang extension
 evalMethod :: (ArrowChoice c,
                ArrowFail Val c,
                ArrowEnv String Addr PointerEnv c,
-               ArrowState ProgramState c,
+               ArrowState Addr c,
                ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
                ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-               ArrowConst Files c,
+               ArrowConst (CompilationUnits, Fields) c,
                ArrowStore Addr Val () c,
                ArrowReader (Maybe Method, Int) c) => c (Method, Maybe Val, [Immediate]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
   argVals <- evalImmediateList -< args
   env <- createMethodEnv -< (this, parameters method, argVals)
-  localEnv evalMethod' -< (env, method)
+  localEnv (proc method -> do localA runMethodBody -< ((Just method, 0), methodBody method)) -< (env, method)
 
 evalInvoke :: (ArrowChoice c,
                ArrowFail Val c,
                ArrowEnv String Addr PointerEnv c,
-               ArrowState ProgramState c,
+               ArrowState Addr c,
                ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
                ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-               ArrowConst Files c,
+               ArrowConst (CompilationUnits, Fields) c,
                ArrowStore Addr Val () c,
                ArrowReader (Maybe Method, Int) c) => c InvokeExpr (Maybe Val)
 evalInvoke = proc e -> case e of
@@ -290,10 +275,10 @@ evalInvoke = proc e -> case e of
 eval :: (ArrowChoice c,
          ArrowFail Val c,
          ArrowEnv String Addr PointerEnv c,
-         ArrowState ProgramState c,
+         ArrowState Addr c,
          ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
          ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-         ArrowConst Files c,
+         ArrowConst (CompilationUnits, Fields) c,
          ArrowStore Addr Val () c,
          ArrowReader (Maybe Method, Int) c) => c Expr Val
 eval = proc e -> case e of
@@ -403,7 +388,7 @@ eval = proc e -> case e of
     returnA -< v
   _ -> failA -< VString "Undefined expression"
 
-unbox :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c Val Val
+unbox :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState Addr c, ArrowStore Addr Val () c) => c Val Val
 unbox = proc val -> do
   case val of
     VRef addr -> getLocal -< addr
@@ -428,32 +413,28 @@ getLocal = proc addr -> do
     Just v -> returnA -< v
     Nothing -> failA -< VString $ printf "Variable %s not bounded" (show addr)
 
-fetchField :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowState ProgramState c) => c FieldSignature Val
+fetchField :: (ArrowChoice c, ArrowFail Val c, ArrowStore Addr Val () c, ArrowConst (CompilationUnits, Fields) c) => c FieldSignature Val
 fetchField = proc x -> do
-  (_, _, _, _, fieldStore, variableStore) <- getA -< ()
-  let addr = Map.lookup x fieldStore
+  (_,fields) <- askConst -< ()
+  let addr = Map.lookup x fields
   case addr of
     Just a -> do
-      let val = Map.lookup a variableStore
-      case val of
-        Just v -> returnA -< v
-        Nothing -> failA -< VString $ printf "Field %s not bound" (show x)
+      getLocal -< a
     Nothing -> failA -< VString $ printf "Field %s not bound" (show x)
 
-fetchFile :: (ArrowChoice c, ArrowFail Val c, ArrowConst Files c) => c String File
+fetchFile :: (ArrowChoice c, ArrowFail Val c, ArrowConst (CompilationUnits, Fields) c) => c String File
 fetchFile = proc n -> do
-  files <- askConst -< ()
+  (files, _) <- askConst -< ()
   let file = Map.lookup n files
   case file of
     Just x -> returnA -< x
     Nothing -> failA -< VString $ printf "File %s not loaded" (show n)
 
-alloc :: (ArrowState ProgramState c, ArrowStore Addr Val () c) => c Val Addr
+alloc :: (ArrowState Addr c, ArrowStore Addr Val () c) => c Val Addr
 alloc = proc val -> do
-  (addr, m, s, files, fields, vars) <- getA -< ()
+  addr <- getA -< ()
   write -< (addr, val, ())
-  -- let vars' = Map.insert addr val vars
-  putA -< (succ addr, m, s, files, fields, vars)
+  putA -< succ addr
   returnA -< addr
 
 writeVar :: (ArrowStore Addr Val () c) => c (Addr, Val) ()
@@ -464,17 +445,17 @@ matchesSignature retType n argTypes (MethodMember m) =
   methodName m == n && returnType m == retType && parameters m == argTypes
 matchesSignature _ _ _ _ = False
 
-fetchMethod :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c MethodSignature Method
+fetchMethod :: (ArrowChoice c, ArrowFail Val c, ArrowConst (CompilationUnits, Fields) c) => c MethodSignature Method
 fetchMethod = proc (MethodSignature c retType n argTypes) -> do
-  (_, _, _, fileStore, _, _) <- getA -< ()
-  let file = Map.lookup c fileStore
+  (files, _) <- askConst -< ()
+  let file = Map.lookup c files
   case file of
     Just v -> case find (matchesSignature retType n argTypes) (fileBody v) of
       Just (MethodMember m) -> returnA -< m
       _ -> failA -< VString $ printf "Method %s not defined for class %s" (show n) (show c)
     Nothing -> failA -< VString $ printf "Undefined class %s" (show c)
 
-fetchRefValWithAddr :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c String (Addr, Val)
+fetchRefValWithAddr :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr env c, ArrowStore Addr Val () c) => c String (Addr, Val)
 fetchRefValWithAddr = proc localName -> do
   v <- fetchLocal -< localName
   case v of
@@ -483,14 +464,14 @@ fetchRefValWithAddr = proc localName -> do
       returnA -< (addr, v')
     _ -> failA -< VString $ printf "Variable %s is not a reference" (show localName)
 
-fetchArrayWithAddr :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c String (Addr, Val)
+fetchArrayWithAddr :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowStore Addr Val () c) => c String (Addr, Val)
 fetchArrayWithAddr = proc localName -> do
   (addr, v) <- fetchRefValWithAddr -< localName
   case v of
     VArray _ -> returnA -< (addr, v)
     _ -> failA -< VString $ printf "Variable %s not bound to an array" (show localName)
 
-fetchObjectWithAddr :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c String (Addr, Val)
+fetchObjectWithAddr :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowStore Addr Val () c) => c String (Addr, Val)
 fetchObjectWithAddr = proc localName -> do
   (addr, v) <- fetchRefValWithAddr -< localName
   case v of
@@ -500,17 +481,17 @@ fetchObjectWithAddr = proc localName -> do
 goto :: (ArrowChoice c,
          ArrowFail Val c,
          ArrowEnv String Addr PointerEnv c,
-         ArrowState ProgramState c,
+         ArrowState Addr c,
          ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
          ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-         ArrowConst Files c,
+         ArrowConst (CompilationUnits, Fields) c,
          ArrowStore Addr Val () c,
          ArrowReader (Maybe Method, Int) c) => c ([Statement], String) (Maybe Val)
 goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
   Just i -> runStatements -< (stmts, i)
   Nothing -> failA -< VString $ printf "Undefined label: %s" label
 
-matchCases :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c ([CaseStatement], Int) String
+matchCases :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState Addr c, ArrowStore Addr Val () c) => c ([CaseStatement], Int) String
 matchCases = proc (cases, v) -> case cases of
   ((CLConstant n, label): cases') -> if v == n
     then returnA -< label
@@ -518,7 +499,7 @@ matchCases = proc (cases, v) -> case cases of
   ((CLDefault, label): _) -> returnA -< label
   [] -> failA -< VString $ printf "No cases match value %s" (show v)
 
-createParamEnv :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c (Int, [Val]) PointerEnv
+createParamEnv :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState Addr c, ArrowStore Addr Val () c) => c (Int, [Val]) PointerEnv
 createParamEnv = proc (i, params) -> case params of
   (param:rest) -> do
     let toParam :: Int -> String
@@ -529,7 +510,7 @@ createParamEnv = proc (i, params) -> case params of
     extendEnv -< (toParam i, addr, env)
   [] -> returnA -< E.empty
 
-createMethodEnv :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c (Maybe Val, [Type], [Val]) PointerEnv
+createMethodEnv :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState Addr c, ArrowStore Addr Val () c) => c (Maybe Val, [Type], [Val]) PointerEnv
 createMethodEnv = proc (this, _, params) -> do
   paramEnv <- createParamEnv -< (0, params)
   case this of
@@ -538,9 +519,9 @@ createMethodEnv = proc (this, _, params) -> do
       extendEnv -< ("@this", addr, paramEnv)
     Nothing -> returnA -< paramEnv
 
-getMethodBody :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c () MethodBody
+getMethodBody :: (ArrowChoice c, ArrowFail Val c, ArrowReader (Maybe Method, Addr) c) => c () MethodBody
 getMethodBody = proc () -> do
-  (_, m, _, _, _, _) <- getA -< ()
+  (m, _) <- askA -< ()
   case m of
     Just m' ->
       case methodBody m' of
@@ -551,10 +532,10 @@ getMethodBody = proc () -> do
 catchExceptions :: (ArrowChoice c,
                    ArrowFail Val c,
                    ArrowEnv String Addr PointerEnv c,
-                   ArrowState ProgramState c,
+                   ArrowState Addr c,
                    ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
                    ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-                   ArrowConst Files c,
+                   ArrowConst (CompilationUnits, Fields) c,
                    ArrowStore Addr Val () c,
                    ArrowReader (Maybe Method, Int) c) => [CatchClause] -> c Val (Maybe Val)
 catchExceptions cs = proc (val) -> do
@@ -564,7 +545,7 @@ catchExceptions cs = proc (val) -> do
       case o of
         VObject c _ -> case filter (\clause -> className clause == c) cs of
           (clause:_) -> do
-            (_, _, i, _, _, _) <- getA -< ()
+            (_, i) <- askA -< ()
             body <- getMethodBody -< ()
             let stmts = statements body
             let iFrom = elemIndex (Label (fromLabel clause)) stmts
@@ -586,10 +567,10 @@ catchExceptions cs = proc (val) -> do
 runStatements :: (ArrowChoice c,
                   ArrowFail Val c,
                   ArrowEnv String Addr PointerEnv c,
-                  ArrowState ProgramState c,
+                  ArrowState Addr c,
                   ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
                   ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-                  ArrowConst Files c,
+                  ArrowConst (CompilationUnits, Fields) c,
                   ArrowStore Addr Val () c,
                   ArrowReader (Maybe Method, Int) c) => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i == length stmts
@@ -680,7 +661,7 @@ runStatements = proc (stmts, i) -> if i == length stmts
       runStatements -< (stmts, i + 1)
     _ -> runStatements -< (stmts, i + 1)
 
-runDeclaration :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c (Env String Addr, Declaration) PointerEnv
+runDeclaration :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState Addr c, ArrowStore Addr Val () c) => c (Env String Addr, Declaration) PointerEnv
 runDeclaration = proc (env, dec) -> case dec of
   (t, (d:rest)) -> do
     env' <- runDeclaration -< (env, (t, rest))
@@ -689,7 +670,7 @@ runDeclaration = proc (env, dec) -> case dec of
     returnA -< env''
   (_, []) -> returnA -< env
 
-runDeclarations :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c (Env String Addr, [Declaration]) PointerEnv
+runDeclarations :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState Addr c, ArrowStore Addr Val () c) => c (Env String Addr, [Declaration]) PointerEnv
 runDeclarations = proc (env, decs) -> case decs of
   (dec:rest) -> do
     env' <- runDeclarations -< (env, rest)
@@ -700,10 +681,10 @@ runDeclarations = proc (env, decs) -> case decs of
 runMethodBody :: (ArrowChoice c,
                   ArrowFail Val c,
                   ArrowEnv String Addr PointerEnv c,
-                  ArrowState ProgramState c,
+                  ArrowState Addr c,
                   ArrowTryCatch Val ([Statement], Int) (Maybe Val) (Maybe Val) c,
                   ArrowTryCatch Val InvokeExpr (Maybe Val) (Maybe Val) c,
-                  ArrowConst Files c,
+                  ArrowConst (CompilationUnits, Fields) c,
                   ArrowStore Addr Val () c,
                   ArrowReader (Maybe Method, Int) c) => c MethodBody (Maybe Val)
 runMethodBody = proc body -> case body of
@@ -714,10 +695,10 @@ runMethodBody = proc body -> case body of
     v <- localEnv runStatements -< (env', (s, 0))
     returnA -< v
 
-unboxErrorRef :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c Val (Maybe Val)
+unboxErrorRef :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState Addr c, ArrowStore Addr Val () c) => c Val (Maybe Val)
 unboxErrorRef = unbox >>> failA
 
-unboxResultRef :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState ProgramState c, ArrowStore Addr Val () c) => c (Maybe Val) (Maybe Val)
+unboxResultRef :: (ArrowChoice c, ArrowFail Val c, ArrowEnv String Addr PointerEnv c, ArrowState Addr c, ArrowStore Addr Val () c) => c (Maybe Val) (Maybe Val)
 unboxResultRef = proc val -> case val of
   Just x -> do
     x' <- unbox -< x
