@@ -64,7 +64,7 @@ library
                        Control.Arrow.Fix,
                        Control.Arrow.Lift,
                        Control.Arrow.Reader,
-                       Control.Arrow.Property,
+                       Control.Arrow.Effect,
                        Control.Arrow.State,
                        Control.Arrow.Store,
                        Control.Arrow.Writer,
@@ -73,7 +73,6 @@ library
 
                        Control.Arrow.Abstract.Alloc,
 
-                       Control.Arrow.Transformer.Property,
                        Control.Arrow.Transformer.Reader,
                        Control.Arrow.Transformer.State,
                        Control.Arrow.Transformer.Writer,
@@ -81,6 +80,8 @@ library
                        Control.Arrow.Transformer.Static,
                        Control.Arrow.Transformer.BackwardState,
                        Control.Arrow.Transformer.GreatestFixPoint,
+                       Control.Arrow.Transformer.ForwardAnalysis,
+                       Control.Arrow.Transformer.BackwardAnalysis,
 
                        Control.Arrow.Transformer.Concrete.Environment,
                        Control.Arrow.Transformer.Concrete.Except,
@@ -98,6 +99,7 @@ library
                        -- Control.Arrow.Transformer.Abstract.LiveVariables,
                        Control.Arrow.Transformer.Abstract.ReachingDefinitions,
                        Control.Arrow.Transformer.Abstract.Uncertain
+  other-modules:       Control.Arrow.Transformer.Effect
   build-depends:       base,
                        containers,
                        hashable,
@@ -120,6 +122,8 @@ test-suite specs
                      hashable,
                      unordered-containers,
                      text
+  other-modules:     BoundedEnvironmentSpec,
+                     FixSpec
   default-language:  Haskell2010
 
  

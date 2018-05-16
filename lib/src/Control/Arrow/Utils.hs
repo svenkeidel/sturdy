@@ -45,3 +45,6 @@ foldA f = proc (l,a) -> case l of
 
 duplicate :: Arrow c => c x (x,x)
 duplicate = arr (\x -> (x,x))
+
+constA :: Arrow c => c () x -> c y x
+constA f = arr (\_ -> ()) >>> f

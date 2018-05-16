@@ -8,6 +8,7 @@ module Control.Arrow.State where
 import Prelude hiding (id,(.))
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Utils
 import Control.Monad.State
 
 class Arrow c => ArrowState s c | c -> s where
@@ -15,9 +16,10 @@ class Arrow c => ArrowState s c | c -> s where
   putA :: c s ()
 
 modifyA :: ArrowState s c => c (x,s) s -> c x ()
-modifyA f = proc x -> do
-  s <- getA -< ()
-  putA <<< f -< (x,s)
+modifyA f = putA <<< f <<< (id &&& constA getA)
+
+modifyA' :: ArrowState s c => c (s,x) s -> c x ()
+modifyA' f = putA <<< f <<< (constA getA &&& id)
 
 instance MonadState s m => ArrowState s (Kleisli m) where
   getA = Kleisli (const get)
