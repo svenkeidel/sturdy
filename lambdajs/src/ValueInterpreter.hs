@@ -223,6 +223,9 @@ eval = proc e -> case e of
         res <- evalOp -< (op, vals)
         returnA -< res
     EApp (ELambda params body) args -> do
+        -- #todo generate fresh, this now overrides previous assignments
+        -- look at the environment and find 'length x' unused numbers starting from 1
+        -- this also garbage collects
         range <- arr $ (\x -> [1..(length x)]) -< params
         locations <- arr $ map (\x -> Location x) -< range
 
@@ -324,9 +327,8 @@ eval = proc e -> case e of
                 case catch of
                     ELambda [x] body -> do
                         scope <- getEnv -< ()
-                        -- #todo generate fresh location
-                        env' <- extendEnv -< (x, Location 100, scope)
-                        write -< (Location 100, v, ())
+                        env' <- extendEnv -< (x, Location 0, scope)
+                        write -< (Location 0, v, ())
                         res <- localEnv eval -< (env', body)
                         returnA -< res
                     _ -> failA -< "Error: Catch block must be of type ELambda"
