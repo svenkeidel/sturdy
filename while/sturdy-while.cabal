@@ -16,7 +16,7 @@ library
                        ValueSemantics.Concrete
                        ValueSemantics.Interval
                        ValueSemantics.Symbolic
-                       ValueSemantics.ControlFlow
+                       ValueSemantics.Unit
 
                        -- Vals.Symbolic.Val
                        -- Vals.Symbolic.Semantics
@@ -79,7 +79,9 @@ test-suite specs
                        text,
                        QuickCheck
   default-language:    Haskell2010
-  -- other-modules:       Soundness
+  other-modules:       IntervalAnalysisSpec,
+                       ReachingDefinitionsSpec
+  --                      Soundness
   --                      WhileLanguageSoundness
 
                        -- Specs.IntervalSpec

@@ -10,7 +10,7 @@ import           Prelude hiding (and,or,not,div)
 import           Syntax
 import           SharedSemantics
 import qualified SharedSemantics as Shared
-import           ValueSemantics.ControlFlow
+import           ValueSemantics.Unit
 
 import           Data.Text (Text)
 import           Data.Label
@@ -68,6 +68,3 @@ instance (Conditional val (ReachingDefs v l,x) (ReachingDefs v l,y) (ReachingDef
   => Conditional val x y z (ReachingDefinitions v l c) where
   if_ (ReachingDefs f1) (ReachingDefs f2) =
     ReachingDefs $ proc (defs,(v,(x,y))) -> if_ f1 f2 -< (v,((defs,x),(defs,y)))
-
-  -- if_ (ReachingDefinitions (State (Writer f1))) (ReachingDefinitions (State (Writer f2))) =
-  --   ReachingDefinitions $ State $ Writer $ proc (defs,(v,(x,y))) -> if_ f1 f2 -< (v,((defs,x),(defs,y)))

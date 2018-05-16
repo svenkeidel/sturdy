@@ -9,9 +9,9 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module ValueSemantics.ControlFlow where
+module ValueSemantics.Unit where
 
-import           Prelude hiding (Bool(..),Bounded(..),(==),(/),(<))
+import           Prelude hiding (Bool(..),Bounded(..))
 
 import           Syntax
 import           SharedSemantics
@@ -36,8 +36,8 @@ import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Monad.State
 
+-- Value semantics for the while language that does not approximate values at all.
 type Val = ()
-
 newtype Interp c x y = Interp (StoreArrow Text Val (Except String c) x y)
 type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,x) (Error String (Store Text Val,y)) c)
 
