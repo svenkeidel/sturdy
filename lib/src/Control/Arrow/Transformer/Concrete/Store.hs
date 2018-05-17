@@ -18,6 +18,7 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Transformer.State
+import Control.Arrow.Try
 import Control.Arrow.Utils
 import Control.Category
 
@@ -53,6 +54,9 @@ instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c) =>
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   getA = lift getA
   putA = lift putA
+
+instance (ArrowTry (Store var val,x) (Store var val,y) (Store var val,z) c) => ArrowTry x y z (StoreArrow var val c) where
+  tryA (StoreArrow f) (StoreArrow g) (StoreArrow h) = StoreArrow (tryA f g h)
 
 deriving instance Category c => Category (StoreArrow var val c)
 deriving instance Arrow c => Arrow (StoreArrow var val c)
