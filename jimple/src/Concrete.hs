@@ -537,8 +537,8 @@ getMethodBody = proc () -> do
         MFull{} -> returnA -< methodBody m'
     Nothing -> failA -< VString "No method currently running"
 
-catchExceptions :: CanInterp c => [CatchClause] -> c Val (Maybe Val)
-catchExceptions cs = proc val -> case val of
+catchExceptions :: CanInterp c => c (Val, [CatchClause]) (Maybe Val)
+catchExceptions = proc (val, cs) -> case val of
   VRef addr -> do
     o <- read' -< addr
     case o of
@@ -567,12 +567,10 @@ runStatements :: CanInterp c => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i == length stmts
   then returnA -< Nothing
   else case stmts !! i of
-    -- Label labelName -> do
-      -- let fltr = proc (n, b) ->
-      --       returnA -< (filter (\c -> n == fromLabel c) (catchClauses b))
-      -- body <- getMethodBody -< ()
-      -- cs <- fltr -< (labelName, body)
-      -- tryCatchA runStatements returnA (catchExceptions cs) -< (stmts, i + 1)
+    Label labelName -> do
+      body <- getMethodBody -< ()
+      let cs = (filter (\c -> labelName == fromLabel c) (catchClauses body))
+      tryCatchA' runStatements catchExceptions -< ((stmts, i + 1), cs)
     -- Breakpoint
     -- Entermonitor Immediate
     -- Exitmonitor Immediate
