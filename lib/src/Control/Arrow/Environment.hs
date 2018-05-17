@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Environment where
 
 import Control.Arrow

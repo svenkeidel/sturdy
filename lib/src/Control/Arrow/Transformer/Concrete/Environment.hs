@@ -19,11 +19,13 @@ import qualified Data.Concrete.Environment as E
 import           Control.Category
 
 import           Control.Arrow
+import           Control.Arrow.TryCatch
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Lift
+import           Control.Arrow.Try
 import           Control.Arrow.Environment
 import           Control.Arrow.Fix
 
@@ -50,6 +52,11 @@ instance ArrowApply c => ArrowApply (Environment var val c) where
 instance ArrowReader r c => ArrowReader r (Environment var val c) where
   askA = lift askA
   localA (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> localA f))
+
+deriving instance ArrowTry (Env var val,x) (Env var val,y) z c => ArrowTry x y z (Environment var val c)
+
+deriving instance ArrowTryCatch (Env var val,e) (Env var val,x) (Env var val,y) (Env var val,z) c =>
+  ArrowTryCatch e x y z (Environment var val c)
 
 deriving instance Arrow c => Category (Environment var val c)
 deriving instance Arrow c => Arrow (Environment var val c)

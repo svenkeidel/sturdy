@@ -2,16 +2,16 @@ name:                sturdy-lib
 
 version:             0.1.0.0
 
--- synopsis:            
+-- synopsis:
 description:         A library for abstract interpretation
 license:             BSD3
 license-file:        LICENSE
 author:              Sven Keidel
 maintainer:          svenkeidel@gmail.com
--- copyright:           
+-- copyright:
 category:            Language
 build-type:          Simple
-extra-source-files:  
+extra-source-files:
 cabal-version:       >=1.10
 
 flag trace
@@ -32,7 +32,7 @@ library
                        Data.Numeric,
                        Data.Order,
                        Data.Utils,
-  
+
                        Data.Concrete.Boolean,
                        Data.Concrete.Environment,
                        Data.Concrete.Error,
@@ -60,6 +60,7 @@ library
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
                        Control.Arrow.Environment,
+                       Control.Arrow.TryCatch,
                        Control.Arrow.Fail,
                        Control.Arrow.Fix,
                        Control.Arrow.Lift,
@@ -114,8 +115,6 @@ test-suite specs
   ghc-options:       -Wall
   hs-source-dirs:    test
   main-is:           Spec.hs
-  other-modules:     BoundedEnvironmentSpec
-                     FixSpec
   build-depends:     base,
                      hspec,
                      sturdy-lib,
@@ -123,5 +122,3 @@ test-suite specs
                      unordered-containers,
                      text
   default-language:  Haskell2010
-
- 

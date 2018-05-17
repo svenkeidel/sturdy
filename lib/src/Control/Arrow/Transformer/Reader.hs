@@ -3,13 +3,16 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Transformer.Reader(Reader(..)) where
 
 import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
 import Control.Arrow.Environment
+import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
@@ -76,6 +79,10 @@ instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where
 
 instance ArrowTry (r,x) (r,y) z c => ArrowTry x y z (Reader r c) where
   tryA (Reader f) (Reader g) (Reader h) = Reader $ tryA (pi1 &&& f) g h
+
+instance ArrowTryCatch (r,e) (r,x) (r,y) (r,z) c => ArrowTryCatch e x y z (Reader r c) where
+  tryCatchA (Reader f) (Reader g) (Reader h) =
+    Reader (tryCatchA (pi1 &&& f) (pi1 &&& g) (pi1 &&& h)) >>> pi2
 
 instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
   dedupA (Reader f) = Reader (dedupA f)

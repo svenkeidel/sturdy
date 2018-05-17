@@ -12,6 +12,7 @@ import Prelude hiding (id,(.),lookup)
 import Control.Arrow
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
+import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
@@ -74,6 +75,9 @@ instance ArrowChoice c => ArrowTry x y z (Except e c) where
 hasSucceeded :: (Error e b,a) -> Either b a
 hasSucceeded (Fail _,a) = Right a
 hasSucceeded (Success b,_) = Left b
+
+instance ArrowChoice c => ArrowTryCatch e x y z (Except e c) where
+  tryCatchA (Except f) (Except g) (Except h) = Except $ f >>> toEither ^>> (h ||| g)
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedupA (Except f) = Except (dedupA f)
