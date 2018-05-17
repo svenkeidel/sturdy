@@ -69,6 +69,8 @@ library
                        Control.Arrow.Except,
                        Control.Arrow.Fix,
                        Control.Arrow.Lift,
+                       Control.Arrow.MaybeEnvironment,
+                       Control.Arrow.MaybeStore,
                        Control.Arrow.Reader,
                        Control.Arrow.State,
                        Control.Arrow.Store,

@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Store where
 
-import Prelude hiding ((.))
+import Prelude hiding ((.),read)
 
 import Control.Arrow
 import Control.Arrow.Const
@@ -19,6 +19,7 @@ import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
+import Control.Arrow.TryCatch
 import Control.Arrow.Transformer.State
 import Control.Arrow.Utils
 import Control.Category

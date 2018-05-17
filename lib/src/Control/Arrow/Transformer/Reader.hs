@@ -13,6 +13,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment
+import qualified Control.Arrow.MaybeEnvironment as ME
 import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -70,6 +71,14 @@ instance ArrowStore var val lab c => ArrowStore var val lab (Reader r c) where
 instance ArrowState s c => ArrowState s (Reader r c) where
   get = lift get
   put = lift put
+
+instance ArrowStore var val lab c => ArrowStore var val lab (Reader r c) where
+  read = lift read
+  write = lift write
+
+instance MS.ArrowMaybeStore var val c => MS.ArrowMaybeStore var val (Reader r c) where
+  read = lift MS.read
+  write = lift MS.write
 
 instance ArrowWriter w c => ArrowWriter w (Reader r c) where
   tell = lift tell

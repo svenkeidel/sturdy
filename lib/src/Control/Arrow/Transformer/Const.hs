@@ -21,6 +21,7 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Const
+import Control.Arrow.TryCatch
 import Control.Arrow.Writer
 import Control.Arrow.Transformer.Static
 import Control.Arrow.Abstract.Join
