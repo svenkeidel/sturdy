@@ -252,13 +252,18 @@ fetchLocal = proc x -> do
   addr <- lookup' -< x
   read' -< addr
 
-fetchField :: (CanFail c, CanStore c, CanUseConst c) => c FieldSignature Val
-fetchField = proc x -> do
+lookupField :: (CanFail c, CanUseConst c) => c FieldSignature Addr
+lookupField = proc x -> do
   (_,fields) <- askConst -< ()
-  let addr = Map.lookup x fields
-  case addr of
-    Just a -> read' -< a
+  case Map.lookup x fields of
+    Just addr -> returnA -< addr
     Nothing -> failA -< VString $ printf "Field %s not bound" (show x)
+
+fetchFieldWithAddr :: (CanFail c, CanStore c, CanUseConst c) => c FieldSignature (Addr, Val)
+fetchFieldWithAddr = proc x -> do
+  addr <- lookupField -< x
+  val <- read' -< addr
+  returnA -< (addr, val)
 
 fetchCompilationUnit :: (CanFail c, CanUseConst c) => c String CompilationUnit
 fetchCompilationUnit = proc n -> do
@@ -380,7 +385,9 @@ evalRef = proc ref -> case ref of
     case Map.lookup fieldSignature m of
       Just x -> returnA -< x
       Nothing -> failA -< VString $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
-  SignatureReference fieldSignature -> fetchField -< fieldSignature
+  SignatureReference fieldSignature -> do
+    (_, val) <- fetchFieldWithAddr -< fieldSignature
+    returnA -< val
 
 evalMethod :: CanInterp c => c (Method, Maybe Val, [Immediate]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
@@ -649,7 +656,10 @@ runStatements = proc (stmts, i) -> if i == length stmts
                 write -< (addr, VObject c m')
                 runStatements -< (stmts, i + 1)
               Nothing -> failA -< VString $ printf "FieldSignature %s not defined on object %s: (%s)" (show fieldSignature) (show localName) (show m)
-          SignatureReference fieldSignature -> failA -< VString "SignatureReference is not yet implemented"
+          SignatureReference fieldSignature -> do
+            (addr, _) <- fetchFieldWithAddr -< fieldSignature
+            write -< (addr, v)
+            runStatements -< (stmts, i + 1)
     If e label -> do
       v <- eval -< e
       case v of
