@@ -3,6 +3,7 @@ module ConcreteSpec where
 import Concrete
 import Syntax
 import Data.Concrete.Error
+import Control.Arrow
 
 import qualified Data.Map as Map
 
@@ -42,15 +43,15 @@ testCompilationUnits stmts = [CompilationUnit { fileModifiers = [Public]
                                               }]
 
 evalConcrete :: [(String, Addr)] -> [(Addr, Val)] -> Expr -> Error Val Val
-evalConcrete env store = runInterp eval (testCompilationUnits []) env store (Just (testMethod []))
+evalConcrete env store = runInterp (eval >>> unbox) (testCompilationUnits []) env store (Just (testMethod []))
 
 runStatementsConcrete :: [(String, Addr)] -> [(Addr, Val)] -> [Statement] -> Error Val (Maybe Val)
 runStatementsConcrete env store stmts =
-  runInterp runStatements (testCompilationUnits stmts) env store (Just (testMethod stmts)) (stmts, 0)
+  runInterp (runStatements >>> unboxMaybe) (testCompilationUnits stmts) env store (Just (testMethod stmts)) (stmts, 0)
 
 runProgramConcrete :: [CompilationUnit] -> CompilationUnit -> [Immediate] -> Error Val (Maybe Val)
 runProgramConcrete compilationUnits mainUnit args =
-  runInterp runProgram compilationUnits [] [] Nothing (mainUnit, args)
+  runInterp (runProgram >>> unboxMaybe) compilationUnits [] [] Nothing (mainUnit, args)
 
 spec :: Spec
 spec = do
@@ -122,11 +123,11 @@ spec = do
     --   let st = [(FieldAddr maxAgeSignature, (TInt, VInt 100))]
     --   let expr = EReference (SignatureReference maxAgeSignature)
     --   evalConcrete env st expr `shouldBe` Success (VInt 100)
-    -- it "newmultiarray (float) [3][]" $ do
-    --   let expr = ENew (NewMulti TFloat [IInt 3, IInt 2])
-    --   evalConcrete env store expr `shouldBe` Success (VArray [VArray [VFloat 0.0, VFloat 0.0],
-    --                                              VArray [VFloat 0.0, VFloat 0.0],
-    --                                              VArray [VFloat 0.0, VFloat 0.0]])
+    it "newmultiarray (float) [3][]" $ do
+      let expr = ENew (NewMulti TFloat [IInt 3, IInt 2])
+      evalConcrete env store expr `shouldBe` Success (VArray [VArray [VFloat 0.0, VFloat 0.0],
+                                                 VArray [VFloat 0.0, VFloat 0.0],
+                                                 VArray [VFloat 0.0, VFloat 0.0]])
 
   describe "Simple Statements" $ do
     it "i0 = 2 + 3; return i0;" $ do

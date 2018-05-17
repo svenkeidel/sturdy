@@ -34,6 +34,7 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.MaybeStore
 import           Control.Arrow.TryCatch
+import           Control.Arrow.Utils
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
@@ -226,8 +227,25 @@ toIntList = proc vs -> case vs of
 
 unbox :: (CanFail c, CanUseMem c) => c Val Val
 unbox = proc val -> case val of
-  VRef addr -> read' -< addr
+  VRef addr -> do
+    v <- read' -< addr
+    case v of
+      VObject c m -> do
+        let (keys, vals) = unzip (Map.toList m)
+        vals' <- mapA unbox -< vals
+        returnA -< VObject c (Map.fromList (zip keys vals'))
+      VArray xs -> do
+        xs' <- mapA unbox -< xs
+        returnA -< VArray xs'
+      _ -> returnA -< v
   _ -> returnA -< val
+
+unboxMaybe :: (CanFail c, CanUseMem c) => c (Maybe Val) (Maybe Val)
+unboxMaybe = proc val -> case val of
+  Just x -> do
+    x' <- unbox -< x
+    returnA -< Just x'
+  Nothing -> returnA -< Nothing
 
 fetchLocal :: (CanFail c, CanUseMem c) => c String Val
 fetchLocal = proc x -> do
@@ -684,13 +702,6 @@ runMethodBody = proc body -> case body of
     v <- localEnv runStatements -< (env', (s, 0))
     returnA -< v
 
-unboxResultRef :: (CanFail c, CanUseMem c) => c (Maybe Val) (Maybe Val)
-unboxResultRef = proc val -> case val of
-  Just x -> do
-    x' <- unbox -< x
-    returnA -< Just x'
-  Nothing -> returnA -< Nothing
-
 runProgram :: CanInterp c => c (CompilationUnit, [Immediate]) (Maybe Val)
 runProgram = proc (mainUnit, args) -> do
   let findMethodByName :: [Member] -> String -> Maybe Method
@@ -704,11 +715,11 @@ runProgram = proc (mainUnit, args) -> do
     Just classInitMethod -> do
       evalMethod -< (classInitMethod, Nothing, [])
       case findMethodByName (fileBody mainUnit) "main" of
-        Just mainMethod -> tryCatchA evalMethod unboxResultRef (unbox >>> failA) -< (mainMethod, Nothing, args)
-        Nothing -> unboxResultRef -< Nothing
+        Just mainMethod -> tryCatchA evalMethod returnA (unbox >>> failA) -< (mainMethod, Nothing, args)
+        Nothing -> returnA -< Nothing
     Nothing ->
       case findMethodByName (fileBody mainUnit) "main" of
-        Just mainMethod -> tryCatchA evalMethod unboxResultRef (unbox >>> failA) -< (mainMethod, Nothing, args)
-        Nothing -> unboxResultRef -< Nothing
+        Just mainMethod -> tryCatchA evalMethod returnA (unbox >>> failA) -< (mainMethod, Nothing, args)
+        Nothing -> returnA -< Nothing
 
 ---- End of Actual Evaluation Methods ----
