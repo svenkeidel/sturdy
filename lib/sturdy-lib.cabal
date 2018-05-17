@@ -115,8 +115,6 @@ test-suite specs
   ghc-options:       -Wall
   hs-source-dirs:    test
   main-is:           Spec.hs
-  other-modules:     BoundedEnvironmentSpec,
-                     FixSpec
   build-depends:     base,
                      hspec,
                      sturdy-lib,
