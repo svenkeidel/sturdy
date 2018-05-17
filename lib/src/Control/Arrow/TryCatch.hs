@@ -8,5 +8,5 @@ module Control.Arrow.TryCatch where
 
 import Control.Arrow
 
-class Arrow c => ArrowTryCatch e x y z c where
-  tryCatchA :: c x y -> c y z -> c e z -> c x z
+class Arrow c => ArrowTryCatch e x y c where
+  tryCatchA :: c x y -> c e y -> c x y

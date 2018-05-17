@@ -59,6 +59,9 @@ instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   getA = lift getA
   putA = lift putA
 
+--instance ArrowApply c => ArrowApply (StoreArrow var val c) where
+  --app = StoreArrow $ (\(v, (f, b)) -> (f, (v, b))) ^>> app 
+
 deriving instance Category c => Category (StoreArrow var val c)
 deriving instance Arrow c => Arrow (StoreArrow var val c)
 deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)
@@ -69,5 +72,5 @@ deriving instance ArrowExcept (Store var val,x) (Store var val,y) e c => ArrowEx
 type instance Fix x y (StoreArrow var val c) = StoreArrow var val (Fix (Store var val,x) (Store var val,y) c)
 deriving instance ArrowFix (Store var val, x) (Store var val, y) c => ArrowFix x y (StoreArrow var val c)
 
-deriving instance (ArrowTryCatch (Store var val, e) (Store var val, x) (Store var val, y) (Store var val, z) c, ArrowChoice c, ArrowLoop c) => ArrowTryCatch e x y z (StoreArrow var val c)
-
+--instance (ArrowTryCatch (Store var val, e) (Store var val, x) (Store var val, y) (Store var val, z) c, ArrowChoice c) => 
+  --ArrowTryCatch e x y z (StoreArrow var val c)

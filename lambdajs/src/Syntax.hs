@@ -8,7 +8,9 @@ import Data.Hashable
 -- From LambdaJS/haskell/src/Syntax.hs
 
 type Ident = String
-type Label = String
+data Label = Label String
+  deriving (Ord, Eq, Show, Generic)
+deriving instance Hashable Label
 
 data Location = Location Int
   deriving (Ord, Eq, Show, Generic)
@@ -82,14 +84,18 @@ data Value
     | VNull
     | VLambda [Ident] Expr
     | VObject [(String, Value)]
-    | VThrown Value
-    | VBreak Label Value
     | VRef Location
     deriving (Show, Eq, Generic)
 instance Hashable Value
 -- Questions
 -- How to encode throws and breaks using arrows?
 -- How to encode references?
+
+data Exceptional
+    = Break Label Value
+    | Thrown Value
+    deriving (Show, Eq, Generic)
+instance Hashable Exceptional
 
 data Type
     = TNumber

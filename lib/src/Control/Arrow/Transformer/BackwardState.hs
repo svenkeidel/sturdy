@@ -89,8 +89,8 @@ instance (ArrowLoop c, ArrowStore var val lab c) => ArrowStore var val lab (Stat
   read = lift read
   write = lift write
 
-instance (ArrowChoice c, ArrowLoop c, ArrowTryCatch (s,e) (s,x) (s,y) (s,z) c) => ArrowTryCatch e x y z (State s c) where
-  tryCatchA (State f) (State g) (State h) = State $ tryCatchA f g h
+instance (ArrowChoice c, ArrowLoop c, ArrowTryCatch (s,e) (s,x) (s,y) c) => ArrowTryCatch e x y (State s c) where
+  tryCatchA (State f) (State g) = State $ tryCatchA f g
 
 type instance Fix x y (State s c) = State s (Fix (s,x) (s,y) c)
 instance (ArrowLoop c, ArrowFix (s,x) (s,y) c) => ArrowFix x y (State s c) where
