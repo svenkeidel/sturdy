@@ -8,7 +8,7 @@ import Control.Arrow
 import Control.Arrow.Utils
 
 class Arrow c => ArrowEnv x y env c | c -> x, c -> y, c -> env where
-  lookup :: c x (Maybe y)
+  lookup :: c x y
   getEnv :: c () env
   extendEnv :: c (x,y,env) env
   localEnv :: c a b -> c (env,a) b

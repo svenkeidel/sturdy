@@ -31,7 +31,6 @@ library
                        Data.Label,
                        Data.Numeric,
                        Data.Order,
-                       Data.Throwable,
                        Data.Utils,
 
                        Data.Concrete.Boolean,
@@ -60,7 +59,6 @@ library
                        Control.Arrow.Const,
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
-                       Control.Arrow.DefaultError,
                        Control.Arrow.Environment,
                        Control.Arrow.TryCatch,
                        Control.Arrow.Fail,
