@@ -9,18 +9,22 @@ import Prelude hiding (lookup, and, or, not, div, read)
 import Data.Label
 
 import Control.Arrow
+import Control.Arrow.Environment
 import Control.Arrow.Fix
 import Control.Arrow.Store
+import Control.Arrow.Try
 
 import Data.Text (Text)
 
 import Syntax
 
 type Prog = [Statement]
-  
-eval :: (ArrowChoice c, ArrowStore Text v Label c, IsVal v c) => c Expr v
+
+eval :: (ArrowChoice c, ArrowEnv Text a env c, ArrowStore a v Label c, IsVal v a c) => c Expr v
 eval = proc e -> case e of
-  Var x l -> read -< (x,l)
+  Var x l -> do
+    a <- lookup -< x
+    read -< (a,l)
   BoolLit b l -> boolLit -< (b,l)
   And e1 e2 l -> do
     v1 <- eval -< e1
@@ -59,12 +63,42 @@ eval = proc e -> case e of
     v1 <- eval -< e1
     v2 <- eval -< e2
     lt -< (v1,v2,l)
+  Newref e1 l -> do
+    v <- eval -< e1
+    a <- freshAddr -< l
+    write -< (a,v,l)
+    addrRef -< a
+  Deref e1 l -> do
+    v <- eval -< e1
+    a <- refAddr -< (v,l)
+    read -< (a,l)
 
-run :: (ArrowFix [Statement] () c, ArrowChoice c, ArrowStore Text v Label c, Conditional v [Statement] [Statement] () c, IsVal v c) => c [Statement] ()
+
+run :: (
+  ArrowFix [Statement] () c,
+  ArrowChoice c,
+  ArrowEnv Text a env c,
+  ArrowStore a v Label c,
+  ArrowTry (Text,Label) a a c,
+  Conditional v [Statement] [Statement] () c,
+  IsVal v a c
+  ) => c [Statement] ()
 run = fixA $ \run' -> proc stmts -> case stmts of
   (Assign x e l:ss) -> do
     v <- eval -< e
-    write -< (x,v,l)
+    a <- tryA
+      (first lookup >>> arr fst) -- lookup up address of x
+      (arr id) -- if successful, return that address
+      (arr snd >>> freshAddr) -- otherwise create fresh address from l
+       -< (x,l)
+    write -< (a,v,l)
+    run' -< ss
+  (Set x e l:ss) -> do
+    v <- eval -< e
+    xa <- lookup -< x
+    r <- read -< (xa,l)
+    a <- refAddr -< (r,l)
+    write -< (a,v,l)
     run' -< ss
   (If cond b1 b2 _:ss) -> do
     b <- eval -< cond
@@ -75,7 +109,7 @@ run = fixA $ \run' -> proc stmts -> case stmts of
   [] ->
     returnA -< ()
 
-class Arrow c => IsVal v c | c -> v where
+class Arrow c => IsVal v a c | c -> v, c -> a where
   boolLit :: c (Bool,Label) v
   and :: c (v,v,Label) v
   or :: c (v,v,Label) v
@@ -88,6 +122,9 @@ class Arrow c => IsVal v c | c -> v where
   div :: c (v,v,Label) v
   eq :: c (v,v,Label) v
   lt :: c (v,v,Label) v
+  freshAddr :: c Label a
+  addrRef :: c a v
+  refAddr :: c (v,Label) a
 
 class Arrow c => Conditional v x y z c | c -> v where
   if_ :: c x z -> c y z -> c (v,(x,y)) z

@@ -30,6 +30,7 @@ import           Control.Arrow.State
 import           Control.Arrow.Fix
 import           Control.Arrow.Store
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.Concrete.LeastFixPoint(runLeastFixPoint)
@@ -38,17 +39,21 @@ import           System.Random
 
 import           GHC.Generics (Generic)
 
-data Val = BoolVal Bool | NumVal Int deriving (Eq, Show, Generic)
-newtype Interp c x y = Interp (State StdGen (StoreArrow Text Val (Except String c)) x y)
+type Addr = Int
+data Val = BoolVal Bool | NumVal Int | RefVal Addr deriving (Eq, Show, Generic)
+type Env = [(Text,Addr)]
+type ProgState = (StdGen,Addr)
+
+newtype Interp c x y = Interp (State ProgState (Environment Text Addr (StoreArrow Addr Val (Except String c))) x y)
 type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,(StdGen,x)) (Error String (Store Text Val,(StdGen,y))) c)
 
-runInterp :: Interp c x y -> c (Store Text Val, (StdGen,x)) (Error String (Store Text Val, (StdGen,y)))
-runInterp (Interp f) = runExcept (runStore (runState f))
+runInterp :: ArrowChoice c => Interp c x y -> c (Store Addr Val, (Env, (ProgState,x))) (Error String (Store Addr Val, (ProgState,y)))
+runInterp (Interp f) = runExcept (runStore (runEnvironment (runState f)))
 
-run :: [Statement] -> Error String (Store Text Val)
-run ss = fst <$> runLeastFixPoint (runInterp (Shared.run :: Fix [Statement] () (Interp (->)) [Statement] ())) (S.empty,(mkStdGen 0,ss))
+run :: [Statement] -> Error String (Store Addr Val)
+run ss = fst <$> runLeastFixPoint (runInterp (Shared.run :: Fix [Statement] () (Interp (->)) [Statement] ())) (S.empty,([],((mkStdGen 0,0),ss)))
 
-instance ArrowChoice c => IsVal Val (Interp c) where
+instance ArrowChoice c => IsVal Val Addr (Interp c) where
   boolLit = arr (\(b,_) -> BoolVal b)
   and = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 && b2)
@@ -61,9 +66,9 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     _ -> failA -< "Expected a boolean as argument for 'not'"
   numLit = arr (\(d,_) -> NumVal d)
   randomNum = proc _ -> do
-    gen <- getA -< ()
+    (gen,loc) <- getA -< ()
     let (r, gen') = random gen
-    putA -< gen'
+    putA -< (gen',loc)
     returnA -< NumVal r
   add = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
@@ -84,6 +89,14 @@ instance ArrowChoice c => IsVal Val (Interp c) where
   lt = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.< n2)
     _ -> failA -< "Expected two numbers as arguments for 'lt'"
+  freshAddr = proc _ -> do
+    (gen,a) <- getA -< ()
+    putA -< (gen,a+1)
+    returnA -< a
+  addrRef = arr RefVal
+  refAddr = proc (r,_) -> case r of
+    RefVal a -> returnA -< a
+    v -> failA -< "Expected reference but found " ++ show v
 
 instance ArrowChoice c => Conditional Val x y z (Interp c) where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
@@ -95,8 +108,8 @@ deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)
 deriving instance ArrowChoice c => ArrowChoice (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
-deriving instance ArrowChoice c => ArrowState StdGen (Interp c)
-deriving instance (ArrowFix (Store Text Val,(StdGen,x)) (Error String (Store Text Val,(StdGen,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
+deriving instance ArrowChoice c => ArrowState ProgState (Interp c)
+deriving instance (ArrowFix (Store Text Val,(ProgState,x)) (Error String (Store Text Val,(ProgState,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
 deriving instance ArrowChoice c => ArrowStore Text Val Label (Interp c)
 
 instance Hashable Val

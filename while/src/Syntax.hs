@@ -28,6 +28,8 @@ data Expr
   | Div Expr Expr Label
   | Eq Expr Expr Label
   | Lt Expr Expr Label
+  | Newref Expr Label
+  | Deref Expr Label
   deriving (Ord,Eq,Generic)
 
 instance Show Expr where
@@ -45,6 +47,8 @@ instance Show Expr where
     Div e1 e2 _ -> binOp " / " e1 e2
     Eq e1 e2 _ -> binOp " == " e1 e2
     Lt e1 e2 _ -> binOp " < " e1 e2
+    Newref e _ -> unOp "newref" e
+    Deref e _ -> unOp "deref" e
     where
       literal :: Show x => x -> ShowS
       literal = shows
@@ -114,6 +118,8 @@ instance HasLabel Expr where
     Div _ _ l -> l
     Eq _ _ l -> l
     Lt _ _ l -> l
+    Newref _ l -> l
+    Deref _ l -> l
     
 instance Hashable Expr where
 
@@ -125,11 +131,13 @@ data Statement
   = While Expr [Statement] Label
   | If Expr [Statement] [Statement] Label
   | Assign Text Expr Label
+  | Set Text Expr Label
   deriving (Ord,Eq,Generic)
 
 instance Show Statement where
   showsPrec _ e0 = case e0 of
     Assign x e _ -> showString (unpack x) . showString " := " . shows e
+    Set x e _ -> showString (unpack x) . showString " ::= " . shows e
     While e body _ -> showString "while" . showParen True (shows e) . showString " " . shows body
     If e ifB elseB _ -> showString "if" . showParen True (shows e) . showString " " . shows ifB . showString " " . shows elseB
 
@@ -145,11 +153,16 @@ ifExpr cond ifBranch elseBranch = If <$> cond <*> sequence ifBranch <*> sequence
 x =: e = Assign x <$> e <*> fresh
 infix 0 =:
 
+(=::) :: Text -> State Label Expr -> State Label Statement
+x =:: e = Set x <$> e <*> fresh
+infix 0 =::
+
 instance HasLabel Statement where
   label s = case s of 
     While _ _ l -> l
     If _ _ _ l -> l
     Assign _ _ l -> l
+    Set _ _ l -> l
 
 instance Hashable Statement where
 
@@ -161,6 +174,7 @@ blocks = concatMap go
     go :: Statement -> [Statement]
     go s = case s of
       Assign {} -> [s]
+      Set {} -> [s]
       If _ ss1 ss2 _ -> s : concatMap go (ss1 ++ ss2)
       While _ ss _ -> s : concatMap go ss
 
