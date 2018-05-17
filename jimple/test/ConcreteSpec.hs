@@ -167,50 +167,50 @@ spec = do
 
   describe "Complete program" $ do
     it "10! = 3628800" $ do
-      let files = [("java.lang.Object",                   objectFile),
-                   ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
-                   ("FactorialExample",                   factorialExampleFile)]
+      let files = [objectFile,
+                   illegalArgumentExceptionFile,
+                   factorialExampleFile]
       runProgramConcrete files factorialExampleFile [IInt 10] `shouldBe` Success (Just (VInt 3628800))
     it "s = new SingleMethodExample; s.x = 2; return s.x" $ do
-      let files = [("java.lang.Object",                   objectFile),
-                   ("SingleMethodExample",                singleMethodExampleFile)]
+      let files = [objectFile,
+                   singleMethodExampleFile]
       runProgramConcrete files singleMethodExampleFile [] `shouldBe` Success (Just (VInt 2))
     it "(-10)! throws IllegalArgumentException" $ do
-      let files = [("java.lang.Object",                   objectFile),
-                   ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
-                   ("FactorialExample",                   factorialExampleFile)]
+      let files = [objectFile,
+                   illegalArgumentExceptionFile,
+                   factorialExampleFile]
       runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject "java.lang.IllegalArgumentException" (Map.fromList [(illegalArgumentExceptionMessageSignature, VString "Negative value for argument n")]))
     it "5 -> [5, 5, 5, 5]" $ do
-      let files = [("java.lang.Object",                   objectFile),
-                   ("java.lang.IllegalArgumentException", illegalArgumentExceptionFile),
-                   ("ArrayFieldExample",                  arrayFieldExampleFile)]
+      let files = [objectFile,
+                   illegalArgumentExceptionFile,
+                   arrayFieldExampleFile]
       runProgramConcrete files arrayFieldExampleFile [IInt (5)] `shouldBe` Success (Just (VArray [VInt 5, VInt 5, VInt 5, VInt 5]))
 
   where
     env = []
     store = []
-    addMethodBody = MFull {
-      declarations = [
-        (TInt, ["i0", "i1", "i2"])
-      ],
-      statements = [
-        Identity "i0" (IDParameter 0) TInt,
-        Identity "i1" (IDParameter 1) TInt,
-        Assign (VLocal "i2") (EBinop (ILocalName "i0") Plus (ILocalName "i1")),
-        Return (Just (ILocalName "i2"))
-      ],
-      catchClauses = []
-    }
-    addMethod = Method { methodModifiers = [Static, Public]
-                       , returnType = TInt
-                       , methodName = "add"
-                       , parameters = [TInt, TInt]
-                       , throws = []
-                       , methodBody = addMethodBody }
-    exampleFile = CompilationUnit { fileModifiers = [Public]
-                                  , fileType = FTClass
-                                  , fileName = "Example"
-                                  , extends = Nothing
-                                  , implements = []
-                                  , fileBody = [MethodMember addMethod] }
-    addSignature = MethodSignature "Example" TInt "add" [TInt, TInt]
+    -- addMethodBody = MFull {
+    --   declarations = [
+    --     (TInt, ["i0", "i1", "i2"])
+    --   ],
+    --   statements = [
+    --     Identity "i0" (IDParameter 0) TInt,
+    --     Identity "i1" (IDParameter 1) TInt,
+    --     Assign (VLocal "i2") (EBinop (ILocalName "i0") Plus (ILocalName "i1")),
+    --     Return (Just (ILocalName "i2"))
+    --   ],
+    --   catchClauses = []
+    -- }
+    -- addMethod = Method { methodModifiers = [Static, Public]
+    --                    , returnType = TInt
+    --                    , methodName = "add"
+    --                    , parameters = [TInt, TInt]
+    --                    , throws = []
+    --                    , methodBody = addMethodBody }
+    -- exampleFile = CompilationUnit { fileModifiers = [Public]
+    --                               , fileType = FTClass
+    --                               , fileName = "Example"
+    --                               , extends = Nothing
+    --                               , implements = []
+    --                               , fileBody = [MethodMember addMethod] }
+    -- addSignature = MethodSignature "Example" TInt "add" [TInt, TInt]
