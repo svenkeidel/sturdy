@@ -17,6 +17,41 @@ import Classes.Object
 main :: IO ()
 main = hspec spec
 
+testMethodBody :: [Statement] -> MethodBody
+testMethodBody stmts = MFull { declarations = []
+                             , statements = stmts
+                             , catchClauses = []
+                             }
+
+testMethod :: [Statement] -> Method
+testMethod stmts = Method { methodModifiers = [Public, Static]
+                          , returnType = TVoid
+                          , methodName = "test"
+                          , parameters = []
+                          , throws = []
+                          , methodBody = testMethodBody stmts
+                          }
+
+testCompilationUnits :: [Statement] -> [CompilationUnit]
+testCompilationUnits stmts = [CompilationUnit { fileModifiers = [Public]
+                                              , fileType = FTClass
+                                              , fileName = "Test"
+                                              , extends = Just "java.lang.Object"
+                                              , implements = []
+                                              , fileBody = [MethodMember (testMethod stmts)]
+                                              }]
+
+evalConcrete :: [(String, Addr)] -> [(Addr, Val)] -> Expr -> Error Val Val
+evalConcrete env store = runInterp eval (testCompilationUnits []) env store (Just (testMethod []))
+
+runStatementsConcrete :: [(String, Addr)] -> [(Addr, Val)] -> [Statement] -> Error Val (Maybe Val)
+runStatementsConcrete env store stmts =
+  runInterp runStatements (testCompilationUnits stmts) env store (Just (testMethod stmts)) (stmts, 0)
+
+runProgramConcrete :: [CompilationUnit] -> CompilationUnit -> [Immediate] -> Error Val (Maybe Val)
+runProgramConcrete compilationUnits mainUnit args =
+  runInterp runProgram compilationUnits [] [] Nothing (mainUnit, args)
+
 spec :: Spec
 spec = do
   describe "Literals" $ do
