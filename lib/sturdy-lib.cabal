@@ -122,8 +122,6 @@ test-suite specs
                      hashable,
                      unordered-containers,
                      text
-  other-modules:     BoundedEnvironmentSpec,
-                     FixSpec
   default-language:  Haskell2010
 
  
