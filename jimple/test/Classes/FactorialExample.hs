@@ -97,8 +97,8 @@ factorialExampleExecMethod = Method {
   }
 }
 
-factorialExampleFile :: File
-factorialExampleFile = File {
+factorialExampleFile :: CompilationUnit
+factorialExampleFile = CompilationUnit {
   fileModifiers = [Public],
   fileType = FTClass,
   fileName = "FactorialExample",

@@ -25,8 +25,8 @@ objectInitMethod = Method {
   }
 }
 
-objectFile :: File
-objectFile = File {
+objectFile :: CompilationUnit
+objectFile = CompilationUnit {
   fileModifiers = [Public],
   fileType = FTClass,
   fileName = "java.lang.Object",

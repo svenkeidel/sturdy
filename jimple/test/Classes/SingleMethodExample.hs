@@ -93,8 +93,8 @@ singleMethodExampleFooMethod = Method {
   }
 }
 
-singleMethodExampleFile :: File
-singleMethodExampleFile = File {
+singleMethodExampleFile :: CompilationUnit
+singleMethodExampleFile = CompilationUnit {
   fileModifiers = [Public],
   fileType = FTClass,
   fileName = "SingleMethodExample",

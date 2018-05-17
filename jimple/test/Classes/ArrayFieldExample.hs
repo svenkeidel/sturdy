@@ -106,8 +106,8 @@ arrayFieldExampleFillMethod = Method {
   }
 }
 
-arrayFieldExampleFile :: File
-arrayFieldExampleFile = File {
+arrayFieldExampleFile :: CompilationUnit
+arrayFieldExampleFile = CompilationUnit {
   fileModifiers = [Public],
   fileType = FTClass,
   fileName = "ArrayFieldExample",

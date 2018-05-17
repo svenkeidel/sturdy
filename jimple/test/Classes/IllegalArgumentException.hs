@@ -47,8 +47,8 @@ illegalArgumentExceptionInitMethod = Method {
   }
 }
 
-illegalArgumentExceptionFile :: File
-illegalArgumentExceptionFile = File {
+illegalArgumentExceptionFile :: CompilationUnit
+illegalArgumentExceptionFile = CompilationUnit {
   fileModifiers = [Public],
   fileType = FTClass,
   fileName = "java.lang.IllegalArgumentException",

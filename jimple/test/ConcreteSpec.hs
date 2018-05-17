@@ -207,10 +207,10 @@ spec = do
                        , parameters = [TInt, TInt]
                        , throws = []
                        , methodBody = addMethodBody }
-    exampleFile = File { fileModifiers = [Public]
-                       , fileType = FTClass
-                       , fileName = "Example"
-                       , extends = Nothing
-                       , implements = []
-                       , fileBody = [MethodMember addMethod] }
+    exampleFile = CompilationUnit { fileModifiers = [Public]
+                                  , fileType = FTClass
+                                  , fileName = "Example"
+                                  , extends = Nothing
+                                  , implements = []
+                                  , fileBody = [MethodMember addMethod] }
     addSignature = MethodSignature "Example" TInt "add" [TInt, TInt]
