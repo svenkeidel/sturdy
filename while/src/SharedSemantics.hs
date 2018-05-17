@@ -4,11 +4,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module SharedSemantics where
 
-import Prelude hiding (lookup, and, or, not, div, read)
+import Prelude hiding (id,lookup, and, or, not, div, read)
 
 import Data.Label
 
 import Control.Arrow
+import Control.Category
 import Control.Arrow.Environment
 import Control.Arrow.Fix
 import Control.Arrow.Store
@@ -67,10 +68,10 @@ eval = proc e -> case e of
     v <- eval -< e1
     a <- freshAddr -< l
     write -< (a,v,l)
-    addrRef -< a
+    ref -< a
   Deref e1 l -> do
     v <- eval -< e1
-    a <- refAddr -< (v,l)
+    a <- getAddr -< (v,l)
     read -< (a,l)
 
 
@@ -86,18 +87,17 @@ run :: (
 run = fixA $ \run' -> proc stmts -> case stmts of
   (Assign x e l:ss) -> do
     v <- eval -< e
-    a <- tryA
-      (first lookup >>> arr fst) -- lookup up address of x
-      (arr id) -- if successful, return that address
-      (arr snd >>> freshAddr) -- otherwise create fresh address from l
-       -< (x,l)
+    a <- tryA (proc (x,_) -> lookup -< x)    -- lookup up address of x
+              id                             -- if successful, return that address
+              (proc (_,l) -> freshAddr -< l) -- otherwise create fresh address from l
+           -< (x,l)
     write -< (a,v,l)
     run' -< ss
   (Set x e l:ss) -> do
     v <- eval -< e
     xa <- lookup -< x
     r <- read -< (xa,l)
-    a <- refAddr -< (r,l)
+    a <- getAddr -< (r,l)
     write -< (a,v,l)
     run' -< ss
   (If cond b1 b2 _:ss) -> do
@@ -123,8 +123,8 @@ class Arrow c => IsVal v a c | c -> v, c -> a where
   eq :: c (v,v,Label) v
   lt :: c (v,v,Label) v
   freshAddr :: c Label a
-  addrRef :: c a v
-  refAddr :: c (v,Label) a
+  ref :: c a v
+  getAddr :: c (v,Label) a
 
 class Arrow c => Conditional v x y z c | c -> v where
   if_ :: c x z -> c y z -> c (v,(x,y)) z
