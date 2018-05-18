@@ -31,7 +31,7 @@ import Control.Arrow.State
 import Control.Arrow.Transformer.State
 import Control.Arrow.Store
 import Control.Arrow.Reader
-import Control.Arrow.Utils (foldA)
+import Control.Arrow.Utils (foldA, mapA)
 import Control.Arrow.TryCatch
 import Data.Identifiable
 import Data.Fixed (mod')
@@ -84,13 +84,6 @@ fresh = proc () -> do
     Location s <- getA -< ()
     putA -< Location $ s + 1
     returnA -< Location $ s + 1
-
--- Constructs an arrow that operates on a list of inputs producing a list of outputs.
--- Used for evaluating a list of arguments, producing a list of values which are passed to the evalOp function.
-mapA :: ArrowChoice arr => arr a b -> arr [a] [b]
-mapA f = arr (\list -> case list of 
-    [] -> Left ()
-    (x : xs) -> Right (x, xs)) >>> (arr (const []) ||| ((f *** mapA f) >>> (arr (uncurry (:)))))
 
 evalOp :: (ArrowFail (Either String Exceptional) c, ArrowChoice c) => c (Op, [Value]) Value
 evalOp = proc (op, vals) -> case (op, vals) of
