@@ -34,6 +34,7 @@ import           Control.DeepSeq
 import           Control.Monad
 
 import           Data.Abstract.Error
+import           Data.Abstract.FreeCompletion
 import qualified Data.Abstract.Powerset as A
 import qualified Data.Concrete.Powerset as CP
 import           Data.Constructor
@@ -244,11 +245,20 @@ instance PreOrd Term where
     (NumberLiteral n, NumberLiteral n') -> n == n'
     (_, _) -> False
 
+instance PreOrd a => Complete (FreeCompletion a) where
+  Lower a ⊔ Lower b
+    | a ⊑ b = Lower b
+    | b ⊑ a = Lower a
+    | otherwise = Top
+  Top ⊔ _ = Top
+  _ ⊔ Top = Top
+
 instance Complete Term where
   t1 ⊔ t2 = case (t1,t2) of
     (Cons c ts, Cons c' ts')
-      | c == c' && ts ⊑ ts' -> Cons c ts'
-      | c == c' && ts' ⊑ ts -> Cons c ts
+      | c == c' -> case Lower ts ⊔ Lower ts' of
+          Lower ts'' -> Cons c ts''
+          _          -> Wildcard
       | otherwise -> Wildcard
     (StringLiteral s, StringLiteral s')
       | s == s' -> StringLiteral s
