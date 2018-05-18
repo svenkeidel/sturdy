@@ -56,7 +56,7 @@ newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, Pr
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
 newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Except () (Completion (->)))) a b)
-  deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, Category, PreOrd)
+  deriving (Arrow, ArrowApply, ArrowChoice, Category, PreOrd)
 
 runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> FreeCompletion (Error () (TermEnv, b))
 runInterp (Interp f) i alph senv tenv a = runCompletion (runExcept (runState (runReader f))) (tenv, ((senv, i, alph), a))
@@ -130,6 +130,12 @@ instance ArrowFix (Strat,Term) Term Interp where
       else localFuel (f (fix f)) -< ((env,i-1,alph),x)
     where
       localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> local g -< ((env,i,alph),a)
+
+instance ArrowDeduplicate Term Term Interp where
+  dedupA f = proc x -> do
+    x' <- fromTerm ^<< f -< x
+    -- TODO: dropUnreachable breaks the grammars
+    returnA -< Term $ normalize (epsilonClosure (dedup x'))
 
 instance HasStratEnv Interp where
   readStratEnv = Interp (const () ^>> ask >>^ (\(a,_,_) -> a))

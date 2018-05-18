@@ -96,7 +96,7 @@ instance ArrowExcept (s,x) (s,y) e c => ArrowExcept x y e (State s c) where
   tryCatch (State f) (State g) = State $ tryCatch f (from assoc ^>> g)
   finally (State f) (State g) = State $ finally f g
 
-instance (Eq s, Hashable s, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
+instance (Eq s, Hashable s, ArrowDeduplicate (s, x) (s, y) c) => ArrowDeduplicate x y (State s c) where
   dedup (State f) = State (dedup f)
 
 instance ArrowLoop c => ArrowLoop (State s c) where

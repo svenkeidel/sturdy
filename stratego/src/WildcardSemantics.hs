@@ -63,7 +63,7 @@ newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
     
 -- | 
 newtype Interp a b = Interp (Reader StratEnv (State TermEnv (Except () (Powerset GreatestFixPoint))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowDeduplicate,PreOrd,Complete)
+  deriving (Category,Arrow,ArrowChoice,ArrowApply,PreOrd,Complete)
 
 runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> A.Pow (Error () (TermEnv,b))
 runInterp (Interp f) k senv tenv a =
@@ -85,6 +85,7 @@ deriving instance ArrowReader StratEnv Interp
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowFix (Strat,Term) Term Interp
 deriving instance PreOrd y => ArrowExcept x y () Interp
+deriving instance ArrowDeduplicate Term Term Interp
 
 instance ArrowFail () Interp where
   fail = Interp fail

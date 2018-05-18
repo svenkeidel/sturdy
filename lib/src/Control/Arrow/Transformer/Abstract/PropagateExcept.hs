@@ -93,7 +93,7 @@ instance (ArrowChoice c, UpperBounded e, Complete (c (y,(x,e)) (Error e y))) => 
       Fail er   -> g -< (x,er)
 -}
 
-instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
+instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Error e y) c) => ArrowDeduplicate x y (Except e c) where
   dedup (Except f) = Except (dedup f)
 
 instance (ArrowChoice c, ArrowConst x c) => ArrowConst x (Except e c) where
