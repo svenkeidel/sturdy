@@ -136,13 +136,14 @@ runInterp (Interp f) files env store mainMethod x =
         [] -> 0
         addrs -> maximum addrs
       fields = zip (concatMap (\u -> getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
+      store' = store ++ map (\(FieldSignature _ t _,a) -> (a,defaultValue t)) fields
   in runConst (Map.fromList compilationUnits, Map.fromList fields)
       (evalState
         (evalMaybeStore
           (runMaybeEnvironment
             (runReader
               (runExcept f)))))
-  (latestAddr + length fields, (S.fromList store, (env, ((mainMethod, 0, []), x))))
+  (latestAddr + length fields, (S.fromList store', (env, ((mainMethod, 0, []), x))))
 
 ---- End of Program Boilerplate ----
 

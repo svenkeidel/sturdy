@@ -9,12 +9,14 @@ import qualified Data.Map as Map
 
 import Test.Hspec
 
+import Classes.Object
+import Classes.Throwable
+import Classes.IllegalArgumentException
+
 import Classes.SingleMethodExample
 import Classes.ArrayFieldExample
 import Classes.FactorialExample
-import Classes.IllegalArgumentException
-import Classes.Throwable
-import Classes.Object
+import Classes.PersonExample
 
 main :: IO ()
 main = hspec spec
@@ -77,18 +79,6 @@ spec = do
       let st = [(1, VRef 2),
                 (2, VArray [VInt 1, VInt 2, VInt 3])]
       evalConcrete nv st expr `shouldBe` Success (VInt 3)
-    -- it "p.<Person: int age>" $ do
-    --   let personAgeSignature = FieldSignature "Person" TInt "age"
-    --   let personObject = Map.fromList [("age", VInt 10)]
-    --   let nv = [("p", 1)]
-    --   let st = [(1, (TClass "Person", VObject personObject))]
-    --   let expr = EReference (FieldReference "p" personAgeSignature)
-    --   evalConcrete nv st expr `shouldBe` Success (VInt 10)
-    -- it "<Person: int MAX_AGE>" $ do
-    --   let maxAgeSignature = FieldSignature "Person" TInt "MAX_AGE"
-    --   let st = [(FieldAddr maxAgeSignature, (TInt, VInt 100))]
-    --   let expr = EReference (SignatureReference maxAgeSignature)
-    --   evalConcrete env st expr `shouldBe` Success (VInt 100)
     it "newmultiarray (float) [3][]" $ do
       let expr = ENew (NewMulti TFloat [IInt 3, IInt 2])
       evalConcrete env store expr `shouldBe` Success (VArray [VArray [VFloat 0.0, VFloat 0.0],
@@ -158,15 +148,6 @@ spec = do
                    Return (Just (ILocalName "f1"))]
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (VFloat 4.0))
 
-  -- describe "Complex statements" $ do
-  --   it "i0 = staticinvoke <Example: int add(int, int)>(2, 4); return i0;" $ do
-  --     let nv = [("i0", 0)]
-  --     let st = [(0,                  (TInt, defaultValue TInt)),
-  --               (FileAddr "Example", FileVal exampleFile)]
-  --     let stmts = [Assign (VLocal "i0") (EInvoke (StaticInvoke addSignature [IInt 2, IInt 4])),
-  --                  Return (Just (ILocalName "i0"))]
-  --     runStatementsConcrete nv st stmts `shouldBe` Success (Just (VInt 6))
-
   describe "Complete program" $ do
     it "10! = 3628800" $ do
       let files = baseCompilationUnits ++ [factorialExampleFile]
@@ -180,6 +161,9 @@ spec = do
     it "5 -> [5, 5, 5, 5]" $ do
       let files = baseCompilationUnits ++ [arrayFieldExampleFile]
       runProgramConcrete files arrayFieldExampleFile [IInt 5] `shouldBe` Success (Just (VArray [VInt 5, VInt 5, VInt 5, VInt 5]))
+    it "(new Person(10)).yearsToLive() = 90" $ do
+      let files = baseCompilationUnits ++ [personExampleFile]
+      runProgramConcrete files personExampleFile [] `shouldBe` Success (Just (VInt 90))
 
   where
     baseCompilationUnits = [objectFile,
@@ -216,28 +200,3 @@ spec = do
 
     runProgramConcrete compilationUnits mainUnit args =
       runInterp (runProgram >>> unboxMaybe) compilationUnits [] [] Nothing (mainUnit, args)
-    -- addMethodBody = MFull {
-    --   declarations = [
-    --     (TInt, ["i0", "i1", "i2"])
-    --   ],
-    --   statements = [
-    --     Identity "i0" (IDParameter 0) TInt,
-    --     Identity "i1" (IDParameter 1) TInt,
-    --     Assign (VLocal "i2") (EBinop (ILocalName "i0") Plus (ILocalName "i1")),
-    --     Return (Just (ILocalName "i2"))
-    --   ],
-    --   catchClauses = []
-    -- }
-    -- addMethod = Method { methodModifiers = [Static, Public]
-    --                    , returnType = TInt
-    --                    , methodName = "add"
-    --                    , parameters = [TInt, TInt]
-    --                    , throws = []
-    --                    , methodBody = addMethodBody }
-    -- exampleFile = CompilationUnit { fileModifiers = [Public]
-    --                               , fileType = FTClass
-    --                               , fileName = "Example"
-    --                               , extends = Nothing
-    --                               , implements = []
-    --                               , fileBody = [MethodMember addMethod] }
-    -- addSignature = MethodSignature "Example" TInt "add" [TInt, TInt]
