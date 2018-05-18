@@ -48,8 +48,8 @@ instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c) =>
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (localA f)
 
-deriving instance ArrowTryCatch (Env var val, e) (Env var val, x) (Env var val, y) c =>
-    ArrowTryCatch e x y (Environment var val c)
+--deriving instance ArrowTryCatch (Env var val, e) (Env var val, x) (Env var val, y) c =>
+  --ArrowTryCatch e x y (Environment var val c)
 
 instance ArrowApply c => ArrowApply (Environment var val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app

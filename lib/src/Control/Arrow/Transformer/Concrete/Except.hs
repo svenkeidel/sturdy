@@ -19,7 +19,7 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Except
 import Control.Category
-
+import Control.Arrow.Utils
 import Data.Concrete.Error
 import Data.Monoidal
 import Data.Identifiable

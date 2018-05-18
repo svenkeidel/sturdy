@@ -16,8 +16,8 @@ main = hspec spec
 
 eval :: [(Ident, Location)] -> [(Location, Value)] -> Expr -> Either String Value
 eval env st e = case Interpreter.runConcrete env st e of
-  Fail s -> Left s
-  Success (_, r) -> Right r
+  (st, Fail (Left s)) -> Left s
+  (st, Success r) -> Right r
 
 spec :: Spec
 spec = do
@@ -339,10 +339,10 @@ spec = do
   -- labels
   describe "labels" $ do
     it "caught label" $ do
-      let program = ELabel "label1" (ESeq (EBreak "label1" (ENumber 1.0)) (EUndefined))
+      let program = ELabel (Label "label1") (ESeq (EBreak (Label "label1") (ENumber 1.0)) (EUndefined))
       eval scope store program `shouldBe` Right (VNumber 1.0)
     it "escape while" $ do
-      let program = ELabel "label1" (EWhile (EOp OStrictEq [(ENumber 1.0), (ENumber 1.0)]) (EBreak "label1" (ENumber 2.0)))
+      let program = ELabel (Label "label1") (EWhile (EOp OStrictEq [(ENumber 1.0), (ENumber 1.0)]) (EBreak (Label "label1") (ENumber 2.0)))
       eval scope store program `shouldBe` Right (VNumber 2.0)
 
   -- throws

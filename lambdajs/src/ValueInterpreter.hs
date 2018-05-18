@@ -46,7 +46,7 @@ newtype LJSArrow x y = LJSArrow (Except (Either String Exceptional) (Environment
     deriving (ArrowChoice,Arrow,Category)
 deriving instance ArrowFail (Either String Exceptional) LJSArrow
 deriving instance ArrowEnv Ident Location (Env Ident Location) LJSArrow
-deriving instance ArrowApply LJSArrow
+
 instance (Show Location, Identifiable Value, ArrowChoice c) => ArrowStore Location Value lab (StoreArrow Location Value c) where
   read =
     StoreArrow $ State $ proc (s,(var,_)) -> case Data.Concrete.Store.lookup var s of
@@ -66,7 +66,9 @@ instance (Show Ident, Identifiable Ident, ArrowChoice c) => ArrowEnv Ident Locat
 deriving instance ArrowStore Location Value () LJSArrow
 deriving instance ArrowState Location LJSArrow
 
-instance ArrowTryCatch (Either String Exceptional) Expr Value LJSArrow where
+instance ArrowTryCatch (Either String Exceptional) (Label, Expr) (Label, Value) LJSArrow where
+    tryCatchA (LJSArrow f) (LJSArrow g) = LJSArrow $ tryCatchA f g
+instance ArrowTryCatch (Either String Exceptional) (Expr, Expr) (Expr, Value) LJSArrow where
     tryCatchA (LJSArrow f) (LJSArrow g) = LJSArrow $ tryCatchA f g
 
 runLJS :: LJSArrow x y -> [(Ident, Location)] -> [(Location, Value)] -> x -> (Location, (Store Location Value, Error (Either String Exceptional) y))
@@ -229,11 +231,11 @@ updateField = proc (VObject fields, VString name, value) -> do
 
 eval :: (ArrowFail (Either String Exceptional) c, 
     ArrowState Location c,
-    ArrowApply c,
-    ArrowConst Label (Static ((->) Label) c),
     ArrowEnv Ident Location (Env Ident Location) c, 
     ArrowStore Location Value () c, ArrowChoice c,
-    ArrowTryCatch (Either String Exceptional) Expr Value c) => c Expr Value 
+    ArrowTryCatch (Either String Exceptional) (Label, Expr) (Label, Value) c,
+    ArrowTryCatch (Either String Exceptional) (Expr, Expr) (Expr, Value) c
+    ) => c Expr Value 
 eval = proc e -> case e of
     ENumber d -> returnA -< VNumber d
     EString s -> returnA -< VString s
@@ -329,34 +331,34 @@ eval = proc e -> case e of
             _ -> failA -< Left "Error: EDeref lhs did not evaluate to a location"
     EEval -> failA -< Left "Eval expression encountered, aborting"
     ELabel l e -> do
-        res <- app -< (runConst l (tryCatchA eval (proc x -> case x of 
-                Left s -> failA -< Left s
-                Right (Break l1 v) -> do
-                    l <- askConst -< ()
-                    case l1 == l of
-                        True -> returnA -< v
-                        False -> failA -< (Right $ Break l1 v)
-                Right (Thrown v) -> failA -< (Right $ Thrown v))), e)
+        (l, res) <- tryCatchA (second eval) (proc ((label, _), err) -> case err of
+            Left s -> failA -< Left s
+            Right (Break l1 v) -> case l1 == label of
+                True -> returnA -< (label, v)
+                False -> failA -< (Right $ Break l1 v)
+            Right (Thrown v) -> failA -< (Right $ Thrown v)) -< (l, e)
         returnA -< res
     EBreak l e -> do
         res <- eval -< e
         failA -< Right (Break l res)
     EThrow e -> do
+        returnA -< VUndefined
         res <- eval -< e
         failA -< Right (Thrown res)
     ECatch try catch -> do
-        -- todo
-        returnA -< VUndefined
-        --  VThrown v -> do
-                --case catch of
-                    --ELambda [x] body -> do
-                        --scope <- getEnv -< ()
-                        --loc <- fresh -< ()
-                        --env' <- extendEnv -< (x, loc, scope)
-                        --write -< (loc, v, ())
-                        --res <- localEnv eval -< (env', body)
-                        --returnA -< res
-                    --_ -> failA -< "Error: Catch block must be of type ELambda"
+        (c, res) <- tryCatchA (second eval) (proc ((catch, _), err) -> case err of
+            Left s -> failA -< Left s
+            Right (Break l1 v) -> failA -< Right $ Break l1 v
+            Right (Thrown v) -> case catch of
+                ELambda [x] body -> do
+                    scope <- getEnv -< ()
+                    loc <- fresh -< ()
+                    env' <- extendEnv -< (x, loc, scope)
+                    write -< (loc, v, ())
+                    res <- localEnv eval -< (env', body)
+                    returnA -< (catch, res)
+                _ -> failA -< Left "Error: Catch block must be of type ELambda") -< (catch, try)
+        returnA -< res
     EFinally b1 b2 -> do
         res1 <- eval -< b1
         res2 <- eval -< b2

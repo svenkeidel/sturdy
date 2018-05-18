@@ -9,4 +9,4 @@ module Control.Arrow.TryCatch where
 import Control.Arrow
 
 class Arrow c => ArrowTryCatch e x y c where
-  tryCatchA :: c x y -> c e y -> c x y
+  tryCatchA :: c x y -> c (x, e) y -> c x y
