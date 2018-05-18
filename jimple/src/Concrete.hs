@@ -228,7 +228,7 @@ toIntList = proc vs -> case vs of
   (_:_) -> failA -< VString "Expected an integer valued array for toIntList"
   [] -> returnA -< []
 
-unbox :: (CanFail c, CanUseMem c) => c Val Val
+unbox :: (CanFail c, CanStore c) => c Val Val
 unbox = proc val -> case val of
   VRef addr -> do
     v <- read' -< addr
@@ -331,6 +331,15 @@ getCurrentMethodBody = proc () -> do
         MFull{} -> returnA -< methodBody m'
     Nothing -> failA -< VString "No method running"
 
+getClassName :: (CanFail c, CanStore c) => c Val String
+getClassName = proc val -> case val of
+  VRef addr -> do
+    val' <- read' -< addr
+    case val' of
+      VObject c _ -> returnA -< c
+      _ -> failA -< VString $ printf "%s is not an object" (show val')
+  _ -> failA -< VString $ printf "%s is not an object" (show val)
+
 ---- End of Boilerplate Methods ----
 
 ---- Evaluation Helper Methods ----
@@ -375,6 +384,35 @@ evalRef = proc ref -> case ref of
   SignatureReference fieldSignature -> do
     (_, val) <- fetchFieldWithAddr -< fieldSignature
     returnA -< val
+
+isSuperClass :: (CanFail c, CanUseConst c) => c (String, String) Bool
+isSuperClass = proc (c, p) -> if c == p
+  then returnA -< True
+  else do
+    unit <- fetchCompilationUnit -< c
+    case extends unit of
+      Just c' -> isSuperClass -< (c', p)
+      Nothing -> returnA -< False
+
+isInstanceof :: (CanFail c, CanUseConst c, CanStore c) => c (Val, Type) Bool
+isInstanceof = proc (v, t) -> do
+  assert -< (isNonvoidType t)
+  v' <- unbox -< v
+  case (v', t) of
+    (VBool _,      TBoolean) -> returnA -< True
+    (VInt n,       TByte)    -> returnA -< n >= -128                 && n <= 127                 -- n >= (-2)^7  && n <= 2^7 - 1
+    (VInt n,       TChar)    -> returnA -< n >= 0                    && n <= 65535               -- n >= 0       && n <= 2^16 - 1
+    (VInt n,       TShort)   -> returnA -< n >= -32768               && n <= 32767               -- n >= (-2)^15 && n <= 2^15 - 1
+    (VInt n,       TInt)     -> returnA -< n >= -2147483648          && n <= 2147483647          -- n >= (-2)^31 && n <= 2^31 - 1
+    (VInt n,       TLong)    -> returnA -< n >= -9223372036854775808 && n <= 9223372036854775807 -- n >= (-2)^63 && n <= 2^63 - 1
+    (VFloat _,     TFloat)   -> returnA -< True
+    (VFloat _,     TDouble)  -> returnA -< True
+    (VNull,        TNull)    -> returnA -< True
+    (VObject c _, TClass p) -> isSuperClass -< (c, p)
+    (VArray xs,    TArray t') -> do
+      bs <- mapA isInstanceof -< zip xs (repeat t')
+      returnA -< all (==True) bs
+    (_, _) -> returnA -< False
 
 evalMethod :: CanInterp c => c (Method, Maybe Val, [Immediate]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
@@ -432,7 +470,7 @@ createMethodEnv = proc (this, _, params) -> do
       extendEnv -< ("@this", addr, paramEnv)
     Nothing -> returnA -< paramEnv
 
-getObject :: (CanFail c, CanStore c) =>c Val Val
+getObject :: (CanFail c, CanStore c) => c Val Val
 getObject = proc val -> case val of
   VRef addr -> do
     o <- read' -< addr
@@ -508,7 +546,10 @@ eval = proc e -> case e of
           else failA -< VString "Expected positive integers for newmultiarray sizes"
       else failA -< VString "Expected a nonvoid base type for newmultiarray"
   -- ECast NonvoidType Immediate
-  -- EInstanceof Immediate NonvoidType
+  EInstanceof i t -> do
+    v <- evalImmediate -< i
+    b <- isInstanceof -< (v, t)
+    returnA -< VBool b
   EInvoke invokeExpr -> do
     v <- tryCatchA evalInvoke returnA failA -< invokeExpr
     case v of
