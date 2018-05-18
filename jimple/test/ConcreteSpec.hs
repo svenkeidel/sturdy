@@ -74,8 +74,8 @@ spec = do
       let expr = EImmediate (IClass "java.lang.Object")
       evalConcrete env store expr `shouldBe` Success (VClass "java.lang.Object")
     it "Null literals" $ do
-      let expr = EImmediate (INull)
-      evalConcrete env store expr `shouldBe` Success (VNull)
+      let expr = EImmediate INull
+      evalConcrete env store expr `shouldBe` Success VNull
 
   describe "Simple Expressions" $ do
     it "-3" $ do
@@ -220,7 +220,7 @@ spec = do
       let files = [objectFile,
                    illegalArgumentExceptionFile,
                    arrayFieldExampleFile]
-      runProgramConcrete files arrayFieldExampleFile [IInt (5)] `shouldBe` Success (Just (VArray [VInt 5, VInt 5, VInt 5, VInt 5]))
+      runProgramConcrete files arrayFieldExampleFile [IInt 5] `shouldBe` Success (Just (VArray [VInt 5, VInt 5, VInt 5, VInt 5]))
 
   where
     env = []

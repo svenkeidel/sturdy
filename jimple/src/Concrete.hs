@@ -10,10 +10,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Concrete where
 
-import Prelude hiding (lookup, read)
+import Prelude hiding (lookup,read)
 
 import           Data.Fixed
-import           Data.List (elemIndex, find)
+import           Data.List (elemIndex,find,replicate,repeat)
 
 import           Data.Concrete.Error
 
@@ -132,15 +132,10 @@ deriving instance ArrowMaybeStore Addr Val Interp
 runInterp :: Interp x y -> [CompilationUnit] -> [(String, Addr)] -> [(Addr, Val)] -> Maybe Method -> x -> Error Val y
 runInterp (Interp f) files env store mainMethod x =
   let compilationUnits = map (\file -> (fileName file, file)) files
-      toFieldSignature :: String -> Member -> [FieldSignature]
-      toFieldSignature c (FieldMember field) =
-        [FieldSignature c (fieldType field) (fieldName field) | Static `elem` fieldModifiers field]
-      toFieldSignature _ _ = []
-      getFields unit = concatMap (toFieldSignature (fileName unit)) (fileBody unit)
       latestAddr = case map snd env ++ map fst store of
         [] -> 0
         addrs -> maximum addrs
-      fields = zip (concatMap getFields files) [latestAddr..]
+      fields = zip (concatMap (\u -> getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
   in runConst (Map.fromList compilationUnits, Map.fromList fields)
       (evalState
         (evalMaybeStore
@@ -175,6 +170,14 @@ type CanInterp c = (CanFail c,
 ---- End of Constraint Boilerplate ----
 
 ---- Boilerplate Methods ----
+
+getFieldSignatures :: CompilationUnit -> ([Modifier] -> Bool) -> [FieldSignature]
+getFieldSignatures unit p =
+  let toFieldSignature :: Member -> [FieldSignature]
+      toFieldSignature (FieldMember f) =
+        [FieldSignature (fileName unit) (fieldType f) (fieldName f) | p (fieldModifiers f)]
+      toFieldSignature _ = []
+  in concatMap toFieldSignature (fileBody unit)
 
 replace :: Int -> a -> [a] -> [a]
 replace _ _ [] = []
@@ -330,31 +333,15 @@ getCurrentMethodBody = proc () -> do
 
 ---- End of Boilerplate Methods ----
 
----- Actual Evaluation Methods ----
+---- Evaluation Helper Methods ----
 
 newArray :: (CanFail c, CanUseState c, CanStore c) => c (Type, [Int]) Val
-newArray =
-  let createVals :: (CanFail c, CanUseState c, CanStore c) => c (Int, Type, [Int]) [Val]
-      createVals = proc (s', t, sizes') -> case s' of
-        0 -> returnA -< []
-        n -> do
-          v <- newArray -< (t, sizes')
-          vs <- createVals -< (n - 1, t, sizes')
-          returnA -< (v:vs)
-  in proc (t, sizes) -> case sizes of
-    (s:sizes') -> do
-      vals <- createVals -< (s, t, sizes')
-      addr <- alloc -< VArray vals
-      returnA -< VRef addr
-    [] -> returnA -< defaultValue t
-
-evalImmediateList :: (CanFail c, CanUseMem c) => c [Immediate] [Val]
-evalImmediateList = proc xs -> case xs of
-  (x':xs') -> do
-    v <- evalImmediate -< x'
-    vs <- evalImmediateList -< xs'
-    returnA -< (v:vs)
-  [] -> returnA -< []
+newArray = proc (t, sizes) -> case sizes of
+  (s:sizes') -> do
+    vals <- mapA newArray -< replicate s (t, sizes')
+    addr <- alloc -< VArray vals
+    returnA -< VRef addr
+  [] -> returnA -< defaultValue t
 
 evalImmediate :: (CanFail c, CanUseMem c) => c Immediate Val
 evalImmediate = proc i -> case i of
@@ -391,7 +378,7 @@ evalRef = proc ref -> case ref of
 
 evalMethod :: CanInterp c => c (Method, Maybe Val, [Immediate]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
-  argVals <- evalImmediateList -< args
+  argVals <- mapA evalImmediate -< args
   env <- createMethodEnv -< (this, parameters method, argVals)
   localEnv (proc method -> localA runMethodBody -< ((Just method, 0, []), methodBody method)) -< (env, method)
 
@@ -413,16 +400,93 @@ evalInvoke = proc e -> case e of
     evalMethod -< (method, Just this, args)
   _ -> failA -< VString "Not implemented"
 
+goto :: CanInterp c => c ([Statement], String) (Maybe Val)
+goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
+  Just i -> runStatements -< (stmts, i)
+  Nothing -> failA -< VString $ printf "Undefined label: %s" label
+
+matchCases :: (CanFail c) => c ([CaseStatement], Int) String
+matchCases = proc (cases, v) -> case cases of
+  ((CLConstant n, label): cases') -> if v == n
+    then returnA -< label
+    else matchCases -< (cases', v)
+  ((CLDefault, label): _) -> returnA -< label
+  [] -> failA -< VString $ printf "No cases match value %s" (show v)
+
+createParamEnv :: (CanFail c, CanUseMem c, CanUseState c) => c (Int, [Val]) PointerEnv
+createParamEnv = proc (i, params) -> case params of
+  (param:rest) -> do
+    let toParam :: Int -> String
+        toParam n = "@parameter" ++ show n
+    env <- createParamEnv -< (i + 1, rest)
+    addr <- alloc -< param
+    extendEnv -< (toParam i, addr, env)
+  [] -> returnA -< E.empty
+
+createMethodEnv :: (CanFail c, CanUseMem c, CanUseState c) => c (Maybe Val, [Type], [Val]) PointerEnv
+createMethodEnv = proc (this, _, params) -> do
+  paramEnv <- createParamEnv -< (0, params)
+  case this of
+    Just val -> do
+      addr <- alloc -< val
+      extendEnv -< ("@this", addr, paramEnv)
+    Nothing -> returnA -< paramEnv
+
+getObject :: (CanFail c, CanStore c) =>c Val Val
+getObject = proc val -> case val of
+  VRef addr -> do
+    o <- read' -< addr
+    case o of
+      VObject _ _ -> returnA -< o
+      _ -> failA -< val
+  _ -> failA -< val
+
+getMatchingClause :: CanFail c => c (String, [CatchClause], Val) CatchClause
+getMatchingClause = proc (c, cs, val) -> case filter (\clause -> className clause == c) cs of
+  (clause:_) -> returnA -< clause
+  [] -> failA -< val
+
+getMethodBody :: CanFail c => c (Maybe Method, Val) MethodBody
+getMethodBody = proc (m, val) -> case m of
+  Just m' ->
+    case methodBody m' of
+      MEmpty -> failA -< val
+      MFull{} -> returnA -< methodBody m'
+  Nothing -> failA -< val
+
+catchExceptions :: CanInterp c => c Val (Maybe Val)
+catchExceptions = proc val -> do
+  (VObject c _) <- getObject -< val
+  (m, i, cs) <- askA -< ()
+  clause <- getMatchingClause -< (c, cs, val)
+  body <- getMethodBody -< (m, val)
+  let stmts = statements body
+  let iFrom = elemIndex (Label (fromLabel clause)) stmts
+  let iTo   = elemIndex (Label (toLabel clause)) stmts
+  let iWith = elemIndex (Label (withLabel clause)) stmts
+  case (iFrom, iTo, iWith) of
+    (Just iFrom', Just iTo', Just iWith') -> if i >= iFrom' && i < iTo'
+      then do
+        env <- getEnv -< ()
+        addr' <- alloc -< val
+        env' <- extendEnv -< ("@caughtexception", addr', env)
+        localEnv runStatements -< (env', (stmts, iWith'))
+      else failA -< val
+    _ -> failA -< val
+
+---- End of Evaluation Helper Methods ----
+
+---- Actual Evaluation methods ----
+
 eval :: CanInterp c => c Expr Val
 eval = proc e -> case e of
   ENew newExpr -> case newExpr of
     NewSimple t -> if isBaseType t
       then case t of
         TClass c -> do
-          compilationUnit <- fetchCompilationUnit -< c
-          let fields = foldl (\acc member -> case member of
-                                FieldMember f -> (FieldSignature c (fieldType f) (fieldName f), defaultValue (fieldType f)):acc
-                                _ -> acc) [] (fileBody compilationUnit)
+          unit <- fetchCompilationUnit -< c
+          let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
+          let fields = map (\s@(FieldSignature _ t' _) -> (s, defaultValue t')) fieldSignatures
           addr <- alloc -< (VObject c (Map.fromList fields))
           returnA -< VRef addr
         _ -> returnA -< (defaultValue t)
@@ -437,7 +501,7 @@ eval = proc e -> case e of
       else failA -< VString "Expected a nonvoid type for newarray"
     NewMulti t is -> if isBaseType t
       then do
-        vs <- evalImmediateList -< is
+        vs <- mapA evalImmediate -< is
         ns <- toIntList -< vs
         if all (>0) ns
           then newArray -< (t, ns)
@@ -521,80 +585,6 @@ eval = proc e -> case e of
     returnA -< v
   _ -> failA -< VString "Undefined expression"
 
-goto :: CanInterp c => c ([Statement], String) (Maybe Val)
-goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
-  Just i -> runStatements -< (stmts, i)
-  Nothing -> failA -< VString $ printf "Undefined label: %s" label
-
-matchCases :: (CanFail c) => c ([CaseStatement], Int) String
-matchCases = proc (cases, v) -> case cases of
-  ((CLConstant n, label): cases') -> if v == n
-    then returnA -< label
-    else matchCases -< (cases', v)
-  ((CLDefault, label): _) -> returnA -< label
-  [] -> failA -< VString $ printf "No cases match value %s" (show v)
-
-createParamEnv :: (CanFail c, CanUseMem c, CanUseState c) => c (Int, [Val]) PointerEnv
-createParamEnv = proc (i, params) -> case params of
-  (param:rest) -> do
-    let toParam :: Int -> String
-        toParam n = "@parameter" ++ show n
-    env <- createParamEnv -< (i + 1, rest)
-    addr <- alloc -< param
-    extendEnv -< (toParam i, addr, env)
-  [] -> returnA -< E.empty
-
-createMethodEnv :: (CanFail c, CanUseMem c, CanUseState c) => c (Maybe Val, [Type], [Val]) PointerEnv
-createMethodEnv = proc (this, _, params) -> do
-  paramEnv <- createParamEnv -< (0, params)
-  case this of
-    Just val -> do
-      addr <- alloc -< val
-      extendEnv -< ("@this", addr, paramEnv)
-    Nothing -> returnA -< paramEnv
-
-getObject :: (CanFail c, CanStore c) =>c Val Val
-getObject = proc val -> case val of
-  VRef addr -> do
-    o <- read' -< addr
-    case o of
-      VObject _ _ -> returnA -< o
-      _ -> failA -< val
-  _ -> failA -< val
-
-getMatchingClause :: CanFail c => c (String, [CatchClause], Val) CatchClause
-getMatchingClause = proc (c, cs, val) -> case filter (\clause -> className clause == c) cs of
-  (clause:_) -> returnA -< clause
-  [] -> failA -< val
-
-getMethodBody :: CanFail c => c (Maybe Method, Val) MethodBody
-getMethodBody = proc (m, val) -> case m of
-  Just m' ->
-    case methodBody m' of
-      MEmpty -> failA -< val
-      MFull{} -> returnA -< methodBody m'
-  Nothing -> failA -< val
-
-catchExceptions :: CanInterp c => c Val (Maybe Val)
-catchExceptions = proc val -> do
-  (VObject c _) <- getObject -< val
-  (m, i, cs) <- askA -< ()
-  clause <- getMatchingClause -< (c, cs, val)
-  body <- getMethodBody -< (m, val)
-  let stmts = statements body
-  let iFrom = elemIndex (Label (fromLabel clause)) stmts
-  let iTo   = elemIndex (Label (toLabel clause)) stmts
-  let iWith = elemIndex (Label (withLabel clause)) stmts
-  case (iFrom, iTo, iWith) of
-    (Just iFrom', Just iTo', Just iWith') -> if i >= iFrom' && i < iTo'
-      then do
-        env <- getEnv -< ()
-        addr' <- alloc -< val
-        env' <- extendEnv -< ("@caughtexception", addr', env)
-        localEnv runStatements -< (env', (stmts, iWith'))
-      else failA -< val
-    _ -> failA -< val
-
 runStatements :: CanInterp c => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i == length stmts
   then returnA -< Nothing
@@ -602,7 +592,7 @@ runStatements = proc (stmts, i) -> if i == length stmts
     Label labelName -> do
       body <- getCurrentMethodBody -< ()
       (m, a, _) <- askA -< ()
-      let cs = (filter (\c -> labelName == fromLabel c) (catchClauses body))
+      let cs = filter (\c -> labelName == fromLabel c) (catchClauses body)
       localA (tryCatchA runStatements returnA catchExceptions) -< ((m, a, cs), (stmts, i + 1))
     -- Breakpoint
     -- Entermonitor Immediate
@@ -686,29 +676,17 @@ runStatements = proc (stmts, i) -> if i == length stmts
       runStatements -< (stmts, i + 1)
     _ -> runStatements -< (stmts, i + 1)
 
-runDeclaration :: (CanFail c, CanUseMem c, CanUseState c) => c (Env String Addr, Declaration) PointerEnv
-runDeclaration = proc (env, dec) -> case dec of
-  (t, d:rest) -> do
-    env' <- runDeclaration -< (env, (t, rest))
-    addr <- alloc -< defaultValue t
-    env'' <- extendEnv -< (d, addr, env')
-    returnA -< env''
-  (_, []) -> returnA -< env
-
-runDeclarations :: (CanFail c, CanUseMem c, CanUseState c) => c (Env String Addr, [Declaration]) PointerEnv
-runDeclarations = proc (env, decs) -> case decs of
-  (dec:rest) -> do
-    env' <- runDeclarations -< (env, rest)
-    env'' <- runDeclaration -< (env', dec)
-    returnA -< env''
-  [] -> returnA -< env
+runDeclaration :: (CanFail c, CanUseMem c, CanUseState c) => c (PointerEnv, (Type, String)) PointerEnv
+runDeclaration = proc (env, (t, d)) -> do
+  addr <- alloc -< defaultValue t
+  extendEnv -< (d, addr, env)
 
 runMethodBody :: CanInterp c => c MethodBody (Maybe Val)
 runMethodBody = proc body -> case body of
   MEmpty -> returnA -< Nothing
-  MFull{declarations=d,statements=s} -> do
+  MFull{declarations=decs,statements=s} -> do
     env <- getEnv -< ()
-    env' <- runDeclarations -< (env, d)
+    env' <- foldA runDeclaration -< (concatMap (\(t, d) -> zip (repeat t) d) decs, env)
     v <- localEnv runStatements -< (env', (s, 0))
     returnA -< v
 
@@ -732,4 +710,4 @@ runProgram = proc (mainUnit, args) -> do
         Just mainMethod -> tryCatchA evalMethod returnA (unbox >>> failA) -< (mainMethod, Nothing, args)
         Nothing -> returnA -< Nothing
 
----- End of Actual Evaluation Methods ----
+---- End of Actual Evaluation methods ----
