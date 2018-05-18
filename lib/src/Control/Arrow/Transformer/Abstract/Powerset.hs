@@ -71,7 +71,9 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) wh
   localEnv (Powerset f) = Powerset $ localEnv f
 
 instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) where
-  dedupA (Powerset f) = Powerset (dedupA f)
+  dedupA (Powerset f) = Powerset $ proc x -> do
+    x' <- f -< x
+    returnA -< A.dedup x'
 
 deriving instance PreOrd (c x (A.Pow y)) => PreOrd (Powerset c x y)
 deriving instance LowerBounded (c x (A.Pow y)) => LowerBounded (Powerset c x y)
