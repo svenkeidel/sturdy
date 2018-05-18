@@ -13,45 +13,11 @@ import Classes.SingleMethodExample
 import Classes.ArrayFieldExample
 import Classes.FactorialExample
 import Classes.IllegalArgumentException
+import Classes.Throwable
 import Classes.Object
 
 main :: IO ()
 main = hspec spec
-
-testMethodBody :: [Statement] -> MethodBody
-testMethodBody stmts = MFull { declarations = []
-                             , statements = stmts
-                             , catchClauses = []
-                             }
-
-testMethod :: [Statement] -> Method
-testMethod stmts = Method { methodModifiers = [Public, Static]
-                          , returnType = TVoid
-                          , methodName = "test"
-                          , parameters = []
-                          , throws = []
-                          , methodBody = testMethodBody stmts
-                          }
-
-testCompilationUnits :: [Statement] -> [CompilationUnit]
-testCompilationUnits stmts = [CompilationUnit { fileModifiers = [Public]
-                                              , fileType = FTClass
-                                              , fileName = "Test"
-                                              , extends = Just "java.lang.Object"
-                                              , implements = []
-                                              , fileBody = [MethodMember (testMethod stmts)]
-                                              }]
-
-evalConcrete :: [(String, Addr)] -> [(Addr, Val)] -> Expr -> Error Val Val
-evalConcrete env store = runInterp (eval >>> unbox) (testCompilationUnits []) env store (Just (testMethod []))
-
-runStatementsConcrete :: [(String, Addr)] -> [(Addr, Val)] -> [Statement] -> Error Val (Maybe Val)
-runStatementsConcrete env store stmts =
-  runInterp (runStatements >>> unboxMaybe) (testCompilationUnits stmts) env store (Just (testMethod stmts)) (stmts, 0)
-
-runProgramConcrete :: [CompilationUnit] -> CompilationUnit -> [Immediate] -> Error Val (Maybe Val)
-runProgramConcrete compilationUnits mainUnit args =
-  runInterp (runProgram >>> unboxMaybe) compilationUnits [] [] Nothing (mainUnit, args)
 
 spec :: Spec
 spec = do
@@ -203,28 +169,53 @@ spec = do
 
   describe "Complete program" $ do
     it "10! = 3628800" $ do
-      let files = [objectFile,
-                   illegalArgumentExceptionFile,
-                   factorialExampleFile]
+      let files = baseCompilationUnits ++ [factorialExampleFile]
       runProgramConcrete files factorialExampleFile [IInt 10] `shouldBe` Success (Just (VInt 3628800))
     it "s = new SingleMethodExample; s.x = 2; return s.x" $ do
-      let files = [objectFile,
-                   singleMethodExampleFile]
+      let files = baseCompilationUnits ++ [singleMethodExampleFile]
       runProgramConcrete files singleMethodExampleFile [] `shouldBe` Success (Just (VInt 2))
     it "(-10)! throws IllegalArgumentException" $ do
-      let files = [objectFile,
-                   illegalArgumentExceptionFile,
-                   factorialExampleFile]
-      runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject "java.lang.IllegalArgumentException" (Map.fromList [(illegalArgumentExceptionMessageSignature, VString "Negative value for argument n")]))
+      let files = baseCompilationUnits ++ [factorialExampleFile]
+      runProgramConcrete files factorialExampleFile [IInt (-10)] `shouldBe` Fail (VObject "java.lang.IllegalArgumentException" (Map.fromList [(throwableMessageSignature, VString "Negative value for argument n")]))
     it "5 -> [5, 5, 5, 5]" $ do
-      let files = [objectFile,
-                   illegalArgumentExceptionFile,
-                   arrayFieldExampleFile]
+      let files = baseCompilationUnits ++ [arrayFieldExampleFile]
       runProgramConcrete files arrayFieldExampleFile [IInt 5] `shouldBe` Success (Just (VArray [VInt 5, VInt 5, VInt 5, VInt 5]))
 
   where
+    baseCompilationUnits = [objectFile,
+                            throwableFile,
+                            illegalArgumentExceptionFile]
     env = []
     store = []
+
+    testMethodBody stmts = MFull { declarations = []
+                                 , statements = stmts
+                                 , catchClauses = []
+                                 }
+
+    testMethod stmts = Method { methodModifiers = [Public, Static]
+                              , returnType = TVoid
+                              , methodName = "test"
+                              , parameters = []
+                              , throws = []
+                              , methodBody = testMethodBody stmts
+                              }
+
+    testCompilationUnits stmts = [CompilationUnit { fileModifiers = [Public]
+                                                  , fileType = FTClass
+                                                  , fileName = "Test"
+                                                  , extends = Just "java.lang.Object"
+                                                  , implements = []
+                                                  , fileBody = [MethodMember (testMethod stmts)]
+                                                  }] ++ baseCompilationUnits
+
+    evalConcrete env' store' = runInterp (eval >>> unbox) (testCompilationUnits []) env' store' (Just (testMethod []))
+
+    runStatementsConcrete env' store' stmts =
+      runInterp (runStatements >>> unboxMaybe) (testCompilationUnits stmts) env' store' (Just (testMethod stmts)) (stmts, 0)
+
+    runProgramConcrete compilationUnits mainUnit args =
+      runInterp (runProgram >>> unboxMaybe) compilationUnits [] [] Nothing (mainUnit, args)
     -- addMethodBody = MFull {
     --   declarations = [
     --     (TInt, ["i0", "i1", "i2"])

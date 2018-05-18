@@ -2,20 +2,7 @@ module Classes.IllegalArgumentException where
 
 import Syntax
 
-import Classes.Object
-
-illegalArgumentExceptionMessageSignature :: FieldSignature
-illegalArgumentExceptionMessageSignature = FieldSignature
-  "java.lang.IllegalArgumentException"
-  (TClass "java.lang.String")
-  "message"
-
-illegalArgumentExceptionMessageField :: Field
-illegalArgumentExceptionMessageField = Field {
-  fieldModifiers = [Public],
-  fieldType = TClass "java.lang.String",
-  fieldName = "message"
-}
+import Classes.Throwable
 
 illegalArgumentExceptionInitSignature :: MethodSignature
 illegalArgumentExceptionInitSignature = MethodSignature
@@ -38,9 +25,8 @@ illegalArgumentExceptionInitMethod = Method {
     ],
     statements = [
       Identity "r0" IDThis (TClass "java.lang.IllegalArgumentException"),
-      Invoke (SpecialInvoke "r0" objectInitSignature []),
       Identity "s0" (IDParameter 0) (TClass "java.lang.String"),
-      Assign (VReference (FieldReference "r0" illegalArgumentExceptionMessageSignature)) (EImmediate (ILocalName "s0")),
+      Invoke (SpecialInvoke "r0" throwableInitSignature [ILocalName "s0"]),
       Return Nothing
     ],
     catchClauses = []
@@ -52,10 +38,9 @@ illegalArgumentExceptionFile = CompilationUnit {
   fileModifiers = [Public],
   fileType = FTClass,
   fileName = "java.lang.IllegalArgumentException",
-  extends = Just "java.lang.Object",
+  extends = Just "java.lang.Throwable",
   implements = [],
   fileBody = [
-    FieldMember illegalArgumentExceptionMessageField,
     MethodMember illegalArgumentExceptionInitMethod
   ]
 }

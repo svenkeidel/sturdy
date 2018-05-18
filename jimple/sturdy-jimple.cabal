@@ -30,6 +30,7 @@ test-suite specs
   main-is:             Spec.hs
   other-modules:       ConcreteSpec,
                        Classes.Object,
+                       Classes.Throwable,
                        Classes.IllegalArgumentException,
                        Classes.FactorialExample,
                        Classes.ArrayFieldExample,

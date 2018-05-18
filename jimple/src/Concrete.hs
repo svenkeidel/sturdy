@@ -165,7 +165,8 @@ type CanInterp c = (CanFail c,
                     CanUseState c,
                     CanCatch InvokeExpr c,
                     CanCatch ([Statement], Int) c,
-                    CanCatch (Method, Maybe Val, [Immediate]) c)
+                    CanCatch (Method, Maybe Val, [Immediate]) c,
+                    ArrowDebug c)
 
 ---- End of Constraint Boilerplate ----
 
@@ -346,11 +347,20 @@ throw = proc (clzz, message) -> do
 
 ---- Evaluation Helper Methods ----
 
-newSimple :: (CanFail c, CanUseConst c, CanUseState c, CanStore c) => c String Val
-newSimple = proc c -> do
+getInitializedFields :: (CanFail c, CanUseConst c) => c String [(FieldSignature, Val)]
+getInitializedFields = proc c -> do
   unit <- fetchCompilationUnit -< c
   let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
-  let fields = map (\s@(FieldSignature _ t' _) -> (s, defaultValue t')) fieldSignatures
+  let ownFields = map (\s@(FieldSignature _ t' _) -> (s, defaultValue t')) fieldSignatures
+  case extends unit of
+    Just p -> do
+      parentFields <- getInitializedFields -< p
+      returnA -< parentFields ++ ownFields
+    Nothing -> returnA -< ownFields
+
+newSimple :: (CanFail c, CanUseConst c, CanUseState c, CanStore c) => c String Val
+newSimple = proc c -> do
+  fields <- getInitializedFields -< c
   addr <- alloc -< (VObject c (Map.fromList fields))
   returnA -< VRef addr
 
@@ -696,7 +706,7 @@ runStatements = proc (stmts, i) -> if i >= length stmts
             case m Map.!? fieldSignature of
               Just _ -> do
                 let m' = Map.insert fieldSignature v m
-                write -< (addr, VObject c m')
+                debug "assign field reference" write -< (addr, VObject c m')
                 runStatements -< (stmts, i + 1)
               Nothing -> failA -< VString $ printf "FieldSignature %s not defined on object %s: (%s)" (show fieldSignature) (show localName) (show m)
           SignatureReference fieldSignature -> do
