@@ -331,18 +331,28 @@ getCurrentMethodBody = proc () -> do
         MFull{} -> returnA -< methodBody m'
     Nothing -> failA -< VString "No method running"
 
-getClassName :: (CanFail c, CanStore c) => c Val String
-getClassName = proc val -> case val of
-  VRef addr -> do
-    val' <- read' -< addr
-    case val' of
-      VObject c _ -> returnA -< c
-      _ -> failA -< VString $ printf "%s is not an object" (show val')
-  _ -> failA -< VString $ printf "%s is not an object" (show val)
+throw :: CanInterp c => c (String, String) Val
+throw = proc (clzz, message) -> do
+  (VRef addr) <- newSimple -< clzz
+  v <- read' -< addr
+  case v of
+    VObject c m -> do
+      let m' = Map.insert (FieldSignature clzz (TClass "String") "message") (VString message) m
+      write -< (addr, VObject c m')
+      failA -< VRef addr
+    _ -> failA -< VString $ printf "Undefined Exception %s" clzz
 
 ---- End of Boilerplate Methods ----
 
 ---- Evaluation Helper Methods ----
+
+newSimple :: (CanFail c, CanUseConst c, CanUseState c, CanStore c) => c String Val
+newSimple = proc c -> do
+  unit <- fetchCompilationUnit -< c
+  let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
+  let fields = map (\s@(FieldSignature _ t' _) -> (s, defaultValue t')) fieldSignatures
+  addr <- alloc -< (VObject c (Map.fromList fields))
+  returnA -< VRef addr
 
 newArray :: (CanFail c, CanUseState c, CanStore c) => c (Type, [Int]) Val
 newArray = proc (t, sizes) -> case sizes of
@@ -351,6 +361,33 @@ newArray = proc (t, sizes) -> case sizes of
     addr <- alloc -< VArray vals
     returnA -< VRef addr
   [] -> returnA -< defaultValue t
+
+isSuperClass :: (CanFail c, CanUseConst c) => c (String, String) Bool
+isSuperClass = proc (c, p) -> if c == p
+  then returnA -< True
+  else do
+    unit <- fetchCompilationUnit -< c
+    case extends unit of
+      Just c' -> isSuperClass -< (c', p)
+      Nothing -> returnA -< False
+
+isInstanceof :: (CanFail c, CanUseConst c, CanStore c) => c (Val, Type) Bool
+isInstanceof = proc (v, t) -> do
+  assert -< (isNonvoidType t)
+  v' <- unbox -< v
+  case (v', t) of
+    (VBool _,     TBoolean) -> returnA -< True
+    (VInt n,      TByte)    -> returnA -< n >= -128                 && n <= 127                 -- n >= (-2)^7  && n <= 2^7 - 1
+    (VInt n,      TChar)    -> returnA -< n >= 0                    && n <= 65535               -- n >= 0       && n <= 2^16 - 1
+    (VInt n,      TShort)   -> returnA -< n >= -32768               && n <= 32767               -- n >= (-2)^15 && n <= 2^15 - 1
+    (VInt n,      TInt)     -> returnA -< n >= -2147483648          && n <= 2147483647          -- n >= (-2)^31 && n <= 2^31 - 1
+    (VInt n,      TLong)    -> returnA -< n >= -9223372036854775808 && n <= 9223372036854775807 -- n >= (-2)^63 && n <= 2^63 - 1
+    (VFloat _,    TFloat)   -> returnA -< True
+    (VFloat _,    TDouble)  -> returnA -< True
+    (VNull,       TNull)    -> returnA -< True
+    (VObject c _, TClass p) -> isSuperClass -< (c, p)
+    (VArray xs,   TArray t') -> (mapA isInstanceof >>^ all (==True)) -< zip xs (repeat t')
+    (_, _) -> returnA -< False
 
 evalImmediate :: (CanFail c, CanUseMem c) => c Immediate Val
 evalImmediate = proc i -> case i of
@@ -368,14 +405,14 @@ evalIndex = proc i -> do
     VInt n -> returnA -< n
     _ -> failA -< VString "Expected an integer array index"
 
-evalRef :: (CanFail c, CanUseMem c, CanUseConst c) => c Reference Val
+evalRef :: CanInterp c => c Reference Val
 evalRef = proc ref -> case ref of
   ArrayReference localName i -> do
     n <- evalIndex -< i
     (_, VArray xs) <- fetchArrayWithAddr -< localName
     if n >= 0 && n < length xs
     then returnA -< xs !! n
-    else failA -< VString "ArrayIndexOutOfBoundsException"
+    else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
   FieldReference localName fieldSignature -> do
     (_, VObject _ m) <- fetchObjectWithAddr -< localName
     case Map.lookup fieldSignature m of
@@ -384,35 +421,6 @@ evalRef = proc ref -> case ref of
   SignatureReference fieldSignature -> do
     (_, val) <- fetchFieldWithAddr -< fieldSignature
     returnA -< val
-
-isSuperClass :: (CanFail c, CanUseConst c) => c (String, String) Bool
-isSuperClass = proc (c, p) -> if c == p
-  then returnA -< True
-  else do
-    unit <- fetchCompilationUnit -< c
-    case extends unit of
-      Just c' -> isSuperClass -< (c', p)
-      Nothing -> returnA -< False
-
-isInstanceof :: (CanFail c, CanUseConst c, CanStore c) => c (Val, Type) Bool
-isInstanceof = proc (v, t) -> do
-  assert -< (isNonvoidType t)
-  v' <- unbox -< v
-  case (v', t) of
-    (VBool _,      TBoolean) -> returnA -< True
-    (VInt n,       TByte)    -> returnA -< n >= -128                 && n <= 127                 -- n >= (-2)^7  && n <= 2^7 - 1
-    (VInt n,       TChar)    -> returnA -< n >= 0                    && n <= 65535               -- n >= 0       && n <= 2^16 - 1
-    (VInt n,       TShort)   -> returnA -< n >= -32768               && n <= 32767               -- n >= (-2)^15 && n <= 2^15 - 1
-    (VInt n,       TInt)     -> returnA -< n >= -2147483648          && n <= 2147483647          -- n >= (-2)^31 && n <= 2^31 - 1
-    (VInt n,       TLong)    -> returnA -< n >= -9223372036854775808 && n <= 9223372036854775807 -- n >= (-2)^63 && n <= 2^63 - 1
-    (VFloat _,     TFloat)   -> returnA -< True
-    (VFloat _,     TDouble)  -> returnA -< True
-    (VNull,        TNull)    -> returnA -< True
-    (VObject c _, TClass p) -> isSuperClass -< (c, p)
-    (VArray xs,    TArray t') -> do
-      bs <- mapA isInstanceof -< zip xs (repeat t')
-      returnA -< all (==True) bs
-    (_, _) -> returnA -< False
 
 evalMethod :: CanInterp c => c (Method, Maybe Val, [Immediate]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
@@ -521,12 +529,7 @@ eval = proc e -> case e of
   ENew newExpr -> case newExpr of
     NewSimple t -> if isBaseType t
       then case t of
-        TClass c -> do
-          unit <- fetchCompilationUnit -< c
-          let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
-          let fields = map (\s@(FieldSignature _ t' _) -> (s, defaultValue t')) fieldSignatures
-          addr <- alloc -< (VObject c (Map.fromList fields))
-          returnA -< VRef addr
+        TClass c -> newSimple -< c
         _ -> returnA -< (defaultValue t)
       else failA -< VString "Expected a nonvoid base type for new"
     NewArray t i -> if isNonvoidType t
@@ -545,7 +548,17 @@ eval = proc e -> case e of
           then newArray -< (t, ns)
           else failA -< VString "Expected positive integers for newmultiarray sizes"
       else failA -< VString "Expected a nonvoid base type for newmultiarray"
-  -- ECast NonvoidType Immediate
+  ECast t i -> do
+    v <- evalImmediate -< i
+    b <- isInstanceof -< (v, t)
+    if b
+    then do
+      v' <- unbox -< v
+      case v' of
+        VObject _ _ -> returnA -< v
+        _ -> failA -< VString "Casting of primivites and arrays is not yet supported"
+        -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
+    else throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
   EInstanceof i t -> do
     v <- evalImmediate -< i
     b <- isInstanceof -< (v, t)
@@ -624,10 +637,9 @@ eval = proc e -> case e of
   EImmediate i -> do
     v <- evalImmediate -< i
     returnA -< v
-  _ -> failA -< VString "Undefined expression"
 
 runStatements :: CanInterp c => c ([Statement], Int) (Maybe Val)
-runStatements = proc (stmts, i) -> if i == length stmts
+runStatements = proc (stmts, i) -> if i >= length stmts
   then returnA -< Nothing
   else case stmts !! i of
     Label labelName -> do
