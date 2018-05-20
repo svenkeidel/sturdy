@@ -83,17 +83,20 @@ instance ArrowChoice c => IsVal Val Addr (Interp c) where
     P.False -> BoolVal B.False
   and = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.and` b2)
+    (Bot,Bot) -> returnA -< Bot
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two booleans as arguments for 'and'"
   or = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.or` b2)
+    (Bot,Bot) -> returnA -< Bot
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two booleans as arguments for 'ord'"
   not = proc (v,_) -> case v of
     BoolVal b -> returnA -< BoolVal (B.not b)
     Top -> returnA -< Top
+    Bot -> returnA -< Bot
     _ -> failA -< "Expected a boolean as argument for 'not'"
   numLit = proc (x,_) -> do
     b <- askConst -< ()
@@ -103,16 +106,19 @@ instance ArrowChoice c => IsVal Val Addr (Interp c) where
     returnA -< NumVal (Bounded b top)
   add = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
+    (Bot,Bot) -> returnA -< Bot
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'add'"
   sub = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
+    (Bot,Bot) -> returnA -< Bot
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'sub'"
   mul = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
+    (Bot,Bot) -> returnA -< Bot
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'mul'"
@@ -120,17 +126,20 @@ instance ArrowChoice c => IsVal Val Addr (Interp c) where
     (NumVal n1,NumVal n2) -> case n1 / n2 of
       Fail e -> failA -< e
       Success n3 -> returnA -< NumVal n3
+    (Bot,Bot) -> returnA -< Bot
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal x,NumVal y) -> returnA -< BoolVal (x == y)
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
+    (Bot,Bot) -> returnA -< Bot
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
     _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
   lt = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< BoolVal (n1 O.< n2)
+    (Bot,Bot) -> returnA -< Bot
     (Top,_)   -> returnA -< Top
     (_,Top)   -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'lt'"
