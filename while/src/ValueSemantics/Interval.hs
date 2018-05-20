@@ -13,7 +13,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ValueSemantics.Interval where
 
-import           Prelude hiding (Bool(..),Bounded(..),(==),(/),(<))
+import           Prelude hiding (Bool(..),Bounded(..),(==),(/),(<),(.),read)
 import qualified Prelude as P
 
 import           Syntax
@@ -23,10 +23,15 @@ import qualified SharedSemantics as Shared
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Bounded hiding (lift)
+import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Error (Error(..))
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
-import           Data.Abstract.Store (Store)
+import           Data.Abstract.FreeCompletion (FreeCompletion)
+import qualified Data.Abstract.FreeCompletion as FC
+import           Data.Abstract.FreeCompletionComplete ()
+import           Data.Abstract.Powerset (Pow)
+import qualified Data.Abstract.Powerset as Pow
 import qualified Data.Abstract.Store as S
 import           Data.Abstract.Terminating
 import           Data.Abstract.Widening
@@ -43,30 +48,36 @@ import           Data.Text (Text)
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
+import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Store
+import           Control.Arrow.Try
 import           Control.Arrow.Transformer.Const
+import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
-import           Control.Arrow.Transformer.Abstract.Store
+import           Control.Arrow.Transformer.Abstract.UncertainStore
 import           Control.Monad.State
 
 import           GHC.Generics
 
 type IV = Interval Int
-data Val = BoolVal Bool | NumVal (Bounded IV) | Top deriving (Eq,Generic)
+type Addr = FreeCompletion (Pow Label)
+type Env = E.Env Text Addr
+type Store = UncertainStore Label Val
+data Val = Bot | BoolVal Bool | NumVal (Bounded IV) | RefVal Addr | Top deriving (Eq,Generic)
 
-newtype Interp c x y = Interp (Const IV (StoreArrow Text Val (Except String c)) x y)
-type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,x) (Error String (Store Text Val,y)) c)
+newtype Interp c x y = Interp (Const IV (Environment Text Addr (UncertainStoreArrow Label Val (Except String c))) x y)
+type instance Fix x y (Interp c) = Interp (Fix (Store,(Env,x)) (Error String (Store,y)) c)
 
-runInterp :: IV -> Interp c x y -> c (Store Text Val,x) (Error String (Store Text Val,y))
-runInterp b (Interp f) = runExcept (runStore (runConst b f))
+runInterp :: ArrowChoice c => IV -> Interp c x y -> c (Store,(Env,x)) (Error String (Store,y))
+runInterp b (Interp f) = runExcept (runUncertainStore (runEnvironment' (runConst b f)))
 
-run :: (?bound :: IV) => [State Label Statement] -> Terminating (Error String (Store Text Val))
-run ss = fmap fst <$> runLeastFixPoint (runInterp ?bound (Shared.run :: Fix [Statement] () (Interp (~>)) [Statement] ())) (S.empty,generate (sequence ss))
+run :: (?bound :: IV) => [State Label Statement] -> Terminating (Error String Store)
+run ss = fmap fst <$> runLeastFixPoint (runInterp ?bound (Shared.run :: Fix [Statement] () (Interp (~>)) [Statement] ())) ((S.empty,bottom),(E.empty,generate (sequence ss)))
 
-instance ArrowChoice c => IsVal Val (Interp c) where
+instance ArrowChoice c => IsVal Val Addr (Interp c) where
   boolLit = arr $ \(b,_) -> case b of
     P.True -> BoolVal B.True
     P.False -> BoolVal B.False
@@ -123,6 +134,12 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     (Top,_)   -> returnA -< Top
     (_,Top)   -> returnA -< Top
     _ -> failA -< "Expected two numbers as arguments for 'lt'"
+  freshAddr = arr $ FC.Lower . Pow.singleton
+  ref = arr RefVal
+  getAddr = proc (r,_) -> case r of
+    RefVal a -> returnA -< a
+    Top -> returnA -< FC.Top
+    v -> failA -< "Expected reference but found " ++ show v
 
 instance (Complete (Interp c (x,y) z), UpperBounded z, ArrowChoice c)
   => Conditional Val x y z (Interp c) where
@@ -136,30 +153,43 @@ instance (Complete (Interp c (x,y) z), UpperBounded z, ArrowChoice c)
 deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)
 deriving instance ArrowChoice c => ArrowChoice (Interp c)
-deriving instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Interp c)
+--deriving instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowConst IV (Interp c)
-deriving instance (ArrowChoice c, ArrowFix (Store Text Val,x) (Error String (Store Text Val,y)) c) => ArrowFix x y (Interp c)
-deriving instance (Complete (c ((Store Text Val,Val),Text) (Error String (Store Text Val,Val))), ArrowChoice c) => ArrowStore Text Val Label (Interp c)
-deriving instance (PreOrd (c (Store Text Val,x) (Error String (Store Text Val,y)))) => PreOrd (Interp c x y)
-deriving instance (Complete (c (Store Text Val,x) (Error String (Store Text Val,y)))) => Complete (Interp c x y)
-deriving instance (UpperBounded (c (Store Text Val,x) (Error String (Store Text Val,y)))) => UpperBounded (Interp c x y)
+deriving instance (ArrowChoice c, ArrowFix (Store,(Env,x)) (Error String (Store,y)) c)
+  => ArrowFix x y (Interp c)
+deriving instance (Complete (c (Val,Label) (Error String Val)), ArrowChoice c)
+  => ArrowStore Addr Val Label (Interp c)
+deriving instance ArrowChoice c => ArrowEnv Text Addr Env (Interp c)
+deriving instance (PreOrd (c (Store,(Env,x)) (Error String (Store,y)))) => PreOrd (Interp c x y)
+deriving instance (Complete (c (Store,(Env,x)) (Error String (Store,y)))) => Complete (Interp c x y)
+deriving instance (UpperBounded (c (Store,(Env,x)) (Error String (Store,y)))) => UpperBounded (Interp c x y)
+deriving instance (ArrowChoice c, Complete (c ((Store, (Env, Addr)), (Store, (Env, (Text, Label)))) (Error String (Store, Addr))))
+  => ArrowTry (Text,Label) Addr Addr (Interp c)
 
 instance PreOrd Val where
+  Bot ⊑ _ = P.True
   _ ⊑ Top = P.True
   BoolVal b1 ⊑ BoolVal b2 = b1 P.== b2
   NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
   _ ⊑ _ = P.False
 
+instance LowerBounded Val where
+  bottom = Bot
+
 instance UpperBounded Val where
   top = Top
 
 instance Complete Val where
+  Bot ⊔ v = v
+  v ⊔ Bot = v
   BoolVal b1 ⊔ BoolVal b2 = BoolVal $ b1 ⊔ b2
   NumVal n1 ⊔ NumVal n2 = NumVal $ n1 ⊔ n2
   _ ⊔ _ = Top
 
 instance Widening Val where
+  Bot ▽ v = v
+  v ▽ Bot = v
   BoolVal b1 ▽ BoolVal b2 = BoolVal (b1 ⊔ b2)
   NumVal n1 ▽ NumVal n2 = NumVal (n1 ▽ n2)
   _ ▽ _ = Top
@@ -174,8 +204,10 @@ instance Widening Val where
 --     Top -> gamma (\(_::IV) -> BoolVal B.Top) b `union` gamma (\(_::IV) -> (NumVal (Bounded b top))) b
 
 instance Show Val where
+  show Bot = "⊥"
   show (NumVal iv) = show iv
   show (BoolVal b) = show b
+  show (RefVal v) = "ref " ++ show v
   show Top = "⊤"
 
 instance Hashable Val
