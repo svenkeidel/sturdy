@@ -161,11 +161,11 @@ deriving instance (ArrowChoice c, ArrowFix (Store,(Env,x)) (Error String (Store,
 deriving instance (Complete (c (Val,Label) (Error String Val)), ArrowChoice c)
   => ArrowStore Addr Val Label (Interp c)
 deriving instance ArrowChoice c => ArrowEnv Text Addr Env (Interp c)
+deriving instance (ArrowChoice c, Complete (c ((Store, (Env, Addr)), (Store, (Env, (Text, Label)))) (Error String (Store, Addr))))
+  => ArrowTry (Text,Label) Addr Addr (Interp c)
 deriving instance (PreOrd (c (Store,(Env,x)) (Error String (Store,y)))) => PreOrd (Interp c x y)
 deriving instance (Complete (c (Store,(Env,x)) (Error String (Store,y)))) => Complete (Interp c x y)
 deriving instance (UpperBounded (c (Store,(Env,x)) (Error String (Store,y)))) => UpperBounded (Interp c x y)
-deriving instance (ArrowChoice c, Complete (c ((Store, (Env, Addr)), (Store, (Env, (Text, Label)))) (Error String (Store, Addr))))
-  => ArrowTry (Text,Label) Addr Addr (Interp c)
 
 instance PreOrd Val where
   Bot ⊑ _ = P.True
