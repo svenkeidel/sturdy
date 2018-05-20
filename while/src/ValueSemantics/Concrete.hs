@@ -44,17 +44,17 @@ import           GHC.Generics (Generic)
 
 type Addr = Int
 data Val = BoolVal Bool | NumVal Int | RefVal Addr deriving (Eq, Show, Generic)
-type Env = [(Text,Addr)]
+type Env = E.Env Text Addr
 type ProgState = (StdGen,Addr)
 
 -- Interp c x y ~= c (Store Addr Val,(Env Text Addr,(ProgState,x))) (Error String (Store Addr Val,(ProgState,y)))
 newtype Interp c x y = Interp (State ProgState (Environment Text Addr (StoreArrow Addr Val (Except String c))) x y)
 
 runInterp :: ArrowChoice c => Interp c x y -> c (Store Addr Val, (Env, (ProgState,x))) (Error String (Store Addr Val, (ProgState,y)))
-runInterp (Interp f) = runExcept (runStore (runEnvironment (runState f)))
+runInterp (Interp f) =  runExcept (runStore (runEnvironment' (runState f)))
 
 run :: [Statement] -> Error String (Store Addr Val)
-run ss = fst <$> runLeastFixPoint (runInterp (Shared.run :: Fix [Statement] () (Interp (->)) [Statement] ())) (S.empty,([],((mkStdGen 0,0),ss)))
+run ss = fst <$> runLeastFixPoint (runInterp (Shared.run :: Fix [Statement] () (Interp (->)) [Statement] ())) (S.empty,(E.empty,((mkStdGen 0,0),ss)))
 
 instance ArrowChoice c => IsVal Val Addr (Interp c) where
   boolLit = arr (\(b,_) -> BoolVal b)
@@ -113,9 +113,9 @@ deriving instance ArrowChoice c => ArrowChoice (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowState ProgState (Interp c)
 deriving instance ArrowChoice c => ArrowStore Addr Val Label (Interp c)
-deriving instance ArrowChoice c => ArrowEnv Text Addr (E.Env Text Addr) (Interp c)
+deriving instance ArrowChoice c => ArrowEnv Text Addr Env (Interp c)
 deriving instance ArrowChoice c => ArrowTry (Text,Label) Addr Addr (Interp c)
-type instance Fix x y (Interp c) = Interp (Fix (Store Addr Val,(E.Env Text Addr,(ProgState,x))) (Error String (Store Addr Val,(ProgState,y))) c)
-deriving instance (ArrowFix (Store Addr Val,(E.Env Text Addr,(ProgState,x))) (Error String (Store Addr Val,(ProgState,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
+type instance Fix x y (Interp c) = Interp (Fix (Store Addr Val,(Env,(ProgState,x))) (Error String (Store Addr Val,(ProgState,y))) c)
+deriving instance (ArrowFix (Store Addr Val,(Env,(ProgState,x))) (Error String (Store Addr Val,(ProgState,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
 
 instance Hashable Val
