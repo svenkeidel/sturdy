@@ -92,7 +92,7 @@ run = fixA $ \run' -> proc stmts -> case stmts of
               (proc (_,l) -> freshAddr -< l) -- otherwise create fresh address from l
            -< (x,l)
     write -< (a,v,l)
-    run' -< ss
+    extendEnv' run' -< (x, a, ss) -- extend environment in case `a` is fresh
   (Set x e l:ss) -> do
     v <- eval -< e
     xa <- lookup -< x
