@@ -20,6 +20,7 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Const
+import Control.Arrow.Try
 import Control.Arrow.Writer
 import Control.Arrow.Transformer.Static
     
@@ -40,6 +41,9 @@ instance Arrow c => ArrowConst r (Const r c) where
 
 instance ArrowApply c => ArrowApply (Const r c) where
   app = Const $ Static $ \r -> (\(Const (Static f),x) -> (f r,x)) ^>> app
+
+instance ArrowTry x y z c => ArrowTry x y z (Const r c) where
+  tryA f g h = Const $ Static $ \r -> tryA (runConst r f) (runConst r g) (runConst r h)
 
 deriving instance ArrowLift (Const r)
 deriving instance Arrow c => Category (Const r c)

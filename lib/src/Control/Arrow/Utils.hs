@@ -4,6 +4,9 @@ module Control.Arrow.Utils where
 
 import Control.Arrow
 
+import Data.Monoid
+import Data.Order
+
 mapA :: ArrowChoice c => c x y -> c [x] [y]
 mapA f = proc l -> case l of
   [] -> returnA -< []
@@ -11,6 +14,21 @@ mapA f = proc l -> case l of
     b <- f -< a
     bs <- mapA f -< as
     returnA -< (b:bs)
+
+mapA' :: ArrowChoice c => c (x,s) y -> c ([x],s) [y]
+mapA' f = proc (l,s) -> case l of
+  [] -> returnA -< []
+  (a:as) -> do
+    b <- f -< (a,s)
+    bs <- mapA' f -< (as,s)
+    returnA -< (b:bs)
+
+foldA' :: ArrowChoice c => c (x,s) s -> c ([x],s) s
+foldA' f = proc (xs,s) -> case xs of
+  [] -> returnA -< s
+  x:rest -> do
+    s' <- f -< (x,s)
+    foldA' f -< (rest,s')
 
 voidA :: Arrow c => c x y -> c x ()
 voidA f = proc x -> do

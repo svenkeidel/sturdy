@@ -73,6 +73,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) wh
   localEnv (Except f) = Except (localEnv f)
 
 type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
+
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fixA f = Except (fixA (runExcept . f . Except))
 

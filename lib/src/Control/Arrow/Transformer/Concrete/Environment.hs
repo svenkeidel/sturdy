@@ -36,6 +36,9 @@ newtype Environment var val c x y = Environment (Reader (Env var val) c x y)
 runEnvironment :: (Arrow c, Eq var, Hashable var) => Environment var val c x y -> c ([(var,val)],x) y
 runEnvironment (Environment (Reader f)) = first E.fromList ^>> f
 
+runEnvironment' :: (Arrow c, Eq var, Hashable var) => Environment var val c x y -> c (Env var val,x) y
+runEnvironment' (Environment (Reader f)) = f
+
 instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c) => ArrowEnv var val (Env var val) (Environment var val c) where
   lookup = proc x -> do
     env <- getEnv -< ()

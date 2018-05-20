@@ -48,6 +48,7 @@ library
                        Data.Abstract.Terminating,
                        Data.Abstract.InfiniteNumbers,
                        Data.Abstract.FreeCompletion,
+                       Data.Abstract.FreeCompletionComplete,
                        Data.Abstract.FreeCoCompletion,
                        Data.Abstract.Interval,
                        Data.Abstract.Powerset,
@@ -98,7 +99,8 @@ library
                        Control.Arrow.Transformer.Abstract.Store,
                        -- Control.Arrow.Transformer.Abstract.LiveVariables,
                        Control.Arrow.Transformer.Abstract.ReachingDefinitions,
-                       Control.Arrow.Transformer.Abstract.Uncertain
+                       Control.Arrow.Transformer.Abstract.Uncertain,
+                       Control.Arrow.Transformer.Abstract.UncertainStore
   other-modules:       Control.Arrow.Transformer.Effect
   build-depends:       base,
                        containers,
@@ -114,8 +116,6 @@ test-suite specs
   ghc-options:       -Wall
   hs-source-dirs:    test
   main-is:           Spec.hs
-  other-modules:     BoundedEnvironmentSpec
-                     FixSpec
   build-depends:     base,
                      hspec,
                      sturdy-lib,

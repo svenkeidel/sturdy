@@ -2,6 +2,7 @@
 module Data.Label where
 
 import Data.Hashable
+import Data.Order
 import Control.Monad.State
 
 -- Retrieves label from expression.
@@ -19,3 +20,7 @@ fresh = state (\l -> (l,l+1))
 
 generate :: State Label x -> x
 generate m = evalState m 0
+
+instance PreOrd Label where
+  (⊑) = (<=)
+  (≈) = (==)

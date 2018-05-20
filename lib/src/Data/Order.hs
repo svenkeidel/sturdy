@@ -38,6 +38,14 @@ lub = foldr1 (⊔)
 joined :: (Arrow c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
 joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
 
+joinList :: (ArrowChoice c, Complete y, LowerBounded y) => c (x,s) (y,s) -> c ([x],s) (y,s)
+joinList f = proc (xs,s) -> case xs of
+  [] -> returnA -< (bottom,s)
+  x:rest -> do
+    (y,s') <- f -< (x,s)
+    (yrest,s'') <- joinList f -< (rest,s')
+    returnA -< (y ⊔ yrest,s'')
+
 -- What we actually would like to write is this:
 -- joined f1 f2 = proc (x1,x2) -> (f1 -< x1) ⊔ (f2 -< x2)
 
