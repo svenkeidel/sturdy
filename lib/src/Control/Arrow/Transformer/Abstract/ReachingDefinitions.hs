@@ -16,9 +16,10 @@ module Control.Arrow.Transformer.Abstract.ReachingDefinitions(
   ReachingDefs
 ) where
 
-import           Prelude hiding ((.),read)
+import           Prelude hiding ((.),read,lookup)
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Environment
 import           Control.Arrow.Fix
 import           Control.Arrow.Lift
 import           Control.Arrow.Reader
@@ -52,7 +53,7 @@ instance (Identifiable var, Identifiable lab, ArrowStore var val lab c)
   read = lift read 
   write = ReachingDefinitions $ proc (x,v,l) -> do
     record (\(x,l) (defs) -> H.insert (x,Just l) (H.filter (\(y,_) -> x /= y) defs)) -< (x,l)
-    write -< (x,v,l)
+    lift write -< (x,v,l)
 
 type instance Fix x y (ReachingDefinitions v l c) = ReachingDefinitions v l (Fix x y (ForwardAnalysis (ReachingDef v l) c))
 deriving instance (Arrow c, ArrowFix x y (ForwardAnalysis (ReachingDef v l) c)) => ArrowFix x y (ReachingDefinitions v l c)

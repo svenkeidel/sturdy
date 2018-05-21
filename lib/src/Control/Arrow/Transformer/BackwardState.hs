@@ -82,6 +82,7 @@ instance (ArrowLoop c, ArrowEnv x y env c) => ArrowEnv x y env (State r c) where
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (State f) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
+  getEnvDomain = lift getEnvDomain
 
 instance (ArrowLoop c, ArrowStore var val lab c) => ArrowStore var val lab (State r c) where
   read = lift read

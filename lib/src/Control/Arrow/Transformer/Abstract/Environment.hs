@@ -47,6 +47,7 @@ instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c) => Arro
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (localA f)
+  getEnvDomain = arr E.domain
 
 instance ArrowApply c => ArrowApply (Environment var val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app

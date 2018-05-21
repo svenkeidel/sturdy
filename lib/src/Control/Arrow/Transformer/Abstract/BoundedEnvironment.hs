@@ -59,6 +59,7 @@ instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoi
     addr <- lift alloc -< (x,env,store)
     returnA -< (E.insert x addr env,S.insertWith (⊔) addr y store)
   localEnv (Environment (Reader f)) = Environment (Reader ((\(_,(e,a)) -> (e,a)) ^>> f))
+  getEnvDomain = arr (E.domain . fst)
 
 instance ArrowReader r c => ArrowReader r (Environment var addr val c) where
   askA = lift askA

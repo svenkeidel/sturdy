@@ -69,6 +69,7 @@ instance ArrowEnv x y env c => ArrowEnv x y env (Reader r c) where
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Reader f) = Reader ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
+  getEnvDomain = lift getEnvDomain
 
 type instance Fix x y (Reader r c) = Reader r (Fix (r,x) y c)
 instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where

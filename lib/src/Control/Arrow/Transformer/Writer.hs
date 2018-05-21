@@ -71,6 +71,7 @@ instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (Writer w c) where
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Writer f) = Writer (localEnv f)
+  getEnvDomain = lift getEnvDomain
 
 instance (Monoid w, ArrowStore var val lab c) => ArrowStore var val lab (Writer w c) where
   read = lift read

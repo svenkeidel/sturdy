@@ -63,6 +63,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Completion c) 
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Completion f) = Completion (localEnv f)
+  getEnvDomain = lift getEnvDomain
 
 instance ArrowChoice c => ArrowTry x y z (Completion c) where
   tryA (Completion f) (Completion g) (Completion h) = Completion $ proc x -> do

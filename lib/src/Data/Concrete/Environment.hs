@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Concrete.Environment(Env,empty,lookup,insert,insertWith,fromList,toList) where
+module Data.Concrete.Environment(Env,empty,lookup,insert,insertWith,fromList,toList,domain) where
 
 import           Prelude hiding (lookup)
 
@@ -39,3 +39,6 @@ fromList = Env . H.fromList
 
 toList :: Env a b -> [(a,b)]
 toList (Env e) = H.toList e
+
+domain :: Env a b -> [a]
+domain (Env e) = H.keys e

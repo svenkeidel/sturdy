@@ -68,6 +68,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) wh
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Powerset f) = Powerset $ localEnv f
+  getEnvDomain = lift getEnvDomain
 
 instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) where
   dedupA (Powerset f) = Powerset (dedupA f)

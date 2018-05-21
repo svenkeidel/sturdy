@@ -72,6 +72,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Uncertain c) w
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Uncertain f) = Uncertain (localEnv f)
+  getEnvDomain = lift getEnvDomain
 
 instance (ArrowChoice c, Complete (c (y,x) (UncertainResult z))) => ArrowTry x y z (Uncertain c) where
   tryA (Uncertain f) (Uncertain g) (Uncertain h) = Uncertain $ proc x -> do

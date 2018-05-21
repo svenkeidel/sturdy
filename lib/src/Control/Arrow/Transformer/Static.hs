@@ -65,6 +65,7 @@ instance (Applicative f, ArrowEnv x y env c) => ArrowEnv x y env (Static f c) wh
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Static f) = Static $ localEnv <$> f
+  getEnvDomain = lift getEnvDomain
 
 instance (Applicative f, ArrowStore var val lab c) => ArrowStore var val lab (Static f c) where
   read = lift read
