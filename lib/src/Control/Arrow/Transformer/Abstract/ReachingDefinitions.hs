@@ -55,6 +55,19 @@ instance (Identifiable var, Identifiable lab, ArrowStore var val lab c)
     record (\(x,l) (defs) -> H.insert (x,Just l) (H.filter (\(y,_) -> x /= y) defs)) -< (x,l)
     lift write -< (x,v,l)
 
+instance (Identifiable var, Identifiable lab, ArrowEnv var val env c)
+  => ArrowEnv var val env (ReachingDefinitions var lab c) where
+  lookup = lift lookup
+  getEnv = lift getEnv
+  extendEnv = ReachingDefinitions $ proc (x,v,env) -> do
+    record (\x defs -> H.insert (x,Nothing) (H.filter (\(y,_) -> x /= y) defs)) -< x
+    lift extendEnv -< (x,v,env)
+  localEnv (ReachingDefinitions f) = ReachingDefinitions $ proc (env,a) -> do -- :: c a b -> c (env,a) b
+    vars <- lift getEnvDomain -< env
+    record (\vs _ -> H.fromList $ Prelude.map (\v -> (v,Nothing)) vs) -< vars
+    lift (localEnv f) -< (env,a)
+  getEnvDomain = lift getEnvDomain
+
 type instance Fix x y (ReachingDefinitions v l c) = ReachingDefinitions v l (Fix x y (ForwardAnalysis (ReachingDef v l) c))
 deriving instance (Arrow c, ArrowFix x y (ForwardAnalysis (ReachingDef v l) c)) => ArrowFix x y (ReachingDefinitions v l c)
 

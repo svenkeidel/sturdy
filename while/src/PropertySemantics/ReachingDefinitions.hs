@@ -12,22 +12,23 @@ import           SharedSemantics
 import qualified SharedSemantics as Shared
 import           ValueSemantics.Unit
 
-import           Data.Text (Text)
 import           Data.Label
 import qualified Data.List as L
 import           Data.Ord (comparing)
+import           Data.Order
 
-import           Data.Abstract.Terminating
+import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Error
 import qualified Data.Abstract.Store as S
+import           Data.Abstract.Terminating
 
 import           Control.Arrow.Fix 
 import           Control.Arrow.Lift
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
-run :: [Statement] -> ReachingDefs Text Label
-    -> [(Statement,(ReachingDefs Text Label, ReachingDefs Text Label))]
+run :: [Statement] -> ReachingDefs Addr Label
+    -> [(Statement,(ReachingDefs Addr Label, ReachingDefs Addr Label))]
 run stmts defs =
   L.sortBy (comparing (label.fst)) $
   S.toList $
@@ -44,13 +45,13 @@ run stmts defs =
     (runInterp
        (runReachingDefs
         (Shared.run :: Fix [Statement] ()
-                         (ReachingDefinitions Text Label
+                         (ReachingDefinitions Addr Label
                             (Interp
                                (~>))) [Statement] ())))
-    (S.empty,(defs,stmts))
+    ((S.empty,bottom),(E.empty,(defs,stmts)))
 
 
-instance (IsVal val c) => IsVal val (ReachingDefinitions v l c) where
+instance (IsVal val addr c) => IsVal val addr (ReachingDefinitions v l c) where
   boolLit = lift boolLit
   and = lift and
   or = lift or
@@ -63,6 +64,9 @@ instance (IsVal val c) => IsVal val (ReachingDefinitions v l c) where
   div = lift div
   eq = lift eq
   lt = lift lt
+  freshAddr = lift freshAddr
+  ref = lift ref
+  getAddr = lift getAddr
 
 instance (Conditional val (ReachingDefs v l,x) (ReachingDefs v l,y) (ReachingDefs v l,(ReachingDefs v l,z)) c)
   => Conditional val x y z (ReachingDefinitions v l c) where

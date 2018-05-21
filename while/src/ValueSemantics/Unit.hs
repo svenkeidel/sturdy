@@ -73,7 +73,7 @@ instance ArrowChoice c => IsVal Val Addr (Interp c) where
   lt = arr (const ())
   freshAddr = arr $ FC.Lower . Pow.singleton
   ref = arr (const ())
-  getAddr = proc (r,_) -> returnA -< FC.Top
+  getAddr = arr (const FC.Top)
 
 instance (Complete (Interp c (x,y) z), ArrowChoice c)
   => Conditional Val x y z (Interp c) where
