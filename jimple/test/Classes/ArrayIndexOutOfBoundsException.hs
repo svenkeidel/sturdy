@@ -24,9 +24,9 @@ arrayIndexOutOfBoundsExceptionInitMethod = Method {
       (TClass "java.lang.String", ["s0"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "java.lang.ArrayIndexOutOfBoundsException"),
-      Identity "s0" (IDParameter 0) (TClass "java.lang.String"),
-      Invoke (SpecialInvoke "r0" throwableInitSignature [ILocalName "s0"]),
+      Identity "r0" ThisRef (TClass "java.lang.ArrayIndexOutOfBoundsException"),
+      Identity "s0" (ParameterRef 0) (TClass "java.lang.String"),
+      Invoke (SpecialInvoke "r0" throwableInitSignature [Local "s0"]),
       Return Nothing
     ],
     catchClauses = []

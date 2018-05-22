@@ -37,10 +37,10 @@ throwableInitMethod = Method {
       (TClass "java.lang.String", ["s0"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "java.lang.Throwable"),
+      Identity "r0" ThisRef (TClass "java.lang.Throwable"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
-      Identity "s0" (IDParameter 0) (TClass "java.lang.String"),
-      Assign (VReference (FieldReference "r0" throwableMessageSignature)) (EImmediate (ILocalName "s0")),
+      Identity "s0" (ParameterRef 0) (TClass "java.lang.String"),
+      Assign (VReference (FieldRef "r0" throwableMessageSignature)) (Local "s0"),
       Return Nothing
     ],
     catchClauses = []

@@ -17,14 +17,14 @@ tryCatchExampleMainMethod = Method {
     ],
     statements = [
       Label "label1",
-      Assign (VLocal "$r2") (ENew (NewSimple (TClass "java.lang.ArrayIndexOutOfBoundsException"))),
-      Invoke (SpecialInvoke "$r2" arrayIndexOutOfBoundsExceptionInitSignature [IString "a"]),
-      Throw (ILocalName "$r2"),
+      Assign (VLocal "$r2") (NewExpr (TClass "java.lang.ArrayIndexOutOfBoundsException")),
+      Invoke (SpecialInvoke "$r2" arrayIndexOutOfBoundsExceptionInitSignature [StringConstant "a"]),
+      Throw (Local "$r2"),
       Label "label2",
-      IdentityNoType "$r3" IDCaughtException,
-      Assign (VLocal "$r4") (ENew (NewSimple (TClass "java.lang.ArrayIndexOutOfBoundsException"))),
-      Invoke (SpecialInvoke "$r4" arrayIndexOutOfBoundsExceptionInitSignature [IString "b"]),
-      Throw (ILocalName "$r4")
+      IdentityNoType "$r3" CaughtExceptionRef,
+      Assign (VLocal "$r4") (NewExpr (TClass "java.lang.ArrayIndexOutOfBoundsException")),
+      Invoke (SpecialInvoke "$r4" arrayIndexOutOfBoundsExceptionInitSignature [StringConstant "b"]),
+      Throw (Local "$r4")
     ],
     catchClauses = [
       CatchClause { className = "java.lang.ArrayIndexOutOfBoundsException"

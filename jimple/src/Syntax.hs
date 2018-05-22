@@ -3,16 +3,6 @@
 
 module Syntax where
 
-data AtIdentifier
-  = IDParameter Int
-  | IDThis
-  | IDCaughtException deriving (Eq)
-
-instance Show AtIdentifier where
-  show (IDParameter n) = "@parameter" ++ show n
-  show IDThis = "@this"
-  show IDCaughtException = "@caughtexception"
-
 data CompilationUnit = CompilationUnit { fileModifiers :: [Modifier]
                                        , fileType :: FileType
                                        , fileName :: String
@@ -131,20 +121,20 @@ type Declaration = (Type, [String])
 data Statement
   = Label String
   | Breakpoint
-  -- | Entermonitor Immediate -- Don't use this!
-  -- | Exitmonitor Immediate -- Don't use this!
-  | Tableswitch Immediate [CaseStatement]
-  | Lookupswitch Immediate [CaseStatement]
-  | Identity String AtIdentifier Type
-  | IdentityNoType String AtIdentifier
+  -- | Entermonitor Expr -- Don't use this!
+  -- | Exitmonitor Expr -- Don't use this!
+  | Tableswitch Expr [CaseStatement]
+  | Lookupswitch Expr [CaseStatement]
+  | Identity String Expr Type
+  | IdentityNoType String Expr
   | Assign Variable Expr
   | If Expr String
   | Goto String
   | Nop
-  | Ret (Maybe Immediate)
-  | Return (Maybe Immediate)
-  | Throw Immediate
-  | Invoke InvokeExpr deriving (Show, Eq)
+  | Ret (Maybe Expr)
+  | Return (Maybe Expr)
+  | Throw Expr
+  | Invoke EInvoke deriving (Show, Eq)
 
 type CaseStatement = (CaseLabel, String)
 
@@ -159,39 +149,43 @@ data CatchClause = CatchClause { className :: String
                                } deriving (Show, Eq)
 
 data Expr
-  = ENew NewExpr
-  | ECast Type Immediate
-  | EInstanceof Immediate Type
-  | EInvoke InvokeExpr
-  | EReference Reference
-  | EBinop Immediate Binop Immediate
-  | EUnop Unop Immediate
-  | EImmediate Immediate deriving (Show, Eq)
-
-data NewExpr
-  = NewSimple Type
-  | NewArray Type Immediate
-  | NewMulti Type [Immediate] deriving (Show, Eq)
+  = NewExpr Type
+  | NewArrayExpr Type Expr
+  | NewMultiArrayExpr Type [Expr]
+  | CastExpr Type Expr
+  | InstanceOfExpr Expr Type
+  | InvokeExpr EInvoke
+  | ThisRef
+  | ParameterRef Int
+  | CaughtExceptionRef
+  | ArrayRef String Expr
+  | FieldRef String FieldSignature
+  | SignatureRef FieldSignature
+  | BinopExpr Expr Binop Expr
+  | UnopExpr Unop Expr
+  | Local String
+  | DoubleConstant Float
+  | FloatConstant Float
+  | IntConstant Int
+  | LongConstant Int
+  | NullConstant
+  | StringConstant String
+  | ClassConstant String deriving (Show, Eq)
 
 data Variable
-  = VReference Reference
+  = VReference Expr
   | VLocal String deriving (Show, Eq)
 
-data InvokeExpr
-  = SpecialInvoke String MethodSignature [Immediate]
-  | VirtualInvoke String MethodSignature [Immediate]
-  | InterfaceInvoke String MethodSignature [Immediate]
-  | StaticInvoke MethodSignature [Immediate]
-  | DynamicInvoke String UnnamedMethodSignature [Immediate] MethodSignature [Immediate] deriving (Show, Eq)
+data EInvoke
+  = SpecialInvoke String MethodSignature [Expr]
+  | VirtualInvoke String MethodSignature [Expr]
+  | InterfaceInvoke String MethodSignature [Expr]
+  | StaticInvoke MethodSignature [Expr]
+  | DynamicInvoke String UnnamedMethodSignature [Expr] MethodSignature [Expr] deriving (Show, Eq)
 
 data MethodSignature = MethodSignature String Type String [Type] deriving (Show, Eq)
 
 data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Show, Eq)
-
-data Reference
-  = ArrayReference String Immediate
-  | FieldReference String FieldSignature
-  | SignatureReference FieldSignature deriving (Show, Eq)
 
 data FieldSignature = FieldSignature String Type String deriving (Eq)
 
@@ -205,14 +199,6 @@ instance Ord FieldSignature where
 instance Show FieldSignature where
   show (FieldSignature c t n) =
     "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
-
-data Immediate
-  = ILocalName String
-  | IInt Int
-  | IFloat Float
-  | IString String
-  | IClass String
-  | INull deriving (Show, Eq)
 
 data Binop
   = And     -- Bytewise operator

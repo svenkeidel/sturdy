@@ -36,7 +36,7 @@ singleMethodExampleInitMethod = Method {
       (TClass "SingleMethodExample", ["r0"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "SingleMethodExample"),
+      Identity "r0" ThisRef (TClass "SingleMethodExample"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Return Nothing
     ],
@@ -57,10 +57,10 @@ singleMethodExampleMainMethod = Method {
       (TClass "SingleMethodExample", ["$r2"])
     ],
     statements = [
-      Assign (VLocal "$r2") (ENew (NewSimple (TClass "SingleMethodExample"))),
+      Assign (VLocal "$r2") (NewExpr (TClass "SingleMethodExample")),
       Invoke (VirtualInvoke "$r2" singleMethodExampleFooSignature []),
-      Assign (VLocal "i0") (EReference (FieldReference "$r2" singleMethodExampleXSignature)),
-      Return (Just (ILocalName "i0"))
+      Assign (VLocal "i0") (FieldRef "$r2" singleMethodExampleXSignature),
+      Return (Just (Local "i0"))
     ],
     catchClauses = []
   }
@@ -85,8 +85,8 @@ singleMethodExampleFooMethod = Method {
       (TClass "SingleMethodExample", ["r0"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "SingleMethodExample"),
-      Assign (VReference (FieldReference "r0" singleMethodExampleXSignature)) (EImmediate (IInt 2)),
+      Identity "r0" ThisRef (TClass "SingleMethodExample"),
+      Assign (VReference (FieldRef "r0" singleMethodExampleXSignature)) (IntConstant 2),
       Return Nothing
     ],
     catchClauses = []

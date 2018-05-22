@@ -36,7 +36,7 @@ arrayFieldExampleInitMethod = Method {
       (TClass "ArrayFieldExample", ["r0"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "ArrayFieldExample"),
+      Identity "r0" ThisRef (TClass "ArrayFieldExample"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Return Nothing
     ],
@@ -60,12 +60,12 @@ arrayFieldExampleMainMethod = Method {
       (TClass "ArrayFieldExample", ["$r2"])
     ],
     statements = [
-      Identity "r0" (IDParameter 0) (TInt),
-      Assign (VLocal "$r2") (ENew (NewSimple (TClass "ArrayFieldExample"))),
+      Identity "r0" (ParameterRef 0) (TInt),
+      Assign (VLocal "$r2") (NewExpr (TClass "ArrayFieldExample")),
       Invoke (SpecialInvoke "$r2" arrayFieldExampleInitSignature []),
-      Invoke (VirtualInvoke "$r2" arrayFieldExampleFillSignature [ILocalName "r0"]),
-      Assign (VLocal "r1") (EReference (FieldReference "$r2" arrayFieldExampleArrSignature)),
-      Return (Just (ILocalName "r1"))
+      Invoke (VirtualInvoke "$r2" arrayFieldExampleFillSignature [Local "r0"]),
+      Assign (VLocal "r1") (FieldRef "$r2" arrayFieldExampleArrSignature),
+      Return (Just (Local "r1"))
     ],
     catchClauses = []
   }
@@ -92,14 +92,14 @@ arrayFieldExampleFillMethod = Method {
       (TArray TInt, ["a0"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "ArrayFieldExample"),
-      Identity "p0" (IDParameter 0) TInt,
-      Assign (VLocal "a0") (ENew (NewArray TInt (IInt 4))),
-      Assign (VReference (ArrayReference "a0" (IInt 0))) (EImmediate (ILocalName "p0")),
-      Assign (VReference (ArrayReference "a0" (IInt 1))) (EImmediate (ILocalName "p0")),
-      Assign (VReference (ArrayReference "a0" (IInt 2))) (EImmediate (ILocalName "p0")),
-      Assign (VReference (ArrayReference "a0" (IInt 3))) (EImmediate (ILocalName "p0")),
-      Assign (VReference (FieldReference "r0" arrayFieldExampleArrSignature)) (EImmediate (ILocalName "a0")),
+      Identity "r0" ThisRef (TClass "ArrayFieldExample"),
+      Identity "p0" (ParameterRef 0) TInt,
+      Assign (VLocal "a0") (NewArrayExpr TInt (IntConstant 4)),
+      Assign (VReference (ArrayRef "a0" (IntConstant 0))) (Local "p0"),
+      Assign (VReference (ArrayRef "a0" (IntConstant 1))) (Local "p0"),
+      Assign (VReference (ArrayRef "a0" (IntConstant 2))) (Local "p0"),
+      Assign (VReference (ArrayRef "a0" (IntConstant 3))) (Local "p0"),
+      Assign (VReference (FieldRef "r0" arrayFieldExampleArrSignature)) (Local "a0"),
       Return Nothing
     ],
     catchClauses = []

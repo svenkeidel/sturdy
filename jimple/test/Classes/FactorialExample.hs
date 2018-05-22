@@ -24,7 +24,7 @@ factorialExampleInitMethod = Method {
       (TClass "FactorialExample", ["r0"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "FactorialExample"),
+      Identity "r0" ThisRef (TClass "FactorialExample"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Return Nothing
     ],
@@ -47,11 +47,11 @@ factorialExampleMainMethod = Method {
       (TClass "FactorialExample", ["$r2"])
     ],
     statements = [
-      Identity "r0" (IDParameter 0) (TInt),
-      Assign (VLocal "$r2") (ENew (NewSimple (TClass "FactorialExample"))),
+      Identity "r0" (ParameterRef 0) (TInt),
+      Assign (VLocal "$r2") (NewExpr (TClass "FactorialExample")),
       Invoke (SpecialInvoke "$r2" factorialExampleInitSignature []),
-      Assign (VLocal "r1") (EInvoke (VirtualInvoke "$r2" factorialExampleExecSignature [ILocalName "r0"])),
-      Return (Just (ILocalName "r1"))
+      Assign (VLocal "r1") (InvokeExpr (VirtualInvoke "$r2" factorialExampleExecSignature [Local "r0"])),
+      Return (Just (Local "r1"))
     ],
     catchClauses = []
   }
@@ -78,20 +78,20 @@ factorialExampleExecMethod = Method {
       (TClass "java.lang.IllegalArgumentException", ["$r1"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "FactorialExample"),
-      Identity "i0" (IDParameter 0) TInt,
-      If (EBinop (ILocalName "i0") Cmpge (IInt 0)) "label1",
-      Assign (VLocal "$r1") (ENew (NewSimple (TClass "java.lang.IllegalArgumentException"))),
-      Invoke (SpecialInvoke "$r1" illegalArgumentExceptionInitSignature [IString "Negative value for argument n"]),
-      Throw (ILocalName "$r1"),
+      Identity "r0" ThisRef (TClass "FactorialExample"),
+      Identity "i0" (ParameterRef 0) TInt,
+      If (BinopExpr (Local "i0") Cmpge (IntConstant 0)) "label1",
+      Assign (VLocal "$r1") (NewExpr (TClass "java.lang.IllegalArgumentException")),
+      Invoke (SpecialInvoke "$r1" illegalArgumentExceptionInitSignature [StringConstant "Negative value for argument n"]),
+      Throw (Local "$r1"),
       Label "label1",
-      If (EBinop (ILocalName "i0") Cmpne (IInt 0)) "label2",
-      Return (Just (IInt 1)),
+      If (BinopExpr (Local "i0") Cmpne (IntConstant 0)) "label2",
+      Return (Just (IntConstant 1)),
       Label "label2",
-      Assign (VLocal "$i1") (EBinop (ILocalName "i0") Minus (IInt 1)),
-      Assign (VLocal "$i2") (EInvoke (SpecialInvoke "r0" factorialExampleExecSignature [ILocalName "$i1"])),
-      Assign (VLocal "$i3") (EBinop (ILocalName "i0") Mult (ILocalName "$i2")),
-      Return (Just (ILocalName "$i3"))
+      Assign (VLocal "$i1") (BinopExpr (Local "i0") Minus (IntConstant 1)),
+      Assign (VLocal "$i2") (InvokeExpr (SpecialInvoke "r0" factorialExampleExecSignature [Local "$i1"])),
+      Assign (VLocal "$i3") (BinopExpr (Local "i0") Mult (Local "$i2")),
+      Return (Just (Local "$i3"))
     ],
     catchClauses = []
   }

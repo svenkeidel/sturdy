@@ -40,7 +40,7 @@ personExampleClassInitMethod = Method {
   methodBody = MFull {
     declarations = [],
     statements = [
-      Assign (VReference (SignatureReference personExampleMaxAgeSignature)) (EImmediate (IInt 100))
+      Assign (VReference (SignatureRef personExampleMaxAgeSignature)) (IntConstant 100)
     ],
     catchClauses = []
   }
@@ -59,10 +59,10 @@ personExampleMainMethod = Method {
       (TClass "PersonExample", ["$r2"])
     ],
     statements = [
-      Assign (VLocal "$r2") (ENew (NewSimple (TClass "PersonExample"))),
-      Invoke (SpecialInvoke "$r2" personExampleInitSignature [IInt 10]),
-      Assign (VLocal "r0") (EInvoke (VirtualInvoke "$r2" personExampleYearsLeftSignature [])),
-      Return (Just (ILocalName "r0"))
+      Assign (VLocal "$r2") (NewExpr (TClass "PersonExample")),
+      Invoke (SpecialInvoke "$r2" personExampleInitSignature [IntConstant 10]),
+      Assign (VLocal "r0") (InvokeExpr (VirtualInvoke "$r2" personExampleYearsLeftSignature [])),
+      Return (Just (Local "r0"))
     ],
     catchClauses = []
   }
@@ -88,10 +88,10 @@ personExampleInitMethod = Method {
       (TInt, ["i0"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "PersonExample"),
+      Identity "r0" ThisRef (TClass "PersonExample"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
-      Identity "i0" (IDParameter 0) TInt,
-      Assign (VReference (FieldReference "r0" personExampleAgeSignature)) (EImmediate (ILocalName "i0")),
+      Identity "i0" (ParameterRef 0) TInt,
+      Assign (VReference (FieldRef "r0" personExampleAgeSignature)) (Local "i0"),
       Return Nothing
     ],
     catchClauses = []
@@ -118,11 +118,11 @@ personExampleYearsLeftMethod = Method {
       (TInt, ["i0", "i1", "i2"])
     ],
     statements = [
-      Identity "r0" IDThis (TClass "PersonExample"),
-      Assign (VLocal "i0") (EReference (FieldReference "r0" personExampleAgeSignature)),
-      Assign (VLocal "i1") (EReference (SignatureReference personExampleMaxAgeSignature)),
-      Assign (VLocal "i2") (EBinop (ILocalName "i1") Minus (ILocalName "i0")),
-      Return (Just (ILocalName "i2"))
+      Identity "r0" ThisRef (TClass "PersonExample"),
+      Assign (VLocal "i0") (FieldRef "r0" personExampleAgeSignature),
+      Assign (VLocal "i1") (SignatureRef personExampleMaxAgeSignature),
+      Assign (VLocal "i2") (BinopExpr (Local "i1") Minus (Local "i0")),
+      Return (Just (Local "i2"))
     ],
     catchClauses = []
   }
