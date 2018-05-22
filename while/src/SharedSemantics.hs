@@ -93,11 +93,11 @@ run = fixA $ \run' -> proc stmts -> case stmts of
            -< (x,l)
     write -< (a,v,l)
     extendEnv' run' -< (x, a, ss) -- extend environment in case `a` is fresh
-  (Set x e l:ss) -> do
-    v <- eval -< e
-    xa <- lookup -< x
-    r <- read -< (xa,l)
-    a <- getAddr -< (r,l)
+    -- TODO: add label to extendEnv and move into tryA
+  (Set e1 e2 l:ss) -> do
+    vref <- eval -< e1
+    a <- getAddr -< (vref,l)
+    v <- eval -< e2
     write -< (a,v,l)
     run' -< ss
   (If cond b1 b2 _:ss) -> do

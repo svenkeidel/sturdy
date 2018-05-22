@@ -50,10 +50,10 @@ execStore f = runUncertainStore f >>> pi1
 instance (Show var, Hashable var, Identifiable var, ArrowFail String c, ArrowChoice c, Complete val, LowerBounded val, UpperBounded val, Complete (c (val,var) val)) =>
   ArrowStore (FreeCompletion (Pow var)) val lab (UncertainStoreArrow var val c) where
   read = UncertainStoreArrow $ State $ proc ((s,topvals),(a,_)) -> case a of
-     Top -> returnA -< ((s,topvals),topvals)
+     Top -> returnA -< ((s,topvals),topvals) -- TODO: least upper bound of codomain
      Lower vars -> do
       v <- arr lub <<< mapA' readVar -< (toList vars,s)
-      returnA -< ((s,topvals),v)
+      returnA -< ((s,topvals),v ⊔ topvals)
     where
       readVar = proc (var,s) -> case S.lookup var s of
                     Success v -> joined returnA (proc var -> failA -< printf "Variable %s maybe not bound" (show var)) -< (v,var)

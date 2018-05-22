@@ -27,8 +27,8 @@ import           Control.Arrow.Lift
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
-run :: [Statement] -> ReachingDefs Addr Label
-    -> [(Statement,(ReachingDefs Addr Label, ReachingDefs Addr Label))]
+run :: [Statement] -> ReachingDefs Text Label
+    -> [(Statement,(ReachingDefs Text Label, ReachingDefs Text Label))]
 run stmts defs =
   L.sortBy (comparing (label.fst)) $
   S.toList $
@@ -45,7 +45,7 @@ run stmts defs =
     (runInterp
        (runReachingDefs
         (Shared.run :: Fix [Statement] ()
-                         (ReachingDefinitions Addr Label
+                         (ReachingDefinitions Text Label
                             (Interp
                                (~>))) [Statement] ())))
     ((S.empty,bottom),(E.empty,(defs,stmts)))

@@ -33,7 +33,7 @@ import           Control.Arrow.Transformer.ForwardAnalysis
 import           Data.Identifiable
 import qualified Data.HashSet as H
 
-type ReachingDef v l = (v,Maybe l)
+type PointsTo v l = (v,Maybe l)
 type ReachingDefs v l = Forward (ReachingDef v l)
 
 newtype ReachingDefinitions v l c x y = ReachingDefinitions (ForwardAnalysis (ReachingDef v l) c x y)

@@ -131,7 +131,7 @@ data Statement
   = While Expr [Statement] Label
   | If Expr [Statement] [Statement] Label
   | Assign Text Expr Label
-  | Set Text Expr Label
+  | Set Expr Expr Label
   deriving (Ord,Eq,Generic)
 
 instance Show Statement where

@@ -147,7 +147,7 @@ instance ArrowChoice c => IsVal Val Addr (Interp c) where
   ref = arr RefVal
   getAddr = proc (r,_) -> case r of
     RefVal a -> returnA -< a
-    Top -> returnA -< FC.Top
+    Top -> returnA -< top
     v -> failA -< "Expected reference but found " ++ show v
 
 instance (Complete (Interp c (x,y) z), UpperBounded z, ArrowChoice c)
