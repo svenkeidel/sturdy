@@ -22,7 +22,8 @@ import           Data.Text (Text,pack,unpack)
 import qualified Data.Text as T
 
 import           Text.Read (readMaybe)
-import           Test.QuickCheck hiding (subterms)
+import           Test.QuickCheck (Arbitrary(..),Gen)
+import qualified Test.QuickCheck as Q
 
 newtype TermVar = TermVar Text deriving (Eq,Ord,Hashable)
 newtype StratVar = StratVar Text deriving (Eq,Ord,IsString,Hashable)
@@ -225,7 +226,7 @@ parseInt s = case s of
   _ -> throwError $ "unexpected input while parsing integer literal from aterm: " ++ show s
 
 instance Arbitrary TermVar where
-  arbitrary = TermVar . T.singleton <$> choose ('a','z')
+  arbitrary = TermVar . T.singleton <$> Q.choose ('a','z')
 
 instance Show TermVar where
   show (TermVar x) = unpack x
@@ -358,26 +359,26 @@ instance Num TermPattern where
 
 instance Arbitrary TermPattern where
   arbitrary = do
-    h <- choose (0,7)
-    w <- choose (0,4)
-    arbitraryTermPattern h w arbitrary
+    h <- Q.choose (0,7)
+    w <- Q.choose (0,4)
+    arbitraryTermPattern h w Q.arbitrary
 
 arbitraryTermPattern :: Int -> Int -> Gen TermVar -> Gen TermPattern
 arbitraryTermPattern h w var
   | h == 0 =
-      oneof
-        [ Cons <$> arbitrary <*> pure []
+      Q.oneof
+        [ Cons <$> Q.arbitrary <*> pure []
         , StringLiteral <$> arbitraryLetter
-        , NumberLiteral <$> choose (0,9)
+        , NumberLiteral <$> Q.choose (0,9)
         , Var <$> var
         ]
   | otherwise = do
-      w' <- choose (0,w)
-      oneof
+      w' <- Q.choose (0,w)
+      Q.oneof
         [ do
-          c <- arbitrary
-          fmap (Cons c) $ vectorOf w' $ do
-            h' <- choose (0,h-1)
+          c <- Q.arbitrary
+          fmap (Cons c) $ Q.vectorOf w' $ do
+            h' <- Q.choose (0,h-1)
             arbitraryTermPattern h' w var
         -- , Explode <$> arbitraryStringPattern
         --           <*> arbitraryListPattern w'

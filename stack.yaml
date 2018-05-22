@@ -1,12 +1,10 @@
 flags: {}
 extra-package-dbs: []
+resolver: lts-11.10
 packages:
 - 'lib'
 - 'rtg'
 - 'pcf'
 - 'while'
-# - 'lambda-adt'
 - 'stratego'
-extra-deps:
-- numeric-limits-0.1.0.0
-resolver: lts-9.18
+# - 'lambda-adt'

@@ -49,7 +49,7 @@ import           Data.Text (Text)
 
 import           TreeAutomata
 
-import           Test.QuickCheck hiding (Success)
+import qualified Test.QuickCheck as Q
 import           Text.Printf
 
 data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
@@ -221,12 +221,12 @@ instance Galois (C.Pow C.TermEnv) TermEnv where
   gamma = undefined
 
 instance Soundness (StratEnv, Alphabet Constr) Interp where
-  sound (senv,alph) xs f g = forAll (choose (2,3)) $ \i ->
+  sound (senv,alph) xs f g = Q.forAll (Q.choose (2,3)) $ \i ->
     let con :: FreeCompletion (UncertainResult (TermEnv,_))
         con = Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
         abst :: FreeCompletion (UncertainResult (TermEnv,_))
         abst = runInterp g i alph senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
-    in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
+    in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 -- Helpers -------------------------------------------------------------------------------------------
 dom :: HashMap TermVar t -> [TermVar]
