@@ -21,7 +21,8 @@ library
       Concrete,
       Syntax,
       TypeInterpreter,
-      ValueInterpreter
+      ValueInterpreter,
+      SharedInterpreter
   default-language: Haskell2010
 
 test-suite lambdajs-test
