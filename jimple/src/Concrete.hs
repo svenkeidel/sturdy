@@ -642,6 +642,7 @@ eval = proc e -> case e of
   NullConstant -> returnA -< VNull
   StringConstant s -> returnA -< (VString s)
   ClassConstant c -> returnA -< (VClass c)
+  MethodHandle _ -> failA -< VString "Evaluation of method handles is not implemented"
 
 runStatements :: CanInterp c => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i >= length stmts

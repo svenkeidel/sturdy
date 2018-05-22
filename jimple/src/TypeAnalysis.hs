@@ -8,7 +8,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Concrete where
+module TypeAnalysis where
 
 import Prelude hiding (lookup,read)
 
@@ -48,6 +48,8 @@ import           Debug.Trace
 import           Syntax
 
 ---- Values ----
+-- TODO Use Text over String
+
 data Val
   = ArrayType Val Int
   | BooleanType
@@ -57,7 +59,6 @@ data Val
   | DoubleType
   | FloatType
   | IntType
-  | IntegerType
   | Integer127Type
   | Integer1Type
   | Integer32767Type
@@ -66,7 +67,33 @@ data Val
   | RefType String
   | ShortType deriving (Eq)
 
-instance Show of
+instance Show Val where
+  show (ArrayType v n) = show v ++ concat (replicate n "[]")
+  show BooleanType = "bool"
+  show BottomType = "⊥"
+  show ByteType = "byte"
+  show CharType = "char"
+  show DoubleType = "double"
+  show FloatType = "float"
+  show IntType = "int"
+  show Integer127Type = "[0..127]"
+  show Integer1Type = "[0..1]"
+  show Integer32767Type = "[0..32767]"
+  show LongType = "long"
+  show NullType = "null"
+  show (RefType s) = show s
+  show ShortType = "short"
+
+isIntegerType :: Val -> Bool
+isIntegerType BooleanType = True
+isIntegerType ByteType = True
+isIntegerType CharType = True
+isIntegerType IntType = True
+isIntegerType ShortType = True
+isIntegerType Integer1Type = True
+isIntegerType Integer127Type = True
+isIntegerType Integer32767Type = True
+isIntegerType _ = False
 
 ---- End of Values ----
 
@@ -142,9 +169,9 @@ type CanInterp c = (CanFail c,
                     CanUseConst c,
                     CanUseReader c,
                     CanUseState c,
-                    CanCatch InvokeExpr c,
+                    CanCatch EInvoke c,
                     CanCatch ([Statement], Int) c,
-                    CanCatch (Method, Maybe Val, [Immediate]) c,
+                    CanCatch (Method, Maybe Val, [Expr]) c,
                     ArrowDebug c)
 
 ---- End of Constraint Boilerplate ----
@@ -164,21 +191,11 @@ replace _ _ [] = []
 replace 0 x (_:t) = x:t
 replace n x (h:t) = h:replace (n-1) x t
 
-numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
-numToNum op v1 v2 = case (v1, v2) of
-  (VInt n1, VInt n2) -> Just (VInt (op n1 n2))
-  (VFloat f, VInt n) -> Just (VFloat (op f (fromIntegral n)))
-  (VInt n, VFloat f) -> Just (VFloat (op (fromIntegral n) f))
-  (VFloat f1, VFloat f2) -> Just (VFloat (op f1 f2))
-  (_, _) -> Nothing
-
-numToBool :: (forall a. Ord a => a -> a -> Bool) -> Val -> Val -> Maybe Val
-numToBool op v1 v2 = case (v1, v2) of
-  (VInt n1, VInt n2) -> Just (VBool (op n1 n2))
-  (VFloat f, VInt n) -> Just (VBool (op f (fromIntegral n)))
-  (VInt n, VFloat f) -> Just (VBool (op (fromIntegral n) f))
-  (VFloat f1, VFloat f2) -> Just (VBool (op f1 f2))
-  (_, _) -> Nothing
+assert :: (CanFail c) => c Bool ()
+assert = proc prop ->
+if prop
+  then returnA -< ()
+  else failA -< VString "Assertion failed"
 
 lookup' :: (Show var, CanFail c, ArrowMaybeEnv var val env c) => c var val
 lookup' = proc x -> do
@@ -193,20 +210,6 @@ read' = proc x -> do
   case v of
     Just y -> returnA -< y
     Nothing -> failA -< VString $ printf "Address %s not bounded" (show x)
-
-assert :: (CanFail c) => c Bool ()
-assert = proc prop ->
-    if prop
-    then returnA -< ()
-    else failA -< VString "Assertion failed"
-
-toIntList :: (CanFail c) => c [Val] [Int]
-toIntList = proc vs -> case vs of
-  (VInt x:xs) -> do
-    xs' <- toIntList -< xs
-    returnA -< (x:xs')
-  (_:_) -> failA -< VString "Expected an integer valued array for toIntList"
-  [] -> returnA -< []
 
 unbox :: (CanFail c, CanStore c) => c Val Val
 unbox = proc val -> case val of
@@ -326,6 +329,30 @@ throw = proc (clzz, message) -> do
 
 ---- Evaluation Helper Methods ----
 
+numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
+numToNum op v1 v2 = case (v1, v2) of
+  (VInt n1, VInt n2) -> Just (VInt (op n1 n2))
+  (VFloat f, VInt n) -> Just (VFloat (op f (fromIntegral n)))
+  (VInt n, VFloat f) -> Just (VFloat (op (fromIntegral n) f))
+  (VFloat f1, VFloat f2) -> Just (VFloat (op f1 f2))
+  (_, _) -> Nothing
+
+numToBool :: (forall a. Ord a => a -> a -> Bool) -> Val -> Val -> Maybe Val
+numToBool op v1 v2 = case (v1, v2) of
+  (VInt n1, VInt n2) -> Just (VBool (op n1 n2))
+  (VFloat f, VInt n) -> Just (VBool (op f (fromIntegral n)))
+  (VInt n, VFloat f) -> Just (VBool (op (fromIntegral n) f))
+  (VFloat f1, VFloat f2) -> Just (VBool (op f1 f2))
+  (_, _) -> Nothing
+
+toIntList :: (CanFail c) => c [Val] [Int]
+toIntList = proc vs -> case vs of
+  (VInt x:xs) -> do
+    xs' <- toIntList -< xs
+    returnA -< (x:xs')
+  (_:_) -> failA -< VString "Expected an integer valued array for toIntList"
+  [] -> returnA -< []
+
 getInitializedFields :: (CanFail c, CanUseConst c) => c String [(FieldSignature, Val)]
 getInitializedFields = proc c -> do
   unit <- fetchCompilationUnit -< c
@@ -366,58 +393,32 @@ isInstanceof = proc (v, t) -> do
   v' <- unbox -< v
   case (v', t) of
     (VBool _,     TBoolean) -> returnA -< True
-    (VInt n,      TByte)    -> returnA -< n >= -128                 && n <= 127                 -- n >= (-2)^7  && n <= 2^7 - 1
-    (VInt n,      TChar)    -> returnA -< n >= 0                    && n <= 65535               -- n >= 0       && n <= 2^16 - 1
-    (VInt n,      TShort)   -> returnA -< n >= -32768               && n <= 32767               -- n >= (-2)^15 && n <= 2^15 - 1
-    (VInt n,      TInt)     -> returnA -< n >= -2147483648          && n <= 2147483647          -- n >= (-2)^31 && n <= 2^31 - 1
-    (VInt n,      TLong)    -> returnA -< n >= -9223372036854775808 && n <= 9223372036854775807 -- n >= (-2)^63 && n <= 2^63 - 1
+    (VInt n,      TByte)    -> returnA -< n >= -128                 && n < 128                 -- n >= (-2)^7  && n < 2^7
+    (VInt n,      TChar)    -> returnA -< n >= 0                    && n < 65536               -- n >= 0       && n < 2^16
+    (VInt n,      TShort)   -> returnA -< n >= -32768               && n < 32768               -- n >= (-2)^15 && n < 2^15
+    (VInt n,      TInt)     -> returnA -< n >= -2147483648          && n < 2147483648          -- n >= (-2)^31 && n < 2^31
+    (VLong l,     TLong)    -> returnA -< l >= -9223372036854775808 && l <= 9223372036854775807 -- l >= (-2)^63 && l < 2^63
     (VFloat _,    TFloat)   -> returnA -< True
-    (VFloat _,    TDouble)  -> returnA -< True
+    (VDouble _,   TDouble)  -> returnA -< True
     (VNull,       TNull)    -> returnA -< True
     (VObject c _, TClass p) -> isSuperClass -< (c, p)
     (VArray xs,   TArray t') -> (mapA isInstanceof >>^ all (==True)) -< zip xs (repeat t')
     (_, _) -> returnA -< False
 
-evalImmediate :: (CanFail c, CanUseMem c) => c Immediate Val
-evalImmediate = proc i -> case i of
-  Local localName -> fetchLocal -< localName
-  IInt n -> returnA -< (VInt n)
-  IFloat f -> returnA -< (VFloat f)
-  IString s -> returnA -< (VString s)
-  IClass c -> returnA -< (VClass c)
-  INull -> returnA -< VNull
-
-evalIndex :: (CanFail c, CanUseMem c) => c Immediate Int
+evalIndex :: (CanInterp c) => c Expr Int
 evalIndex = proc i -> do
-  v <- evalImmediate -< i
+  v <- eval -< i
   case v of
     VInt n -> returnA -< n
     _ -> failA -< VString "Expected an integer array index"
 
-evalRef :: CanInterp c => c Reference Val
-evalRef = proc ref -> case ref of
-  ArrayReference localName i -> do
-    n <- evalIndex -< i
-    (_, VArray xs) <- fetchArrayWithAddr -< localName
-    if n >= 0 && n < length xs
-    then returnA -< xs !! n
-    else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
-  FieldReference localName fieldSignature -> do
-    (_, VObject _ m) <- fetchObjectWithAddr -< localName
-    case Map.lookup fieldSignature m of
-      Just x -> returnA -< x
-      Nothing -> failA -< VString $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
-  SignatureReference fieldSignature -> do
-    (_, val) <- fetchFieldWithAddr -< fieldSignature
-    returnA -< val
-
-evalMethod :: CanInterp c => c (Method, Maybe Val, [Immediate]) (Maybe Val)
+evalMethod :: CanInterp c => c (Method, Maybe Val, [Expr]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
-  argVals <- mapA evalImmediate -< args
+  argVals <- mapA eval -< args
   env <- createMethodEnv -< (this, parameters method, argVals)
   localEnv (proc method -> localA runMethodBody -< ((Just method, 0, []), methodBody method)) -< (env, method)
 
-evalInvoke :: CanInterp c => c InvokeExpr (Maybe Val)
+evalInvoke :: CanInterp c => c EInvoke (Maybe Val)
 evalInvoke = proc e -> case e of
   StaticInvoke methodSignature args -> do
     method <- fetchMethod -< methodSignature
@@ -451,11 +452,9 @@ matchCases = proc (cases, v) -> case cases of
 createParamEnv :: (CanFail c, CanUseMem c, CanUseState c) => c (Int, [Val]) PointerEnv
 createParamEnv = proc (i, params) -> case params of
   (param:rest) -> do
-    let toParam :: Int -> String
-        toParam n = "@parameter" ++ show n
     env <- createParamEnv -< (i + 1, rest)
     addr <- alloc -< param
-    extendEnv -< (toParam i, addr, env)
+    extendEnv -< ("@parameter" ++ show i, addr, env)
   [] -> returnA -< E.empty
 
 createMethodEnv :: (CanFail c, CanUseMem c, CanUseState c) => c (Maybe Val, [Type], [Val]) PointerEnv
@@ -477,9 +476,9 @@ getObject = proc val -> case val of
   _ -> failA -< val
 
 getMatchingClause :: CanFail c => c (String, [CatchClause], Val) CatchClause
-getMatchingClause = proc (c, cs, val) -> case filter (\clause -> className clause == c) cs of
-  (clause:_) -> returnA -< clause
-  [] -> failA -< val
+getMatchingClause = proc (c, cs, val) -> case find (\clause -> className clause == c) cs of
+  Just clause -> returnA -< clause
+  Nothing -> failA -< val
 
 getMethodBody :: CanFail c => c (Maybe Method, Val) MethodBody
 getMethodBody = proc (m, val) -> case m of
@@ -511,121 +510,121 @@ catchExceptions = proc val -> do
 
 ---- End of Evaluation Helper Methods ----
 
+---- Specific Type Analysis Helper Methods ----
+
+evalBinaryOp :: c (Val, Val) -> Val
+evalBinaryOp = proc (tl, tr) -> if (isIntegerType tl && isIntegerType tr)
+  then case (tl, tr) of
+    (BooleanType, _) -> returnA -< tr
+    (_, BooleanType) -> returnA -< tl
+    (_, _) -> failA -< VString "Not yet supported"
+      -- TODO: Multiple types might come in here
+      -- Collection<Type> rs = AugHierarchy.lcas_(tl, tr);
+      -- // AugHierarchy.lcas_ is single-valued
+      -- for (Type r : rs) {
+      --   return r;
+      -- }
+      -- throw new RuntimeException();
+  else returnA -< tl
+
+getIntConstantType :: Int -> Val
+getIntConstantType n
+  | n >= 0 && n < 2         = Integer1Type
+  | n >= 2 && n < 128       = Integer127Type
+  | n >= -128 && n < 0      = ByteType
+  | n >= 128 && n < 32768   = Integer32767Type
+  | n >= -32768 && n < -128 = ShortType
+  | n >= 32768 && n < 65536 = CharType
+  | otherwise               = IntType
+
+---- End of Specific Type Analysis Helper Methods ----
+
 ---- Actual Evaluation methods ----
 
 eval :: CanInterp c => c Expr Val
 eval = proc e -> case e of
-  ENew newExpr -> case newExpr of
-    NewSimple t -> if isBaseType t
-      then case t of
-        TClass c -> newSimple -< c
-        _ -> returnA -< (defaultValue t)
-      else failA -< VString "Expected a nonvoid base type for new"
-    NewArray t i -> if isNonvoidType t
-      then do
-        v <- evalImmediate -< i
-        ns <- toIntList -< [v]
-        if all (>0) ns
-          then newArray -< (t, ns)
-          else failA -< VString "Expected a positive integer for newarray size"
-      else failA -< VString "Expected a nonvoid type for newarray"
-    NewMulti t is -> if isBaseType t
-      then do
-        vs <- mapA evalImmediate -< is
-        ns <- toIntList -< vs
-        if all (>0) ns
-          then newArray -< (t, ns)
-          else failA -< VString "Expected positive integers for newmultiarray sizes"
-      else failA -< VString "Expected a nonvoid base type for newmultiarray"
-  ECast t i -> do
-    v <- evalImmediate -< i
-    b <- isInstanceof -< (v, t)
-    if b
-    then do
-      v' <- unbox -< v
-      case v' of
-        VObject _ _ -> returnA -< v
-        _ -> failA -< VString "Casting of primivites and arrays is not yet supported"
-        -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
-    else throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
-  EInstanceof i t -> do
-    v <- evalImmediate -< i
-    b <- isInstanceof -< (v, t)
-    returnA -< VBool b
-  EInvoke invokeExpr -> do
-    v <- tryCatchA evalInvoke returnA failA -< invokeExpr
-    case v of
-      Just v' -> returnA -< v'
-      Nothing -> failA -< VString "Method returned nothing"
-  EReference ref -> evalRef -< ref
-  BinopExpr i1 op i2 -> do
-    v1 <- evalImmediate -< i1
-    v2 <- evalImmediate -< i2
+  ThisRef -> eval -< (Local "@this") -- TODO: Lookup in current method signature
+  ParameterRef n -> eval -< (Local ("@parameter" ++ show n)) -- TODO: Lookup in current method signature
+  Local localName -> fetchLocal -< localName
+  BinopExpr el op er -> do
+    tl <- eval -< el
+    tr <- eval -< er
     case op of
-      -- And ->
-      -- Or ->
-      -- Xor ->
-      Mod -> case (v1, v2) of
-        (VInt x1, VInt x2) -> returnA -< (VInt (x1 `mod` x2))
-        (VInt x1, VFloat x2) -> returnA -< (VFloat (fromIntegral x1 `mod'` x2))
-        (VFloat x1, VInt x2) -> returnA -< (VFloat (x1 `mod'` fromIntegral x2))
-        (VFloat x1, VFloat x2) -> returnA -< (VFloat (x1 `mod'` x2))
-        (_, _) -> failA -< VString "Expected two numbers as arguments for mod"
-      -- Rem ->
-      -- Cmp ->
-      -- Cmpg ->
-      -- Cmpl ->
-      Cmpeq -> returnA -< (VBool (v1 == v2))
-      Cmpne -> returnA -< (VBool (v1 /= v2))
-      Cmpgt -> case numToBool (>) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< VString "Expected two numbers as arguments for >"
-      Cmpge -> case numToBool (>=) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< VString "Expected two numbers as arguments for >="
-      Cmplt -> case numToBool (<) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< VString "Expected two numbers as arguments for <"
-      Cmple -> case numToBool (<=) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< VString "Expected two numbers as arguments for <="
-      -- Shl ->
-      -- Shr ->
-      -- Ushr ->
-      Plus -> case numToNum (+) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< VString "Expected two numbers as arguments for +"
-      Minus -> case numToNum (-) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< VString "Expected two numbers as arguments for -"
-      Mult -> case numToNum (*) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< VString "Expected two numbers as arguments for *"
-      Div -> case (v1, v2) of
-        (_, VInt 0) -> failA -< VString "Cannot divide by zero"
-        (_, VFloat 0.0) -> failA -< VString "Cannot divide by zero"
-        (VInt n1, VInt n2) -> returnA -< (VInt (n1 `div` n2))
-        (VFloat f, VInt n) -> returnA -< (VFloat (f / fromIntegral n))
-        (VInt n, VFloat f) -> returnA -< (VFloat (fromIntegral n / f))
-        (VFloat f1, VFloat f2) -> returnA -< (VFloat (f1 / f2))
-        (_, _) -> failA -< VString "Expected two numbers as arguments for /"
-  UnopExpr op i -> do
-    v <- evalImmediate -< i
+      Cmp -> returnA -< ByteType
+      Cmpg -> returnA -< ByteType
+      Cmpl -> returnA -< ByteType
+      Cmpeq -> returnA -< BooleanType
+      Cmpne -> returnA -< BooleanType
+      Cmpgt -> returnA -< BooleanType
+      Cmpge -> returnA -< BooleanType
+      Cmplt -> returnA -< BooleanType
+      Cmple -> returnA -< BooleanType
+      Shl -> returnA -< if isIntegerType tl then IntType else tl
+      Shr -> returnA -< tl
+      Ushr -> returnA -< tl
+      Plus -> returnA -< if isIntegerType tl then IntType else tl
+      Minus -> returnA -< if isIntegerType tl then IntType else tl
+      Mult -> returnA -< if isIntegerType tl then IntType else tl
+      Div -> returnA -< if isIntegerType tl then IntType else tl
+      Rem -> returnA -< if isIntegerType tl then IntType else tl
+      Mod -> returnA -< if isIntegerType tl then IntType else tl
+      And -> evalBinaryOp -< (tl, tr)
+      Or -> evalBinaryOp -< (tl, tr)
+      Xor -> evalBinaryOp -< (tl, tr)
+  UnopExpr op e -> do
+    t <- eval -< e
     case op of
-      Lengthof -> case v of
-        VRef addr -> do
-          v' <- read' -< addr
-          case v' of
-            VArray xs -> returnA -< (VInt (length xs))
-            _ -> failA -< VString "Expected an array as argument for lengthof"
-        _ -> failA -< VString "Expected an array as argument for lengthof"
-      Neg -> case v of
-        VInt n -> returnA -< (VInt (-n))
-        VFloat f -> returnA -< (VFloat (-f))
-        _ -> failA -< VString "Expected a number as argument for -"
-  EImmediate i -> do
-    v <- evalImmediate -< i
-    returnA -< v
+      Lengthof -> returnA -< IntType
+      Neg -> returnA -< if isIntegerType t
+        then case t of
+          Integer1Type -> ByteType
+          BooleanType -> ByteType
+          Integer127Type -> ByteType
+          ByteType -> ByteType
+          ShortType -> ShortType
+          Integer32767Type -> ShortType
+          _ -> IntType
+        else t
+  CaughtExceptionRef -> eval -< (Local "@caughtexception") -- TODO: Check which exceptions it could have catched by examining statements
+  ArrayRef localName i -> do
+    t <- fetchLocal -< localName
+    returnA -< case t of
+      ArrayType t' -> t'
+      RefType c -> if c `elem` ["java.lang.Object", "java.io.Serializable", "java.lang.Cloneable"]
+        then t
+        else BottomType
+      _ -> BottomType
+  NewArrayExpr t _ -> returnA -< ArrayType t
+  NewMultiArrayExpr t is -> returnA -< (foldl (\acc _ -> ArrayType acc) t is)
+  CastExpr t _ -> returnA -< t
+  InstanceOfExpr _ _ -> returnA -< BooleanType
+  InvokeExpr invokeExpr -> returnA -< case invokeExpr of
+    SpecialInvoke _ (MethodSignature _ returnType _ _) _ -> returnType
+    VirtualInvoke _ (MethodSignature _ returnType _ _) _ -> returnType
+    InterfaceInvoke _ (MethodSignature _ returnType _ _) _ -> returnType
+    StaticInvoke (MethodSignature _ returnType _ _) _ -> returnType
+    DynamicInvoke _ _ _ (MethodSignature _ returnType _ _) _ -> returnType
+  NewExpr t -> if isBaseType t
+    then returnA -< case t of
+      TClass c -> RefType c
+      _ -> returnA -< t
+    else failA -< VString "Expected a nonvoid base type for new"
+  FieldRef localName fieldSignature -> do
+    (_, VObject _ m) <- fetchObjectWithAddr -< localName
+    case Map.lookup fieldSignature m of
+      Just x -> returnA -< x
+      Nothing -> failA -< VString $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
+  SignatureRef fieldSignature -> do
+    (_, val) <- fetchFieldWithAddr -< fieldSignature
+    returnA -< val
+  DoubleConstant _ -> returnA -< DoubleType
+  FloatConstant _ -> returnA -< FloatType
+  IntConstant n -> returnA -< (getIntConstantType n)
+  LongConstant _ -> returnA -< NullType
+  NullConstant -> returnA -< VNull
+  StringConstant _ -> returnA -< RefType "java.lang.String"
+  ClassConstant _ -> returnA -< RefType "java.lang.Class"
+  MethodHandle _ -> returnA -< RefType "java.lang.invoke.MethodHandle"
 
 runStatements :: CanInterp c => c ([Statement], Int) (Maybe Val)
 runStatements = proc (stmts, i) -> if i >= length stmts
@@ -637,29 +636,29 @@ runStatements = proc (stmts, i) -> if i >= length stmts
       let cs = filter (\c -> labelName == fromLabel c) (catchClauses body)
       localA (tryCatchA runStatements returnA catchExceptions) -< ((m, a, cs), (stmts, i + 1))
     -- Breakpoint
-    -- Entermonitor Immediate
-    -- Exitmonitor Immediate
+    -- Entermonitor Expr
+    -- Exitmonitor Expr
     Tableswitch immediate cases -> do
-      v <- evalImmediate -< immediate
+      v <- eval -< immediate
       case v of
         VInt x -> do
           label <- matchCases -< (cases, x)
           goto -< (stmts, label)
         _ -> failA -< VString "Expected an integer as argument for switch"
     Lookupswitch immediate cases -> do
-      v <- evalImmediate -< immediate
+      v <- eval -< immediate
       case v of
         VInt x -> do
           label <- matchCases -< (cases, x)
           goto -< (stmts, label)
         _ -> failA -< VString "Expected an integer as argument for switch"
-    Identity localName atId _ -> do
-      addr <- lookup' -< (show atId)
+    Identity localName e _ -> do
+      addr <- eval >>> alloc -< e
       env <- getEnv -< ()
       env' <- extendEnv -< (localName, addr, env)
       localEnv runStatements -< (env', (stmts, i + 1))
-    IdentityNoType localName atId -> do
-      addr <- lookup' -< (show atId)
+    IdentityNoType localName e -> do
+      addr <- eval >>> alloc -< e
       env <- getEnv -< ()
       env' <- extendEnv -< (localName, addr, env)
       localEnv runStatements -< (env', (stmts, i + 1))
@@ -671,7 +670,7 @@ runStatements = proc (stmts, i) -> if i >= length stmts
           write -< (addr, v)
           runStatements -< (stmts, i + 1)
         VReference ref -> case ref of
-          ArrayReference localName index -> do
+          ArrayRef localName index -> do
             n <- evalIndex -< index
             (addr, VArray xs) <- fetchArrayWithAddr -< localName
             if n >= 0 && n < length xs
@@ -680,18 +679,19 @@ runStatements = proc (stmts, i) -> if i >= length stmts
               write -< (addr, VArray xs')
               runStatements -< (stmts, i + 1)
             else failA -< VString "ArrayIndexOutOfBoundsException"
-          FieldReference localName fieldSignature -> do
+          FieldRef localName fieldSignature -> do
             (addr, VObject c m) <- fetchObjectWithAddr -< localName
             case m Map.!? fieldSignature of
               Just _ -> do
                 let m' = Map.insert fieldSignature v m
-                debug "assign field reference" write -< (addr, VObject c m')
+                write -< (addr, VObject c m')
                 runStatements -< (stmts, i + 1)
               Nothing -> failA -< VString $ printf "FieldSignature %s not defined on object %s: (%s)" (show fieldSignature) (show localName) (show m)
-          SignatureReference fieldSignature -> do
+          SignatureRef fieldSignature -> do
             (addr, _) <- fetchFieldWithAddr -< fieldSignature
             write -< (addr, v)
             runStatements -< (stmts, i + 1)
+          _ -> failA -< VString $ printf "Can only assign a reference or a local variable"
     If e label -> do
       v <- eval -< e
       case v of
@@ -702,16 +702,16 @@ runStatements = proc (stmts, i) -> if i >= length stmts
     -- Nop
     Ret e -> case e of
       Just immediate -> do
-        v <- evalImmediate -< immediate
+        v <- eval -< immediate
         returnA -< Just v
       Nothing -> returnA -< Nothing
     Return e -> case e of
       Just immediate -> do
-        v <- evalImmediate -< immediate
+        v <- eval -< immediate
         returnA -< Just v
       Nothing -> returnA -< Nothing
     Throw immediate -> do
-      v <- evalImmediate -< immediate
+      v <- eval -< immediate
       failA -< v
     Invoke e -> do
       evalInvoke -< e
@@ -732,7 +732,7 @@ runMethodBody = proc body -> case body of
     v <- localEnv runStatements -< (env', (s, 0))
     returnA -< v
 
-runProgram :: CanInterp c => c (CompilationUnit, [Immediate]) (Maybe Val)
+runProgram :: CanInterp c => c (CompilationUnit, [Expr]) (Maybe Val)
 runProgram = proc (mainUnit, args) -> do
   let findMethodByName :: [Member] -> String -> Maybe Method
       findMethodByName (MethodMember m:rest) name =

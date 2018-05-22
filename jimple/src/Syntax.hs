@@ -170,7 +170,8 @@ data Expr
   | LongConstant Int
   | NullConstant
   | StringConstant String
-  | ClassConstant String deriving (Show, Eq)
+  | ClassConstant String
+  | MethodHandle MethodSignature deriving (Show, Eq)
 
 data Variable
   = VReference Expr
