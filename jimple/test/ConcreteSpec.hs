@@ -12,11 +12,13 @@ import Test.Hspec
 import Classes.Object
 import Classes.Throwable
 import Classes.IllegalArgumentException
+import Classes.ArrayIndexOutOfBoundsException
 
-import Classes.SingleMethodExample
 import Classes.ArrayFieldExample
 import Classes.FactorialExample
 import Classes.PersonExample
+import Classes.SingleMethodExample
+import Classes.TryCatchExample
 
 main :: IO ()
 main = hspec spec
@@ -164,11 +166,15 @@ spec = do
     it "(new Person(10)).yearsToLive() = 90" $ do
       let files = baseCompilationUnits ++ [personExampleFile]
       runProgramConcrete files personExampleFile [] `shouldBe` Success (Just (VInt 90))
+    it "try { throw e } catch (e) { throw e' }" $ do
+      let files = baseCompilationUnits ++ [tryCatchExampleFile]
+      runProgramConcrete files tryCatchExampleFile [] `shouldBe` Fail (VObject "java.lang.ArrayIndexOutOfBoundsException" (Map.fromList [(throwableMessageSignature, VString "b")]))
 
   where
     baseCompilationUnits = [objectFile,
                             throwableFile,
-                            illegalArgumentExceptionFile]
+                            illegalArgumentExceptionFile,
+                            arrayIndexOutOfBoundsExceptionFile]
     env = []
     store = []
 

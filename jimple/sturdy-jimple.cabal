@@ -34,7 +34,10 @@ test-suite specs
                        Classes.IllegalArgumentException,
                        Classes.FactorialExample,
                        Classes.ArrayFieldExample,
-                       Classes.SingleMethodExample
+                       Classes.SingleMethodExample,
+                       Classes.ArrayIndexOutOfBoundsException,
+                       Classes.PersonExample,
+                       Classes.TryCatchExample
   build-depends:       base,
                        containers,
                        hspec,
