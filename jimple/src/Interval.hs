@@ -8,9 +8,9 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Concrete where
+module Interval where
 
-import Prelude hiding (lookup,read)
+import           Prelude hiding (lookup,read)
 
 import           Data.Fixed
 import           Data.List (elemIndex,find,replicate,repeat)
@@ -22,8 +22,10 @@ import qualified Data.Map as Map
 import           Data.Concrete.Environment (Env)
 import qualified Data.Concrete.Environment as E
 import qualified Data.Concrete.Store as S
+import qualified Data.Abstract.Boolean as B
+import           Data.Order
 
-import           Control.Category
+import           Control.Category hiding ((.))
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -52,13 +54,14 @@ import           Syntax
 
 data Val
   = BottomVal
+  | TopVal
   | IntVal Int
   | LongVal Int
   | FloatVal Float
   | DoubleVal Float
   | StringVal String
   | ClassVal String
-  | BoolVal Bool
+  | BoolVal B.Bool
   | NullVal
   | RefVal Addr
   | ArrayVal [Val]
@@ -66,6 +69,7 @@ data Val
 
 instance Show Val where
   show BottomVal = "⊥"
+  show TopVal = "⊤"
   show (IntVal n) = show n
   show (LongVal l) = show l
   show (FloatVal f) = show f
@@ -79,7 +83,7 @@ instance Show Val where
   show (ObjectVal c m) = show c ++ "{" ++ show m ++ "}"
 
 defaultValue :: Type -> Val
-defaultValue BooleanType = BoolVal False
+defaultValue BooleanType = BoolVal B.False
 defaultValue ByteType = IntVal 0
 defaultValue CharType = IntVal 0
 defaultValue ShortType = IntVal 0
@@ -91,6 +95,50 @@ defaultValue NullType = NullVal
 defaultValue (RefType _) = NullVal
 defaultValue (ArrayType _) = NullVal
 defaultValue _ = BottomVal
+
+bool :: Bool -> B.Bool
+bool True = B.True
+bool False = B.False
+
+boolVal :: Bool -> Val
+boolVal True = BoolVal B.True
+boolVal False = BoolVal B.False
+
+instance PreOrd Val where
+  _ ⊑ TopVal = True
+  IntVal n1 ⊑ IntVal n2 = n1 == n2
+  LongVal l1 ⊑ LongVal l2 = l1 == l2
+  FloatVal f1 ⊑ FloatVal f2 = f1 == f2
+  DoubleVal d1 ⊑ DoubleVal d2 = d1 == d2
+  StringVal s1 ⊑ StringVal s2 = s1 == s2
+  ClassVal c1 ⊑ ClassVal c2 = c1 == c2
+  BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
+  NullVal ⊑ NullVal = True
+  ArrayVal xs ⊑ ArrayVal ys = all (\(x,y) -> x ⊑ y) (zip xs ys)
+  ObjectVal c1 m1 ⊑ ObjectVal c2 m2 =
+    c1 == c2 && all (\(x,y) -> x ⊑ y) (zip (Map.elems m1) (Map.elems m2))
+  _ ⊑ _ = False
+
+instance Complete Val where
+  IntVal n1 ⊔ IntVal n2 = IntVal $ n1 ⊔ n2
+  LongVal l1 ⊔ LongVal l2 = LongVal $ l1 ⊔ l2
+  IntVal n ⊔ LongVal l = LongVal $ n ⊔ l
+  LongVal l ⊔ IntVal n = LongVal $ n ⊔ l
+  FloatVal f1 ⊔ FloatVal f2 = if f1 == f2 then FloatVal f1 else TopVal
+  DoubleVal d1 ⊔ DoubleVal d2 = if d1 == d2 then DoubleVal d1 else TopVal
+  StringVal s1 ⊔ StringVal s2 = if s1 == s2 then StringVal s else TopVal
+  ClassVal c1 ⊔ ClassVal c2 = if c1 == c2 then ClassVal c1 else ClassVal "java.lang.Object"
+  BoolVal b1 ⊔ BoolVal b2 = BoolVal $ b1 ⊔ b2
+  NullVal ⊔ NullVal = NullVal
+  ArrayVal xs ⊔ ArrayVal ys = ArrayVal $ xs ++ ys
+  ObjectVal c1 m1 ⊔ ObjectVal c2 m2 =
+    if c1 == c2
+      then ObjectVal $ fromList zip (Map.keys m1) ((\(x,y) -> x ⊔ y) (zip (Map.elems m1) (Map.elems m2)))
+      else TopVal
+  _ ⊔ _ = TopVal
+
+instance UpperBounded Val where
+  top = TopVal
 
 ---- End of Values ----
 
@@ -198,10 +246,10 @@ numToNum op v1 v2 = case (v1, v2) of
 
 numToBool :: (forall a. Ord a => a -> a -> Bool) -> Val -> Val -> Maybe Val
 numToBool op v1 v2 = case (v1, v2) of
-  (IntVal n1, IntVal n2) -> Just (BoolVal (op n1 n2))
-  (FloatVal f, IntVal n) -> Just (BoolVal (op f (fromIntegral n)))
-  (IntVal n, FloatVal f) -> Just (BoolVal (op (fromIntegral n) f))
-  (FloatVal f1, FloatVal f2) -> Just (BoolVal (op f1 f2))
+  (IntVal n1, IntVal n2) -> Just (boolVal (op n1 n2))
+  (FloatVal f, IntVal n) -> Just (boolVal (op f (fromIntegral n)))
+  (IntVal n, FloatVal f) -> Just (boolVal (op (fromIntegral n) f))
+  (FloatVal f1, FloatVal f2) -> Just (boolVal (op f1 f2))
   (_, _) -> Nothing
 
 lookup' :: (Show var, CanFail c, ArrowMaybeEnv var val env c) => c var val
@@ -375,32 +423,32 @@ newArray = proc (t, sizes) -> case sizes of
     returnA -< RefVal addr
   [] -> returnA -< defaultValue t
 
-isSuperClass :: (CanFail c, CanUseConst c) => c (String, String) Bool
+isSuperClass :: (CanFail c, CanUseConst c) => c (String, String) B.Bool
 isSuperClass = proc (c, p) -> if c == p
-  then returnA -< True
+  then returnA -< B.True
   else do
     unit <- fetchCompilationUnit -< c
     case extends unit of
       Just c' -> isSuperClass -< (c', p)
-      Nothing -> returnA -< False
+      Nothing -> returnA -< B.False
 
-isInstanceof :: (CanFail c, CanUseConst c, CanStore c) => c (Val, Type) Bool
+isInstanceof :: (CanFail c, CanUseConst c, CanStore c) => c (Val, Type) B.Bool
 isInstanceof = proc (v, t) -> do
   assert -< (isNonvoidType t)
   v' <- unbox -< v
   case (v', t) of
-    (BoolVal _,     BooleanType)  -> returnA -< True
-    (IntVal n,      ByteType)     -> returnA -< n >= -128                 && n < 128                 -- n >= (-2)^7  && n < 2^7
-    (IntVal n,      CharType)     -> returnA -< n >= 0                    && n < 65536               -- n >= 0       && n < 2^16
-    (IntVal n,      ShortType)    -> returnA -< n >= -32768               && n < 32768               -- n >= (-2)^15 && n < 2^15
-    (IntVal n,      IntType)      -> returnA -< n >= -2147483648          && n < 2147483648          -- n >= (-2)^31 && n < 2^31
-    (LongVal l,     LongType)     -> returnA -< l >= -9223372036854775808 && l <= 9223372036854775807 -- l >= (-2)^63 && l < 2^63
-    (FloatVal _,    FloatType)    -> returnA -< True
-    (DoubleVal _,   DoubleType)   -> returnA -< True
-    (NullVal,       NullType)     -> returnA -< True
+    (BoolVal _,     BooleanType)  -> returnA -< B.True
+    (IntVal n,      ByteType)     -> returnA -< if n >= -128                 && n < 128                  then B.True else B.False
+    (IntVal n,      CharType)     -> returnA -< if n >= 0                    && n < 65536                then B.True else B.False
+    (IntVal n,      ShortType)    -> returnA -< if n >= -32768               && n < 32768                then B.True else B.False
+    (IntVal n,      IntType)      -> returnA -< if n >= -2147483648          && n < 2147483648           then B.True else B.False
+    (LongVal l,     LongType)     -> returnA -< if l >= -9223372036854775808 && l <= 9223372036854775807 then B.True else B.False
+    (FloatVal _,    FloatType)    -> returnA -< B.True
+    (DoubleVal _,   DoubleType)   -> returnA -< B.True
+    (NullVal,       NullType)     -> returnA -< B.True
     (ObjectVal c _, RefType p)    -> isSuperClass -< (c, p)
-    (ArrayVal xs,   ArrayType t') -> (mapA isInstanceof >>^ all (==True)) -< zip xs (repeat t')
-    (_, _) -> returnA -< False
+    (ArrayVal xs,   ArrayType t') -> (mapA isInstanceof >>^ bool . all (==B.True)) -< zip xs (repeat t')
+    (_, _) -> returnA -< B.False
 
 evalIndex :: (CanInterp c) => c Expr Int
 evalIndex = proc i -> do
@@ -536,7 +584,7 @@ eval = proc e -> case e of
   CastExpr t i -> do
     v <- eval -< i
     b <- isInstanceof -< (v, t)
-    if b
+    if b == B.True || b == B.Top
     then do
       v' <- unbox -< v
       case v' of
@@ -584,8 +632,8 @@ eval = proc e -> case e of
       -- Cmp ->
       -- Cmpg ->
       -- Cmpl ->
-      Cmpeq -> returnA -< (BoolVal (v1 == v2))
-      Cmpne -> returnA -< (BoolVal (v1 /= v2))
+      Cmpeq -> returnA -< (BoolVal $ if (v1 == v2) then B.True else B.False)
+      Cmpne -> returnA -< (BoolVal $ if (v1 /= v2) then B.True else B.False)
       Cmpgt -> case numToBool (>) v1 v2 of
         Just v -> returnA -< v
         Nothing -> failA -< StringVal "Expected two numbers as arguments for >"
@@ -714,8 +762,10 @@ runStatements = proc (stmts, i) -> if i >= length stmts
     If e label -> do
       v <- eval -< e
       case v of
-        BoolVal True -> goto -< (stmts, label)
-        BoolVal False -> runStatements -< (stmts, i + 1)
+        BoolVal B.True -> goto -< (stmts, label)
+        BoolVal B.False -> runStatements -< (stmts, i + 1)
+        BoolVal B.Top -> joined goto runStatements -< ((stmts, label), (stmts, i + 1))
+        TopVal -> returnA -< Just top
         _ -> failA -< StringVal "Expected a boolean expression for if statement"
     Goto label -> goto -< (stmts, label)
     -- Nop

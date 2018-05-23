@@ -37,10 +37,10 @@ personExampleClassInitMethod = Method {
   methodName = "<clinit>",
   parameters = [],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [],
     statements = [
-      Assign (VReference (SignatureRef personExampleMaxAgeSignature)) (IntConstant 100)
+      Assign (ReferenceVar (SignatureRef personExampleMaxAgeSignature)) (IntConstant 100)
     ],
     catchClauses = []
   }
@@ -53,15 +53,15 @@ personExampleMainMethod = Method {
   methodName = "main",
   parameters = [],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (IntType, ["r0"]),
       (RefType "PersonExample", ["$r2"])
     ],
     statements = [
-      Assign (VLocal "$r2") (NewExpr (RefType "PersonExample")),
+      Assign (LocalVar "$r2") (NewExpr (RefType "PersonExample")),
       Invoke (SpecialInvoke "$r2" personExampleInitSignature [IntConstant 10]),
-      Assign (VLocal "r0") (InvokeExpr (VirtualInvoke "$r2" personExampleYearsLeftSignature [])),
+      Assign (LocalVar "r0") (InvokeExpr (VirtualInvoke "$r2" personExampleYearsLeftSignature [])),
       Return (Just (Local "r0"))
     ],
     catchClauses = []
@@ -82,7 +82,7 @@ personExampleInitMethod = Method {
   methodName = "<init>",
   parameters = [IntType],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "PersonExample", ["r0"]),
       (IntType, ["i0"])
@@ -91,7 +91,7 @@ personExampleInitMethod = Method {
       Identity "r0" ThisRef (RefType "PersonExample"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Identity "i0" (ParameterRef 0) IntType,
-      Assign (VReference (FieldRef "r0" personExampleAgeSignature)) (Local "i0"),
+      Assign (ReferenceVar (FieldRef "r0" personExampleAgeSignature)) (Local "i0"),
       Return Nothing
     ],
     catchClauses = []
@@ -112,16 +112,16 @@ personExampleYearsLeftMethod = Method {
   methodName = "yearsLeft",
   parameters = [IntType],
   throws = ["java.lang.IllegalArgumentException"],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "PersonExample", ["r0"]),
       (IntType, ["i0", "i1", "i2"])
     ],
     statements = [
       Identity "r0" ThisRef (RefType "PersonExample"),
-      Assign (VLocal "i0") (FieldRef "r0" personExampleAgeSignature),
-      Assign (VLocal "i1") (SignatureRef personExampleMaxAgeSignature),
-      Assign (VLocal "i2") (BinopExpr (Local "i1") Minus (Local "i0")),
+      Assign (LocalVar "i0") (FieldRef "r0" personExampleAgeSignature),
+      Assign (LocalVar "i1") (SignatureRef personExampleMaxAgeSignature),
+      Assign (LocalVar "i2") (BinopExpr (Local "i1") Minus (Local "i0")),
       Return (Just (Local "i2"))
     ],
     catchClauses = []
@@ -131,7 +131,7 @@ personExampleYearsLeftMethod = Method {
 personExampleFile :: CompilationUnit
 personExampleFile = CompilationUnit {
   fileModifiers = [Public],
-  fileType = FTClass,
+  fileType = ClassFile,
   fileName = "PersonExample",
   extends = Just "java.lang.Object",
   implements = [],

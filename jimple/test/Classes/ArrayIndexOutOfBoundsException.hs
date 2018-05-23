@@ -18,7 +18,7 @@ arrayIndexOutOfBoundsExceptionInitMethod = Method {
   methodName = "<init>",
   parameters = [RefType "java.lang.String"],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "java.lang.ArrayIndexOutOfBoundsException", ["r0"]),
       (RefType "java.lang.String", ["s0"])
@@ -36,7 +36,7 @@ arrayIndexOutOfBoundsExceptionInitMethod = Method {
 arrayIndexOutOfBoundsExceptionFile :: CompilationUnit
 arrayIndexOutOfBoundsExceptionFile = CompilationUnit {
   fileModifiers = [Public],
-  fileType = FTClass,
+  fileType = ClassFile,
   fileName = "java.lang.ArrayIndexOutOfBoundsException",
   extends = Just "java.lang.Throwable",
   implements = [],

@@ -11,7 +11,8 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Concrete,
-                       TypeAnalysis,
+                       Interval,
+                       Shared,
                        Syntax
   ghc-options:         -Wall
   build-depends:       base,

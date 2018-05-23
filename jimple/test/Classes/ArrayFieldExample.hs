@@ -31,7 +31,7 @@ arrayFieldExampleInitMethod = Method {
   methodName = "<init>",
   parameters = [],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "ArrayFieldExample", ["r0"])
     ],
@@ -53,7 +53,7 @@ arrayFieldExampleMainMethod = Method {
     IntType
   ],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (IntType, ["r0"]),
       (ArrayType IntType, ["r1"]),
@@ -61,10 +61,10 @@ arrayFieldExampleMainMethod = Method {
     ],
     statements = [
       Identity "r0" (ParameterRef 0) (IntType),
-      Assign (VLocal "$r2") (NewExpr (RefType "ArrayFieldExample")),
+      Assign (LocalVar "$r2") (NewExpr (RefType "ArrayFieldExample")),
       Invoke (SpecialInvoke "$r2" arrayFieldExampleInitSignature []),
       Invoke (VirtualInvoke "$r2" arrayFieldExampleFillSignature [Local "r0"]),
-      Assign (VLocal "r1") (FieldRef "$r2" arrayFieldExampleArrSignature),
+      Assign (LocalVar "r1") (FieldRef "$r2" arrayFieldExampleArrSignature),
       Return (Just (Local "r1"))
     ],
     catchClauses = []
@@ -85,7 +85,7 @@ arrayFieldExampleFillMethod = Method {
   methodName = "fill",
   parameters = [IntType],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "ArrayFieldExample", ["r0"]),
       (IntType, ["p0"]),
@@ -94,12 +94,12 @@ arrayFieldExampleFillMethod = Method {
     statements = [
       Identity "r0" ThisRef (RefType "ArrayFieldExample"),
       Identity "p0" (ParameterRef 0) IntType,
-      Assign (VLocal "a0") (NewArrayExpr IntType (IntConstant 4)),
-      Assign (VReference (ArrayRef "a0" (IntConstant 0))) (Local "p0"),
-      Assign (VReference (ArrayRef "a0" (IntConstant 1))) (Local "p0"),
-      Assign (VReference (ArrayRef "a0" (IntConstant 2))) (Local "p0"),
-      Assign (VReference (ArrayRef "a0" (IntConstant 3))) (Local "p0"),
-      Assign (VReference (FieldRef "r0" arrayFieldExampleArrSignature)) (Local "a0"),
+      Assign (LocalVar "a0") (NewArrayExpr IntType (IntConstant 4)),
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 0))) (Local "p0"),
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 1))) (Local "p0"),
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 2))) (Local "p0"),
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 3))) (Local "p0"),
+      Assign (ReferenceVar (FieldRef "r0" arrayFieldExampleArrSignature)) (Local "a0"),
       Return Nothing
     ],
     catchClauses = []
@@ -109,7 +109,7 @@ arrayFieldExampleFillMethod = Method {
 arrayFieldExampleFile :: CompilationUnit
 arrayFieldExampleFile = CompilationUnit {
   fileModifiers = [Public],
-  fileType = FTClass,
+  fileType = ClassFile,
   fileName = "ArrayFieldExample",
   extends = Just "java.lang.Object",
   implements = [],

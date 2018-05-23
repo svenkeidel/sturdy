@@ -18,7 +18,7 @@ illegalArgumentExceptionInitMethod = Method {
   methodName = "<init>",
   parameters = [RefType "java.lang.String"],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "java.lang.IllegalArgumentException", ["r0"]),
       (RefType "java.lang.String", ["s0"])
@@ -36,7 +36,7 @@ illegalArgumentExceptionInitMethod = Method {
 illegalArgumentExceptionFile :: CompilationUnit
 illegalArgumentExceptionFile = CompilationUnit {
   fileModifiers = [Public],
-  fileType = FTClass,
+  fileType = ClassFile,
   fileName = "java.lang.IllegalArgumentException",
   extends = Just "java.lang.Throwable",
   implements = [],

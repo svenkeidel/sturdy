@@ -19,7 +19,7 @@ factorialExampleInitMethod = Method {
   methodName = "<init>",
   parameters = [],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "FactorialExample", ["r0"])
     ],
@@ -41,16 +41,16 @@ factorialExampleMainMethod = Method {
     IntType
   ],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (IntType, ["r0", "r1"]),
       (RefType "FactorialExample", ["$r2"])
     ],
     statements = [
       Identity "r0" (ParameterRef 0) (IntType),
-      Assign (VLocal "$r2") (NewExpr (RefType "FactorialExample")),
+      Assign (LocalVar "$r2") (NewExpr (RefType "FactorialExample")),
       Invoke (SpecialInvoke "$r2" factorialExampleInitSignature []),
-      Assign (VLocal "r1") (InvokeExpr (VirtualInvoke "$r2" factorialExampleExecSignature [Local "r0"])),
+      Assign (LocalVar "r1") (InvokeExpr (VirtualInvoke "$r2" factorialExampleExecSignature [Local "r0"])),
       Return (Just (Local "r1"))
     ],
     catchClauses = []
@@ -71,7 +71,7 @@ factorialExampleExecMethod = Method {
   methodName = "exec",
   parameters = [IntType],
   throws = ["java.lang.IllegalArgumentException"],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "FactorialExample", ["r0"]),
       (IntType, ["i0", "$i1", "$i2", "$i3"]),
@@ -81,16 +81,16 @@ factorialExampleExecMethod = Method {
       Identity "r0" ThisRef (RefType "FactorialExample"),
       Identity "i0" (ParameterRef 0) IntType,
       If (BinopExpr (Local "i0") Cmpge (IntConstant 0)) "label1",
-      Assign (VLocal "$r1") (NewExpr (RefType "java.lang.IllegalArgumentException")),
+      Assign (LocalVar "$r1") (NewExpr (RefType "java.lang.IllegalArgumentException")),
       Invoke (SpecialInvoke "$r1" illegalArgumentExceptionInitSignature [StringConstant "Negative value for argument n"]),
       Throw (Local "$r1"),
       Label "label1",
       If (BinopExpr (Local "i0") Cmpne (IntConstant 0)) "label2",
       Return (Just (IntConstant 1)),
       Label "label2",
-      Assign (VLocal "$i1") (BinopExpr (Local "i0") Minus (IntConstant 1)),
-      Assign (VLocal "$i2") (InvokeExpr (SpecialInvoke "r0" factorialExampleExecSignature [Local "$i1"])),
-      Assign (VLocal "$i3") (BinopExpr (Local "i0") Mult (Local "$i2")),
+      Assign (LocalVar "$i1") (BinopExpr (Local "i0") Minus (IntConstant 1)),
+      Assign (LocalVar "$i2") (InvokeExpr (SpecialInvoke "r0" factorialExampleExecSignature [Local "$i1"])),
+      Assign (LocalVar "$i3") (BinopExpr (Local "i0") Mult (Local "$i2")),
       Return (Just (Local "$i3"))
     ],
     catchClauses = []
@@ -100,7 +100,7 @@ factorialExampleExecMethod = Method {
 factorialExampleFile :: CompilationUnit
 factorialExampleFile = CompilationUnit {
   fileModifiers = [Public],
-  fileType = FTClass,
+  fileType = ClassFile,
   fileName = "FactorialExample",
   extends = Just "java.lang.Object",
   implements = [],

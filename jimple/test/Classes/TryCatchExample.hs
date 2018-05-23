@@ -11,18 +11,18 @@ tryCatchExampleMainMethod = Method {
   methodName = "main",
   parameters = [],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "java.lang.ArrayIndexOutOfBoundsException", ["$r2", "$r3", "$r4"])
     ],
     statements = [
       Label "label1",
-      Assign (VLocal "$r2") (NewExpr (RefType "java.lang.ArrayIndexOutOfBoundsException")),
+      Assign (LocalVar "$r2") (NewExpr (RefType "java.lang.ArrayIndexOutOfBoundsException")),
       Invoke (SpecialInvoke "$r2" arrayIndexOutOfBoundsExceptionInitSignature [StringConstant "a"]),
       Throw (Local "$r2"),
       Label "label2",
       IdentityNoType "$r3" CaughtExceptionRef,
-      Assign (VLocal "$r4") (NewExpr (RefType "java.lang.ArrayIndexOutOfBoundsException")),
+      Assign (LocalVar "$r4") (NewExpr (RefType "java.lang.ArrayIndexOutOfBoundsException")),
       Invoke (SpecialInvoke "$r4" arrayIndexOutOfBoundsExceptionInitSignature [StringConstant "b"]),
       Throw (Local "$r4")
     ],
@@ -39,7 +39,7 @@ tryCatchExampleMainMethod = Method {
 tryCatchExampleFile :: CompilationUnit
 tryCatchExampleFile = CompilationUnit {
   fileModifiers = [Public],
-  fileType = FTClass,
+  fileType = ClassFile,
   fileName = "TryCatchExample",
   extends = Just "java.lang.Object",
   implements = [],

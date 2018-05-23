@@ -61,12 +61,12 @@ instance Show Modifier where
   show Annotation   = "annotation"
 
 data FileType
-  = FTClass
-  | FIntTypeerface
+  = ClassFile
+  | InterfaceFile
 
 instance Show FileType where
-  show FTClass = "class"
-  show FIntTypeerface = "interface"
+  show ClassFile = "class"
+  show InterfaceFile = "interface"
 
 data Member = FieldMember Field | MethodMember Method
 
@@ -92,9 +92,6 @@ data Type
   | DoubleType
   | FloatType
   | IntType
-  | Integer1Type
-  | Integer127Type
-  | Integer32767Type
   | LongType
   | NullType
   | RefType String
@@ -111,9 +108,6 @@ instance Show Type where
   show DoubleType = "double"
   show FloatType = "float"
   show IntType = "int"
-  show Integer1Type = "[0..1]"
-  show Integer127Type = "[0..127]"
-  show Integer32767Type = "[0..32767]"
   show LongType = "long"
   show NullType = "null"
   show (RefType s) = show s
@@ -127,9 +121,6 @@ isIntegerType ByteType = True
 isIntegerType CharType = True
 isIntegerType IntType = True
 isIntegerType ShortType = True
-isIntegerType Integer1Type = True
-isIntegerType Integer127Type = True
-isIntegerType Integer32767Type = True
 isIntegerType _ = False
 
 isNonvoidType :: Type -> Bool
@@ -144,11 +135,11 @@ isBaseType (ArrayType _) = False
 isBaseType _ = True
 
 data MethodBody
-  = MEmpty
-  | MFull { declarations :: [Declaration]
-          , statements :: [Statement]
-          , catchClauses :: [CatchClause]
-          } deriving (Show, Eq)
+  = EmptyBody
+  | FullBody { declarations :: [Declaration]
+             , statements :: [Statement]
+             , catchClauses :: [CatchClause]
+             } deriving (Show, Eq)
 
 type Declaration = (Type, [String])
 
@@ -173,8 +164,8 @@ data Statement
 type CaseStatement = (CaseLabel, String)
 
 data CaseLabel
-  = CLConstant Int
-  | CLDefault deriving (Show, Eq)
+  = ConstantCase Int
+  | DefaultCase deriving (Show, Eq)
 
 data CatchClause = CatchClause { className :: String
                                , fromLabel :: String -- First label in try block
@@ -208,8 +199,8 @@ data Expr
   | MethodHandle MethodSignature deriving (Show, Eq)
 
 data Variable
-  = VReference Expr
-  | VLocal String deriving (Show, Eq)
+  = ReferenceVar Expr
+  | LocalVar String deriving (Show, Eq)
 
 data EInvoke
   = SpecialInvoke String MethodSignature [Expr]

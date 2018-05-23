@@ -31,7 +31,7 @@ throwableInitMethod = Method {
   methodName = "<init>",
   parameters = [RefType "java.lang.String"],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "java.lang.Throwable", ["r0"]),
       (RefType "java.lang.String", ["s0"])
@@ -40,7 +40,7 @@ throwableInitMethod = Method {
       Identity "r0" ThisRef (RefType "java.lang.Throwable"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Identity "s0" (ParameterRef 0) (RefType "java.lang.String"),
-      Assign (VReference (FieldRef "r0" throwableMessageSignature)) (Local "s0"),
+      Assign (ReferenceVar (FieldRef "r0" throwableMessageSignature)) (Local "s0"),
       Return Nothing
     ],
     catchClauses = []
@@ -50,7 +50,7 @@ throwableInitMethod = Method {
 throwableFile :: CompilationUnit
 throwableFile = CompilationUnit {
   fileModifiers = [Public],
-  fileType = FTClass,
+  fileType = ClassFile,
   fileName = "java.lang.Throwable",
   extends = Just "java.lang.Object",
   implements = [],

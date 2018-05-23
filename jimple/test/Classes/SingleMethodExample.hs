@@ -31,7 +31,7 @@ singleMethodExampleInitMethod = Method {
   methodName = "<init>",
   parameters = [],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "SingleMethodExample", ["r0"])
     ],
@@ -51,15 +51,15 @@ singleMethodExampleMainMethod = Method {
   methodName = "main",
   parameters = [],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (IntType, ["i0"]),
       (RefType "SingleMethodExample", ["$r2"])
     ],
     statements = [
-      Assign (VLocal "$r2") (NewExpr (RefType "SingleMethodExample")),
+      Assign (LocalVar "$r2") (NewExpr (RefType "SingleMethodExample")),
       Invoke (VirtualInvoke "$r2" singleMethodExampleFooSignature []),
-      Assign (VLocal "i0") (FieldRef "$r2" singleMethodExampleXSignature),
+      Assign (LocalVar "i0") (FieldRef "$r2" singleMethodExampleXSignature),
       Return (Just (Local "i0"))
     ],
     catchClauses = []
@@ -80,13 +80,13 @@ singleMethodExampleFooMethod = Method {
   methodName = "foo",
   parameters = [],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [
       (RefType "SingleMethodExample", ["r0"])
     ],
     statements = [
       Identity "r0" ThisRef (RefType "SingleMethodExample"),
-      Assign (VReference (FieldRef "r0" singleMethodExampleXSignature)) (IntConstant 2),
+      Assign (ReferenceVar (FieldRef "r0" singleMethodExampleXSignature)) (IntConstant 2),
       Return Nothing
     ],
     catchClauses = []
@@ -96,7 +96,7 @@ singleMethodExampleFooMethod = Method {
 singleMethodExampleFile :: CompilationUnit
 singleMethodExampleFile = CompilationUnit {
   fileModifiers = [Public],
-  fileType = FTClass,
+  fileType = ClassFile,
   fileName = "SingleMethodExample",
   extends = Just "java.lang.Object",
   implements = [],

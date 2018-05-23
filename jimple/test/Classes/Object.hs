@@ -16,7 +16,7 @@ objectInitMethod = Method {
   methodName = "<init>",
   parameters = [],
   throws = [],
-  methodBody = MFull {
+  methodBody = FullBody {
     declarations = [],
     statements = [
       Return Nothing
@@ -28,7 +28,7 @@ objectInitMethod = Method {
 objectFile :: CompilationUnit
 objectFile = CompilationUnit {
   fileModifiers = [Public],
-  fileType = FTClass,
+  fileType = ClassFile,
   fileName = "java.lang.Object",
   extends = Nothing,
   implements = [],
