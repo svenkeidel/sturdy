@@ -167,7 +167,7 @@ instance ArrowTryCatch (Either String Exceptional) (Label, Expr) (Label, Value) 
 instance ArrowTryCatch (Either String Exceptional) (Expr, Expr) (Expr, Value) LJSArrow where
     tryCatchA (LJSArrow f) (LJSArrow g) = LJSArrow $ tryCatchA f g
 
-runLJS :: LJSArrow x y -> [(Ident, Location)] -> [(Location, Value)] -> x -> (Location, (Store Location Value, Error (Either String Exceptional) y))
+runLJS :: LJSArrow x y -> [(Ident, Location)] -> [(Location, y)] -> x -> (Location, (Store Location y, Error (Either String Exceptional) y))
 runLJS (LJSArrow f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Concrete.Store.fromList env2, (env, x)))
 
 runConcrete :: [(Ident, Location)] -> [(Location, Value)] -> Expr -> (Store Location Value, Error (Either String Exceptional) Value)
@@ -317,7 +317,7 @@ deleteField_ = proc (VObject fields, VString name) -> do
     filtered <- arr (\(n, fs) -> filter (\(fn, _) -> fn /= n) fs) -< (name, fields) 
     returnA -< VObject filtered
 
-instance AbstractValue Value LJSArrow where
+instance {-# OVERLAPS #-} AbstractValue Value LJSArrow where
     -- values
     numVal = proc n -> returnA -< VNumber n
     boolVal = proc b -> returnA -< VBool b
@@ -335,6 +335,156 @@ instance AbstractValue Value LJSArrow where
     lookup = proc id -> do
         loc <- Control.Arrow.Environment.lookup -< id
         returnA -< VRef loc
+    apply = proc ((pairs), body) -> do
+        -- generate locations for arguments equal to length of pairs 
+        locations <- mapA ((arr $ const ()) >>> fresh) -< pairs
+
+        vals <- mapA $ pi2 -< pairs
+        ids <- mapA $ pi1 -< pairs
+
+        forStore <- arr $ uncurry zip -< (locations, vals) 
+        mapA set -< map (\(a, b) -> (VRef a, b)) forStore
+
+        forEnv <- arr $ uncurry zip -< (ids, locations) 
+        scope <- getEnv -< ()
+        env' <- bindings -< (forEnv, scope)
+        localEnv eval -< (env', body)
+    -- store ops
+    set = proc (loc, val) -> do
+        case loc of
+            VRef l -> do
+                write -< (l, val, ())
+                returnA -< ()
+            _ -> failA -< Left "Error: ESetRef lhs must be location"
+    new = proc (val) -> do 
+        loc <- fresh -< ()
+        set -< (VRef loc, val)
+        returnA -< VRef loc
+    get = proc (loc) -> do
+        case loc of
+            VRef l -> do
+                val <- read -< (l, ())
+                returnA -< val
+            _ -> failA -< Left "Error: EDeref lhs must be location"
+    -- control flow
+    if_ = proc (cond, thenBranch, elseBranch) -> do
+        case cond of
+            VBool True -> do
+                eval -< thenBranch
+            VBool False -> do
+                eval -< elseBranch
+    label = proc (l, e) -> do
+        (l, res) <- tryCatchA (second eval) (proc ((label, _), err) -> case err of
+            Left s -> failA -< Left s
+            Right (Break l1 v) -> case l1 == label of
+                True -> returnA -< (label, v)
+                False -> failA -< (Right $ Break l1 v)
+            Right (Thrown v) -> failA -< (Right $ Thrown v)) -< (l, e)
+        returnA -< res
+    break = proc (l, v) -> do
+        failA -< Right (Break l v)
+    throw = proc v -> do
+        failA -< Right (Thrown v)
+    catch = proc (try, catch) -> do
+        (c, res) <- tryCatchA (second eval) (proc ((catch, _), err) -> case err of
+            Left s -> failA -< Left s
+            Right (Break l1 v) -> failA -< Right $ Break l1 v
+            Right (Thrown v) -> case catch of
+                ELambda [x] body -> do
+                    scope <- getEnv -< ()
+                    loc <- fresh -< ()
+                    env' <- extendEnv -< (x, loc, scope)
+                    write -< (loc, v, ())
+                    res <- localEnv eval -< (env', body)
+                    returnA -< (catch, res)
+                _ -> failA -< Left "Error: Catch block must be of type ELambda") -< (catch, try)
+        returnA -< res
+
+
+runType :: [(Ident, Location)] -> [(Location, Type)] -> Expr -> (Store Location Type, Error (Either String Exceptional) Type)
+runType env st exp = case runLJS eval env st exp of
+    (l, (st, Fail e)) -> (st, Fail e)
+    (l, (st, Success res)) -> (st, Success res)
+
+
+
+typeEvalOp_ :: (ArrowFail (Either String Exceptional) c, ArrowChoice c) => c (Op, [Type]) Type
+typeEvalOp_ = proc (op, vals) -> case (op, vals) of
+    -- number operators
+    (ONumPlus, [TNumber, TNumber]) -> returnA -< TNumber
+    (OMul, [TNumber, TNumber]) -> returnA -< TNumber
+    (ODiv, [TNumber, TNumber]) -> returnA -< TNumer
+    (OMod, [TNumber, TNumber]) -> returnA -< TNumber
+    (OSub, [TNumber, TNumber]) -> returnA -< TNumber
+    (OLt, [TNumber, TNumber]) -> returnA -< TBool
+    (OToInteger, [TNumber]) -> returnA -< TNumber
+    (OToInt32, [TNumber]) -> returnA -< TNumber
+    (OToUInt32, [TNumber]) -> returnA -< TNumber
+    -- shift operators
+    (OLShift, [TNumber, TNumber]) -> returnA -< TNumber
+    (OSpRShift, [TNumber, TNumber]) -> returnA -< TNumber
+    (OZfRShift, [TNumber, TNumber]) -> returnA -< TNumber
+    -- string operators
+    (OStrPlus, [TString, TString]) -> returnA -< TString
+    (OStrLt, [TString, TString]) -> returnA -< TBool
+    (OStrLen, [TString]) -> returnA -< TNumber
+    (OStrLen, [TString, TString]) -> returnA -< TBool
+    -- boolean operators
+    (OBAnd, [TBool, TBool]) -> returnA -< TBool
+    (OBOr, [TBool, TBool]) -> returnA -< TBool
+    (OBXOr, [TBool, TBool]) -> returnA -< TBool
+    (OBNot, [TBool]) -> returnA -< TBool
+    -- isPrimitive operator
+    (OIsPrim, [_]) -> returnA -< TBool
+    -- primToNum operator
+    -- #todo object conversions -> valueOf call
+    (OPrimToNum, [_]) -> returnA -< TNumber
+    -- primToStr operator
+    (OPrimToStr, [_]) -> returnA -< TString
+    -- primToBool operator
+    (OPrimToBool, [_]) -> returnA -< TBool
+    -- typeOf operator
+    (OTypeof, [_]) -> returnA -< TString 
+    -- equality operators
+    (OStrictEq, [a, b]) -> returnA -< TBool
+    (OAbstractEq, [TNumber, TString]) -> returnA -< TBool
+    (OAbstractEq, [TString, TNumber]) -> returnA -< TBool
+    (OAbstractEq, [TBool, TNumber]) -> returnA -< TBool
+    (OAbstractEq, [TNumber, TBool]) -> returnA -< TBool
+    (OAbstractEq, [TNumber, TNumber]) -> returnA -< TBool
+    (OAbstractEq, [VNull, VUndefined]) -> returnA -< TBool
+    (OAbstractEq, [VUndefined, VNull]) -> returnA -< TBool
+    -- math operators
+    (OMathExp, [TNumber]) -> returnA -< TNumber
+    (OMathLog, [TNumber]) -> returnA -< TNumber
+    (OMathCos, [TNumber]) -> returnA -< TNumber
+    (OMathSin, [TNumber]) -> returnA -< TNumber
+    (OMathAbs, [TNumber]) -> returnA -< TNumber
+    (OMathPow, [TNumber, TNumber]) -> returnA -< TNumber
+    -- object operators
+    (OHasOwnProp, [(TObject _), TString]) -> returnA -< TBool
+
+instance {-# OVERLAPS #-} AbstractValue Type LJSArrow where
+    -- values
+    numVal = proc _ -> returnA -< TNumber
+    boolVal = proc _ -> returnA -< TBool
+    stringVal = proc _ -> returnA -< TString
+    undefVal = proc () -> returnA -< TUndefined
+    nullVal = proc () -> returnA -< TNull
+    lambdaVal = proc (ids, body) -> do
+        bodyT <- eval -< body
+        returnA -< TLambda ids bodyT
+    objectVal = proc (fields) -> do
+        mapA $ second eval -< fields
+    getField = proc (_, _) -> returnA -< TTop
+    updateField = proc (_, _, _) -> returnA -< TTop
+    deleteField = proc (_, _) -> returnA -< TTop
+    -- operator/delta function
+    evalOp = proc (op, vals) -> typeEvalOp_ -< (op, vals)
+    -- environment ops
+    lookup = proc id -> do
+        loc <- Control.Arrow.Environment.lookup -< id
+        returnA -< TRef loc
     apply = proc ((pairs), body) -> do
         -- generate locations for arguments equal to length of pairs 
         locations <- mapA ((arr $ const ()) >>> fresh) -< pairs

@@ -107,6 +107,7 @@ data Type
     | TObject [(String, Type)]
     | TTop
     | TBottom
+    | TRef Location
     deriving (Show, Eq, Generic)
 instance Hashable Type
 
