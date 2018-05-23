@@ -7,39 +7,39 @@ import Classes.Object
 throwableMessageSignature :: FieldSignature
 throwableMessageSignature = FieldSignature
   "java.lang.Throwable"
-  (TClass "java.lang.String")
+  (RefType "java.lang.String")
   "message"
 
 throwableMessageField :: Field
 throwableMessageField = Field {
   fieldModifiers = [Public],
-  fieldType = TClass "java.lang.String",
+  fieldType = RefType "java.lang.String",
   fieldName = "message"
 }
 
 throwableInitSignature :: MethodSignature
 throwableInitSignature = MethodSignature
   "java.lang.Throwable"
-  TVoid
+  VoidType
   "<init>"
-  [TClass "java.lang.String"]
+  [RefType "java.lang.String"]
 
 throwableInitMethod :: Method
 throwableInitMethod = Method {
   methodModifiers = [Public],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "<init>",
-  parameters = [TClass "java.lang.String"],
+  parameters = [RefType "java.lang.String"],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TClass "java.lang.Throwable", ["r0"]),
-      (TClass "java.lang.String", ["s0"])
+      (RefType "java.lang.Throwable", ["r0"]),
+      (RefType "java.lang.String", ["s0"])
     ],
     statements = [
-      Identity "r0" ThisRef (TClass "java.lang.Throwable"),
+      Identity "r0" ThisRef (RefType "java.lang.Throwable"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
-      Identity "s0" (ParameterRef 0) (TClass "java.lang.String"),
+      Identity "s0" (ParameterRef 0) (RefType "java.lang.String"),
       Assign (VReference (FieldRef "r0" throwableMessageSignature)) (Local "s0"),
       Return Nothing
     ],

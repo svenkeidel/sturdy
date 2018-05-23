@@ -73,7 +73,7 @@ spec = do
       let expr = BinopExpr (IntConstant 3) Mod (FloatConstant 2.5)
       evalConcrete env store expr `shouldBe` Success (VFloat 0.5)
     it "new boolean" $ do
-      let expr = NewExpr TBoolean
+      let expr = NewExpr BooleanType
       evalConcrete env store expr `shouldBe` Success (VInt 0)
     it "[1, 2, 3][2]" $ do
       let expr = ArrayRef "xs" (IntConstant 2)
@@ -82,7 +82,7 @@ spec = do
                 (2, VArray [VInt 1, VInt 2, VInt 3])]
       evalConcrete nv st expr `shouldBe` Success (VInt 3)
     it "newmultiarray (float) [3][]" $ do
-      let expr = NewMultiArrayExpr TFloat [IntConstant 3, IntConstant 2]
+      let expr = NewMultiArrayExpr FloatType [IntConstant 3, IntConstant 2]
       evalConcrete env store expr `shouldBe` Success (VArray [VArray [VFloat 0.0, VFloat 0.0],
                                                  VArray [VFloat 0.0, VFloat 0.0],
                                                  VArray [VFloat 0.0, VFloat 0.0]])
@@ -90,7 +90,7 @@ spec = do
   describe "Simple Statements" $ do
     it "i0 = 2 + 3; return i0;" $ do
       let nv = [("i0", 1)]
-      let st = [(1, defaultValue TInt)]
+      let st = [(1, defaultValue IntType)]
       let stmts = [Assign (VLocal "i0") (BinopExpr (IntConstant 2) Plus (IntConstant 3)),
                    Return (Just (Local "i0"))]
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (VInt 5))
@@ -101,11 +101,11 @@ spec = do
       let nv = [("s", 0),
                 ("xs", 1),
                 ("y", 2)]
-      let st = [(0, defaultValue TInt),
-                (1, defaultValue (TArray TInt)),
-                (2, defaultValue TInt)]
+      let st = [(0, defaultValue IntType),
+                (1, defaultValue (ArrayType IntType)),
+                (2, defaultValue IntType)]
       let stmts = [Assign (VLocal "s") (IntConstant 2),
-                   Assign (VLocal "xs") (NewArrayExpr TInt (Local "s")),
+                   Assign (VLocal "xs") (NewArrayExpr IntType (Local "s")),
                    Assign (VLocal "y") (UnopExpr Lengthof (Local "xs")),
                    Return (Just (Local "y"))]
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (VInt 2))
@@ -143,9 +143,9 @@ spec = do
                 ("f0",          1),
                 ("f1",          2)]
       let st = [(0, VFloat 2.0),
-                (1, defaultValue TFloat),
-                (2, defaultValue TFloat)]
-      let stmts = [Identity "f0" (ParameterRef 0) TFloat,
+                (1, defaultValue FloatType),
+                (2, defaultValue FloatType)]
+      let stmts = [Identity "f0" (ParameterRef 0) FloatType,
                    Assign (VLocal "f1") (BinopExpr (Local "f0") Mult (IntConstant 2)),
                    Return (Just (Local "f1"))]
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (VFloat 4.0))
@@ -184,7 +184,7 @@ spec = do
                                  }
 
     testMethod stmts = Method { methodModifiers = [Public, Static]
-                              , returnType = TVoid
+                              , returnType = VoidType
                               , methodName = "test"
                               , parameters = []
                               , throws = []

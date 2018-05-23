@@ -79,17 +79,17 @@ instance Show Val where
   show (VObject c m) = show c ++ "{" ++ show m ++ "}"
 
 defaultValue :: Type -> Val
-defaultValue TBoolean = VInt 0
-defaultValue TByte = VInt 0
-defaultValue TChar = VInt 0
-defaultValue TShort = VInt 0
-defaultValue TInt = VInt 0
-defaultValue TLong = VInt 0
-defaultValue TFloat = VFloat 0.0
-defaultValue TDouble = VFloat 0.0
-defaultValue TNull = VNull
-defaultValue (TClass _) = VNull
-defaultValue (TArray _) = VNull
+defaultValue BooleanType = VInt 0
+defaultValue ByteType = VInt 0
+defaultValue CharType = VInt 0
+defaultValue ShortType = VInt 0
+defaultValue IntType = VInt 0
+defaultValue LongType = VInt 0
+defaultValue FloatType = VFloat 0.0
+defaultValue DoubleType = VFloat 0.0
+defaultValue NullType = VNull
+defaultValue (RefType _) = VNull
+defaultValue (ArrayType _) = VNull
 defaultValue _ = VBottom
 
 ---- End of Values ----
@@ -341,7 +341,7 @@ throw = proc (clzz, message) -> do
   v <- read' -< addr
   case v of
     VObject c m -> do
-      let m' = Map.insert (FieldSignature clzz (TClass "String") "message") (VString message) m
+      let m' = Map.insert (FieldSignature clzz (RefType "String") "message") (VString message) m
       write -< (addr, VObject c m')
       failA -< VRef addr
     _ -> failA -< VString $ printf "Undefined Exception %s" clzz
@@ -389,17 +389,17 @@ isInstanceof = proc (v, t) -> do
   assert -< (isNonvoidType t)
   v' <- unbox -< v
   case (v', t) of
-    (VBool _,     TBoolean) -> returnA -< True
-    (VInt n,      TByte)    -> returnA -< n >= -128                 && n < 128                 -- n >= (-2)^7  && n < 2^7
-    (VInt n,      TChar)    -> returnA -< n >= 0                    && n < 65536               -- n >= 0       && n < 2^16
-    (VInt n,      TShort)   -> returnA -< n >= -32768               && n < 32768               -- n >= (-2)^15 && n < 2^15
-    (VInt n,      TInt)     -> returnA -< n >= -2147483648          && n < 2147483648          -- n >= (-2)^31 && n < 2^31
-    (VLong l,     TLong)    -> returnA -< l >= -9223372036854775808 && l <= 9223372036854775807 -- l >= (-2)^63 && l < 2^63
-    (VFloat _,    TFloat)   -> returnA -< True
-    (VDouble _,   TDouble)  -> returnA -< True
-    (VNull,       TNull)    -> returnA -< True
-    (VObject c _, TClass p) -> isSuperClass -< (c, p)
-    (VArray xs,   TArray t') -> (mapA isInstanceof >>^ all (==True)) -< zip xs (repeat t')
+    (VBool _,     BooleanType) -> returnA -< True
+    (VInt n,      ByteType)    -> returnA -< n >= -128                 && n < 128                 -- n >= (-2)^7  && n < 2^7
+    (VInt n,      CharType)    -> returnA -< n >= 0                    && n < 65536               -- n >= 0       && n < 2^16
+    (VInt n,      ShortType)   -> returnA -< n >= -32768               && n < 32768               -- n >= (-2)^15 && n < 2^15
+    (VInt n,      IntType)     -> returnA -< n >= -2147483648          && n < 2147483648          -- n >= (-2)^31 && n < 2^31
+    (VLong l,     LongType)    -> returnA -< l >= -9223372036854775808 && l <= 9223372036854775807 -- l >= (-2)^63 && l < 2^63
+    (VFloat _,    FloatType)   -> returnA -< True
+    (VDouble _,   DoubleType)  -> returnA -< True
+    (VNull,       NullType)    -> returnA -< True
+    (VObject c _, RefType p) -> isSuperClass -< (c, p)
+    (VArray xs,   ArrayType t') -> (mapA isInstanceof >>^ all (==True)) -< zip xs (repeat t')
     (_, _) -> returnA -< False
 
 evalIndex :: (CanInterp c) => c Expr Int
@@ -513,7 +513,7 @@ eval :: CanInterp c => c Expr Val
 eval = proc e -> case e of
   NewExpr t -> if isBaseType t
     then case t of
-      TClass c -> newSimple -< c
+      RefType c -> newSimple -< c
       _ -> returnA -< (defaultValue t)
     else failA -< VString "Expected a nonvoid base type for new"
   NewArrayExpr t i -> if isNonvoidType t

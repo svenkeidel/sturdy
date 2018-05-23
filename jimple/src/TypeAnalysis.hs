@@ -50,50 +50,7 @@ import           Syntax
 ---- Values ----
 -- TODO Use Text over String
 
-data Val
-  = ArrayType Val Int
-  | BooleanType
-  | BottomType
-  | ByteType
-  | CharType
-  | DoubleType
-  | FloatType
-  | IntType
-  | Integer127Type
-  | Integer1Type
-  | Integer32767Type
-  | LongType
-  | NullType
-  | RefType String
-  | ShortType deriving (Eq)
-
-instance Show Val where
-  show (ArrayType v n) = show v ++ concat (replicate n "[]")
-  show BooleanType = "bool"
-  show BottomType = "⊥"
-  show ByteType = "byte"
-  show CharType = "char"
-  show DoubleType = "double"
-  show FloatType = "float"
-  show IntType = "int"
-  show Integer127Type = "[0..127]"
-  show Integer1Type = "[0..1]"
-  show Integer32767Type = "[0..32767]"
-  show LongType = "long"
-  show NullType = "null"
-  show (RefType s) = show s
-  show ShortType = "short"
-
-isIntegerType :: Val -> Bool
-isIntegerType BooleanType = True
-isIntegerType ByteType = True
-isIntegerType CharType = True
-isIntegerType IntType = True
-isIntegerType ShortType = True
-isIntegerType Integer1Type = True
-isIntegerType Integer127Type = True
-isIntegerType Integer32767Type = True
-isIntegerType _ = False
+type Val = Type
 
 ---- End of Values ----
 
@@ -192,8 +149,7 @@ replace 0 x (_:t) = x:t
 replace n x (h:t) = h:replace (n-1) x t
 
 assert :: (CanFail c) => c Bool ()
-assert = proc prop ->
-if prop
+assert = proc prop -> if prop
   then returnA -< ()
   else failA -< VString "Assertion failed"
 
@@ -212,19 +168,7 @@ read' = proc x -> do
     Nothing -> failA -< VString $ printf "Address %s not bounded" (show x)
 
 unbox :: (CanFail c, CanStore c) => c Val Val
-unbox = proc val -> case val of
-  VRef addr -> do
-    v <- read' -< addr
-    case v of
-      VObject c m -> do
-        let (keys, vals) = unzip (Map.toList m)
-        vals' <- mapA unbox -< vals
-        returnA -< VObject c (Map.fromList (zip keys vals'))
-      VArray xs -> do
-        xs' <- mapA unbox -< xs
-        returnA -< VArray xs'
-      _ -> returnA -< v
-  _ -> returnA -< val
+unbox = proc val -> returnA -< val
 
 unboxMaybe :: (CanFail c, CanUseMem c) => c (Maybe Val) (Maybe Val)
 unboxMaybe = proc val -> case val of
@@ -320,7 +264,7 @@ throw = proc (clzz, message) -> do
   v <- read' -< addr
   case v of
     VObject c m -> do
-      let m' = Map.insert (FieldSignature clzz (TClass "String") "message") (VString message) m
+      let m' = Map.insert (FieldSignature clzz (RefType "String") "message") (VString message) m
       write -< (addr, VObject c m')
       failA -< VRef addr
     _ -> failA -< VString $ printf "Undefined Exception %s" clzz
@@ -328,30 +272,6 @@ throw = proc (clzz, message) -> do
 ---- End of Boilerplate Methods ----
 
 ---- Evaluation Helper Methods ----
-
-numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
-numToNum op v1 v2 = case (v1, v2) of
-  (VInt n1, VInt n2) -> Just (VInt (op n1 n2))
-  (VFloat f, VInt n) -> Just (VFloat (op f (fromIntegral n)))
-  (VInt n, VFloat f) -> Just (VFloat (op (fromIntegral n) f))
-  (VFloat f1, VFloat f2) -> Just (VFloat (op f1 f2))
-  (_, _) -> Nothing
-
-numToBool :: (forall a. Ord a => a -> a -> Bool) -> Val -> Val -> Maybe Val
-numToBool op v1 v2 = case (v1, v2) of
-  (VInt n1, VInt n2) -> Just (VBool (op n1 n2))
-  (VFloat f, VInt n) -> Just (VBool (op f (fromIntegral n)))
-  (VInt n, VFloat f) -> Just (VBool (op (fromIntegral n) f))
-  (VFloat f1, VFloat f2) -> Just (VBool (op f1 f2))
-  (_, _) -> Nothing
-
-toIntList :: (CanFail c) => c [Val] [Int]
-toIntList = proc vs -> case vs of
-  (VInt x:xs) -> do
-    xs' <- toIntList -< xs
-    returnA -< (x:xs')
-  (_:_) -> failA -< VString "Expected an integer valued array for toIntList"
-  [] -> returnA -< []
 
 getInitializedFields :: (CanFail c, CanUseConst c) => c String [(FieldSignature, Val)]
 getInitializedFields = proc c -> do
@@ -369,41 +289,6 @@ newSimple = proc c -> do
   fields <- getInitializedFields -< c
   addr <- alloc -< (VObject c (Map.fromList fields))
   returnA -< VRef addr
-
-newArray :: (CanFail c, CanUseState c, CanStore c) => c (Type, [Int]) Val
-newArray = proc (t, sizes) -> case sizes of
-  (s:sizes') -> do
-    vals <- mapA newArray -< replicate s (t, sizes')
-    addr <- alloc -< VArray vals
-    returnA -< VRef addr
-  [] -> returnA -< defaultValue t
-
-isSuperClass :: (CanFail c, CanUseConst c) => c (String, String) Bool
-isSuperClass = proc (c, p) -> if c == p
-  then returnA -< True
-  else do
-    unit <- fetchCompilationUnit -< c
-    case extends unit of
-      Just c' -> isSuperClass -< (c', p)
-      Nothing -> returnA -< False
-
-isInstanceof :: (CanFail c, CanUseConst c, CanStore c) => c (Val, Type) Bool
-isInstanceof = proc (v, t) -> do
-  assert -< (isNonvoidType t)
-  v' <- unbox -< v
-  case (v', t) of
-    (VBool _,     TBoolean) -> returnA -< True
-    (VInt n,      TByte)    -> returnA -< n >= -128                 && n < 128                 -- n >= (-2)^7  && n < 2^7
-    (VInt n,      TChar)    -> returnA -< n >= 0                    && n < 65536               -- n >= 0       && n < 2^16
-    (VInt n,      TShort)   -> returnA -< n >= -32768               && n < 32768               -- n >= (-2)^15 && n < 2^15
-    (VInt n,      TInt)     -> returnA -< n >= -2147483648          && n < 2147483648          -- n >= (-2)^31 && n < 2^31
-    (VLong l,     TLong)    -> returnA -< l >= -9223372036854775808 && l <= 9223372036854775807 -- l >= (-2)^63 && l < 2^63
-    (VFloat _,    TFloat)   -> returnA -< True
-    (VDouble _,   TDouble)  -> returnA -< True
-    (VNull,       TNull)    -> returnA -< True
-    (VObject c _, TClass p) -> isSuperClass -< (c, p)
-    (VArray xs,   TArray t') -> (mapA isInstanceof >>^ all (==True)) -< zip xs (repeat t')
-    (_, _) -> returnA -< False
 
 evalIndex :: (CanInterp c) => c Expr Int
 evalIndex = proc i -> do
@@ -527,8 +412,8 @@ evalBinaryOp = proc (tl, tr) -> if (isIntegerType tl && isIntegerType tr)
       -- throw new RuntimeException();
   else returnA -< tl
 
-getIntConstantType :: Int -> Val
-getIntConstantType n
+geIntTypeConstantType :: Int -> Val
+geIntTypeConstantType n
   | n >= 0 && n < 2         = Integer1Type
   | n >= 2 && n < 128       = Integer127Type
   | n >= -128 && n < 0      = ByteType
@@ -606,7 +491,7 @@ eval = proc e -> case e of
     DynamicInvoke _ _ _ (MethodSignature _ returnType _ _) _ -> returnType
   NewExpr t -> if isBaseType t
     then returnA -< case t of
-      TClass c -> RefType c
+      RefType c -> RefType c
       _ -> returnA -< t
     else failA -< VString "Expected a nonvoid base type for new"
   FieldRef localName fieldSignature -> do
@@ -619,7 +504,7 @@ eval = proc e -> case e of
     returnA -< val
   DoubleConstant _ -> returnA -< DoubleType
   FloatConstant _ -> returnA -< FloatType
-  IntConstant n -> returnA -< (getIntConstantType n)
+  IntConstant n -> returnA -< (geIntTypeConstantType n)
   LongConstant _ -> returnA -< NullType
   NullConstant -> returnA -< VNull
   StringConstant _ -> returnA -< RefType "java.lang.String"

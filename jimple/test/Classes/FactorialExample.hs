@@ -8,23 +8,23 @@ import Classes.IllegalArgumentException
 factorialExampleInitSignature :: MethodSignature
 factorialExampleInitSignature = MethodSignature
   "FactorialExample"
-  TVoid
+  VoidType
   "<init>"
   []
 
 factorialExampleInitMethod :: Method
 factorialExampleInitMethod = Method {
   methodModifiers = [Public],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "<init>",
   parameters = [],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TClass "FactorialExample", ["r0"])
+      (RefType "FactorialExample", ["r0"])
     ],
     statements = [
-      Identity "r0" ThisRef (TClass "FactorialExample"),
+      Identity "r0" ThisRef (RefType "FactorialExample"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Return Nothing
     ],
@@ -35,20 +35,20 @@ factorialExampleInitMethod = Method {
 factorialExampleMainMethod :: Method
 factorialExampleMainMethod = Method {
   methodModifiers = [Public, Static],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "main",
   parameters = [
-    TInt
+    IntType
   ],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TInt, ["r0", "r1"]),
-      (TClass "FactorialExample", ["$r2"])
+      (IntType, ["r0", "r1"]),
+      (RefType "FactorialExample", ["$r2"])
     ],
     statements = [
-      Identity "r0" (ParameterRef 0) (TInt),
-      Assign (VLocal "$r2") (NewExpr (TClass "FactorialExample")),
+      Identity "r0" (ParameterRef 0) (IntType),
+      Assign (VLocal "$r2") (NewExpr (RefType "FactorialExample")),
       Invoke (SpecialInvoke "$r2" factorialExampleInitSignature []),
       Assign (VLocal "r1") (InvokeExpr (VirtualInvoke "$r2" factorialExampleExecSignature [Local "r0"])),
       Return (Just (Local "r1"))
@@ -60,28 +60,28 @@ factorialExampleMainMethod = Method {
 factorialExampleExecSignature :: MethodSignature
 factorialExampleExecSignature = MethodSignature
   "FactorialExample"
-  TInt
+  IntType
   "exec"
-  [TInt]
+  [IntType]
 
 factorialExampleExecMethod :: Method
 factorialExampleExecMethod = Method {
   methodModifiers = [Private],
-  returnType = TInt,
+  returnType = IntType,
   methodName = "exec",
-  parameters = [TInt],
+  parameters = [IntType],
   throws = ["java.lang.IllegalArgumentException"],
   methodBody = MFull {
     declarations = [
-      (TClass "FactorialExample", ["r0"]),
-      (TInt, ["i0", "$i1", "$i2", "$i3"]),
-      (TClass "java.lang.IllegalArgumentException", ["$r1"])
+      (RefType "FactorialExample", ["r0"]),
+      (IntType, ["i0", "$i1", "$i2", "$i3"]),
+      (RefType "java.lang.IllegalArgumentException", ["$r1"])
     ],
     statements = [
-      Identity "r0" ThisRef (TClass "FactorialExample"),
-      Identity "i0" (ParameterRef 0) TInt,
+      Identity "r0" ThisRef (RefType "FactorialExample"),
+      Identity "i0" (ParameterRef 0) IntType,
       If (BinopExpr (Local "i0") Cmpge (IntConstant 0)) "label1",
-      Assign (VLocal "$r1") (NewExpr (TClass "java.lang.IllegalArgumentException")),
+      Assign (VLocal "$r1") (NewExpr (RefType "java.lang.IllegalArgumentException")),
       Invoke (SpecialInvoke "$r1" illegalArgumentExceptionInitSignature [StringConstant "Negative value for argument n"]),
       Throw (Local "$r1"),
       Label "label1",

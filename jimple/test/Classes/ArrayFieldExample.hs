@@ -7,36 +7,36 @@ import Classes.Object
 arrayFieldExampleArrSignature :: FieldSignature
 arrayFieldExampleArrSignature = FieldSignature
   "ArrayFieldExample"
-  (TArray TInt)
+  (ArrayType IntType)
   "arr"
 
 arrayFieldExampleArrField :: Field
 arrayFieldExampleArrField = Field {
   fieldModifiers = [Public],
-  fieldType = TArray TInt,
+  fieldType = ArrayType IntType,
   fieldName = "arr"
 }
 
 arrayFieldExampleInitSignature :: MethodSignature
 arrayFieldExampleInitSignature = MethodSignature
   "ArrayFieldExample"
-  TVoid
+  VoidType
   "<init>"
   []
 
 arrayFieldExampleInitMethod :: Method
 arrayFieldExampleInitMethod = Method {
   methodModifiers = [Public],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "<init>",
   parameters = [],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TClass "ArrayFieldExample", ["r0"])
+      (RefType "ArrayFieldExample", ["r0"])
     ],
     statements = [
-      Identity "r0" ThisRef (TClass "ArrayFieldExample"),
+      Identity "r0" ThisRef (RefType "ArrayFieldExample"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Return Nothing
     ],
@@ -47,21 +47,21 @@ arrayFieldExampleInitMethod = Method {
 arrayFieldExampleMainMethod :: Method
 arrayFieldExampleMainMethod = Method {
   methodModifiers = [Public, Static],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "main",
   parameters = [
-    TInt
+    IntType
   ],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TInt, ["r0"]),
-      (TArray TInt, ["r1"]),
-      (TClass "ArrayFieldExample", ["$r2"])
+      (IntType, ["r0"]),
+      (ArrayType IntType, ["r1"]),
+      (RefType "ArrayFieldExample", ["$r2"])
     ],
     statements = [
-      Identity "r0" (ParameterRef 0) (TInt),
-      Assign (VLocal "$r2") (NewExpr (TClass "ArrayFieldExample")),
+      Identity "r0" (ParameterRef 0) (IntType),
+      Assign (VLocal "$r2") (NewExpr (RefType "ArrayFieldExample")),
       Invoke (SpecialInvoke "$r2" arrayFieldExampleInitSignature []),
       Invoke (VirtualInvoke "$r2" arrayFieldExampleFillSignature [Local "r0"]),
       Assign (VLocal "r1") (FieldRef "$r2" arrayFieldExampleArrSignature),
@@ -74,27 +74,27 @@ arrayFieldExampleMainMethod = Method {
 arrayFieldExampleFillSignature :: MethodSignature
 arrayFieldExampleFillSignature = MethodSignature
   "ArrayFieldExample"
-  TVoid
+  VoidType
   "fill"
-  [TInt]
+  [IntType]
 
 arrayFieldExampleFillMethod :: Method
 arrayFieldExampleFillMethod = Method {
   methodModifiers = [Private],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "fill",
-  parameters = [TInt],
+  parameters = [IntType],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TClass "ArrayFieldExample", ["r0"]),
-      (TInt, ["p0"]),
-      (TArray TInt, ["a0"])
+      (RefType "ArrayFieldExample", ["r0"]),
+      (IntType, ["p0"]),
+      (ArrayType IntType, ["a0"])
     ],
     statements = [
-      Identity "r0" ThisRef (TClass "ArrayFieldExample"),
-      Identity "p0" (ParameterRef 0) TInt,
-      Assign (VLocal "a0") (NewArrayExpr TInt (IntConstant 4)),
+      Identity "r0" ThisRef (RefType "ArrayFieldExample"),
+      Identity "p0" (ParameterRef 0) IntType,
+      Assign (VLocal "a0") (NewArrayExpr IntType (IntConstant 4)),
       Assign (VReference (ArrayRef "a0" (IntConstant 0))) (Local "p0"),
       Assign (VReference (ArrayRef "a0" (IntConstant 1))) (Local "p0"),
       Assign (VReference (ArrayRef "a0" (IntConstant 2))) (Local "p0"),

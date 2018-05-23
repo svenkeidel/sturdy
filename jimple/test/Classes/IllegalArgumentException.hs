@@ -7,25 +7,25 @@ import Classes.Throwable
 illegalArgumentExceptionInitSignature :: MethodSignature
 illegalArgumentExceptionInitSignature = MethodSignature
   "java.lang.IllegalArgumentException"
-  TVoid
+  VoidType
   "<init>"
-  [TClass "java.lang.String"]
+  [RefType "java.lang.String"]
 
 illegalArgumentExceptionInitMethod :: Method
 illegalArgumentExceptionInitMethod = Method {
   methodModifiers = [Public],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "<init>",
-  parameters = [TClass "java.lang.String"],
+  parameters = [RefType "java.lang.String"],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TClass "java.lang.IllegalArgumentException", ["r0"]),
-      (TClass "java.lang.String", ["s0"])
+      (RefType "java.lang.IllegalArgumentException", ["r0"]),
+      (RefType "java.lang.String", ["s0"])
     ],
     statements = [
-      Identity "r0" ThisRef (TClass "java.lang.IllegalArgumentException"),
-      Identity "s0" (ParameterRef 0) (TClass "java.lang.String"),
+      Identity "r0" ThisRef (RefType "java.lang.IllegalArgumentException"),
+      Identity "s0" (ParameterRef 0) (RefType "java.lang.String"),
       Invoke (SpecialInvoke "r0" throwableInitSignature [Local "s0"]),
       Return Nothing
     ],

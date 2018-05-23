@@ -7,36 +7,36 @@ import Classes.Object
 singleMethodExampleXSignature :: FieldSignature
 singleMethodExampleXSignature = FieldSignature
   "SingleMethodExample"
-  TInt
+  IntType
   "x"
 
 singleMethodExampleXField :: Field
 singleMethodExampleXField = Field {
   fieldModifiers = [Public],
-  fieldType = TInt,
+  fieldType = IntType,
   fieldName = "x"
 }
 
 singleMethodExampleInitSignature :: MethodSignature
 singleMethodExampleInitSignature = MethodSignature
   "SingleMethodExample"
-  TVoid
+  VoidType
   "<init>"
   []
 
 singleMethodExampleInitMethod :: Method
 singleMethodExampleInitMethod = Method {
   methodModifiers = [Public],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "<init>",
   parameters = [],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TClass "SingleMethodExample", ["r0"])
+      (RefType "SingleMethodExample", ["r0"])
     ],
     statements = [
-      Identity "r0" ThisRef (TClass "SingleMethodExample"),
+      Identity "r0" ThisRef (RefType "SingleMethodExample"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Return Nothing
     ],
@@ -47,17 +47,17 @@ singleMethodExampleInitMethod = Method {
 singleMethodExampleMainMethod :: Method
 singleMethodExampleMainMethod = Method {
   methodModifiers = [Public, Static],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "main",
   parameters = [],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TInt, ["i0"]),
-      (TClass "SingleMethodExample", ["$r2"])
+      (IntType, ["i0"]),
+      (RefType "SingleMethodExample", ["$r2"])
     ],
     statements = [
-      Assign (VLocal "$r2") (NewExpr (TClass "SingleMethodExample")),
+      Assign (VLocal "$r2") (NewExpr (RefType "SingleMethodExample")),
       Invoke (VirtualInvoke "$r2" singleMethodExampleFooSignature []),
       Assign (VLocal "i0") (FieldRef "$r2" singleMethodExampleXSignature),
       Return (Just (Local "i0"))
@@ -69,23 +69,23 @@ singleMethodExampleMainMethod = Method {
 singleMethodExampleFooSignature :: MethodSignature
 singleMethodExampleFooSignature = MethodSignature
   "SingleMethodExample"
-  TVoid
+  VoidType
   "foo"
   []
 
 singleMethodExampleFooMethod :: Method
 singleMethodExampleFooMethod = Method {
   methodModifiers = [Private],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "foo",
   parameters = [],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TClass "SingleMethodExample", ["r0"])
+      (RefType "SingleMethodExample", ["r0"])
     ],
     statements = [
-      Identity "r0" ThisRef (TClass "SingleMethodExample"),
+      Identity "r0" ThisRef (RefType "SingleMethodExample"),
       Assign (VReference (FieldRef "r0" singleMethodExampleXSignature)) (IntConstant 2),
       Return Nothing
     ],

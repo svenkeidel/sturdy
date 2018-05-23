@@ -62,11 +62,11 @@ instance Show Modifier where
 
 data FileType
   = FTClass
-  | FTInterface
+  | FIntTypeerface
 
 instance Show FileType where
   show FTClass = "class"
-  show FTInterface = "interface"
+  show FIntTypeerface = "interface"
 
 data Member = FieldMember Field | MethodMember Method
 
@@ -84,29 +84,63 @@ data Method = Method { methodModifiers :: [Modifier]
                      } deriving (Show, Eq)
 
 data Type
-  = TUnknown
-  | TVoid
-  | TBoolean
-  | TByte
-  | TChar
-  | TShort
-  | TInt
-  | TLong
-  | TFloat
-  | TDouble
-  | TNull
-  | TClass String
-  | TArray Type deriving (Show, Eq)
+  = ArrayType Type
+  | BooleanType
+  | BottomType
+  | ByteType
+  | CharType
+  | DoubleType
+  | FloatType
+  | IntType
+  | Integer1Type
+  | Integer127Type
+  | Integer32767Type
+  | LongType
+  | NullType
+  | RefType String
+  | ShortType
+  | UnknownType
+  | VoidType deriving (Eq)
+
+instance Show Type where
+  show (ArrayType t) = show t ++ "[]"
+  show BooleanType = "bool"
+  show BottomType = "⊥"
+  show ByteType = "byte"
+  show CharType = "char"
+  show DoubleType = "double"
+  show FloatType = "float"
+  show IntType = "int"
+  show Integer1Type = "[0..1]"
+  show Integer127Type = "[0..127]"
+  show Integer32767Type = "[0..32767]"
+  show LongType = "long"
+  show NullType = "null"
+  show (RefType s) = show s
+  show ShortType = "short"
+  show UnknownType = "<untyped>"
+  show VoidType = "void"
+
+isIntegerType :: Type -> Bool
+isIntegerType BooleanType = True
+isIntegerType ByteType = True
+isIntegerType CharType = True
+isIntegerType IntType = True
+isIntegerType ShortType = True
+isIntegerType Integer1Type = True
+isIntegerType Integer127Type = True
+isIntegerType Integer32767Type = True
+isIntegerType _ = False
 
 isNonvoidType :: Type -> Bool
-isNonvoidType TVoid = False
-isNonvoidType TUnknown = False
+isNonvoidType VoidType = False
+isNonvoidType UnknownType = False
 isNonvoidType _ = True
 
 isBaseType :: Type -> Bool
-isBaseType TVoid = False
-isBaseType TUnknown = False
-isBaseType (TArray _) = False
+isBaseType VoidType = False
+isBaseType UnknownType = False
+isBaseType (ArrayType _) = False
 isBaseType _ = True
 
 data MethodBody

@@ -7,22 +7,22 @@ import Classes.ArrayIndexOutOfBoundsException
 tryCatchExampleMainMethod :: Method
 tryCatchExampleMainMethod = Method {
   methodModifiers = [Public, Static],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "main",
   parameters = [],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TClass "java.lang.ArrayIndexOutOfBoundsException", ["$r2", "$r3", "$r4"])
+      (RefType "java.lang.ArrayIndexOutOfBoundsException", ["$r2", "$r3", "$r4"])
     ],
     statements = [
       Label "label1",
-      Assign (VLocal "$r2") (NewExpr (TClass "java.lang.ArrayIndexOutOfBoundsException")),
+      Assign (VLocal "$r2") (NewExpr (RefType "java.lang.ArrayIndexOutOfBoundsException")),
       Invoke (SpecialInvoke "$r2" arrayIndexOutOfBoundsExceptionInitSignature [StringConstant "a"]),
       Throw (Local "$r2"),
       Label "label2",
       IdentityNoType "$r3" CaughtExceptionRef,
-      Assign (VLocal "$r4") (NewExpr (TClass "java.lang.ArrayIndexOutOfBoundsException")),
+      Assign (VLocal "$r4") (NewExpr (RefType "java.lang.ArrayIndexOutOfBoundsException")),
       Invoke (SpecialInvoke "$r4" arrayIndexOutOfBoundsExceptionInitSignature [StringConstant "b"]),
       Throw (Local "$r4")
     ],

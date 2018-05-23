@@ -5,14 +5,14 @@ import Syntax
 objectInitSignature :: MethodSignature
 objectInitSignature = MethodSignature
   "java.lang.Object"
-  TVoid
+  VoidType
   "<init>"
   []
 
 objectInitMethod :: Method
 objectInitMethod = Method {
   methodModifiers = [Public],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "<init>",
   parameters = [],
   throws = [],

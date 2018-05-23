@@ -7,25 +7,25 @@ import Classes.Throwable
 arrayIndexOutOfBoundsExceptionInitSignature :: MethodSignature
 arrayIndexOutOfBoundsExceptionInitSignature = MethodSignature
   "java.lang.ArrayIndexOutOfBoundsException"
-  TVoid
+  VoidType
   "<init>"
-  [TClass "java.lang.String"]
+  [RefType "java.lang.String"]
 
 arrayIndexOutOfBoundsExceptionInitMethod :: Method
 arrayIndexOutOfBoundsExceptionInitMethod = Method {
   methodModifiers = [Public],
-  returnType = TVoid,
+  returnType = VoidType,
   methodName = "<init>",
-  parameters = [TClass "java.lang.String"],
+  parameters = [RefType "java.lang.String"],
   throws = [],
   methodBody = MFull {
     declarations = [
-      (TClass "java.lang.ArrayIndexOutOfBoundsException", ["r0"]),
-      (TClass "java.lang.String", ["s0"])
+      (RefType "java.lang.ArrayIndexOutOfBoundsException", ["r0"]),
+      (RefType "java.lang.String", ["s0"])
     ],
     statements = [
-      Identity "r0" ThisRef (TClass "java.lang.ArrayIndexOutOfBoundsException"),
-      Identity "s0" (ParameterRef 0) (TClass "java.lang.String"),
+      Identity "r0" ThisRef (RefType "java.lang.ArrayIndexOutOfBoundsException"),
+      Identity "s0" (ParameterRef 0) (RefType "java.lang.String"),
       Invoke (SpecialInvoke "r0" throwableInitSignature [Local "s0"]),
       Return Nothing
     ],
