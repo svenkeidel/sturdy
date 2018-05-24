@@ -25,6 +25,9 @@ import Data.Order
 import Data.Monoidal
 import Data.Identifiable
 
+-- | Describes computations that can fail. Usefull for implementing analyses for
+-- languages that only propagate error and /do not/ handle it. For
+-- languages that handle error, use 'PreciseExcept'.
 newtype Except e c x y = Except { runExcept :: c x (Error e y) }
 
 instance ArrowLift (Except e) where
@@ -77,6 +80,10 @@ instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) 
   fixA f = Except (fixA (runExcept . f . Except))
 
 instance (ArrowChoice c, Complete (c (y,x) (Error e z))) => ArrowTry x y z (Except e c) where
+  -- | In case the first computation succeeds, the results of the
+  -- second and third computation are joined. The reason is that the
+  -- ordering for 'Error' is 'Fail ⊑ Success', i.e., 'Success'
+  -- represents all concrete computations that succeed or fail.
   tryA (Except f) (Except g) (Except h) = Except $ proc x -> do
     e <- f -< x
     case e of

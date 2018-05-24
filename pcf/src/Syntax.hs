@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-module PCF where
+module Syntax where
 
 import Data.Text(Text,unpack)
 import Data.Hashable

@@ -25,6 +25,7 @@ import Data.Concrete.Error
 import Data.Monoidal
 import Data.Identifiable
 
+-- | Arrow transformer that adds exceptions to the result of a computation
 newtype Except e c x y = Except { runExcept :: c x (Error e y) }
 
 instance ArrowLift (Except e) where
@@ -70,7 +71,8 @@ instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) 
   fixA f = Except (fixA (runExcept . f . Except))
 
 instance ArrowChoice c => ArrowTry x y z (Except e c) where
-  tryA (Except f) (Except g) (Except h) = Except $ (\x -> (x,x)) ^>> first f >>> hasSucceeded ^>> (g ||| h)
+  tryA (Except f) (Except g) (Except h) =
+    Except $ (\x -> (x,x)) ^>> first f >>> hasSucceeded ^>> (g ||| h)
 
 hasSucceeded :: (Error e b,a) -> Either b a
 hasSucceeded (Fail _,a) = Right a

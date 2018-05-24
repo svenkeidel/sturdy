@@ -31,10 +31,16 @@ import qualified Data.Abstract.Store as S
 
 import           Text.Printf
 
--- The galois connection for environment store pairs ensures that if
--- an variable is bound to an address in the environment, then the
--- address has an binding in the store.
-newtype Environment var addr val c x y = Environment ( Reader (Env var addr,Store addr val) c x y )
+-- | Abstract domain for environments in which concrete environments
+-- are approximated by a mapping from variables to addresses and a
+-- mapping from addresses to values. The number of allocated addresses
+-- allows to tune the precision and performance of the analysis.
+-- 
+-- Furthermore, closures and environments are defined mutually
+-- recursively. By only allowing a finite number of addresses, the
+-- abstract domain of closures and environments becomes finite.
+newtype Environment var addr val c x y =
+  Environment ( Reader (Env var addr,Store addr val) c x y )
 
 runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c)
                => Environment var addr val c x y -> c ([(var,val)],x) y
@@ -55,14 +61,18 @@ instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoi
       Success v -> returnA -< v
       Fail _ -> failA -< printf "Variable %s not bound" (show x)
   getEnv = Environment askA
+  -- | If an existing address is allocated for a new variable binding,
+  -- the new value is joined with the existing value at this address.
   extendEnv = proc (x,y,(env,store)) -> do
     addr <- lift alloc -< (x,env,store)
     returnA -< (E.insert x addr env,S.insertWith (⊔) addr y store)
-  localEnv (Environment (Reader f)) = Environment (Reader ((\(_,(e,a)) -> (e,a)) ^>> f))
+  localEnv (Environment (Reader f)) =
+    Environment (Reader ((\(_,(e,a)) -> (e,a)) ^>> f))
 
 instance ArrowReader r c => ArrowReader r (Environment var addr val c) where
   askA = lift askA
-  localA (Environment (Reader f)) = Environment $ Reader $ (\(env,(r,x)) -> (r,(env,x))) ^>> localA f
+  localA (Environment (Reader f)) =
+    Environment $ Reader $ (\(env,(r,x)) -> (r,(env,x))) ^>> localA f
 
 instance ArrowApply c => ArrowApply (Environment var addr val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app

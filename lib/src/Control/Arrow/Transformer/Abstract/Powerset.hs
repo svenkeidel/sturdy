@@ -23,6 +23,7 @@ import           Data.Monoidal
 import           Data.Order
 import           Data.Sequence hiding (lookup)
 
+-- | Computation that produces a set of results.
 newtype Powerset c x y = Powerset { runPowerset :: c x (A.Pow y)}
 
 instance ArrowLift Powerset where

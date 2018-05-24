@@ -4,7 +4,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Concrete where
+-- | Concrete semantics of PCF.
+module ConcreteSemantics where
 
 import Prelude
 
@@ -26,20 +27,26 @@ import Data.Label
 
 import GHC.Generics
 
-import PCF (Expr(..))
-import Shared
+import Syntax (Expr(..))
+import SharedSemantics
 
 data Closure = Closure Expr (Env Text Val) deriving (Eq,Generic)
 data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
-         
+
+-- | The interpreter arrow for the concrete semantics that encapsulates the passing of the enviornment and the propagation of failure.
 newtype Interp x y = Interp (Fix Expr Val (Environment Text Val (Except String (->))) x y)
 
+-- | Takes an arrow computation and executes it.
 runInterp :: Interp x y -> [(Text,Val)] -> x -> Error String y
 runInterp (Interp f) env x = runLeastFixPoint (runExcept (runEnvironment f)) (env,x)
 
+-- | The concrete interpreter function for PCF. The function is
+-- implemented by instantiating the shared semantics with the concrete
+-- interpreter arrow `Interp`.
 evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
 evalConcrete env e = runInterp eval env (generate e)
 
+-- | Concrete instance of the interface for value operations.
 instance IsVal Val Interp where
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal (n + 1)
@@ -53,12 +60,15 @@ instance IsVal Val Interp where
     NumVal _ -> g -< y
     _ -> failA -< "Expected a number as condition for 'ifZero'"
 
+-- | Concrete instance of the interface for closure operations.
 instance IsClosure Val (Env Text Val) Interp where
   closure = arr $ \(e, env) -> ClosureVal $ Closure e env
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal (Closure e env) -> f -< ((e,env),arg)
     NumVal _ -> failA -< "Expected a closure"
 
+-- All other instances for the concrete interpreter arrow can be
+-- derived from the instances of the underlying arrow transformers.
 deriving instance Category Interp
 deriving instance Arrow Interp
 deriving instance ArrowChoice Interp
@@ -68,7 +78,6 @@ deriving instance ArrowFix Expr Val Interp
 
 instance Hashable Closure
 instance Hashable Val
-
 instance Show Closure where
   show (Closure e env) = show (e,env)
 instance Show Val where

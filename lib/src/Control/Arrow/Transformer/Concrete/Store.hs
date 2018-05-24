@@ -28,14 +28,18 @@ import Data.Identifiable
 
 import Text.Printf
 
+-- | Arrow transformer that adds a store to a computation.
 newtype StoreArrow var val c x y = StoreArrow (State (Store var val) c x y)
 
+-- | Execute a computation and only return the result value and store.
 runStore :: StoreArrow var val c x y -> c (Store var val, x) (Store var val, y)
 runStore (StoreArrow (State f)) = f
 
+-- | Execute a computation and only return the result value.
 evalStore :: Arrow c => StoreArrow var val c x y -> c (Store var val, x) y
 evalStore f = runStore f >>> pi2
 
+-- | Execute a computation and only return the result store.
 execStore :: Arrow c => StoreArrow var val c x y -> c (Store var val, x) (Store var val)
 execStore f = runStore f >>> pi1
 

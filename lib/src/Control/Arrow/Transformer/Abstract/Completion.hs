@@ -22,6 +22,8 @@ import Data.Abstract.FreeCompletion
 import Data.Monoidal
 import Data.Order
 
+-- | Allows to describe computations over non-completely ordered types.
+-- E.g. allows to join a computation of type 'c x [y]'.
 newtype Completion c x y = Completion { runCompletion :: c x (FreeCompletion y) }
 
 instance ArrowLift Completion where

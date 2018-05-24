@@ -25,7 +25,7 @@ import Control.Arrow.Transformer.Static
     
 import Data.Order
 
--- Passes along _static_ data.
+-- | Passes along constant data.
 newtype Const r c x y = Const (Static ((->) r) c x y)
 
 runConst :: r -> Const r c x y -> c x y

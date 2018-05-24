@@ -11,10 +11,10 @@ cabal-version:       >=1.10
 
 library
   ghc-options:       -Wall
-  exposed-modules:   Concrete,
-                     IntervalAnalysis,
-                     PCF,
-                     Shared
+  exposed-modules:   Syntax,
+                     SharedSemantics,
+                     ConcreteSemantics,
+                     IntervalAnalysis
                      -- SignAnalysis
   build-depends:     base,
                      hashable,

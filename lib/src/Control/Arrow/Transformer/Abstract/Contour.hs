@@ -6,7 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Abstract.Contour(Contour,empty,push,toList,size,maxSize,ContourArrow,runContourArrow) where
+module Control.Arrow.Transformer.Abstract.Contour(CallString,Contour,runContour) where
 
 import           Prelude hiding (id,(.),lookup)
 
@@ -22,77 +22,51 @@ import           Control.Arrow.Transformer.Reader
 
 import           Control.Category
 
-import qualified Data.Foldable as F
 import           Data.Label
 import           Data.Order
-import           Data.Hashable
-import           Data.Sequence (Seq,(|>))
-import qualified Data.Sequence as S
+import           Data.CallString
 
-data Contour = Contour {
-  contour :: Seq Label,
-  size :: Int,
-  maxSize :: Int
-}
+-- | Records the k-bounded call string. Meant to be used in
+-- conjunction with 'Abstract.BoundedEnvironment'.
+newtype Contour c a b = Contour (Reader CallString c a b)
 
-instance Show Contour where
-  show = show . toList
+-- | Runs a computation that records a call string. The argument 'k'
+-- specifies the maximum length of a call string. All larger call
+-- strings are truncated to at most 'k' elements.
+runContour :: Arrow c => Int -> Contour c a b -> c a b
+runContour k (Contour (Reader f)) = (\a -> (empty k,a)) ^>> f
 
-instance Eq Contour where
-  c1 == c2 = contour c1 == contour c2
-
-instance Hashable Contour where
-  hashWithSalt s = hashWithSalt s . F.toList . contour
-
-empty :: Int -> Contour
-empty m = Contour S.empty 0 m
-
-push :: Label -> Contour -> Contour
-push l (Contour {..}) = resize (Contour (contour |> l) (size + 1) maxSize)
-
-resize :: Contour -> Contour
-resize cont@(Contour {..})
-  | size > maxSize = Contour (S.drop (size - maxSize) contour) maxSize maxSize
-  | otherwise = cont
-
-toList :: Contour -> [Label]
-toList = F.toList . contour
-
-newtype ContourArrow c a b = ContourArrow (Reader Contour c a b)
-
-runContourArrow :: Arrow c => Int -> ContourArrow c a b -> c a b
-runContourArrow n (ContourArrow (Reader f)) = (\a -> (empty n,a)) ^>> f
-
-type instance Fix x y (ContourArrow c) = ContourArrow (Fix x y c)
-instance (ArrowFix x y c, ArrowApply c, HasLabel x) => ArrowFix x y (ContourArrow c) where
-  -- Pushes the label of the last argument on the contour.
-  fixA f = ContourArrow $ Reader $ proc (c,x) -> fixA (unlift c . f . lift) -<< x
+type instance Fix x y (Contour c) = Contour (Fix x y c)
+instance (ArrowFix x y c, ArrowApply c, HasLabel x) => ArrowFix x y (Contour c) where
+  -- Pushes the label of the last argument on the call string and truncate the call string in case it reached the maximum length
+  fixA f = Contour $ Reader $ proc (c,x) -> fixA (unlift c . f . lift) -<< x
     where
-      unlift :: (HasLabel x, ArrowApply c) => Contour -> ContourArrow c x y -> c x y
-      unlift c (ContourArrow (Reader f')) = proc x -> do
+      unlift :: (HasLabel x, ArrowApply c) => CallString -> Contour c x y -> c x y
+      unlift c (Contour (Reader f')) = proc x -> do
         y <- f' -< (push (label x) c, x)
         returnA -< y
 
-instance Arrow c => ArrowAlloc var (var,Contour) val (ContourArrow c) where
-  alloc = ContourArrow $ Reader $ proc (l,(x,_,_)) -> returnA -< (x,l)
+instance Arrow c => ArrowAlloc var (var,CallString) val (Contour c) where
+  -- | Return the variable together with the current call string as address.
+  alloc = Contour $ Reader $ proc (l,(x,_,_)) -> returnA -< (x,l)
 
-instance ArrowApply c => ArrowApply (ContourArrow c) where
-  app = ContourArrow $ (\(ContourArrow f,x) -> (f,x)) ^>> app
+instance ArrowApply c => ArrowApply (Contour c) where
+  app = Contour $ (\(Contour f,x) -> (f,x)) ^>> app
 
-instance ArrowReader r c => ArrowReader r (ContourArrow c) where
+instance ArrowReader r c => ArrowReader r (Contour c) where
   askA = lift askA
-  localA (ContourArrow (Reader f)) = ContourArrow (Reader ((\(c,(r,x)) -> (r,(c,x))) ^>> localA f))
+  localA (Contour (Reader f)) = Contour (Reader ((\(c,(r,x)) -> (r,(c,x))) ^>> localA f))
 
-deriving instance Arrow c => Category (ContourArrow c)
-deriving instance Arrow c => Arrow (ContourArrow c)
-deriving instance ArrowLift ContourArrow
-deriving instance ArrowChoice c => ArrowChoice (ContourArrow c)
-deriving instance ArrowState s c => ArrowState s (ContourArrow c)
-deriving instance ArrowFail e c => ArrowFail e (ContourArrow c)
-deriving instance ArrowEnv x y env c => ArrowEnv x y env (ContourArrow c)
+deriving instance Arrow c => Category (Contour c)
+deriving instance Arrow c => Arrow (Contour c)
+deriving instance ArrowLift Contour
+deriving instance ArrowChoice c => ArrowChoice (Contour c)
+deriving instance ArrowState s c => ArrowState s (Contour c)
+deriving instance ArrowFail e c => ArrowFail e (Contour c)
+deriving instance ArrowEnv x y env c => ArrowEnv x y env (Contour c)
 
-deriving instance PreOrd (c (Contour,x) y) => PreOrd (ContourArrow c x y)
-deriving instance LowerBounded (c (Contour,x) y) => LowerBounded (ContourArrow c x y)
-deriving instance Complete (c (Contour,x) y) => Complete (ContourArrow c x y)
-deriving instance CoComplete (c (Contour,x) y) => CoComplete (ContourArrow c x y)
-deriving instance UpperBounded (c (Contour,x) y) => UpperBounded (ContourArrow c x y)
+deriving instance PreOrd (c (CallString,x) y) => PreOrd (Contour c x y)
+deriving instance LowerBounded (c (CallString,x) y) => LowerBounded (Contour c x y)
+deriving instance Complete (c (CallString,x) y) => Complete (Contour c x y)
+deriving instance CoComplete (c (CallString,x) y) => CoComplete (Contour c x y)
+deriving instance UpperBounded (c (CallString,x) y) => UpperBounded (Contour c x y)

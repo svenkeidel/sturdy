@@ -9,7 +9,9 @@ import Control.Arrow
 
 import Control.Monad.Except
 
+-- | Arrow-based interface for computations that can fail.
 class Arrow c => ArrowFail e c | c -> e where
+  -- | Throws an exception of type `e`.
   failA :: c e x
 
 instance MonadError e m => ArrowFail e (Kleisli m) where

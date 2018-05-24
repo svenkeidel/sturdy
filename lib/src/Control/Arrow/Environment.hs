@@ -7,17 +7,24 @@ module Control.Arrow.Environment where
 import Control.Arrow
 import Control.Arrow.Utils
 
-class Arrow c => ArrowEnv x y env c | c -> x, c -> y, c -> env where
-  lookup :: c x y
+-- | Arrow-based interface for interacting with environments.
+class Arrow c => ArrowEnv var val env c | c -> var, c -> val, c -> env where
+  -- | Lookup a variable in the current environment.
+  lookup :: c var val
+  -- | Retrieve the current environment.
   getEnv :: c () env
-  extendEnv :: c (x,y,env) env
+  -- | Extend an environment with a binding.
+  extendEnv :: c (var,val,env) env
+  -- | Run a computation with a modified environment.
   localEnv :: c a b -> c (env,a) b
 
-extendEnv' :: ArrowEnv x y env c => c a b -> c (x,y,a) b
+-- | Run a computation in an extended environment.
+extendEnv' :: ArrowEnv var val env c => c a b -> c (var,val,a) b
 extendEnv' f = proc (x,y,a) -> do
   env <- getEnv -< ()
   env' <- extendEnv -< (x,y,env)
   localEnv f -< (env',a)
 
-bindings :: (ArrowChoice c, ArrowEnv x y env c) => c ([(x,y)],env) env
+-- | Add a list of bindings to the given environment.
+bindings :: (ArrowChoice c, ArrowEnv var val env c) => c ([(var,val)],env) env
 bindings = foldA ((\(env,(x,y)) -> (x,y,env)) ^>> extendEnv)
