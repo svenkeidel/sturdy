@@ -18,11 +18,10 @@ library
     , sturdy-lib
     , hashable
   exposed-modules:
-      Concrete,
       Syntax,
-      TypeInterpreter,
-      ValueInterpreter,
-      SharedInterpreter
+      SharedInterpreter,
+      SharedAbstract,
+      SharedConcrete
   default-language: Haskell2010
 
 test-suite lambdajs-test

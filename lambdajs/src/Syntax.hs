@@ -5,7 +5,6 @@ module Syntax where
 
 import GHC.Generics (Generic)
 import Data.Hashable
--- From LambdaJS/haskell/src/Syntax.hs
 
 type Ident = String
 data Label = Label String
@@ -75,41 +74,3 @@ data Expr
     | EEval
     deriving (Show, Eq, Generic)
 instance Hashable Expr
-
-data Value
-    = VNumber Double
-    | VString String
-    | VBool Bool
-    | VUndefined
-    | VNull
-    | VLambda [Ident] Expr
-    | VObject [(String, Value)]
-    | VRef Location
-    deriving (Show, Eq, Generic)
-instance Hashable Value
--- Questions
--- How to encode throws and breaks using arrows?
--- How to encode references?
-
-data Exceptional
-    = Break Label Value
-    | Thrown Value
-    deriving (Show, Eq, Generic)
-instance Hashable Exceptional
-
-data Type
-    = TNumber
-    | TString
-    | TBool
-    | TUndefined
-    | TNull
-    | TLambda [Ident] Type
-    | TObject [(Ident, Type)]
-    | TTop
-    | TBottom
-    | TRef Location
-    | TThrown Type
-    | TBreak Label Type
-    deriving (Show, Eq, Generic)
-instance Hashable Type
-

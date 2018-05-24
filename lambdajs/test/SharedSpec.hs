@@ -1,8 +1,8 @@
 module SharedSpec where
 
 import Syntax
-import SharedInterpreter (LJSArrow)
-import qualified SharedInterpreter as Interpreter (runConcrete)
+import SharedConcrete (ConcreteArr, Value(..))
+import qualified SharedConcrete as Interpreter (runConcrete)
 import Data.Concrete.Environment
 import Data.Concrete.Error
 import Control.Arrow.Fail

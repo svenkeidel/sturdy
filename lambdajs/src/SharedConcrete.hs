@@ -4,48 +4,67 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverlappingInstances #-}
-module ValueInterpreter where
-import Prelude hiding(lookup, read)
-import qualified Prelude(read)
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE DeriveGeneric #-}
+module SharedConcrete where
 
+import Prelude hiding(lookup, break, read, error)
+import qualified Prelude
+import GHC.Generics (Generic)
 import Syntax
+import SharedInterpreter
 
-import Data.Concrete.Error
-import Data.Concrete.Store
+import Data.Hashable
+import Data.Identifiable
+import Data.Word (Word32)
+import Data.Fixed (mod')
+import Data.Bits (shift, bit)
+import Data.List (isPrefixOf, find)
+
 import Data.Concrete.Environment
-import Control.Category
-import Control.Arrow
+import Data.Concrete.Store
+import Data.Concrete.Error
+
 import Control.Arrow.Transformer.Concrete.Except
 import Control.Arrow.Transformer.Concrete.Environment
 import Control.Arrow.Transformer.Concrete.Store
-import Control.Arrow.Transformer.Const
-import Control.Arrow.Transformer.Static
-import Control.Arrow.Fail
-import Control.Arrow.Try
-import Control.Arrow.Const
-import Control.Arrow.Environment
-import Control.Arrow.State
 import Control.Arrow.Transformer.State
+import Control.Arrow.Utils (mapA, pi2, pi1)
+
 import Control.Arrow.Store
-import Control.Arrow.Reader
-import Control.Arrow.Utils (foldA, mapA)
 import Control.Arrow.TryCatch
-import Data.Identifiable
-import Data.Fixed (mod')
-import Data.List (isPrefixOf, find)
-import Data.Bits (shift, bit)
-import Data.Word (Word32)
+import Control.Arrow.Environment
+import Control.Arrow.Fail
+import Control.Arrow.State
+import Control.Arrow.Reader
+import Control.Arrow
+import Control.Category
 
-import Data.Map (Map, findWithDefault)
-import qualified Data.Map as Map
 
-newtype LJSArrow x y = LJSArrow (Except (Either String Exceptional) (Environment Ident Location (StoreArrow Location Value (State Location (->)))) x y)
+data Value
+    = VNumber Double
+    | VString String
+    | VBool Bool
+    | VUndefined
+    | VNull
+    | VLambda [Ident] Expr
+    | VObject [(String, Value)]
+    | VRef Location
+    deriving (Show, Eq, Generic)
+instance Hashable Value
+
+data Exceptional
+    = Break Label Value
+    | Thrown Value
+    deriving (Show, Eq, Generic)
+instance Hashable Exceptional
+
+newtype ConcreteArr x y = ConcreteArr (Except (Either String Exceptional) (Environment Ident Location (StoreArrow Location Value (State Location (->)))) x y)
     deriving (ArrowChoice,Arrow,Category)
-deriving instance ArrowFail (Either String Exceptional) LJSArrow
-deriving instance ArrowEnv Ident Location (Env Ident Location) LJSArrow
+deriving instance ArrowFail (Either String Exceptional) ConcreteArr
+deriving instance ArrowEnv Ident Location (Env Ident Location) ConcreteArr
 
 instance (Show Location, Identifiable Value, ArrowChoice c) => ArrowStore Location Value lab (StoreArrow Location Value c) where
   read =
@@ -63,30 +82,25 @@ instance (Show Ident, Identifiable Ident, ArrowChoice c) => ArrowEnv Ident Locat
   extendEnv = arr $ \(x,y,env) -> Data.Concrete.Environment.insert x y env
   localEnv (Environment f) = Environment (localA f)
 
-deriving instance ArrowStore Location Value () LJSArrow
-deriving instance ArrowState Location LJSArrow
+deriving instance ArrowStore Location Value () ConcreteArr
+deriving instance ArrowState Location ConcreteArr
 
-instance ArrowTryCatch (Either String Exceptional) (Label, Expr) (Label, Value) LJSArrow where
-    tryCatchA (LJSArrow f) (LJSArrow g) = LJSArrow $ tryCatchA f g
-instance ArrowTryCatch (Either String Exceptional) (Expr, Expr) (Expr, Value) LJSArrow where
-    tryCatchA (LJSArrow f) (LJSArrow g) = LJSArrow $ tryCatchA f g
+instance ArrowTryCatch (Either String Exceptional) (Label, Expr) (Label, Value) ConcreteArr where
+    tryCatchA (ConcreteArr f) (ConcreteArr g) = ConcreteArr $ tryCatchA f g
+instance ArrowTryCatch (Either String Exceptional) (Expr, Expr) (Expr, Value) ConcreteArr where
+    tryCatchA (ConcreteArr f) (ConcreteArr g) = ConcreteArr $ tryCatchA f g
 
-runLJS :: LJSArrow x y -> [(Ident, Location)] -> [(Location, Value)] -> x -> (Location, (Store Location Value, Error (Either String Exceptional) y))
-runLJS (LJSArrow f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Concrete.Store.fromList env2, (env, x)))
+runLJS :: ConcreteArr x y -> [(Ident, Location)] -> [(Location, Value)] -> x -> (Location, (Store Location Value, Error (Either String Exceptional) y))
+runLJS (ConcreteArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Concrete.Store.fromList env2, (env, x)))
 
-runConcrete :: [(Ident, Location)] -> [(Location, Value)] -> Expr -> (Store Location Value, Error (Either String Exceptional) Value)
+runConcrete :: [(Ident, Location)] -> [(Location, Value)] -> Expr -> (Store Location Value, Error String Value)
 runConcrete env st exp = case runLJS eval env st exp of
-    (l, (st, Fail e)) -> (st, Fail e)
-    (l, (st, Success res)) -> (st, Success res)
+    (_, (st, Fail (Left e))) -> (st, Fail e)
+    (_, (st, Fail (Right _))) -> (st, Fail "Error: Uncaught throws or label break")
+    (_, (st, Success res)) -> (st, Success res)
 
-fresh :: ArrowState Location c => c () Location 
-fresh = proc () -> do
-    Location s <- getA -< ()
-    putA -< Location $ s + 1
-    returnA -< Location $ s + 1
-
-evalOp :: (ArrowFail (Either String Exceptional) c, ArrowChoice c) => c (Op, [Value]) Value
-evalOp = proc (op, vals) -> case (op, vals) of
+evalOp_ :: (ArrowFail (Either String Exceptional) c, ArrowChoice c) => c (Op, [Value]) Value
+evalOp_ = proc (op, vals) -> case (op, vals) of
     -- number operators
     (ONumPlus, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a + b)
     (OMul, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a * b)
@@ -161,16 +175,16 @@ evalOp = proc (op, vals) -> case (op, vals) of
     -- equality operators
     (OStrictEq, [a, b]) -> returnA -< VBool $ a == b
     (OAbstractEq, [(VNumber a), (VString b)]) -> do
-        res <- evalOp -< (OPrimToNum, [VString b])
+        res <- evalOp_ -< (OPrimToNum, [VString b])
         returnA -< VBool $ (VNumber a) == res
     (OAbstractEq, [(VString a), (VNumber b)]) -> do
-        res <- evalOp -< (OPrimToNum, [VString a])
+        res <- evalOp_ -< (OPrimToNum, [VString a])
         returnA -< VBool $ (VNumber b) == res
     (OAbstractEq, [(VBool a), (VNumber b)]) -> do
-        res <- evalOp -< (OPrimToNum, [VBool a])
+        res <- evalOp_ -< (OPrimToNum, [VBool a])
         returnA -< VBool $ (VNumber b) == res
     (OAbstractEq, [(VNumber a), (VBool b)]) -> do
-        res <- evalOp -< (OPrimToNum, [VBool b])
+        res <- evalOp_ -< (OPrimToNum, [VBool b])
         returnA -< VBool $ (VNumber a) == res
     (OAbstractEq, a) -> returnA -< (case a of
         [(VNumber a), (VNumber b)] -> VBool $ a == b
@@ -187,8 +201,14 @@ evalOp = proc (op, vals) -> case (op, vals) of
     (OHasOwnProp, [(VObject fields), (VString field)]) -> 
         returnA -< VBool $ any (\(name, value) -> (name == field)) fields
 
-getField :: (ArrowFail (Either String Exceptional) c, ArrowChoice c) => c (Value, Value) Value
-getField = proc (VObject fields, VString fieldName) -> 
+fresh :: ArrowState Location c => c () Location 
+fresh = proc () -> do
+    Location s <- getA -< ()
+    putA -< Location $ s + 1
+    returnA -< Location $ s + 1
+
+getField_ :: (ArrowFail (Either String Exceptional) c, ArrowChoice c) => c (Value, Value) Value
+getField_ = proc (VObject fields, VString fieldName) -> 
     let fieldV = find (\(fn, fv) -> fn == fieldName) fields in
         case fieldV of
             -- E-GetField
@@ -200,20 +220,15 @@ getField = proc (VObject fields, VString fieldName) ->
                         Just (pn, VUndefined) -> returnA -< VUndefined
                         -- E-GetField-Proto
                         Just (pn, pv) -> do
-                            res <- getField -< (pv, VString fieldName)
+                            res <- getField_ -< (pv, VString fieldName)
                             returnA -< res
                         -- E-GetField-NotFound
                         Nothing -> returnA -< VUndefined
 
-deleteField :: ArrowFail (Either String Exceptional) e => e (Value, Value) Value
-deleteField = proc (VObject fields, VString name) -> do
-    filtered <- arr (\(n, fs) -> filter (\(fn, _) -> fn /= n) fs) -< (name, fields) 
-    returnA -< VObject filtered
-
-updateField :: (ArrowFail (Either String Exceptional) e, ArrowChoice e) => e (Value, Value, Value) Value
-updateField = proc (VObject fields, VString name, value) -> do
+updateField_ :: (ArrowFail (Either String Exceptional) e, ArrowChoice e) => e (Value, Value, Value) Value
+updateField_ = proc (VObject fields, VString name, value) -> do
     -- remove field from obj
-    filtered <- deleteField -< (VObject fields, VString name)
+    filtered <- deleteField_ -< (VObject fields, VString name)
     case filtered of
         VObject obj -> do
             -- add field with new value to obj
@@ -221,109 +236,68 @@ updateField = proc (VObject fields, VString name, value) -> do
             returnA -< VObject newFields
         _ -> failA -< Left "Error: deleteField returned non-object value"
 
+deleteField_ :: ArrowFail (Either String Exceptional) e => e (Value, Value) Value
+deleteField_ = proc (VObject fields, VString name) -> do
+    filtered <- arr (\(n, fs) -> filter (\(fn, _) -> fn /= n) fs) -< (name, fields) 
+    returnA -< VObject filtered
 
-eval :: (ArrowFail (Either String Exceptional) c, 
-    ArrowState Location c,
-    ArrowEnv Ident Location (Env Ident Location) c, 
-    ArrowStore Location Value () c, ArrowChoice c,
-    ArrowTryCatch (Either String Exceptional) (Label, Expr) (Label, Value) c,
-    ArrowTryCatch (Either String Exceptional) (Expr, Expr) (Expr, Value) c
-    ) => c Expr Value 
-eval = proc e -> case e of
-    ENumber d -> returnA -< VNumber d
-    EString s -> returnA -< VString s
-    EBool b -> returnA -< VBool b
-    EUndefined -> returnA -< VUndefined
-    ENull -> returnA -< VNull
-    ELambda ids exp -> returnA -< VLambda ids exp
-    EObject fields -> do
-        vals <- (mapA $ second eval) -< fields
-        returnA -< VObject vals
-    EId id -> do
+instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
+    -- values
+    numVal = proc n -> returnA -< VNumber n
+    boolVal = proc b -> returnA -< VBool b
+    stringVal = proc s -> returnA -< VString s
+    undefVal = proc () -> returnA -< VUndefined
+    nullVal = proc () -> returnA -< VNull
+    lambdaVal = proc (ids, body) -> returnA -< VLambda ids body
+    objectVal = proc (fields) -> returnA -< VObject fields
+    getField = proc (obj, field) -> getField_ -< (obj, field)
+    updateField = proc (obj, field, val) -> updateField_ -< (obj, field, val)
+    deleteField = proc (obj, field) -> deleteField_ -< (obj, field)
+    -- operator/delta function
+    evalOp = proc (op, vals) -> evalOp_ -< (op, vals)
+    -- environment ops
+    lookup = proc id -> do
         loc <- Control.Arrow.Environment.lookup -< id
         returnA -< VRef loc
-    EOp op exps -> do
-        vals <- mapA eval -< exps
-        res <- evalOp -< (op, vals)
-        returnA -< res
-    EApp (ELambda params body) args -> do
-        locations <- (mapA ((arr $ const ()) >>> fresh)) -< [1..(length args)]
+    apply = proc ((pairs), body) -> do
+        -- generate locations for arguments equal to length of pairs 
+        locations <- mapA ((arr $ const ()) >>> fresh) -< pairs
 
-        vals <- mapA eval -< args
-        forStore <- arr $ uncurry zip -< (locations, vals)
-        mapA write -< map (\(a, b) -> (a, b, ())) forStore
+        vals <- mapA $ pi2 -< pairs
+        ids <- mapA $ pi1 -< pairs
 
-        forEnv <- arr $ uncurry zip -< (params, locations)
+        forStore <- arr $ uncurry zip -< (locations, vals) 
+        mapA set -< map (\(a, b) -> (VRef a, b)) forStore
+
+        forEnv <- arr $ uncurry zip -< (ids, locations) 
         scope <- getEnv -< ()
         env' <- bindings -< (forEnv, scope)
-        res <- localEnv eval -< (env', body)
-
-        returnA -< res
-    ELet vars body -> do
-        res <- eval -< EApp (ELambda (map fst vars) body) (map snd vars)
-        returnA -< res
-    EIf cond thenBranch elseBranch -> do
-        testRes <- eval -< cond
-        case testRes of
-            VBool True -> do
-                res <- eval -< thenBranch
-                returnA -< res
-            VBool False -> do
-                res <- eval -< elseBranch
-                returnA -< res
-    EGetField objE fieldE -> do
-        fieldV <- eval -< fieldE
-        objV <- eval -< objE
-        res <- getField -< (objV, fieldV)
-        returnA -< res
-    EUpdateField objE nameE fieldE -> do
-        nameV <- eval -< nameE
-        fieldV <- eval -< fieldE
-        objV <- eval -< objE
-        res <- updateField -< (objV, nameV, fieldV)
-        returnA -< res
-    EDeleteField objE nameE -> do
-        objV <- eval -< objE
-        nameV <- eval -< nameE
-        res <- deleteField -< (objV, nameV)
-        returnA -< res
-    ESeq f s -> do
-        res1 <- eval -< f
-        res2 <- eval -< s
-        returnA -< res2
-    EWhile cond body -> do
-        condV <- eval -< cond
-        case condV of
-            VBool True -> do
-                eval -< body
-                res <- eval -< (EWhile cond body) 
-                returnA -< res
-            VBool False ->
-                returnA -< VUndefined
-            _ -> failA -< Left "Error: Non bool value in test of while loop"
-    ESetRef locE valE -> do
-        loc <- eval -< locE
-        val <- eval -< valE
+        localEnv eval -< (env', body)
+    -- store ops
+    set = proc (loc, val) -> do
         case loc of
             VRef l -> do
                 write -< (l, val, ())
-                returnA -< VUndefined
-            _ -> failA -< Left "Error: ESetRef lhs did not evaluate to a location"
-    ERef valE -> do
-        val <- eval -< valE
-    
+                returnA -< ()
+            _ -> failA -< Left "Error: ESetRef lhs must be location"
+    new = proc (val) -> do 
         loc <- fresh -< ()
-        write -< (loc, val, ())
+        set -< (VRef loc, val)
         returnA -< VRef loc
-    EDeref locE -> do
-        loc <- eval -< locE
-        case loc of 
+    get = proc (loc) -> do
+        case loc of
             VRef l -> do
                 val <- read -< (l, ())
                 returnA -< val
-            _ -> failA -< Left "Error: EDeref lhs did not evaluate to a location"
-    EEval -> failA -< Left "Eval expression encountered, aborting"
-    ELabel l e -> do
+            _ -> failA -< Left "Error: EDeref lhs must be location"
+    -- control flow
+    if_ = proc (cond, thenBranch, elseBranch) -> do
+        case cond of
+            VBool True -> do
+                eval -< thenBranch
+            VBool False -> do
+                eval -< elseBranch
+    label = proc (l, e) -> do
         (l, res) <- tryCatchA (second eval) (proc ((label, _), err) -> case err of
             Left s -> failA -< Left s
             Right (Break l1 v) -> case l1 == label of
@@ -331,13 +305,11 @@ eval = proc e -> case e of
                 False -> failA -< (Right $ Break l1 v)
             Right (Thrown v) -> failA -< (Right $ Thrown v)) -< (l, e)
         returnA -< res
-    EBreak l e -> do
-        res <- eval -< e
-        failA -< Right (Break l res)
-    EThrow e -> do
-        res <- eval -< e
-        failA -< Right (Thrown res)
-    ECatch try catch -> do
+    break = proc (l, v) -> do
+        failA -< Right (Break l v)
+    throw = proc v -> do
+        failA -< Right (Thrown v)
+    catch = proc (try, catch) -> do
         (c, res) <- tryCatchA (second eval) (proc ((catch, _), err) -> case err of
             Left s -> failA -< Left s
             Right (Break l1 v) -> failA -< Right $ Break l1 v
@@ -351,7 +323,4 @@ eval = proc e -> case e of
                     returnA -< (catch, res)
                 _ -> failA -< Left "Error: Catch block must be of type ELambda") -< (catch, try)
         returnA -< res
-    EFinally b1 b2 -> do
-        res1 <- eval -< b1
-        res2 <- eval -< b2
-        returnA -< res1
+    error = proc () -> failA -< Left "Error: aborted"

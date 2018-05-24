@@ -1,8 +1,8 @@
 module TypeSpec where
 
 import Syntax
-import SharedInterpreter (LJSArrow)
-import qualified SharedInterpreter as Interpreter (runAbstract)
+import SharedAbstract (TypeArr, Type(..))
+import qualified SharedAbstract as Interpreter (runAbstract)
 import Data.Concrete.Environment
 import Data.Concrete.Error
 import Control.Arrow.Fail
