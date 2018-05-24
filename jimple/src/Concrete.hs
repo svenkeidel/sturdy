@@ -195,22 +195,6 @@ replace _ _ [] = []
 replace 0 x (_:t) = x:t
 replace n x (h:t) = h:replace (n-1) x t
 
-numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
-numToNum op v1 v2 = case (v1, v2) of
-  (IntVal n1, IntVal n2) -> Just (IntVal (op n1 n2))
-  (FloatVal f, IntVal n) -> Just (FloatVal (op f (fromIntegral n)))
-  (IntVal n, FloatVal f) -> Just (FloatVal (op (fromIntegral n) f))
-  (FloatVal f1, FloatVal f2) -> Just (FloatVal (op f1 f2))
-  (_, _) -> Nothing
-
-numToBool :: (forall a. Ord a => a -> a -> Bool) -> Val -> Val -> Maybe Val
-numToBool op v1 v2 = case (v1, v2) of
-  (IntVal n1, IntVal n2) -> Just (BoolVal (op n1 n2))
-  (FloatVal f, IntVal n) -> Just (BoolVal (op f (fromIntegral n)))
-  (IntVal n, FloatVal f) -> Just (BoolVal (op (fromIntegral n) f))
-  (FloatVal f1, FloatVal f2) -> Just (BoolVal (op f1 f2))
-  (_, _) -> Nothing
-
 evalBinopFractional :: (CanFail c, Num a, Ord a, Fractional a, Real a) => c ((a -> Val), Binop, a, a) Val
 evalBinopFractional = proc (toVal, op, x1, x2) -> case op of
   Mod -> returnA -< toVal (x1 `mod'` x2)
