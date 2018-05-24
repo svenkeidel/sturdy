@@ -67,9 +67,9 @@ data Val
 instance Show Val where
   show BottomVal = "⊥"
   show (IntVal n) = show n
-  show (LongVal l) = show l
+  show (LongVal l) = show l ++ "l"
   show (FloatVal f) = show f
-  show (DoubleVal d) = show d
+  show (DoubleVal d) = show d ++ "d"
   show (StringVal s) = s
   show (ClassVal c) = "<" ++ c ++ ">"
   show (BoolVal b) = show b
@@ -91,6 +91,13 @@ defaultValue NullType = NullVal
 defaultValue (RefType _) = NullVal
 defaultValue (ArrayType _) = NullVal
 defaultValue _ = BottomVal
+
+isNumVal :: Val -> Maybe (Either Int Float)
+isNumVal (IntVal n) = Just (Left n)
+isNumVal (LongVal l) = Just (Left l)
+isNumVal (FloatVal f) = Just (Right f)
+isNumVal (DoubleVal d) = Just (Right d)
+isNumVal _ = Nothing
 
 ---- End of Values ----
 
@@ -203,6 +210,45 @@ numToBool op v1 v2 = case (v1, v2) of
   (IntVal n, FloatVal f) -> Just (BoolVal (op (fromIntegral n) f))
   (FloatVal f1, FloatVal f2) -> Just (BoolVal (op f1 f2))
   (_, _) -> Nothing
+
+evalBinopFractional :: (CanFail c, Num a, Ord a, Fractional a, Real a) => c ((a -> Val), Binop, a, a) Val
+evalBinopFractional = proc (toVal, op, x1, x2) -> case op of
+  Mod -> returnA -< toVal (x1 `mod'` x2)
+  Div -> if x2 == 0.0
+    then failA -< StringVal "Cannot divide by zero"
+    else returnA -< toVal (x1 / x2)
+  _ -> evalBinop -< (toVal, op, x1, x2)
+
+evalBinopIntegral :: (CanFail c, Num a, Ord a, Integral a) => c ((a -> Val), Binop, a, a) Val
+evalBinopIntegral = proc (toVal, op, x1, x2) -> case op of
+  Mod -> returnA -< toVal (x1 `mod` x2)
+  Div -> if x2 == 0
+    then failA -< StringVal "Cannot divide by zero"
+    else returnA -< toVal (x1 `div` x2)
+  _ -> evalBinop -< (toVal, op, x1, x2)
+
+evalBinop :: (CanFail c, Num a, Ord a) => c ((a -> Val), Binop, a, a) Val
+evalBinop = proc (toVal, op, x1, x2) -> case op of
+  -- And ->
+  -- Or ->
+  -- Xor ->
+  -- Rem ->
+  -- Cmp ->
+  -- Cmpg ->
+  -- Cmpl ->
+  Cmpeq -> returnA -< BoolVal (x1 == x2)
+  Cmpne -> returnA -< BoolVal (x1 /= x2)
+  Cmpgt -> returnA -< BoolVal (x1 > x2)
+  Cmpge -> returnA -< BoolVal (x1 >= x2)
+  Cmplt -> returnA -< BoolVal (x1 < x2)
+  Cmple -> returnA -< BoolVal (x1 <= x2)
+  -- Shl ->
+  -- Shr ->
+  -- Ushr ->
+  Plus -> returnA -< toVal (x1 + x2)
+  Minus -> returnA -< toVal (x1 - x2)
+  Mult -> returnA -< toVal (x1 * x2)
+  _ -> failA -< StringVal "Undefined operation"
 
 lookup' :: (Show var, CanFail c, ArrowMaybeEnv var val env c) => c var val
 lookup' = proc x -> do
@@ -571,53 +617,26 @@ eval = proc e -> case e of
     v1 <- eval -< i1
     v2 <- eval -< i2
     case op of
-      -- And ->
-      -- Or ->
-      -- Xor ->
-      Mod -> case (v1, v2) of
-        (IntVal x1, IntVal x2) -> returnA -< (IntVal (x1 `mod` x2))
-        (IntVal x1, FloatVal x2) -> returnA -< (FloatVal (fromIntegral x1 `mod'` x2))
-        (FloatVal x1, IntVal x2) -> returnA -< (FloatVal (x1 `mod'` fromIntegral x2))
-        (FloatVal x1, FloatVal x2) -> returnA -< (FloatVal (x1 `mod'` x2))
-        (_, _) -> failA -< StringVal "Expected two numbers as arguments for mod"
-      -- Rem ->
-      -- Cmp ->
-      -- Cmpg ->
-      -- Cmpl ->
-      Cmpeq -> returnA -< (BoolVal (v1 == v2))
-      Cmpne -> returnA -< (BoolVal (v1 /= v2))
-      Cmpgt -> case numToBool (>) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for >"
-      Cmpge -> case numToBool (>=) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for >="
-      Cmplt -> case numToBool (<) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for <"
-      Cmple -> case numToBool (<=) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for <="
-      -- Shl ->
-      -- Shr ->
-      -- Ushr ->
-      Plus -> case numToNum (+) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for +"
-      Minus -> case numToNum (-) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for -"
-      Mult -> case numToNum (*) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for *"
-      Div -> case (v1, v2) of
-        (_, IntVal 0) -> failA -< StringVal "Cannot divide by zero"
-        (_, FloatVal 0.0) -> failA -< StringVal "Cannot divide by zero"
-        (IntVal n1, IntVal n2) -> returnA -< (IntVal (n1 `div` n2))
-        (FloatVal f, IntVal n) -> returnA -< (FloatVal (f / fromIntegral n))
-        (IntVal n, FloatVal f) -> returnA -< (FloatVal (fromIntegral n / f))
-        (FloatVal f1, FloatVal f2) -> returnA -< (FloatVal (f1 / f2))
-        (_, _) -> failA -< StringVal "Expected two numbers as arguments for /"
+      Cmpeq -> returnA -< BoolVal (v1 == v2)
+      Cmpne -> returnA -< BoolVal (v1 /= v2)
+      _ -> do
+        let toFloatVal :: Float -> Val
+            toFloatVal x = case (v1, v2) of
+              (DoubleVal _, _) -> DoubleVal x
+              (_, DoubleVal _) -> DoubleVal x
+              (_, _) -> FloatVal x
+        let toIntVal :: Int -> Val
+            toIntVal x = case (v1, v2) of
+              (LongVal _, _) -> LongVal x
+              (_, LongVal _) -> LongVal x
+              (_, _) -> IntVal x
+        case (isNumVal v1, isNumVal v2) of
+          (Nothing, _) -> failA -< StringVal $ printf "Expected two numbers as argument for %s" (show op)
+          (_, Nothing) -> failA -< StringVal $ printf "Expected two numbers as argument for %s" (show op)
+          (Just (Right x1), Just (Right x2)) -> evalBinopFractional -< (toFloatVal, op, x1, x2)
+          (Just (Right x1), Just (Left x2))  -> evalBinopFractional -< (toFloatVal, op, x1, fromIntegral x2)
+          (Just (Left x1),  Just (Right x2)) -> evalBinopFractional -< (toFloatVal, op, fromIntegral x1, x2)
+          (Just (Left x1),  Just (Left x2))  -> evalBinopIntegral   -< (toIntVal,   op, x1, x2)
   UnopExpr op i -> do
     v <- eval -< i
     case op of
@@ -630,7 +649,9 @@ eval = proc e -> case e of
         _ -> failA -< StringVal "Expected an array as argument for lengthof"
       Neg -> case v of
         IntVal n -> returnA -< (IntVal (-n))
+        LongVal l -> returnA -< (LongVal (-l))
         FloatVal f -> returnA -< (FloatVal (-f))
+        DoubleVal d -> returnA -< (DoubleVal (-d))
         _ -> failA -< StringVal "Expected a number as argument for -"
   ThisRef -> eval -< (Local "@this")
   ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
