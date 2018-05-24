@@ -104,10 +104,12 @@ data Type
     | TUndefined
     | TNull
     | TLambda [Ident] Type
-    | TObject [(String, Type)]
+    | TObject [(Ident, Type)]
     | TTop
     | TBottom
     | TRef Location
+    | TThrown Type
+    | TBreak Label Type
     deriving (Show, Eq, Generic)
 instance Hashable Type
 
