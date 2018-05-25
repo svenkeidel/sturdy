@@ -14,6 +14,7 @@ import Classes.Object
 import Classes.Throwable
 import Classes.IllegalArgumentException
 import Classes.ArrayIndexOutOfBoundsException
+import Classes.ArithmeticException
 
 import Classes.ArrayFieldExample
 import Classes.FactorialExample
@@ -63,7 +64,7 @@ spec = do
       evalConcrete env store expr `shouldBe` Success (IntVal 10)
     it "8 / 0" $ do
       let expr = BinopExpr (IntConstant 8) Div (IntConstant 0)
-      evalConcrete env store expr `shouldBe` Fail (StringVal "Cannot divide by zero")
+      evalConcrete env store expr `shouldBe` Fail (DynamicException (RefVal 0))
     it "3 < 3.5" $ do
       let expr = BinopExpr (IntConstant 3) Cmplt (FloatConstant 3.5)
       evalConcrete env store expr `shouldBe` Success (BoolVal True)
@@ -97,7 +98,7 @@ spec = do
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (IntVal 5))
     it "assign non-declared variable" $ do
       let stmts = [Assign (LocalVar "s") (IntConstant 2)]
-      runStatementsConcrete env store stmts `shouldBe` Fail (StringVal "Variable \"s\" not bounded")
+      runStatementsConcrete env store stmts `shouldBe` staticException "Variable \"s\" not bounded"
     it "s = 2; xs = newarray (int)[s]; y = lengthof xs; return xs;" $ do
       let nv = [("s", 0),
                 ("xs", 1),
@@ -160,7 +161,7 @@ spec = do
       runProgramConcrete files singleMethodExampleFile [] `shouldBe` Success (Just (IntVal 2))
     it "(-10)! throws IllegalArgumentException" $ do
       let files = baseCompilationUnits ++ [factorialExampleFile]
-      runProgramConcrete files factorialExampleFile [IntConstant (-10)] `shouldBe` Fail (ObjectVal "java.lang.IllegalArgumentException" (Map.fromList [(throwableMessageSignature, StringVal "Negative value for argument n")]))
+      runProgramConcrete files factorialExampleFile [IntConstant (-10)] `shouldBe` dynamicException "java.lang.IllegalArgumentException" "Negative value for argument n"
     it "5 -> [5, 5, 5, 5]" $ do
       let files = baseCompilationUnits ++ [arrayFieldExampleFile]
       runProgramConcrete files arrayFieldExampleFile [IntConstant 5] `shouldBe` Success (Just (ArrayVal [IntVal 5, IntVal 5, IntVal 5, IntVal 5]))
@@ -169,15 +170,19 @@ spec = do
       runProgramConcrete files personExampleFile [] `shouldBe` Success (Just (IntVal 90))
     it "try { throw e } catch (e) { throw e' }" $ do
       let files = baseCompilationUnits ++ [tryCatchExampleFile]
-      runProgramConcrete files tryCatchExampleFile [] `shouldBe` Fail (ObjectVal "java.lang.ArrayIndexOutOfBoundsException" (Map.fromList [(throwableMessageSignature, StringVal "b")]))
+      runProgramConcrete files tryCatchExampleFile [] `shouldBe` dynamicException "java.lang.ArrayIndexOutOfBoundsException" "b"
 
   where
     baseCompilationUnits = [objectFile,
                             throwableFile,
                             illegalArgumentExceptionFile,
-                            arrayIndexOutOfBoundsExceptionFile]
+                            arrayIndexOutOfBoundsExceptionFile,
+                            arithmeticExceptionFile]
     env = []
     store = []
+
+    staticException msg = Fail (StaticException msg)
+    dynamicException clzz msg = Fail (DynamicException (ObjectVal clzz (Map.fromList [(throwableMessageSignature, StringVal msg)])))
 
     testMethodBody stmts = FullBody { declarations = []
                                  , statements = stmts

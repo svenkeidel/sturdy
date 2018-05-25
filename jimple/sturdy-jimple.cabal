@@ -33,11 +33,12 @@ test-suite specs
   other-modules:       ConcreteSpec,
                        Classes.Object,
                        Classes.Throwable,
+                       Classes.ArithmeticException,
+                       Classes.ArrayIndexOutOfBoundsException,
                        Classes.IllegalArgumentException,
                        Classes.FactorialExample,
                        Classes.ArrayFieldExample,
                        Classes.SingleMethodExample,
-                       Classes.ArrayIndexOutOfBoundsException,
                        Classes.PersonExample,
                        Classes.TryCatchExample
   build-depends:       base,
