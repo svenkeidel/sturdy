@@ -2,6 +2,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
@@ -10,34 +11,62 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Shared where
 
--- type Addr = Int
--- type PointerEnv = Env String Addr
--- type CompilationUnits = Map String CompilationUnit
--- type Fields = Map FieldSignature Addr
--- type MethodReader = Method
---
--- type CanFail v c = (ArrowChoice c, ArrowFail v c)
--- type CanUseEnv c = ArrowMaybeEnv String Addr PointerEnv c
--- type CanUseStore v c = ArrowMaybeStore Addr v c
--- type CanUseReader c = ArrowReader MethodReader c
--- type CanUseState c = ArrowState Addr c
--- type CanUseConst c = ArrowConst (CompilationUnits, Fields) c
--- type CanCatch v x c = ArrowTryCatch v x (Maybe v) c
---
--- type CanUseMem v c = (CanUseEnv c, CanUseStore v c)
---
--- type CanInterp v c = (CanFail v c,
---                       CanUseMem v c,
---                       CanUseConst c,
---                       CanUseReader c,
---                       CanUseState c,
---                       CanCatch v EInvoke c,
---                       CanCatch v [Statement] c,
---                       CanCatch v (Method, Maybe v, [Expr]) c)
+import           Data.Map (Map)
+import qualified Data.Map as Map
 
--- eval :: CanInterp v c => c Expr v
--- eval = proc e -> case e of
-  -- _ -> error "fails"
+import           Control.Category
+
+import           Control.Arrow
+import           Control.Arrow.Const
+import           Control.Arrow.MaybeEnvironment
+import           Control.Arrow.Fail
+import           Control.Arrow.Reader
+import           Control.Arrow.State
+import           Control.Arrow.MaybeStore
+import           Control.Arrow.TryCatch
+import           Control.Arrow.Utils
+
+import           Text.Printf
+import           Syntax
+
+data Exception v = StaticException String | DynamicException v deriving (Eq)
+
+instance Show v => Show (Exception v) where
+  show (StaticException s) = "StaticException " ++ s
+  show (DynamicException v) = "DynamicException " ++ show v
+
+exceptionToEither :: Exception v -> Either String v
+exceptionToEither (StaticException s) = Left s
+exceptionToEither (DynamicException v) = Right v
+
+type Addr = Int
+type PointerEnv e = e String Addr
+type CompilationUnits = Map String CompilationUnit
+type Fields = Map FieldSignature Addr
+type MethodReader = Method
+
+type CanFail v c = (ArrowChoice c, ArrowFail (Exception v) c)
+type CanUseEnv env c = ArrowMaybeEnv String Addr (PointerEnv env) c
+type CanUseStore v c = ArrowMaybeStore Addr v c
+type CanUseReader c = ArrowReader MethodReader c
+type CanUseState c = ArrowState Addr c
+type CanUseConst c = ArrowConst (CompilationUnits, Fields) c
+type CanCatch e x y c = ArrowTryCatch e x (Maybe y) c
+
+type CanUseMem env v c = (CanUseEnv env c, CanUseStore v c)
+
+type CanInterp env v c = (IsVal v c,
+                          CanFail v c,
+                          CanUseMem env v c,
+                          CanUseConst c,
+                          CanUseReader c,
+                          CanUseState c,
+                          CanCatch (Exception v) EInvoke v c,
+                          CanCatch (Exception v) [Statement] v c,
+                          CanCatch (Exception v) (Method, Maybe v, [Expr]) v c)
+
+eval :: CanInterp e v c => c Expr v
+eval = proc e -> case e of
   -- NewExpr t -> do
   --   assert -< (isBaseType t, "Expected a base type for new")
   --   case t of
@@ -133,11 +162,21 @@ module Shared where
   -- ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
   -- CaughtExceptionRef -> eval -< (Local "@caughtexception")
   -- Local localName -> fetchLocal -< localName
-  -- DoubleConstant f -> returnA -< (DoubleVal f)
-  -- FloatConstant f -> returnA -< (FloatVal f)
-  -- IntConstant n -> returnA -< (IntVal n)
-  -- LongConstant f -> returnA -< (LongVal f)
-  -- NullConstant -> returnA -< NullVal
-  -- StringConstant s -> returnA -< (StringVal s)
-  -- ClassConstant c -> returnA -< (ClassVal c)
+  DoubleConstant f -> doubleConstant -< f
+  FloatConstant f -> floatConstant -< f
+  IntConstant n -> intConstant -< n
+  LongConstant f -> longConstant -< f
+  NullConstant -> nullConstant -< ()
+  StringConstant s -> stringConstant -< s
+  ClassConstant c -> classConstant -< c
   -- MethodHandle _ -> failA -< StringVal "Evaluation of method handles is not implemented"
+  _ -> failA -< StaticException "Not implemented"
+
+class Arrow c => IsVal v c | c -> v where
+  doubleConstant :: c Float v
+  floatConstant :: c Float v
+  intConstant :: c Int v
+  longConstant :: c Int v
+  nullConstant :: c () v
+  stringConstant :: c String v
+  classConstant :: c String v

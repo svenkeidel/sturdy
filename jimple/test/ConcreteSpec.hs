@@ -1,12 +1,13 @@
 module ConcreteSpec where
 
-import Concrete
 import Syntax
-import Data.Concrete.Error
-import Control.Arrow
+import Shared
+import Concrete
 
 import qualified Data.Map as Map
 import Data.List
+import Data.Concrete.Error
+import Control.Arrow
 
 import Test.Hspec
 
