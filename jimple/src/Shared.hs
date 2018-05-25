@@ -11,6 +11,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Shared where
 
+import           Prelude hiding (lookup,read,mod,rem,div)
+
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -32,8 +34,8 @@ import           Syntax
 data Exception v = StaticException String | DynamicException v deriving (Eq)
 
 instance Show v => Show (Exception v) where
-  show (StaticException s) = "StaticException " ++ s
-  show (DynamicException v) = "DynamicException " ++ show v
+  show (StaticException s) = "Static: " ++ s
+  show (DynamicException v) = "Dynamic: " ++ show v
 
 exceptionToEither :: Exception v -> Either String v
 exceptionToEither (StaticException s) = Left s
@@ -55,7 +57,7 @@ type CanCatch e x y c = ArrowTryCatch e x (Maybe y) c
 
 type CanUseMem env v c = (CanUseEnv env c, CanUseStore v c)
 
-type CanInterp env v c = (IsVal v c,
+type CanInterp env v c = (UseVal v c,
                           CanFail v c,
                           CanUseMem env v c,
                           CanUseConst c,
@@ -65,25 +67,38 @@ type CanInterp env v c = (IsVal v c,
                           CanCatch (Exception v) [Statement] v c,
                           CanCatch (Exception v) (Method, Maybe v, [Expr]) v c)
 
+lookup' :: (Show name, CanFail val c, ArrowMaybeEnv name addr env c) => c name addr
+lookup' = proc x -> do
+  v <- lookup -< x
+  case v of
+    Just y -> returnA -< y
+    Nothing -> failA -< StaticException $ printf "Variable %s not bounded" (show x)
+
+read' :: (Show var, CanFail val c, ArrowMaybeStore var val c) => c var val
+read' = proc x -> do
+  v <- read -< x
+  case v of
+    Just y -> returnA -< y
+    Nothing -> failA -< StaticException $ printf "Address %s not bounded" (show x)
+
+assert :: (CanFail v c) => c (Bool, String) ()
+assert = proc (prop, msg) -> if prop
+  then returnA -< ()
+  else failA -< StaticException msg
+
 eval :: CanInterp e v c => c Expr v
 eval = proc e -> case e of
-  -- NewExpr t -> do
-  --   assert -< (isBaseType t, "Expected a base type for new")
-  --   case t of
-  --     RefType c -> newSimple -< c
-  --     _ -> returnA -< (defaultValue t)
-  -- NewArrayExpr t i -> do
-  --   assert -< (isNonvoidType t, "Expected a nonvoid type for newarray")
-  --   v <- eval -< i
-  --   n <- toInt -< v
-  --   assert -< (n > 0, "Expected a positive integer for newarray size")
-  --   newArray -< (t, [n])
-  -- NewMultiArrayExpr t is -> do
-  --   assert -< (isBaseType t, "Expected a nonvoid base type for newmultiarray")
-  --   vs <- mapA eval -< is
-  --   ns <- mapA toInt -< vs
-  --   assert -< (all (>0) ns, "Expected positive integers for newmultiarray sizes")
-  --   newArray -< (t, ns)
+  NewExpr t -> do
+    assert -< (isBaseType t, "Expected a base type for new")
+    newSimple -< t
+  NewArrayExpr t i -> do
+    assert -< (isNonvoidType t, "Expected a nonvoid type for newarray")
+    v <- eval -< i
+    newArray -< (t, [v])
+  NewMultiArrayExpr t is -> do
+    assert -< (isBaseType t, "Expected a nonvoid base type for newmultiarray")
+    vs <- mapA eval -< is
+    newArray -< (t, vs)
   -- CastExpr t i -> do
   --   v <- eval -< i
   --   b <- isInstanceof -< (v, t)
@@ -118,50 +133,40 @@ eval = proc e -> case e of
   -- SignatureRef fieldSignature -> do
   --   (_, val) <- fetchFieldWithAddr -< fieldSignature
   --   returnA -< val
-  -- BinopExpr i1 op i2 -> do
-  --   v1 <- eval -< i1
-  --   v2 <- eval -< i2
-  --   case op of
-  --     Cmpeq -> returnA -< BoolVal (v1 == v2)
-  --     Cmpne -> returnA -< BoolVal (v1 /= v2)
-  --     _ -> do
-  --       let toFloatVal :: Float -> Val
-  --           toFloatVal x = case (v1, v2) of
-  --             (DoubleVal _, _) -> DoubleVal x
-  --             (_, DoubleVal _) -> DoubleVal x
-  --             (_, _) -> FloatVal x
-  --       let toIntVal :: Int -> Val
-  --           toIntVal x = case (v1, v2) of
-  --             (LongVal _, _) -> LongVal x
-  --             (_, LongVal _) -> LongVal x
-  --             (_, _) -> IntVal x
-  --       case (isNumVal v1, isNumVal v2) of
-  --         (Nothing, _) -> failA -< StringVal $ printf "Expected two numbers as argument for %s" (show op)
-  --         (_, Nothing) -> failA -< StringVal $ printf "Expected two numbers as argument for %s" (show op)
-  --         (Just (Right x1), Just (Right x2)) -> evalBinopFractional -< (toFloatVal, op, x1, x2)
-  --         (Just (Right x1), Just (Left x2))  -> evalBinopFractional -< (toFloatVal, op, x1, fromIntegral x2)
-  --         (Just (Left x1),  Just (Right x2)) -> evalBinopFractional -< (toFloatVal, op, fromIntegral x1, x2)
-  --         (Just (Left x1),  Just (Left x2))  -> evalBinopIntegral   -< (toIntVal,   op, x1, x2)
-  -- UnopExpr op i -> do
-  --   v <- eval -< i
-  --   case op of
-  --     Lengthof -> case v of
-  --       RefVal addr -> do
-  --         v' <- read' -< addr
-  --         case v' of
-  --           ArrayVal xs -> returnA -< (IntVal (length xs))
-  --           _ -> failA -< StringVal "Expected an array as argument for lengthof"
-  --       _ -> failA -< StringVal "Expected an array as argument for lengthof"
-  --     Neg -> case v of
-  --       IntVal n -> returnA -< (IntVal (-n))
-  --       LongVal l -> returnA -< (LongVal (-l))
-  --       FloatVal f -> returnA -< (FloatVal (-f))
-  --       DoubleVal d -> returnA -< (DoubleVal (-d))
-  --       _ -> failA -< StringVal "Expected a number as argument for -"
-  -- ThisRef -> eval -< (Local "@this")
-  -- ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
-  -- CaughtExceptionRef -> eval -< (Local "@caughtexception")
-  -- Local localName -> fetchLocal -< localName
+  BinopExpr i1 op i2 -> do
+    v1 <- eval -< i1
+    v2 <- eval -< i2
+    case op of
+      -- and :: c (v,v) v
+      -- or :: c (v,v) v
+      -- xor :: c (v,v) v
+      Rem -> rem -< (v1,v2)
+      Mod -> mod -< (v1,v2)
+      Cmp -> cmp -< (v1,v2)
+      Cmpg -> cmpg -< (v1,v2)
+      Cmpl -> cmpl -< (v1,v2)
+      Cmpeq -> eq -< (v1,v2)
+      Cmpne -> neq -< (v1,v2)
+      Cmpgt -> gt -< (v1,v2)
+      Cmpge -> ge -< (v1,v2)
+      Cmplt -> lt -< (v1,v2)
+      Cmple -> le -< (v1,v2)
+      -- shl :: c (v,v) v
+      -- shr :: c (v,v) v
+      -- ushr :: c (v,v) v
+      Plus -> plus -< (v1,v2)
+      Minus -> minus -< (v1,v2)
+      Mult -> mult -< (v1,v2)
+      Div -> div -< (v1,v2)
+  UnopExpr op i -> do
+    v <- eval -< i
+    case op of
+      Lengthof -> lengthOf -< v
+      Neg -> neg -< v
+  ThisRef -> eval -< (Local "@this")
+  ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
+  CaughtExceptionRef -> eval -< (Local "@caughtexception")
+  Local localName -> lookup' >>> read' -< localName
   DoubleConstant f -> doubleConstant -< f
   FloatConstant f -> floatConstant -< f
   IntConstant n -> intConstant -< n
@@ -169,10 +174,10 @@ eval = proc e -> case e of
   NullConstant -> nullConstant -< ()
   StringConstant s -> stringConstant -< s
   ClassConstant c -> classConstant -< c
-  -- MethodHandle _ -> failA -< StringVal "Evaluation of method handles is not implemented"
+  MethodHandle _ -> failA -< StaticException "Evaluation of method handles is not implemented"
   _ -> failA -< StaticException "Not implemented"
 
-class Arrow c => IsVal v c | c -> v where
+class Arrow c => UseVal v c | c -> v where
   doubleConstant :: c Float v
   floatConstant :: c Float v
   intConstant :: c Int v
@@ -180,3 +185,28 @@ class Arrow c => IsVal v c | c -> v where
   nullConstant :: c () v
   stringConstant :: c String v
   classConstant :: c String v
+  newSimple :: c Type v
+  newArray :: c (Type, [v]) v
+  -- and :: c (v,v) v
+  -- or :: c (v,v) v
+  -- xor :: c (v,v) v
+  rem :: c (v,v) v
+  mod :: c (v,v) v
+  cmp :: c (v,v) v
+  cmpg :: c (v,v) v
+  cmpl :: c (v,v) v
+  eq :: c (v,v) v
+  neq :: c (v,v) v
+  gt :: c (v,v) v
+  ge :: c (v,v) v
+  lt :: c (v,v) v
+  le :: c (v,v) v
+  -- shl :: c (v,v) v
+  -- shr :: c (v,v) v
+  -- ushr :: c (v,v) v
+  plus :: c (v,v) v
+  minus :: c (v,v) v
+  mult :: c (v,v) v
+  div :: c (v,v) v
+  lengthOf :: c v v
+  neg :: c v v
