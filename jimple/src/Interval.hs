@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -10,20 +11,28 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Interval where
 
-import           Prelude hiding (lookup,read)
+import           Prelude hiding (lookup,read,Bounded(..),Bool(..),(<),(==),(/))
+import qualified Prelude as P
 
 import           Data.Fixed
 import           Data.List (elemIndex,find,replicate,repeat)
 
-import           Data.Concrete.Error
-
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Concrete.Environment (Env)
-import qualified Data.Concrete.Environment as E
-import qualified Data.Concrete.Store as S
+import           Data.Abstract.Environment (Env)
+import qualified Data.Abstract.Environment as E
+import qualified Data.Abstract.Store as S
 import qualified Data.Abstract.Boolean as B
+import           Data.Abstract.Interval (Interval)
+import qualified Data.Abstract.Interval as I
+import           Data.Abstract.Bounded hiding (lift)
+import           Data.Abstract.Ordering
+import           Data.Abstract.Equality
+import           Data.Abstract.Error
+
 import           Data.Order
+import           Data.Numeric
+import qualified Data.Boolean as B
 
 import           Control.Category hiding ((.))
 
@@ -40,9 +49,9 @@ import           Control.Arrow.Utils
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Transformer.Concrete.Except
-import           Control.Arrow.Transformer.Concrete.MaybeEnvironment
-import           Control.Arrow.Transformer.Concrete.MaybeStore
+import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.MaybeEnvironment
+import           Control.Arrow.Transformer.Abstract.MaybeStore
 
 import           Text.Printf
 import           Debug.Trace
@@ -52,11 +61,12 @@ import           Syntax
 ---- Values ----
 -- TODO Use Text over String
 
+type IV = Interval Int
 data Val
   = BottomVal
   | TopVal
-  | IntVal Int
-  | LongVal Int
+  | IntVal (Bounded IV)
+  | LongVal (Bounded IV)
   | FloatVal Float
   | DoubleVal Float
   | StringVal String
@@ -96,44 +106,55 @@ defaultValue (RefType _) = NullVal
 defaultValue (ArrayType _) = NullVal
 defaultValue _ = BottomVal
 
-bool :: Bool -> B.Bool
-bool True = B.True
-bool False = B.False
+bool :: P.Bool -> B.Bool
+bool P.True = B.True
+bool P.False = B.False
 
-boolVal :: Bool -> Val
-boolVal True = BoolVal B.True
-boolVal False = BoolVal B.False
+boolVal :: P.Bool -> Val
+boolVal b = BoolVal (bool b)
+
+num :: IV -> Int -> Bounded IV
+num b x = (Bounded b (I.Interval x x))
+
+isNumVal :: Val -> Maybe (Either (Bounded IV) Float)
+isNumVal (IntVal n) = Just (Left n)
+isNumVal (LongVal l) = Just (Left l)
+isNumVal (FloatVal f) = Just (Right f)
+isNumVal (DoubleVal d) = Just (Right d)
+isNumVal _ = Nothing
 
 instance PreOrd Val where
-  _ ⊑ TopVal = True
-  IntVal n1 ⊑ IntVal n2 = n1 == n2
-  LongVal l1 ⊑ LongVal l2 = l1 == l2
-  FloatVal f1 ⊑ FloatVal f2 = f1 == f2
-  DoubleVal d1 ⊑ DoubleVal d2 = d1 == d2
-  StringVal s1 ⊑ StringVal s2 = s1 == s2
-  ClassVal c1 ⊑ ClassVal c2 = c1 == c2
+  _ ⊑ TopVal = P.True
+  IntVal n1 ⊑ IntVal n2 = n1 P.== n2
+  LongVal l1 ⊑ LongVal l2 = l1 P.== l2
+  FloatVal f1 ⊑ FloatVal f2 = f1 P.== f2
+  DoubleVal d1 ⊑ DoubleVal d2 = d1 P.== d2
+  StringVal s1 ⊑ StringVal s2 = s1 P.== s2
+  ClassVal c1 ⊑ ClassVal c2 = c1 P.== c2
   BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
-  NullVal ⊑ NullVal = True
+  NullVal ⊑ NullVal = P.True
   ArrayVal xs ⊑ ArrayVal ys = all (\(x,y) -> x ⊑ y) (zip xs ys)
   ObjectVal c1 m1 ⊑ ObjectVal c2 m2 =
-    c1 == c2 && all (\(x,y) -> x ⊑ y) (zip (Map.elems m1) (Map.elems m2))
-  _ ⊑ _ = False
+    c1 P.== c2 && all (\(x,y) -> x ⊑ y) (zip (Map.elems m1) (Map.elems m2))
+  _ ⊑ _ = P.False
 
 instance Complete Val where
   IntVal n1 ⊔ IntVal n2 = IntVal $ n1 ⊔ n2
   LongVal l1 ⊔ LongVal l2 = LongVal $ l1 ⊔ l2
   IntVal n ⊔ LongVal l = LongVal $ n ⊔ l
   LongVal l ⊔ IntVal n = LongVal $ n ⊔ l
-  FloatVal f1 ⊔ FloatVal f2 = if f1 == f2 then FloatVal f1 else TopVal
-  DoubleVal d1 ⊔ DoubleVal d2 = if d1 == d2 then DoubleVal d1 else TopVal
-  StringVal s1 ⊔ StringVal s2 = if s1 == s2 then StringVal s else TopVal
-  ClassVal c1 ⊔ ClassVal c2 = if c1 == c2 then ClassVal c1 else ClassVal "java.lang.Object"
+  FloatVal f1 ⊔ FloatVal f2 = if f1 P.== f2 then FloatVal f1 else TopVal
+  DoubleVal d1 ⊔ DoubleVal d2 = if d1 P.== d2 then DoubleVal d1 else TopVal
+  StringVal s1 ⊔ StringVal s2 = if s1 P.== s2 then StringVal s1 else TopVal
+  ClassVal c1 ⊔ ClassVal c2 = if c1 P.== c2 then ClassVal c1 else ClassVal "java.lang.Object"
   BoolVal b1 ⊔ BoolVal b2 = BoolVal $ b1 ⊔ b2
   NullVal ⊔ NullVal = NullVal
   ArrayVal xs ⊔ ArrayVal ys = ArrayVal $ xs ++ ys
   ObjectVal c1 m1 ⊔ ObjectVal c2 m2 =
-    if c1 == c2
-      then ObjectVal $ fromList zip (Map.keys m1) ((\(x,y) -> x ⊔ y) (zip (Map.elems m1) (Map.elems m2)))
+    if c1 P.== c2
+      then let
+        joinedVals = map (\(x,y) -> x ⊔ y) $ zip (Map.elems m1) (Map.elems m2)
+        in ObjectVal c1 (Map.fromList (zip (Map.keys m1) joinedVals))
       else TopVal
   _ ⊔ _ = TopVal
 
@@ -144,11 +165,12 @@ instance UpperBounded Val where
 
 ---- Interp Type ----
 
-type Addr = Int
+type Addr = (Bounded IV)
 type PointerEnv = Env String Addr
 type VariableStore = Map Addr Val
 type CompilationUnits = Map String CompilationUnit
 type Fields = Map FieldSignature Addr
+type Constants = (CompilationUnits, Fields, IV)
 type MethodReader = (Maybe Method, Int, [CatchClause])
 
 newtype Interp x y = Interp
@@ -157,18 +179,18 @@ newtype Interp x y = Interp
       (MaybeEnvironment String Addr
         (MaybeStoreArrow Addr Val
           (State Addr
-            (Const (CompilationUnits, Fields) (->)))))) x y)
+            (Const Constants (->)))))) x y)
   deriving (Category,Arrow,ArrowChoice)
 
-instance ArrowTryCatch Val x y z Interp where
-  tryCatchA (Interp f) (Interp g) (Interp h) = Interp $ tryCatchA f g h
+instance ArrowTryCatch Val x y Interp where
+  tryCatchA (Interp f) (Interp g) = Interp $ tryCatchA f g
 
 instance ArrowDebug Interp where
   debug s f = proc a -> do
     b <- f -< a
     returnA -< trace (printf "%s: %s -> %s" s (show a) (show b)) b
 
-deriving instance ArrowConst (CompilationUnits, Fields) Interp
+deriving instance ArrowConst Constants Interp
 deriving instance ArrowFail Val Interp
 deriving instance ArrowReader MethodReader Interp
 deriving instance ArrowState Addr Interp
@@ -179,21 +201,22 @@ deriving instance ArrowMaybeStore Addr Val Interp
 
 ---- Program Boilerplate ----
 
-runInterp :: Interp x y -> [CompilationUnit] -> [(String, Addr)] -> [(Addr, Val)] -> Maybe Method -> x -> Error Val y
+runInterp :: (?bound :: IV) => Interp x y -> [CompilationUnit] -> [(String, Int)] -> [(Int, Val)] -> Maybe Method -> x -> Error Val y
 runInterp (Interp f) files env store mainMethod x =
   let compilationUnits = map (\file -> (fileName file, file)) files
       latestAddr = case map snd env ++ map fst store of
         [] -> 0
         addrs -> maximum addrs
-      fields = zip (concatMap (\u -> getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
-      store' = store ++ map (\(FieldSignature _ t _,a) -> (a,defaultValue t)) fields
-  in runConst (Map.fromList compilationUnits, Map.fromList fields)
+      fields = zip (concatMap (\u -> getFieldSignatures u (\m -> Static `elem` m)) files) (map (num ?bound) [latestAddr..])
+      store' = map (\(i, v) -> (num ?bound i, v)) store ++ map (\(FieldSignature _ t _,a) -> (a,defaultValue t)) fields
+      env' = map (\(v, i) -> (v, num ?bound i)) env
+  in runConst (Map.fromList compilationUnits, Map.fromList fields, ?bound)
       (evalState
         (evalMaybeStore
           (runMaybeEnvironment
             (runReader
               (runExcept f)))))
-  (latestAddr + length fields, (S.fromList store', (env, ((mainMethod, 0, []), x))))
+  (num ?bound (latestAddr + length fields), (S.fromList store', (env', ((mainMethod, 0, []), x))))
 
 ---- End of Program Boilerplate ----
 
@@ -204,8 +227,8 @@ type CanEnv c = ArrowMaybeEnv String Addr PointerEnv c
 type CanStore c = ArrowMaybeStore Addr Val c
 type CanUseReader c = ArrowReader MethodReader c
 type CanUseState c = ArrowState Addr c
-type CanUseConst c = ArrowConst (CompilationUnits, Fields) c
-type CanCatch x c = ArrowTryCatch Val x (Maybe Val) (Maybe Val) c
+type CanUseConst c = ArrowConst Constants c
+type CanCatch x c = ArrowTryCatch Val x (Maybe Val) c
 
 type CanUseMem c = (CanEnv c, CanStore c)
 
@@ -223,7 +246,7 @@ type CanInterp c = (CanFail c,
 
 ---- Boilerplate Methods ----
 
-getFieldSignatures :: CompilationUnit -> ([Modifier] -> Bool) -> [FieldSignature]
+getFieldSignatures :: CompilationUnit -> ([Modifier] -> P.Bool) -> [FieldSignature]
 getFieldSignatures unit p =
   let toFieldSignature :: Member -> [FieldSignature]
       toFieldSignature (FieldMember f) =
@@ -236,21 +259,57 @@ replace _ _ [] = []
 replace 0 x (_:t) = x:t
 replace n x (h:t) = h:replace (n-1) x t
 
-numToNum :: (forall a. Num a => a -> a -> a) -> Val -> Val -> Maybe Val
-numToNum op v1 v2 = case (v1, v2) of
-  (IntVal n1, IntVal n2) -> Just (IntVal (op n1 n2))
-  (FloatVal f, IntVal n) -> Just (FloatVal (op f (fromIntegral n)))
-  (IntVal n, FloatVal f) -> Just (FloatVal (op (fromIntegral n) f))
-  (FloatVal f1, FloatVal f2) -> Just (FloatVal (op f1 f2))
-  (_, _) -> Nothing
+evalBinopFractional :: (CanFail c) => c ((Float -> Val), Binop, Float, Float) Val
+evalBinopFractional = proc (toVal, op, x1, x2) -> case op of
+  -- And ->
+  -- Or ->
+  -- Xor ->
+  Mod -> returnA -< toVal (x1 `mod'` x2)
+  -- Rem ->
+  -- Cmp ->
+  -- Cmpg ->
+  -- Cmpl ->
+  Cmpeq -> returnA -< boolVal (x1 P.== x2)
+  Cmpne -> returnA -< boolVal (x1 /= x2)
+  Cmpgt -> returnA -< boolVal (x1 > x2)
+  Cmpge -> returnA -< boolVal (x1 >= x2)
+  Cmplt -> returnA -< boolVal (x1 P.< x2)
+  Cmple -> returnA -< boolVal (x1 <= x2)
+  -- Shl ->
+  -- Shr ->
+  -- Ushr ->
+  Plus -> returnA -< toVal (x1 + x2)
+  Minus -> returnA -< toVal (x1 - x2)
+  Mult -> returnA -< toVal (x1 * x2)
+  Div -> if x2 P.== 0.0
+    then failA -< StringVal "Cannot divide by zero"
+    else returnA -< toVal (x1 P./ x2)
 
-numToBool :: (forall a. Ord a => a -> a -> Bool) -> Val -> Val -> Maybe Val
-numToBool op v1 v2 = case (v1, v2) of
-  (IntVal n1, IntVal n2) -> Just (boolVal (op n1 n2))
-  (FloatVal f, IntVal n) -> Just (boolVal (op f (fromIntegral n)))
-  (IntVal n, FloatVal f) -> Just (boolVal (op (fromIntegral n) f))
-  (FloatVal f1, FloatVal f2) -> Just (boolVal (op f1 f2))
-  (_, _) -> Nothing
+evalBinopIntegral :: (CanFail c) => c ((Bounded IV -> Val), Binop, Bounded IV, Bounded IV) Val
+evalBinopIntegral = proc (toVal, op, x1, x2) -> case op of
+  -- And ->
+  -- Or ->
+  -- Xor ->
+  -- Mod -> returnA -< toVal (x1 `mod` x2)
+  -- Rem ->
+  -- Cmp ->
+  -- Cmpg ->
+  -- Cmpl ->
+  Cmpeq -> returnA -< BoolVal (x1 == x2)
+  Cmpne -> returnA -< BoolVal $ B.not (x1 == x2)
+  Cmpgt -> returnA -< BoolVal (x2 < x1)
+  Cmpge -> returnA -< BoolVal $ B.not (x1 < x2)
+  Cmplt -> returnA -< BoolVal (x1 < x2)
+  Cmple -> returnA -< BoolVal $ B.not (x2 < x1)
+  -- Shl ->
+  -- Shr ->
+  -- Ushr ->
+  Plus -> returnA -< toVal (x1 + x2)
+  Minus -> returnA -< toVal (x1 - x2)
+  Mult -> returnA -< toVal (x1 * x2)
+  Div -> case x1 / x2 of
+    Fail s -> failA -< StringVal s
+    Success x -> returnA -< toVal x
 
 lookup' :: (Show var, CanFail c, ArrowMaybeEnv var val env c) => c var val
 lookup' = proc x -> do
@@ -266,19 +325,19 @@ read' = proc x -> do
     Just y -> returnA -< y
     Nothing -> failA -< StringVal $ printf "Address %s not bounded" (show x)
 
-assert :: (CanFail c) => c Bool ()
+assert :: (CanFail c) => c P.Bool ()
 assert = proc prop ->
     if prop
     then returnA -< ()
     else failA -< StringVal "Assertion failed"
 
-toIntList :: (CanFail c) => c [Val] [Int]
-toIntList = proc vs -> case vs of
-  (IntVal x:xs) -> do
-    xs' <- toIntList -< xs
-    returnA -< (x:xs')
-  (_:_) -> failA -< StringVal "Expected an integer valued array for toIntList"
-  [] -> returnA -< []
+-- toIntList :: (CanFail c) => c [Val] [Int]
+-- toIntList = proc vs -> case vs of
+--   (IntVal x:xs) -> do
+--     xs' <- toIntList -< xs
+--     returnA -< (x:xs')
+--   (_:_) -> failA -< StringVal "Expected an integer valued array for toIntList"
+--   [] -> returnA -< []
 
 unbox :: (CanFail c, CanStore c) => c Val Val
 unbox = proc val -> case val of
@@ -309,7 +368,7 @@ fetchLocal = proc x -> do
 
 lookupField :: (CanFail c, CanUseConst c) => c FieldSignature Addr
 lookupField = proc x -> do
-  (_,fields) <- askConst -< ()
+  (_,fields,_) <- askConst -< ()
   case Map.lookup x fields of
     Just addr -> returnA -< addr
     Nothing -> failA -< StringVal $ printf "Field %s not bound" (show x)
@@ -322,27 +381,30 @@ fetchFieldWithAddr = proc x -> do
 
 fetchCompilationUnit :: (CanFail c, CanUseConst c) => c String CompilationUnit
 fetchCompilationUnit = proc n -> do
-  (compilationUnits, _) <- askConst -< ()
+  (compilationUnits, _, _) <- askConst -< ()
   let compilationUnit = Map.lookup n compilationUnits
   case compilationUnit of
     Just x -> returnA -< x
     Nothing -> failA -< StringVal $ printf "CompilationUnit %s not loaded" (show n)
 
+fetchBounds :: (CanUseConst c) => c () IV
+fetchBounds = askConst >>^ (\(_,_,b) -> b)
+
 alloc :: (CanUseState c, CanStore c) => c Val Addr
 alloc = proc val -> do
   addr <- getA -< ()
   write -< (addr, val)
-  putA -< succ addr
+  putA -< addr + 1
   returnA -< addr
 
-matchesSignature :: Type -> String -> [Type] -> Member -> Bool
+matchesSignature :: Type -> String -> [Type] -> Member -> P.Bool
 matchesSignature retType n argTypes (MethodMember m) =
-  methodName m == n && returnType m == retType && parameters m == argTypes
-matchesSignature _ _ _ _ = False
+  methodName m P.== n && returnType m P.== retType && parameters m P.== argTypes
+matchesSignature _ _ _ _ = P.False
 
 fetchMethod :: (CanFail c, CanUseConst c) => c MethodSignature Method
 fetchMethod = proc (MethodSignature c retType n argTypes) -> do
-  (compilationUnits, _) <- askConst -< ()
+  (compilationUnits, _, _) <- askConst -< ()
   let compilationUnit = Map.lookup c compilationUnits
   case compilationUnit of
     Just v -> case find (matchesSignature retType n argTypes) (fileBody v) of
@@ -424,7 +486,7 @@ newArray = proc (t, sizes) -> case sizes of
   [] -> returnA -< defaultValue t
 
 isSuperClass :: (CanFail c, CanUseConst c) => c (String, String) B.Bool
-isSuperClass = proc (c, p) -> if c == p
+isSuperClass = proc (c, p) -> if c P.== p
   then returnA -< B.True
   else do
     unit <- fetchCompilationUnit -< c
@@ -438,25 +500,25 @@ isInstanceof = proc (v, t) -> do
   v' <- unbox -< v
   case (v', t) of
     (BoolVal _,     BooleanType)  -> returnA -< B.True
-    (IntVal n,      ByteType)     -> returnA -< if n >= -128                 && n < 128                  then B.True else B.False
-    (IntVal n,      CharType)     -> returnA -< if n >= 0                    && n < 65536                then B.True else B.False
-    (IntVal n,      ShortType)    -> returnA -< if n >= -32768               && n < 32768                then B.True else B.False
-    (IntVal n,      IntType)      -> returnA -< if n >= -2147483648          && n < 2147483648           then B.True else B.False
-    (LongVal l,     LongType)     -> returnA -< if l >= -9223372036854775808 && l <= 9223372036854775807 then B.True else B.False
+    (IntVal n,      ByteType)     -> returnA -< ((-129) < n)                 `B.and` (n < 128)
+    (IntVal n,      CharType)     -> returnA -< ((-1) < n)                   `B.and` (n < 65536)
+    (IntVal n,      ShortType)    -> returnA -< ((-32769) < n)               `B.and` (n < 32768)
+    (IntVal n,      IntType)      -> returnA -< ((-2147483649) < n)          `B.and` (n < 2147483648)
+    (LongVal l,     LongType)     -> returnA -< ((-9223372036854775809) < l) `B.and` (l < 9223372036854775808)
     (FloatVal _,    FloatType)    -> returnA -< B.True
     (DoubleVal _,   DoubleType)   -> returnA -< B.True
     (NullVal,       NullType)     -> returnA -< B.True
     (ObjectVal c _, RefType p)    -> isSuperClass -< (c, p)
-    (ArrayVal xs,   ArrayType t') -> (mapA isInstanceof >>^ bool . all (==B.True)) -< zip xs (repeat t')
+    (ArrayVal xs,   ArrayType t') -> (mapA isInstanceof >>^ bool . all (P.==B.True)) -< zip xs (repeat t')
     (_, _) -> returnA -< B.False
 
-evalIndex :: (CanInterp c) => c Expr Int
-evalIndex = proc i -> do
-  v <- eval -< i
-  case v of
-    IntVal n -> returnA -< n
-    LongVal l -> returnA -< l
-    _ -> failA -< StringVal "Expected an integer array index"
+-- evalIndex :: (CanInterp c) => c Expr Int
+-- evalIndex = proc i -> do
+--   v <- eval -< i
+--   case v of
+--     IntVal n -> returnA -< n
+--     LongVal l -> returnA -< l
+--     _ -> failA -< StringVal "Expected an integer array index"
 
 evalMethod :: CanInterp c => c (Method, Maybe Val, [Expr]) (Maybe Val)
 evalMethod = proc (method, this, args) -> do
@@ -489,7 +551,7 @@ goto = proc (stmts, label) -> case Label label `elemIndex` stmts of
 
 matchCases :: (CanFail c) => c ([CaseStatement], Int) String
 matchCases = proc (cases, v) -> case cases of
-  ((ConstantCase n, label): cases') -> if v == n
+  ((ConstantCase n, label): cases') -> if v P.== n
     then returnA -< label
     else matchCases -< (cases', v)
   ((DefaultCase, label): _) -> returnA -< label
@@ -522,7 +584,7 @@ getObject = proc val -> case val of
   _ -> failA -< val
 
 getMatchingClause :: CanFail c => c (String, [CatchClause], Val) CatchClause
-getMatchingClause = proc (c, cs, val) -> case find (\clause -> className clause == c) cs of
+getMatchingClause = proc (c, cs, val) -> case find (\clause -> className clause P.== c) cs of
   Just clause -> returnA -< clause
   Nothing -> failA -< val
 
@@ -534,8 +596,8 @@ getMethodBody = proc (m, val) -> case m of
       FullBody{} -> returnA -< methodBody m'
   Nothing -> failA -< val
 
-catchExceptions :: CanInterp c => c Val (Maybe Val)
-catchExceptions = proc val -> do
+catchExceptions :: CanInterp c => c (([Statement], Int), Val) (Maybe Val)
+catchExceptions = proc (_, val) -> do
   (ObjectVal c _) <- getObject -< val
   (m, i, cs) <- askA -< ()
   clause <- getMatchingClause -< (c, cs, val)
@@ -545,7 +607,7 @@ catchExceptions = proc val -> do
   let iTo   = elemIndex (Label (toLabel clause)) stmts
   let iWith = elemIndex (Label (withLabel clause)) stmts
   case (iFrom, iTo, iWith) of
-    (Just iFrom', Just iTo', Just iWith') -> if i >= iFrom' && i < iTo'
+    (Just iFrom', Just iTo', Just iWith') -> if i >= iFrom' && i P.< iTo'
       then do
         env <- getEnv -< ()
         addr' <- alloc -< val
@@ -565,26 +627,26 @@ eval = proc e -> case e of
       RefType c -> newSimple -< c
       _ -> returnA -< (defaultValue t)
     else failA -< StringVal "Expected a nonvoid base type for new"
-  NewArrayExpr t i -> if isNonvoidType t
-    then do
-      v <- eval -< i
-      ns <- toIntList -< [v]
-      if all (>0) ns
-        then newArray -< (t, ns)
-        else failA -< StringVal "Expected a positive integer for newarray size"
-    else failA -< StringVal "Expected a nonvoid type for newarray"
-  NewMultiArrayExpr t is -> if isBaseType t
-    then do
-      vs <- mapA eval -< is
-      ns <- toIntList -< vs
-      if all (>0) ns
-        then newArray -< (t, ns)
-        else failA -< StringVal "Expected positive integers for newmultiarray sizes"
-    else failA -< StringVal "Expected a nonvoid base type for newmultiarray"
+  -- NewArrayExpr t i -> if isNonvoidType t
+  --   then do
+  --     v <- eval -< i
+  --     ns <- toIntList -< [v]
+  --     if all (>0) ns
+  --       then newArray -< (t, ns)
+  --       else failA -< StringVal "Expected a positive integer for newarray size"
+  --   else failA -< StringVal "Expected a nonvoid type for newarray"
+  -- NewMultiArrayExpr t is -> if isBaseType t
+  --   then do
+  --     vs <- mapA eval -< is
+  --     ns <- toIntList -< vs
+  --     if all (>0) ns
+  --       then newArray -< (t, ns)
+  --       else failA -< StringVal "Expected positive integers for newmultiarray sizes"
+  --   else failA -< StringVal "Expected a nonvoid base type for newmultiarray"
   CastExpr t i -> do
     v <- eval -< i
     b <- isInstanceof -< (v, t)
-    if b == B.True || b == B.Top
+    if b P.== B.True || b P.== B.Top
     then do
       v' <- unbox -< v
       case v' of
@@ -597,16 +659,16 @@ eval = proc e -> case e of
     b <- isInstanceof -< (v, t)
     returnA -< BoolVal b
   InvokeExpr invokeExpr -> do
-    v <- tryCatchA evalInvoke returnA failA -< invokeExpr
+    v <- tryCatchA evalInvoke (pi2 >>> failA) -< invokeExpr
     case v of
       Just v' -> returnA -< v'
       Nothing -> failA -< StringVal "Method returned nothing"
-  ArrayRef localName i -> do
-    n <- evalIndex -< i
-    (_, ArrayVal xs) <- fetchArrayWithAddr -< localName
-    if n >= 0 && n < length xs
-    then returnA -< xs !! n
-    else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
+  -- ArrayRef localName i -> do
+  --   n <- evalIndex -< i
+  --   (_, ArrayVal xs) <- fetchArrayWithAddr -< localName
+  --   if n >= 0 && n < length xs
+  --   then returnA -< xs !! n
+  --   else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
   FieldRef localName fieldSignature -> do
     (_, ObjectVal _ m) <- fetchObjectWithAddr -< localName
     case Map.lookup fieldSignature m of
@@ -619,53 +681,26 @@ eval = proc e -> case e of
     v1 <- eval -< i1
     v2 <- eval -< i2
     case op of
-      -- And ->
-      -- Or ->
-      -- Xor ->
-      Mod -> case (v1, v2) of
-        (IntVal x1, IntVal x2) -> returnA -< (IntVal (x1 `mod` x2))
-        (IntVal x1, FloatVal x2) -> returnA -< (FloatVal (fromIntegral x1 `mod'` x2))
-        (FloatVal x1, IntVal x2) -> returnA -< (FloatVal (x1 `mod'` fromIntegral x2))
-        (FloatVal x1, FloatVal x2) -> returnA -< (FloatVal (x1 `mod'` x2))
-        (_, _) -> failA -< StringVal "Expected two numbers as arguments for mod"
-      -- Rem ->
-      -- Cmp ->
-      -- Cmpg ->
-      -- Cmpl ->
-      Cmpeq -> returnA -< (BoolVal $ if (v1 == v2) then B.True else B.False)
-      Cmpne -> returnA -< (BoolVal $ if (v1 /= v2) then B.True else B.False)
-      Cmpgt -> case numToBool (>) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for >"
-      Cmpge -> case numToBool (>=) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for >="
-      Cmplt -> case numToBool (<) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for <"
-      Cmple -> case numToBool (<=) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for <="
-      -- Shl ->
-      -- Shr ->
-      -- Ushr ->
-      Plus -> case numToNum (+) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for +"
-      Minus -> case numToNum (-) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for -"
-      Mult -> case numToNum (*) v1 v2 of
-        Just v -> returnA -< v
-        Nothing -> failA -< StringVal "Expected two numbers as arguments for *"
-      Div -> case (v1, v2) of
-        (_, IntVal 0) -> failA -< StringVal "Cannot divide by zero"
-        (_, FloatVal 0.0) -> failA -< StringVal "Cannot divide by zero"
-        (IntVal n1, IntVal n2) -> returnA -< (IntVal (n1 `div` n2))
-        (FloatVal f, IntVal n) -> returnA -< (FloatVal (f / fromIntegral n))
-        (IntVal n, FloatVal f) -> returnA -< (FloatVal (fromIntegral n / f))
-        (FloatVal f1, FloatVal f2) -> returnA -< (FloatVal (f1 / f2))
-        (_, _) -> failA -< StringVal "Expected two numbers as arguments for /"
+      -- Cmpeq -> returnA -< BoolVal (v1 == v2)
+      -- Cmpne -> returnA -< BoolVal (v1 /= v2)
+      _ -> do
+        let toFloatVal :: Float -> Val
+            toFloatVal x = case (v1, v2) of
+              (DoubleVal _, _) -> DoubleVal x
+              (_, DoubleVal _) -> DoubleVal x
+              (_, _) -> FloatVal x
+        let toIntVal :: Bounded IV -> Val
+            toIntVal x = case (v1, v2) of
+              (LongVal _, _) -> LongVal x
+              (_, LongVal _) -> LongVal x
+              (_, _) -> IntVal x
+        case (isNumVal v1, isNumVal v2) of
+          (Nothing, _) -> failA -< StringVal $ printf "Expected two numbers as argument for %s" (show op)
+          (_, Nothing) -> failA -< StringVal $ printf "Expected two numbers as argument for %s" (show op)
+          (Just (Right x1), Just (Right x2)) -> evalBinopFractional -< (toFloatVal, op, x1, x2)
+          -- (Just (Right x1), Just (Left x2))  -> evalBinopFractional -< (toFloatVal, op, x1, fromIntegral x2)
+          -- (Just (Left x1),  Just (Right x2)) -> evalBinopFractional -< (toFloatVal, op, fromIntegral x1, x2)
+          (Just (Left x1),  Just (Left x2))  -> evalBinopIntegral   -< (toIntVal,   op, x1, x2)
   UnopExpr op i -> do
     v <- eval -< i
     case op of
@@ -673,12 +708,16 @@ eval = proc e -> case e of
         RefVal addr -> do
           v' <- read' -< addr
           case v' of
-            ArrayVal xs -> returnA -< (IntVal (length xs))
+            ArrayVal xs -> do
+              b <- fetchBounds -< ()
+              returnA -< IntVal (num b (length xs))
             _ -> failA -< StringVal "Expected an array as argument for lengthof"
         _ -> failA -< StringVal "Expected an array as argument for lengthof"
       Neg -> case v of
         IntVal n -> returnA -< (IntVal (-n))
+        LongVal l -> returnA -< (LongVal (-l))
         FloatVal f -> returnA -< (FloatVal (-f))
+        DoubleVal d -> returnA -< (DoubleVal (-d))
         _ -> failA -< StringVal "Expected a number as argument for -"
   ThisRef -> eval -< (Local "@this")
   ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
@@ -686,8 +725,12 @@ eval = proc e -> case e of
   Local localName -> fetchLocal -< localName
   DoubleConstant f -> returnA -< (DoubleVal f)
   FloatConstant f -> returnA -< (FloatVal f)
-  IntConstant n -> returnA -< (IntVal n)
-  LongConstant f -> returnA -< (LongVal f)
+  IntConstant n -> do
+    b <- fetchBounds -< ()
+    returnA -< IntVal (num b n)
+  LongConstant f -> do
+    b <- fetchBounds -< ()
+    returnA -< LongVal (num b f)
   NullConstant -> returnA -< NullVal
   StringConstant s -> returnA -< (StringVal s)
   ClassConstant c -> returnA -< (ClassVal c)
@@ -700,25 +743,25 @@ runStatements = proc (stmts, i) -> if i >= length stmts
     Label labelName -> do
       body <- getCurrentMethodBody -< ()
       (m, a, _) <- askA -< ()
-      let cs = filter (\c -> labelName == fromLabel c) (catchClauses body)
-      localA (tryCatchA runStatements returnA catchExceptions) -< ((m, a, cs), (stmts, i + 1))
+      let cs = filter (\c -> labelName P.== fromLabel c) (catchClauses body)
+      localA (tryCatchA runStatements catchExceptions) -< ((m, a, cs), (stmts, i + 1))
     -- Breakpoint
     -- Entermonitor Expr
     -- Exitmonitor Expr
-    Tableswitch immediate cases -> do
-      v <- eval -< immediate
-      case v of
-        IntVal x -> do
-          label <- matchCases -< (cases, x)
-          goto -< (stmts, label)
-        _ -> failA -< StringVal "Expected an integer as argument for switch"
-    Lookupswitch immediate cases -> do
-      v <- eval -< immediate
-      case v of
-        IntVal x -> do
-          label <- matchCases -< (cases, x)
-          goto -< (stmts, label)
-        _ -> failA -< StringVal "Expected an integer as argument for switch"
+    -- Tableswitch immediate cases -> do
+    --   v <- eval -< immediate
+    --   case v of
+    --     IntVal x -> do
+    --       label <- matchCases -< (cases, x)
+    --       goto -< (stmts, label)
+    --     _ -> failA -< StringVal "Expected an integer as argument for switch"
+    -- Lookupswitch immediate cases -> do
+    --   v <- eval -< immediate
+    --   case v of
+    --     IntVal x -> do
+    --       label <- matchCases -< (cases, x)
+    --       goto -< (stmts, label)
+    --     _ -> failA -< StringVal "Expected an integer as argument for switch"
     Identity localName e _ -> do
       addr <- eval >>> alloc -< e
       env <- getEnv -< ()
@@ -737,15 +780,15 @@ runStatements = proc (stmts, i) -> if i >= length stmts
           write -< (addr, v)
           runStatements -< (stmts, i + 1)
         ReferenceVar ref -> case ref of
-          ArrayRef localName index -> do
-            n <- evalIndex -< index
-            (addr, ArrayVal xs) <- fetchArrayWithAddr -< localName
-            if n >= 0 && n < length xs
-            then do
-              let xs' = replace n v xs
-              write -< (addr, ArrayVal xs')
-              runStatements -< (stmts, i + 1)
-            else failA -< StringVal "ArrayIndexOutOfBoundsException"
+          -- ArrayRef localName index -> do
+          --   n <- evalIndex -< index
+          --   (addr, ArrayVal xs) <- fetchArrayWithAddr -< localName
+          --   if n >= 0 && n < length xs
+          --   then do
+          --     let xs' = replace n v xs
+          --     write -< (addr, ArrayVal xs')
+          --     runStatements -< (stmts, i + 1)
+          --   else failA -< StringVal "ArrayIndexOutOfBoundsException"
           FieldRef localName fieldSignature -> do
             (addr, ObjectVal c m) <- fetchObjectWithAddr -< localName
             case m Map.!? fieldSignature of
@@ -759,14 +802,14 @@ runStatements = proc (stmts, i) -> if i >= length stmts
             write -< (addr, v)
             runStatements -< (stmts, i + 1)
           _ -> failA -< StringVal $ printf "Can only assign a reference or a local variable"
-    If e label -> do
-      v <- eval -< e
-      case v of
-        BoolVal B.True -> goto -< (stmts, label)
-        BoolVal B.False -> runStatements -< (stmts, i + 1)
-        BoolVal B.Top -> joined goto runStatements -< ((stmts, label), (stmts, i + 1))
-        TopVal -> returnA -< Just top
-        _ -> failA -< StringVal "Expected a boolean expression for if statement"
+    -- If e label -> do
+    --   v <- eval -< e
+    --   case v of
+    --     BoolVal B.True -> goto -< (stmts, label)
+    --     BoolVal B.False -> runStatements -< (stmts, i + 1)
+    --     BoolVal B.Top -> joined goto runStatements -< ((stmts, label), (stmts, i + 1))
+    --     TopVal -> returnA -< Just top
+    --     _ -> failA -< StringVal "Expected a boolean expression for if statement"
     Goto label -> goto -< (stmts, label)
     -- Nop
     Ret e -> case e of
@@ -805,7 +848,7 @@ runProgram :: CanInterp c => c (CompilationUnit, [Expr]) (Maybe Val)
 runProgram = proc (mainUnit, args) -> do
   let findMethodByName :: [Member] -> String -> Maybe Method
       findMethodByName (MethodMember m:rest) name =
-        if methodName m == name
+        if methodName m P.== name
         then Just m
         else findMethodByName rest name
       findMethodByName (_:rest) name = findMethodByName rest name
@@ -814,11 +857,11 @@ runProgram = proc (mainUnit, args) -> do
     Just classInitMethod -> do
       evalMethod -< (classInitMethod, Nothing, [])
       case findMethodByName (fileBody mainUnit) "main" of
-        Just mainMethod -> tryCatchA evalMethod returnA (unbox >>> failA) -< (mainMethod, Nothing, args)
+        Just mainMethod -> tryCatchA evalMethod (pi2 >>> unbox >>> failA) -< (mainMethod, Nothing, args)
         Nothing -> returnA -< Nothing
     Nothing ->
       case findMethodByName (fileBody mainUnit) "main" of
-        Just mainMethod -> tryCatchA evalMethod returnA (unbox >>> failA) -< (mainMethod, Nothing, args)
+        Just mainMethod -> tryCatchA evalMethod (pi2 >>> unbox >>> failA) -< (mainMethod, Nothing, args)
         Nothing -> returnA -< Nothing
 
 ---- End of Actual Evaluation methods ----

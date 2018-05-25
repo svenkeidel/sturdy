@@ -6,6 +6,7 @@ import Data.Concrete.Error
 import Control.Arrow
 
 import qualified Data.Map as Map
+import Data.List
 
 import Test.Hspec
 
@@ -198,11 +199,18 @@ spec = do
                                                   , implements = []
                                                   , fileBody = [MethodMember (testMethod stmts)]
                                                   }] ++ baseCompilationUnits
+    getMethod :: Member -> [Method]
+    getMethod (MethodMember m) = [m]
+    getMethod _ = []
+    getMethods members = concatMap getMethod members
+    mainMethod unit = case find (\m -> methodName m == "main") (getMethods (fileBody unit)) of
+      Just m -> m
+      Nothing -> error "No entry method found"
 
-    evalConcrete env' store' = runInterp (eval >>> unbox) (testCompilationUnits []) env' store' (Just (testMethod []))
+    evalConcrete env' store' = runInterp (eval >>> unbox) (testCompilationUnits []) env' store' (testMethod [])
 
     runStatementsConcrete env' store' stmts =
-      runInterp (runStatements >>> unboxMaybe) (testCompilationUnits stmts) env' store' (Just (testMethod stmts)) (stmts, 0)
+      runInterp (runStatements >>> unboxMaybe) (testCompilationUnits stmts) env' store' (testMethod stmts) stmts
 
     runProgramConcrete compilationUnits mainUnit args =
-      runInterp (runProgram >>> unboxMaybe) compilationUnits [] [] Nothing (mainUnit, args)
+      runInterp (runProgram >>> unboxMaybe) compilationUnits [] [] (mainMethod mainUnit) args
