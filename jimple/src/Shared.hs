@@ -12,7 +12,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Shared where
 
-import           Prelude hiding (lookup,read,mod,rem,div)
+import           Prelude hiding (lookup,read,mod,rem,div,id)
 
 import           Data.List (find,elemIndex)
 import           Data.Map (Map)
@@ -211,23 +211,6 @@ eval = proc e -> case e of
   ClassConstant c -> classConstant -< c
   MethodHandle _ -> failA -< StaticException "Evaluation of method handles is not implemented"
 
-currentMethodBody :: (UseVal v c, CanFail v c, CanUseReader c) => c () MethodBody
-currentMethodBody = proc () -> do
-  m <- askA -< ()
-  case methodBody m of
-    EmptyBody -> failA -< StaticException $ printf "Empty body for method %s" (show m)
-    FullBody{} -> returnA -< methodBody m
-
-statementsFromLabel :: (UseVal v c, CanFail v c, CanUseReader c) => c String [Statement]
-statementsFromLabel = proc label -> do
-  b <- currentMethodBody -< ()
-  case Label label `elemIndex` (statements b) of
-    Just i -> returnA -< drop i (statements b)
-    Nothing -> failA -< StaticException $ printf "Undefined label: %s" label
-
-runCases :: CanInterp e v c => c (v,[CaseStatement]) (Maybe v)
-runCases = case_ (statementsFromLabel >>> runStatements)
-
 runStatements :: CanInterp e v c => c [Statement] (Maybe v)
 runStatements = proc stmts -> case stmts of
   [] -> returnA -< Nothing
@@ -238,65 +221,56 @@ runStatements = proc stmts -> case stmts of
         DynamicException val -> do
           body <- currentMethodBody -< ()
           let clauses = filter (\clause -> fromLabel clause == labelName && (Label (toLabel clause)) `elem` stmts) (catchClauses body)
-          catch (proc (clause,val) -> do
-            env <- getEnv -< ()
-            addr <- alloc -< val
-            env' <- extendEnv -< ("@caughtexception", addr, env)
-            localEnv (statementsFromLabel >>> runStatements) -< (env',withLabel clause)) -< (val, clauses)) -< stmts
+          catch (((id >>^ (\x -> ("@caughtexception",x))) *** (withLabel ^>> statementsFromLabel)) >>> runIdentity) -< (val, clauses)) -< stmts
     Tableswitch e cases -> (first eval) >>> runCases -< (e, cases)
     Lookupswitch e cases -> (first eval) >>> runCases -< (e, cases)
-    Identity localName e _ -> do
-      addr <- eval >>> alloc -< e
-      env <- getEnv -< ()
-      env' <- extendEnv -< (localName, addr, env)
-      localEnv runStatements -< (env', rest)
-    IdentityNoType localName e -> do
-      addr <- eval >>> alloc -< e
-      env <- getEnv -< ()
-      env' <- extendEnv -< (localName, addr, env)
-      localEnv runStatements -< (env', rest)
-    Assign var e -> do
-      v <- eval -< e
-      case var of
-        LocalVar l -> do
-          (first lookupLocal) >>> write -< (l,v)
-          runStatements -< rest
-        ReferenceVar ref -> case ref of
-          ArrayRef l i -> do
-            (first ((lookupLocal >>> readVar) *** eval)) >>> updateIndex -< ((l,i),v)
-            runStatements -< rest
-          FieldRef l f -> do
-            (first (lookupLocal >>> readVar)) >>> updateField -< (l,(f,v))
-            runStatements -< rest
-          SignatureRef f -> do
-            (first lookupField) >>> write -< (f,v)
-            runStatements -< rest
-          _ -> failA -< StaticException $ printf "Can only assign a reference or a local variable"
+    Identity l e _ -> (first (second eval)) >>> runIdentity -< ((l,e),rest)
+    IdentityNoType l e -> (first (second eval)) >>> runIdentity -< ((l,e),rest)
     If e label -> do
       v <- eval -< e
       if_ (statementsFromLabel >>> runStatements) runStatements -< (v, (label, rest))
     Goto label -> (statementsFromLabel >>> runStatements) -< label
     -- -- Nop
-    Ret e -> case e of
-      Just immediate -> eval >>^ (\v -> Just v) -< immediate
-      Nothing -> returnA -< Nothing
-    Return e -> case e of
-      Just immediate -> eval >>^ (\v -> Just v) -< immediate
-      Nothing -> returnA -< Nothing
+    Ret e -> runReturn -< e
+    Return e -> runReturn -< e
     Throw immediate -> do
       v <- eval -< immediate
       failA -< DynamicException v
-    Invoke e -> do
-      evalInvoke -< e
+    _ -> do
+      runStatement -< stmt
       runStatements -< rest
-    _ -> runStatements -< rest
-
-createMethodEnv :: (UseVal v c, UseMem e c, CanFail v c, CanUseMem e v c, CanUseState c) => c [(String, v)] (PointerEnv e)
-createMethodEnv = proc pairs -> do
-  e <- emptyEnv -< ()
-  foldA (proc (env, (s,v)) -> do
-    addr <- alloc -< v
-    extendEnv -< (s, addr, env)) -< (pairs, e)
+  where
+    currentMethodBody = proc () -> do
+      m <- askA -< ()
+      case methodBody m of
+        EmptyBody -> failA -< StaticException $ printf "Empty body for method %s" (show m)
+        FullBody{} -> returnA -< methodBody m
+    statementsFromLabel = proc label -> do
+      b <- currentMethodBody -< ()
+      case Label label `elemIndex` (statements b) of
+        Just i -> returnA -< drop i (statements b)
+        Nothing -> failA -< StaticException $ printf "Undefined label: %s" label
+    runCases = case_ (statementsFromLabel >>> runStatements)
+    runReturn = proc e -> case e of
+      Just immediate -> eval >>^ (\v -> Just v) -< immediate
+      Nothing -> returnA -< Nothing
+    runStatement = proc stmt -> case stmt of
+      Assign var e -> do
+        v <- eval -< e
+        case var of
+          LocalVar l -> (first lookupLocal) >>> write -< (l,v)
+          ReferenceVar ref -> case ref of
+            ArrayRef l i -> (first ((lookupLocal >>> readVar) *** eval)) >>> updateIndex -< ((l,i),v)
+            FieldRef l f -> (first (lookupLocal >>> readVar)) >>> updateField -< (l,(f,v))
+            SignatureRef f -> (first lookupField) >>> write -< (f,v)
+            _ -> failA -< StaticException $ printf "Can only assign a reference or a local variable"
+      Invoke e -> voidA evalInvoke -< e
+      _ -> returnA -< ()
+    runIdentity = proc ((l,v),rest) -> do
+      addr <- alloc -< v
+      env <- getEnv -< ()
+      env' <- extendEnv -< (l, addr, env)
+      localEnv runStatements -< (env', rest)
 
 runMethod :: CanInterp e v c => c (Method, Maybe v, [Expr]) (Maybe v)
 runMethod = proc (method,this,args) -> do
@@ -311,6 +285,12 @@ runMethod = proc (method,this,args) -> do
       decPairs <- mapA (second defaultValue) -< concatMap (\(t, d) -> zip d (repeat t)) decs
       env <- createMethodEnv -< thisPair ++ paramPairs ++ decPairs
       localEnv (localA runStatements) -< (env, (method, stmts))
+  where
+    createMethodEnv = proc pairs -> do
+      e <- emptyEnv -< ()
+      foldA (proc (env, (s,v)) -> do
+        addr <- alloc -< v
+        extendEnv -< (s, addr, env)) -< (pairs, e)
 
 runProgram :: CanInterp e v c => c [Expr] (Maybe v)
 runProgram = proc args -> do
@@ -376,7 +356,7 @@ class Arrow c => UseVal v c | c -> v where
 class Arrow c => UseFlow v c | c -> v where
   if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c (v,(String,[Statement])) (Maybe v)
   case_ :: c String (Maybe v) -> c (v,[CaseStatement]) (Maybe v)
-  catch :: c (CatchClause, v) (Maybe v) -> c (v,[CatchClause]) (Maybe v)
+  catch :: c (v,CatchClause) (Maybe v) -> c (v,[CatchClause]) (Maybe v)
 
 class Arrow c => UseMem e c | c -> e where
   emptyEnv :: c () (PointerEnv e)

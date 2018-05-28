@@ -14,7 +14,7 @@ import           Prelude hiding (lookup,read,rem,div,mod,id)
 import qualified Prelude as P
 
 import           Data.Fixed
-import           Data.List (elemIndex,find,replicate,repeat)
+import           Data.List (replicate,repeat)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -154,32 +154,6 @@ unboxMaybe = proc val -> case val of
     returnA -< Just x'
   Nothing -> returnA -< Nothing
 
-fetchLocal :: (CanFail Val c, CanUseMem Env Val c) => c String Val
-fetchLocal = Shared.lookupLocal >>> Shared.readVar
-
-fetchRefValWithAddr :: (CanFail Val c, CanUseMem Env Val c) => c String (Addr, Val)
-fetchRefValWithAddr = proc localName -> do
-  v <- fetchLocal -< localName
-  case v of
-    RefVal addr -> do
-      v' <- Shared.readVar -< addr
-      returnA -< (addr, v')
-    _ -> failA -< StaticException $ printf "Variable %s is not a reference" (show localName)
-
-fetchArrayWithAddr :: (CanFail Val c, CanUseMem Env Val c) => c String (Addr, Val)
-fetchArrayWithAddr = proc localName -> do
-  (addr, v) <- fetchRefValWithAddr -< localName
-  case v of
-    ArrayVal _ -> returnA -< (addr, v)
-    _ -> failA -< StaticException $ printf "Variable %s not bound to an array" (show localName)
-
-fetchObjectWithAddr :: (CanFail Val c, CanUseMem Env Val c) => c String (Addr, Val)
-fetchObjectWithAddr = proc localName -> do
-  (addr, v) <- fetchRefValWithAddr -< localName
-  case v of
-    ObjectVal _ _ -> returnA -< (addr, v)
-    _ -> failA -< StaticException $ printf "Variable %s not bound to an object" (show localName)
-
 throw :: CanInterp Env Val c => c (String, String) Val
 throw = proc (clzz, message) -> do
   (RefVal addr) <- newSimple -< RefType clzz
@@ -191,10 +165,6 @@ throw = proc (clzz, message) -> do
       failA -< DynamicException (RefVal addr)
     _ -> failA -< StaticException $ printf "Undefined exception %s" clzz
 
----- End of Boilerplate Methods ----
-
----- Evaluation Helper Methods ----
-
 isSuperClass :: (CanFail Val c, CanUseConst c) => c (String, String) Val
 isSuperClass = proc (c, p) -> if c == p
   then returnA -< BoolVal True
@@ -203,124 +173,6 @@ isSuperClass = proc (c, p) -> if c == p
     case extends unit of
       Just c' -> isSuperClass -< (c', p)
       Nothing -> returnA -< BoolVal False
-
-evalIndex :: (CanInterp Env Val c) => c Expr Int
-evalIndex = proc i -> do
-  v <- Shared.eval -< i
-  case v of
-    IntVal n -> returnA -< n
-    LongVal l -> returnA -< l
-    _ -> failA -< StaticException "Expected an integer array index"
-
----- End of Evaluation Helper Methods ----
-
----- Actual Evaluation methods ----
-
--- eval :: CanInterp Env Val c => c Expr Val
--- eval = proc e -> case e of
---   NewExpr t -> do
---     Shared.assert -< (isBaseType t, "Expected a base type for new")
---     case t of
---       RefType c -> newSimple -< c
---       _ -> returnA -< (defaultValue t)
---   NewArrayExpr t i -> do
---     Shared.assert -< (isNonvoidType t, "Expected a nonvoid type for newarray")
---     v <- eval -< i
---     n <- toInt -< v
---     Shared.assert -< (n > 0, "Expected a positive integer for newarray size")
---     newArray -< (t, [n])
---   NewMultiArrayExpr t is -> do
---     Shared.assert -< (isBaseType t, "Expected a nonvoid base type for newmultiarray")
---     vs <- mapA eval -< is
---     ns <- mapA toInt -< vs
---     Shared.assert -< (all (>0) ns, "Expected positive integers for newmultiarray sizes")
---     newArray -< (t, ns)
---   CastExpr t i -> do
---     v <- eval -< i
---     b <- instanceOf -< (v, t)
---     if b
---     then do
---       v' <- unbox -< v
---       case v' of
---         ObjectVal _ _ -> returnA -< v
---         _ -> failA -< StaticException "Casting of primivites and arrays is not yet supported"
---         -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
---     else throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
---   InstanceOfExpr i t -> do
---     v <- eval -< i
---     b <- instanceOf -< (v, t)
---     returnA -< BoolVal b
---   InvokeExpr invokeExpr -> do
---     v <- tryCatchA evalInvoke (pi2 >>> failA) -< invokeExpr
---     case v of
---       Just v' -> returnA -< v'
---       Nothing -> failA -< StaticException "Method returned nothing"
---   ArrayRef localName i -> do
---     n <- evalIndex -< i
---     (_, ArrayVal xs) <- fetchArrayWithAddr -< localName
---     if n >= 0 && n < length xs
---     then returnA -< xs !! n
---     else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
---   FieldRef localName fieldSignature -> do
---     (_, ObjectVal _ m) <- fetchObjectWithAddr -< localName
---     case Map.lookup fieldSignature m of
---       Just x -> returnA -< x
---       Nothing -> failA -< StaticException $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
---   SignatureRef fieldSignature -> do
---     (_, val) <- fetchFieldWithAddr -< fieldSignature
---     returnA -< val
---   BinopExpr i1 op i2 -> do
---     v1 <- eval -< i1
---     v2 <- eval -< i2
---     case op of
---       Cmpeq -> returnA -< BoolVal (v1 == v2)
---       Cmpne -> returnA -< BoolVal (v1 /= v2)
---       _ -> do
---         let toFloatVal :: Float -> Val
---             toFloatVal x = case (v1, v2) of
---               (DoubleVal _, _) -> DoubleVal x
---               (_, DoubleVal _) -> DoubleVal x
---               (_, _) -> FloatVal x
---         let toIntVal :: Int -> Val
---             toIntVal x = case (v1, v2) of
---               (LongVal _, _) -> LongVal x
---               (_, LongVal _) -> LongVal x
---               (_, _) -> IntVal x
---         case (isNumVal v1, isNumVal v2) of
---           (Nothing, _) -> failA -< StaticException $ printf "Expected two numbers as argument for %s" (show op)
---           (_, Nothing) -> failA -< StaticException $ printf "Expected two numbers as argument for %s" (show op)
---           (Just (Right x1), Just (Right x2)) -> evalBinopFractional -< (toFloatVal, op, x1, x2)
---           (Just (Right x1), Just (Left x2))  -> evalBinopFractional -< (toFloatVal, op, x1, fromIntegral x2)
---           (Just (Left x1),  Just (Right x2)) -> evalBinopFractional -< (toFloatVal, op, fromIntegral x1, x2)
---           (Just (Left x1),  Just (Left x2))  -> evalBinopIntegral   -< (toIntVal,   op, x1, x2)
---   UnopExpr op i -> do
---     v <- eval -< i
---     case op of
---       Lengthof -> case v of
---         RefVal addr -> do
---           v' <- read' -< addr
---           case v' of
---             ArrayVal xs -> returnA -< (IntVal (length xs))
---             _ -> failA -< StaticException "Expected an array as argument for lengthof"
---         _ -> failA -< StaticException "Expected an array as argument for lengthof"
---       Neg -> case v of
---         IntVal n -> returnA -< (IntVal (-n))
---         LongVal l -> returnA -< (LongVal (-l))
---         FloatVal f -> returnA -< (FloatVal (-f))
---         DoubleVal d -> returnA -< (DoubleVal (-d))
---         _ -> failA -< StaticException "Expected a number as argument for -"
---   ThisRef -> eval -< (Local "@this")
---   ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
---   CaughtExceptionRef -> eval -< (Local "@caughtexception")
---   Local localName -> fetchLocal -< localName
---   DoubleConstant f -> returnA -< (DoubleVal f)
---   FloatConstant f -> returnA -< (FloatVal f)
---   IntConstant n -> returnA -< (IntVal n)
---   LongConstant f -> returnA -< (LongVal f)
---   NullConstant -> returnA -< NullVal
---   StringConstant s -> returnA -< (StringVal s)
---   ClassConstant c -> returnA -< (ClassVal c)
---   MethodHandle _ -> failA -< StaticException "Evaluation of method handles is not implemented"
 
 unbox1 :: (CanFail Val c, CanUseStore Val c) => c Val Val
 unbox1 = proc val -> case val of
@@ -507,7 +359,7 @@ instance UseVal Val Interp where
     (RefType _)   -> NullVal
     (ArrayType _) -> NullVal
     _             -> BottomVal)
-  instanceOf = (first unbox) >>> (proc (v, t) -> case (v, t) of
+  instanceOf = (first unbox) >>> (proc (v,t) -> case (v,t) of
     (BoolVal _,     BooleanType)  -> returnA -< BoolVal True
     (IntVal n,      ByteType)     -> returnA -< BoolVal $ n >= -128   && n < 128   -- n >= (-2)^7  && n < 2^7
     (IntVal n,      CharType)     -> returnA -< BoolVal $ n >= 0      && n < 65536 -- n >= 0       && n < 2^16
@@ -531,7 +383,6 @@ instance UseVal Val Interp where
         -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
     BoolVal False -> throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
     _ -> failA -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
-
   readIndex = (first unbox1) >>> proc (v,i) -> case (v,i) of
     (ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
       then returnA -< xs !! n
@@ -560,24 +411,22 @@ instance UseFlow Val Interp where
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
     _ -> failA -< StaticException "Expected boolean as argument for 'if'"
-
-  case_ f =
-    let matchCases = proc (x,cases) -> case cases of
-          [] -> failA -< StaticException $ printf "No cases match value %s" (show x)
-          ((ConstantCase n, label): rest) -> if n == x
-            then returnA -< label
-            else matchCases -< (x,rest)
-          ((DefaultCase, label): _) -> returnA -< label
-    in proc (v,cases) -> case v of
-      IntVal x -> matchCases >>> f -< (x,cases)
-      _ -> failA -< StaticException "Expected an integer as argument for switch"
-
+  case_ f = proc (v,cases) -> case v of
+    IntVal x -> matchCases >>> f -< (x,cases)
+    _ -> failA -< StaticException "Expected an integer as argument for switch"
+    where
+      matchCases = proc (x,cases) -> case cases of
+        [] -> failA -< StaticException $ printf "No cases match value %s" (show x)
+        ((ConstantCase n, label): rest) -> if n == x
+          then returnA -< label
+          else matchCases -< (x,rest)
+        ((DefaultCase, label): _) -> returnA -< label
   catch f = proc (v,clauses) -> case clauses of
     [] -> failA -< DynamicException v
     (clause:rest) -> do
       b <- instanceOf -< (v, RefType (className clause))
       case b of
-        BoolVal True -> f -< (clause,v)
+        BoolVal True -> f -< (v,clause)
         BoolVal False -> catch f -< (v,rest)
         _ -> failA -< StaticException "Expected a boolean from instanceOf"
 
