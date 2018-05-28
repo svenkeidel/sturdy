@@ -17,7 +17,7 @@ import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Try
+import           Control.Arrow.Except
 import           Control.Category
 
 import qualified Data.HashMap.Lazy as M
@@ -28,7 +28,7 @@ import           Data.Hashable
 import           Text.Printf
 
 -- Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowTry t t t c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c, ArrowApply c, ArrowFix' c t,
+eval' :: (ArrowChoice c, ArrowExcept t t () c, ArrowExcept (t,[t]) (t,[t]) () c, ArrowApply c, ArrowFix' c t,
           ArrowFail () c, ArrowDeduplicate c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c)
       => (Strat -> c t t)
@@ -46,20 +46,20 @@ eval' = fixA' $ \ev s0 -> dedupA $ case s0 of
     Let bnds body -> let_ bnds body eval'
     Call f ss ps -> call f ss ps ev
 
-guardedChoice :: ArrowTry x y z c => c x y -> c y z -> c x z -> c x z
+guardedChoice :: ArrowExcept x z () c => c x y -> c y z -> c x z -> c x z
 guardedChoice = tryA
 
 sequence :: Category c => c x y -> c y z -> c x z
 sequence f g = f >>> g
 
-one :: (ArrowChoice c, ArrowFail () c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c) => c t t -> c [t] [t]
+one :: (ArrowChoice c, ArrowFail () c, ArrowExcept (t,[t]) (t,[t]) () c) => c t t -> c [t] [t]
 one f = proc l -> case l of
   (t:ts) -> do
     (t',ts') <- first f <+> second (one f) -< (t,ts)
     returnA -< (t':ts')
   [] -> failA -< ()
 
-some :: (ArrowChoice c, ArrowFail () c, ArrowTry (t,[t]) (t,[t]) (t,[t]) c) => c t t -> c [t] [t]
+some :: (ArrowChoice c, ArrowFail () c, ArrowExcept (t,[t]) (t,[t]) () c) => c t t -> c [t] [t]
 some f = go
   where
     go = proc l -> case l of
@@ -125,7 +125,7 @@ bindStratArgs ((v,Call v' [] []) : ss) senv =
 bindStratArgs ((v,s) : ss) senv =
     M.insert v (Closure (Strategy [] [] s) senv) (bindStratArgs ss senv)
  
-match :: (ArrowChoice c, ArrowApply c, ArrowTry t t t c, IsTerm t c, IsTermEnv env t c)
+match :: (ArrowChoice c, ArrowApply c, ArrowExcept t t () c, IsTerm t c, IsTermEnv env t c)
       => c (TermPattern,t) t
 match = proc (p,t) -> case p of
   S.As v p2 -> do
