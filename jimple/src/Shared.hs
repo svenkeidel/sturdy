@@ -155,17 +155,10 @@ eval = proc e -> case e of
     assert -< (isBaseType t, "Expected a nonvoid base type for newmultiarray")
     vs <- mapA eval -< is
     newArray -< (t, vs)
-  -- CastExpr t i -> do
-  --   v <- eval -< i
-  --   b <- isInstanceof -< (v, t)
-  --   if b
-  --   then do
-  --     v' <- unbox -< v
-  --     case v' of
-  --       ObjectVal _ _ -> returnA -< v
-  --       _ -> failA -< StringVal "Casting of primivites and arrays is not yet supported"
-  --       -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
-  --   else throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
+  CastExpr t i -> do
+    v <- eval -< i
+    b <- instanceOf -< (v, t)
+    cast -< (v,t,b)
   InstanceOfExpr i t -> (first eval) >>> instanceOf -< (i,t)
   InvokeExpr invokeExpr -> do
     v <- tryCatchA evalInvoke (pi2 >>> failA) -< invokeExpr
@@ -217,7 +210,6 @@ eval = proc e -> case e of
   StringConstant s -> stringConstant -< s
   ClassConstant c -> classConstant -< c
   MethodHandle _ -> failA -< StaticException "Evaluation of method handles is not implemented"
-  _ -> failA -< StaticException "Not implemented"
 
 currentMethodBody :: (UseVal v c, CanFail v c, CanUseReader c) => c () MethodBody
 currentMethodBody = proc () -> do
@@ -375,6 +367,7 @@ class Arrow c => UseVal v c | c -> v where
   unbox :: c v v
   defaultValue :: c Type v
   instanceOf :: c (v,Type) v
+  cast :: c (v,Type,v) v
   readIndex :: c (v,v) v
   updateIndex :: c ((v,v),v) ()
   readField :: c (v,FieldSignature) v

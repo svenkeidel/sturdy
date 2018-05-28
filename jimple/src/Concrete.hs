@@ -522,6 +522,16 @@ instance UseVal Val Interp where
       b <- (mapA instanceOf >>^ all (==BoolVal True)) -< zip xs (repeat t')
       returnA -< BoolVal b
     (_, _) -> returnA -< BoolVal False)
+  cast = proc (v,t,b) -> case b of
+    BoolVal True -> do
+      v' <- unbox -< v
+      case v' of
+        ObjectVal _ _ -> returnA -< v
+        _ -> failA -< StaticException "Casting of primivites and arrays is not yet supported"
+        -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
+    BoolVal False -> throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
+    _ -> failA -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
+
   readIndex = (first unbox1) >>> proc (v,i) -> case (v,i) of
     (ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
       then returnA -< xs !! n
