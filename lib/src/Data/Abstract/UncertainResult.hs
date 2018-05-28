@@ -6,7 +6,6 @@ module Data.Abstract.UncertainResult where
 
 import Control.Arrow
 import Control.Monad
-import Control.Applicative
 
 import Data.Abstract.FreeCompletion
 import Data.Order
@@ -38,23 +37,6 @@ instance Monad UncertainResult where
         SuccessOrFail (SuccessOrFail x) -> SuccessOrFail x
         SuccessOrFail (Success x) -> SuccessOrFail x
         _ -> Fail
-
-instance Alternative UncertainResult where
-  empty = mzero
-  (<|>) = mplus 
-
-instance MonadPlus UncertainResult where
-  mzero = Fail
-  mplus f g = case (f,g) of
-    (Success x, Success _) -> Success x
-    (Success x, Fail) -> SuccessOrFail x
-    (Fail, Success y) -> SuccessOrFail y
-    (Fail, Fail) -> Fail
-    (SuccessOrFail x, Success _) -> SuccessOrFail x
-    (Success x, SuccessOrFail _) -> SuccessOrFail x
-    (SuccessOrFail x, Fail) -> SuccessOrFail x
-    (Fail, SuccessOrFail y) -> SuccessOrFail y
-    (SuccessOrFail x, SuccessOrFail _) -> SuccessOrFail x
 
 instance Foldable UncertainResult where
   foldMap = foldMapDefault
