@@ -18,7 +18,7 @@ import qualified Criterion.Measurement as CM
 import qualified Criterion.Types as CT
 
 import           Data.ATerm
-import           Data.Abstract.Error
+import           Data.Abstract.HandleError
 import           Data.Foldable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
@@ -174,5 +174,5 @@ caseStudy eval name function = do
       _ <- CM.measure (CT.nfIO (return terms)) 1
       return terms
  where
-   filterResults = fmap (\r -> case r of Success (_,t) -> t; Fail _ -> error "")
-                 . filter (\r -> case r of Success _ -> True; Fail _ -> False)
+   filterResults = fmap (\r -> case r of Success (_,t) -> t; SuccessOrFail _ (_,t) -> t; Fail _ -> error "")
+                 . filter (\r -> case r of Success _ -> True; SuccessOrFail _ _ -> True; Fail _ -> False)
