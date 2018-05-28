@@ -66,3 +66,7 @@ instance Num a => Num (FreeCompletion a) where
 instance Fractional a => Fractional (FreeCompletion a) where
   (/) = liftA2 (/)
   fromRational = pure . fromRational
+
+instance Complete (FreeCompletion ()) where
+  Lower _ ⊔ Lower _ = Lower ()
+  _ ⊔ _ = Top

@@ -82,6 +82,9 @@ instance Complete e => Monad (Error e) where
       Fail e' -> Fail (e ⊔ e')
       SuccessOrFail e' z -> SuccessOrFail (e ⊔ e') z
 
+instance PreOrd a => LowerBounded (Error () a) where
+  bottom = Fail ()
+
 instance Foldable (Error e) where
   foldMap = foldMapDefault
 
