@@ -75,20 +75,6 @@ instance Show Val where
   show (ArrayVal xs) = show xs
   show (ObjectVal c m) = show c ++ "{" ++ show m ++ "}"
 
-defaultValue :: Type -> Val
-defaultValue BooleanType = BoolVal False
-defaultValue ByteType = IntVal 0
-defaultValue CharType = IntVal 0
-defaultValue ShortType = IntVal 0
-defaultValue IntType = IntVal 0
-defaultValue LongType = LongVal 0
-defaultValue FloatType = FloatVal 0.0
-defaultValue DoubleType = DoubleVal 0.0
-defaultValue NullType = NullVal
-defaultValue (RefType _) = NullVal
-defaultValue (ArrayType _) = NullVal
-defaultValue _ = BottomVal
-
 isNumVal :: Val -> Maybe (Either Int Float)
 isNumVal (IntVal n) = Just (Left n)
 isNumVal (LongVal l) = Just (Left l)
@@ -130,14 +116,13 @@ runInterp (Interp f) files env store mainMethod x =
         [] -> 0
         addrs -> maximum addrs
       fields = zip (concatMap (\u -> getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
-      store' = store ++ map (\(FieldSignature _ t _,a) -> (a,defaultValue t)) fields
   in runConst (Map.fromList compilationUnits, Map.fromList fields)
       (evalState
         (evalMaybeStore
           (runMaybeEnvironment
             (runReader
               (runExcept f)))))
-  (latestAddr + length fields, (S.fromList store', (env, (mainMethod, x))))
+  (latestAddr + length fields, (S.fromList store, (env, (mainMethod, x))))
 
 ---- End of Program Boilerplate ----
 
@@ -162,22 +147,7 @@ toInt = proc v -> case v of
   LongVal x -> returnA -< x
   _ -> failA -< StaticException "Expected an integer valued array for toInt"
 
-unbox :: (CanFail Val c, CanUseStore Val c) => c Val Val
-unbox = proc val -> case val of
-  RefVal addr -> do
-    v <- Shared.read' -< addr
-    case v of
-      ObjectVal c m -> do
-        let (keys, vals) = unzip (Map.toList m)
-        vals' <- mapA unbox -< vals
-        returnA -< ObjectVal c (Map.fromList (zip keys vals'))
-      ArrayVal xs -> do
-        xs' <- mapA unbox -< xs
-        returnA -< ArrayVal xs'
-      _ -> returnA -< v
-  _ -> returnA -< val
-
-unboxMaybe :: (CanFail Val c, CanUseMem Env Val c) => c (Maybe Val) (Maybe Val)
+unboxMaybe :: (UseVal Val c, CanFail Val c, CanUseMem Env Val c) => c (Maybe Val) (Maybe Val)
 unboxMaybe = proc val -> case val of
   Just x -> do
     x' <- unbox -< x
@@ -187,32 +157,12 @@ unboxMaybe = proc val -> case val of
 fetchLocal :: (CanFail Val c, CanUseMem Env Val c) => c String Val
 fetchLocal = Shared.lookup' >>> Shared.read'
 
-lookupField :: (CanFail Val c, CanUseConst c) => c FieldSignature Addr
-lookupField = proc x -> do
-  (_,fields) <- askConst -< ()
-  case Map.lookup x fields of
-    Just addr -> returnA -< addr
-    Nothing -> failA -< StaticException $ printf "Field %s not bound" (show x)
-
-fetchFieldWithAddr :: (CanFail Val c, CanUseStore Val c, CanUseConst c) => c FieldSignature (Addr, Val)
-fetchFieldWithAddr = proc x -> do
-  addr <- lookupField -< x
-  val <- Shared.read' -< addr
-  returnA -< (addr, val)
-
 fetchCompilationUnit :: (CanFail Val c, CanUseConst c) => c String CompilationUnit
 fetchCompilationUnit = proc n -> do
   (compilationUnits, _) <- askConst -< ()
   case Map.lookup n compilationUnits of
     Just x -> returnA -< x
     Nothing -> failA -< StaticException $ printf "CompilationUnit %s not loaded" (show n)
-
-alloc :: (CanUseState c, CanUseStore Val c) => c Val Addr
-alloc = proc val -> do
-  addr <- getA -< ()
-  write -< (addr, val)
-  putA -< succ addr
-  returnA -< addr
 
 matchesSignature :: Type -> String -> [Type] -> Member -> Bool
 matchesSignature retType n argTypes (MethodMember m) =
@@ -249,13 +199,6 @@ fetchObjectWithAddr = proc localName -> do
     ObjectVal _ _ -> returnA -< (addr, v)
     _ -> failA -< StaticException $ printf "Variable %s not bound to an object" (show localName)
 
-getCurrentMethodBody :: (CanFail Val c, CanUseReader c) => c () MethodBody
-getCurrentMethodBody = proc () -> do
-  m <- askA -< ()
-  case methodBody m of
-    EmptyBody -> failA -< StaticException $ printf "Empty body for method %s" (show m)
-    FullBody{} -> returnA -< methodBody m
-
 throw :: CanInterp Env Val c => c (String, String) Val
 throw = proc (clzz, message) -> do
   (RefVal addr) <- newSimple -< RefType clzz
@@ -271,32 +214,14 @@ throw = proc (clzz, message) -> do
 
 ---- Evaluation Helper Methods ----
 
-isSuperClass :: (CanFail Val c, CanUseConst c) => c (String, String) Bool
+isSuperClass :: (CanFail Val c, CanUseConst c) => c (String, String) Val
 isSuperClass = proc (c, p) -> if c == p
-  then returnA -< True
+  then returnA -< BoolVal True
   else do
     unit <- fetchCompilationUnit -< c
     case extends unit of
       Just c' -> isSuperClass -< (c', p)
-      Nothing -> returnA -< False
-
-isInstanceof :: (CanFail Val c, CanUseConst c, CanUseStore Val c) => c (Val, Type) Bool
-isInstanceof = proc (v, t) -> do
-  Shared.assert -< (isNonvoidType t, "Expected a nonvoid type for instanceof")
-  v' <- unbox -< v
-  case (v', t) of
-    (BoolVal _,     BooleanType)  -> returnA -< True
-    (IntVal n,      ByteType)     -> returnA -< n >= -128                 && n < 128                 -- n >= (-2)^7  && n < 2^7
-    (IntVal n,      CharType)     -> returnA -< n >= 0                    && n < 65536               -- n >= 0       && n < 2^16
-    (IntVal n,      ShortType)    -> returnA -< n >= -32768               && n < 32768               -- n >= (-2)^15 && n < 2^15
-    (IntVal n,      IntType)      -> returnA -< n >= -2147483648          && n < 2147483648          -- n >= (-2)^31 && n < 2^31
-    (LongVal l,     LongType)     -> returnA -< l >= -9223372036854775808 && l <= 9223372036854775807 -- l >= (-2)^63 && l < 2^63
-    (FloatVal _,    FloatType)    -> returnA -< True
-    (DoubleVal _,   DoubleType)   -> returnA -< True
-    (NullVal,       NullType)     -> returnA -< True
-    (ObjectVal c _, RefType p)    -> isSuperClass -< (c, p)
-    (ArrayVal xs,   ArrayType t') -> (mapA isInstanceof >>^ all (==True)) -< zip xs (repeat t')
-    (_, _) -> returnA -< False
+      Nothing -> returnA -< BoolVal False
 
 evalIndex :: (CanInterp Env Val c) => c Expr Int
 evalIndex = proc i -> do
@@ -324,21 +249,6 @@ evalInvoke = proc e -> case e of
     runMethod -< (method, Just this, args)
   _ -> failA -< StaticException "Not implemented"
 
-statementsFromLabel :: (CanFail Val c, CanUseReader c) => c String [Statement]
-statementsFromLabel = proc label -> do
-  b <- getCurrentMethodBody -< ()
-  case Label label `elemIndex` (statements b) of
-    Just i -> returnA -< drop i (statements b)
-    Nothing -> failA -< StaticException $ printf "Undefined label: %s" label
-
-matchCases :: (CanFail Val c) => c ([CaseStatement], Int) String
-matchCases = proc (cases, v) -> case cases of
-  ((ConstantCase n, label): cases') -> if v == n
-    then returnA -< label
-    else matchCases -< (cases', v)
-  ((DefaultCase, label): _) -> returnA -< label
-  [] -> failA -< StaticException $ printf "No cases match value %s" (show v)
-
 ---- End of Evaluation Helper Methods ----
 
 ---- Actual Evaluation methods ----
@@ -364,7 +274,7 @@ matchCases = proc (cases, v) -> case cases of
 --     newArray -< (t, ns)
 --   CastExpr t i -> do
 --     v <- eval -< i
---     b <- isInstanceof -< (v, t)
+--     b <- instanceOf -< (v, t)
 --     if b
 --     then do
 --       v' <- unbox -< v
@@ -375,7 +285,7 @@ matchCases = proc (cases, v) -> case cases of
 --     else throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
 --   InstanceOfExpr i t -> do
 --     v <- eval -< i
---     b <- isInstanceof -< (v, t)
+--     b <- instanceOf -< (v, t)
 --     returnA -< BoolVal b
 --   InvokeExpr invokeExpr -> do
 --     v <- tryCatchA evalInvoke (pi2 >>> failA) -< invokeExpr
@@ -449,11 +359,11 @@ matchCases = proc (cases, v) -> case cases of
 --   ClassConstant c -> returnA -< (ClassVal c)
 --   MethodHandle _ -> failA -< StaticException "Evaluation of method handles is not implemented"
 
-getInitializedFields :: (CanFail Val c, CanUseConst c) => c String [(FieldSignature, Val)]
+getInitializedFields :: (UseVal Val c, CanFail Val c, CanUseConst c) => c String [(FieldSignature, Val)]
 getInitializedFields = proc c -> do
   unit <- fetchCompilationUnit -< c
   let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
-  let ownFields = map (\s@(FieldSignature _ t' _) -> (s, defaultValue t')) fieldSignatures
+  ownFields <- mapA (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s, t')) fieldSignatures
   case extends unit of
     Just p -> do
       parentFields <- getInitializedFields -< p
@@ -467,14 +377,14 @@ instance UseVal Val Interp where
         fields <- getInitializedFields -< c
         addr <- alloc -< (ObjectVal c (Map.fromList fields))
         returnA -< RefVal addr
-      _ -> returnA -< defaultValue t
+      _ -> defaultValue -< t
   newArray = proc (t, sizes) -> case sizes of
     (s:sizes') -> do
       s' <- toInt -< s
       vals <- mapA newArray -< replicate s' (t, sizes')
       addr <- alloc -< ArrayVal vals
       returnA -< RefVal addr
-    [] -> returnA -< defaultValue t
+    [] -> defaultValue -< t
   -- and :: c (v,v) v
   -- or :: c (v,v) v
   -- xor :: c (v,v) v
@@ -508,13 +418,13 @@ instance UseVal Val Interp where
     _ -> failA -< StaticException "Expected floating variables for cmpg"
   cmpl = proc (v1,v2) -> case (v1,v2) of
     (FloatVal x1, FloatVal x2)
-      | x1 < x2 -> returnA -< IntVal (-1)
+      | x1 > x2 -> returnA -< IntVal (-1)
       | x1 == x2 -> returnA -< IntVal 0
-      | x1 > x2 -> returnA -< IntVal 1
+      | x1 < x2 -> returnA -< IntVal 1
     (DoubleVal x1, DoubleVal x2)
-      | x1 < x2 -> returnA -< IntVal (-1)
+      | x1 > x2 -> returnA -< IntVal (-1)
       | x1 == x2 -> returnA -< IntVal 0
-      | x1 > x2 -> returnA -< IntVal 1
+      | x1 < x2 -> returnA -< IntVal 1
     _ -> failA -< StaticException "Expected floating variables for cmpl"
   eq = proc (v1, v2) -> returnA -< BoolVal (v1 == v2)
   neq = proc (v1, v2) -> returnA -< BoolVal (v1 /= v2)
@@ -603,142 +513,65 @@ instance UseVal Val Interp where
   nullConstant = arr (\() -> NullVal)
   stringConstant = arr (\x -> StringVal x)
   classConstant = arr (\x -> ClassVal x)
-
-runStatements :: CanInterp Env Val c => c [Statement] (Maybe Val)
-runStatements = proc stmts -> case stmts of
-  [] -> returnA -< Nothing
-  (stmt:rest) -> case stmt of
-    Label _ -> tryCatchA ((\(_:r) -> r) ^>> runStatements) (proc ((Label labelName):stmts, exception) -> do
-      case exception of
-        StaticException _ -> failA -< exception
-        DynamicException val -> do
-          body <- getCurrentMethodBody -< ()
-          val' <- unbox -< val
-          case val' of
-            ObjectVal c _ -> case find (\clause -> className clause == c && fromLabel clause == labelName && (Label (toLabel clause)) `elem` stmts) (catchClauses body) of
-              Just clause -> do
-                env <- getEnv -< ()
-                addr <- alloc -< val
-                env' <- extendEnv -< ("@caughtexception", addr, env)
-                localEnv (statementsFromLabel >>> runStatements) -< (env', withLabel clause)
-              Nothing -> failA -< exception
-            _ -> failA -< exception) -< stmts
-
-    -- Breakpoint
-    Tableswitch immediate cases -> do
-      v <- Shared.eval -< immediate
+  unbox = proc val -> case val of
+    RefVal addr -> do
+      v <- Shared.read' -< addr
       case v of
-        IntVal x ->
-          matchCases >>> statementsFromLabel >>> runStatements -< (cases, x)
-        _ -> failA -< StaticException "Expected an integer as argument for switch"
-    Lookupswitch immediate cases -> do
-      v <- Shared.eval -< immediate
-      case v of
-        IntVal x -> do
-          matchCases >>> statementsFromLabel >>> runStatements -< (cases, x)
-        _ -> failA -< StaticException "Expected an integer as argument for switch"
-    Identity localName e _ -> do
-      addr <- Shared.eval >>> alloc -< e
-      env <- getEnv -< ()
-      env' <- extendEnv -< (localName, addr, env)
-      localEnv runStatements -< (env', rest)
-    IdentityNoType localName e -> do
-      addr <- Shared.eval >>> alloc -< e
-      env <- getEnv -< ()
-      env' <- extendEnv -< (localName, addr, env)
-      localEnv runStatements -< (env', rest)
-    Assign var e -> do
-      v <- Shared.eval -< e
-      case var of
-        LocalVar localName -> do
-          addr <- Shared.lookup' -< localName
-          write -< (addr, v)
-          runStatements -< rest
-        ReferenceVar ref -> case ref of
-          ArrayRef localName index -> do
-            n <- evalIndex -< index
-            (addr, ArrayVal xs) <- fetchArrayWithAddr -< localName
-            if n >= 0 && n < length xs
-            then do
-              let xs' = replace n v xs
-              write -< (addr, ArrayVal xs')
-              runStatements -< rest
-            else failA -< StaticException "ArrayIndexOutOfBoundsException"
-          FieldRef localName fieldSignature -> do
-            (addr, ObjectVal c m) <- fetchObjectWithAddr -< localName
-            case m Map.!? fieldSignature of
-              Just _ -> do
-                let m' = Map.insert fieldSignature v m
-                write -< (addr, ObjectVal c m')
-                runStatements -< rest
-              Nothing -> failA -< StaticException $ printf "FieldSignature %s not defined on object %s: (%s)" (show fieldSignature) (show localName) (show m)
-          SignatureRef fieldSignature -> do
-            (addr, _) <- fetchFieldWithAddr -< fieldSignature
-            write -< (addr, v)
-            runStatements -< rest
-          _ -> failA -< StaticException $ printf "Can only assign a reference or a local variable"
-    If e label -> do
-      v <- Shared.eval -< e
-      case v of
-        BoolVal True -> (statementsFromLabel >>> runStatements) -< label
-        BoolVal False -> runStatements -< rest
-        _ -> failA -< StaticException "Expected a boolean expression for if statement"
-    Goto label -> (statementsFromLabel >>> runStatements) -< label
-    -- Nop
-    Ret e -> case e of
-      Just immediate -> do
-        v <- Shared.eval -< immediate
-        returnA -< Just v
-      Nothing -> returnA -< Nothing
-    Return e -> case e of
-      Just immediate -> do
-        v <- Shared.eval -< immediate
-        returnA -< Just v
-      Nothing -> returnA -< Nothing
-    Throw immediate -> do
-      v <- Shared.eval -< immediate
-      failA -< DynamicException v
-    Invoke e -> do
-      evalInvoke -< e
-      runStatements -< rest
-    _ -> runStatements -< rest
+        ObjectVal c m -> do
+          let (keys, vals) = unzip (Map.toList m)
+          vals' <- mapA unbox -< vals
+          returnA -< ObjectVal c (Map.fromList (zip keys vals'))
+        ArrayVal xs -> do
+          xs' <- mapA unbox -< xs
+          returnA -< ArrayVal xs'
+        _ -> returnA -< v
+    _ -> returnA -< val
+  defaultValue = arr (\t -> case t of
+    BooleanType   -> BoolVal False
+    ByteType      -> IntVal 0
+    CharType      -> IntVal 0
+    ShortType     -> IntVal 0
+    IntType       -> IntVal 0
+    LongType      -> LongVal 0
+    FloatType     -> FloatVal 0.0
+    DoubleType    -> DoubleVal 0.0
+    NullType      -> NullVal
+    (RefType _)   -> NullVal
+    (ArrayType _) -> NullVal
+    _             -> BottomVal)
+  instanceOf = (first unbox) >>> (proc (v, t) -> case (v, t) of
+    (BoolVal _,     BooleanType)  -> returnA -< BoolVal True
+    (IntVal n,      ByteType)     -> returnA -< BoolVal $ n >= -128   && n < 128   -- n >= (-2)^7  && n < 2^7
+    (IntVal n,      CharType)     -> returnA -< BoolVal $ n >= 0      && n < 65536 -- n >= 0       && n < 2^16
+    (IntVal n,      ShortType)    -> returnA -< BoolVal $ n >= -32768 && n < 32768 -- n >= (-2)^15 && n < 2^15
+    (IntVal _,      IntType)      -> returnA -< BoolVal True
+    (LongVal _,     LongType)     -> returnA -< BoolVal True
+    (FloatVal _,    FloatType)    -> returnA -< BoolVal True
+    (DoubleVal _,   DoubleType)   -> returnA -< BoolVal True
+    (NullVal,       NullType)     -> returnA -< BoolVal True
+    (ObjectVal c _, RefType p)    -> isSuperClass -< (c, p)
+    (ArrayVal xs,   ArrayType t') -> do
+      b <- (mapA instanceOf >>^ all (==BoolVal True)) -< zip xs (repeat t')
+      returnA -< BoolVal b
+    (_, _) -> returnA -< BoolVal False)
 
-createMethodEnv :: (CanFail Val c, CanUseMem Env Val c, CanUseState c) => c [(String, Val)] (PointerEnv Env)
-createMethodEnv = proc pairs -> do
-  foldA (proc (env, (s,v)) -> do
-    addr <- alloc -< v
-    extendEnv -< (s, addr, env)) -< (pairs, E.empty)
+instance UseFlow Val String [Statement] (Maybe Val) Interp where
+  if_ f1 f2 = proc (v,(x,y)) -> case v of
+    BoolVal True -> f1 -< x
+    BoolVal False -> f2 -< y
+    _ -> failA -< StaticException "Expected boolean as argument for 'if'"
 
-runMethod :: CanInterp Env Val c => c (Method, Maybe Val, [Expr]) (Maybe Val)
-runMethod = proc (method,this,args) -> do
-  case methodBody method of
-    EmptyBody -> returnA -< Nothing
-    FullBody{declarations=decs,statements=stmts} -> do
-      argVals <- mapA Shared.eval -< args
-      let thisPair = case this of
-            Just x -> [("@this", x)]
-            Nothing -> []
-      let paramPairs = zip (map (\i -> "@parameter" ++ show i) [0..]) argVals
-      let decPairs = concatMap (\(t, d) -> zip d (repeat (defaultValue t))) decs
-      env <- createMethodEnv -< thisPair ++ paramPairs ++ decPairs
-      localEnv (localA runStatements) -< (env, (method, stmts))
+instance UseCatch Val (Maybe Val) Interp where
+  catch f = proc (v,clauses) -> case clauses of
+    [] -> failA -< DynamicException v
+    (clause:rest) -> do
+      b <- instanceOf -< (v, RefType (className clause))
+      case b of
+        BoolVal True -> f -< (clause,v)
+        BoolVal False -> catch f -< (v,rest)
+        _ -> failA -< StaticException "Expected a boolean from instanceOf"
 
-runProgram :: CanInterp Env Val c => c [Expr] (Maybe Val)
-runProgram = proc args -> do
-  (units,_) <- askConst -< ()
-  mapA (proc unit -> do
-    let getMethod :: Member -> [Method]
-        getMethod (MethodMember m) = [m]
-        getMethod _ = []
-        getMethods members = concatMap getMethod members
-    case find (\m -> methodName m == "<clinit>") $ getMethods (fileBody unit) of
-      Just classInitMethod -> runMethod -< (classInitMethod, Nothing, [])
-      Nothing -> returnA -< Nothing) -< Map.elems units
-  mainMethod <- askA -< ()
-  tryCatchA runMethod (pi2 >>> proc exception -> case exception of
-    DynamicException v -> do
-      v' <- unbox -< v
-      failA -< DynamicException v'
-    StaticException _ -> failA -< exception) -< (mainMethod, Nothing, args)
+instance UseMem Env Interp where
+  emptyEnv = arr (\() -> E.empty)
 
 ---- End of Actual Evaluation methods ----

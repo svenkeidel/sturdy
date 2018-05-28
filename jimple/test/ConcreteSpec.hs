@@ -66,14 +66,14 @@ spec = do
     it "8 / 0" $ do
       let expr = BinopExpr (IntConstant 8) Div (IntConstant 0)
       evalConcrete env store expr `shouldBe` Fail (DynamicException (RefVal 0))
-    it "3 < 3.5" $ do
-      let expr = BinopExpr (IntConstant 3) Cmplt (FloatConstant 3.5)
+    it "3 < 4" $ do
+      let expr = BinopExpr (IntConstant 3) Cmplt (IntConstant 4)
       evalConcrete env store expr `shouldBe` Success (BoolVal True)
     it "3 != 'three'" $ do
       let expr = BinopExpr (IntConstant 3) Cmpne (StringConstant "three")
       evalConcrete env store expr `shouldBe` Success (BoolVal True)
-    it "3 % 2.5" $ do
-      let expr = BinopExpr (IntConstant 3) Mod (FloatConstant 2.5)
+    it "3.0 % 2.5" $ do
+      let expr = BinopExpr (FloatConstant 3.0) Mod (FloatConstant 2.5)
       evalConcrete env store expr `shouldBe` Success (FloatVal 0.5)
     it "new boolean" $ do
       let expr = NewExpr BooleanType
@@ -93,7 +93,7 @@ spec = do
   describe "Simple Statements" $ do
     it "i0 = 2 + 3; return i0;" $ do
       let nv = [("i0", 1)]
-      let st = [(1, defaultValue IntType)]
+      let st = [(1, IntVal 0)]
       let stmts = [Assign (LocalVar "i0") (BinopExpr (IntConstant 2) Plus (IntConstant 3)),
                    Return (Just (Local "i0"))]
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (IntVal 5))
@@ -104,9 +104,9 @@ spec = do
       let nv = [("s", 0),
                 ("xs", 1),
                 ("y", 2)]
-      let st = [(0, defaultValue IntType),
-                (1, defaultValue (ArrayType IntType)),
-                (2, defaultValue IntType)]
+      let st = [(0, IntVal 0),
+                (1, NullVal),
+                (2, IntVal 0)]
       let stmts = [Assign (LocalVar "s") (IntConstant 2),
                    Assign (LocalVar "xs") (NewArrayExpr IntType (Local "s")),
                    Assign (LocalVar "y") (UnopExpr Lengthof (Local "xs")),
@@ -146,8 +146,8 @@ spec = do
                 ("f0",          1),
                 ("f1",          2)]
       let st = [(0, FloatVal 2.0),
-                (1, defaultValue FloatType),
-                (2, defaultValue FloatType)]
+                (1, FloatVal 0.0),
+                (2, FloatVal 0.0)]
       let stmts = [Identity "f0" (ParameterRef 0) FloatType,
                    Assign (LocalVar "f1") (BinopExpr (Local "f0") Mult (IntConstant 2)),
                    Return (Just (Local "f1"))]

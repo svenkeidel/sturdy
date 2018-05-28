@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -13,6 +14,7 @@ module Shared where
 
 import           Prelude hiding (lookup,read,mod,rem,div)
 
+import           Data.List (find,elemIndex)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -58,6 +60,9 @@ type CanCatch e x y c = ArrowTryCatch e x (Maybe y) c
 type CanUseMem env v c = (CanUseEnv env c, CanUseStore v c)
 
 type CanInterp env v c = (UseVal v c,
+                          UseFlow v String [Statement] (Maybe v) c,
+                          UseMem env c,
+                          UseCatch v (Maybe v) c,
                           CanFail v c,
                           CanUseMem env v c,
                           CanUseConst c,
@@ -80,6 +85,20 @@ read' = proc x -> do
   case v of
     Just y -> returnA -< y
     Nothing -> failA -< StaticException $ printf "Address %s not bounded" (show x)
+
+alloc :: (UseVal v c, CanUseState c, CanUseStore v c) => c v Addr
+alloc = proc val -> do
+  addr <- getA -< ()
+  write -< (addr, val)
+  putA -< succ addr
+  returnA -< addr
+
+lookupField :: (UseVal v c, CanFail v c, CanUseConst c) => c FieldSignature Addr
+lookupField = proc x -> do
+  (_,fields) <- askConst -< ()
+  case Map.lookup x fields of
+    Just addr -> returnA -< addr
+    Nothing -> failA -< StaticException $ printf "Field %s not bounded" (show x)
 
 assert :: (CanFail v c) => c (Bool, String) ()
 assert = proc (prop, msg) -> if prop
@@ -130,9 +149,7 @@ eval = proc e -> case e of
   --   case Map.lookup fieldSignature m of
   --     Just x -> returnA -< x
   --     Nothing -> failA -< StringVal $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
-  -- SignatureRef fieldSignature -> do
-  --   (_, val) <- fetchFieldWithAddr -< fieldSignature
-  --   returnA -< val
+  SignatureRef fieldSignature -> lookupField >>> read' -< fieldSignature
   BinopExpr i1 op i2 -> do
     v1 <- eval -< i1
     v2 <- eval -< i2
@@ -177,6 +194,154 @@ eval = proc e -> case e of
   MethodHandle _ -> failA -< StaticException "Evaluation of method handles is not implemented"
   _ -> failA -< StaticException "Not implemented"
 
+currentMethodBody :: (UseVal v c, CanFail v c, CanUseReader c) => c () MethodBody
+currentMethodBody = proc () -> do
+  m <- askA -< ()
+  case methodBody m of
+    EmptyBody -> failA -< StaticException $ printf "Empty body for method %s" (show m)
+    FullBody{} -> returnA -< methodBody m
+
+statementsFromLabel :: (UseVal v c, CanFail v c, CanUseReader c) => c String [Statement]
+statementsFromLabel = proc label -> do
+  b <- currentMethodBody -< ()
+  case Label label `elemIndex` (statements b) of
+    Just i -> returnA -< drop i (statements b)
+    Nothing -> failA -< StaticException $ printf "Undefined label: %s" label
+
+matchCases :: (UseVal v c, CanFail v c) => c ([CaseStatement], Int) String
+matchCases = proc (cases, v) -> case cases of
+  ((ConstantCase n, label): cases') -> if v == n
+    then returnA -< label
+    else matchCases -< (cases', v)
+  ((DefaultCase, label): _) -> returnA -< label
+  [] -> failA -< StaticException $ printf "No cases match value %s" (show v)
+
+runStatements :: CanInterp e v c => c [Statement] (Maybe v)
+runStatements = proc stmts -> case stmts of
+  [] -> returnA -< Nothing
+  (stmt:rest) -> case stmt of
+    Label _ -> tryCatchA ((\(_:r) -> r) ^>> runStatements) (proc ((Label labelName):stmts, exception) -> do
+      case exception of
+        StaticException _ -> failA -< exception
+        DynamicException val -> do
+          body <- currentMethodBody -< ()
+          let clauses = filter (\clause -> fromLabel clause == labelName && (Label (toLabel clause)) `elem` stmts) (catchClauses body)
+          catch (proc (clause,val) -> do
+            env <- getEnv -< ()
+            addr <- alloc -< val
+            env' <- extendEnv -< ("@caughtexception", addr, env)
+            localEnv (statementsFromLabel >>> runStatements) -< (env',withLabel clause)) -< (val, clauses)) -< stmts
+    -- Tableswitch immediate cases -> do
+    --   v <- eval -< immediate
+    --   case v of
+    --     IntVal x ->
+    --       matchCases >>> statementsFromLabel >>> runStatements -< (cases, x)
+    --     _ -> failA -< StaticException "Expected an integer as argument for switch"
+    -- Lookupswitch immediate cases -> do
+    --   v <- eval -< immediate
+    --   case v of
+    --     IntVal x -> do
+    --       matchCases >>> statementsFromLabel >>> runStatements -< (cases, x)
+    --     _ -> failA -< StaticException "Expected an integer as argument for switch"
+    Identity localName e _ -> do
+      addr <- eval >>> alloc -< e
+      env <- getEnv -< ()
+      env' <- extendEnv -< (localName, addr, env)
+      localEnv runStatements -< (env', rest)
+    IdentityNoType localName e -> do
+      addr <- eval >>> alloc -< e
+      env <- getEnv -< ()
+      env' <- extendEnv -< (localName, addr, env)
+      localEnv runStatements -< (env', rest)
+    Assign var e -> do
+      v <- eval -< e
+      case var of
+        LocalVar localName -> do
+          addr <- lookup' -< localName
+          write -< (addr, v)
+          runStatements -< rest
+        ReferenceVar ref -> case ref of
+          -- ArrayRef localName index -> do
+          --   n <- evalIndex -< index
+          --   (addr, ArrayVal xs) <- fetchArrayWithAddr -< localName
+          --   if n >= 0 && n < length xs
+          --   then do
+          --     let xs' = replace n v xs
+          --     write -< (addr, ArrayVal xs')
+          --     runStatements -< rest
+          --   else failA -< StaticException "ArrayIndexOutOfBoundsException"
+          -- FieldRef localName fieldSignature -> do
+          --   (addr, ObjectVal c m) <- fetchObjectWithAddr -< localName
+          --   case m Map.!? fieldSignature of
+          --     Just _ -> do
+          --       let m' = Map.insert fieldSignature v m
+          --       write -< (addr, ObjectVal c m')
+          --       runStatements -< rest
+          --     Nothing -> failA -< StaticException $ printf "FieldSignature %s not defined on object %s: (%s)" (show fieldSignature) (show localName) (show m)
+          SignatureRef fieldSignature -> do
+            addr <- lookupField -< fieldSignature
+            write -< (addr, v)
+            runStatements -< rest
+          _ -> failA -< StaticException $ printf "Can only assign a reference or a local variable"
+    If e label -> do
+      v <- eval -< e
+      if_ (statementsFromLabel >>> runStatements) runStatements -< (v, (label, rest))
+    Goto label -> (statementsFromLabel >>> runStatements) -< label
+    -- -- Nop
+    Ret e -> case e of
+      Just immediate -> eval >>^ (\v -> Just v) -< immediate
+      Nothing -> returnA -< Nothing
+    Return e -> case e of
+      Just immediate -> eval >>^ (\v -> Just v) -< immediate
+      Nothing -> returnA -< Nothing
+    -- Throw immediate -> do
+    --   v <- eval -< immediate
+    --   failA -< DynamicException v
+    -- Invoke e -> do
+    --   evalInvoke -< e
+    --   runStatements -< rest
+    _ -> runStatements -< rest
+
+createMethodEnv :: (UseVal v c, UseMem e c, CanFail v c, CanUseMem e v c, CanUseState c) => c [(String, v)] (PointerEnv e)
+createMethodEnv = proc pairs -> do
+  e <- emptyEnv -< ()
+  foldA (proc (env, (s,v)) -> do
+    addr <- alloc -< v
+    extendEnv -< (s, addr, env)) -< (pairs, e)
+
+runMethod :: CanInterp e v c => c (Method, Maybe v, [Expr]) (Maybe v)
+runMethod = proc (method,this,args) -> do
+  case methodBody method of
+    EmptyBody -> returnA -< Nothing
+    FullBody{declarations=decs,statements=stmts} -> do
+      argVals <- mapA eval -< args
+      let thisPair = case this of
+            Just x -> [("@this", x)]
+            Nothing -> []
+      let paramPairs = zip (map (\i -> "@parameter" ++ show i) [0..]) argVals
+      decPairs <- mapA (second defaultValue) -< concatMap (\(t, d) -> zip d (repeat t)) decs
+      env <- createMethodEnv -< thisPair ++ paramPairs ++ decPairs
+      localEnv (localA runStatements) -< (env, (method, stmts))
+
+runProgram :: CanInterp e v c => c [Expr] (Maybe v)
+runProgram = proc args -> do
+  (units,fields) <- askConst -< ()
+  mapA ((second defaultValue) >>> write) -< map (\(FieldSignature _ t _,a) -> (a,t)) (Map.toList fields)
+  mapA (proc unit -> do
+    let getMethod :: Member -> [Method]
+        getMethod (MethodMember m) = [m]
+        getMethod _ = []
+        getMethods members = concatMap getMethod members
+    case find (\m -> methodName m == "<clinit>") $ getMethods (fileBody unit) of
+      Just classInitMethod -> runMethod -< (classInitMethod, Nothing, [])
+      Nothing -> returnA -< Nothing) -< Map.elems units
+  mainMethod <- askA -< ()
+  tryCatchA runMethod (pi2 >>> proc exception -> case exception of
+    DynamicException v -> do
+      v' <- unbox -< v
+      failA -< DynamicException v'
+    StaticException _ -> failA -< exception) -< (mainMethod, Nothing, args)
+
 class Arrow c => UseVal v c | c -> v where
   doubleConstant :: c Float v
   floatConstant :: c Float v
@@ -210,3 +375,15 @@ class Arrow c => UseVal v c | c -> v where
   div :: c (v,v) v
   lengthOf :: c v v
   neg :: c v v
+  unbox :: c v v
+  defaultValue :: c Type v
+  instanceOf :: c (v,Type) v
+
+class Arrow c => UseFlow v x y z c | c -> v where
+  if_ :: c x z -> c y z -> c (v,(x,y)) z
+
+class Arrow c => UseCatch v y c | c -> v y where
+  catch :: c (CatchClause, v) y -> c (v,[CatchClause]) y
+
+class Arrow c => UseMem e c | c -> e where
+  emptyEnv :: c () (PointerEnv e)
