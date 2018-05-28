@@ -72,26 +72,12 @@ type CanInterp env v c = (UseVal v c,
                           CanCatch (Exception v) [Statement] v c,
                           CanCatch (Exception v) (Method, Maybe v, [Expr]) v c)
 
-lookup' :: (Show name, CanFail val c, ArrowMaybeEnv name addr env c) => c name addr
-lookup' = proc x -> do
+lookupLocal :: (Show name, CanFail val c, ArrowMaybeEnv name addr env c) => c name addr
+lookupLocal = proc x -> do
   v <- lookup -< x
   case v of
     Just y -> returnA -< y
     Nothing -> failA -< StaticException $ printf "Variable %s not bounded" (show x)
-
-read' :: (Show var, CanFail val c, ArrowMaybeStore var val c) => c var val
-read' = proc x -> do
-  v <- read -< x
-  case v of
-    Just y -> returnA -< y
-    Nothing -> failA -< StaticException $ printf "Address %s not bounded" (show x)
-
-alloc :: (UseVal v c, CanUseState c, CanUseStore v c) => c v Addr
-alloc = proc val -> do
-  addr <- getA -< ()
-  write -< (addr, val)
-  putA -< succ addr
-  returnA -< addr
 
 lookupField :: (UseVal v c, CanFail v c, CanUseConst c) => c FieldSignature Addr
 lookupField = proc x -> do
@@ -100,10 +86,63 @@ lookupField = proc x -> do
     Just addr -> returnA -< addr
     Nothing -> failA -< StaticException $ printf "Field %s not bounded" (show x)
 
+readVar :: (Show var, CanFail val c, ArrowMaybeStore var val c) => c var val
+readVar = proc x -> do
+  v <- read -< x
+  case v of
+    Just y -> returnA -< y
+    Nothing -> failA -< StaticException $ printf "Address %s not bounded" (show x)
+
+readCompilationUnit :: (CanFail v c, CanUseConst c) => c String CompilationUnit
+readCompilationUnit = proc n -> do
+  (compilationUnits, _) <- askConst -< ()
+  case Map.lookup n compilationUnits of
+    Just x -> returnA -< x
+    Nothing -> failA -< StaticException $ printf "CompilationUnit %s not loaded" (show n)
+
+matchesSignature :: Type -> String -> [Type] -> Member -> Bool
+matchesSignature retType n argTypes (MethodMember m) =
+  methodName m == n && returnType m == retType && parameters m == argTypes
+matchesSignature _ _ _ _ = False
+
+readMethod :: (CanFail v c, CanUseConst c) => c MethodSignature Method
+readMethod = proc (MethodSignature c retType n argTypes) -> do
+  unit <- readCompilationUnit -< c
+  case find (matchesSignature retType n argTypes) (fileBody unit) of
+    Just (MethodMember m) -> returnA -< m
+    _ -> failA -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
+
+
+alloc :: (UseVal v c, CanUseState c, CanUseStore v c) => c v Addr
+alloc = proc val -> do
+  addr <- getA -< ()
+  write -< (addr, val)
+  putA -< succ addr
+  returnA -< addr
+
 assert :: (CanFail v c) => c (Bool, String) ()
 assert = proc (prop, msg) -> if prop
   then returnA -< ()
   else failA -< StaticException msg
+
+evalInvoke :: CanInterp e v c => c EInvoke (Maybe v)
+evalInvoke =
+  let ev = proc (localName,methodSignature,args) -> do
+        method <- readMethod -< methodSignature
+        case localName of
+          Just n -> do
+            assert -< (Static `notElem` methodModifiers method, "Expected a non-static method for non-static invoke")
+            this <- lookupLocal >>> readVar -< n
+            runMethod -< (method,Just this,args)
+          Nothing -> do
+            assert -< (Static `elem` methodModifiers method, "Expected a static method for static invoke")
+            runMethod -< (method,Nothing,args)
+  in proc e -> case e of
+    SpecialInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
+    VirtualInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
+    InterfaceInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
+    StaticInvoke methodSignature args -> ev -< (Nothing,methodSignature,args)
+    DynamicInvoke _ _ _ _ _ -> failA -< StaticException "DynamicInvoke is not implemented"
 
 eval :: CanInterp e v c => c Expr v
 eval = proc e -> case e of
@@ -129,15 +168,12 @@ eval = proc e -> case e of
   --       _ -> failA -< StringVal "Casting of primivites and arrays is not yet supported"
   --       -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
   --   else throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
-  -- InstanceOfExpr i t -> do
-  --   v <- eval -< i
-  --   b <- isInstanceof -< (v, t)
-  --   returnA -< BoolVal b
-  -- InvokeExpr invokeExpr -> do
-  --   v <- tryCatchA evalInvoke (pi2 >>> failA) -< invokeExpr
-  --   case v of
-  --     Just v' -> returnA -< v'
-  --     Nothing -> failA -< StringVal "Method returned nothing"
+  InstanceOfExpr i t -> (first eval) >>> instanceOf -< (i,t)
+  InvokeExpr invokeExpr -> do
+    v <- tryCatchA evalInvoke (pi2 >>> failA) -< invokeExpr
+    case v of
+      Just v' -> returnA -< v'
+      Nothing -> failA -< StaticException "Method returned nothing"
   -- ArrayRef localName i -> do
   --   n <- evalIndex -< i
   --   (_, ArrayVal xs) <- fetchArrayWithAddr -< localName
@@ -149,7 +185,7 @@ eval = proc e -> case e of
   --   case Map.lookup fieldSignature m of
   --     Just x -> returnA -< x
   --     Nothing -> failA -< StringVal $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
-  SignatureRef fieldSignature -> lookupField >>> read' -< fieldSignature
+  SignatureRef fieldSignature -> lookupField >>> readVar -< fieldSignature
   BinopExpr i1 op i2 -> do
     v1 <- eval -< i1
     v2 <- eval -< i2
@@ -183,7 +219,7 @@ eval = proc e -> case e of
   ThisRef -> eval -< (Local "@this")
   ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
   CaughtExceptionRef -> eval -< (Local "@caughtexception")
-  Local localName -> lookup' >>> read' -< localName
+  Local localName -> lookupLocal >>> readVar -< localName
   DoubleConstant f -> doubleConstant -< f
   FloatConstant f -> floatConstant -< f
   IntConstant n -> intConstant -< n
@@ -257,7 +293,7 @@ runStatements = proc stmts -> case stmts of
       v <- eval -< e
       case var of
         LocalVar localName -> do
-          addr <- lookup' -< localName
+          addr <- lookupLocal -< localName
           write -< (addr, v)
           runStatements -< rest
         ReferenceVar ref -> case ref of
@@ -294,12 +330,12 @@ runStatements = proc stmts -> case stmts of
     Return e -> case e of
       Just immediate -> eval >>^ (\v -> Just v) -< immediate
       Nothing -> returnA -< Nothing
-    -- Throw immediate -> do
-    --   v <- eval -< immediate
-    --   failA -< DynamicException v
-    -- Invoke e -> do
-    --   evalInvoke -< e
-    --   runStatements -< rest
+    Throw immediate -> do
+      v <- eval -< immediate
+      failA -< DynamicException v
+    Invoke e -> do
+      evalInvoke -< e
+      runStatements -< rest
     _ -> runStatements -< rest
 
 createMethodEnv :: (UseVal v c, UseMem e c, CanFail v c, CanUseMem e v c, CanUseState c) => c [(String, v)] (PointerEnv e)

@@ -155,33 +155,14 @@ unboxMaybe = proc val -> case val of
   Nothing -> returnA -< Nothing
 
 fetchLocal :: (CanFail Val c, CanUseMem Env Val c) => c String Val
-fetchLocal = Shared.lookup' >>> Shared.read'
-
-fetchCompilationUnit :: (CanFail Val c, CanUseConst c) => c String CompilationUnit
-fetchCompilationUnit = proc n -> do
-  (compilationUnits, _) <- askConst -< ()
-  case Map.lookup n compilationUnits of
-    Just x -> returnA -< x
-    Nothing -> failA -< StaticException $ printf "CompilationUnit %s not loaded" (show n)
-
-matchesSignature :: Type -> String -> [Type] -> Member -> Bool
-matchesSignature retType n argTypes (MethodMember m) =
-  methodName m == n && returnType m == retType && parameters m == argTypes
-matchesSignature _ _ _ _ = False
-
-fetchMethod :: (CanFail Val c, CanUseConst c) => c MethodSignature Method
-fetchMethod = proc (MethodSignature c retType n argTypes) -> do
-  unit <- fetchCompilationUnit -< c
-  case find (matchesSignature retType n argTypes) (fileBody unit) of
-    Just (MethodMember m) -> returnA -< m
-    _ -> failA -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
+fetchLocal = Shared.lookupLocal >>> Shared.readVar
 
 fetchRefValWithAddr :: (CanFail Val c, CanUseMem Env Val c) => c String (Addr, Val)
 fetchRefValWithAddr = proc localName -> do
   v <- fetchLocal -< localName
   case v of
     RefVal addr -> do
-      v' <- Shared.read' -< addr
+      v' <- Shared.readVar -< addr
       returnA -< (addr, v')
     _ -> failA -< StaticException $ printf "Variable %s is not a reference" (show localName)
 
@@ -202,7 +183,7 @@ fetchObjectWithAddr = proc localName -> do
 throw :: CanInterp Env Val c => c (String, String) Val
 throw = proc (clzz, message) -> do
   (RefVal addr) <- newSimple -< RefType clzz
-  v <- Shared.read' -< addr
+  v <- Shared.readVar -< addr
   case v of
     ObjectVal c m -> do
       let m' = Map.insert (FieldSignature clzz (RefType "String") "message") (StringVal message) m
@@ -218,7 +199,7 @@ isSuperClass :: (CanFail Val c, CanUseConst c) => c (String, String) Val
 isSuperClass = proc (c, p) -> if c == p
   then returnA -< BoolVal True
   else do
-    unit <- fetchCompilationUnit -< c
+    unit <- Shared.readCompilationUnit -< c
     case extends unit of
       Just c' -> isSuperClass -< (c', p)
       Nothing -> returnA -< BoolVal False
@@ -230,24 +211,6 @@ evalIndex = proc i -> do
     IntVal n -> returnA -< n
     LongVal l -> returnA -< l
     _ -> failA -< StaticException "Expected an integer array index"
-
-evalInvoke :: CanInterp Env Val c => c EInvoke (Maybe Val)
-evalInvoke = proc e -> case e of
-  StaticInvoke methodSignature args -> do
-    method <- fetchMethod -< methodSignature
-    Shared.assert -< (Static `elem` methodModifiers method, "Expected a static method for static invoke")
-    runMethod -< (method, Nothing, args)
-  VirtualInvoke localName methodSignature args -> do
-    method <- fetchMethod -< methodSignature
-    Shared.assert -< (Static `notElem` methodModifiers method, "Expected a non-static method for static invoke")
-    this <- fetchLocal -< localName
-    runMethod -< (method, Just this, args)
-  SpecialInvoke localName methodSignature args -> do
-    method <- fetchMethod -< methodSignature
-    Shared.assert -< (Static `notElem` methodModifiers method, "Expected a non-static method for static invoke")
-    this <- fetchLocal -< localName
-    runMethod -< (method, Just this, args)
-  _ -> failA -< StaticException "Not implemented"
 
 ---- End of Evaluation Helper Methods ----
 
@@ -361,7 +324,7 @@ evalInvoke = proc e -> case e of
 
 getInitializedFields :: (UseVal Val c, CanFail Val c, CanUseConst c) => c String [(FieldSignature, Val)]
 getInitializedFields = proc c -> do
-  unit <- fetchCompilationUnit -< c
+  unit <- Shared.readCompilationUnit -< c
   let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
   ownFields <- mapA (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s, t')) fieldSignatures
   case extends unit of
@@ -515,7 +478,7 @@ instance UseVal Val Interp where
   classConstant = arr (\x -> ClassVal x)
   unbox = proc val -> case val of
     RefVal addr -> do
-      v <- Shared.read' -< addr
+      v <- Shared.readVar -< addr
       case v of
         ObjectVal c m -> do
           let (keys, vals) = unzip (Map.toList m)
