@@ -60,9 +60,8 @@ type CanCatch e x y c = ArrowTryCatch e x (Maybe y) c
 type CanUseMem env v c = (CanUseEnv env c, CanUseStore v c)
 
 type CanInterp env v c = (UseVal v c,
-                          UseFlow v String [Statement] (Maybe v) c,
+                          UseFlow v c,
                           UseMem env c,
-                          UseCatch v (Maybe v) c,
                           CanFail v c,
                           CanUseMem env v c,
                           CanUseConst c,
@@ -244,13 +243,8 @@ statementsFromLabel = proc label -> do
     Just i -> returnA -< drop i (statements b)
     Nothing -> failA -< StaticException $ printf "Undefined label: %s" label
 
-matchCases :: (UseVal v c, CanFail v c) => c ([CaseStatement], Int) String
-matchCases = proc (cases, v) -> case cases of
-  ((ConstantCase n, label): cases') -> if v == n
-    then returnA -< label
-    else matchCases -< (cases', v)
-  ((DefaultCase, label): _) -> returnA -< label
-  [] -> failA -< StaticException $ printf "No cases match value %s" (show v)
+runCases :: CanInterp e v c => c (v,[CaseStatement]) (Maybe v)
+runCases = case_ (statementsFromLabel >>> runStatements)
 
 runStatements :: CanInterp e v c => c [Statement] (Maybe v)
 runStatements = proc stmts -> case stmts of
@@ -267,18 +261,8 @@ runStatements = proc stmts -> case stmts of
             addr <- alloc -< val
             env' <- extendEnv -< ("@caughtexception", addr, env)
             localEnv (statementsFromLabel >>> runStatements) -< (env',withLabel clause)) -< (val, clauses)) -< stmts
-    -- Tableswitch immediate cases -> do
-    --   v <- eval -< immediate
-    --   case v of
-    --     IntVal x ->
-    --       matchCases >>> statementsFromLabel >>> runStatements -< (cases, x)
-    --     _ -> failA -< StaticException "Expected an integer as argument for switch"
-    -- Lookupswitch immediate cases -> do
-    --   v <- eval -< immediate
-    --   case v of
-    --     IntVal x -> do
-    --       matchCases >>> statementsFromLabel >>> runStatements -< (cases, x)
-    --     _ -> failA -< StaticException "Expected an integer as argument for switch"
+    Tableswitch e cases -> (first eval) >>> runCases -< (e, cases)
+    Lookupswitch e cases -> (first eval) >>> runCases -< (e, cases)
     Identity localName e _ -> do
       addr <- eval >>> alloc -< e
       env <- getEnv -< ()
@@ -415,11 +399,10 @@ class Arrow c => UseVal v c | c -> v where
   defaultValue :: c Type v
   instanceOf :: c (v,Type) v
 
-class Arrow c => UseFlow v x y z c | c -> v where
-  if_ :: c x z -> c y z -> c (v,(x,y)) z
-
-class Arrow c => UseCatch v y c | c -> v y where
-  catch :: c (CatchClause, v) y -> c (v,[CatchClause]) y
+class Arrow c => UseFlow v c | c -> v where
+  if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c (v,(String,[Statement])) (Maybe v)
+  case_ :: c String (Maybe v) -> c (v,[CaseStatement]) (Maybe v)
+  catch :: c (CatchClause, v) (Maybe v) -> c (v,[CatchClause]) (Maybe v)
 
 class Arrow c => UseMem e c | c -> e where
   emptyEnv :: c () (PointerEnv e)

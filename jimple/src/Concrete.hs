@@ -518,13 +518,23 @@ instance UseVal Val Interp where
       returnA -< BoolVal b
     (_, _) -> returnA -< BoolVal False)
 
-instance UseFlow Val String [Statement] (Maybe Val) Interp where
+instance UseFlow Val Interp where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
     _ -> failA -< StaticException "Expected boolean as argument for 'if'"
 
-instance UseCatch Val (Maybe Val) Interp where
+  case_ f =
+    let matchCases = proc (x,cases) -> case cases of
+          [] -> failA -< StaticException $ printf "No cases match value %s" (show x)
+          ((ConstantCase n, label): rest) -> if n == x
+            then returnA -< label
+            else matchCases -< (x,rest)
+          ((DefaultCase, label): _) -> returnA -< label
+    in proc (v,cases) -> case v of
+      IntVal x -> matchCases >>> f -< (x,cases)
+      _ -> failA -< StaticException "Expected an integer as argument for switch"
+
   catch f = proc (v,clauses) -> case clauses of
     [] -> failA -< DynamicException v
     (clause:rest) -> do
