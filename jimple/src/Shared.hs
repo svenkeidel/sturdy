@@ -111,7 +111,6 @@ readMethod = proc (MethodSignature c retType n argTypes) -> do
     Just (MethodMember m) -> returnA -< m
     _ -> failA -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
 
-
 alloc :: (UseVal v c, CanUseState c, CanUseStore v c) => c v Addr
 alloc = proc val -> do
   addr <- getA -< ()
@@ -267,20 +266,13 @@ runStatements = proc stmts -> case stmts of
     Assign var e -> do
       v <- eval -< e
       case var of
-        LocalVar localName -> do
-          addr <- lookupLocal -< localName
-          write -< (addr, v)
+        LocalVar l -> do
+          (first lookupLocal) >>> write -< (l,v)
           runStatements -< rest
         ReferenceVar ref -> case ref of
-          -- ArrayRef localName index -> do
-          --   n <- evalIndex -< index
-          --   (addr, ArrayVal xs) <- fetchArrayWithAddr -< localName
-          --   if n >= 0 && n < length xs
-          --   then do
-          --     let xs' = replace n v xs
-          --     write -< (addr, ArrayVal xs')
-          --     runStatements -< rest
-          --   else failA -< StaticException "ArrayIndexOutOfBoundsException"
+          ArrayRef l i -> do
+            (first ((lookupLocal >>> readVar) *** eval)) >>> updateIndex -< ((l,i),v)
+            runStatements -< rest
           FieldRef l f -> do
             (first (lookupLocal >>> readVar)) >>> updateField -< (l,(f,v))
             runStatements -< rest
@@ -384,7 +376,7 @@ class Arrow c => UseVal v c | c -> v where
   defaultValue :: c Type v
   instanceOf :: c (v,Type) v
   readIndex :: c (v,v) v
-  updateIndex :: c (v,(v,v)) ()
+  updateIndex :: c ((v,v),v) ()
   readField :: c (v,FieldSignature) v
   updateField :: c (v,(FieldSignature,v)) ()
 

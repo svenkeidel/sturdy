@@ -526,6 +526,13 @@ instance UseVal Val Interp where
     (ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
       then returnA -< xs !! n
       else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
+    (ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
+    _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
+  updateIndex = (first (first (id &&& unbox1))) >>> proc (((ref,a),i),v) -> case (ref,a,i) of
+    (RefVal addr,ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
+      then write -< (addr, ArrayVal (replace n v xs))
+      else voidA throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
+    (RefVal _,ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
     _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
   readField = (first unbox1) >>> proc (v,f) -> case v of
     (ObjectVal _ m) -> case Map.lookup f m of
