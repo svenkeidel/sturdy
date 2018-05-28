@@ -8,7 +8,7 @@ import Control.Monad.State
 import Data.Text (Text)
 import Data.Label
 
-import PCF
+import Syntax
 import Test.Hspec
 
 sharedSpec :: (Show v, Eq v) => ([(Text,v)] -> State Label Expr -> Either String v) -> (Int -> v)-> Spec

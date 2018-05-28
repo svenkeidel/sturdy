@@ -12,6 +12,7 @@ import Prelude hiding ((.))
 
 import Control.Arrow
 import Control.Arrow.Fail
+import Control.Arrow.Except
 import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
@@ -21,7 +22,6 @@ import Control.Arrow.Transformer.State
 import Control.Arrow.Utils
 import Control.Category
 
-import Data.Concrete.Error
 import Data.Concrete.Store (Store)
 import qualified Data.Concrete.Store as S
 import Data.Identifiable
@@ -50,8 +50,8 @@ instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c) =>
   ArrowStore var val lab (StoreArrow var val c) where
   read =
     StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
-      Success v -> returnA -< (s,v)
-      Fail _ -> failA -< printf "Variable %s not bound" (show var)
+      Just v -> returnA -< (s,v)
+      Nothing -> failA -< printf "Variable %s not bound" (show var)
   write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
@@ -63,6 +63,7 @@ deriving instance Arrow c => Arrow (StoreArrow var val c)
 deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)
 deriving instance ArrowReader r c => ArrowReader r (StoreArrow var val c)
 deriving instance ArrowFail e c => ArrowFail e (StoreArrow var val c)
+deriving instance ArrowExcept (Store var val,x) (Store var val,y) e c => ArrowExcept x y e (StoreArrow var val c)
 
 type instance Fix x y (StoreArrow var val c) = StoreArrow var val (Fix (Store var val,x) (Store var val,y) c)
 deriving instance ArrowFix (Store var val, x) (Store var val, y) c => ArrowFix x y (StoreArrow var val c)

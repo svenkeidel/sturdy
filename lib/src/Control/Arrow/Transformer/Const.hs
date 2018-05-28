@@ -14,6 +14,7 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Environment
 import Control.Arrow.Fail
+import Control.Arrow.Except
 import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
@@ -49,9 +50,10 @@ deriving instance ArrowLoop c => ArrowLoop (Const r c)
 deriving instance ArrowState s c => ArrowState s (Const r c)
 deriving instance ArrowReader r c => ArrowReader r (Const r' c)
 deriving instance ArrowWriter w c => ArrowWriter w (Const r c)
-deriving instance ArrowFail e c => ArrowFail e (Const r c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (Const r c)
 deriving instance ArrowStore var val lab c => ArrowStore var val lab (Const r c)
+deriving instance ArrowFail e c => ArrowFail e (Const r c)
+deriving instance ArrowExcept x y e c => ArrowExcept x y e (Const r c)
 
 deriving instance PreOrd (c x y) => PreOrd (Const r c x y)
 deriving instance Complete (c x y) => Complete (Const r c x y)

@@ -12,13 +12,12 @@ import Prelude hiding (id,(.),lookup)
 import Control.Arrow
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
-import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
-import Control.Arrow.Try
+import Control.Arrow.Except
 import Control.Category
 
 import Data.Concrete.Error
@@ -70,16 +69,12 @@ type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fixA f = Except (fixA (runExcept . f . Except))
 
-instance ArrowChoice c => ArrowTry x y z (Except e c) where
-  tryA (Except f) (Except g) (Except h) =
-    Except $ (\x -> (x,x)) ^>> first f >>> hasSucceeded ^>> (g ||| h)
-
-hasSucceeded :: (Error e b,a) -> Either b a
-hasSucceeded (Fail _,a) = Right a
-hasSucceeded (Success b,_) = Left b
-
-instance ArrowChoice c => ArrowTryCatch e x y z (Except e c) where
-  tryCatchA (Except f) (Except g) (Except h) = Except $ f >>> toEither ^>> (h ||| g)
+instance ArrowChoice c => ArrowExcept x y e (Except e c) where
+  tryCatchA (Except f) (Except g) = Except $ proc x -> do
+    e <- f -< x
+    case e of
+      Fail er -> g -< (x,er)
+      Success y -> returnA -< Success y
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedupA (Except f) = Except (dedupA f)

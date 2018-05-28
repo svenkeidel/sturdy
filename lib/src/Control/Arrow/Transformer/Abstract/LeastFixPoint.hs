@@ -20,14 +20,15 @@ import           Data.Function (fix)
 
 import           Control.Arrow
 import           Control.Arrow.Fix
+import           Control.Arrow.Abstract.Join
 import           Control.Category
 
 import           Data.Abstract.Terminating
-import           Data.Order
+import           Data.Order hiding (lub)
 import           Data.Identifiable
 import           Data.Monoidal
+import           Data.Maybe
 
-import           Data.Abstract.Error
 import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 import           Data.Abstract.Widening
@@ -126,9 +127,9 @@ instance (Show x, Show y, Identifiable x, Widening y)
 memoize :: (Show x, Show y, Identifiable x, Widening y) => LeastFixPointArrow x y x y -> LeastFixPointArrow x y x y
 memoize (LeastFixPointArrow f) = LeastFixPointArrow $ \((inCache, outCache),x) -> do
   case trace (printf "\tmemoize -< %s" (show x)) (S.lookup x outCache) of
-    Success y -> trace (printf "\t%s <- memoize -< %s" (show y) (show x)) (outCache,y)
-    Fail _ ->
-      let yOld = fromError bottom (S.lookup x inCache)
+    Just y -> trace (printf "\t%s <- memoize -< %s" (show y) (show x)) (outCache,y)
+    Nothing ->
+      let yOld = fromMaybe bottom (S.lookup x inCache)
           outCache' = S.insert x yOld outCache
           (outCache'',y) = trace (printf "\tf -< %s" (show x)) (f ((inCache, outCache'),x))
           outCache''' = S.insertWith (flip (▽)) x y outCache''
@@ -179,7 +180,19 @@ instance ArrowLoop (LeastFixPointArrow i o) where
 instance ArrowApply (LeastFixPointArrow i o) where
   app = LeastFixPointArrow $ (\(io,(LeastFixPointArrow f,x)) -> (f,(io,x))) ^>> app
 
+instance (Identifiable i, Complete o) => ArrowJoin (LeastFixPointArrow i o) where
+  joinWith lub (LeastFixPointArrow f) (LeastFixPointArrow g) = LeastFixPointArrow $ \((i,o),(x,u)) ->
+    let (o',y) = f ((i,o),x)
+        (o'',v) = g ((i,o),u)
+    in (o' ⊔ o'',case (y,v) of
+         (Terminating y',Terminating v') -> Terminating (lub y' v')
+         (Terminating y',NonTerminating) -> Terminating y'
+         (NonTerminating,Terminating v') -> Terminating v'
+         (NonTerminating,NonTerminating) -> NonTerminating) 
+
 deriving instance (Identifiable a, PreOrd b, PreOrd y) => PreOrd (LeastFixPointArrow a b x y)
+
+-- TODO: Figure out if it is sound to thread the fixpoint cache while computing the least upper bound of two arrow computations.
 deriving instance (Identifiable a, Complete b, Complete y) => Complete (LeastFixPointArrow a b x y)
 deriving instance (Identifiable a, CoComplete b, CoComplete y) => CoComplete (LeastFixPointArrow a b x y)
 deriving instance (Identifiable a, PreOrd b, PreOrd y) => LowerBounded (LeastFixPointArrow a b x y)

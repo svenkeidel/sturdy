@@ -11,20 +11,22 @@ import Prelude hiding (id,(.),lookup,read)
 import Control.Arrow
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
-import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
-import Control.Arrow.Try
+import Control.Arrow.Except
 import Control.Arrow.Writer
 import Control.Arrow.Utils
+
+import Control.Arrow.Abstract.Join
+
 import Control.Category
 
 import Data.Hashable
-import Data.Order
+import Data.Order hiding (lub)
 import Data.Monoidal
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
@@ -87,17 +89,18 @@ type instance Fix x y (State s c) = State s (Fix (s,x) (s,y) c)
 instance ArrowFix (s,x) (s,y) c => ArrowFix x y (State s c) where
   fixA f = State (fixA (runState . f . State))
 
-instance ArrowTry (s,x) (s,y) (s,z) c => ArrowTry x y z (State s c) where
-  tryA (State f) (State g) (State h) = State $ tryA f g h
-
-instance ArrowTryCatch (s,e) (s,x) (s,y) (s,z) c => ArrowTryCatch e x y z (State s c) where
-  tryCatchA (State f) (State g) (State h) = State $ tryCatchA f g h
+instance ArrowExcept (s,x) (s,y) e c => ArrowExcept x y e (State s c) where
+  tryCatchA (State f) (State g) = State $ tryCatchA f (from assoc ^>> g)
 
 instance (Eq s, Hashable s, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
   dedupA (State f) = State (dedupA f)
 
 instance ArrowLoop c => ArrowLoop (State s c) where
   loop (State f) = State $ loop ((\((s,b),d) -> (s,(b,d))) ^>> f >>^ (\(s,(b,d)) -> ((s,b),d)))
+
+instance (ArrowJoin c, Complete s) => ArrowJoin (State s c) where
+  joinWith lub (State f) (State g) =
+    State $ (\(s,(x,y)) -> ((s,x),(s,y))) ^>> joinWith (\(s1,z1) (s2,z2) -> (s1⊔s2,lub z1 z2)) f g
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (State s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (State s c x y)

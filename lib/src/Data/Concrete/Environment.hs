@@ -9,7 +9,6 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
 import           Data.Hashable
 import           Data.Identifiable
-import           Data.Concrete.Error
 
 import           Text.Printf
 
@@ -23,10 +22,8 @@ instance (Show a,Show b) => Show (Env a b) where
 empty :: Env a b
 empty = Env H.empty
 
-lookup :: Identifiable a => a -> Env a b -> Error () b
-lookup a (Env m) = case H.lookup a m of
-  Just x -> Success x
-  Nothing -> Fail ()
+lookup :: Identifiable a => a -> Env a b -> Maybe b
+lookup a (Env m) = H.lookup a m
 
 insert :: Identifiable a => a -> b -> Env a b -> Env a b
 insert a b (Env m) = Env (H.insert a b m)

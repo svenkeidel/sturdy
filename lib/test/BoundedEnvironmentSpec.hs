@@ -13,11 +13,11 @@ import           Control.Arrow
 import           Control.Arrow.Environment
 import           Control.Arrow.State
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
-import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.State
 
 import           Data.Abstract.Interval
-import           Data.Abstract.Error
+import           Data.Abstract.PropagateError
 import           Data.Text (Text)
 
 import           Test.Hspec

@@ -12,19 +12,19 @@ import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
 import Control.Arrow.Environment
-import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Deduplicate
-import Control.Arrow.Try
+import Control.Arrow.Except
 import Control.Arrow.Lift
 import Control.Arrow.Writer
 import Control.Arrow.Utils
+import Control.Arrow.Abstract.Join
 import Control.Category
 
-import Data.Order
+import Data.Order hiding (lub)
 import Data.Monoidal
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
@@ -77,15 +77,14 @@ type instance Fix x y (Reader r c) = Reader r (Fix (r,x) y c)
 instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where
   fixA f = Reader (fixA (runReader . f . Reader))
 
-instance ArrowTry (r,x) (r,y) z c => ArrowTry x y z (Reader r c) where
-  tryA (Reader f) (Reader g) (Reader h) = Reader $ tryA (pi1 &&& f) g h
-
-instance ArrowTryCatch (r,e) (r,x) (r,y) (r,z) c => ArrowTryCatch e x y z (Reader r c) where
-  tryCatchA (Reader f) (Reader g) (Reader h) =
-    Reader (tryCatchA (pi1 &&& f) (pi1 &&& g) (pi1 &&& h)) >>> pi2
+instance ArrowExcept (r,x) y e c => ArrowExcept x y e (Reader r c) where
+  tryCatchA (Reader f) (Reader g) = Reader $ tryCatchA f (from assoc ^>> g)
 
 instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
   dedupA (Reader f) = Reader (dedupA f)
+
+instance (ArrowJoin c, Complete r) => ArrowJoin (Reader r c) where
+  joinWith lub (Reader f) (Reader g) = Reader $ (\(r,(x,y)) -> ((r,x),(r,y))) ^>> joinWith lub f g
 
 deriving instance PreOrd (c (r,x) y) => PreOrd (Reader r c x y)
 deriving instance LowerBounded (c (r,x) y) => LowerBounded (Reader r c x y)

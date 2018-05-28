@@ -15,12 +15,13 @@ import Control.Arrow.Fail
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
-import Control.Arrow.Try
+import Control.Arrow.Except
+import Control.Arrow.Abstract.Join
 import Control.Category
 
 import Data.Abstract.FreeCompletion
 import Data.Monoidal
-import Data.Order
+import Data.Order hiding (lub)
 
 -- | Allows to describe computations over non-completely ordered types.
 -- E.g. allows to join a computation of type 'c x [y]'.
@@ -53,7 +54,7 @@ instance (ArrowChoice c, ArrowState s c) => ArrowState s (Completion c) where
   getA = lift getA
   putA = lift putA
 
-instance (ArrowChoice c, ArrowFail () c) => ArrowFail () (Completion c) where
+instance (ArrowChoice c, ArrowFail e c) => ArrowFail e (Completion c) where
   failA = lift failA
 
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Completion c) where
@@ -66,15 +67,17 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Completion c) 
   extendEnv = lift extendEnv
   localEnv (Completion f) = Completion (localEnv f)
 
-instance ArrowChoice c => ArrowTry x y z (Completion c) where
-  tryA (Completion f) (Completion g) (Completion h) = Completion $ proc x -> do
-    e <- f -< x
-    case e of
-      Lower y -> g -< y
-      Top -> h -< x
+instance (ArrowChoice c, ArrowExcept x (FreeCompletion y) e c) => ArrowExcept x y e (Completion c) where
+  tryCatchA (Completion f) (Completion g) = Completion $ tryCatchA f g 
 
 instance ArrowChoice c => ArrowDeduplicate (Completion c) where
   dedupA = returnA
+
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Completion c) where
+  joinWith lub (Completion f) (Completion g) = Completion $ joinWith join f g
+    where join (Lower x) (Lower y) = Lower (lub x y)
+          join Top _ = Top
+          join _ Top = Top
 
 deriving instance PreOrd (c x (FreeCompletion y)) => PreOrd (Completion c x y)
 deriving instance LowerBounded (c x (FreeCompletion y)) => LowerBounded (Completion c x y)

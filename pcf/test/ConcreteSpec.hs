@@ -3,9 +3,9 @@ module ConcreteSpec where
 
 import Prelude hiding (succ,pred)
 import SharedSpecs
-import Concrete
+import ConcreteSemantics
 import Data.Concrete.Error
-import PCF
+import Syntax
 import Test.Hspec
 
 main :: IO ()

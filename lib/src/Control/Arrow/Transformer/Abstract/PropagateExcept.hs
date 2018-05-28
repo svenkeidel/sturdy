@@ -5,7 +5,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Abstract.Except(Except(..)) where
+module Control.Arrow.Transformer.Abstract.PropagateExcept(Except(..)) where
 
 import Prelude hiding (id,(.),lookup)
 
@@ -17,17 +17,16 @@ import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
-import Control.Arrow.Try
 import Control.Category
 
-import Data.Abstract.Error
+import Data.Abstract.PropagateError
 import Data.Order
 import Data.Monoidal
 import Data.Identifiable
 
 -- | Describes computations that can fail. Usefull for implementing analyses for
 -- languages that only propagate error and /do not/ handle it. For
--- languages that handle error, use 'PreciseExcept'.
+-- languages that handle error, use 'Except'.
 newtype Except e c x y = Except { runExcept :: c x (Error e y) }
 
 instance ArrowLift (Except e) where
@@ -79,16 +78,19 @@ type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fixA f = Except (fixA (runExcept . f . Except))
 
-instance (ArrowChoice c, Complete (c (y,x) (Error e z))) => ArrowTry x y z (Except e c) where
-  -- | In case the first computation succeeds, the results of the
-  -- second and third computation are joined. The reason is that the
-  -- ordering for 'Error' is 'Fail ⊑ Success', i.e., 'Success'
-  -- represents all concrete computations that succeed or fail.
-  tryA (Except f) (Except g) (Except h) = Except $ proc x -> do
+{- 
+There is no `ArrowExcept` instance for `Except` on purpose. This is how it would look like.
+
+instance (ArrowChoice c, UpperBounded e, Complete (c (y,(x,e)) (Error e y))) => ArrowExcept x y e (Except e c) where
+  tryCatchA (Except f) (Except g) = Except $ proc x -> do
     e <- f -< x
     case e of
-      Success y -> joined g h -< (y,x)
-      Fail _ -> h -< x
+      -- Since Fail ⊑ Success, 'Success' also represents the case 'f'
+      -- could have failed. This means we also have to run the
+      -- exception handler 'g' with all exceptions (represented by ⊤).
+      Success y -> joined (arr Success) g -< (y,(x,top))
+      Fail er   -> g -< (x,er)
+-}
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedupA (Except f) = Except (dedupA f)

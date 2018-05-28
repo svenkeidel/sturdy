@@ -16,13 +16,15 @@ import Control.Arrow.Reader
 import Control.Arrow.Fail
 import Control.Arrow.Lift
 import Control.Arrow.Fix
+import Control.Arrow.Except
 import Control.Arrow.Store
 import Control.Arrow.Environment
 import Control.Arrow.Writer
+import Control.Arrow.Abstract.Join
 
 import Data.Monoid
 import Data.Monoidal
-import Data.Order
+import Data.Order hiding (lub)
 
 newtype Writer w c x y = Writer { runWriter :: c x (w,y) }
 
@@ -62,6 +64,9 @@ instance (Monoid w, Arrow c) => ArrowWriter w (Writer w c) where
 instance (Monoid w, ArrowFail e c) => ArrowFail e (Writer w c) where
   failA = lift failA
 
+instance (Monoid w, ArrowExcept x (w,y) e c) => ArrowExcept x y e (Writer w c) where
+  tryCatchA (Writer f) (Writer g) = Writer $ tryCatchA f g
+
 instance (Monoid w, ArrowReader r c) => ArrowReader r (Writer w c) where
   askA = lift askA
   localA (Writer f) = Writer (localA f)
@@ -82,6 +87,9 @@ instance (Monoid w, ArrowFix x (w,y) c) => ArrowFix x y (Writer w c) where
 
 instance (Monoid w, ArrowLoop c) => ArrowLoop (Writer w c) where
   loop (Writer f) = Writer $ loop (f >>^ to assoc)
+
+instance (Monoid w, Complete w, ArrowJoin c) => ArrowJoin (Writer w c) where
+  joinWith lub (Writer f) (Writer g) = Writer $ joinWith (\(w1,z1) (w2,z2) -> (w1 ⊔ w2, lub z1 z2)) f g
 
 deriving instance PreOrd (c x (w,y)) => PreOrd (Writer w c x y)
 deriving instance LowerBounded (c x (w,y)) => LowerBounded (Writer w c x y)

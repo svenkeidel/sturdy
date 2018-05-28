@@ -11,7 +11,7 @@ import           Data.Order
 import qualified Data.Abstract.Powerset as Abs
 import qualified Data.Concrete.Powerset as Con
 import qualified Data.Concrete.Error as Con
-import qualified Data.Abstract.Error as Abs
+import qualified Data.Abstract.PropagateError as Abs
 import qualified Data.Concrete.Boolean as Con
 import qualified Data.Abstract.Boolean as Abs
 import qualified Data.Abstract.Interval as Abs

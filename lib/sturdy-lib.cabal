@@ -45,7 +45,8 @@ library
                        Data.Abstract.Boolean,
                        Data.Abstract.Bounded,
                        Data.Abstract.Environment,
-                       Data.Abstract.Error,
+                       Data.Abstract.PropagateError,
+                       Data.Abstract.HandleError,
                        Data.Abstract.Terminating,
                        Data.Abstract.InfiniteNumbers,
                        Data.Abstract.FreeCompletion,
@@ -61,8 +62,8 @@ library
                        Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
                        Control.Arrow.Environment,
-                       Control.Arrow.TryCatch,
                        Control.Arrow.Fail,
+                       Control.Arrow.Except,
                        Control.Arrow.Fix,
                        Control.Arrow.Lift,
                        Control.Arrow.Reader,
@@ -70,10 +71,10 @@ library
                        Control.Arrow.State,
                        Control.Arrow.Store,
                        Control.Arrow.Writer,
-                       Control.Arrow.Try,
                        Control.Arrow.Utils,
 
                        Control.Arrow.Abstract.Alloc,
+                       Control.Arrow.Abstract.Join,
 
                        Control.Arrow.Transformer.Reader,
                        Control.Arrow.Transformer.State,
@@ -94,13 +95,14 @@ library
                        Control.Arrow.Transformer.Abstract.Environment,
                        Control.Arrow.Transformer.Abstract.Contour,
                        Control.Arrow.Transformer.Abstract.BoundedEnvironment,
-                       Control.Arrow.Transformer.Abstract.Except,
+                       Control.Arrow.Transformer.Abstract.PropagateExcept,
+                       Control.Arrow.Transformer.Abstract.HandleExcept,
                        Control.Arrow.Transformer.Abstract.LeastFixPoint,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
                        -- Control.Arrow.Transformer.Abstract.LiveVariables,
-                       Control.Arrow.Transformer.Abstract.ReachingDefinitions,
-                       Control.Arrow.Transformer.Abstract.Uncertain
+                       Control.Arrow.Transformer.Abstract.ReachingDefinitions
+                       -- Control.Arrow.Transformer.Abstract.Uncertain
   other-modules:       Control.Arrow.Transformer.Effect
   build-depends:       base,
                        containers,

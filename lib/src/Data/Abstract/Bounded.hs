@@ -14,7 +14,7 @@ import Data.Numeric
 import Data.Abstract.Equality
 import Data.Abstract.Ordering
 import Data.Abstract.Widening
-import Data.Abstract.Error
+import Data.Abstract.PropagateError
 
 -- |Bounded invokes the least upper bound operator until the element reaches a given limit.
 data Bounded a = Bounded a a

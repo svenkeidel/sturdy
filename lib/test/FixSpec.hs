@@ -13,7 +13,7 @@ import           Prelude hiding (lookup,Bounded,Bool(..))
 import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
-import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Fail
 import           Control.Arrow.State
@@ -21,7 +21,7 @@ import           Control.Arrow.State
 import           Data.Boolean(Logic(..))
 import           Data.Abstract.Boolean(Bool)
 import           Data.Abstract.Bounded
-import           Data.Abstract.Error
+import           Data.Abstract.PropagateError
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I

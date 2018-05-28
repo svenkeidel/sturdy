@@ -6,12 +6,12 @@ import           Prelude hiding (succ,pred)
 import           SharedSpecs
 
 import           Data.Abstract.Bounded
-import           Data.Abstract.Error hiding (toEither)
+import           Data.Abstract.PropagateError hiding (toEither)
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Terminating
 import           IntervalAnalysis
-import           PCF
+import           Syntax
 import           Test.Hspec
 
 main :: IO ()

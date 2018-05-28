@@ -3,7 +3,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Data.Abstract.Error where
+module Data.Abstract.PropagateError where
 
 import Control.Monad
 import Control.Monad.Except

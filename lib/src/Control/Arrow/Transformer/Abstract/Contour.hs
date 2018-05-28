@@ -14,6 +14,7 @@ import           Control.Arrow
 import           Control.Arrow.Abstract.Alloc
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
+import           Control.Arrow.Except
 import           Control.Arrow.Fix
 import           Control.Arrow.Lift
 import           Control.Arrow.Reader
@@ -62,8 +63,9 @@ deriving instance Arrow c => Arrow (Contour c)
 deriving instance ArrowLift Contour
 deriving instance ArrowChoice c => ArrowChoice (Contour c)
 deriving instance ArrowState s c => ArrowState s (Contour c)
-deriving instance ArrowFail e c => ArrowFail e (Contour c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (Contour c)
+deriving instance ArrowFail e c => ArrowFail e (Contour c)
+deriving instance ArrowExcept (CallString,x) y e c => ArrowExcept x y e (Contour c)
 
 deriving instance PreOrd (c (CallString,x) y) => PreOrd (Contour c x y)
 deriving instance LowerBounded (c (CallString,x) y) => LowerBounded (Contour c x y)

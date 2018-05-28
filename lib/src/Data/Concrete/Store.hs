@@ -12,7 +12,6 @@ import           Data.HashSet (HashSet)
 import qualified Data.HashSet as S
 import           Data.Hashable
 import           Data.Identifiable
-import           Data.Concrete.Error
 
 import           Text.Printf
 
@@ -32,10 +31,8 @@ subset s1 s2 = S.size (S.intersection s1 s2) == S.size s1
 empty :: Store a b
 empty = Store H.empty
 
-lookup :: Identifiable a => a -> Store a b -> Error () b
-lookup a (Store m) = case H.lookup a m of
-  Just x -> Success x
-  Nothing -> Fail ()
+lookup :: Identifiable a => a -> Store a b -> Maybe b
+lookup a (Store m) = H.lookup a m
 
 insert :: Identifiable a => a -> b -> Store a b -> Store a b
 insert a b (Store m) = Store (H.insert a b m)

@@ -12,19 +12,20 @@ import Prelude hiding (id,(.),lookup,read)
 import Control.Arrow
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
-import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
-import Control.Arrow.Try
+import Control.Arrow.Except
 import Control.Arrow.Utils
+import Control.Arrow.Abstract.Join
+
 import Control.Category
 
 import Data.Hashable
-import Data.Order
+import Data.Order hiding (lub)
 import Data.Monoidal
 
 newtype State s c x y = State { runState :: c (s,x) (s,y) }
@@ -92,14 +93,16 @@ type instance Fix x y (State s c) = State s (Fix (s,x) (s,y) c)
 instance (ArrowLoop c, ArrowFix (s,x) (s,y) c) => ArrowFix x y (State s c) where
   fixA f = State (fixA (runState . f . State))
 
-instance (ArrowLoop c, ArrowTry (s,x) (s,y) (s,z) c) => ArrowTry x y z (State s c) where
-  tryA (State f) (State g) (State h) = State $ tryA f g h
-
-instance (ArrowChoice c, ArrowLoop c, ArrowTryCatch (s,e) (s,x) (s,y) (s,z) c) => ArrowTryCatch e x y z (State s c) where
-  tryCatchA (State f) (State g) (State h) = State $ tryCatchA f g h
+instance (ArrowLoop c, ArrowExcept (s,x) (s,y) e c) => ArrowExcept x y e (State s c) where
+  tryCatchA (State f) (State g)  = State $ tryCatchA f (from assoc ^>> g)
 
 instance (Eq s, Hashable s, ArrowLoop c, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
   dedupA (State f) = State (dedupA f)
+
+instance (ArrowJoin c, Complete s, ArrowLoop c) => ArrowJoin (State s c) where
+  joinWith lub (State f) (State g) =
+    State $ (\(s,(x,y)) -> ((s,x),(s,y))) ^>> joinWith (\(s1,z1) (s2,z2) -> (s1⊔s2,lub z1 z2)) f g
+
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (State s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (State s c x y)

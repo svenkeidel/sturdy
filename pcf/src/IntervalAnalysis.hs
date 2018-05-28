@@ -22,7 +22,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
-import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Const
 import           Control.Monad.State hiding (lift)
@@ -37,7 +37,7 @@ import           Data.Text (Text)
 
 import           Data.Abstract.Bounded
 import           Data.Abstract.Environment(Env)
-import           Data.Abstract.Error (Error)
+import           Data.Abstract.PropagateError (Error)
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I

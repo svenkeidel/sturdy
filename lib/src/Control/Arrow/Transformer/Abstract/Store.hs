@@ -19,7 +19,6 @@ import Control.Arrow.Transformer.State
 import Control.Arrow.Utils
 import Control.Category
 
-import Data.Abstract.Error
 import Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 import Data.Order
@@ -42,8 +41,8 @@ instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c, Complet
   ArrowStore var val lab (StoreArrow var val c) where
   read =
     StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
-      Success v -> joined returnA (proc var -> failA -< printf "Variable %s not bound" (show var)) -< ((s,v),var)
-      Fail _ -> failA -< printf "Variable %s not bound" (show var)
+      Just v -> joined returnA (proc var -> failA -< printf "Variable %s not bound" (show var)) -< ((s,v),var)
+      Nothing -> failA -< printf "Variable %s not bound" (show var)
   write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
