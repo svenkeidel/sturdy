@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Concrete where
 
-import           Prelude hiding (lookup,read,rem,div,mod)
+import           Prelude hiding (lookup,read,rem,div,mod,id)
 import qualified Prelude as P
 
 import           Data.Fixed
@@ -522,16 +522,21 @@ instance UseVal Val Interp where
       b <- (mapA instanceOf >>^ all (==BoolVal True)) -< zip xs (repeat t')
       returnA -< BoolVal b
     (_, _) -> returnA -< BoolVal False)
-  readField = (first unbox1) >>> proc (v,f) -> case v of
-    (ObjectVal _ m) -> case Map.lookup f m of
-      Just x -> returnA -< x
-      Nothing -> failA -< StaticException $ printf "Field %s not defined for object %s" (show f) (show v)
-    _ -> failA -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
   readIndex = (first unbox1) >>> proc (v,i) -> case (v,i) of
     (ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
       then returnA -< xs !! n
       else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
     _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
+  readField = (first unbox1) >>> proc (v,f) -> case v of
+    (ObjectVal _ m) -> case Map.lookup f m of
+      Just x -> returnA -< x
+      Nothing -> failA -< StaticException $ printf "Field %s not defined for object %s" (show f) (show v)
+    _ -> failA -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
+  updateField = (first (id &&& unbox1)) >>> proc ((ref,o),(f,v)) -> case (ref,o) of
+    (RefVal addr,ObjectVal c m) -> case m Map.!? f of
+      Just _ -> write -< (addr, ObjectVal c (Map.insert f v m))
+      Nothing -> failA -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
+    _ -> failA -< StaticException $ printf "Expected an object for field update, got %s" (show o)
 
 instance UseFlow Val Interp where
   if_ f1 f2 = proc (v,(x,y)) -> case v of

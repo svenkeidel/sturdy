@@ -141,7 +141,7 @@ spec = do
                    Label "l3",
                    Return (Just (IntConstant 3))]
       runStatementsConcrete env store stmts `shouldBe` Success (Just (IntVal 3))
-    it "f0 := @parameter0: float; f1 = f0 * 2; return f1; (@parameter0 = 2.0)" $ do
+    it "f0 := @parameter0: float; f1 = f0 * 2.5; return f1; (@parameter0 = 2.0)" $ do
       let nv = [("@parameter0", 0),
                 ("f0",          1),
                 ("f1",          2)]
@@ -149,9 +149,9 @@ spec = do
                 (1, FloatVal 0.0),
                 (2, FloatVal 0.0)]
       let stmts = [Identity "f0" (ParameterRef 0) FloatType,
-                   Assign (LocalVar "f1") (BinopExpr (Local "f0") Mult (IntConstant 2)),
+                   Assign (LocalVar "f1") (BinopExpr (Local "f0") Mult (FloatConstant 2.5)),
                    Return (Just (Local "f1"))]
-      runStatementsConcrete nv st stmts `shouldBe` Success (Just (FloatVal 4.0))
+      runStatementsConcrete nv st stmts `shouldBe` Success (Just (FloatVal 5.0))
 
   describe "Complete program" $ do
     it "10! = 3628800" $ do

@@ -281,17 +281,11 @@ runStatements = proc stmts -> case stmts of
           --     write -< (addr, ArrayVal xs')
           --     runStatements -< rest
           --   else failA -< StaticException "ArrayIndexOutOfBoundsException"
-          -- FieldRef localName fieldSignature -> do
-          --   (addr, ObjectVal c m) <- fetchObjectWithAddr -< localName
-          --   case m Map.!? fieldSignature of
-          --     Just _ -> do
-          --       let m' = Map.insert fieldSignature v m
-          --       write -< (addr, ObjectVal c m')
-          --       runStatements -< rest
-          --     Nothing -> failA -< StaticException $ printf "FieldSignature %s not defined on object %s: (%s)" (show fieldSignature) (show localName) (show m)
-          SignatureRef fieldSignature -> do
-            addr <- lookupField -< fieldSignature
-            write -< (addr, v)
+          FieldRef l f -> do
+            (first (lookupLocal >>> readVar)) >>> updateField -< (l,(f,v))
+            runStatements -< rest
+          SignatureRef f -> do
+            (first lookupField) >>> write -< (f,v)
             runStatements -< rest
           _ -> failA -< StaticException $ printf "Can only assign a reference or a local variable"
     If e label -> do
@@ -390,7 +384,9 @@ class Arrow c => UseVal v c | c -> v where
   defaultValue :: c Type v
   instanceOf :: c (v,Type) v
   readIndex :: c (v,v) v
+  updateIndex :: c (v,(v,v)) ()
   readField :: c (v,FieldSignature) v
+  updateField :: c (v,(FieldSignature,v)) ()
 
 class Arrow c => UseFlow v c | c -> v where
   if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c (v,(String,[Statement])) (Maybe v)
