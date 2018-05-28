@@ -322,6 +322,11 @@ evalIndex = proc i -> do
 --   ClassConstant c -> returnA -< (ClassVal c)
 --   MethodHandle _ -> failA -< StaticException "Evaluation of method handles is not implemented"
 
+unbox1 :: (CanFail Val c, CanUseStore Val c) => c Val Val
+unbox1 = proc val -> case val of
+  RefVal addr -> Shared.readVar -< addr
+  _ -> returnA -< val
+
 getInitializedFields :: (UseVal Val c, CanFail Val c, CanUseConst c) => c String [(FieldSignature, Val)]
 getInitializedFields = proc c -> do
   unit <- Shared.readCompilationUnit -< c
@@ -517,6 +522,16 @@ instance UseVal Val Interp where
       b <- (mapA instanceOf >>^ all (==BoolVal True)) -< zip xs (repeat t')
       returnA -< BoolVal b
     (_, _) -> returnA -< BoolVal False)
+  readField = (first unbox1) >>> proc (v,f) -> case v of
+    (ObjectVal _ m) -> case Map.lookup f m of
+      Just x -> returnA -< x
+      Nothing -> failA -< StaticException $ printf "Field %s not defined for object %s" (show f) (show v)
+    _ -> failA -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
+  readIndex = (first unbox1) >>> proc (v,i) -> case (v,i) of
+    (ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
+      then returnA -< xs !! n
+      else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
+    _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
 
 instance UseFlow Val Interp where
   if_ f1 f2 = proc (v,(x,y)) -> case v of

@@ -173,17 +173,8 @@ eval = proc e -> case e of
     case v of
       Just v' -> returnA -< v'
       Nothing -> failA -< StaticException "Method returned nothing"
-  -- ArrayRef localName i -> do
-  --   n <- evalIndex -< i
-  --   (_, ArrayVal xs) <- fetchArrayWithAddr -< localName
-  --   if n >= 0 && n < length xs
-  --   then returnA -< xs !! n
-  --   else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
-  -- FieldRef localName fieldSignature -> do
-  --   (_, ObjectVal _ m) <- fetchObjectWithAddr -< localName
-  --   case Map.lookup fieldSignature m of
-  --     Just x -> returnA -< x
-  --     Nothing -> failA -< StringVal $ printf "Field %s not defined for object %s" (show fieldSignature) (show localName)
+  ArrayRef l i -> ((lookupLocal >>> readVar) *** eval) >>> readIndex -< (l,i)
+  FieldRef l f -> (first (lookupLocal >>> readVar)) >>> readField -< (l,f)
   SignatureRef fieldSignature -> lookupField >>> readVar -< fieldSignature
   BinopExpr i1 op i2 -> do
     v1 <- eval -< i1
@@ -398,6 +389,8 @@ class Arrow c => UseVal v c | c -> v where
   unbox :: c v v
   defaultValue :: c Type v
   instanceOf :: c (v,Type) v
+  readIndex :: c (v,v) v
+  readField :: c (v,FieldSignature) v
 
 class Arrow c => UseFlow v c | c -> v where
   if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c (v,(String,[Statement])) (Maybe v)
