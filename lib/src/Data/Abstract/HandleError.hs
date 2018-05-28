@@ -8,9 +8,10 @@ import Control.Arrow
 import Control.Monad
 
 import Data.Abstract.FreeCompletion
+import Data.Bifunctor
+import Data.Hashable
 import Data.Order
 import Data.Traversable
-import Data.Bifunctor
 
 -- | Abstrat domain for exceptions. This abstract domain approximates
 -- error more precisely because 'Success ⋢ Fail'. Use this type for
@@ -20,6 +21,11 @@ data Error e x
   | Fail e
   | SuccessOrFail e x
   deriving (Eq, Show)
+
+instance (Hashable e, Hashable x) => Hashable (Error e x) where
+  hashWithSalt s (Success x) = s `hashWithSalt` (0::Int) `hashWithSalt` x
+  hashWithSalt s (Fail e) = s `hashWithSalt` (1::Int) `hashWithSalt` e
+  hashWithSalt s (SuccessOrFail e x) = s `hashWithSalt` (2 ::Int) `hashWithSalt` e `hashWithSalt` x
 
 instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
   m1 ⊑ m2 = case (m1,m2) of

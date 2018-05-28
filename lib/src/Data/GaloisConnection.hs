@@ -11,7 +11,7 @@ import           Data.Order
 import qualified Data.Abstract.Powerset as Abs
 import qualified Data.Concrete.Powerset as Con
 import qualified Data.Concrete.Error as Con
-import qualified Data.Abstract.PropagateError as Abs
+import qualified Data.Abstract.HandleError as Abs
 import qualified Data.Concrete.Boolean as Con
 import qualified Data.Abstract.Boolean as Abs
 import qualified Data.Abstract.Interval as Abs
@@ -51,7 +51,7 @@ instance (Galois (m y) (n y'), Galois x x') => Galois (Kleisli m x y) (Kleisli n
   alpha (Kleisli f) = Kleisli (alpha . f . gamma)
   gamma (Kleisli f) = Kleisli (gamma . f . alpha)
 
-instance (Eq a, Hashable a, Galois (Con.Pow a) a', Eq b, Hashable b, Complete b', Galois (Con.Pow b) b')
+instance (Complete a', Eq a, Hashable a, Galois (Con.Pow a) a', Eq b, Hashable b, Complete b', Galois (Con.Pow b) b')
     => Galois (Con.Pow (Con.Error a b)) (Abs.Error a' b') where
   alpha = lifted $ \e -> case e of
     Con.Fail x -> Abs.Fail (alphaSing x)

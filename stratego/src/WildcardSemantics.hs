@@ -20,22 +20,22 @@ import           Utils
 import           Control.Arrow
 import           Control.Arrow.Apply
 import           Control.Arrow.Deduplicate
+import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
-import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.HandleExcept
 import           Control.Arrow.Transformer.Abstract.Powerset
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Try
 import           Control.Category
 import           Control.DeepSeq
 import           Control.Monad
 
-import           Data.Abstract.Error
 import           Data.Abstract.FreeCompletion
 import qualified Data.Abstract.Powerset as A
+import           Data.Abstract.HandleError
 import qualified Data.Concrete.Powerset as CP
 import           Data.Constructor
 import           Data.Foldable (foldr')
@@ -74,9 +74,7 @@ emptyEnv = TermEnv M.empty
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader (StratEnv, Int) Interp
 deriving instance ArrowState TermEnv Interp
-
-instance PreOrd z => ArrowTry x y z Interp where
-  tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
+deriving instance PreOrd y => ArrowExcept x y () Interp
 
 instance ArrowFail () Interp where
   failA = Interp failA
