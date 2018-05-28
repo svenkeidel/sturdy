@@ -18,7 +18,7 @@ import qualified Data.List as L
 import           Data.Ord (comparing)
 
 import           Data.Abstract.Terminating
-import           Data.Abstract.Error
+import           Data.Abstract.PropagateError
 import qualified Data.Abstract.Store as S
 
 import           Control.Arrow.Fix 

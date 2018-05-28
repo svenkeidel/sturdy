@@ -23,7 +23,7 @@ import qualified SharedSemantics as Shared
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Bounded hiding (lift)
-import           Data.Abstract.Error (Error(..))
+import           Data.Abstract.PropagateError (Error(..))
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.Store (Store)
@@ -47,7 +47,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Store
 import           Control.Arrow.Transformer.Const
-import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Monad.State

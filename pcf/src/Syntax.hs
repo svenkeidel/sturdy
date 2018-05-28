@@ -9,6 +9,21 @@ import Data.String
 
 import Control.Monad.State
 
+-- | Expressions of PCF. Each expression has a label, with which the
+-- expression can be uniquely identified.
+data Expr
+  = Var Text Label
+  | Lam Text Expr Label
+  | App Expr Expr Label
+  | Zero Label
+  | Succ Expr Label
+  | Pred Expr Label
+  | IfZero Expr Expr Expr Label
+  | Y Expr Label
+  deriving (Eq)
+
+-- Smart constructors that build labeled PCF expressions.
+
 var :: Text -> State Label Expr
 var x = Var x <$> fresh
 
@@ -32,17 +47,6 @@ ifZero e1 e2 e3 = IfZero <$> e1 <*> e2 <*> e3 <*> fresh
 
 fix :: State Label Expr -> State Label Expr
 fix e = Y <$> e <*> fresh
-
-data Expr
-  = Var Text Label
-  | Lam Text Expr Label
-  | App Expr Expr Label
-  | Zero Label
-  | Succ Expr Label
-  | Pred Expr Label
-  | IfZero Expr Expr Expr Label
-  | Y Expr Label
-  deriving (Eq)
 
 instance Show Expr where
   showsPrec d e0 = case e0 of

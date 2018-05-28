@@ -8,7 +8,7 @@ import ValueSemantics.Interval
 
 import Data.Abstract.Interval as I
 import Data.Abstract.Terminating
-import Data.Abstract.Error
+import Data.Abstract.PropagateError
 import Data.Abstract.Bounded
 import Data.Abstract.Boolean(Bool(..))
 import qualified Data.Abstract.Store as S

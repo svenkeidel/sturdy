@@ -19,7 +19,7 @@ import           Syntax
 import           SharedSemantics
 import qualified SharedSemantics as Shared
 
-import           Data.Abstract.Error (Error(..))
+import           Data.Abstract.PropagateError (Error(..))
 import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 import           Data.Abstract.Terminating
@@ -35,7 +35,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Store
-import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Monad.State

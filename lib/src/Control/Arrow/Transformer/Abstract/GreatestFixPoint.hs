@@ -4,7 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Arrows #-}
-module Control.Arrow.Transformer.GreatestFixPoint(GreatestFixPoint(..)) where
+module Control.Arrow.Transformer.Abstract.GreatestFixPoint(GreatestFixPoint(..)) where
 
 import Control.Arrow
 import Control.Arrow.Fix

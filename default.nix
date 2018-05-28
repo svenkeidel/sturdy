@@ -10,6 +10,6 @@ in pkgs.stdenv.mkDerivation {
   version = "0.0.1";
   src = ./.;
   buildInputs = [
-    hsEnv
+    hsEnv pkgs.pandoc
   ];
 }
