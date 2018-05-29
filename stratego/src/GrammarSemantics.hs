@@ -28,7 +28,6 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Transformer.Abstract.Completion
 import           Control.Arrow.Transformer.Abstract.HandleExcept
-import           Control.Arrow.Transformer.Abstract.GreatestFixPoint
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category hiding ((.))
@@ -56,17 +55,11 @@ data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
 newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
-newtype Interp a b = Interp (Reader (StratEnv, Alphabet Constr) (State TermEnv (Except () (Completion GreatestFixPoint))) a b)
+newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Except () (Completion (->)))) a b)
   deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, Category, PreOrd)
 
 runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> FreeCompletion (Error () (TermEnv, b))
-runInterp (Interp f) k alph senv tenv a =
-  runGreatestFixPoint k
-    (runCompletion
-      (runExcept
-        (runState
-          (runReader f))))
-    (tenv, ((senv, alph), a))
+runInterp (Interp f) i alph senv tenv a = runCompletion (runExcept (runState (runReader f))) (tenv, ((senv, i, alph), a))
 
 eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> FreeCompletion (Error () (TermEnv, Term))
 eval i s = runInterp (eval' s) i
@@ -98,7 +91,7 @@ sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
   alph = map (\(c,v) -> (Constr (sortToNonterm c),length v)) $ LM.toList sorts
 
 -- Instances -----------------------------------------------------------------------------------------
-deriving instance ArrowReader (StratEnv, Alphabet Constr) Interp
+deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowFail () Interp
 deriving instance (Complete (FreeCompletion y), PreOrd y) => ArrowExcept x y () Interp
@@ -129,13 +122,20 @@ instance Complete TermEnv where
           _                  -> go vs env1 env2 env3
         [] -> TermEnv env3
 
-deriving instance ArrowFix (Strat,Term) Term Interp
+instance ArrowFix (Strat,Term) Term Interp where
+  fixA f = proc x -> do
+    (env,i,alph) <- askA -< ()
+    if i <= 0
+      then top' -< ()
+      else localFuel (f (fixA f)) -< ((env,i-1,alph),x)
+    where
+      localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> localA g -< ((env,i,alph),a)
 
 instance HasStratEnv Interp where
-  readStratEnv = Interp (const () ^>> askA >>^ (\(a,_) -> a))
+  readStratEnv = Interp (const () ^>> askA >>^ (\(a,_,_) -> a))
   localStratEnv senv f = proc a -> do
-    (_,alph) <- askA -< ()
-    r <- localA f -< ((senv,alph),a)
+    (_,i,alph) <- askA -< ()
+    r <- localA f -< ((senv,i,alph),a)
     returnA -< r
 
 instance Complete (FreeCompletion Term) where
@@ -158,7 +158,7 @@ instance IsTerm Term Interp where
   matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,Term g) -> do
     lubA (reconstruct <<< second matchSubterms <<< checkConstructorAndLength c ts) -<< toSubterms g
 
-  matchTermAgainstExplode _ _ = undefined
+  matchTermAgainstExplode matchCons matchSubterms = undefined
 
   matchTermAgainstNumber = proc (n,g) -> matchLit -< (g, NumLit n)
   matchTermAgainstString = proc (s,g) -> matchLit -< (g, StringLit s)
@@ -230,6 +230,9 @@ instance Soundness (StratEnv, Alphabet Constr) Interp where
 dom :: HashMap TermVar t -> [TermVar]
 dom = LM.keys
 
+thrd :: (a,b,c) -> c
+thrd (_,_,c) = c
+
 toTerms :: [GrammarBuilder Constr] -> [Term]
 toTerms = map Term
 
@@ -249,7 +252,7 @@ checkConstructorAndLength c ts = proc (c', gs) -> case c' of
   _ -> failA -< ()
 
 top' :: Interp () Term
-top' = proc () -> returnA ⊔ failA' <<< (Term . wildcard . snd ^<< askA) -< ()
+top' = proc () -> returnA ⊔ failA' <<< (Term . wildcard . thrd ^<< askA) -< ()
 
 matchLit :: Interp (Term, Constr) Term
 -- TODO: check if production to n has empty argument list? This should be the case by design.

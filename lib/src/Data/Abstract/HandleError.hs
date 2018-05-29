@@ -59,6 +59,12 @@ instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeComplet
 instance (UpperBounded e, UpperBounded a) => UpperBounded (Error e a) where
   top = SuccessOrFail top top
 
+instance (PreOrd a, PreOrd e, UpperBounded (FreeCompletion e), UpperBounded (FreeCompletion a))
+  => UpperBounded (FreeCompletion (Error e a)) where
+  top = case (top,top) of 
+    (Lower e,Lower a) -> Lower (SuccessOrFail e a)
+    (_,_) -> Top
+
 instance Bifunctor Error where
   bimap f g x = case x of
     Fail e -> Fail (f e)

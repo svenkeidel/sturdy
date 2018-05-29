@@ -77,11 +77,8 @@ instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) wh
     x' <- f -< x
     returnA -< A.dedup x'
 
-instance ArrowChoice c => ArrowJoin (Powerset c) where
-  joinWith _ (Powerset f) (Powerset g) = Powerset $ proc (x,u) -> do
-    x' <- f -< x
-    u' <- g -< u
-    returnA -< A.union x' u'
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Powerset c) where
+  joinWith _ (Powerset f) (Powerset g) = Powerset $ joinWith A.union f g
 
 instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (Powerset c) where
   fixA f = Powerset (fixA (runPowerset . f . Powerset))
