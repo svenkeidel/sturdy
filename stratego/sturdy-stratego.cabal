@@ -64,21 +64,34 @@ Executable case-studies
                        unordered-containers
   hs-source-dirs:      case-studies
   main-is:             Main.hs
+  other-modules:       Pretty.Haskell,
+                       Pretty.Results,
+                       Paths_sturdy_stratego
   default-language:    Haskell2010
 
 test-suite specs
   type:                exitcode-stdio-1.0
   ghc-options:         -Wall
-  hs-source-dirs:      test
+  hs-source-dirs:      test, case-studies
   main-is:             Spec.hs
   build-depends:       base,
                        containers,
                        hspec,
                        mtl,
+                       pretty,
                        sturdy-lib,
                        sturdy-stratego,
                        text,
                        tree-automata,
                        unordered-containers,
                        QuickCheck
+  other-modules:       Pretty.Haskell,
+                       Pretty.Results,
+                       AbstractTypedSemanticsSpec,
+                       ConcreteSemanticsSpec,
+                       GrammarSemanticsSpec,
+                       OrderSpec,
+                       SubtypingSpec,
+                       TypedSemanticsSpec,
+                       WildcardSemanticsSpec
   default-language:    Haskell2010

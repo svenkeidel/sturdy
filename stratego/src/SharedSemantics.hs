@@ -45,6 +45,7 @@ eval' = fixA' $ \ev s0 -> dedupA $ case s0 of
     Build f -> proc _ -> build -< f
     Let bnds body -> let_ bnds body eval'
     Call f ss ps -> call f ss ps ev
+    Prim {} -> undefined
 
 guardedChoice :: ArrowExcept x z () c => c x y -> c y z -> c x z -> c x z
 guardedChoice = tryA
