@@ -4,7 +4,7 @@ import Syntax
 import SharedAbstract (TypeArr, Type(..))
 import qualified SharedAbstract as Interpreter (runAbstract)
 import Data.Concrete.Environment
-import Data.Concrete.Error
+import Data.Abstract.HandleError
 import Control.Arrow.Fail
 import Test.Hspec
 

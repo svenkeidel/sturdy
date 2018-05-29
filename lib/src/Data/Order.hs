@@ -1,5 +1,11 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE Arrows #-}
+-- Temporary
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveAnyClass #-}
+--
 module Data.Order where
 
 import           Data.Functor.Identity
@@ -27,6 +33,9 @@ class PreOrd x where
 class PreOrd x => Complete x where
   (⊔) :: x -> x -> x
   infix 5 ⊔
+
+ -- Temporary
+deriving instance Complete String
 
 -- | Order with a least element
 class PreOrd x => LowerBounded x where

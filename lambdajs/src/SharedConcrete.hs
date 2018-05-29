@@ -5,9 +5,9 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverlappingInstances #-}
 module SharedConcrete where
 
 import Prelude hiding(lookup, break, read, error)
@@ -26,6 +26,7 @@ import Data.List (isPrefixOf, find)
 import Data.Concrete.Environment
 import Data.Concrete.Store
 import Data.Concrete.Error
+import Data.Order
 
 import Control.Arrow.Transformer.Concrete.Except
 import Control.Arrow.Transformer.Concrete.Environment
@@ -34,11 +35,11 @@ import Control.Arrow.Transformer.State
 import Control.Arrow.Utils (mapA, pi2, pi1)
 
 import Control.Arrow.Store
-import Control.Arrow.TryCatch
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.State
 import Control.Arrow.Reader
+import Control.Arrow.Except
 import Control.Arrow
 import Control.Category
 
@@ -54,41 +55,44 @@ data Value
     | VRef Location
     deriving (Show, Eq, Generic)
 instance Hashable Value
+deriving instance Ord Value
 
 data Exceptional
     = Break Label Value
     | Thrown Value
     deriving (Show, Eq, Generic)
 instance Hashable Exceptional
+deriving instance Ord Exceptional
 
 newtype ConcreteArr x y = ConcreteArr (Except (Either String Exceptional) (Environment Ident Location (StoreArrow Location Value (State Location (->)))) x y)
-    deriving (ArrowChoice,Arrow,Category)
 deriving instance ArrowFail (Either String Exceptional) ConcreteArr
 deriving instance ArrowEnv Ident Location (Env Ident Location) ConcreteArr
 
 instance (Show Location, Identifiable Value, ArrowChoice c) => ArrowStore Location Value lab (StoreArrow Location Value c) where
   read =
     StoreArrow $ State $ proc (s,(var,_)) -> case Data.Concrete.Store.lookup var s of
-      Success v -> returnA -< (s,v)
-      Fail _ -> returnA -< (s, VUndefined)
+      Just v -> returnA -< (s,v)
+      Nothing -> returnA -< (s, VUndefined)
   write = StoreArrow (State (arr (\(s,(x,v,_)) -> (Data.Concrete.Store.insert x v s,()))))
 instance (Show Ident, Identifiable Ident, ArrowChoice c) => ArrowEnv Ident Location (Env Ident Location) (Environment Ident Location c) where
   lookup = proc x -> do
     env <- getEnv -< ()
     case Data.Concrete.Environment.lookup x env of
-      Success y -> returnA -< y
-      Fail _ -> returnA -< Location 0
+      Just y -> returnA -< y
+      Nothing -> returnA -< Location 0
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> Data.Concrete.Environment.insert x y env
   localEnv (Environment f) = Environment (localA f)
 
 deriving instance ArrowStore Location Value () ConcreteArr
 deriving instance ArrowState Location ConcreteArr
+deriving instance ArrowChoice ConcreteArr
+deriving instance Arrow ConcreteArr
+deriving instance Category ConcreteArr
 
-instance ArrowTryCatch (Either String Exceptional) (Label, Expr) (Label, Value) ConcreteArr where
-    tryCatchA (ConcreteArr f) (ConcreteArr g) = ConcreteArr $ tryCatchA f g
-instance ArrowTryCatch (Either String Exceptional) (Expr, Expr) (Expr, Value) ConcreteArr where
-    tryCatchA (ConcreteArr f) (ConcreteArr g) = ConcreteArr $ tryCatchA f g
+
+deriving instance ArrowExcept (Label, Expr) (Label, Value) (Either String Exceptional) ConcreteArr
+deriving instance ArrowExcept (Expr, Expr) (Expr, Value) (Either String Exceptional) ConcreteArr
 
 runLJS :: ConcreteArr x y -> [(Ident, Location)] -> [(Location, Value)] -> x -> (Location, (Store Location Value, Error (Either String Exceptional) y))
 runLJS (ConcreteArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Concrete.Store.fromList env2, (env, x)))

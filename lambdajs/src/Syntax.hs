@@ -40,7 +40,7 @@ data Op
     | OObjCanDelete -- not implemented
     | OMathExp | OMathLog | OMathCos | OMathSin | OMathAbs | OMathPow
     | ORegExpMatch | ORegExpQuote -- not implemented
-    deriving (Show, Eq, Generic)
+    deriving (Show, Eq, Generic, Ord)
 instance Hashable Op
 
 data Expr
@@ -72,5 +72,5 @@ data Expr
     -- An expression that calls eval, or a related function. If EEval becomes the active expression,
     -- our model immediately aborts.
     | EEval
-    deriving (Show, Eq, Generic)
+    deriving (Show, Eq, Generic, Ord)
 instance Hashable Expr

@@ -5,9 +5,9 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverlappingInstances #-}
 module SharedAbstract where
 
 import Prelude hiding(lookup, break, read, error)
@@ -19,13 +19,14 @@ import SharedInterpreter
 import Data.Hashable
 import Data.Identifiable
 
-import Data.Concrete.Environment
-import Data.Concrete.Store
-import Data.Concrete.Error
+import Data.Abstract.Environment
+import Data.Abstract.Store
+import Data.Abstract.HandleError
+import Data.Order
 
-import Control.Arrow.Transformer.Concrete.Except
-import Control.Arrow.Transformer.Concrete.Environment
-import Control.Arrow.Transformer.Concrete.Store
+import Control.Arrow.Transformer.Abstract.HandleExcept
+import Control.Arrow.Transformer.Abstract.Environment
+import Control.Arrow.Transformer.Abstract.Store
 import Control.Arrow.Transformer.State
 import Control.Arrow.Utils (mapA, pi2, pi1)
 
@@ -34,6 +35,7 @@ import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.State
 import Control.Arrow.Reader
+import Control.Arrow.Except
 import Control.Arrow
 import Control.Category
 
@@ -54,30 +56,33 @@ data Type
 instance Hashable Type
 
 newtype TypeArr x y = TypeArr (Except String (Environment Ident Location (StoreArrow Location Type (State Location (->)))) x y)
-    deriving (ArrowChoice,Arrow,Category)
 deriving instance ArrowFail String TypeArr
 deriving instance ArrowEnv Ident Location (Env Ident Location) TypeArr
+deriving instance Category TypeArr
+deriving instance Arrow TypeArr
+deriving instance ArrowChoice TypeArr
 
 instance (Show Location, Identifiable Type, ArrowChoice c) => ArrowStore Location Type lab (StoreArrow Location Type c) where
   read =
-    StoreArrow $ State $ proc (s,(var,_)) -> case Data.Concrete.Store.lookup var s of
-      Success v -> returnA -< (s,v)
-      Fail _ -> returnA -< (s, TUndefined)
-  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (Data.Concrete.Store.insert x v s,()))))
+    StoreArrow $ State $ proc (s,(var,_)) -> case Data.Abstract.Store.lookup var s of
+      Just v -> returnA -< (s,v)
+      Nothing -> returnA -< (s, TUndefined)
+  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (Data.Abstract.Store.insert x v s,()))))
 instance (Show Ident, Identifiable Ident, ArrowChoice c) => ArrowEnv Ident Location (Env Ident Location) (Environment Ident Location c) where
   lookup = proc x -> do
     env <- getEnv -< ()
-    case Data.Concrete.Environment.lookup x env of
-      Success y -> returnA -< y
-      Fail _ -> returnA -< Location 0
+    case Data.Abstract.Environment.lookup x env of
+      Just y -> returnA -< y
+      Nothing -> returnA -< Location 0
   getEnv = Environment askA
-  extendEnv = arr $ \(x,y,env) -> Data.Concrete.Environment.insert x y env
+  extendEnv = arr $ \(x,y,env) -> Data.Abstract.Environment.insert x y env
   localEnv (Environment f) = Environment (localA f)
 deriving instance ArrowStore Location Type () TypeArr
 deriving instance ArrowState Location TypeArr
 
+
 runType :: TypeArr x y -> [(Ident, Location)] -> [(Location, Type)] -> x -> (Location, (Store Location Type, Error String y))
-runType (TypeArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Concrete.Store.fromList env2, (env, x)))
+runType (TypeArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Abstract.Store.fromList env2, (env, x)))
 
 runAbstract :: [(Ident, Location)] -> [(Location, Type)] -> Expr -> (Store Location Type, Error String Type)
 runAbstract env st exp = case runType eval env st exp of
@@ -175,7 +180,7 @@ instance {-# OVERLAPS #-} AbstractValue Type TypeArr where
                 locations <- mapA ((arr $ const ()) >>> fresh) -< args
 
                 forStore <- arr $ uncurry zip -< (locations, args) 
-                mapA set -< map (\(a, b) -> (TRef a, b)) forStore
+                mapA set -< Prelude.map (\(a, b) -> (TRef a, b)) forStore
 
                 forEnv <- arr $ uncurry zip -< (names, locations) 
                 scope <- getEnv -< ()

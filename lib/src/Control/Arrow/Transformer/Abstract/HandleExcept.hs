@@ -17,6 +17,7 @@ import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Except
+import Control.Arrow.Store
 import Control.Arrow.Abstract.Join
 import Control.Category
 
@@ -87,6 +88,10 @@ instance (ArrowChoice c, Complete e, ArrowJoin c, Complete (c (y,(x,e)) (Error e
 
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowDeduplicate (Except e c) where
   dedupA = returnA
+
+instance (ArrowStore loc val lab c, ArrowChoice c, ArrowJoin c, Complete r) => ArrowStore loc val lab (Except r c) where
+  read = lift Control.Arrow.Store.read
+  write = lift write
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)

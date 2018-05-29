@@ -6,40 +6,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 module SharedInterpreter where
 
 import Prelude hiding(lookup, break, read, error)
 import qualified Prelude
 import Syntax
-
-import Data.Concrete.Error
-import Data.Concrete.Store
-import Data.Concrete.Environment
-import Control.Category
 import Control.Arrow
-import Control.Arrow.Transformer.Concrete.Except
-import Control.Arrow.Transformer.Concrete.Environment
-import Control.Arrow.Transformer.Concrete.Store
-import Control.Arrow.Transformer.State
-import Control.Arrow.Fail
-import Control.Arrow.Try
-import Control.Arrow.Const
-import Control.Arrow.Environment
-import Control.Arrow.State
-import Control.Arrow.Store
-import Control.Arrow.Reader
 import Control.Arrow.Utils (foldA, mapA, pi2, pi1)
-import Control.Arrow.TryCatch
-import Data.Identifiable
-import Data.Fixed (mod')
-import Data.List (isPrefixOf, find)
-import Data.Bits (shift, bit)
-import Data.Word (Word32)
-
-import Data.Map (Map, findWithDefault)
-import qualified Data.Map as Map
 
 class Arrow c => AbstractValue v c | c -> v where
     -- values

@@ -26,6 +26,8 @@ import Control.Arrow.Except
 import Control.Arrow.Lift
 import Control.Arrow.Environment
 import Control.Arrow.Fix
+import Control.Arrow.Store
+import Control.Arrow.Abstract.Join
 
 import Text.Printf
 
@@ -60,6 +62,9 @@ deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
 deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
 deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
+instance (ArrowStore loc val lab c, ArrowChoice c, ArrowJoin c) => ArrowStore loc val lab (Environment var val2 c) where
+  read = lift Control.Arrow.Store.read
+  write = lift write
 
 deriving instance PreOrd (c (Env var val,x) y) => PreOrd (Environment var val c x y)
 deriving instance Complete (c (Env var val,x) y) => Complete (Environment var val c x y)
