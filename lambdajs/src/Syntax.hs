@@ -25,21 +25,21 @@ data Op
     | OStrictEq
     | OAbstractEq
     | OTypeof 
-    -- ? | OSurfaceTypeof
+    | OSurfaceTypeof -- not implemented
     | OPrimToNum
     | OPrimToStr
     | OPrimToBool
     | OIsPrim
     | OHasOwnProp
     | OToInteger | OToInt32 | OToUInt32
-    -- | OPrint -- ^for Rhino
-    -- | OStrContains | OStrSplitRegExp | OStrSplitStrExp -- ^for Regexes
+    | OPrint -- ^for Rhino -- not implemented
+    | OStrContains | OStrSplitRegExp | OStrSplitStrExp -- ^for Regexes -- not implemented
     | OStrStartsWith -- ^for forin
     | OStrLen
-    -- | OObjIterHasNext | OObjIterNext | OObjIterKey -- ^more forin
-    -- | OObjCanDelete
+    | OObjIterHasNext | OObjIterNext | OObjIterKey -- ^more forin -- not implemented
+    | OObjCanDelete -- not implemented
     | OMathExp | OMathLog | OMathCos | OMathSin | OMathAbs | OMathPow
-    -- | ORegExpMatch | ORegExpQuote
+    | ORegExpMatch | ORegExpQuote -- not implemented
     deriving (Show, Eq, Generic)
 instance Hashable Op
 

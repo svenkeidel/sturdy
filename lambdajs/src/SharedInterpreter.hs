@@ -57,7 +57,7 @@ class Arrow c => AbstractValue v c | c -> v where
     evalOp :: c (Op, [v]) v
     -- environment ops
     lookup :: c Ident v
-    apply :: c ([(Ident, v)], Expr) v
+    apply :: c (v, [v]) v
     -- store ops
     set :: c (v, v) ()
     new :: c v v
@@ -69,7 +69,7 @@ class Arrow c => AbstractValue v c | c -> v where
     catch :: c (Expr, Expr) v
     throw :: c v v
     -- exceptional
-    error :: c () v
+    error :: c String v
 
 eval :: (ArrowChoice c, AbstractValue v c) => c Expr v
 eval = proc e -> case e of
@@ -86,17 +86,17 @@ eval = proc e -> case e of
     EOp op exps -> do
         vals <- (mapA eval) -< exps
         evalOp -< (op, vals)
-    EApp (ELambda params body) args -> do
-        vals <- mapA eval -< args
-        pairs <- arr $ uncurry zip -< (params, vals)
-        apply -< (pairs, body)
+    EApp body args -> do
+        lambda <- eval -< body
+        args <- mapA eval -< args 
+        apply -< (lambda, args)
     ELet argsE body -> do
         eval -< EApp (ELambda (map fst argsE) body) (map snd argsE)
     ESetRef locE valE -> do
         loc <- eval -< locE
         val <- eval -< valE
         set -< (loc, val)
-        undefVal -< ()
+        returnA -< loc
     ERef valE -> do
         val <- eval -< valE
         new -< val
@@ -138,5 +138,4 @@ eval = proc e -> case e of
         res <- eval -< e1
         eval -< e2
         returnA -< res
-    EEval -> error -< ()
-
+    EEval -> error -< "Encountered EEval"

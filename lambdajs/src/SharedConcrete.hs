@@ -226,15 +226,18 @@ getField_ = proc (VObject fields, VString fieldName) ->
                         Nothing -> returnA -< VUndefined
 
 updateField_ :: (ArrowFail (Either String Exceptional) e, ArrowChoice e) => e (Value, Value, Value) Value
-updateField_ = proc (VObject fields, VString name, value) -> do
-    -- remove field from obj
-    filtered <- deleteField_ -< (VObject fields, VString name)
-    case filtered of
-        VObject obj -> do
-            -- add field with new value to obj
-            newFields <- arr (\(fs, n, v) -> (n, v) : fs) -< (obj, name, value) 
-            returnA -< VObject newFields
-        _ -> failA -< Left "Error: deleteField returned non-object value"
+updateField_ = proc (fields, name, value) -> do
+    case (fields, name) of
+        (VObject fields, VString name) -> do
+            -- remove field from obj
+            filtered <- deleteField_ -< (VObject fields, VString name)
+            case filtered of
+                VObject obj -> do
+                    -- add field with new value to obj
+                    newFields <- arr (\(fs, n, v) -> (n, v) : fs) -< (obj, name, value) 
+                    returnA -< VObject newFields
+                _ -> failA -< Left "Error: deleteField returned non-object value"
+        _ -> failA -< Left $ "Error: non exhaustive pattern in updateField_ with params: " ++ (show fields) ++ " " ++ (show name) ++ " " ++ show value
 
 deleteField_ :: ArrowFail (Either String Exceptional) e => e (Value, Value) Value
 deleteField_ = proc (VObject fields, VString name) -> do
@@ -259,27 +262,30 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
     lookup = proc id -> do
         loc <- Control.Arrow.Environment.lookup -< id
         returnA -< VRef loc
-    apply = proc ((pairs), body) -> do
-        -- generate locations for arguments equal to length of pairs 
-        locations <- mapA ((arr $ const ()) >>> fresh) -< pairs
+    apply = proc (lambda, args) -> do
+        case lambda of 
+            VLambda names body -> do
+                case (length names) == (length args) of
+                    False -> failA -< Left $ "Error: applied lambda with less/more params than arguments"
+                    True -> do
+                        -- generate locations for arguments equal to length of pairs 
+                        locations <- mapA ((arr $ const ()) >>> fresh) -< args
 
-        vals <- mapA $ pi2 -< pairs
-        ids <- mapA $ pi1 -< pairs
+                        forStore <- arr $ uncurry zip -< (locations, args) 
+                        mapA set -< map (\(a, b) -> (VRef a, b)) forStore
 
-        forStore <- arr $ uncurry zip -< (locations, vals) 
-        mapA set -< map (\(a, b) -> (VRef a, b)) forStore
-
-        forEnv <- arr $ uncurry zip -< (ids, locations) 
-        scope <- getEnv -< ()
-        env' <- bindings -< (forEnv, scope)
-        localEnv eval -< (env', body)
+                        forEnv <- arr $ uncurry zip -< (names, locations) 
+                        scope <- getEnv -< ()
+                        env' <- bindings -< (forEnv, scope)
+                        localEnv eval -< (env', body)
+            _ -> failA -< Left $ "Error: apply on non-lambda value: " ++ (show lambda) ++ " " ++ (show args)
     -- store ops
     set = proc (loc, val) -> do
         case loc of
             VRef l -> do
                 write -< (l, val, ())
                 returnA -< ()
-            _ -> failA -< Left "Error: ESetRef lhs must be location"
+            _ -> failA -< Left $ "Error: ESetRef lhs must be location, is: " ++ (show loc)
     new = proc (val) -> do 
         loc <- fresh -< ()
         set -< (VRef loc, val)
@@ -289,7 +295,7 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
             VRef l -> do
                 val <- read -< (l, ())
                 returnA -< val
-            _ -> failA -< Left "Error: EDeref lhs must be location"
+            _ -> failA -< Left $ "Error: EDeref lhs must be location, is: " ++ (show loc) 
     -- control flow
     if_ = proc (cond, thenBranch, elseBranch) -> do
         case cond of
@@ -323,4 +329,4 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
                     returnA -< (catch, res)
                 _ -> failA -< Left "Error: Catch block must be of type ELambda") -< (catch, try)
         returnA -< res
-    error = proc () -> failA -< Left "Error: aborted"
+    error = proc s -> failA -< Left $ "Error: aborted with message: " ++ s

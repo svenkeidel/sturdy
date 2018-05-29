@@ -167,20 +167,22 @@ instance {-# OVERLAPS #-} AbstractValue Type TypeArr where
     lookup = proc id -> do
         loc <- Control.Arrow.Environment.lookup -< id
         returnA -< TRef loc
-    apply = proc ((pairs), body) -> do
-        -- generate locations for arguments equal to length of pairs 
-        locations <- mapA ((arr $ const ()) >>> fresh) -< pairs
+    apply = proc (TLambda names bodyT, args) -> do
+        case length names == length args of
+            False ->  failA -< "Error: applied lambda with less/more params than arguments"
+            True -> do
+                -- generate locations for arguments equal to length of pairs 
+                locations <- mapA ((arr $ const ()) >>> fresh) -< args
 
-        vals <- mapA $ pi2 -< pairs
-        ids <- mapA $ pi1 -< pairs
+                forStore <- arr $ uncurry zip -< (locations, args) 
+                mapA set -< map (\(a, b) -> (TRef a, b)) forStore
 
-        forStore <- arr $ uncurry zip -< (locations, vals) 
-        mapA set -< map (\(a, b) -> (TRef a, b)) forStore
-
-        forEnv <- arr $ uncurry zip -< (ids, locations) 
-        scope <- getEnv -< ()
-        env' <- bindings -< (forEnv, scope)
-        localEnv eval -< (env', body)
+                forEnv <- arr $ uncurry zip -< (names, locations) 
+                scope <- getEnv -< ()
+                env' <- bindings -< (forEnv, scope)
+                --localEnv eval -< (env', bodyT)
+                -- Just return bodyT for now, in the future typecheck the body with parameter types known
+                returnA -< bodyT
     -- store ops
     set = proc (loc, val) -> do
         case loc of
@@ -224,4 +226,4 @@ instance {-# OVERLAPS #-} AbstractValue Type TypeArr where
         case tryT of
             TThrown t -> returnA -< t
             _ -> failA -< "Error: Expression within try must be of type thrown"
-    error = proc () -> failA -< "Error: aborted"
+    error = proc s -> failA -< "Error: aborted with message: " ++ s
