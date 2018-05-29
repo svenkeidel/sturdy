@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Environment where
 
-import           Prelude hiding ((.), read)
+import           Prelude hiding ((.))
 
 import           Data.Hashable
 import           Data.Identifiable
@@ -26,8 +26,6 @@ import           Control.Arrow.Lift
 import           Control.Arrow.Except
 import           Control.Arrow.Environment
 import           Control.Arrow.Fix
-import           Control.Arrow.Store
-import           Control.Arrow.TryCatch
 
 import           Text.Printf
 
@@ -48,19 +46,12 @@ instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c) =>
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (localA f)
 
---deriving instance ArrowTryCatch (Env var val, e) (Env var val, x) (Env var val, y) c =>
-  --ArrowTryCatch e x y (Environment var val c)
-
 instance ArrowApply c => ArrowApply (Environment var val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app
 
 instance ArrowReader r c => ArrowReader r (Environment var val c) where
   askA = lift askA
   localA (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> localA f))
-
-instance ArrowStore loc val lab c => ArrowStore loc val lab (Environment val2 val3 c) where
-  read = lift read
-  write = lift write
 
 deriving instance Arrow c => Category (Environment var val c)
 deriving instance Arrow c => Arrow (Environment var val c)

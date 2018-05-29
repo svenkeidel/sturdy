@@ -19,17 +19,13 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Except
 import Control.Category
-import Control.Arrow.Utils
+
 import Data.Concrete.Error
 import Data.Monoidal
 import Data.Identifiable
 
 -- | Arrow transformer that adds exceptions to the result of a computation
 newtype Except e c x y = Except { runExcept :: c x (Error e y) }
-
-instance (ArrowStore loc val lab c, ArrowChoice c) => ArrowStore loc val lab (Except r c) where
-  read = lift Control.Arrow.Store.read
-  write = lift write
 
 instance ArrowLift (Except e) where
   lift f = Except (f >>> arr Success)
