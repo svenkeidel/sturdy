@@ -38,7 +38,6 @@ import           Control.Category hiding ((.))
 
 import           Control.Arrow
 import           Control.Arrow.Const
-import           Control.Arrow.Debug
 import           Control.Arrow.MaybeEnvironment
 import           Control.Arrow.Fail
 import           Control.Arrow.Reader
@@ -54,7 +53,6 @@ import           Control.Arrow.Transformer.Abstract.MaybeEnvironment
 import           Control.Arrow.Transformer.Abstract.MaybeStore
 
 import           Text.Printf
-import           Debug.Trace
 
 import           Syntax
 import           Shared
@@ -176,11 +174,6 @@ newtype Interp x y = Interp
 instance ArrowTryCatch (Exception Val) x y Interp where
   tryCatchA (Interp f) (Interp g) = Interp $ tryCatchA f g
 
-instance ArrowDebug Interp where
-  debug s f = proc a -> do
-    b <- f -< a
-    returnA -< trace (printf "%s: %s -> %s" s (show a) (show b)) b
-
 deriving instance ArrowConst Constants Interp
 deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowReader MethodReader Interp
@@ -201,23 +194,6 @@ instance LowerBounded Int where
 ---- End of Interp type ----
 
 ---- Program Boilerplate ----
-
--- runInterp :: (?bound :: IV) => Interp x y -> [CompilationUnit] -> [(String, Addr)] -> [(Addr, Val)] -> Maybe Method -> x -> Error (Exception Val) y
--- runInterp (Interp f) files env store mainMethod x =
---   let compilationUnits = map (\file -> (fileName file, file)) files
---       latestAddr = case map snd env ++ map fst store of
---         [] -> 0
---         addrs -> maximum addrs
---       fields = zip (concatMap (\u -> getFieldSignatures u (\m -> Static `elem` m)) files) (map (num ?bound) [latestAddr..])
---       store' = map (\(i, v) -> (num ?bound i, v)) store ++ map (\(FieldSignature _ t _,a) -> (a,defaultValue t)) fields
---       env' = map (\(v, i) -> (v, num ?bound i)) env
---   in runConst (Map.fromList compilationUnits, Map.fromList fields, ?bound)
---       (evalState
---         (evalMaybeStore
---           (runMaybeEnvironment
---             (runReader
---               (runExcept f)))))
---   (num ?bound (latestAddr + length fields), (S.fromList store', (env', ((mainMethod, 0, []), x))))
 
 runInterp :: (?bound :: IV) => Interp x y -> [CompilationUnit] -> [(String, Addr)] -> [(Addr, Val)] -> MethodReader -> x -> Error (Exception Val) y
 runInterp (Interp f) files env store mainMethod x =
@@ -390,19 +366,17 @@ instance UseVal Val Interp where
   nullConstant = arr (\() -> NullVal)
   stringConstant = arr (\x -> StringVal x)
   classConstant = arr (\x -> ClassVal x)
-  -- unbox = proc val -> case val of
-  --   RefVal addr -> do
-  --     v <- Shared.readVar -< addr
-  --     case v of
-  --       ObjectVal c m -> do
-  --         let (keys, vals) = unzip (Map.toList m)
-  --         vals' <- mapA unbox -< vals
-  --         returnA -< ObjectVal c (Map.fromList (zip keys vals'))
-  --       ArrayVal xs -> do
-  --         xs' <- mapA unbox -< xs
-  --         returnA -< ArrayVal xs'
-  --       _ -> returnA -< v
-  --   _ -> returnA -< val
+  unbox = proc val -> case val of
+    RefVal addr -> do
+      v <- Shared.readVar -< addr
+      case v of
+        ObjectVal c m -> do
+          let (keys, vals) = unzip (Map.toList m)
+          vals' <- mapA unbox -< vals
+          returnA -< ObjectVal c (Map.fromList (zip keys vals'))
+        ArrayVal xs -> mapA unbox >>^ ArrayVal -< xs
+        _ -> returnA -< v
+    _ -> returnA -< val
   -- defaultValue = arr (\t -> case t of
   --   BooleanType   -> BoolVal B.False
   --   ByteType      -> IntVal 0

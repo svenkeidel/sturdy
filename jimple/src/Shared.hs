@@ -69,15 +69,15 @@ type CanInterp env const v c = (Show v,
 
 getFieldSignatures :: CompilationUnit -> ([Modifier] -> Bool) -> [FieldSignature]
 getFieldSignatures unit p =
-  let toFieldSignature :: Member -> [FieldSignature]
-      toFieldSignature (FieldMember f) =
-        [FieldSignature (fileName unit) (fieldType f) (fieldName f) | p (fieldModifiers f)]
-      toFieldSignature _ = []
-  in concatMap toFieldSignature (fileBody unit)
+  concatMap toFieldSignature (fileBody unit)
+  where
+    toFieldSignature :: Member -> [FieldSignature]
+    toFieldSignature (FieldMember f) =
+      [FieldSignature (fileName unit) (fieldType f) (fieldName f) | p (fieldModifiers f)]
+    toFieldSignature _ = []
 
 getInitializedFields :: (UseVal v c,CanFail v c,UseConst c,CanUseConst const c) => c String [(FieldSignature,v)]
-getInitializedFields = proc c -> do
-  unit <- readCompilationUnit -< c
+getInitializedFields = readCompilationUnit >>> proc unit -> do
   let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
   ownFields <- mapA (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s,t')) fieldSignatures
   case extends unit of
@@ -87,11 +87,9 @@ getInitializedFields = proc c -> do
     Nothing -> returnA -< ownFields
 
 lookupLocal :: (Show name,CanFail val c,ArrowMaybeEnv name addr env c) => c name addr
-lookupLocal = proc x -> do
-  v <- lookup -< x
-  case v of
-    Just y -> returnA -< y
-    Nothing -> failA -< StaticException $ printf "Variable %s not bounded" (show x)
+lookupLocal = (id &&& lookup) >>> proc (x,v) -> case v of
+  Just y -> returnA -< y
+  Nothing -> failA -< StaticException $ printf "Variable %s not bounded" (show x)
 
 lookupField :: (UseVal v c,UseConst c,CanFail v c,CanUseConst const c) => c FieldSignature Addr
 lookupField = proc x -> do
@@ -101,13 +99,11 @@ lookupField = proc x -> do
     Nothing -> failA -< StaticException $ printf "Field %s not bounded" (show x)
 
 readVar :: (Show var,CanFail val c,ArrowMaybeStore var val c) => c var val
-readVar = proc x -> do
-  v <- read -< x
-  case v of
-    Just y -> returnA -< y
-    Nothing -> failA -< StaticException $ printf "Address %s not bounded" (show x)
+readVar = (id &&& read) >>> proc (x,v) -> case v of
+  Just y -> returnA -< y
+  Nothing -> failA -< StaticException $ printf "Address %s not bounded" (show x)
 
-readLocal :: (Show name,Show addr,CanFail val c,ArrowMaybeEnv name addr env c,ArrowMaybeStore addr val c) => c name val
+readLocal :: (Show name,Show val,Show addr,CanFail val c,ArrowMaybeEnv name addr env c,ArrowMaybeStore addr val c) => c name val
 readLocal = lookupLocal >>> readVar
 
 readCompilationUnit :: (CanFail v c,UseConst c,CanUseConst const c) => c String CompilationUnit
@@ -148,7 +144,7 @@ evalInvoke =
         case localName of
           Just n -> do
             assert -< (Static `notElem` methodModifiers method,"Expected a non-static method for non-static invoke")
-            this <- lookupLocal >>> readVar -< n
+            this <- readLocal -< n
             runMethod -< (method,Just this,args)
           Nothing -> do
             assert -< (Static `elem` methodModifiers method,"Expected a static method for static invoke")
@@ -219,7 +215,7 @@ eval = proc e -> case e of
   ThisRef -> eval -< (Local "@this")
   ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
   CaughtExceptionRef -> eval -< (Local "@caughtexception")
-  Local localName -> lookupLocal >>> readVar -< localName
+  Local localName -> readLocal -< localName
   DoubleConstant f -> doubleConstant -< f
   FloatConstant f -> floatConstant -< f
   IntConstant n -> intConstant -< n

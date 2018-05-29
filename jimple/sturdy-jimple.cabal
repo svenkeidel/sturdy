@@ -31,6 +31,7 @@ test-suite specs
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:       ConcreteSpec,
+                       IntervalSpec,
                        Classes.Object,
                        Classes.Throwable,
                        Classes.ArithmeticException,
