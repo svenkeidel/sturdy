@@ -100,8 +100,8 @@ instance ArrowExcept (s,x) (s,y) e c => ArrowExcept x y e (State s c) where
   tryCatch (State f) (State g) = State $ tryCatch f (from assoc ^>> g)
   finally (State f) (State g) = State $ finally f g
 
-instance ArrowTryCatch (s,e) (s,x) (s,y) (s,z) c => ArrowTryCatch e x y z (State s c) where
-  tryCatchA (State f) (State g) (State h) = State $ tryCatchA f g h
+instance ArrowTryCatch e (s,x) (s,y) c => ArrowTryCatch e x y (State s c) where
+  tryCatchA (State f) (State g) = State $ tryCatchA f ((\((s,x),e) -> (s,(x,e))) ^>> g)
 
 instance (Eq s, Hashable s, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
   dedup (State f) = State (dedup f)

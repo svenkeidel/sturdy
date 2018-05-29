@@ -6,30 +6,31 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Concrete.MaybeEnvironment where
+module Control.Arrow.Transformer.Abstract.MaybeEnvironment where
 
-import           Prelude hiding ((.), read)
+import Prelude hiding ((.),read)
 
-import           Data.Hashable
-import           Data.Identifiable
-import           Data.Concrete.Error
-import           Data.Concrete.Environment (Env)
-import qualified Data.Concrete.Environment as E
+import Data.Hashable
+import Data.Order
+import Data.Identifiable
+import Data.Abstract.Error
+import Data.Abstract.Environment (Env)
+import qualified Data.Abstract.Environment as E
 
-import           Control.Category
+import Control.Category
+import Control.Arrow
+import Control.Arrow.Const
+import Control.Arrow.Transformer.Reader
+import Control.Arrow.Reader
+import Control.Arrow.State
+import Control.Arrow.Fail
+import Control.Arrow.Lift
+import Control.Arrow.MaybeEnvironment
+import Control.Arrow.MaybeStore
+import Control.Arrow.Fix
+import Control.Arrow.TryCatch
 
-import           Control.Arrow
-import           Control.Arrow.Const
-import           Control.Arrow.TryCatch
-import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Reader
-import           Control.Arrow.State
-import           Control.Arrow.MaybeStore
-import           Control.Arrow.Fail
-import           Control.Arrow.Lift
-import           Control.Arrow.Try
-import           Control.Arrow.MaybeEnvironment
-import           Control.Arrow.Fix
+import Text.Printf
 
 newtype MaybeEnvironment var val c x y = MaybeEnvironment (Reader (Env var val) c x y)
 
@@ -38,8 +39,7 @@ runMaybeEnvironment (MaybeEnvironment (Reader f)) = first E.fromList ^>> f
 
 instance (Identifiable var, ArrowChoice c) =>
   ArrowMaybeEnv var val (Env var val) (MaybeEnvironment var val c) where
-  lookup = proc x -> do
-    env <- getEnv -< ()
+  lookup = MaybeEnvironment $ Reader $ proc (env,x) -> do
     case E.lookup x env of
       Success y -> returnA -< Just y
       Fail _ -> returnA -< Nothing
@@ -61,17 +61,19 @@ instance ArrowMaybeStore var val c => ArrowMaybeStore var val (MaybeEnvironment 
   read = lift read
   write = lift write
 
-deriving instance ArrowTry (Env var val,x) (Env var val,y) z c => ArrowTry x y z (MaybeEnvironment var val c)
-
 deriving instance ArrowTryCatch e (Env var val,x) y c =>
   ArrowTryCatch e x y (MaybeEnvironment var val c)
 
+type instance Fix x y (MaybeEnvironment var val c) = MaybeEnvironment var val (Fix (Env var val,x) y c)
+deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (MaybeEnvironment var val c)
 deriving instance Arrow c => Category (MaybeEnvironment var val c)
 deriving instance Arrow c => Arrow (MaybeEnvironment var val c)
 deriving instance ArrowLift (MaybeEnvironment var val)
 deriving instance ArrowChoice c => ArrowChoice (MaybeEnvironment var val c)
 deriving instance ArrowState s c => ArrowState s (MaybeEnvironment var val c)
 deriving instance ArrowFail e c => ArrowFail e (MaybeEnvironment var val c)
-
-type instance Fix x y (MaybeEnvironment var val c) = MaybeEnvironment var val (Fix (Env var val,x) y c)
-deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (MaybeEnvironment var val c)
+deriving instance PreOrd (c (Env var val,x) y) => PreOrd (MaybeEnvironment var val c x y)
+deriving instance Complete (c (Env var val,x) y) => Complete (MaybeEnvironment var val c x y)
+deriving instance CoComplete (c (Env var val,x) y) => CoComplete (MaybeEnvironment var val c x y)
+deriving instance LowerBounded (c (Env var val,x) y) => LowerBounded (MaybeEnvironment var val c x y)
+deriving instance UpperBounded (c (Env var val,x) y) => UpperBounded (MaybeEnvironment var val c x y)

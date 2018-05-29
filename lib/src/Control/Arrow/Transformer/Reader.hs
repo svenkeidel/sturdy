@@ -106,9 +106,9 @@ instance ArrowExcept (r,x) y e c => ArrowExcept x y e (Reader r c) where
   tryCatch (Reader f) (Reader g) = Reader $ tryCatch f (from assoc ^>> g)
   finally (Reader f) (Reader g) = Reader $ finally f g
 
-instance ArrowTryCatch (r,e) (r,x) (r,y) (r,z) c => ArrowTryCatch e x y z (Reader r c) where
-  tryCatchA (Reader f) (Reader g) (Reader h) =
-    Reader (tryCatchA (pi1 &&& f) (pi1 &&& g) (pi1 &&& h)) >>> pi2
+instance ArrowTryCatch e (r,x) y c => ArrowTryCatch e x y (Reader r c) where
+  tryCatchA (Reader f) (Reader g) =
+    Reader $ tryCatchA f ((\((r,x),e) -> (r,(x,e))) ^>> g)
 
 instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
   dedup (Reader f) = Reader (dedup f)

@@ -44,6 +44,9 @@ instance Complete a => Complete (Error e a) where
 instance UpperBounded a => UpperBounded (Error e a) where
   top = Success top
 
+instance LowerBounded a => LowerBounded (Error e a) where
+  bottom = Success bottom
+
 instance Widening a => Widening (Error e a) where
   Fail _ ▽ b = b
   a ▽ Fail _ = a
@@ -126,7 +129,7 @@ instance Distributive Either Error where
       distTo (Left a) = Fail (Left a)
       distTo (Right (Fail b)) = Fail (Right b)
       distTo (Right (Success c)) = Success (Right c)
-  
+
       distFrom :: Error (Either a b) (Either a c) -> Either a (Error b c)
       distFrom (Fail (Left a)) = Left a
       distFrom (Fail (Right b)) = Right (Fail b)
@@ -140,7 +143,7 @@ instance Distributive Error Either where
       distTo (Fail a) = Right (Fail a)
       distTo (Success (Left b)) = Left (Success b)
       distTo (Success (Right c)) = Right (Success c)
-  
+
       distFrom :: Either (Error a b) (Error a c) -> Error a (Either b c)
       distFrom (Left (Fail a)) = Fail a
       distFrom (Left (Success b)) = Success (Left b)

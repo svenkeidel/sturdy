@@ -64,8 +64,8 @@ instance ArrowStore loc val lab c => ArrowStore loc val lab (Environment var val
 
 deriving instance ArrowTry (Env var val,x) (Env var val,y) z c => ArrowTry x y z (Environment var val c)
 
-deriving instance ArrowTryCatch (Env var val,e) (Env var val,x) (Env var val,y) (Env var val,z) c =>
-  ArrowTryCatch e x y z (Environment var val c)
+deriving instance ArrowTryCatch e (Env var val,x) y c =>
+  ArrowTryCatch e x y (Environment var val c)
 
 deriving instance Arrow c => Category (Environment var val c)
 deriving instance Arrow c => Arrow (Environment var val c)
