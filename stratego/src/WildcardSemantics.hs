@@ -9,7 +9,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module WildcardSemantics where
 
-import           Prelude hiding ((.),uncurry)
+import           Prelude hiding ((.))
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics
@@ -18,7 +18,6 @@ import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
 
 import           Control.Arrow
-import           Control.Arrow.Apply
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
@@ -27,6 +26,7 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Transformer.Abstract.HandleExcept
 import           Control.Arrow.Transformer.Abstract.Powerset
+import           Control.Arrow.Transformer.Abstract.GreatestFixPoint
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category
@@ -45,12 +45,13 @@ import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.Order
 import           Data.Term
-import           Data.TermEnv
 import           Data.Text (Text)
 
 import           Test.QuickCheck hiding (Success)
 import           Text.Printf
 
+-- | Abstract terms in this semantics contain wildcards that represent
+-- every possible concrete term.
 data Term
     = Cons Constructor [Term]
     | StringLiteral Text
@@ -59,11 +60,19 @@ data Term
     deriving (Eq)
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
-newtype Interp a b = Interp (Reader (StratEnv,Int) (State TermEnv (Except () (Powerset (->)))) a b)
+    
+-- | 
+newtype Interp a b = Interp (Reader StratEnv (State TermEnv (Except () (Powerset GreatestFixPoint))) a b)
   deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowDeduplicate,PreOrd,Complete)
 
 runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> A.Pow (Error () (TermEnv,b))
-runInterp (Interp f) i senv tenv a = runPowerset (runExcept (runState (runReader f))) (tenv, ((senv,i), a))
+runInterp (Interp f) k senv tenv a =
+  runGreatestFixPoint k
+    (runPowerset
+      (runExcept
+        (runState
+          (runReader f))))
+    (tenv, (senv, a))
 
 eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> A.Pow (Error () (TermEnv,Term))
 eval i s = runInterp (eval' s) i
@@ -72,18 +81,18 @@ emptyEnv :: TermEnv
 emptyEnv = TermEnv M.empty
 
 -- Instances -----------------------------------------------------------------------------------------
-deriving instance ArrowReader (StratEnv, Int) Interp
+deriving instance ArrowReader StratEnv Interp
 deriving instance ArrowState TermEnv Interp
+deriving instance ArrowFix (Strat,Term) Term Interp
 deriving instance PreOrd y => ArrowExcept x y () Interp
 
 instance ArrowFail () Interp where
   failA = Interp failA
 
 instance HasStratEnv Interp where
-  readStratEnv = Interp (const () ^>> askA >>^ fst)
+  readStratEnv = Interp (const () ^>> askA)
   localStratEnv senv f = proc a -> do
-    i <- (askA >>^ snd) -< ()
-    r <- localA f -< ((senv,i),a)
+    r <- localA f -< (senv,a)
     returnA -< r
 
 instance IsTermEnv TermEnv Term Interp where
@@ -188,25 +197,9 @@ instance IsTerm Term Interp where
       NumberLiteral _ -> returnA -< t
       Wildcard -> failA' ⊔ success -< Wildcard
   
-  
   cons = arr (uncurry Cons)
   numberLiteral = arr NumberLiteral
   stringLiteral = arr StringLiteral
-
-instance UpperBounded (Interp () Term) where
-  top = proc () -> success ⊔ failA' -< Wildcard
-
-instance ArrowFix' Interp Term where
-  fixA' f z = proc x -> do
-    i <- getFuel -< ()
-    if i <= 0
-    then top -< ()
-    else do
-      env <- askA >>^ fst -< ()
-      localFuel (f (fixA' f) z) -< ((env,i-1),x)
-    where
-      getFuel = Interp (askA >>^ snd)
-      localFuel (Interp g) = Interp $ proc ((env,i),a) -> localA g -< ((env,i),a)
 
 instance Soundness StratEnv Interp where
   sound senv xs f g = forAll (choose (0,3)) $ \i ->
@@ -344,6 +337,9 @@ instance Complete TermEnv where
           (Just t1,Just t2) -> go vs env1 env2 (M.insert v (t1⊔t2) env3)
           _                 -> go vs env1 env2 env3
         [] -> TermEnv env3
+
+instance UpperBounded TermEnv where
+  top = TermEnv M.empty
 
 instance Galois (CP.Pow C.TermEnv) TermEnv where
   alpha = lub . fmap (\(C.TermEnv e) -> TermEnv (fmap alphaSing e))

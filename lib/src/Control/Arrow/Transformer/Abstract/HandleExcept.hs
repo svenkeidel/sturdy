@@ -17,6 +17,7 @@ import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Except
+import Control.Arrow.Fix
 import Control.Arrow.Abstract.Join
 import Control.Category
 
@@ -84,6 +85,9 @@ instance (ArrowChoice c, Complete e, ArrowJoin c, Complete (c (y,(x,e)) (Error e
       Success y -> returnA -< Success y
       SuccessOrFail er y -> joined (arr Success) g -< (y,(x,er))
       Fail er -> g -< (x,er)
+
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
+  fixA f = Except (fixA (runExcept . f . Except))
 
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowDeduplicate (Except e c) where
   dedupA = returnA

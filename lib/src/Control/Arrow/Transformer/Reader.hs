@@ -83,7 +83,7 @@ instance ArrowExcept (r,x) y e c => ArrowExcept x y e (Reader r c) where
 instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
   dedupA (Reader f) = Reader (dedupA f)
 
-instance (ArrowJoin c, Complete r) => ArrowJoin (Reader r c) where
+instance ArrowJoin c => ArrowJoin (Reader r c) where
   joinWith lub (Reader f) (Reader g) = Reader $ (\(r,(x,y)) -> ((r,x),(r,y))) ^>> joinWith lub f g
 
 deriving instance PreOrd (c (r,x) y) => PreOrd (Reader r c x y)

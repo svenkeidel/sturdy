@@ -16,6 +16,7 @@ import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Except
+import Control.Arrow.Fix
 import Control.Arrow.Abstract.Join
 import Control.Category
 
@@ -72,6 +73,9 @@ instance (ArrowChoice c, ArrowExcept x (FreeCompletion y) e c) => ArrowExcept x 
 
 instance ArrowChoice c => ArrowDeduplicate (Completion c) where
   dedupA = returnA
+
+instance (ArrowChoice c, ArrowFix x (FreeCompletion y) c) => ArrowFix x y (Completion c) where
+  fixA f = Completion (fixA (runCompletion . f . Completion))
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Completion c) where
   joinWith lub (Completion f) (Completion g) = Completion $ joinWith join f g

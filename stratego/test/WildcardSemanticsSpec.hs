@@ -6,7 +6,7 @@ module WildcardSemanticsSpec(main, spec) where
 import           Prelude hiding (map)
     
 import qualified ConcreteSemantics as C
-import           SharedSemantics
+import           SharedSemantics hiding (cons)
 import           Soundness
 import           Syntax hiding (Fail)
 import qualified WildcardSemantics as W

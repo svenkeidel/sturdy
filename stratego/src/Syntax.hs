@@ -25,24 +25,7 @@ import           Text.Read (readMaybe)
 import           Test.QuickCheck (Arbitrary(..),Gen)
 import qualified Test.QuickCheck as Q
 
-newtype TermVar = TermVar Text deriving (Eq,Ord,Hashable)
-newtype StratVar = StratVar Text deriving (Eq,Ord,IsString,Hashable)
-
-data TermPattern
-  = As TermVar TermPattern
-  | Cons Constructor [TermPattern]
-  | Explode TermPattern TermPattern
-  | Var TermVar
-  | StringLiteral Text
-  | NumberLiteral Int
-  deriving (Eq)
-
-data Module = Module Signature Strategies deriving (Show,Eq)
-
-type Strategies = HashMap StratVar Strategy
-data Strategy = Strategy [StratVar] [TermVar] Strat deriving (Show,Eq)
-data Closure = Closure Strategy StratEnv deriving (Eq)
-type StratEnv = HashMap StratVar Closure
+-- | Expressions for the Stratego core language are called strategies.
 data Strat
   = Fail
   | Id
@@ -58,6 +41,33 @@ data Strat
   | Call StratVar [Strat] [TermVar]
   | Prim StratVar [Strat] [TermVar]
   deriving (Eq)
+
+-- | Pattern to match and build terms.
+data TermPattern
+  = As TermVar TermPattern
+  | Cons Constructor [TermPattern]
+  | Explode TermPattern TermPattern
+  | Var TermVar
+  | StringLiteral Text
+  | NumberLiteral Int
+  deriving (Eq)
+
+-- | Stratego source code is organized in modules consisting of a
+-- signature describing possible shapes of terms and named strategies.
+data Module = Module Signature Strategies deriving (Show,Eq)
+
+type Strategies = HashMap StratVar Strategy
+
+-- | A named strategy takes two kinds of arguments, arguments that
+-- refer to other named strategies and arguments that refer to terms.
+-- Additionally, a strategy takes and input term and eventually
+-- produces an output term.
+data Strategy = Strategy [StratVar] [TermVar] Strat deriving (Show,Eq)
+
+data Closure = Closure Strategy StratEnv deriving (Eq)
+type StratEnv = HashMap StratVar Closure
+newtype TermVar = TermVar Text deriving (Eq,Ord,Hashable)
+newtype StratVar = StratVar Text deriving (Eq,Ord,IsString,Hashable)
 
 class Arrow c => HasStratEnv c where
   readStratEnv :: c a StratEnv

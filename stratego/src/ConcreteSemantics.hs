@@ -12,7 +12,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module ConcreteSemantics where
 
-import           Prelude hiding ((.),uncurry)
+import           Prelude hiding ((.))
 
 import           SharedSemantics
 import           Syntax (TermPattern)
@@ -21,8 +21,6 @@ import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
 
 import           Control.Arrow
-import           Control.Arrow.Apply
-import           Control.Arrow.Debug
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
@@ -43,15 +41,12 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.String (IsString(..))
-import           Data.Term (IsTerm(..),TermUtils(..))
-import           Data.TermEnv
+import           Data.Term (TermUtils(..))
 import           Data.Text (Text)
 
 import           Test.QuickCheck
 
-import           Debug.Trace
-import           Text.Printf
-
+-- | Terms are either a constructor with subterms or a literal.
 data Term
   = Cons Constructor [Term]
   | StringLiteral Text
@@ -60,12 +55,16 @@ data Term
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 
+-- | Concrete interpreter arrow give access to the strategy
+-- environment, term environment, and handles anonymous exceptions.
 newtype Interp a b = Interp (Reader StratEnv (State TermEnv (Except () (->))) a b)
   deriving (Category,Arrow,ArrowChoice,ArrowApply,ArrowDeduplicate)
 
+-- | Executes a concrete interpreter computation.
 runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error () (TermEnv,b)
 runInterp (Interp f) senv tenv t = runExcept (runState (runReader f)) (tenv, (senv, t))
 
+-- | Concrete interpreter function.
 eval :: Strat -> StratEnv -> TermEnv -> Term -> Error () (TermEnv,Term)
 eval s = runInterp (eval' s)
 
@@ -73,17 +72,10 @@ eval s = runInterp (eval' s)
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowReader StratEnv Interp
 deriving instance ArrowExcept x y () Interp
-
-instance ArrowFix' Interp Term where
-  fixA' f = f (fixA' f)
+deriving instance ArrowFix (Strat,Term) Term Interp
 
 instance ArrowFail () Interp where
   failA = Interp failA
-
-instance ArrowDebug Interp where
-  debug s f = proc a -> do
-    b <- f -< a
-    returnA -< trace (printf "%s: %s -> %s" s (show a) (show b)) b
 
 instance HasStratEnv Interp where
   readStratEnv = Interp (const () ^>> askA)
