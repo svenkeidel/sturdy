@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 module ConcreteSpec where
 
 import Syntax
@@ -212,6 +213,10 @@ spec = do
     mainMethod unit = case find (\m -> methodName m == "main") (getMethods (fileBody unit)) of
       Just m -> m
       Nothing -> error "No entry method found"
+
+    unboxMaybe = proc val -> case val of
+      Just x -> unbox >>^ (\x -> Just x) -< x
+      Nothing -> returnA -< Nothing
 
     evalConcrete env' store' = runInterp (eval >>> unbox) (testCompilationUnits []) env' store' (testMethod [])
 
