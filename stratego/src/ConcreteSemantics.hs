@@ -24,6 +24,7 @@ import           Control.Arrow
 import           Control.Arrow.Apply
 import           Control.Arrow.Debug
 import           Control.Arrow.Deduplicate
+import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
@@ -31,7 +32,6 @@ import           Control.Arrow.State
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Try
 import           Control.Category
 import           Control.Monad (join)
 import           Control.Monad.Reader (replicateM)
@@ -72,9 +72,7 @@ eval s = runInterp (eval' s)
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowReader StratEnv Interp
-
-instance ArrowTry x y z Interp where
-  tryA (Interp f) (Interp g) (Interp h) = Interp (tryA f g h)
+deriving instance ArrowExcept x y () Interp
 
 instance ArrowFix' Interp Term where
   fixA' f = f (fixA' f)

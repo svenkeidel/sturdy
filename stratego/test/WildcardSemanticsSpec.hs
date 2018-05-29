@@ -13,7 +13,7 @@ import qualified WildcardSemantics as W
 
 import           Control.Arrow
 
-import           Data.Abstract.Error
+import           Data.Abstract.HandleError
 import qualified Data.Abstract.Powerset as A
 import qualified Data.Concrete.Powerset as C
 import           Data.GaloisConnection

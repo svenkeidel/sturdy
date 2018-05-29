@@ -9,6 +9,7 @@ module Control.Arrow.Transformer.Abstract.Powerset(Powerset(..)) where
 import           Prelude hiding (id,lookup)
 
 import           Control.Arrow
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
@@ -71,7 +72,15 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) wh
   localEnv (Powerset f) = Powerset $ localEnv f
 
 instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) where
-  dedupA (Powerset f) = Powerset (dedupA f)
+  dedupA (Powerset f) = Powerset $ proc x -> do
+    x' <- f -< x
+    returnA -< A.dedup x'
+
+instance ArrowChoice c => ArrowJoin (Powerset c) where
+  joinWith _ (Powerset f) (Powerset g) = Powerset $ proc (x,u) -> do
+    x' <- f -< x
+    u' <- g -< u
+    returnA -< A.union x' u'
 
 deriving instance PreOrd (c x (A.Pow y)) => PreOrd (Powerset c x y)
 deriving instance LowerBounded (c x (A.Pow y)) => LowerBounded (Powerset c x y)

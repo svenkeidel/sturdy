@@ -21,19 +21,19 @@ import           Utils
 
 import           Control.Arrow
 import           Control.Arrow.Deduplicate
+import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
-import           Control.Arrow.Try
 import           Control.Arrow.Transformer.Abstract.Completion
-import           Control.Arrow.Transformer.Abstract.Uncertain
+import           Control.Arrow.Transformer.Abstract.HandleExcept
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category hiding ((.))
 
 import           Data.Abstract.FreeCompletion
-import           Data.Abstract.UncertainResult
+import           Data.Abstract.HandleError
 import qualified Data.Concrete.Powerset as C
 import           Data.Constructor
 import           Data.Foldable (foldr')
@@ -56,13 +56,13 @@ data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
 newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
-newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Uncertain (Completion (->)))) a b)
+newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Except () (Completion (->)))) a b)
   deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, Category, PreOrd)
 
-runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> FreeCompletion (UncertainResult (TermEnv, b))
-runInterp (Interp f) i alph senv tenv a = runCompletion (runUncertain (runState (runReader f))) (tenv, ((senv, i, alph), a))
+runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> FreeCompletion (Error () (TermEnv, b))
+runInterp (Interp f) i alph senv tenv a = runCompletion (runExcept (runState (runReader f))) (tenv, ((senv, i, alph), a))
 
-eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> FreeCompletion (UncertainResult (TermEnv, Term))
+eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> FreeCompletion (Error () (TermEnv, Term))
 eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
@@ -95,8 +95,8 @@ sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
 deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowFail () Interp
-deriving instance (PreOrd z, Complete (FreeCompletion z)) => ArrowTry x y z Interp
-deriving instance (PreOrd b, Complete (FreeCompletion b)) => Complete (Interp a b)
+deriving instance (Complete (FreeCompletion y), PreOrd y) => ArrowExcept x y () Interp
+deriving instance (Complete (FreeCompletion b), PreOrd b) => Complete (Interp a b)
 deriving instance PreOrd b => LowerBounded (Interp a b)
 
 instance Hashable Constr where
@@ -212,7 +212,7 @@ instance Galois (C.Pow C.Term) (GrammarBuilder Constr) where
       go (C.NumberLiteral n) = fromTerm (numberGrammar n)
   gamma = error "Uncomputable"
 
-instance Galois (C.Pow C.Term) (GrammarBuilder Constr) => Galois (C.Pow C.Term) Term where
+instance Galois (C.Pow C.Term) Term where
   alpha = Term . alpha
   gamma = error "Uncomputable"
 
@@ -222,9 +222,9 @@ instance Galois (C.Pow C.TermEnv) TermEnv where
 
 instance Soundness (StratEnv, Alphabet Constr) Interp where
   sound (senv,alph) xs f g = Q.forAll (Q.choose (2,3)) $ \i ->
-    let con :: FreeCompletion (UncertainResult (TermEnv,_))
+    let con :: FreeCompletion (Error () (TermEnv,_))
         con = Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
-        abst :: FreeCompletion (UncertainResult (TermEnv,_))
+        abst :: FreeCompletion (Error () (TermEnv,_))
         abst = runInterp g i alph senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 

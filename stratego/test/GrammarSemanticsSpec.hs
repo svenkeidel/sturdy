@@ -12,7 +12,7 @@ import           Control.Arrow
 
 import           Data.ATerm
 import           Data.Abstract.FreeCompletion
-import           Data.Abstract.UncertainResult
+import           Data.Abstract.HandleError
 import qualified Data.Concrete.Powerset as C
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as LM
@@ -64,7 +64,7 @@ spec = do
 
     it "should not match another builtin string literal" $
       geval 1 (Match (StringLiteral "y")) (termEnv []) (stringGrammar "x") `shouldBe`
-        Lower (Fail)
+        Lower (Fail ())
 
     it "should match an equal builtin number literal" $
       geval 1 (Match (NumberLiteral 42)) (termEnv []) (numberGrammar 42) `shouldBe`
@@ -72,39 +72,39 @@ spec = do
 
     it "should not match another builtin number literal" $
       geval 1 (Match (NumberLiteral 1)) (termEnv []) (numberGrammar 42) `shouldBe`
-        Lower (Fail)
+        Lower (Fail ())
 
     it "a string grammar should not match a number literal" $
       geval 1 (Match (NumberLiteral 1)) (termEnv []) (stringGrammar "x") `shouldBe`
-        Lower (Fail)
+        Lower (Fail ())
 
     it "a number grammar should not match a string literal" $
       geval 1 (Match (StringLiteral "x")) (termEnv []) (numberGrammar 42) `shouldBe`
-        Lower (Fail)
+        Lower (Fail ())
 
     it "should match a PCF expression" $
       geval 1 (Match (Cons "Zero" [])) (termEnv []) (Term pcf) `shouldBe`
-        Lower (SuccessOrFail (termEnv [], Term (singleton (Constr "Zero"))))
+        Lower (SuccessOrFail () (termEnv [], Term (singleton (Constr "Zero"))))
 
     it "should match a nested PCF expression" $
       geval 1 (Match (Cons "Succ" [Cons "Zero" []])) (termEnv []) (Term pcf) `shouldBe`
-        Lower (SuccessOrFail (termEnv [], Term (grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") ["S1"] ])
-                                                                         ,("S1", [ Ctor (Constr "Zero") [] ])]))))
+        Lower (SuccessOrFail () (termEnv [], Term (grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") ["S1"] ])
+                                                                            ,("S1", [ Ctor (Constr "Zero") [] ])]))))
 
     it "should match a constructor with more than one argument" $
       geval 1 (Match (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) (termEnv []) (Term pcf) `shouldBe`
-        Lower (SuccessOrFail (termEnv [], Term (grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Ifz") ["S1","S2","S3"]])
-                                                                         ,("S1", [ Ctor (Constr "Zero") []])
-                                                                         ,("S2", [ Ctor (Constr "Succ") ["S3"]])
-                                                                         ,("S3", [ Ctor (Constr "Zero") []])
-                                                                         ,("S4", [ Ctor (Constr "Zero") []])]))))
+        Lower (SuccessOrFail () (termEnv [], Term (grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Ifz") ["S1","S2","S3"]])
+                                                                            ,("S1", [ Ctor (Constr "Zero") []])
+                                                                            ,("S2", [ Ctor (Constr "Succ") ["S3"]])
+                                                                            ,("S3", [ Ctor (Constr "Zero") []])
+                                                                            ,("S4", [ Ctor (Constr "Zero") []])]))))
 
     it "should introduce one variable" $
       let g = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
                                        ,("S1", [ Ctor (Constr "Zero") [] ])])
           g' = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Zero") [] ])])
       in geval 1 (Match (Cons "Succ" ["x"])) (termEnv []) (Term g) `shouldBe`
-        Lower (SuccessOrFail (termEnv [("x", Term g')], Term g))
+        Lower (SuccessOrFail () (termEnv [("x", Term g')], Term g))
 
     it "should introduce one variable 2" $
       let g = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
@@ -113,7 +113,7 @@ spec = do
           g' = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
                                         ,("S1", [ Ctor (Constr "Zero") [] ])])
       in geval 10 (Match (Cons "Succ" ["x"])) (termEnv []) (Term g) `shouldBe`
-        Lower (SuccessOrFail (termEnv [("x", Term g')], Term g))
+        Lower (SuccessOrFail () (termEnv [("x", Term g')], Term g))
 
     it "should introduce multiple variables and support linear pattern matching" $ do
       let g = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
@@ -122,11 +122,11 @@ spec = do
           g' = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
                                         ,("S1", [ Ctor (Constr "Zero") [] ])])
       geval 2 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Succ" ["y"])) (termEnv []) (Term g)
-        `shouldBe` Lower (SuccessOrFail (termEnv [("x", Term g'), ("y", Term g')], Term g))
+        `shouldBe` Lower (SuccessOrFail () (termEnv [("x", Term g'), ("y", Term g')], Term g))
 
     it "should support linear pattern matching" $
       geval 2 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["x"])) (termEnv []) (Term  pcf) `shouldBe`
-        Lower (Fail)
+        Lower (Fail ())
 
     it "should succeed when exploding literals" $
     --   let tenv = termEnv []; tenv' = termEnv [("x", Cons "Nil" [])]
@@ -193,7 +193,7 @@ spec = do
       let term = Cons "Cons" [Var "x", Var "xs"]
           g = convertToList [numberGrammar 1]
       in geval 2 (Match term `Seq` Build term) (termEnv []) g `shouldBe`
-         Lower (SuccessOrFail (termEnv [("x", numberGrammar 1), ("xs", Term (singleton (Constr "Nil")))], g))
+         Lower (SuccessOrFail () (termEnv [("x", numberGrammar 1), ("xs", Term (singleton (Constr "Nil")))], g))
 
     it "should throw away the current subject grammar if needed" $
       let tenv = termEnv [("x", numberGrammar 42)]
@@ -241,16 +241,16 @@ spec = do
       let tenv = termEnv [("x", numberGrammar 42)]
           Term n = numberGrammar 42
       geval 1 (Scope ["x"] (Build "x")) tenv (numberGrammar 42) `shouldBe`
-        Lower (SuccessOrFail (tenv, Term (wildcard (alphabet n))))
+        Lower (SuccessOrFail () (tenv, Term (wildcard (alphabet n))))
       geval 2 (Scope ["x"] (Match "x")) tenv (numberGrammar 42) `shouldBe`
-        Lower (SuccessOrFail (tenv, numberGrammar 42))
+        Lower (SuccessOrFail () (tenv, numberGrammar 42))
 
     it "should make non-declared variables available" $ do
       let tenv = termEnv [("x", numberGrammar 42)]
       geval 2 (Scope ["y"] (Build "x")) tenv (numberGrammar 42) `shouldBe`
         Lower (Success (tenv, numberGrammar 42))
       geval 2 (Scope ["y"] (Match "z")) tenv (numberGrammar 42) `shouldBe`
-        Lower (SuccessOrFail (termEnv [("x", numberGrammar 42), ("z", numberGrammar 42)], numberGrammar 42))
+        Lower (SuccessOrFail () (termEnv [("x", numberGrammar 42), ("z", numberGrammar 42)], numberGrammar 42))
 
   describe "Let" $ do
     it "should apply a single function call" $ do
@@ -262,7 +262,7 @@ spec = do
                                        ,("G", [ Ctor (StringLit "bar") [] ])])
           tenv = termEnv []; tenv' = termEnv [("x",Term t)]
       geval 6 (Let [("swap", swap')] (Match "x" `Seq` Call "swap" [] [])) tenv (Term t)
-        `shouldBe` Lower (SuccessOrFail (tenv', Term t'))
+        `shouldBe` Lower (SuccessOrFail () (tenv', Term t'))
 
     it "should support recursion" $ do
       let t = convertToList (map numberGrammar [2, 3, 4])
@@ -270,7 +270,7 @@ spec = do
                      (fromTerm (convertToList []))
           tenv = termEnv []; tenv' = termEnv [("x",t)]
       geval 13 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) tenv t
-        `shouldBe` Lower (SuccessOrFail (tenv', Term t'))
+        `shouldBe` Lower (SuccessOrFail () (tenv', Term t'))
 
   describe "Call" $ do
     it "should apply a single function call" $ do
@@ -283,14 +283,14 @@ spec = do
                                        ,("G", [ Ctor (StringLit "bar") [] ])])
           tenv = termEnv []; tenv' = termEnv [("x",Term t)]
       geval' 5 (Match "x" `Seq` Call "swap" [] []) senv tenv (Term t)
-        `shouldBe` Lower (SuccessOrFail (tenv', Term t'))
+        `shouldBe` Lower (SuccessOrFail () (tenv', Term t'))
 
     it "should support an empty list in recursive applications" $ do
       let senv = LM.fromList [("map", Closure map' LM.empty)]
           t = convertToList []
           tenv = termEnv []; tenv' = termEnv [("x",t)]
       geval' 2 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
-        `shouldBe` Lower (SuccessOrFail (tenv', t))
+        `shouldBe` Lower (SuccessOrFail () (tenv', t))
 
     it "should support a singleton list in recursive applications" $ do
       let senv = LM.fromList [("map", Closure map' LM.empty)]
@@ -303,7 +303,7 @@ spec = do
       -- initially empty environment. The guarded choice, then, has to take the least
       -- upper bound, which results in the extra Nil constructor.
       geval' 13 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
-        `shouldBe` Lower (SuccessOrFail (tenv', Term t'))
+        `shouldBe` Lower (SuccessOrFail () (tenv', Term t'))
 
     it "should support recursion on a list of numbers" $ do
       let senv = LM.fromList [("map", Closure map' LM.empty)]
@@ -312,7 +312,7 @@ spec = do
                      (fromTerm (convertToList []))
           tenv = termEnv []; tenv' = termEnv [("x",t)]
       geval' 12 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
-        `shouldBe` Lower (SuccessOrFail (tenv', Term t'))
+        `shouldBe` Lower (SuccessOrFail () (tenv', Term t'))
 
     prop "should be sound" $ do
       i <- choose (0,10)
@@ -325,10 +325,10 @@ spec = do
              $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
 
   where
-    geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> FreeCompletion (UncertainResult (TermEnv, Term))
+    geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> FreeCompletion (Error () (TermEnv, Term))
     geval' i strat senv tenv g = eval i strat (alphabet (fromTerm g)) senv tenv g
 
-    geval :: Int -> Strat -> TermEnv -> Term -> FreeCompletion (UncertainResult (TermEnv, Term))
+    geval :: Int -> Strat -> TermEnv -> Term -> FreeCompletion (Error () (TermEnv, Term))
     geval i strat tenv g = geval' i strat LM.empty tenv g
 
     sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
