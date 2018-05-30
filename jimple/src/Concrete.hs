@@ -125,7 +125,7 @@ unbox1 = proc val -> case val of
 
 throw :: (UseVal Val c,CanFail Val c,CanUseStore Addr Val c) => c (String,String) Val
 throw = proc (clzz,message) -> do
-  (RefVal addr) <- newSimple -< RefType clzz
+  RefVal addr <- newSimple -< RefType clzz
   v <- Shared.readVar -< addr
   case v of
     ObjectVal c m -> do

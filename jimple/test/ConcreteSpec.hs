@@ -85,7 +85,7 @@ spec = do
       let st = [(1, RefVal 2),
                 (2, ArrayVal [IntVal 1, IntVal 2, IntVal 3])]
       evalConcrete nv st expr `shouldBe` Success (IntVal 3)
-    it "newmultiarray (float) [3][]" $ do
+    it "newmultiarray (float) [3][2]" $ do
       let expr = NewMultiArrayExpr FloatType [IntConstant 3, IntConstant 2]
       evalConcrete env store expr `shouldBe` Success (ArrayVal [ArrayVal [FloatVal 0.0, FloatVal 0.0],
                                                  ArrayVal [FloatVal 0.0, FloatVal 0.0],

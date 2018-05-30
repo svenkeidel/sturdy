@@ -74,7 +74,7 @@ spec = do
       let expr = UnopExpr Lengthof (Local "x")
       let nv = [("x", 1)]
       let st = [(1, RefVal 2),
-                (2, ArrayVal [int 1 1, int 2 2, int 3 3])]
+                (2, ArrayVal (int 1 3) (int 3 3))]
       evalConcrete nv st expr `shouldBe` Success (int 3 3)
     it "8 + 2" $ do
       let ?bound = I.Interval (-100) 100
@@ -105,14 +105,12 @@ spec = do
       let expr = ArrayRef "xs" (IntConstant 2)
       let nv = [("xs", 1)]
       let st = [(1, RefVal 2),
-                (2, ArrayVal [int 1 1, int 2 2, int 3 3])]
+                (2, ArrayVal (int 1 3) (int 3 3))]
       evalConcrete nv st expr `shouldBe` Success (int 3 3)
-    it "newmultiarray (float) [3][]" $ do
+    it "newmultiarray (float) [3][2]" $ do
       let ?bound = I.Interval (-100) 100
       let expr = NewMultiArrayExpr FloatType [IntConstant 3, IntConstant 2]
-      evalConcrete env store expr `shouldBe` Success (ArrayVal [ArrayVal [FloatVal 0.0, FloatVal 0.0],
-                                                      ArrayVal [FloatVal 0.0, FloatVal 0.0],
-                                                      ArrayVal [FloatVal 0.0, FloatVal 0.0]])
+      evalConcrete env store expr `shouldBe` Success (ArrayVal (ArrayVal (FloatVal 0.0) (int 2 2)) (int 3 3))
 
   describe "Simple Statements" $ do
     it "i0 = 2 + 3; return i0;" $ do
@@ -200,7 +198,7 @@ spec = do
     it "5 -> [5, 5, 5, 5]" $ do
       let ?bound = I.Interval (-100) 100
       let files = baseCompilationUnits ++ [arrayFieldExampleFile]
-      runProgramConcrete files arrayFieldExampleFile [IntConstant 5] `shouldBe` Success (Just (ArrayVal [int 5 5, int 5 5, int 5 5, int 5 5]))
+      runProgramConcrete files arrayFieldExampleFile [IntConstant 5] `shouldBe` Success (Just (ArrayVal (int 5 5) (int 4 4)))
     it "(new Person(10)).yearsToLive() = 90" $ do
       let ?bound = I.Interval (-100) 100
       let files = baseCompilationUnits ++ [personExampleFile]

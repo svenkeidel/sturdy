@@ -80,7 +80,7 @@ data Val
   | BoolVal B.Bool
   | NullVal
   | RefVal Addr
-  | ArrayVal [Val]
+  | ArrayVal Val Val
   | ObjectVal String (Map FieldSignature Val) deriving (Eq)
 
 instance Show Val where
@@ -95,7 +95,7 @@ instance Show Val where
   show (BoolVal b) = show b
   show NullVal = "null"
   show (RefVal a) = "@" ++ show a
-  show (ArrayVal xs) = show xs
+  show (ArrayVal x s) = show x ++ "[" ++ show s ++ "]"
   show (ObjectVal c m) = show c ++ "{" ++ show m ++ "}"
 
 instance Equality Val where
@@ -108,7 +108,7 @@ instance Equality Val where
   ClassVal c1 == ClassVal c2 = bool $ c1 P.== c2
   BoolVal b1 == BoolVal b2 = b1 == b2
   NullVal == NullVal = B.true
-  ArrayVal xs == ArrayVal ys = bool $ all (\(x,y) -> (x == y) P./= B.false) (zip xs ys)
+  ArrayVal x1 s1 == ArrayVal x2 s2 = (x1 == x2) `B.and` (s1 == s2)
   ObjectVal c1 m1 == ObjectVal c2 m2 = if c1 P.== c2
     then bool $ all (\(x,y) -> (x == y) P./= B.false) (zip (Map.elems m1) (Map.elems m2))
     else B.false
@@ -124,7 +124,7 @@ instance PreOrd Val where
   ClassVal c1 ⊑ ClassVal c2 = c1 P.== c2
   BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
   NullVal ⊑ NullVal = P.True
-  ArrayVal xs ⊑ ArrayVal ys = all (\(x,y) -> x ⊑ y) (zip xs ys)
+  ArrayVal x1 s1 ⊑ ArrayVal x2 s2 = (x1 ⊑ x2) && (s1 ⊑ s2)
   ObjectVal c1 m1 ⊑ ObjectVal c2 m2 =
     c1 P.== c2 && all (\(x,y) -> x ⊑ y) (zip (Map.elems m1) (Map.elems m2))
   RefVal a ⊑ RefVal b = a P.== b
@@ -139,7 +139,7 @@ instance Complete Val where
   ClassVal c1 ⊔ ClassVal c2 = if c1 P.== c2 then ClassVal c1 else ClassVal "java.lang.Object"
   BoolVal b1 ⊔ BoolVal b2 = BoolVal $ b1 ⊔ b2
   NullVal ⊔ NullVal = NullVal
-  ArrayVal xs ⊔ ArrayVal ys = ArrayVal $ xs ++ ys
+  ArrayVal x1 s1 ⊔ ArrayVal x2 s2 = ArrayVal (x1 ⊔ x2) (s1 ⊔ s2)
   ObjectVal c1 m1 ⊔ ObjectVal c2 m2 = if c1 P.== c2
     then ObjectVal c1 $ Map.unionWith (⊔) m1 m2
     else top
@@ -257,13 +257,14 @@ instance UseVal Val Interp where
         addr <- alloc -< (ObjectVal c (Map.fromList fields))
         returnA -< RefVal addr
       _ -> defaultValue -< t
-  -- newArray = proc (t, sizes) -> case sizes of
-  --   (s:sizes') -> do
-  --     s' <- toInt -< s
-  --     vals <- mapA newArray -< replicate s' (t, sizes')
-  --     addr <- alloc -< ArrayVal vals
-  --     returnA -< RefVal addr
-  --   [] -> defaultValue -< t
+  newArray = proc (t, sizes) -> case sizes of
+    (s:rest) -> case s of
+      IntVal _ -> do
+        val <- newArray -< (t,rest)
+        alloc >>^ RefVal -< ArrayVal val s
+      TopVal -> returnA -< top
+      _ -> failA -< StaticException $ printf "Expected an integer array size, got %s" (show s)
+    [] -> defaultValue -< t
   -- and :: c (v,v) v
   -- or :: c (v,v) v
   -- xor :: c (v,v) v
@@ -377,7 +378,7 @@ instance UseVal Val Interp where
   lengthOf = proc v -> do
     v' <- unbox -< v
     case v' of
-      ArrayVal xs -> intConstant -< length xs
+      ArrayVal _ s -> returnA -< s
       _ -> failA -< StaticException "Expected an array as argument for lengthof"
   neg = proc v -> case v of
     IntVal n -> returnA -< IntVal (-n)
@@ -404,7 +405,9 @@ instance UseVal Val Interp where
           let (keys, vals) = unzip (Map.toList m)
           vals' <- mapA unbox -< vals
           returnA -< ObjectVal c (Map.fromList (zip keys vals'))
-        ArrayVal xs -> mapA unbox >>^ ArrayVal -< xs
+        ArrayVal x s -> do
+          x' <- unbox -< x
+          returnA -< ArrayVal x' s
         _ -> returnA -< v
     _ -> returnA -< val
   defaultValue = proc t -> do
@@ -440,8 +443,7 @@ instance UseVal Val Interp where
     (DoubleVal _,   DoubleType)   -> returnA -< BoolVal B.True
     (NullVal,       NullType)     -> returnA -< BoolVal B.True
     (ObjectVal c _, RefType p)    -> isSuperClass -< (c, p)
-    (ArrayVal xs,   ArrayType t') -> do
-      (mapA instanceOf) >>> boolGLB -< zip xs (repeat t')
+    (ArrayVal x _,  ArrayType t') -> instanceOf -< (x,t')
     (_, _) -> returnA -< BoolVal B.False)
     where
       isSuperClass = proc (c,p) -> if c P.== p
