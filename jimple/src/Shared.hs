@@ -37,35 +37,32 @@ instance Show v => Show (Exception v) where
   show (StaticException s) = "Static: " ++ s
   show (DynamicException v) = "Dynamic: " ++ show v
 
-type Addr = Int
-type PointerEnv e = e String Addr
 type CompilationUnits = Map String CompilationUnit
-type Fields = Map FieldSignature Addr
+type Fields = Map FieldSignature Int
 type MethodReader = Method
 
-type CanFail v c = (ArrowChoice c,ArrowFail (Exception v) c)
-type CanUseEnv env c = ArrowMaybeEnv String Addr (PointerEnv env) c
-type CanUseStore v c = ArrowMaybeStore Addr v c
+type CanFail val c = (ArrowChoice c,ArrowFail (Exception val) c)
+type CanUseEnv env addr c = ArrowMaybeEnv String addr (env String addr) c
 type CanUseReader c = ArrowReader MethodReader c
-type CanUseState c = ArrowState Addr c
-type CanUseConst const c = ArrowConst const c
+type CanUseStore addr val c = ArrowMaybeStore addr val c
+type CanUseState addr c = (Enum addr,ArrowState addr c)
+type CanUseConst const c = (ArrowConst const c,UseConst c)
 type CanCatch e x y c = ArrowTryCatch e x (Maybe y) c
+type CanUseMem env addr val c = (CanUseEnv env addr c,CanUseStore addr val c,UseMem env addr c)
 
-type CanUseMem env v c = (CanUseEnv env c,CanUseStore v c)
-
-type CanInterp env const v c = (Show v,
-                                UseVal v c,
-                                UseFlow v c,
-                                UseMem env c,
-                                UseConst c,
-                                CanFail v c,
-                                CanUseMem env v c,
-                                CanUseConst const c,
-                                CanUseReader c,
-                                CanUseState c,
-                                CanCatch (Exception v) EInvoke v c,
-                                CanCatch (Exception v) [Statement] v c,
-                                CanCatch (Exception v) (Method,Maybe v,[Expr]) v c)
+type CanInterp env addr const val c = (
+  Show val,
+  Show addr,
+  UseVal val c,
+  UseFlow val c,
+  CanFail val c,
+  CanUseMem env addr val c,
+  CanUseConst const c,
+  CanUseReader c,
+  CanUseState addr c,
+  CanCatch (Exception val) EInvoke val c,
+  CanCatch (Exception val) [Statement] val c,
+  CanCatch (Exception val) (Method,Maybe val,[Expr]) val c)
 
 getFieldSignatures :: CompilationUnit -> ([Modifier] -> Bool) -> [FieldSignature]
 getFieldSignatures unit p =
@@ -76,7 +73,7 @@ getFieldSignatures unit p =
       [FieldSignature (fileName unit) (fieldType f) (fieldName f) | p (fieldModifiers f)]
     toFieldSignature _ = []
 
-getInitializedFields :: (UseVal v c,CanFail v c,UseConst c,CanUseConst const c) => c String [(FieldSignature,v)]
+getInitializedFields :: (UseVal v c,CanFail v c,CanUseConst const c) => c String [(FieldSignature,v)]
 getInitializedFields = readCompilationUnit >>> proc unit -> do
   let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
   ownFields <- mapA (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s,t')) fieldSignatures
@@ -86,27 +83,27 @@ getInitializedFields = readCompilationUnit >>> proc unit -> do
       returnA -< parentFields ++ ownFields
     Nothing -> returnA -< ownFields
 
-lookupLocal :: (Show name,CanFail val c,ArrowMaybeEnv name addr env c) => c name addr
+lookupLocal :: (CanFail val c,CanUseEnv env addr c) => c String addr
 lookupLocal = (id &&& lookup) >>> proc (x,v) -> case v of
   Just y -> returnA -< y
   Nothing -> failA -< StaticException $ printf "Variable %s not bounded" (show x)
 
-lookupField :: (UseVal v c,UseConst c,CanFail v c,CanUseConst const c) => c FieldSignature Addr
+lookupField :: (UseVal v c,CanFail v c,CanUseConst const c,UseMem env addr c) => c FieldSignature addr
 lookupField = proc x -> do
   fields <- askFields -< ()
   case Map.lookup x fields of
-    Just addr -> returnA -< addr
+    Just n -> addrFromInt -< n
     Nothing -> failA -< StaticException $ printf "Field %s not bounded" (show x)
 
-readVar :: (Show var,CanFail val c,ArrowMaybeStore var val c) => c var val
+readVar :: (Show addr,CanFail v c,CanUseStore addr v c) => c addr v
 readVar = (id &&& read) >>> proc (x,v) -> case v of
   Just y -> returnA -< y
   Nothing -> failA -< StaticException $ printf "Address %s not bounded" (show x)
 
-readLocal :: (Show name,Show val,Show addr,CanFail val c,ArrowMaybeEnv name addr env c,ArrowMaybeStore addr val c) => c name val
+readLocal :: (Show addr,Show val,CanFail val c,CanUseMem env addr val c) => c String val
 readLocal = lookupLocal >>> readVar
 
-readCompilationUnit :: (CanFail v c,UseConst c,CanUseConst const c) => c String CompilationUnit
+readCompilationUnit :: (CanFail v c,CanUseConst const c) => c String CompilationUnit
 readCompilationUnit = proc n -> do
   compilationUnits <- askCompilationUnits -< ()
   case Map.lookup n compilationUnits of
@@ -118,14 +115,14 @@ matchesSignature retType n argTypes (MethodMember m) =
   methodName m == n && returnType m == retType && parameters m == argTypes
 matchesSignature _ _ _ _ = False
 
-readMethod :: (CanFail v c,UseConst c,CanUseConst const c) => c MethodSignature Method
+readMethod :: (CanFail v c,CanUseConst const c) => c MethodSignature Method
 readMethod = proc (MethodSignature c retType n argTypes) -> do
   unit <- readCompilationUnit -< c
   case find (matchesSignature retType n argTypes) (fileBody unit) of
     Just (MethodMember m) -> returnA -< m
     _ -> failA -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
 
-alloc :: (UseVal v c,CanUseState c,CanUseStore v c) => c v Addr
+alloc :: (UseVal val c,CanUseState addr c,CanUseStore addr val c) => c val addr
 alloc = proc val -> do
   addr <- getA -< ()
   write -< (addr,val)
@@ -137,7 +134,7 @@ assert = proc (prop,msg) -> if prop
   then returnA -< ()
   else failA -< StaticException msg
 
-evalInvoke :: CanInterp e const v c => c EInvoke (Maybe v)
+evalInvoke :: CanInterp env addr const val c => c EInvoke (Maybe val)
 evalInvoke =
   let ev = proc (localName,methodSignature,args) -> do
         method <- readMethod -< methodSignature
@@ -156,7 +153,7 @@ evalInvoke =
     StaticInvoke methodSignature args -> ev -< (Nothing,methodSignature,args)
     DynamicInvoke{} -> failA -< StaticException "DynamicInvoke is not implemented"
 
-eval :: CanInterp e const v c => c Expr v
+eval :: CanInterp env addr const val c => c Expr val
 eval = proc e -> case e of
   NewExpr t -> do
     assert -< (isBaseType t,"Expected a base type for new")
@@ -169,10 +166,7 @@ eval = proc e -> case e of
     assert -< (isBaseType t,"Expected a nonvoid base type for newmultiarray")
     vs <- mapA eval -< is
     newArray -< (t,vs)
-  CastExpr t i -> do
-    v <- eval -< i
-    b <- instanceOf -< (v,t)
-    cast -< (v,t,b)
+  CastExpr t i -> first eval >>> (id &&& instanceOf) >>> cast -< (i,t)
   InstanceOfExpr i t -> first eval >>> instanceOf -< (i,t)
   InvokeExpr invokeExpr -> do
     v <- tryCatchA evalInvoke (pi2 >>> failA) -< invokeExpr
@@ -225,7 +219,7 @@ eval = proc e -> case e of
   ClassConstant c -> classConstant -< c
   MethodHandle _ -> failA -< StaticException "Evaluation of method handles is not implemented"
 
-runStatements :: CanInterp e const v c => c [Statement] (Maybe v)
+runStatements :: CanInterp env addr const val c => c [Statement] (Maybe val)
 runStatements = proc stmts -> case stmts of
   [] -> returnA -< Nothing
   (stmt:rest) -> case stmt of
@@ -286,7 +280,7 @@ runStatements = proc stmts -> case stmts of
       env' <- extendEnv -< (l,addr,env)
       localEnv runStatements -< (env',rest)
 
-runMethod :: CanInterp e const v c => c (Method,Maybe v,[Expr]) (Maybe v)
+runMethod :: CanInterp env addr const val c => c (Method,Maybe val,[Expr]) (Maybe val)
 runMethod = proc (method,this,args) -> case methodBody method of
   EmptyBody -> returnA -< Nothing
   FullBody{declarations=decs,statements=stmts} -> do
@@ -305,11 +299,11 @@ runMethod = proc (method,this,args) -> case methodBody method of
         addr <- alloc -< v
         extendEnv -< (s,addr,env)) -< (pairs,e)
 
-runProgram :: CanInterp e const v c => c [Expr] (Maybe v)
+runProgram :: CanInterp env addr const val c => c [Expr] (Maybe val)
 runProgram = proc args -> do
   units <- askCompilationUnits -< ()
-  fields <- askFields -< ()
-  mapA (second defaultValue >>> write) -< map (\(FieldSignature _ t _,a) -> (a,t)) (Map.toList fields)
+  fields <- askFields >>> Map.toList ^>> (mapA (second addrFromInt)) -< ()
+  mapA (second defaultValue >>> write) -< map (\(FieldSignature _ t _,a) -> (a,t)) fields
   mapA (proc unit -> do
     let getMethod :: Member -> [Method]
         getMethod (MethodMember m) = [m]
@@ -361,7 +355,7 @@ class Arrow c => UseVal v c | c -> v where
   unbox :: c v v
   defaultValue :: c Type v
   instanceOf :: c (v,Type) v
-  cast :: c (v,Type,v) v
+  cast :: c ((v,Type),v) v
   readIndex :: c (v,v) v
   updateIndex :: c ((v,v),v) ()
   readField :: c (v,FieldSignature) v
@@ -372,8 +366,9 @@ class Arrow c => UseFlow v c | c -> v where
   case_ :: c String (Maybe v) -> c (v,[CaseStatement]) (Maybe v)
   catch :: c (v,CatchClause) (Maybe v) -> c (v,[CatchClause]) (Maybe v)
 
-class Arrow c => UseMem e c | c -> e where
-  emptyEnv :: c () (PointerEnv e)
+class Arrow c => UseMem env addr c | c -> env addr where
+  emptyEnv :: c () (env String addr)
+  addrFromInt :: c Int addr
 
 class Arrow c => UseConst c where
   askCompilationUnits :: c () CompilationUnits

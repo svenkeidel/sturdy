@@ -79,6 +79,7 @@ instance Show Val where
 
 ---- Interp Type ----
 
+type Addr = Int
 type Constants = (CompilationUnits,Fields)
 
 newtype Interp x y = Interp
@@ -97,7 +98,7 @@ deriving instance ArrowConst Constants Interp
 deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowReader MethodReader Interp
 deriving instance ArrowState Addr Interp
-deriving instance ArrowMaybeEnv String Addr (PointerEnv Env) Interp
+deriving instance ArrowMaybeEnv String Addr (Env String Addr) Interp
 deriving instance ArrowMaybeStore Addr Val Interp
 
 runInterp :: Interp x y -> [CompilationUnit] -> [(String,Addr)] -> [(Addr,Val)] -> MethodReader -> x -> Error (Exception Val) y
@@ -117,12 +118,12 @@ runInterp (Interp f) files env store mainMethod x =
 
 ---- End of Interp type ----
 
-unbox1 :: (CanFail Val c,CanUseStore Val c) => c Val Val
+unbox1 :: (CanFail Val c,CanUseStore Addr Val c) => c Val Val
 unbox1 = proc val -> case val of
   RefVal addr -> Shared.readVar -< addr
   _ -> returnA -< val
 
-throw :: (UseVal Val c,CanFail Val c,CanUseStore Val c) => c (String,String) Val
+throw :: (UseVal Val c,CanFail Val c,CanUseStore Addr Val c) => c (String,String) Val
 throw = proc (clzz,message) -> do
   (RefVal addr) <- newSimple -< RefType clzz
   v <- Shared.readVar -< addr
@@ -325,15 +326,12 @@ instance UseVal Val Interp where
           case extends unit of
             Just c' -> isSuperClass -< (c',p)
             Nothing -> returnA -< BoolVal False
-  cast = proc (v,t,b) -> case b of
-    BoolVal True -> do
-      v' <- unbox -< v
-      case v' of
-        ObjectVal _ _ -> returnA -< v
-        _ -> failA -< StaticException "Casting of primivites and arrays is not yet supported"
-        -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
-    BoolVal False -> throw -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
-    _ -> failA -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
+  cast = first (first (id &&& unbox)) >>> proc (((v,v'),t),b) -> case (b,v') of
+    (BoolVal False,_) -> throw -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
+    (BoolVal True,ObjectVal _ _) -> returnA -< v
+    (BoolVal _,_) -> failA -< StaticException "Casting of primivites and arrays is not yet supported"
+    -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
+    (_,_) -> failA -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
   readIndex = first unbox1 >>> proc (v,i) -> case (v,i) of
     (ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
       then returnA -< xs !! n
@@ -386,8 +384,9 @@ instance UseFlow Val Interp where
         BoolVal False -> catch f -< (v,rest)
         _ -> failA -< StaticException "Expected a boolean from instanceOf"
 
-instance UseMem Env Interp where
-  emptyEnv = arr (\() -> E.empty)
+instance UseMem Env Addr Interp where
+  emptyEnv = arr $ const E.empty
+  addrFromInt = arr id
 
 instance UseConst Interp where
   askCompilationUnits = askConst >>^ fst

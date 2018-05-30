@@ -58,9 +58,16 @@ import           Syntax
 import           Shared
 
 ---- Values ----
--- TODO Use Text over String
-
 type IV = Interval Int
+type Constants = (CompilationUnits, Fields, IV)
+
+type Addr = Int
+-- Remove these instances when abstract multi-env is available.
+instance LowerBounded Addr where
+  bottom = (-2)^29
+instance Complete Addr where
+  a ⊔ _ = a
+
 data Val
   = BottomVal
   | TopVal
@@ -109,8 +116,8 @@ instance Equality Val where
 
 instance PreOrd Val where
   _ ⊑ TopVal = P.True
-  IntVal n1 ⊑ IntVal n2 = n1 P.== n2
-  LongVal l1 ⊑ LongVal l2 = l1 P.== l2
+  IntVal n1 ⊑ IntVal n2 = n1 ⊑ n2
+  LongVal l1 ⊑ LongVal l2 = l1 ⊑ l2
   FloatVal f1 ⊑ FloatVal f2 = f1 P.== f2
   DoubleVal d1 ⊑ DoubleVal d2 = d1 P.== d2
   StringVal s1 ⊑ StringVal s2 = s1 P.== s2
@@ -120,6 +127,7 @@ instance PreOrd Val where
   ArrayVal xs ⊑ ArrayVal ys = all (\(x,y) -> x ⊑ y) (zip xs ys)
   ObjectVal c1 m1 ⊑ ObjectVal c2 m2 =
     c1 P.== c2 && all (\(x,y) -> x ⊑ y) (zip (Map.elems m1) (Map.elems m2))
+  RefVal a ⊑ RefVal b = a P.== b
   _ ⊑ _ = P.False
 
 instance Complete Val where
@@ -132,12 +140,10 @@ instance Complete Val where
   BoolVal b1 ⊔ BoolVal b2 = BoolVal $ b1 ⊔ b2
   NullVal ⊔ NullVal = NullVal
   ArrayVal xs ⊔ ArrayVal ys = ArrayVal $ xs ++ ys
-  ObjectVal c1 m1 ⊔ ObjectVal c2 m2 =
-    if c1 P.== c2
-      then let
-        joinedVals = map (\(x,y) -> x ⊔ y) $ zip (Map.elems m1) (Map.elems m2)
-        in ObjectVal c1 (Map.fromList (zip (Map.keys m1) joinedVals))
-      else top
+  ObjectVal c1 m1 ⊔ ObjectVal c2 m2 = if c1 P.== c2
+    then ObjectVal c1 $ Map.unionWith (⊔) m1 m2
+    else top
+  RefVal a ⊔ RefVal b = if a P.== b then RefVal a else top
   _ ⊔ _ = top
 
 instance UpperBounded Val where
@@ -154,13 +160,14 @@ boolVal :: P.Bool -> Val
 boolVal b = BoolVal (bool b)
 
 num :: IV -> Int -> Bounded IV
-num b x = (Bounded b (I.Interval x x))
+num b x = Bounded b $ I.constant x
+
+range :: IV -> Int -> Int -> Bounded IV
+range b x y = Bounded b $ I.Interval x y
 
 ---- End of Values ----
 
 ---- Interp Type ----
-
-type Constants = (CompilationUnits, Fields, IV)
 
 newtype Interp x y = Interp
   (Except (Exception Val)
@@ -178,18 +185,12 @@ deriving instance ArrowConst Constants Interp
 deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowReader MethodReader Interp
 deriving instance ArrowState Addr Interp
-deriving instance ArrowMaybeEnv String Addr (PointerEnv Env) Interp
+deriving instance ArrowMaybeEnv String Addr (Env String Addr) Interp
 deriving instance ArrowMaybeStore Addr Val Interp
 
 deriving instance PreOrd y => PreOrd (Interp x y)
-deriving instance Complete y => Complete (Interp x y)
-deriving instance (PreOrd y, LowerBounded y) => LowerBounded (Interp x y)
-
-instance Complete Int where
-  a ⊔ b = max a b
-
-instance LowerBounded Int where
-  bottom = -2^29
+deriving instance (Complete y) => Complete (Interp x y)
+deriving instance LowerBounded y => LowerBounded (Interp x y)
 
 ---- End of Interp type ----
 
@@ -212,12 +213,41 @@ runInterp (Interp f) files env store mainMethod x =
 
 ---- End of Program Boilerplate ----
 
-getBounds :: (UseConst c, CanUseConst Constants c) => c () IV
-getBounds = askConst >>^ (\(_,_,x) -> x)
+askBounds :: (CanUseConst Constants c) => c () IV
+askBounds = askConst >>^ (\(_,_,x) -> x)
 
 mod_ :: Bounded IV -> Bounded IV -> Bounded IV
 mod_ (Bounded b1 (I.Interval _ m1)) (Bounded b2 (I.Interval _ m2)) =
   Bounded (b1 ⊔ b2) (I.Interval 0 (min m1 m2))
+
+boolGLB :: (CanFail Val c) => c [Val] Val
+boolGLB = proc xs -> case xs of
+  [] -> returnA -< BoolVal B.True
+  (x:rest) -> do
+    ys <- boolGLB -< rest
+    case (x,ys) of
+      (BoolVal B.True,y) -> returnA -< y
+      (BoolVal B.Top,BoolVal B.True) -> returnA -< BoolVal B.Top
+      (BoolVal B.Top,y) -> returnA -< y
+      (BoolVal B.False,_) -> returnA -< BoolVal B.False
+      (TopVal,_) -> returnA -< TopVal
+      (_,_) -> failA -< StaticException "Expected a boolean value from instanceOf"
+
+unbox1 :: (CanFail Val c,CanUseStore Addr Val c) => c Val Val
+unbox1 = proc val -> case val of
+  RefVal addr -> Shared.readVar -< addr
+  _ -> returnA -< val
+
+throw :: (UseVal Val c,CanFail Val c,CanUseStore Addr Val c) => c (String,String) Val
+throw = proc (clzz,message) -> do
+  RefVal addr <- newSimple -< RefType clzz
+  v <- Shared.readVar -< addr
+  case v of
+    ObjectVal c m -> do
+      let m' = Map.insert (FieldSignature clzz (RefType "String") "message") (StringVal message) m
+      write -< (addr,ObjectVal c m')
+      failA -< DynamicException (RefVal addr)
+    _ -> failA -< StaticException $ printf "Undefined exception %s" clzz
 
 instance UseVal Val Interp where
   newSimple = proc t -> do
@@ -350,19 +380,19 @@ instance UseVal Val Interp where
       ArrayVal xs -> intConstant -< length xs
       _ -> failA -< StaticException "Expected an array as argument for lengthof"
   neg = proc v -> case v of
-    IntVal n -> returnA -< (IntVal (-n))
-    LongVal l -> returnA -< (LongVal (-l))
-    FloatVal f -> returnA -< (FloatVal (-f))
-    DoubleVal d -> returnA -< (DoubleVal (-d))
+    IntVal n -> returnA -< IntVal (-n)
+    LongVal l -> returnA -< LongVal (-l)
+    FloatVal f -> returnA -< FloatVal (-f)
+    DoubleVal d -> returnA -< DoubleVal (-d)
     _ -> failA -< StaticException "Expected a number as argument for -"
   doubleConstant = arr (\x -> DoubleVal x)
   floatConstant = arr (\x -> FloatVal x)
   intConstant = proc x -> do
-    b <- getBounds -< ()
-    returnA -< IntVal (Bounded b (I.Interval x x))
+    b <- askBounds -< ()
+    returnA -< IntVal $ num b x
   longConstant = proc x -> do
-    b <- getBounds -< ()
-    returnA -< LongVal (Bounded b (I.Interval x x))
+    b <- askBounds -< ()
+    returnA -< LongVal $ num b x
   nullConstant = arr (\() -> NullVal)
   stringConstant = arr (\x -> StringVal x)
   classConstant = arr (\x -> ClassVal x)
@@ -377,43 +407,58 @@ instance UseVal Val Interp where
         ArrayVal xs -> mapA unbox >>^ ArrayVal -< xs
         _ -> returnA -< v
     _ -> returnA -< val
-  -- defaultValue = arr (\t -> case t of
-  --   BooleanType   -> BoolVal B.False
-  --   ByteType      -> IntVal 0
-  --   CharType      -> IntVal 0
-  --   ShortType     -> IntVal 0
-  --   IntType       -> IntVal 0
-  --   LongType      -> LongVal 0
-  --   FloatType     -> FloatVal 0.0
-  --   DoubleType    -> DoubleVal 0.0
-  --   NullType      -> NullVal
-  --   (RefType _)   -> NullVal
-  --   (ArrayType _) -> NullVal
-  --   _             -> BottomVal)
-  -- instanceOf = (first unbox) >>> (proc (v,t) -> case (v,t) of
-  --   (BoolVal _,     BooleanType)  -> returnA -< BoolVal True
-  --   (IntVal n,      ByteType)     -> returnA -< BoolVal $ n >= -128   && n < 128   -- n >= (-2)^7  && n < 2^7
-  --   (IntVal n,      CharType)     -> returnA -< BoolVal $ n >= 0      && n < 65536 -- n >= 0       && n < 2^16
-  --   (IntVal n,      ShortType)    -> returnA -< BoolVal $ n >= -32768 && n < 32768 -- n >= (-2)^15 && n < 2^15
-  --   (IntVal _,      IntType)      -> returnA -< BoolVal True
-  --   (LongVal _,     LongType)     -> returnA -< BoolVal True
-  --   (FloatVal _,    FloatType)    -> returnA -< BoolVal True
-  --   (DoubleVal _,   DoubleType)   -> returnA -< BoolVal True
-  --   (NullVal,       NullType)     -> returnA -< BoolVal True
-  --   (ObjectVal c _, RefType p)    -> isSuperClass -< (c, p)
-  --   (ArrayVal xs,   ArrayType t') -> do
-  --     b <- (mapA instanceOf >>^ all (==BoolVal True)) -< zip xs (repeat t')
-  --     returnA -< BoolVal b
-  --   (_, _) -> returnA -< BoolVal False)
-  -- cast = proc (v,t,b) -> case b of
-  --   BoolVal True -> do
-  --     v' <- unbox -< v
-  --     case v' of
-  --       ObjectVal _ _ -> returnA -< v
-  --       _ -> failA -< StaticException "Casting of primivites and arrays is not yet supported"
-  --       -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
-  --   BoolVal False -> throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
-  --   _ -> failA -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
+  defaultValue = proc t -> do
+    b <- askBounds -< ()
+    returnA -< case t of
+      BooleanType   -> BoolVal B.False
+      ByteType      -> IntVal $ num b 0
+      CharType      -> IntVal $ num b 0
+      ShortType     -> IntVal $ num b 0
+      IntType       -> IntVal $ num b 0
+      LongType      -> LongVal $ num b 0
+      FloatType     -> FloatVal 0.0
+      DoubleType    -> DoubleVal 0.0
+      NullType      -> NullVal
+      (RefType _)   -> NullVal
+      (ArrayType _) -> NullVal
+      _             -> BottomVal
+  instanceOf = (first unbox) >>> (proc (v,t) -> case (v,t) of
+    (TopVal, _) -> returnA -< BoolVal B.Top
+    (BoolVal _,     BooleanType)  -> returnA -< BoolVal B.True
+    (IntVal n,      ByteType)     -> do
+      b <- askBounds -< ()
+      returnA -< boolVal $ n ⊑ range b (-128) 127     -- n >= (-2)^7  && n < 2^7
+    (IntVal n,      CharType)     -> do
+      b <- askBounds -< ()
+      returnA -< boolVal $ n ⊑ range b 0 65535        -- n >= 0       && n < 2^16
+    (IntVal n,      ShortType)    -> do
+      b <- askBounds -< ()
+      returnA -< boolVal $ n ⊑ range b (-32768) 32767 -- n >= (-2)^15 && n < 2^15
+    (IntVal _,      IntType)      -> returnA -< BoolVal B.True
+    (LongVal _,     LongType)     -> returnA -< BoolVal B.True
+    (FloatVal _,    FloatType)    -> returnA -< BoolVal B.True
+    (DoubleVal _,   DoubleType)   -> returnA -< BoolVal B.True
+    (NullVal,       NullType)     -> returnA -< BoolVal B.True
+    (ObjectVal c _, RefType p)    -> isSuperClass -< (c, p)
+    (ArrayVal xs,   ArrayType t') -> do
+      (mapA instanceOf) >>> boolGLB -< zip xs (repeat t')
+    (_, _) -> returnA -< BoolVal B.False)
+    where
+      isSuperClass = proc (c,p) -> if c P.== p
+        then returnA -< BoolVal B.True
+        else do
+          unit <- Shared.readCompilationUnit -< c
+          case extends unit of
+            Just c' -> isSuperClass -< (c',p)
+            Nothing -> returnA -< BoolVal B.False
+  cast = first (first (id &&& unbox)) >>> proc (((v,v'),t),b) -> case (b,v') of
+    (BoolVal B.False,_) -> throw -< ("java.lang.ClassCastException", printf "Cannot cast %s to type %s" (show v) (show t))
+    (BoolVal B.Top,ObjectVal _ _) -> joined returnA throw -< (v,("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t)))
+    (BoolVal B.True,ObjectVal _ _) -> returnA -< v
+    (BoolVal _,_) -> failA -< StaticException "Casting of primivites and arrays is not yet supported"
+    -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
+    (TopVal,_) -> returnA -< TopVal
+    (_,_) -> failA -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
   -- readIndex = (first unbox1) >>> proc (v,i) -> case (v,i) of
   --   (ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
   --     then returnA -< xs !! n
@@ -426,16 +471,16 @@ instance UseVal Val Interp where
   --     else voidA throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
   --   (RefVal _,ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
   --   _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
-  -- readField = (first unbox1) >>> proc (v,f) -> case v of
-  --   (ObjectVal _ m) -> case Map.lookup f m of
-  --     Just x -> returnA -< x
-  --     Nothing -> failA -< StaticException $ printf "Field %s not defined for object %s" (show f) (show v)
-  --   _ -> failA -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
-  -- updateField = (first (id &&& unbox1)) >>> proc ((ref,o),(f,v)) -> case (ref,o) of
-  --   (RefVal addr,ObjectVal c m) -> case m Map.!? f of
-  --     Just _ -> write -< (addr, ObjectVal c (Map.insert f v m))
-  --     Nothing -> failA -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
-  --   _ -> failA -< StaticException $ printf "Expected an object for field update, got %s" (show o)
+  readField = (first unbox1) >>> proc (v,f) -> case v of
+    (ObjectVal _ m) -> case Map.lookup f m of
+      Just x -> returnA -< x
+      Nothing -> failA -< StaticException $ printf "Field %s not defined for object %s" (show f) (show v)
+    _ -> failA -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
+  updateField = (first (id &&& unbox1)) >>> proc ((ref,o),(f,v)) -> case (ref,o) of
+    (RefVal addr,ObjectVal c m) -> case m Map.!? f of
+      Just _ -> write -< (addr, ObjectVal c (Map.insert f v m))
+      Nothing -> failA -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
+    _ -> failA -< StaticException $ printf "Expected an object for field update, got %s" (show o)
 
 instance UseFlow Val Interp where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
@@ -471,8 +516,9 @@ instance UseFlow Val Interp where
         TopVal -> returnA -< Just top
         _ -> failA -< StaticException "Expected a boolean from instanceOf"
 
-instance UseMem Env Interp where
-  emptyEnv = arr (\() -> E.empty)
+instance UseMem Env Addr Interp where
+  emptyEnv = arr $ const E.empty
+  addrFromInt = arr id
 
 instance UseConst Interp where
   askCompilationUnits = askConst >>^ (\(x,_,_) -> x)
