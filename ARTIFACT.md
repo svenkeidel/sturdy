@@ -15,7 +15,7 @@ The artifact is provided as a docker container with the code, the
 compiler and libraries.  To obtain the artifact run the following
 docker command:
 ```
-docker pull sturdy/icfp-18-artifact .
+docker pull svenkeidel/sturdy-icfp-18-artifact
 ```
 
 Afterwards, run the following command to start a shell into the
