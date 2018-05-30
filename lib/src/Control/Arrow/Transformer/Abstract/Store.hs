@@ -15,6 +15,7 @@ import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
+import Control.Arrow.Except
 import Control.Arrow.Transformer.State
 import Control.Arrow.Utils
 import Control.Category
@@ -55,9 +56,11 @@ deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)
 deriving instance ArrowLift (StoreArrow var val)
 deriving instance ArrowReader r c => ArrowReader r (StoreArrow var val c)
 deriving instance ArrowFail e c => ArrowFail e (StoreArrow var val c)
+deriving instance ArrowExcept (Store var val,x) (Store var val,y) e c => ArrowExcept x y e (StoreArrow var val c)
 deriving instance ArrowLoop c => ArrowLoop (StoreArrow var val c)
 instance ArrowApply c => ArrowApply (StoreArrow var val c) where app = StoreArrow $ (\(StoreArrow f,x) -> (f,x)) ^>> app
 type instance Fix x y (StoreArrow var val c) = StoreArrow var val (Fix (Store var val,x) (Store var val,y) c)
+
 deriving instance ArrowFix (Store var val, x) (Store var val, y) c => ArrowFix x y (StoreArrow var val c)
 deriving instance PreOrd (c (Store var val,x) (Store var val,y)) => PreOrd (StoreArrow var val c x y)
 deriving instance Complete (c (Store var val,x) (Store var val,y)) => Complete (StoreArrow var val c x y)

@@ -79,6 +79,7 @@ instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where
 
 instance ArrowExcept (r,x) y e c => ArrowExcept x y e (Reader r c) where
   tryCatchA (Reader f) (Reader g) = Reader $ tryCatchA f (from assoc ^>> g)
+  finally (Reader f) (Reader g) = Reader $ finally f g
 
 instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
   dedupA (Reader f) = Reader (dedupA f)

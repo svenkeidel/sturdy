@@ -64,6 +64,7 @@ instance (Applicative f, ArrowFail e c) => ArrowFail e (Static f c) where
 
 instance (Applicative f, ArrowExcept x y e c) => ArrowExcept x y e (Static f c) where
   tryCatchA (Static f) (Static g) = Static $ tryCatchA <$> f <*> g
+  finally (Static f) (Static g) = Static $ finally <$> f <*> g
 
 instance (Applicative f, ArrowEnv x y env c) => ArrowEnv x y env (Static f c) where
   lookup = lift lookup
