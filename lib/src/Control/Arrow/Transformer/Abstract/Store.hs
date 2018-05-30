@@ -17,7 +17,9 @@ import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Transformer.State
 import Control.Arrow.Utils
+import Control.Arrow.Abstract.Join
 import Control.Category
+import Data.Hashable
 
 import Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
@@ -64,3 +66,4 @@ deriving instance Complete (c (Store var val,x) (Store var val,y)) => Complete (
 deriving instance CoComplete (c (Store var val,x) (Store var val,y)) => CoComplete (StoreArrow var val c x y)
 deriving instance UpperBounded (c (Store var val,x) (Store var val,y)) => UpperBounded (StoreArrow var val c x y)
 deriving instance LowerBounded (c (Store var val,x) (Store var val,y)) => LowerBounded (StoreArrow var val c x y)
+deriving instance (ArrowJoin c, Eq var, Hashable var, Complete val) => ArrowJoin (StoreArrow var val c)

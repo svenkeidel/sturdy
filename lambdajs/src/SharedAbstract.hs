@@ -17,12 +17,14 @@ import Syntax
 import SharedInterpreter
 
 import Data.Hashable
+import Data.Set
 import Data.Identifiable
 
 import Data.Abstract.Environment
 import Data.Abstract.Store
 import Data.Abstract.HandleError
 import Data.Order
+import Data.HashMap.Lazy
 
 import Control.Arrow.Transformer.Abstract.HandleExcept
 import Control.Arrow.Transformer.Abstract.Environment
@@ -45,105 +47,128 @@ data Type
     | TBool
     | TUndefined
     | TNull
-    | TLambda [Ident] Type
-    | TObject [(Ident, Type)]
+    | TLambda [Ident] Type'
+    | TObject [(Ident, Type')]
     | TTop
     | TBottom
-    | TRef Location
-    | TThrown Type
-    | TBreak Label Type
-    deriving (Show, Eq, Generic)
-instance Hashable Type
+    | TRef Location'
+    | TThrown Type'
+    | TBreak Label Type'
+    deriving (Show, Eq, Generic, Ord)
+instance Generic Type'
 
-newtype TypeArr x y = TypeArr (Except String (Environment Ident Location (StoreArrow Location Type (State Location (->)))) x y)
+instance PreOrd Type where
+    TLambda ids1 t1 ⊑ TLambda ids2 t2 = ids1 == ids2 && t1 ⊑ t2 
+    TObject fields1 ⊑ TObject fields2 = all (\((f1, t1), (f2, t2)) -> f1 == f2 && t1 ⊑ t2) (zip fields1 fields2)
+    TRef l1 ⊑ TRef l2 = Data.Set.isSubsetOf l1 l2
+    TThrown t1 ⊑ TThrown t2 = Data.Set.isSubsetOf t1 t2  
+    TBreak l1 t1 ⊑ TBreak l2 t2 = Data.Set.isSubsetOf t1 t2 && l1 == l2
+    a ⊑ b | a == b = True
+    _ ⊑ _ = False
+
+
+type Location' = Set Location
+type Type' = Set Type
+
+newtype TypeArr x y = TypeArr (Except String (Environment Ident Location' (StoreArrow Location Type' (State Location (->)))) x y)
 deriving instance ArrowFail String TypeArr
-deriving instance ArrowEnv Ident Location (Env Ident Location) TypeArr
+deriving instance ArrowEnv Ident Location' (Env Ident Location') TypeArr
 deriving instance Category TypeArr
 deriving instance Arrow TypeArr
 deriving instance ArrowChoice TypeArr
 
-instance (Show Location, Identifiable Type, ArrowChoice c) => ArrowStore Location Type lab (StoreArrow Location Type c) where
+instance (Show Location, Identifiable Type, ArrowChoice c) => ArrowStore Location Type' lab (StoreArrow Location Type' c) where
   read =
     StoreArrow $ State $ proc (s,(var,_)) -> case Data.Abstract.Store.lookup var s of
       Just v -> returnA -< (s,v)
-      Nothing -> returnA -< (s, TUndefined)
+      Nothing -> returnA -< (s, Data.Set.fromList [TUndefined])
   write = StoreArrow (State (arr (\(s,(x,v,_)) -> (Data.Abstract.Store.insert x v s,()))))
-instance (Show Ident, Identifiable Ident, ArrowChoice c) => ArrowEnv Ident Location (Env Ident Location) (Environment Ident Location c) where
+deriving instance ArrowStore Location Type' () TypeArr
+instance (Show Ident, Identifiable Ident, ArrowChoice c) => ArrowEnv Ident Location' (Env Ident Location') (Environment Ident Location' c) where
   lookup = proc x -> do
     env <- getEnv -< ()
     case Data.Abstract.Environment.lookup x env of
       Just y -> returnA -< y
-      Nothing -> returnA -< Location 0
+      Nothing -> returnA -< Data.Set.fromList $ [Location 0]
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> Data.Abstract.Environment.insert x y env
   localEnv (Environment f) = Environment (localA f)
-deriving instance ArrowStore Location Type () TypeArr
 deriving instance ArrowState Location TypeArr
 
+--instance Complete (Env String Location') where
+--    e1 ⊔ e2 = Env (Data.HashMap.Lazy.unionWith (\x y -> x ⊔ y) e1 e2)
 
-runType :: TypeArr x y -> [(Ident, Location)] -> [(Location, Type)] -> x -> (Location, (Store Location Type, Error String y))
-runType (TypeArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Abstract.Store.fromList env2, (env, x)))
+runType :: TypeArr x y -> [(Ident, Location)] -> [(Location, Type)] -> x -> (Location, (Store Location Type', Error String y))
+runType (TypeArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Abstract.Store.fromList env2', (env', x)))
+        where env' = Prelude.map (\(x, y) -> (x, Data.Set.fromList [y])) env
+              env2' = Prelude.map (\(x, y) -> (x, Data.Set.fromList [y])) env2
 
-runAbstract :: [(Ident, Location)] -> [(Location, Type)] -> Expr -> (Store Location Type, Error String Type)
+runAbstract :: [(Ident, Location)] -> [(Location, Type)] -> Expr -> (Store Location Type', Error String Type')
 runAbstract env st exp = case runType eval env st exp of
     (l, (st, Fail e)) -> (st, Fail e)
     (l, (st, Success res)) -> (st, Success res)
 
-typeEvalOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, [Type]) Type
-typeEvalOp_ = proc (op, vals) -> case (op, vals) of
+typeEvalBinOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type, Type) Type
+typeEvalBinOp_ = proc (op, v1, v2) -> case (op, v1, v2) of 
     -- number operators
-    (ONumPlus, [TNumber, TNumber]) -> returnA -< TNumber
-    (OMul, [TNumber, TNumber]) -> returnA -< TNumber
-    (ODiv, [TNumber, TNumber]) -> returnA -< TNumber
-    (OMod, [TNumber, TNumber]) -> returnA -< TNumber
-    (OSub, [TNumber, TNumber]) -> returnA -< TNumber
-    (OLt, [TNumber, TNumber]) -> returnA -< TBool
-    (OToInteger, [TNumber]) -> returnA -< TNumber
-    (OToInt32, [TNumber]) -> returnA -< TNumber
-    (OToUInt32, [TNumber]) -> returnA -< TNumber
+    (ONumPlus, TNumber, TNumber) -> returnA -< TNumber
+    (OMul, TNumber, TNumber) -> returnA -< TNumber
+    (ODiv, TNumber, TNumber) -> returnA -< TNumber
+    (OMod, TNumber, TNumber) -> returnA -< TNumber
+    (OSub, TNumber, TNumber) -> returnA -< TNumber
+    (OLt, TNumber, TNumber) -> returnA -< TBool
     -- shift operators
-    (OLShift, [TNumber, TNumber]) -> returnA -< TNumber
-    (OSpRShift, [TNumber, TNumber]) -> returnA -< TNumber
-    (OZfRShift, [TNumber, TNumber]) -> returnA -< TNumber
+    (OLShift, TNumber, TNumber) -> returnA -< TNumber
+    (OSpRShift, TNumber, TNumber) -> returnA -< TNumber
+    (OZfRShift, TNumber, TNumber) -> returnA -< TNumber
     -- string operators
-    (OStrPlus, [TString, TString]) -> returnA -< TString
-    (OStrLt, [TString, TString]) -> returnA -< TBool
-    (OStrLen, [TString]) -> returnA -< TNumber
-    (OStrLen, [TString, TString]) -> returnA -< TBool
+    (OStrPlus, TString, TString) -> returnA -< TString
+    (OStrLt, TString, TString) -> returnA -< TBool
     -- boolean operators
-    (OBAnd, [TBool, TBool]) -> returnA -< TBool
-    (OBOr, [TBool, TBool]) -> returnA -< TBool
-    (OBXOr, [TBool, TBool]) -> returnA -< TBool
-    (OBNot, [TBool]) -> returnA -< TBool
+    (OBAnd, TBool, TBool) -> returnA -< TBool
+    (OBOr, TBool, TBool) -> returnA -< TBool
+    (OBXOr, TBool, TBool) -> returnA -< TBool
+    -- equality operators
+    (OStrictEq, a, b) -> returnA -< TBool
+    (OAbstractEq, TNumber, TString) -> returnA -< TBool
+    (OAbstractEq, TString, TNumber) -> returnA -< TBool
+    (OAbstractEq, TBool, TNumber) -> returnA -< TBool
+    (OAbstractEq, TNumber, TBool) -> returnA -< TBool
+    (OAbstractEq, TNumber, TNumber) -> returnA -< TBool
+    (OAbstractEq, TNull, TUndefined) -> returnA -< TBool
+    (OAbstractEq, TUndefined, TNull) -> returnA -< TBool
+    -- math operators
+    (OMathPow, TNumber, TNumber) -> returnA -< TNumber
+    -- object operators
+    (OHasOwnProp, (TObject _), TString) -> returnA -< TBool
+
+typeEvalUnOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type) Type
+typeEvalUnOp_ = proc (op, vals) -> case (op, vals) of
+    -- number operator
+    (OToInteger, TNumber) -> returnA -< TNumber
+    (OToInt32, TNumber) -> returnA -< TNumber
+    (OToUInt32, TNumber) -> returnA -< TNumber
+    -- boolean operator
+    (OBNot, TBool) -> returnA -< TBool
+    -- string operators
+    (OStrLen, TString) -> returnA -< TNumber
     -- isPrimitive operator
-    (OIsPrim, [_]) -> returnA -< TBool
+    (OIsPrim, _) -> returnA -< TBool
     -- primToNum operator
     -- #todo object conversions -> valueOf call
-    (OPrimToNum, [_]) -> returnA -< TNumber
+    (OPrimToNum, _) -> returnA -< TNumber
     -- primToStr operator
-    (OPrimToStr, [_]) -> returnA -< TString
+    (OPrimToStr, _) -> returnA -< TString
     -- primToBool operator
-    (OPrimToBool, [_]) -> returnA -< TBool
+    (OPrimToBool, _) -> returnA -< TBool
     -- typeOf operator
-    (OTypeof, [_]) -> returnA -< TString 
-    -- equality operators
-    (OStrictEq, [a, b]) -> returnA -< TBool
-    (OAbstractEq, [TNumber, TString]) -> returnA -< TBool
-    (OAbstractEq, [TString, TNumber]) -> returnA -< TBool
-    (OAbstractEq, [TBool, TNumber]) -> returnA -< TBool
-    (OAbstractEq, [TNumber, TBool]) -> returnA -< TBool
-    (OAbstractEq, [TNumber, TNumber]) -> returnA -< TBool
-    (OAbstractEq, [TNull, TUndefined]) -> returnA -< TBool
-    (OAbstractEq, [TUndefined, TNull]) -> returnA -< TBool
+    (OTypeof, _) -> returnA -< TString 
     -- math operators
-    (OMathExp, [TNumber]) -> returnA -< TNumber
-    (OMathLog, [TNumber]) -> returnA -< TNumber
-    (OMathCos, [TNumber]) -> returnA -< TNumber
-    (OMathSin, [TNumber]) -> returnA -< TNumber
-    (OMathAbs, [TNumber]) -> returnA -< TNumber
-    (OMathPow, [TNumber, TNumber]) -> returnA -< TNumber
-    -- object operators
-    (OHasOwnProp, [(TObject _), TString]) -> returnA -< TBool
+    (OMathExp, TNumber) -> returnA -< TNumber
+    (OMathLog, TNumber) -> returnA -< TNumber
+    (OMathCos, TNumber) -> returnA -< TNumber
+    (OMathSin, TNumber) -> returnA -< TNumber
+    (OMathAbs, TNumber) -> returnA -< TNumber
 
 fresh :: ArrowState Location c => c () Location 
 fresh = proc () -> do
@@ -151,84 +176,98 @@ fresh = proc () -> do
     putA -< Location $ s + 1
     returnA -< Location $ s + 1
 
-instance {-# OVERLAPS #-} AbstractValue Type TypeArr where
+instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
     -- values
-    numVal = proc _ -> returnA -< TNumber
-    boolVal = proc _ -> returnA -< TBool
-    stringVal = proc _ -> returnA -< TString
-    undefVal = proc () -> returnA -< TUndefined
-    nullVal = proc () -> returnA -< TNull
+    numVal = proc _ -> returnA -< Data.Set.fromList [TNumber]
+    boolVal = proc _ -> returnA -< Data.Set.fromList [TBool]
+    stringVal = proc _ -> returnA -< Data.Set.fromList [TString]
+    undefVal = proc () -> returnA -< Data.Set.fromList [TUndefined]
+    nullVal = proc () -> returnA -< Data.Set.fromList [TNull]
     lambdaVal = proc (ids, body) -> do
         bodyT <- eval -< body
-        returnA -< TLambda ids bodyT
+        returnA -< Data.Set.fromList [TLambda ids bodyT]
     objectVal = proc (fields) -> do
-        returnA -< TObject fields
-    getField = proc (_, _) -> returnA -< TTop
-    updateField = proc (_, _, _) -> returnA -< TTop
-    deleteField = proc (_, _) -> returnA -< TTop
+        returnA -< Data.Set.fromList [TObject fields]
+    getField = proc (_, _) -> returnA -< Data.Set.fromList [TTop]
+    updateField = proc (_, _, _) -> returnA -< Data.Set.fromList [TTop]
+    deleteField = proc (_, _) -> returnA -< Data.Set.fromList [TTop]
     -- operator/delta function
-    evalOp = proc (op, vals) -> typeEvalOp_ -< (op, vals)
+    evalOp = proc (op, vals) -> do
+        case length vals of
+            1 -> do
+                t <- mapA typeEvalUnOp_ -< zip (repeat op) (Data.Set.toList $ head vals)
+                returnA -< Data.Set.fromList t
+            2 -> do
+                let 
+                    v1 = Data.Set.toList (head vals)
+                    v2 = Data.Set.toList (head $ tail vals)
+                case length v1 == 1 && length v2 == 1 of
+                    True -> do
+                        t <- typeEvalBinOp_ -< (op, head v1, head v2)
+                        returnA -< Data.Set.fromList [t]
+                    False -> failA -< "Error: Binary op with set of type params not supported"
     -- environment ops
     lookup = proc id -> do
         loc <- Control.Arrow.Environment.lookup -< id
-        returnA -< TRef loc
-    apply = proc (TLambda names bodyT, args) -> do
-        case length names == length args of
-            False ->  failA -< "Error: applied lambda with less/more params than arguments"
-            True -> do
-                -- generate locations for arguments equal to length of pairs 
-                locations <- mapA ((arr $ const ()) >>> fresh) -< args
+        returnA -< Data.Set.fromList [TRef loc]
+    apply = proc (lambdas, args) -> do
+        ts <- mapA (proc (lambda, args) -> case lambda of
+            TLambda names bodyT -> do
+                case length names == length args of
+                    False -> failA -< "Error: lambda must be applied with same amount of args as params"
+                    True -> returnA -< bodyT
+            _ -> failA -< "Error: apply must take lambda") -< zip (Data.Set.toList lambdas) (repeat args)
+        returnA -< foldr1 (\x y -> x ⊔ y) ts
+        -- generate locations for arguments equal to length of pairs 
+        --locations <- mapA ((arr $ const ()) >>> fresh) -< args
 
-                forStore <- arr $ uncurry zip -< (locations, args) 
-                mapA set -< Prelude.map (\(a, b) -> (TRef a, b)) forStore
+        --forStore <- arr $ uncurry zip -< (locations, args) 
+        --mapA set -< Prelude.map (\(a, b) -> (TRef a, b)) forStore
 
-                forEnv <- arr $ uncurry zip -< (names, locations) 
-                scope <- getEnv -< ()
-                env' <- bindings -< (forEnv, scope)
-                --localEnv eval -< (env', bodyT)
-                -- Just return bodyT for now, in the future typecheck the body with parameter types known
-                returnA -< bodyT
+        --forEnv <- arr $ uncurry zip -< (names, locations) 
+        --scope <- getEnv -< ()
+        --env' <- bindings -< (forEnv, scope)
+        --localEnv eval -< (env', bodyT)
+        -- Just return bodyT for now, in the future typecheck the body with parameter types known
     -- store ops
     set = proc (loc, val) -> do
-        case loc of
-            TRef l -> do
-                write -< (l, val, ())
+        case Data.Set.toList loc of
+            [TRef l] -> do
+                mapA write -< zip3 (Data.Set.toList l) (repeat val) (repeat ())
                 returnA -< ()
             _ -> failA -< "Error: ESetRef lhs must be location"
     new = proc (val) -> do 
-        loc <- fresh -< ()
-        set -< (TRef loc, val)
-        returnA -< TRef loc
+        loc <- fresh >>> (arr (:[])) >>> (arr Data.Set.fromList) -< ()
+        set -< (Data.Set.fromList [TRef loc], val)
+        returnA -< Data.Set.fromList [TRef loc]
     get = proc (loc) -> do
-        case loc of
-            TRef l -> do
-                val <- read -< (l, ())
-                returnA -< val
+        case Data.Set.toList loc of
+            [TRef l] -> do
+                vals <- mapA read -< zip (Data.Set.toList l) (repeat ())
+                returnA -< foldr1 (\x y -> x ⊔ y) vals
             _ -> failA -< "Error: EDeref lhs must be location"
     -- control flow
     if_ = proc (cond, thenBranch, elseBranch) -> do
-        case cond of
-            TBool -> do
+        case Data.Set.toList cond of
+            [TBool] -> do
                 thenT <- eval -< thenBranch
                 elseT <- eval -< elseBranch
-                case thenT == elseT of
-                    True -> returnA -< thenT
-                    False -> failA -< "Error: Branches of conditional must be of equal type"
+                returnA -< Data.Set.union thenT elseT
             _ -> failA -< "Error: Conditional must be of type bool"
     label = proc (l, e) -> do
         eT <- eval -< e
-        case eT of
-            TBreak l1 t -> case l == l1 of
+        case Data.Set.toList eT of
+            [TBreak l1 t] -> case l == l1 of
                 True -> returnA -< t
                 False -> failA -< "Error: Expression within label must be of type break to that label"
             _ -> failA -< "Error: Expression within label must be of type break to that label"
     break = proc (l, t) -> do
-        returnA -< TBreak l t
+        returnA -< Data.Set.fromList $ [TBreak l t]
     throw = proc t -> do
-        returnA -< TThrown t
+        returnA -< Data.Set.fromList $ [TThrown t]
     catch = proc (try, catch) -> do
         tryT <- eval -< try
-        case tryT of
-            TThrown t -> returnA -< t
+        case Data.Set.toList tryT of
+            [TThrown t] -> returnA -< t
             _ -> failA -< "Error: Expression within try must be of type thrown"
     error = proc s -> failA -< "Error: aborted with message: " ++ s

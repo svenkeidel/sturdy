@@ -22,6 +22,7 @@ library
     , syb >= 0.1
     , pretty >= 0.1
     , mtl >= 1.1.0.1
+    , unordered-containers
   exposed-modules:
     Syntax
     SharedInterpreter

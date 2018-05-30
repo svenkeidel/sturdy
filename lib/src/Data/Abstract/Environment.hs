@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Data.Abstract.Environment(Env,empty,lookup,insert,insertWith,fromList,toList) where
 
 import           Prelude hiding (lookup)
