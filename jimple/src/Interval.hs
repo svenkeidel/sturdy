@@ -11,11 +11,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Interval where
 
-import           Prelude hiding (id,lookup,read,Bounded(..),Bool(..),(<),(==),(/))
+import           Prelude hiding (id,lookup,read,Bounded(..),Bool(..),(<),(>=),(==),(/))
 import qualified Prelude as P
 
 import           Data.Fixed
-import           Data.List (elemIndex,find,replicate,repeat)
 
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -461,18 +460,25 @@ instance UseVal Val Interp where
     -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
     (TopVal,_) -> returnA -< TopVal
     (_,_) -> failA -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
-  -- readIndex = (first unbox1) >>> proc (v,i) -> case (v,i) of
-  --   (ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
-  --     then returnA -< xs !! n
-  --     else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
-  --   (ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
-  --   _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
-  -- updateIndex = (first (first (id &&& unbox1))) >>> proc (((ref,a),i),v) -> case (ref,a,i) of
-  --   (RefVal addr,ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
-  --     then write -< (addr, ArrayVal (replace n v xs))
-  --     else voidA throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
-  --   (RefVal _,ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
-  --   _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
+  readIndex = (first unbox1) >>> proc (v,i) -> case (v,i) of
+    (TopVal,_) -> returnA -< TopVal
+    (_,TopVal) -> returnA -< TopVal
+    (ArrayVal x (IntVal s),IntVal n) -> do
+      b <- askBounds -< ()
+      if n ⊑ ((num b 0) ⊔ s)
+      then returnA -< x
+      else throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
+    (ArrayVal _ _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
+    _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
+  updateIndex = (first (first (id &&& unbox1))) >>> proc (((ref,a),i),v) -> case (ref,a,i) of
+    (RefVal addr,ArrayVal x (IntVal s),IntVal n) -> do
+      b <- askBounds -< ()
+      if n ⊑ ((num b 0) ⊔ s)
+      then write -< (addr,ArrayVal (x ⊔ v) (IntVal s))
+      else voidA throw -< ("java.lang.ArrayIndexOutOfBoundsException", printf "Index %d out of bounds" (show n))
+    (RefVal _,ArrayVal _ _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
+    (RefVal _,TopVal,_) -> returnA -< () -- TopVal is already written
+    _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
   readField = (first unbox1) >>> proc (v,f) -> case v of
     (ObjectVal _ m) -> case Map.lookup f m of
       Just x -> returnA -< x
@@ -494,6 +500,7 @@ instance UseFlow Val Interp where
   case_ f = proc (v,cases) -> case v of
     IntVal _ -> matchCases >>> (lubA f) -< (v,cases)
     TopVal -> returnA -< Just top
+    _ -> failA -< StaticException "Expected integer argument for 'case'"
     where
       matchCases = proc (v,cases) -> case cases of
         [] -> failA -< StaticException $ printf "No cases match value %s" (show v)
@@ -506,6 +513,10 @@ instance UseFlow Val Interp where
             BoolVal B.Top -> do
               labels <- matchCases -< (v,rest)
               returnA -< label:labels
+            TopVal -> do
+              labels <- matchCases -< (v,rest)
+              returnA -< label:labels
+            _ -> failA -< StaticException "Expected boolean from eq"
         ((DefaultCase, label): _) -> returnA -< [label]
   catch f = proc (v,clauses) -> case clauses of
     [] -> failA -< DynamicException v

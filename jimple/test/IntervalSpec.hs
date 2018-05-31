@@ -106,7 +106,7 @@ spec = do
       let nv = [("xs", 1)]
       let st = [(1, RefVal 2),
                 (2, ArrayVal (int 1 3) (int 3 3))]
-      evalConcrete nv st expr `shouldBe` Success (int 3 3)
+      evalConcrete nv st expr `shouldBe` Success (int 1 3)
     it "newmultiarray (float) [3][2]" $ do
       let ?bound = I.Interval (-100) 100
       let expr = NewMultiArrayExpr FloatType [IntConstant 3, IntConstant 2]
@@ -195,10 +195,10 @@ spec = do
       let ?bound = I.Interval (-100) 100
       let files = baseCompilationUnits ++ [factorialExampleFile]
       runProgramConcrete files factorialExampleFile [IntConstant (-10)] `shouldBe` dynamicException "java.lang.IllegalArgumentException" "Negative value for argument n"
-    it "5 -> [5, 5, 5, 5]" $ do
+    it "5 -> [5,10,5,10]" $ do
       let ?bound = I.Interval (-100) 100
       let files = baseCompilationUnits ++ [arrayFieldExampleFile]
-      runProgramConcrete files arrayFieldExampleFile [IntConstant 5] `shouldBe` Success (Just (ArrayVal (int 5 5) (int 4 4)))
+      runProgramConcrete files arrayFieldExampleFile [IntConstant 5] `shouldBe` Success (Just (ArrayVal (int 0 10) (int 4 4)))
     it "(new Person(10)).yearsToLive() = 90" $ do
       let ?bound = I.Interval (-100) 100
       let files = baseCompilationUnits ++ [personExampleFile]

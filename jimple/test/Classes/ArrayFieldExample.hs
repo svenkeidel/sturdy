@@ -88,17 +88,20 @@ arrayFieldExampleFillMethod = Method {
   methodBody = FullBody {
     declarations = [
       (RefType "ArrayFieldExample", ["r0"]),
-      (IntType, ["p0"]),
+      (IntType, ["p0","p1"]),
       (ArrayType IntType, ["a0"])
     ],
     statements = [
       Identity "r0" ThisRef (RefType "ArrayFieldExample"),
-      Identity "p0" (ParameterRef 0) IntType,
       Assign (LocalVar "a0") (NewArrayExpr IntType (IntConstant 4)),
+      Identity "p0" (ParameterRef 0) IntType,
       Assign (ReferenceVar (ArrayRef "a0" (IntConstant 0))) (Local "p0"),
+      Assign (LocalVar "p0") (BinopExpr (Local "p0") Mult (IntConstant 2)),
       Assign (ReferenceVar (ArrayRef "a0" (IntConstant 1))) (Local "p0"),
-      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 2))) (Local "p0"),
-      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 3))) (Local "p0"),
+      Identity "p1" (ParameterRef 0) IntType,
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 2))) (Local "p1"),
+      Assign (LocalVar "p1") (BinopExpr (Local "p1") Mult (IntConstant 2)),
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 3))) (Local "p1"),
       Assign (ReferenceVar (FieldRef "r0" arrayFieldExampleArrSignature)) (Local "a0"),
       Return Nothing
     ],

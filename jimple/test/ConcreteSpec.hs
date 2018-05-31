@@ -166,7 +166,7 @@ spec = do
       runProgramConcrete files factorialExampleFile [IntConstant (-10)] `shouldBe` dynamicException "java.lang.IllegalArgumentException" "Negative value for argument n"
     it "5 -> [5, 5, 5, 5]" $ do
       let files = baseCompilationUnits ++ [arrayFieldExampleFile]
-      runProgramConcrete files arrayFieldExampleFile [IntConstant 5] `shouldBe` Success (Just (ArrayVal [IntVal 5, IntVal 5, IntVal 5, IntVal 5]))
+      runProgramConcrete files arrayFieldExampleFile [IntConstant 5] `shouldBe` Success (Just (ArrayVal [IntVal 5, IntVal 10, IntVal 5, IntVal 10]))
     it "(new Person(10)).yearsToLive() = 90" $ do
       let files = baseCompilationUnits ++ [personExampleFile]
       runProgramConcrete files personExampleFile [] `shouldBe` Success (Just (IntVal 90))
