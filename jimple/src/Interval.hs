@@ -367,12 +367,12 @@ instance UseVal Val Interp where
     (DoubleVal x1, DoubleVal x2) -> returnA -< DoubleVal (x1 * x2)
     _ -> failA -< StaticException "Expected numeric variables for mult"
   div = proc (v1,v2) -> case (v1,v2) of
-    -- (IntVal x1, IntVal x2) -> if x2 == 0
-    --   then throw -< ("java.lang.ArithmeticException", "/ by zero")
-    --   else returnA -< IntVal (x1 `P.div` x2)
-    -- (LongVal x1, LongVal x2) -> if x2 == 0
-    --   then throw -< ("java.lang.ArithmeticException", "/ by zero")
-    --   else returnA -< LongVal (x1 `P.div` x2)
+    (IntVal x1, IntVal x2) -> case x1 / x2 of
+      Fail _ -> throw -< ("java.lang.ArithmeticException", "/ by zero")
+      Success y -> returnA -< IntVal y
+    (LongVal x1, LongVal x2) -> case x1 / x2 of
+      Fail _ -> throw -< ("java.lang.ArithmeticException", "/ by zero")
+      Success y -> returnA -< IntVal y
     (FloatVal x1, FloatVal x2) -> returnA -< FloatVal (x1 P./ x2)
     (DoubleVal x1, DoubleVal x2) -> returnA -< DoubleVal (x1 P./ x2)
     _ -> failA -< StaticException "Expected numeric variables for div"
