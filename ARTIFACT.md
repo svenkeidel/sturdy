@@ -1,5 +1,8 @@
 # ICFP Artifact, paper #23 _Compositional Soundness Proofs of Abstract Interpreters_
 
+This document is also available at [Github](https://github.com/svenkeidel/sturdy/blob/icfp-artifact/ARTIFACT.md)
+with links to highlighted source code.
+
 ## Getting Started
 
 The artifact is provided as a docker container. To obtain the artifact
@@ -46,10 +49,7 @@ This artifact consists of the code shown in figures throughout the paper.
   The evaluation in the paper consists two case studies, a tree-shape
   analysis for Stratego and a _k_-CFA analysis for PCF. Each case study
   consists of the Haskell code of the concrete and abstract interpreter,
-  as well as the corresponding soundness proof (submitted in
-  supplementary material). Since paper proofs are not part of artifact
-  evaluation, the artifact for this section only consists of the code for
-  the analyses.
+  as well as the corresponding soundness proof.
   
   The code of each case study consists of a shared interpreter that is
   parameterized by an arrow-based interface and the concrete and
@@ -104,3 +104,7 @@ This artifact consists of the code shown in figures throughout the paper.
         [concrete](pcf/test/ConcreteSpec.hs),
         [abstract](pcf/test/IntervalAnalysisSpec.hs)
         [shared](pcf/test/SharedSpecs.hs)
+
+  + Even though paper proofs are not part of this years artifact
+    evaluation, we added the soundness proofs of the analyses to the
+    artifact for completeness: [Proofs](proofs.pdf)
