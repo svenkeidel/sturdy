@@ -279,32 +279,34 @@ instance UseVal Val Interp where
     (FloatVal x1, FloatVal x2) -> returnA -< FloatVal (x1 `mod'` x2)
     (DoubleVal x1, DoubleVal x2) -> returnA -< DoubleVal (x1 `mod'` x2)
     _ -> failA -< StaticException "Expected integer variables for mod"
-  -- cmp = proc (v1,v2) -> case (v1,v2) of
-  --   (LongVal x1, LongVal x2)
-  --     | x1 < x2 -> returnA -< IntVal (-1)
-  --     | x1 == x2 -> returnA -< IntVal 0
-  --     | x1 > x2 -> returnA -< IntVal 1
-  --   _ -> failA -< StaticException "Expected long variables for cmp"
-  -- cmpg = proc (v1,v2) -> case (v1,v2) of
-  --   (FloatVal x1, FloatVal x2)
-  --     | x1 < x2 -> returnA -< IntVal (-1)
-  --     | x1 == x2 -> returnA -< IntVal 0
-  --     | x1 > x2 -> returnA -< IntVal 1
-  --   (DoubleVal x1, DoubleVal x2)
-  --     | x1 < x2 -> returnA -< IntVal (-1)
-  --     | x1 == x2 -> returnA -< IntVal 0
-  --     | x1 > x2 -> returnA -< IntVal 1
-  --   _ -> failA -< StaticException "Expected floating variables for cmpg"
-  -- cmpl = proc (v1,v2) -> case (v1,v2) of
-  --   (FloatVal x1, FloatVal x2)
-  --     | x1 > x2 -> returnA -< IntVal (-1)
-  --     | x1 == x2 -> returnA -< IntVal 0
-  --     | x1 < x2 -> returnA -< IntVal 1
-  --   (DoubleVal x1, DoubleVal x2)
-  --     | x1 > x2 -> returnA -< IntVal (-1)
-  --     | x1 == x2 -> returnA -< IntVal 0
-  --     | x1 < x2 -> returnA -< IntVal 1
-  --   _ -> failA -< StaticException "Expected floating variables for cmpl"
+  cmp = proc (v1,v2) -> case (v1,v2) of
+    (LongVal x1, LongVal x2) -> do
+      b <- askBounds -< ()
+      let nums = map (num b) [-1,0,1]
+      let pairs = zip [x1 < x2,x1 == x2,x2 < x1] nums
+      let filteredNums = map snd $ filter ((P./=B.False) . fst) pairs
+      returnA -< IntVal $ lub filteredNums
+    _ -> failA -< StaticException "Expected long variables for cmp"
+  cmpg = proc (v1,v2) -> case (v1,v2) of
+    (FloatVal x1, FloatVal x2)
+      | x1 P.< x2 -> intConstant -< -1
+      | x1 P.== x2 -> intConstant -< 0
+      | x1 > x2 -> intConstant -< 1
+    (DoubleVal x1, DoubleVal x2)
+      | x1 P.< x2 -> intConstant -< -1
+      | x1 P.== x2 -> intConstant -< 0
+      | x1 > x2 -> intConstant -< 1
+    _ -> failA -< StaticException "Expected floating variables for cmpg"
+  cmpl = proc (v1,v2) -> case (v1,v2) of
+    (FloatVal x1, FloatVal x2)
+      | x1 > x2 -> intConstant -< -1
+      | x1 P.== x2 -> intConstant -< 0
+      | x1 P.< x2 -> intConstant -< 1
+    (DoubleVal x1, DoubleVal x2)
+      | x1 > x2 -> intConstant -< -1
+      | x1 P.== x2 -> intConstant -< 0
+      | x1 P.< x2 -> intConstant -< 1
+    _ -> failA -< StaticException "Expected floating variables for cmpl"
   eq = proc (v1, v2) -> returnA -< BoolVal (v1 == v2)
   neq = proc (v1, v2) -> returnA -< BoolVal $ B.not (v1 == v2)
   gt = proc (v1,v2) -> case (v1,v2) of
