@@ -42,7 +42,6 @@ library
                        sturdy-lib,
                        text,
                        transformers,
-                       tree-automata,
                        unordered-containers,
                        QuickCheck
   hs-source-dirs:      src
@@ -77,7 +76,6 @@ test-suite specs
                        sturdy-lib,
                        sturdy-stratego,
                        text,
-                       tree-automata,
                        unordered-containers,
                        QuickCheck
   other-modules:       Pretty.Haskell,
