@@ -1,5 +1,4 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Syntax where
 

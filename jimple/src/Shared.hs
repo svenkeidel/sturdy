@@ -302,7 +302,7 @@ runMethod = proc (method,this,args) -> case methodBody method of
 runProgram :: CanInterp env addr const val c => c [Expr] (Maybe val)
 runProgram = proc args -> do
   units <- askCompilationUnits -< ()
-  fields <- askFields >>> Map.toList ^>> (mapA (second addrFromInt)) -< ()
+  fields <- askFields >>> Map.toList ^>> mapA (second addrFromInt) -< ()
   mapA (second defaultValue >>> write) -< map (\(FieldSignature _ t _,a) -> (a,t)) fields
   mapA (proc unit -> do
     let getMethod :: Member -> [Method]
