@@ -1,4 +1,4 @@
-# ICFP Artifact, paper #23 _Compositional Soundness Proofs of Abstract Interpreters_
+% ICFP Artifact, paper #23 _Compositional Soundness Proofs of Abstract Interpreters_
 
 This document is also available at [Github](https://github.com/svenkeidel/sturdy/blob/icfp-artifact/ARTIFACT.md)
 with links to highlighted source code.
@@ -9,6 +9,12 @@ The artifact is provided as a docker container. To obtain the artifact
 run the following docker command:
 ```
 docker pull svenkeidel/sturdy-icfp-18-artifact
+```
+
+If the artifact has been provided as an archive, unzip it and load it
+as follows:
+```
+gunzip -c sturdy-icfp-18-artifact.tar.gz | docker load
 ```
 
 Afterwards, run the following command to start a shell to get access

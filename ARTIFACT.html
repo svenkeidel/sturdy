@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>ICFP Artifact, paper #23 Compositional Soundness Proofs of Abstract Interpreters</title>
+  <style type="text/css">
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <link rel="stylesheet" href="pandoc.css">
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+</head>
+<body>
+<header>
+<h1 class="title">ICFP Artifact, paper #23 <em>Compositional Soundness Proofs of Abstract Interpreters</em></h1>
+</header>
+<p>This document is also available at <a href="https://github.com/svenkeidel/sturdy/blob/icfp-artifact/ARTIFACT.md">Github</a> with links to highlighted source code.</p>
+<h2 id="getting-started">Getting Started</h2>
+<p>The artifact is provided as a docker container. To obtain the artifact run the following docker command:</p>
+<pre><code>docker pull svenkeidel/sturdy-icfp-18-artifact</code></pre>
+<p>If the artifact has been provided as an archive, unzip it and load it as follows:</p>
+<pre><code>gunzip -c sturdy-icfp-18-artifact.tar.gz | docker load</code></pre>
+<p>Afterwards, run the following command to start a shell to get access to the container:</p>
+<pre><code>docker run --interactive --tty --workdir=&quot;/opt/build/&quot; svenkeidel/sturdy-icfp-18-artifact /bin/bash</code></pre>
+<p>To build the code base, use the Haskell build tool <a href="https://www.haskellstack.org/">Stack</a> and run <code>stack build</code> from the top-level directory <code>/opt/build/</code>. To run the tests, run <code>stack test</code> from the top-level directory. After running the tests, the test reports can be found in <code>/opt/build/.stack-work/logs/sturdy-stratego-*-test.log</code> and <code>/opt/build/.stack-work/logs/sturdy-pcf-*-test.log</code>.</p>
+<h2 id="step-by-step-instructions">Step-by-Step Instructions</h2>
+<p>This artifact consists of the code shown in figures throughout the paper.</p>
+<ul class="incremental">
+<li>Figure 1:
+<ul class="incremental">
+<li><a href="figure1/Concrete.hs">Concrete Interpreter</a></li>
+<li><a href="figure1/Abstract.hs">Abstract Interpreter</a></li>
+</ul></li>
+<li>Figure 2:
+<ul class="incremental">
+<li><a href="figure2/Concrete.hs">Concrete Interpreter</a></li>
+<li><a href="figure2/Abstract.hs">Abstract Interpreter</a></li>
+</ul></li>
+<li>Figure 3:
+<ul class="incremental">
+<li><a href="figure3/Shared.hs">Shared Interpreter</a></li>
+</ul></li>
+<li>Figure 4:
+<ul class="incremental">
+<li><a href="figure3/Concrete.hs">Concrete Interpreter</a></li>
+<li><a href="figure3/Abstract.hs">Abstract Interpreter</a></li>
+</ul></li>
+<li><p>Section 6: Evaluation</p>
+<p>The evaluation in the paper consists two case studies, a tree-shape analysis for Stratego and a <em>k</em>-CFA analysis for PCF. Each case study consists of the Haskell code of the concrete and abstract interpreter, as well as the corresponding soundness proof.</p>
+<p>The code of each case study consists of a shared interpreter that is parameterized by an arrow-based interface and the concrete and abstract instantiation of the shared interpreter. To implement the concrete and abstract interpreter arrows, we used <em>arrow transformers</em> (analogous to <em>monad transformers</em>). These arrow transformers define, for example, how fixpoints are computed, exceptions are propagated, or how a store is threaded. Each pair of corresponding concrete and abstract arrow transformer implements an arrow-based interface that is used by the shared interpreter.</p>
+<ul class="incremental">
+<li>Section 6.1 - Stratego:
+<ul class="incremental">
+<li><a href="stratego/src/Syntax.hs">Syntax definition</a></li>
+<li><a href="stratego/src/SharedSemantics.hs">Shared interpreter</a> (includes code of figure 6)</li>
+<li><a href="stratego/src/ConcreteSemantics.hs">Concrete interpreter</a></li>
+<li><a href="stratego/src/WildcardSemantics.hs">Abstract interpreter</a></li>
+<li>Fixpoint computations: <a href="lib/src/Control/Arrow/Fix.hs">interface</a>, <a href="lib/src/Control/Arrow/Transformer/Concrete/FixPoint.hs">concrete</a>, <a href="lib/src/Control/Arrow/Transformer/Abstract/GreatestFixPoint.hs">abstract</a></li>
+<li>Exceptional computations: <a href="lib/src/Control/Arrow/Except.hs">interface</a>, <a href="lib/src/Control/Arrow/Transformer/Concrete/Except.hs">concrete</a>, <a href="lib/src/Control/Arrow/Transformer/Abstract/HandleExcept.hs">abstract</a></li>
+<li>Powerset computations: <a href="lib/src/Control/Arrow/Transformer/Abstract/Powerset.hs">abstract</a></li>
+<li>Tests: <a href="stratego/test/ConcreteSemanticsSpec.hs">concrete</a>, <a href="stratego/test/WildcardSemanticsSpec.hs">abstract</a></li>
+</ul></li>
+<li>Section 6.2 - PCF:
+<ul class="incremental">
+<li><a href="pcf/src/Syntax.hs">Syntax definition</a></li>
+<li><a href="pcf/src/SharedSemantics.hs">Shared interpreter</a> (includes code of figure 8)</li>
+<li><a href="pcf/src/ConcreteSemantics.hs">Concrete interpreter</a> (includes code of figure 7)</li>
+<li><a href="pcf/src/IntervalAnalysis.hs">Abstract interpreter</a> (includes code of figure 7)</li>
+<li><a href="lib/src/Data/Abstract/Interval.hs">Intervals</a></li>
+<li>Fixpoint computations: <a href="lib/src/Control/Arrow/Fix.hs">interface</a>, <a href="lib/src/Control/Arrow/Transformer/Concrete/FixPoint.hs">concrete</a>, <a href="lib/src/Control/Arrow/Transformer/Abstract/LeastFixPoint.hs">abstract</a></li>
+<li>Environments for <em>k</em>-CFA: <a href="lib/src/Control/Arrow/Environment.hs">interface</a>, <a href="lib/src/Control/Arrow/Transformer/Concrete/Environment.hs">concrete</a>, <a href="lib/src/Control/Arrow/Transformer/Abstract/BoundedEnvironment.hs">abstract</a></li>
+<li>Recording of call-string for <em>k</em>-CFA: <a href="lib/src/Control/Arrow/Transformer/Abstract/Contour.hs">abstract</a></li>
+<li>Exceptional computations: <a href="lib/src/Control/Arrow/Except.hs">interface</a>, <a href="lib/src/Control/Arrow/Transformer/Concrete/Except.hs">concrete</a>, <a href="lib/src/Control/Arrow/Transformer/Abstract/PropagateExcept.hs">abstract</a></li>
+<li>Tests: <a href="pcf/test/ConcreteSpec.hs">concrete</a>, <a href="pcf/test/IntervalAnalysisSpec.hs">abstract</a> <a href="pcf/test/SharedSpecs.hs">shared</a></li>
+</ul></li>
+<li>Even though paper proofs are not part of this years artifact evaluation, we added the soundness proofs of the analyses to the artifact for completeness: <a href="proofs.pdf">Proofs</a></li>
+</ul></li>
+</ul>
+</body>
+</html>
