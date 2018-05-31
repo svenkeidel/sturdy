@@ -63,7 +63,7 @@ type Constants = (CompilationUnits,Fields,IV)
 type Addr = Int
 -- Remove these instances when abstract multi-env is available.
 instance LowerBounded Addr where
-  bottom = (-2)^29
+  bottom = (-2)^(29 :: Int)
 instance Complete Addr where
   a ⊔ _ = a
 
@@ -263,15 +263,10 @@ instance UseVal Val Interp where
       TopVal -> returnA -< top
       _ -> failA -< StaticException $ printf "Expected an integer array size, got %s" (show s)
     [] -> defaultValue -< t
-  -- and :: c (v,v) v
-  -- or :: c (v,v) v
-  -- xor :: c (v,v) v
-  -- rem = proc (v1,v2) -> case (v1,v2) of
-  --   (IntVal x1,IntVal x2) -> returnA -< IntVal (x1 `P.rem` x2)
-  --   (LongVal x1,LongVal x2) -> returnA -< LongVal (x1 `P.rem` x2)
-  --   (FloatVal x1,FloatVal x2) -> returnA -< FloatVal (x1 `rem'` x2)
-  --   (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal (x1 `rem'` x2)
-  --   _ -> failA -< StaticException "Expected integer variables for rem"
+  and = proc _ -> failA -< StaticException "Operation not supported yet"
+  or = proc _ -> failA -< StaticException "Operation not supported yet"
+  xor = proc _ -> failA -< StaticException "Operation not supported yet"
+  rem = proc _ -> failA -< StaticException "Operation not supported yet"
   mod = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> returnA -< IntVal (x1 `mod_` x2)
     (LongVal x1,LongVal x2) -> returnA -< LongVal (x1 `mod_` x2)
@@ -332,21 +327,9 @@ instance UseVal Val Interp where
     (FloatVal x1,FloatVal x2) -> returnA -< boolVal (x1 <= x2)
     (DoubleVal x1,DoubleVal x2) -> returnA -< boolVal (x1 <= x2)
     _ -> failA -< StaticException "Expected numeric variables for le"
-  -- shl = proc (v1,v2) -> case (v1,v2) of
-  --   (IntVal x1,IntVal x2) -> returnA -< x1  x2
-  --   (LongVal x1,LongVal x2) -> returnA -< x1  x2
-  --   (FloatVal x1,FloatVal x2) -> returnA -< x1  x2
-  --   (DoubleVal x1,DoubleVal x2) -> returnA -< x1  x2
-  -- shr = proc (v1,v2) -> case (v1,v2) of
-  --   (IntVal x1,IntVal x2) -> returnA -< x1  x2
-  --   (LongVal x1,LongVal x2) -> returnA -< x1  x2
-  --   (FloatVal x1,FloatVal x2) -> returnA -< x1  x2
-  --   (DoubleVal x1,DoubleVal x2) -> returnA -< x1  x2
-  -- ushr = proc (v1,v2) -> case (v1,v2) of
-  --   (IntVal x1,IntVal x2) -> returnA -< x1  x2
-  --   (LongVal x1,LongVal x2) -> returnA -< x1  x2
-  --   (FloatVal x1,FloatVal x2) -> returnA -< x1  x2
-  --   (DoubleVal x1,DoubleVal x2) -> returnA -< x1  x2
+  shl = proc _ -> failA -< StaticException "Operation not supported yet"
+  shr = proc _ -> failA -< StaticException "Operation not supported yet"
+  ushr = proc _ -> failA -< StaticException "Operation not supported yet"
   plus = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> returnA -< IntVal (x1 + x2)
     (LongVal x1,LongVal x2) -> returnA -< LongVal (x1 + x2)

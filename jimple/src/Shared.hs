@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Shared where
 
-import           Prelude hiding (lookup,read,mod,rem,div,id)
+import           Prelude hiding (lookup,read,mod,rem,div,id,or,and)
 
 import           Data.List (find,elemIndex)
 import           Data.Map (Map)
@@ -180,9 +180,9 @@ eval = proc e -> case e of
     v1 <- eval -< i1
     v2 <- eval -< i2
     case op of
-      -- and :: c (v,v) v
-      -- or :: c (v,v) v
-      -- xor :: c (v,v) v
+      And -> and -< (v1,v2)
+      Or -> or -< (v1,v2)
+      Xor -> xor -< (v1,v2)
       Rem -> rem -< (v1,v2)
       Mod -> mod -< (v1,v2)
       Cmp -> cmp -< (v1,v2)
@@ -194,9 +194,9 @@ eval = proc e -> case e of
       Cmpge -> ge -< (v1,v2)
       Cmplt -> lt -< (v1,v2)
       Cmple -> le -< (v1,v2)
-      -- shl :: c (v,v) v
-      -- shr :: c (v,v) v
-      -- ushr :: c (v,v) v
+      Shl -> shl -< (v1,v2)
+      Shr -> shr -< (v1,v2)
+      Ushr -> ushr -< (v1,v2)
       Plus -> plus -< (v1,v2)
       Minus -> minus -< (v1,v2)
       Mult -> mult -< (v1,v2)
@@ -288,7 +288,7 @@ runMethod = proc (method,this,args) -> case methodBody method of
     let thisPair = case this of
           Just x -> [("@this",x)]
           Nothing -> []
-    let paramPairs = zip (map (\i -> "@parameter" ++ show i) [0..]) argVals
+    let paramPairs = zip (map (\i -> "@parameter" ++ show i) [(0 :: Int)..]) argVals
     decPairs <- mapA (second defaultValue) -< concatMap (\(t,d) -> zip d (repeat t)) decs
     env <- createMethodEnv -< thisPair ++ paramPairs ++ decPairs
     localEnv (localA runStatements) -< (env,(method,stmts))
@@ -329,9 +329,9 @@ class Arrow c => UseVal v c | c -> v where
   classConstant :: c String v
   newSimple :: c Type v
   newArray :: c (Type,[v]) v
-  -- and :: c (v,v) v
-  -- or :: c (v,v) v
-  -- xor :: c (v,v) v
+  and :: c (v,v) v
+  or :: c (v,v) v
+  xor :: c (v,v) v
   rem :: c (v,v) v
   mod :: c (v,v) v
   cmp :: c (v,v) v
@@ -343,9 +343,9 @@ class Arrow c => UseVal v c | c -> v where
   ge :: c (v,v) v
   lt :: c (v,v) v
   le :: c (v,v) v
-  -- shl :: c (v,v) v
-  -- shr :: c (v,v) v
-  -- ushr :: c (v,v) v
+  shl :: c (v,v) v
+  shr :: c (v,v) v
+  ushr :: c (v,v) v
   plus :: c (v,v) v
   minus :: c (v,v) v
   mult :: c (v,v) v
