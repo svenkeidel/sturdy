@@ -55,8 +55,8 @@ This artifact consists of the code shown in figures throughout the paper.
   parameterized by an arrow-based interface and the concrete and
   abstract instantiation of the shared interpreter.  To implement
   the concrete and abstract interpreter arrows, we used _arrow
-  transformers_ (analogous to _monad transformer_). These arrow
-  transformer define, for example, how fixpoints are computed,
+  transformers_ (analogous to _monad transformers_). These arrow
+  transformers define, for example, how fixpoints are computed,
   exceptions are propagated, or how a store is threaded.  Each pair of
   corresponding concrete and abstract arrow transformer implements an
   arrow-based interface that is used by the shared interpreter.
