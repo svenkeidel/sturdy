@@ -30,7 +30,6 @@ library
                        SharedSemantics,
                        ConcreteSemantics,
                        WildcardSemantics,
-                       GrammarSemantics,
                        Soundness,
                        Paths_sturdy_stratego
   build-depends:       attoparsec,
@@ -85,7 +84,6 @@ test-suite specs
                        Pretty.Results,
                        AbstractTypedSemanticsSpec,
                        ConcreteSemanticsSpec,
-                       GrammarSemanticsSpec,
                        OrderSpec,
                        SubtypingSpec,
                        WildcardSemanticsSpec
