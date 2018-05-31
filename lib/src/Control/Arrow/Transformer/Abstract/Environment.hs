@@ -62,7 +62,7 @@ deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
 deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
 deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
-instance (ArrowStore loc val lab c, ArrowChoice c, ArrowJoin c) => ArrowStore loc val lab (Environment var val2 c) where
+instance (ArrowStore loc val lab c, ArrowChoice c) => ArrowStore loc val lab (Environment var val2 c) where
   read = lift Control.Arrow.Store.read
   write = lift write
 
@@ -71,4 +71,4 @@ deriving instance Complete (c (Env var val,x) y) => Complete (Environment var va
 deriving instance CoComplete (c (Env var val,x) y) => CoComplete (Environment var val c x y)
 deriving instance LowerBounded (c (Env var val,x) y) => LowerBounded (Environment var val c x y)
 deriving instance UpperBounded (c (Env var val,x) y) => UpperBounded (Environment var val c x y)
-deriving instance (Complete (Env var val), ArrowJoin c) => ArrowJoin (Environment var val c)
+--deriving instance ArrowJoin c => ArrowJoin (Environment var val c)

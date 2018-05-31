@@ -66,6 +66,7 @@ instance (Monoid w, ArrowFail e c) => ArrowFail e (Writer w c) where
 
 instance (Monoid w, ArrowExcept x (w,y) e c) => ArrowExcept x y e (Writer w c) where
   tryCatchA (Writer f) (Writer g) = Writer $ tryCatchA f g
+  finally (Writer f) (Writer g) = Writer $ finally f g
 
 instance (Monoid w, ArrowReader r c) => ArrowReader r (Writer w c) where
   askA = lift askA

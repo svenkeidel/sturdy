@@ -4,9 +4,10 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FunctionalDependencies #-}
 module SharedSemantics where
 
-import           Prelude hiding (id,all,sequence)
+import           Prelude hiding ((.),id,all,sequence,curry, uncurry)
 
 import           Syntax hiding (Fail,TermPattern(..))
 import           Syntax (TermPattern)
@@ -21,15 +22,15 @@ import           Control.Arrow.Except
 import           Control.Category
 
 import qualified Data.HashMap.Lazy as M
-import           Data.Term
-import           Data.TermEnv
 import           Data.Hashable
+import           Data.Constructor
+import           Data.Text(Text)
 
 import           Text.Printf
 
--- Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowExcept t t () c, ArrowExcept (t,[t]) (t,[t]) () c, ArrowApply c, ArrowFix' c t,
-          ArrowFail () c, ArrowDeduplicate c, Eq t, Hashable t,
+-- | Shared interpreter for Stratego
+eval' :: (ArrowChoice c, ArrowExcept t t () c, ArrowExcept (t,[t]) (t,[t]) () c,
+          ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c)
       => (Strat -> c t t)
 eval' = fixA' $ \ev s0 -> dedupA $ case s0 of
@@ -47,12 +48,17 @@ eval' = fixA' $ \ev s0 -> dedupA $ case s0 of
     Call f ss ps -> call f ss ps ev
     Prim {} -> undefined
 
+-- | Guarded choice executes the first strategy, if it succeeds the
+-- result is passed to the second strategy, if it fails the original
+-- input is passed to the third strategy.
 guardedChoice :: ArrowExcept x z () c => c x y -> c y z -> c x z -> c x z
 guardedChoice = tryA
 
+-- | Sequencing of strategies is implemented with categorical composition.
 sequence :: Category c => c x y -> c y z -> c x z
 sequence f g = f >>> g
 
+-- | Apply a strategy non-determenistically to one of the subterms.
 one :: (ArrowChoice c, ArrowFail () c, ArrowExcept (t,[t]) (t,[t]) () c) => c t t -> c [t] [t]
 one f = proc l -> case l of
   (t:ts) -> do
@@ -60,6 +66,8 @@ one f = proc l -> case l of
     returnA -< (t':ts')
   [] -> failA -< ()
 
+-- | Apply a strategy to as many subterms as possible (as long as the
+-- strategy does not fail).
 some :: (ArrowChoice c, ArrowFail () c, ArrowExcept (t,[t]) (t,[t]) () c) => c t t -> c [t] [t]
 some f = go
   where
@@ -75,9 +83,12 @@ some f = go
         returnA -< t':ts'
       [] -> returnA -< []
 
+-- | Apply a strategy to all subterms.
 all :: ArrowChoice c => c x y -> c [x] [y]
 all = mapA
 
+-- | Run a strategy in a term variable scope. The term variables of
+-- the scope are deleted after the scope is exited.
 scope :: IsTermEnv env t c => [TermVar] -> c x y -> c x y
 scope vars s = proc t -> do
   env  <- getTermEnv      -< ()
@@ -87,12 +98,14 @@ scope vars s = proc t -> do
   putTermEnv <<< unionTermEnvs -< (vars,env,env')
   returnA -< t'
 
+-- | Let binding for strategies.
 let_ :: (ArrowApply c, HasStratEnv c) => [(StratVar,Strategy)] -> Strat -> (Strat -> c t t) -> c t t
 let_ ss body interp = proc a -> do
   let ss' = [ (v,Closure s' M.empty) | (v,s') <- ss ]
   senv <- readStratEnv -< ()
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a 
 
+-- | Strategy calls bind strategy variables and term variables.
 call :: (ArrowChoice c, ArrowFail () c, ArrowApply c, IsTermEnv env t c, HasStratEnv c)
      => StratVar
      -> [Strat]
@@ -117,15 +130,17 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
       lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t) failA -<< actual
     {-# INLINE bindTermArg #-}
 
-bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
-bindStratArgs [] senv = senv
-bindStratArgs ((v,Call v' [] []) : ss) senv =
-  case M.lookup v' senv of
-    Just s -> M.insert v s (bindStratArgs ss senv)
-    _ -> error $ "unknown strategy: " ++ show v'
-bindStratArgs ((v,s) : ss) senv =
-    M.insert v (Closure (Strategy [] [] s) senv) (bindStratArgs ss senv)
- 
+    bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
+    bindStratArgs [] senv = senv
+    bindStratArgs ((v,Call v' [] []) : ss) senv =
+      case M.lookup v' senv of
+        Just s -> M.insert v s (bindStratArgs ss senv)
+        _ -> error $ "unknown strategy: " ++ show v'
+    bindStratArgs ((v,s) : ss) senv =
+        M.insert v (Closure (Strategy [] [] s) senv) (bindStratArgs ss senv)
+
+-- | Matches a pattern against the current term. Pattern variables are
+-- bound in the term environment.
 match :: (ArrowChoice c, ArrowApply c, ArrowExcept t t () c, IsTerm t c, IsTermEnv env t c)
       => c (TermPattern,t) t
 match = proc (p,t) -> case p of
@@ -135,6 +150,9 @@ match = proc (p,t) -> case p of
   S.Var "_" ->
     success -< t
   S.Var x ->
+    -- Stratego implements linear pattern matching, i.e., if a
+    -- variable appears multiple times in a term pattern, the terms at
+    -- these positions are compared for equality.
     lookupTermVar'
       (proc t' -> do t'' <- equal -< (t,t')
                      insertTerm' -< (x,t'')
@@ -152,6 +170,8 @@ match = proc (p,t) -> case p of
   S.NumberLiteral n ->
     matchTermAgainstNumber -< (n,t)
 
+-- | Build a new term from a pattern. Variables are pattern are
+-- replaced by terms in the current term environment.
 build :: (ArrowChoice c, ArrowFail () c, IsTerm t c, IsTermEnv env t c)
       => c TermPattern t
 build = proc p -> case p of
@@ -169,3 +189,91 @@ build = proc p -> case p of
     numberLiteral -< n
   S.StringLiteral s ->
     stringLiteral -< s
+
+-- Interface of the shared interpreter
+
+-- | Arrow-based interface for matching and constructing terms.
+class IsTerm t c | c -> t where
+  -- | Match a term against a constructor and a list of subterms.
+  matchTermAgainstConstructor :: c ([t'],[t]) [t] -> c (Constructor, [t'], t) t 
+
+  -- | Match a term against a string literal.
+  matchTermAgainstString :: c (Text,t) t
+
+  -- | Match a term against a number literal.
+  matchTermAgainstNumber :: c (Int,t) t
+
+  -- | Match a term against an explode pattern. The first strategy
+  -- matches against the constructor, the second against the 'Cons'
+  -- list of subterms.
+  matchTermAgainstExplode :: c t t -> c t t -> c t t
+
+  -- | Checks if a given term is equal to another term and return one
+  -- of the terms. If the terms are not equal, this operation fails.
+  equal :: c (t,t) t
+
+  -- | Convert a string literal and a 'Cons' list of subterms into a new term.
+  convertFromList :: c (t,t) t
+
+  -- | Map a strategy over the subterms of a given term.
+  mapSubterms :: c [t] [t] -> c t t
+
+  -- | Construct a term from a constructor and subterms.
+  cons :: c (Constructor,[t]) t
+
+  -- | Construct a term from a number literal.
+  numberLiteral :: c Int t
+
+  -- | Construct a term from a string literal.
+  stringLiteral :: c Text t
+
+-- | Arrow-based interface for term environments. Because of the
+-- dynamic scoping of stratego, term environments are more like
+-- mutable state then conventional environments.
+class Arrow c => IsTermEnv env t c | c -> env, env -> t where
+  -- | Fetch the current term environment.
+  getTermEnv :: c () env
+
+  -- | Fetch the current term environment.
+  putTermEnv :: c env ()
+                
+  -- | Lookup a term in the given environment, the first continuation
+  -- is called in case the term is in the environment and the second
+  -- continuation otherwise.
+  lookupTermVar :: c t t -> c () t -> c (TermVar,env) t
+
+  -- | Insert a term into the given environment.
+  insertTerm :: c (TermVar,t,env) env
+
+  -- | Delete the specified variables from the given environment.
+  deleteTermVars :: c ([TermVar],env) env
+
+  -- | Take the union of two term environments, where bindings of the
+  -- first environment take precedence. Furthermore, the specified
+  -- variables are removed from the second environment.
+  unionTermEnvs :: c ([TermVar],env,env) env
+
+lookupTermVar' :: IsTermEnv env t c => c t t -> c () t -> c TermVar t
+lookupTermVar' f g = proc v -> do
+  env <- getTermEnv -< ()
+  lookupTermVar f g -< (v,env)
+
+insertTerm' :: IsTermEnv env t c => c (TermVar,t) ()
+insertTerm' = proc (v,t) -> do
+  env <- getTermEnv -< ()
+  putTermEnv <<< insertTerm -< (v,t,env)
+
+deleteTermVars' :: IsTermEnv env t c => c [TermVar] ()
+deleteTermVars' = proc vs -> do
+  env <- getTermEnv -< ()
+  putTermEnv <<< deleteTermVars -< (vs,env)
+
+-- | Fixpoint combinator used by Stratego.
+fixA' :: (ArrowFix (z,x) y c, ArrowApply c) => ((z -> c x y) -> (z -> c x y)) -> (z -> c x y)
+fixA' f = curry (fixA (uncurry . f . curry))
+  where
+    curry :: Arrow c => c (z,x) y -> (z -> c x y)
+    curry g z = proc x -> g -< (z,x)
+    
+    uncurry :: ArrowApply c => (z -> c x y) -> c (z,x) y
+    uncurry g = proc (z,x) -> g z -<< x

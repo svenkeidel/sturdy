@@ -44,13 +44,17 @@ instance (PreOrd a, Complete (FreeCompletion a),
     (_, _) -> Top
   _ ⊔ _ = Top
 
+instance (PreOrd a, UpperBounded (FreeCompletion a),
+          PreOrd b, UpperBounded (FreeCompletion b)) => UpperBounded (FreeCompletion (a,b)) where
+  top = case (top,top) of
+    (Lower a, Lower b) -> Lower (a,b)
+    (_,_) -> Top
+
+
 instance CoComplete a => CoComplete (FreeCompletion a) where
   Lower a ⊓ Lower b = Lower (a ⊓ b) 
   x ⊓ Top = x
   Top ⊓ y = y
-
-instance PreOrd a => UpperBounded (FreeCompletion a) where
-  top = Top
 
 instance LowerBounded a => LowerBounded (FreeCompletion a) where
   bottom = Lower bottom

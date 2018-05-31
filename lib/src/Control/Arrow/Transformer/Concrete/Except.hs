@@ -81,5 +81,9 @@ instance ArrowChoice c => ArrowExcept x y e (Except e c) where
       Fail er -> g -< (x,er)
       Success y -> returnA -< Success y
 
+  finally (Except f) (Except g) = Except $ proc x -> do
+    _ <- f -< x
+    g -< x
+
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedupA (Except f) = Except (dedupA f)

@@ -44,7 +44,6 @@ import           Data.Hashable
 import qualified Data.Map as M
 import           Data.Order
 import           Data.Term hiding (wildcard)
-import           Data.TermEnv
 import           Data.Text (Text)
 
 import           TreeAutomata
@@ -123,13 +122,12 @@ instance Complete TermEnv where
           _                  -> go vs env1 env2 env3
         [] -> TermEnv env3
 
-instance ArrowFix' Interp Term where
-  -- TODO: this should be rewritten to use the fixpoint caching algorithm.
-  fixA' f z = proc x -> do
+instance ArrowFix (Strat,Term) Term Interp where
+  fixA f = proc x -> do
     (env,i,alph) <- askA -< ()
     if i <= 0
       then top' -< ()
-      else localFuel (f (fixA' f) z) -< ((env,i-1,alph),x)
+      else localFuel (f (fixA f)) -< ((env,i-1,alph),x)
     where
       localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> localA g -< ((env,i,alph),a)
 

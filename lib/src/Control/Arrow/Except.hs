@@ -18,15 +18,12 @@ class ArrowFail e c => ArrowExcept x y e c | c -> e where
   -- handled with the second computation.
   tryCatchA :: c x y -> c (x,e) y -> c x y
 
+  -- | Executes the second computation, no matter if the first
+  -- computation fails or not.
+  finally :: c x u -> c x y -> c x y
+
 tryCatchA' :: ArrowExcept x y e c => c x y -> c e y -> c x y
 tryCatchA' f g = tryCatchA f (pi2 >>> g)
-
--- | Executes the second computation, no matter if the first
--- computation fails or not.
-finally :: (ArrowChoice c, ArrowExcept x (Either x z) e c) => c x y -> c x z -> c x z
-finally f g = tryCatchA (proc x     -> do _ <- f -< x; returnA -< Left x)
-                        (proc (x,_) -> do y <- g -< x; returnA -< Right y)
-          >>> (g ||| id)
 
 -- | 'tryA f g h' Executes 'f', if it succeeds the result is passed to
 -- 'g', if it fails the original input is passed to 'h'.

@@ -6,7 +6,7 @@
 {-# LANGUAGE Arrows #-}
 module Control.Arrow.Transformer.Abstract.Powerset(Powerset(..)) where
 
-import           Prelude hiding (id,lookup)
+import           Prelude hiding (id,(.),lookup)
 
 import           Control.Arrow
 import           Control.Arrow.Abstract.Join
@@ -16,6 +16,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Lift
 import           Control.Arrow.Reader
 import           Control.Arrow.State
+import           Control.Arrow.Fix
 import           Control.Category
 import           Control.Monad (join)
 
@@ -76,11 +77,11 @@ instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) wh
     x' <- f -< x
     returnA -< A.dedup x'
 
-instance ArrowChoice c => ArrowJoin (Powerset c) where
-  joinWith _ (Powerset f) (Powerset g) = Powerset $ proc (x,u) -> do
-    x' <- f -< x
-    u' <- g -< u
-    returnA -< A.union x' u'
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Powerset c) where
+  joinWith _ (Powerset f) (Powerset g) = Powerset $ joinWith A.union f g
+
+instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (Powerset c) where
+  fixA f = Powerset (fixA (runPowerset . f . Powerset))
 
 deriving instance PreOrd (c x (A.Pow y)) => PreOrd (Powerset c x y)
 deriving instance LowerBounded (c x (A.Pow y)) => LowerBounded (Powerset c x y)

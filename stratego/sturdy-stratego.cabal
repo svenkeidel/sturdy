@@ -19,13 +19,9 @@ library
   ghc-options:         -Wall
                        -O2
                        -fprof-auto
-  exposed-modules:     Control.Arrow.Apply,
-                       Data.ATerm,
+  exposed-modules:     Data.ATerm,
                        Data.Constructor,
-                       Data.Complete,
-                       Data.TypedResult,
                        Data.Term,
-                       Data.TermEnv,
                        Syntax,
                        Signature,
                        Utils,
@@ -34,9 +30,9 @@ library
                        SharedSemantics,
                        ConcreteSemantics,
                        WildcardSemantics,
+                       GrammarSemantics,
                        Soundness,
-                       Paths_sturdy_stratego,
-                       GrammarSemantics
+                       Paths_sturdy_stratego
   build-depends:       attoparsec,
                        base,
                        containers,
@@ -92,6 +88,5 @@ test-suite specs
                        GrammarSemanticsSpec,
                        OrderSpec,
                        SubtypingSpec,
-                       TypedSemanticsSpec,
                        WildcardSemanticsSpec
   default-language:    Haskell2010

@@ -39,6 +39,9 @@ instance PreOrd a => Widening (Pow a)
 instance PreOrd a => LowerBounded (Pow a) where
   bottom = empty
 
+instance UpperBounded a => UpperBounded (Pow a) where
+  top = singleton top
+
 instance Show a => Show (Pow a) where
   show (Pow a) = "{" ++ intercalate ", " (show <$> toList a) ++ "}"
 

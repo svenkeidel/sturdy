@@ -58,7 +58,6 @@ library
                        Data.Abstract.Widening,
 
                        Control.Arrow.Const,
-                       Control.Arrow.Debug,
                        Control.Arrow.Deduplicate,
                        Control.Arrow.Environment,
                        Control.Arrow.Fail,
