@@ -27,7 +27,6 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Arrow.Utils
-import           Control.Arrow.Except
 
 import           Text.Printf
 import           Syntax
@@ -43,6 +42,9 @@ instance PreOrd v => PreOrd (Exception v) where
   _ ⊑ StaticException _ = True
   DynamicException v1 ⊑ DynamicException v2 = v1 ⊑ v2
   _ ⊑ _ = False
+
+instance LowerBounded v => LowerBounded (Exception v) where
+  bottom = StaticException "Bottom exception"
 
 instance Complete v => Complete (Exception v) where
   StaticException s1 ⊔ StaticException s2 = StaticException $ s1 ++ "\n" ++ s2
@@ -110,18 +112,11 @@ lookupField = proc x -> do
     Just n -> addrFromInt -< n
     Nothing -> failA -< StaticException $ printf "Field %s not bounded" (show x)
 
-read' :: (Show addr,CanFail val c,CanUseStore addr val c) => c addr val
-read' = proc addr -> read pi1 failA -< ((addr,()),StaticException $ printf "Address %s not bounded" (show addr))
-
 write' :: CanUseStore addr val c => c (addr,val) ()
 write' = proc (addr,val) -> write -< (addr,val,())
 
 readVar :: (Show addr,CanFail v c,CanUseStore addr v c) => c addr v
-readVar = read'
-
-  -- proc addr ->
-  -- tryCatchA read' returnA (proc x ->
-  --   failA -< StaticException $ printf "Address %s not bounded" (show x)) -< addr
+readVar = proc addr -> read pi1 failA -< ((addr,()),StaticException $ printf "Address %s not bounded" (show addr))
 
 readLocal :: (Show addr,Show val,CanFail val c,CanUseMem env addr val c) => c String val
 readLocal = lookupLocal >>> readVar
