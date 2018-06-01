@@ -16,12 +16,14 @@ import           Data.List (find,elemIndex)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Order
+import           Data.String
 
 import           Control.Category
 
 import           Control.Arrow
 import           Control.Arrow.Const
 import           Control.Arrow.Environment
+import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Reader
 import           Control.Arrow.State
@@ -52,6 +54,9 @@ instance Complete v => Complete (Exception v) where
   _ ⊔ StaticException s = StaticException s
   DynamicException v1 ⊔ DynamicException v2 = DynamicException $ v1 ⊔ v2
 
+instance IsString (Exception v) where
+  fromString s = StaticException s
+
 type CompilationUnits = Map String CompilationUnit
 type Fields = Map FieldSignature Int
 type MethodReader = Method
@@ -66,7 +71,10 @@ type CanUseMem env addr val c = (CanUseEnv env addr c,CanUseStore addr val c,Use
 
 type CanInterp env addr const val c = (
   Show val,
+  LowerBounded val,
+  Eq val,
   Show addr,
+  Eq addr,
   UseVal val c,
   UseFlow val c,
   CanFail val c,
@@ -97,29 +105,33 @@ getInitializedFields = readCompilationUnit >>> proc unit -> do
       returnA -< parentFields ++ ownFields
     Nothing -> returnA -< ownFields
 
-lookupLocal :: (CanFail val c,CanUseEnv env addr c) => c String addr
-lookupLocal = proc s -> do
-  lookup pi1 failA -< (s,StaticException $ printf "Variable %s not bounded" (show s))
-
-  --  (id &&& lookup) >>> proc (x,v) -> case v of
-  -- Just y -> returnA -< y
-  -- Nothing -> failA -< StaticException $ printf "Variable %s not bounded" (show x)
-
 lookupField :: (UseVal v c,CanFail v c,CanUseConst const c,UseMem env addr c) => c FieldSignature addr
 lookupField = proc x -> do
   fields <- askFields -< ()
   case Map.lookup x fields of
     Just n -> addrFromInt -< n
-    Nothing -> failA -< StaticException $ printf "Field %s not bounded" (show x)
+    Nothing -> failA -< StaticException $ printf "Field %s not bound" (show x)
+
+lookup' :: (Eq addr,CanFail v c,CanUseEnv env addr c,UseMem env addr c) => c String addr
+lookup' = proc x -> do
+  addr <- lookup -< x
+  bottomAddr <- addrFromInt -< -1
+  if addr == bottomAddr
+  then failA -< StaticException $ printf "Variable %s not bound" (show x)
+  else returnA -< addr
+
+read' :: (Show addr,Eq v,LowerBounded v,CanFail v c,CanUseStore addr v c) => c addr v
+read' = proc addr -> do
+  v <- read -< (addr,())
+  if v == bottom
+  then failA -< StaticException $ printf "Variable %s not bound" (show addr)
+  else returnA -< v
 
 write' :: CanUseStore addr val c => c (addr,val) ()
 write' = proc (addr,val) -> write -< (addr,val,())
 
-readVar :: (Show addr,CanFail v c,CanUseStore addr v c) => c addr v
-readVar = proc addr -> read pi1 failA -< ((addr,()),StaticException $ printf "Address %s not bounded" (show addr))
-
-readLocal :: (Show addr,Show val,CanFail val c,CanUseMem env addr val c) => c String val
-readLocal = lookupLocal >>> readVar
+readLocal :: (Eq addr,Show addr,Eq val,Show val,LowerBounded val,CanFail val c,CanUseMem env addr val c) => c String val
+readLocal = lookup' >>> read'
 
 readCompilationUnit :: (CanFail v c,CanUseConst const c) => c String CompilationUnit
 readCompilationUnit = proc n -> do
@@ -193,7 +205,7 @@ eval = proc e -> case e of
       Nothing -> failA -< StaticException "Method returned nothing"
   ArrayRef l i -> (readLocal *** eval) >>> readIndex -< (l,i)
   FieldRef l f -> first readLocal >>> readField -< (l,f)
-  SignatureRef fieldSignature -> lookupField >>> readVar -< fieldSignature
+  SignatureRef fieldSignature -> lookupField >>> read' -< fieldSignature
   BinopExpr i1 op i2 -> do
     v1 <- eval -< i1
     v2 <- eval -< i2
@@ -284,7 +296,7 @@ runStatements = proc stmts -> case stmts of
       Assign var e -> do
         v <- eval -< e
         case var of
-          LocalVar l -> first lookupLocal >>> write' -< (l,v)
+          LocalVar l -> first lookup' >>> write' -< (l,v)
           ReferenceVar ref -> case ref of
             ArrayRef l i -> first (readLocal *** eval) >>> updateIndex -< ((l,i),v)
             FieldRef l f -> first readLocal >>> updateField -< (l,(f,v))

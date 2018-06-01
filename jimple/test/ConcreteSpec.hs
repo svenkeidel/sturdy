@@ -100,7 +100,7 @@ spec = do
       runStatementsConcrete nv st stmts `shouldBe` Success (Just (IntVal 5))
     it "assign non-declared variable" $ do
       let stmts = [Assign (LocalVar "s") (IntConstant 2)]
-      runStatementsConcrete env store stmts `shouldBe` staticException "Variable \"s\" not bounded"
+      runStatementsConcrete env store stmts `shouldBe` staticException "Variable \"s\" not bound"
     it "s = 2; xs = newarray (int)[s]; y = lengthof xs; return xs;" $ do
       let nv = [("s", 0),
                 ("xs", 1),

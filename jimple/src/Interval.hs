@@ -129,9 +129,11 @@ instance PreOrd Val where
   ObjectVal c1 m1 ⊑ ObjectVal c2 m2 =
     c1 P.== c2 && all (uncurry (⊑)) (zip (Map.elems m1) (Map.elems m2))
   RefVal a ⊑ RefVal b = a P.== b
+  BottomVal ⊑ _ = P.True
   _ ⊑ _ = P.False
 
 instance Complete Val where
+  BottomVal ⊔ v = v
   IntVal n1 ⊔ IntVal n2 = IntVal $ n1 ⊔ n2
   LongVal l1 ⊔ LongVal l2 = LongVal $ l1 ⊔ l2
   FloatVal f1 ⊔ FloatVal f2 = if f1 P.== f2 then FloatVal f1 else top
@@ -179,6 +181,23 @@ newtype Interp x y = Interp
             (Const Constants (->)))))) x y)
   deriving (Category,Arrow,ArrowChoice)
 
+-- Remove these instances when env and store with continuations are available
+instance {-# OVERLAPS #-} ArrowChoice c => ArrowEnv String Addr (Env String Addr) (Environment String Addr c) where
+  lookup = Environment $ Reader $ proc (env,x) -> do
+    case E.lookup x env of
+      Just y -> returnA -< y
+      Nothing -> returnA -< -1
+  getEnv = Environment askA
+  extendEnv = arr $ \(x,y,env) -> E.insert x y env
+  localEnv (Environment f) = Environment (localA f)
+
+instance {-# OVERLAPS #-} (ArrowChoice c,Complete (c ((S.Store Addr Val, Val), (S.Store Addr Val, Addr)) (S.Store Addr Val, Val))) =>
+  ArrowStore Addr Val () (StoreArrow Addr Val c) where
+  read = StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
+    Just v -> returnA -< (s,v)
+    Nothing -> returnA -< (s,BottomVal)
+  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
+
 deriving instance ArrowJoin Interp
 deriving instance ArrowConst Constants Interp
 deriving instance ArrowFail (Exception Val) Interp
@@ -186,6 +205,7 @@ deriving instance ArrowReader MethodReader Interp
 deriving instance ArrowState Addr Interp
 deriving instance ArrowEnv String Addr (Env String Addr) Interp
 deriving instance ArrowStore Addr Val () Interp
+deriving instance ArrowExcept x (Maybe Val) (Exception Val) Interp
 
 deriving instance PreOrd y => PreOrd (Interp x y)
 deriving instance (Complete y) => Complete (Interp x y)
@@ -234,13 +254,13 @@ boolGLB = proc xs -> case xs of
 
 unbox1 :: (CanFail Val c,CanUseStore Addr Val c) => c Val Val
 unbox1 = proc val -> case val of
-  RefVal addr -> Shared.readVar -< addr
+  RefVal addr -> Shared.read' -< addr
   _ -> returnA -< val
 
 throw :: (UseVal Val c,CanFail Val c,CanUseStore Addr Val c) => c (String,String) Val
 throw = proc (clzz,message) -> do
   RefVal addr <- newSimple -< RefType clzz
-  v <- Shared.readVar -< addr
+  v <- Shared.read' -< addr
   case v of
     ObjectVal c m -> do
       let m' = Map.insert (FieldSignature clzz (RefType "String") "message") (StringVal message) m
@@ -382,7 +402,7 @@ instance UseVal Val Interp where
   classConstant = arr ClassVal
   unbox = proc val -> case val of
     RefVal addr -> do
-      v <- Shared.readVar -< addr
+      v <- Shared.read' -< addr
       case v of
         ObjectVal c m -> do
           let (keys,vals) = unzip (Map.toList m)

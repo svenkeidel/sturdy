@@ -14,6 +14,7 @@ import           Prelude hiding (id)
 import qualified Prelude as P
 
 import           Data.Fixed
+import           Data.Order
 import           Data.List (replicate,repeat)
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -75,6 +76,24 @@ instance Show Val where
   show (ArrayVal xs) = show xs
   show (ObjectVal c m) = show c ++ "{" ++ show m ++ "}"
 
+instance PreOrd Val where
+  IntVal n1 ⊑ IntVal n2 = n1 == n2
+  LongVal l1 ⊑ LongVal l2 = l1 == l2
+  FloatVal f1 ⊑ FloatVal f2 = f1 == f2
+  DoubleVal d1 ⊑ DoubleVal d2 = d1 == d2
+  StringVal s1 ⊑ StringVal s2 = s1 == s2
+  ClassVal c1 ⊑ ClassVal c2 = c1 == c2
+  BoolVal b1 ⊑ BoolVal b2 = b1 == b2
+  NullVal ⊑ NullVal = True
+  ArrayVal xs ⊑ ArrayVal ys = xs == ys
+  ObjectVal c1 m1 ⊑ ObjectVal c2 m2 = c1 == c2 && m1 == m2
+  RefVal a ⊑ RefVal b = a == b
+  BottomVal ⊑ _ = True
+  _ ⊑ _ = False
+
+instance LowerBounded Val where
+  bottom = BottomVal
+
 ---- End of Values ----
 
 ---- Interp Type ----
@@ -83,13 +102,28 @@ type Addr = Int
 type Constants = (CompilationUnits,Fields)
 
 newtype Interp x y = Interp
-  (Reader MethodReader
-    (Environment String Addr
-      (StoreArrow Addr Val
-        (State Addr
-          (Except (Exception Val)
+  (Except (Exception Val)
+    (Reader MethodReader
+      (Environment String Addr
+        (StoreArrow Addr Val
+          (State Addr
             (Const Constants (->)))))) x y)
   deriving (Category,Arrow,ArrowChoice)
+
+-- Remove these instances when env and store with continuations are available
+instance {-# OVERLAPS #-} ArrowChoice c => ArrowEnv String Addr (Env String Addr) (Environment String Addr c) where
+  lookup = Environment $ Reader $ proc (env,var) -> case E.lookup var env of
+      Just val -> returnA -< val
+      Nothing -> returnA -< -1
+  getEnv = Environment askA
+  extendEnv = arr $ \(x,y,env) -> E.insert x y env
+  localEnv (Environment f) = Environment (localA f)
+
+instance {-# OVERLAPS #-} ArrowChoice c => ArrowStore Addr Val () (StoreArrow Addr Val c) where
+  read = StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
+      Just v -> returnA -< (s,v)
+      Nothing -> returnA -< (s,BottomVal)
+  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
 
 deriving instance ArrowConst Constants Interp
 deriving instance ArrowReader MethodReader Interp
@@ -107,24 +141,24 @@ runInterp (Interp f) files env store mainMethod x =
         addrs -> maximum addrs
       fields = zip (concatMap (\u -> Shared.getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
   in runConst (Map.fromList compilationUnits,Map.fromList fields)
-      (runExcept
-        (evalState
-          (evalStore
-            (runEnvironment
-              (runReader f)))))
+      (evalState
+        (evalStore
+          (runEnvironment
+            (runReader
+              (runExcept f)))))
   (latestAddr + length fields,(S.fromList store,(env,(mainMethod,x))))
 
 ---- End of Interp type ----
 
 unbox1 :: (CanFail Val c,CanUseStore Addr Val c) => c Val Val
 unbox1 = proc val -> case val of
-  RefVal addr -> Shared.readVar -< addr
+  RefVal addr -> Shared.read' -< addr
   _ -> returnA -< val
 
 throw :: (UseVal Val c,CanFail Val c,CanUseStore Addr Val c) => c (String,String) Val
 throw = proc (clzz,message) -> do
   RefVal addr <- newSimple -< RefType clzz
-  v <- Shared.readVar -< addr
+  v <- Shared.read' -< addr
   case v of
     ObjectVal c m -> do
       let m' = Map.insert (FieldSignature clzz (RefType "String") "message") (StringVal message) m
@@ -260,7 +294,7 @@ instance UseVal Val Interp where
   classConstant = arr ClassVal
   unbox = proc val -> case val of
     RefVal addr -> do
-      v <- Shared.readVar -< addr
+      v <- Shared.read' -< addr
       case v of
         ObjectVal c m -> do
           let (keys,vals) = unzip (Map.toList m)
