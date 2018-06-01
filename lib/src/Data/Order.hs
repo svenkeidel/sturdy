@@ -169,12 +169,21 @@ instance PreOrd Double where
   (≈) = (==)
 
 instance PreOrd a => PreOrd (Maybe a) where
-  Just x ⊑ Just y = x ⊑ y 
+  Just x ⊑ Just y = x ⊑ y
   Nothing ⊑ Nothing = True
   _ ⊑ _ = False
-  Just x ≈ Just y = x ≈ y 
+  Just x ≈ Just y = x ≈ y
   Nothing ≈ Nothing = True
   _ ≈ _ = False
+
+instance Complete a => Complete (Maybe a) where
+  Just x ⊔ Just y = Just $ x ⊔ y
+  Just x ⊔ _ = Just x
+  _ ⊔ Just x = Just x
+  Nothing ⊔ Nothing = Nothing
+
+instance PreOrd a => LowerBounded (Maybe a) where
+  bottom = Nothing
 
 instance PreOrd a => LowerBounded (Set a) where
   bottom = S.empty

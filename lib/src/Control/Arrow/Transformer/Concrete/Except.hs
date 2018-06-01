@@ -7,15 +7,17 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Except(Except(..)) where
 
-import Prelude hiding (id,(.),lookup)
+import Prelude hiding (id,(.),lookup,read)
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
+import Control.Arrow.Store
 import Control.Arrow.State
 import Control.Arrow.Except
 import Control.Category
@@ -52,6 +54,10 @@ instance (ArrowChoice c, ArrowState s c) => ArrowState s (Except e c) where
   getA = lift getA
   putA = lift putA
 
+instance (ArrowChoice c, ArrowStore var val lab c) => ArrowStore var val lab (Except e c) where
+  read (Except f) (Except g) = Except $ read f g
+  write = lift write
+
 instance ArrowChoice c => ArrowFail e (Except e c) where
   failA = Except (arr Fail)
 
@@ -60,7 +66,7 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Except e c) where
   localA (Except f) = Except (localA f)
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) where
-  lookup = lift lookup
+  lookup (Except f) (Except g) = Except $ lookup f g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Except f) = Except (localEnv f)
@@ -82,3 +88,6 @@ instance ArrowChoice c => ArrowExcept x y e (Except e c) where
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedupA (Except f) = Except (dedupA f)
+
+instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where
+  askConst = lift askConst

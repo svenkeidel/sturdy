@@ -73,13 +73,14 @@ instance (Monoid w, ArrowReader r c) => ArrowReader r (Writer w c) where
   localA (Writer f) = Writer (localA f)
 
 instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (Writer w c) where
-  lookup = lift lookup
+  lookup (Writer f) (Writer g) = Writer (lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Writer f) = Writer (localEnv f)
 
 instance (Monoid w, ArrowStore var val lab c) => ArrowStore var val lab (Writer w c) where
-  read = lift read
+  -- read (Writer f) (Writer g) = Writer (read f g)
+  read f g = read f g
   write = lift write
 
 type instance Fix x y (Writer w c) = Writer w (Fix x (w,y) c)

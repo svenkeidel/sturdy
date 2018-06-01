@@ -75,9 +75,9 @@ runLiveVariables :: LiveVariables v c x y -> c (LiveVars v,x) y
 runLiveVariables (LiveVariables f) = runWriter (runState f)
 
 instance (Identifiable var, ArrowStore var val lab c) => ArrowStore var val lab (LiveVariables var c) where
-  read = LiveVariables $ proc (x,l) -> do
+  read (LiveVariables f) (LiveVariables g) = LiveVariables $ proc (x,l) -> do
     effect live -< x
-    read -< (x,l)
+    read f g -< (x,l)
   write = LiveVariables $ proc (x,v,l) -> do
     modifyA' dead -< x
     write -< (x,v,l)
@@ -104,4 +104,3 @@ deriving instance LowerBounded (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVars
 deriving instance Complete (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => Complete (LiveVariables v c x y)
 deriving instance CoComplete (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => CoComplete (LiveVariables v c x y)
 deriving instance UpperBounded (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => UpperBounded (LiveVariables v c x y)
-

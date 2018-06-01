@@ -20,10 +20,13 @@ import Control.Arrow.Transformer.State
 import Control.Arrow.Utils
 import Control.Category
 
+import Control.Arrow.Abstract.Join
+
 import Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 import Data.Order
 import Data.Identifiable
+import Data.Hashable
 
 import Text.Printf
 
@@ -40,16 +43,17 @@ execStore f = runStore f >>> pi1
 
 instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c, Complete (c ((Store var val,val),var) (Store var val,val))) =>
   ArrowStore var val lab (StoreArrow var val c) where
-  read =
-    StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
-      Just v -> joined returnA (proc var -> failA -< printf "Variable %s not bound" (show var)) -< ((s,v),var)
-      Nothing -> failA -< printf "Variable %s not bound" (show var)
+  read (StoreArrow (State f)) (StoreArrow State g) =
+    StoreArrow $ State $ proc (s,((var,_),x)) -> case S.lookup var s of
+      Just val -> joined f g -< ((s,(val,x)),(s,x))
+      Nothing -> g -< (s,x)
   write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   getA = lift getA
   putA = lift putA
 
+deriving instance (Eq var,Hashable var,Complete val,ArrowJoin c) => ArrowJoin (StoreArrow var val c)
 deriving instance Category c => Category (StoreArrow var val c)
 deriving instance Arrow c => Arrow (StoreArrow var val c)
 deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)

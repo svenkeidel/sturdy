@@ -73,7 +73,7 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowReader r c) => ArrowReade
   localA (Except f) = Except (localA f)
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) where
-  lookup = lift lookup
+  lookup (Except f) (Except g) = Except (lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Except f) = Except (localEnv f)
