@@ -7,13 +7,11 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.PropagateExcept(Except(..)) where
 
-import Prelude hiding (id,(.),lookup,read)
+import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
-import Control.Arrow.Const
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
-import qualified Control.Arrow.MaybeEnvironment as ME
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
@@ -52,9 +50,6 @@ instance ArrowChoice c => ArrowChoice (Except r c) where
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Except e c) where
   app = Except $ first runExcept ^>> app
 
-instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where
-  askConst = lift askConst
-
 instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Except e c) where
   loop (Except f) = Except $ loop $ proc (b,d) -> do
     e <- f -< (b,d)
@@ -65,14 +60,6 @@ instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Except e c) where
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (Except e c) where
   get = lift get
   put = lift put
-
-instance (ArrowChoice c, ArrowStore var val lab c) => ArrowStore var val lab (Except e c) where
-  read = lift read
-  write = lift write
-
-instance (ArrowChoice c, MS.ArrowMaybeStore var val c) => MS.ArrowMaybeStore var val (Except e c) where
-  read = lift MS.read
-  write = lift MS.write
 
 instance ArrowChoice c => ArrowFail e (Except e c) where
   fail = Except (arr Fail)
@@ -86,12 +73,6 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) wh
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Except f) = Except (localEnv f)
-
-instance (ArrowChoice c, ME.ArrowMaybeEnv x y env c) => ME.ArrowMaybeEnv x y env (Except e c) where
-  lookup = lift ME.lookup
-  getEnv = lift ME.getEnv
-  extendEnv = lift ME.extendEnv
-  localEnv (Except f) = Except (ME.localEnv f)
 
 type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
@@ -110,13 +91,6 @@ instance (ArrowChoice c, UpperBounded e, Complete (c (y,(x,e)) (Error e y))) => 
       Success y -> joined (arr Success) g -< (y,(x,top))
       Fail er   -> g -< (x,er)
 -}
-
-instance ArrowChoice c => ArrowTryCatch e x y (Except e c) where
-  tryCatchA (Except f) (Except g) = Except $ proc x -> do
-    r <- f -< x
-    case r of
-      Success y -> returnA -< Success y
-      Fail e -> g -< (x,e)
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedup (Except f) = Except (dedup f)

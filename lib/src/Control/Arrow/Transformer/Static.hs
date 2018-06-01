@@ -20,7 +20,6 @@ import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
-import Control.Arrow.TryCatch
 import Control.Arrow.Writer
 import Control.Arrow.Abstract.Join
 

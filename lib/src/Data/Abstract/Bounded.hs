@@ -6,7 +6,7 @@ module Data.Abstract.Bounded where
 
 import Prelude hiding (Bounded,(==),(/),(<),Ordering)
 import qualified Prelude as P
-
+    
 import Data.Order
 import Data.Hashable
 import Data.Numeric
@@ -58,7 +58,7 @@ instance (Num a, Complete a, UpperBounded a) => Num (Bounded a) where
 
 instance (UpperBounded a, Complete a, Numeric a (Error e)) => Numeric (Bounded a) (Error e) where
   Bounded b1 a1 / Bounded b2 a2
-    | (a1 / a2) ⊑ Success (b1 ⊔ b2) = Bounded (b1 ⊔ b2) <$> a1 / a2
+    | (a1 / a2) ⊑ Success (b1 ⊔ b2) = Bounded (b1 ⊔ b2) <$> a1 / a2 
     | otherwise = Success (Bounded (b1 ⊔ b2) top)
 
 instance Equality a => Equality (Bounded a) where

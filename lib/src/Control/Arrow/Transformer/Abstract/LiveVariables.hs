@@ -75,7 +75,7 @@ runLiveVariables :: LiveVariables v c x y -> c (LiveVars v,x) y
 runLiveVariables (LiveVariables f) = runWriter (runState f)
 
 instance (Identifiable var, ArrowStore var val lab c) => ArrowStore var val lab (LiveVariables var c) where
-  read = LiveVariables $ proc (x,l) -> do
+  read f = LiveVariables $ proc (x,l) -> do
     effect live -< x
     read -< (x,l)
   write = LiveVariables $ proc (x,v,l) -> do

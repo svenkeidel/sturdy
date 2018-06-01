@@ -12,7 +12,6 @@ import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
-import Control.Arrow.TryCatch
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
@@ -70,9 +69,6 @@ instance Arrow c => ArrowState s (State s c) where
 instance ArrowFail e c => ArrowFail e (State s c) where
   fail = lift fail
 
-instance ArrowConst r c => ArrowConst r (State s c) where
-  askConst = lift askConst
-
 instance ArrowReader r c => ArrowReader r (State s c) where
   ask = lift ask
   local (State f) = State $ (\(s,(r,x)) -> (r,(s,x))) ^>> local f
@@ -99,9 +95,6 @@ instance ArrowFix (s,x) (s,y) c => ArrowFix x y (State s c) where
 instance ArrowExcept (s,x) (s,y) e c => ArrowExcept x y e (State s c) where
   tryCatch (State f) (State g) = State $ tryCatch f (from assoc ^>> g)
   finally (State f) (State g) = State $ finally f g
-
-instance ArrowTryCatch e (s,x) (s,y) c => ArrowTryCatch e x y (State s c) where
-  tryCatchA (State f) (State g) = State $ tryCatchA f ((\((s,x),e) -> (s,(x,e))) ^>> g)
 
 instance (Eq s, Hashable s, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
   dedup (State f) = State (dedup f)

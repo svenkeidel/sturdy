@@ -15,18 +15,19 @@ import           Prelude hiding (lookup,read,mod,rem,div,id,or,and)
 import           Data.List (find,elemIndex)
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Order
 
 import           Control.Category
 
 import           Control.Arrow
 import           Control.Arrow.Const
-import           Control.Arrow.MaybeEnvironment
+import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Reader
 import           Control.Arrow.State
-import           Control.Arrow.MaybeStore
-import           Control.Arrow.TryCatch
+import           Control.Arrow.Store
 import           Control.Arrow.Utils
+import           Control.Arrow.Except
 
 import           Text.Printf
 import           Syntax
@@ -37,17 +38,28 @@ instance Show v => Show (Exception v) where
   show (StaticException s) = "Static: " ++ s
   show (DynamicException v) = "Dynamic: " ++ show v
 
+instance PreOrd v => PreOrd (Exception v) where
+  StaticException s1 ⊑ StaticException s2 = s1 == s2
+  _ ⊑ StaticException _ = True
+  DynamicException v1 ⊑ DynamicException v2 = v1 ⊑ v2
+  _ ⊑ _ = False
+
+instance Complete v => Complete (Exception v) where
+  StaticException s1 ⊔ StaticException s2 = StaticException $ s1 ++ "\n" ++ s2
+  StaticException s ⊔ _ = StaticException s
+  _ ⊔ StaticException s = StaticException s
+  DynamicException v1 ⊔ DynamicException v2 = DynamicException $ v1 ⊔ v2
+
 type CompilationUnits = Map String CompilationUnit
 type Fields = Map FieldSignature Int
 type MethodReader = Method
 
 type CanFail val c = (ArrowChoice c,ArrowFail (Exception val) c)
-type CanUseEnv env addr c = ArrowMaybeEnv String addr (env String addr) c
+type CanUseEnv env addr c = ArrowEnv String addr (env String addr) c
 type CanUseReader c = ArrowReader MethodReader c
-type CanUseStore addr val c = ArrowMaybeStore addr val c
+type CanUseStore addr val c = ArrowStore addr val () c
 type CanUseState addr c = (Enum addr,ArrowState addr c)
 type CanUseConst const c = (ArrowConst const c,UseConst c)
-type CanCatch e x y c = ArrowTryCatch e x (Maybe y) c
 type CanUseMem env addr val c = (CanUseEnv env addr c,CanUseStore addr val c,UseMem env addr c)
 
 type CanInterp env addr const val c = (
@@ -60,9 +72,9 @@ type CanInterp env addr const val c = (
   CanUseConst const c,
   CanUseReader c,
   CanUseState addr c,
-  CanCatch (Exception val) EInvoke val c,
-  CanCatch (Exception val) [Statement] val c,
-  CanCatch (Exception val) (Method,Maybe val,[Expr]) val c)
+  ArrowExcept EInvoke (Maybe val) (Exception val) c,
+  ArrowExcept [Statement] (Maybe val) (Exception val) c,
+  ArrowExcept (Method, Maybe val, [Expr]) (Maybe val) (Exception val) c)
 
 getFieldSignatures :: CompilationUnit -> ([Modifier] -> Bool) -> [FieldSignature]
 getFieldSignatures unit p =
@@ -84,9 +96,12 @@ getInitializedFields = readCompilationUnit >>> proc unit -> do
     Nothing -> returnA -< ownFields
 
 lookupLocal :: (CanFail val c,CanUseEnv env addr c) => c String addr
-lookupLocal = (id &&& lookup) >>> proc (x,v) -> case v of
-  Just y -> returnA -< y
-  Nothing -> failA -< StaticException $ printf "Variable %s not bounded" (show x)
+lookupLocal = proc s -> do
+  lookup pi1 failA -< (s,StaticException $ printf "Variable %s not bounded" (show s))
+
+  --  (id &&& lookup) >>> proc (x,v) -> case v of
+  -- Just y -> returnA -< y
+  -- Nothing -> failA -< StaticException $ printf "Variable %s not bounded" (show x)
 
 lookupField :: (UseVal v c,CanFail v c,CanUseConst const c,UseMem env addr c) => c FieldSignature addr
 lookupField = proc x -> do
@@ -95,10 +110,18 @@ lookupField = proc x -> do
     Just n -> addrFromInt -< n
     Nothing -> failA -< StaticException $ printf "Field %s not bounded" (show x)
 
+read' :: (Show addr,CanFail val c,CanUseStore addr val c) => c addr val
+read' = proc addr -> read pi1 failA -< ((addr,()),StaticException $ printf "Address %s not bounded" (show addr))
+
+write' :: CanUseStore addr val c => c (addr,val) ()
+write' = proc (addr,val) -> write -< (addr,val,())
+
 readVar :: (Show addr,CanFail v c,CanUseStore addr v c) => c addr v
-readVar = (id &&& read) >>> proc (x,v) -> case v of
-  Just y -> returnA -< y
-  Nothing -> failA -< StaticException $ printf "Address %s not bounded" (show x)
+readVar = read'
+
+  -- proc addr ->
+  -- tryCatchA read' returnA (proc x ->
+  --   failA -< StaticException $ printf "Address %s not bounded" (show x)) -< addr
 
 readLocal :: (Show addr,Show val,CanFail val c,CanUseMem env addr val c) => c String val
 readLocal = lookupLocal >>> readVar
@@ -125,7 +148,7 @@ readMethod = proc (MethodSignature c retType n argTypes) -> do
 alloc :: (UseVal val c,CanUseState addr c,CanUseStore addr val c) => c val addr
 alloc = proc val -> do
   addr <- getA -< ()
-  write -< (addr,val)
+  write' -< (addr,val)
   putA -< succ addr
   returnA -< addr
 
@@ -266,11 +289,11 @@ runStatements = proc stmts -> case stmts of
       Assign var e -> do
         v <- eval -< e
         case var of
-          LocalVar l -> first lookupLocal >>> write -< (l,v)
+          LocalVar l -> first lookupLocal >>> write' -< (l,v)
           ReferenceVar ref -> case ref of
             ArrayRef l i -> first (readLocal *** eval) >>> updateIndex -< ((l,i),v)
             FieldRef l f -> first readLocal >>> updateField -< (l,(f,v))
-            SignatureRef f -> first lookupField >>> write -< (f,v)
+            SignatureRef f -> first lookupField >>> write' -< (f,v)
             _ -> failA -< StaticException $ printf "Can only assign a reference or a local variable"
       Invoke e -> voidA evalInvoke -< e
       _ -> returnA -< ()
@@ -303,7 +326,7 @@ runProgram :: CanInterp env addr const val c => c [Expr] (Maybe val)
 runProgram = proc args -> do
   units <- askCompilationUnits -< ()
   fields <- askFields >>> Map.toList ^>> mapA (second addrFromInt) -< ()
-  mapA (second defaultValue >>> write) -< map (\(FieldSignature _ t _,a) -> (a,t)) fields
+  mapA (second defaultValue >>> write') -< map (\(FieldSignature _ t _,a) -> (a,t)) fields
   mapA (proc unit -> do
     let getMethod :: Member -> [Method]
         getMethod (MethodMember m) = [m]

@@ -26,19 +26,19 @@ import qualified Data.Concrete.Store as S
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
-import           Control.Arrow.MaybeEnvironment
+import           Control.Arrow.Environment
+import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Reader
 import           Control.Arrow.State
-import           Control.Arrow.MaybeStore
-import           Control.Arrow.TryCatch
+import           Control.Arrow.Store
 import           Control.Arrow.Utils
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Concrete.Except
-import           Control.Arrow.Transformer.Concrete.MaybeEnvironment
-import           Control.Arrow.Transformer.Concrete.MaybeStore
+import           Control.Arrow.Transformer.Concrete.Environment
+import           Control.Arrow.Transformer.Concrete.Store
 
 import           Text.Printf
 
@@ -83,23 +83,21 @@ type Addr = Int
 type Constants = (CompilationUnits,Fields)
 
 newtype Interp x y = Interp
-  (Except (Exception Val)
-    (Reader MethodReader
-      (MaybeEnvironment String Addr
-        (MaybeStoreArrow Addr Val
-          (State Addr
+  (Reader MethodReader
+    (Environment String Addr
+      (StoreArrow Addr Val
+        (State Addr
+          (Except (Exception Val)
             (Const Constants (->)))))) x y)
   deriving (Category,Arrow,ArrowChoice)
 
-instance ArrowTryCatch (Exception Val) x y Interp where
-  tryCatchA (Interp f) (Interp g) = Interp $ tryCatchA f g
-
 deriving instance ArrowConst Constants Interp
-deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowReader MethodReader Interp
 deriving instance ArrowState Addr Interp
-deriving instance ArrowMaybeEnv String Addr (Env String Addr) Interp
-deriving instance ArrowMaybeStore Addr Val Interp
+deriving instance ArrowEnv String Addr (Env String Addr) Interp
+deriving instance ArrowStore Addr Val () Interp
+deriving instance ArrowFail (Exception Val) Interp
+deriving instance ArrowExcept x (Maybe Val) (Exception Val) Interp
 
 runInterp :: Interp x y -> [CompilationUnit] -> [(String,Addr)] -> [(Addr,Val)] -> MethodReader -> x -> Error (Exception Val) y
 runInterp (Interp f) files env store mainMethod x =
@@ -109,11 +107,11 @@ runInterp (Interp f) files env store mainMethod x =
         addrs -> maximum addrs
       fields = zip (concatMap (\u -> Shared.getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
   in runConst (Map.fromList compilationUnits,Map.fromList fields)
-      (evalState
-        (evalMaybeStore
-          (runMaybeEnvironment
-            (runReader
-              (runExcept f)))))
+      (runExcept
+        (evalState
+          (evalStore
+            (runEnvironment
+              (runReader f)))))
   (latestAddr + length fields,(S.fromList store,(env,(mainMethod,x))))
 
 ---- End of Interp type ----
@@ -130,7 +128,7 @@ throw = proc (clzz,message) -> do
   case v of
     ObjectVal c m -> do
       let m' = Map.insert (FieldSignature clzz (RefType "String") "message") (StringVal message) m
-      write -< (addr,ObjectVal c m')
+      Shared.write' -< (addr,ObjectVal c m')
       failA -< DynamicException (RefVal addr)
     _ -> failA -< StaticException $ printf "Undefined exception %s" clzz
 
@@ -323,7 +321,7 @@ instance UseVal Val Interp where
     _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
   updateIndex = first (first (id &&& unbox1)) >>> proc (((ref,a),i),v) -> case (ref,a,i) of
     (RefVal addr,ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
-      then write -< (addr,ArrayVal (replace n v xs))
+      then Shared.write' -< (addr,ArrayVal (replace n v xs))
       else voidA throw -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
     (RefVal _,ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
     _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
@@ -339,7 +337,7 @@ instance UseVal Val Interp where
     _ -> failA -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
   updateField = first (id &&& unbox1) >>> proc ((ref,o),(f,v)) -> case (ref,o) of
     (RefVal addr,ObjectVal c m) -> case m Map.!? f of
-      Just _ -> write -< (addr,ObjectVal c (Map.insert f v m))
+      Just _ -> Shared.write' -< (addr,ObjectVal c (Map.insert f v m))
       Nothing -> failA -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
     _ -> failA -< StaticException $ printf "Expected an object for field update, got %s" (show o)
 

@@ -50,9 +50,6 @@ instance ArrowChoice c => ArrowChoice (Except r c) where
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Except e c) where
   app = Except $ first runExcept ^>> app
 
-instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where
-  askConst = lift askConst
-
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (Except e c) where
   get = lift get
   put = lift put
@@ -94,13 +91,6 @@ instance ArrowChoice c => ArrowExcept x y e (Except e c) where
   finally (Except f) (Except g) = Except $ proc x -> do
     _ <- f -< x
     g -< x
-
-instance ArrowChoice c => ArrowTryCatch e x y (Except e c) where
-  tryCatchA (Except f) (Except g) = Except $ proc x -> do
-    r <- f -< x
-    case r of
-      Success y -> returnA -< Success y
-      Fail e -> g -< (x,e)
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedup (Except f) = Except (dedup f)
