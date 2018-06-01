@@ -35,7 +35,7 @@ import           Text.Printf
 -- are approximated by a mapping from variables to addresses and a
 -- mapping from addresses to values. The number of allocated addresses
 -- allows to tune the precision and performance of the analysis.
--- 
+--
 -- Furthermore, closures and environments are defined mutually
 -- recursively. By only allowing a finite number of addresses, the
 -- abstract domain of closures and environments becomes finite.
@@ -54,12 +54,12 @@ runEnvironment f =
 instance ArrowLift (Environment var addr val) where
   lift f = Environment (lift f)
 
-instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c) =>
+instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowAlloc var addr val c) =>
   ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
-  lookup = Environment $ Reader $ proc ((env,store),x) -> do
-    case do {addr <- E.lookup x env; S.lookup addr store} of
-      Just v -> returnA -< v
-      Nothing -> failA -< printf "Variable %s not bound" (show x)
+  lookup (Environment (Reader f)) (Environment (Reader g)) =
+    Environment $ Reader $ proc ((env,store),(var,x)) -> case do {addr <- E.lookup var env; S.lookup addr store} of
+      Just val -> f -< (val,x)
+      Nothing -> g -< x
   getEnv = Environment askA
   -- | If an existing address is allocated for a new variable binding,
   -- the new value is joined with the existing value at this address.

@@ -67,13 +67,13 @@ instance (Applicative f, ArrowExcept x y e c) => ArrowExcept x y e (Static f c) 
   finally (Static f) (Static g) = Static $ finally <$> f <*> g
 
 instance (Applicative f, ArrowEnv x y env c) => ArrowEnv x y env (Static f c) where
-  lookup = lift lookup
+  lookup (Static f) (Static g) = Static $ lookup <$> f <*> g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Static f) = Static $ localEnv <$> f
 
 instance (Applicative f, ArrowStore var val lab c) => ArrowStore var val lab (Static f c) where
-  read = lift read
+  read (Static f) (Static g) = Static $ read <$> f <*> g
   write = lift write
 
 instance (Applicative f, ArrowLoop c) => ArrowLoop (Static f c) where
@@ -87,4 +87,3 @@ deriving instance Complete (f (c x y)) => Complete (Static f c x y)
 deriving instance CoComplete (f (c x y)) => CoComplete (Static f c x y)
 deriving instance UpperBounded (f (c x y)) => UpperBounded (Static f c x y)
 deriving instance LowerBounded (f (c x y)) => LowerBounded (Static f c x y)
-         

@@ -49,7 +49,7 @@ runReachingDefs' (ReachingDefs f) = f
 
 instance (Identifiable var, Identifiable lab, ArrowStore var val lab c)
   => ArrowStore var val lab (ReachingDefinitions var lab c) where
-  read = lift read 
+  read (ReachingDefinitions f) (ReachingDefinitions g) = ReachingDefinitions $ read f g
   write = ReachingDefinitions $ proc (x,v,l) -> do
     record (\(x,l) (defs) -> H.insert (x,Just l) (H.filter (\(y,_) -> x /= y) defs)) -< (x,l)
     write -< (x,v,l)

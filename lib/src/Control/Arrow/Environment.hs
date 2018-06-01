@@ -10,7 +10,7 @@ import Control.Arrow.Utils
 -- | Arrow-based interface for interacting with environments.
 class Arrow c => ArrowEnv var val env c | c -> var, c -> val, c -> env where
   -- | Lookup a variable in the current environment.
-  lookup :: c var val
+  lookup :: c (val,a) val -> c a val -> c (var,a) val
   -- | Retrieve the current environment.
   getEnv :: c () env
   -- | Extend an environment with a binding.

@@ -23,7 +23,8 @@ import Control.Arrow.Store
 import Control.Arrow.Const
 import Control.Arrow.Writer
 import Control.Arrow.Transformer.Static
-    
+import Control.Arrow.Abstract.Join
+
 import Data.Order
 
 -- | Passes along constant data.
@@ -42,6 +43,7 @@ instance Arrow c => ArrowConst r (Const r c) where
 instance ArrowApply c => ArrowApply (Const r c) where
   app = Const $ Static $ \r -> (\(Const (Static f),x) -> (f r,x)) ^>> app
 
+deriving instance ArrowJoin c => ArrowJoin (Const r c)
 deriving instance ArrowLift (Const r)
 deriving instance Arrow c => Category (Const r c)
 deriving instance Arrow c => Arrow (Const r c)

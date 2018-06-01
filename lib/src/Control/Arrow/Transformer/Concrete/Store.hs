@@ -11,6 +11,7 @@ module Control.Arrow.Transformer.Concrete.Store where
 import Prelude hiding ((.))
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Except
 import Control.Arrow.Fix
@@ -46,18 +47,19 @@ execStore f = runStore f >>> pi1
 instance ArrowLift (StoreArrow var val) where
   lift f = StoreArrow (lift f)
 
-instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c) =>
+instance (Show var, Identifiable var, ArrowChoice c) =>
   ArrowStore var val lab (StoreArrow var val c) where
-  read =
-    StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
-      Just v -> returnA -< (s,v)
-      Nothing -> failA -< printf "Variable %s not bound" (show var)
+  read (StoreArrow (State f)) (StoreArrow (State g)) =
+    StoreArrow $ State $ proc (s,((var,_),x)) -> case S.lookup var s of
+      Just v -> f -< (s,(v,x))
+      Nothing -> g -< (s,x)
   write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   getA = lift getA
   putA = lift putA
 
+deriving instance ArrowConst r c => ArrowConst r (StoreArrow var val c)
 deriving instance Category c => Category (StoreArrow var val c)
 deriving instance Arrow c => Arrow (StoreArrow var val c)
 deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)

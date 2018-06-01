@@ -67,10 +67,10 @@ instance (ArrowChoice c, ArrowFail e c) => ArrowFail e (Powerset c) where
   failA = lift failA
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) where
-  lookup = lift lookup
+  lookup (Powerset f) (Powerset g) = Powerset (lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
-  localEnv (Powerset f) = Powerset $ localEnv f
+  localEnv (Powerset f) = Powerset (localEnv f)
 
 instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) where
   dedupA (Powerset f) = Powerset $ proc x -> do

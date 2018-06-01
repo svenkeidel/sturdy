@@ -18,8 +18,10 @@ import qualified Data.Concrete.Environment as E
 import           Control.Category
 
 import           Control.Arrow
+import           Control.Arrow.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Reader
+import           Control.Arrow.Store
 import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Lift
@@ -35,13 +37,12 @@ newtype Environment var val c x y = Environment (Reader (Env var val) c x y)
 runEnvironment :: (Arrow c, Eq var, Hashable var) => Environment var val c x y -> c ([(var,val)],x) y
 runEnvironment (Environment (Reader f)) = first E.fromList ^>> f
 
-instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c) =>
+instance (Show var, Identifiable var, ArrowChoice c) =>
   ArrowEnv var val (Env var val) (Environment var val c) where
-  lookup = proc x -> do
-    env <- getEnv -< ()
-    case E.lookup x env of
-      Just y -> returnA -< y
-      Nothing -> failA -< printf "Variable %s not bound" (show x)
+  lookup (Environment (Reader f)) (Environment (Reader g)) =
+    Environment $ Reader $ proc (env,(var,x)) -> case E.lookup var env of
+      Just val -> f -< (env,(val,x))
+      Nothing -> g -< (env,x)
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (localA f)
@@ -57,9 +58,11 @@ deriving instance Arrow c => Category (Environment var val c)
 deriving instance Arrow c => Arrow (Environment var val c)
 deriving instance ArrowLift (Environment var val)
 deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
+deriving instance ArrowStore var val lab c => ArrowStore var val lab (Environment var' val' c)
 deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
 deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
+deriving instance ArrowConst r c => ArrowConst r (Environment var val c)
 
 type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
 deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (Environment var val c)

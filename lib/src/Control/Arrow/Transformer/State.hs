@@ -9,6 +9,7 @@ module Control.Arrow.Transformer.State(State(..),evalState,execState) where
 import Prelude hiding (id,(.),lookup,read)
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
 import Control.Arrow.Fail
@@ -76,13 +77,13 @@ instance ArrowWriter w c => ArrowWriter w (State s c) where
   tellA = lift tellA
 
 instance ArrowEnv x y env c => ArrowEnv x y env (State s c) where
-  lookup = lift lookup
+  lookup (State f) (State g) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (State f) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
 
 instance ArrowStore var val lab c => ArrowStore var val lab (State s c) where
-  read = lift read
+  read (State f) (State g) = State (read f g)
   write = lift write
 
 type instance Fix x y (State s c) = State s (Fix (s,x) (s,y) c)
@@ -102,6 +103,9 @@ instance ArrowLoop c => ArrowLoop (State s c) where
 instance (ArrowJoin c, Complete s) => ArrowJoin (State s c) where
   joinWith lub (State f) (State g) =
     State $ (\(s,(x,y)) -> ((s,x),(s,y))) ^>> joinWith (\(s1,z1) (s2,z2) -> (s1⊔s2,lub z1 z2)) f g
+
+instance ArrowConst r c => ArrowConst r (State s c) where
+  askConst = lift askConst
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (State s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (State s c x y)

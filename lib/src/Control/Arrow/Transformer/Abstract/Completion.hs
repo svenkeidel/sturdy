@@ -63,14 +63,14 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Completion c) where
   localA (Completion f) = Completion (localA f)
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Completion c) where
-  lookup = lift lookup
+  lookup (Completion f) = Completion (lookup f)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Completion f) = Completion (localEnv f)
 
 instance (ArrowChoice c, ArrowExcept x (FreeCompletion y) e c) => ArrowExcept x y e (Completion c) where
-  tryCatchA (Completion f) (Completion g) = Completion $ tryCatchA f g 
-  finally (Completion f) (Completion g) = Completion $ finally f g 
+  tryCatchA (Completion f) (Completion g) = Completion $ tryCatchA f g
+  finally (Completion f) (Completion g) = Completion $ finally f g
 
 instance ArrowChoice c => ArrowDeduplicate (Completion c) where
   dedupA = returnA

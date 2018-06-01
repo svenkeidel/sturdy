@@ -69,7 +69,7 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Except e c) where
   localA (Except f) = Except (localA f)
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) where
-  lookup = lift lookup
+  lookup (Except f) (Except g) = Except (lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Except f) = Except (localEnv f)
@@ -78,7 +78,7 @@ type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fixA f = Except (fixA (runExcept . f . Except))
 
-{- 
+{-
 There is no `ArrowExcept` instance for `Except` on purpose. This is how it would look like.
 
 instance (ArrowChoice c, UpperBounded e, Complete (c (y,(x,e)) (Error e y))) => ArrowExcept x y e (Except e c) where

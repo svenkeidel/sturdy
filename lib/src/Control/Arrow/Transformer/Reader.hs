@@ -8,13 +8,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Transformer.Reader(Reader(..)) where
 
-import Prelude hiding (id,(.),lookup)
+import Prelude hiding (id,(.),lookup,read)
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
+import Control.Arrow.Store
 import Control.Arrow.State
 import Control.Arrow.Deduplicate
 import Control.Arrow.Except
@@ -57,6 +59,10 @@ instance Arrow c => ArrowReader r (Reader r c) where
   askA = Reader pi1
   localA (Reader f) = Reader $ (\(_,(r,x)) -> (r,x)) ^>> f
 
+instance ArrowStore var val lab c => ArrowStore var val lab (Reader r c) where
+  read (Reader f) (Reader g) = Reader (read f g)
+  write = lift write
+
 instance ArrowState s c => ArrowState s (Reader r c) where
   getA = lift getA
   putA = lift putA
@@ -68,7 +74,7 @@ instance ArrowFail e c => ArrowFail e (Reader r c) where
   failA = lift failA
 
 instance ArrowEnv x y env c => ArrowEnv x y env (Reader r c) where
-  lookup = lift lookup
+  lookup (Reader f) (Reader g) = Reader ((\(r,(env,a)) -> (env,(r,a))) ^>> lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Reader f) = Reader ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
@@ -86,6 +92,9 @@ instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
 
 instance ArrowJoin c => ArrowJoin (Reader r c) where
   joinWith lub (Reader f) (Reader g) = Reader $ (\(r,(x,y)) -> ((r,x),(r,y))) ^>> joinWith lub f g
+
+instance ArrowConst r c => ArrowConst r (Reader r' c) where
+  askConst = lift askConst
 
 deriving instance PreOrd (c (r,x) y) => PreOrd (Reader r c x y)
 deriving instance LowerBounded (c (r,x) y) => LowerBounded (Reader r c x y)

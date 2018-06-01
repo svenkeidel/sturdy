@@ -80,13 +80,13 @@ instance (ArrowLoop c, ArrowReader r c) => ArrowReader r (State s c) where
   localA (State f) = State $ (\(s,(r,x)) -> (r,(s,x))) ^>> localA f
 
 instance (ArrowLoop c, ArrowEnv x y env c) => ArrowEnv x y env (State r c) where
-  lookup = lift lookup
+  lookup (State f) (State g) = State (lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (State f) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
 
 instance (ArrowLoop c, ArrowStore var val lab c) => ArrowStore var val lab (State r c) where
-  read = lift read
+  read (State f) (State g) = State (read f g)
   write = lift write
 
 type instance Fix x y (State s c) = State s (Fix (s,x) (s,y) c)
