@@ -226,27 +226,10 @@ instance Show FieldSignature where
     "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
 
 data Binop
-  = And     -- Bytewise operator
-  | Or      -- Bytewise operator
-  | Xor     -- Bytewise operator
-  | Mod
-  | Rem
-  | Cmp
-  | Cmpg
-  | Cmpl
-  | Cmpeq
-  | Cmpne
-  | Cmpgt
-  | Cmpge
-  | Cmplt
-  | Cmple
-  | Shl     -- Bytewise operator
-  | Shr     -- Bytewise operator
-  | Ushr    -- Bytewise operator
-  | Plus
-  | Minus
-  | Mult
-  | Div deriving (Show, Eq)
+  = And | Or | Xor | Shl | Shr | Ushr
+  | Cmp | Cmpg | Cmpl
+  | Cmpeq | Cmpne | Cmpgt | Cmpge | Cmplt | Cmple
+  | Plus | Minus | Mult | Div | Rem deriving (Show, Eq)
 
 data Unop
   = Lengthof

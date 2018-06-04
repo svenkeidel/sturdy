@@ -6,6 +6,7 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -14,8 +15,10 @@ module Interval where
 import           Prelude hiding (id,Bounded(..),Bool(..),(<),(==),(/))
 import qualified Prelude as P
 
+import           Data.Bits
+import qualified Data.Bits as B
 import           Data.Fixed
-
+import           Data.List (union)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Abstract.Environment (Env)
@@ -30,9 +33,12 @@ import           Data.Abstract.Equality
 import           Data.Abstract.HandleError
 import qualified Data.Abstract.PropagateError as PE
 
+import qualified Data.Concrete.Powerset as C
+
 import           Data.Order
 import           Data.Numeric
 import qualified Data.Boolean as B
+import           Data.GaloisConnection
 
 import           Control.Category hiding ((.))
 
@@ -57,6 +63,7 @@ import           Text.Printf
 
 import           Syntax
 import           Shared
+import qualified Concrete as Concrete
 
 ---- Values ----
 type IV = Interval Int
@@ -168,6 +175,32 @@ num b x = Bounded b $ I.constant x
 range :: IV -> Int -> Int -> Bounded IV
 range b x y = Bounded b $ I.Interval x y
 
+-- instance Galois (IV -> C.Pow Concrete.Val) (IV -> Val) where
+--   alpha x = \b -> let ?bound = b in lifted lift (x b)
+--     where lift (Concrete.BoolVal b) = BoolVal (alpha b)
+--           lift (Concrete.IntVal n) = IntVal $ bounded (I.Interval n n)
+--   gamma x b = case x b of
+--     BoolVal y -> Concrete.BoolVal <$> gamma y
+--     IntVal (Bounded _ y) -> Concrete.IntVal <$> gamma y
+--     TopVal ->
+--       let bools = gamma (\(_::IV) -> BoolVal B.Top) b
+--           ints = gamma (\(_::IV) -> (IntVal (Bounded b top))) b
+--       in bools `union` ints
+
+-- alpha x ⊑ y iff x ⊑ gamma y
+--   alpha: concrete -> abstract
+--   gamma: abstract -> concrete
+
+-- instance Galois (IV -> Pow Concrete.Val) (IV -> Val) where
+--   alpha x = \b -> let ?bound = b in lifted lift (x b)
+--     where lift (Concrete.BoolVal b) = BoolVal (alphaSing b)
+--           lift (Concrete.NumVal n) = NumVal $ bounded (I.Interval n n)
+--   gamma x b = case x b of
+--     BoolVal y -> Concrete.BoolVal <$> gamma y
+--     NumVal (Bounded _ y) -> Concrete.NumVal <$> gamma y
+--     Top -> gamma (\(_::IV) -> BoolVal B.Top) b `union` gamma (\(_::IV) -> (NumVal (Bounded b top))) b
+
+
 ---- End of Values ----
 
 ---- Interp Type ----
@@ -239,6 +272,10 @@ mod_ :: Bounded IV -> Bounded IV -> Bounded IV
 mod_ (Bounded b1 (I.Interval _ m1)) (Bounded b2 (I.Interval _ m2)) =
   Bounded (b1 ⊔ b2) (I.Interval 0 (min m1 m2))
 
+liftIV2 :: (Int -> Int -> Int) -> Bounded IV -> Bounded IV -> Bounded IV
+liftIV2 op (Bounded b1 (I.Interval i1 j1)) (Bounded b2 (I.Interval i2 j2)) =
+  Bounded (b1 ⊔ b2) ((I.constant (op i1 i2)) ⊔ (I.constant (op j1 j2)))
+
 boolGLB :: (CanFail Val c) => c [Val] Val
 boolGLB = proc xs -> case xs of
   [] -> returnA -< BoolVal B.True
@@ -283,16 +320,24 @@ instance UseVal Val Interp where
       TopVal -> returnA -< top
       _ -> failA -< StaticException $ printf "Expected an integer array size, got %s" (show s)
     [] -> defaultValue -< t
-  and = proc _ -> failA -< StaticException "Operation not supported yet"
-  or = proc _ -> failA -< StaticException "Operation not supported yet"
-  xor = proc _ -> failA -< StaticException "Operation not supported yet"
-  rem = proc _ -> failA -< StaticException "Operation not supported yet"
-  mod = proc (v1,v2) -> case (v1,v2) of
+  and = proc (v1,v2) -> case (v1,v2) of
+    (IntVal x1,IntVal x2) -> returnA -< IntVal $ liftIV2 (.&.) x1 x2
+    (LongVal x1,LongVal x2) -> returnA -< LongVal $ liftIV2 (.&.) x1 x2
+    _ -> failA -< StaticException "Expected integer variables for 'and'"
+  or = proc (v1,v2) -> case (v1,v2) of
+    (IntVal x1,IntVal x2) -> returnA -< IntVal $ liftIV2 (.|.) x1 x2
+    (LongVal x1,LongVal x2) -> returnA -< LongVal $ liftIV2 (.|.) x1 x2
+    _ -> failA -< StaticException "Expected integer variables for 'or'"
+  xor = proc (v1,v2) -> case (v1,v2) of
+    (IntVal x1,IntVal x2) -> returnA -< IntVal $ liftIV2 B.xor x1 x2
+    (LongVal x1,LongVal x2) -> returnA -< LongVal $ liftIV2 B.xor x1 x2
+    _ -> failA -< StaticException "Expected integer variables for 'xor'"
+  rem = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> returnA -< IntVal (x1 `mod_` x2)
     (LongVal x1,LongVal x2) -> returnA -< LongVal (x1 `mod_` x2)
     (FloatVal x1,FloatVal x2) -> returnA -< FloatVal (x1 `mod'` x2)
     (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal (x1 `mod'` x2)
-    _ -> failA -< StaticException "Expected integer variables for mod"
+    _ -> failA -< StaticException "Expected integer variables for 'rem'"
   cmp = proc (v1,v2) -> case (v1,v2) of
     (LongVal x1,LongVal x2) -> do
       b <- askBounds -< ()
@@ -300,7 +345,7 @@ instance UseVal Val Interp where
       let pairs = zip [x1 < x2,x1 == x2,x2 < x1] nums
       let filteredNums = map snd $ filter ((P./=B.False) . fst) pairs
       returnA -< IntVal $ lub filteredNums
-    _ -> failA -< StaticException "Expected long variables for cmp"
+    _ -> failA -< StaticException "Expected long variables for 'cmp'"
   cmpg = proc (v1,v2) -> case (v1,v2) of
     (FloatVal x1,FloatVal x2)
       | x1 P.< x2 -> intConstant -< -1
@@ -310,7 +355,7 @@ instance UseVal Val Interp where
       | x1 P.< x2 -> intConstant -< -1
       | x1 P.== x2 -> intConstant -< 0
       | x1 > x2 -> intConstant -< 1
-    _ -> failA -< StaticException "Expected floating variables for cmpg"
+    _ -> failA -< StaticException "Expected floating variables for 'cmpg'"
   cmpl = proc (v1,v2) -> case (v1,v2) of
     (FloatVal x1,FloatVal x2)
       | x1 > x2 -> intConstant -< -1
@@ -320,7 +365,7 @@ instance UseVal Val Interp where
       | x1 > x2 -> intConstant -< -1
       | x1 P.== x2 -> intConstant -< 0
       | x1 P.< x2 -> intConstant -< 1
-    _ -> failA -< StaticException "Expected floating variables for cmpl"
+    _ -> failA -< StaticException "Expected floating variables for 'cmpl'"
   eq = proc (v1,v2) -> returnA -< BoolVal (v1 == v2)
   neq = proc (v1,v2) -> returnA -< BoolVal $ B.not (v1 == v2)
   gt = proc (v1,v2) -> case (v1,v2) of
@@ -328,46 +373,55 @@ instance UseVal Val Interp where
     (LongVal x1,LongVal x2) -> returnA -< BoolVal (x2 < x1)
     (FloatVal x1,FloatVal x2) -> returnA -< boolVal (x2 P.< x1)
     (DoubleVal x1,DoubleVal x2) -> returnA -< boolVal (x2 P.< x1)
-    _ -> failA -< StaticException "Expected numeric variables for gt"
+    _ -> failA -< StaticException "Expected numeric variables for 'gt'"
   ge = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> returnA -< BoolVal $ B.not (x1 < x2)
     (LongVal x1,LongVal x2) -> returnA -< BoolVal $ B.not (x1 < x2)
     (FloatVal x1,FloatVal x2) -> returnA -< boolVal (x1 >= x2)
     (DoubleVal x1,DoubleVal x2) -> returnA -< boolVal (x1 >= x2)
-    _ -> failA -< StaticException "Expected numeric variables for ge"
+    _ -> failA -< StaticException "Expected numeric variables for 'ge'"
   lt = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> returnA -< BoolVal (x1 < x2)
     (LongVal x1,LongVal x2) -> returnA -< BoolVal (x1 < x2)
     (FloatVal x1,FloatVal x2) -> returnA -< boolVal (x1 P.< x2)
     (DoubleVal x1,DoubleVal x2) -> returnA -< boolVal (x1 P.< x2)
-    _ -> failA -< StaticException "Expected numeric variables for lt"
+    _ -> failA -< StaticException "Expected numeric variables for 'lt'"
   le = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> returnA -< BoolVal $ B.not (x2 < x1)
     (LongVal x1,LongVal x2) -> returnA -< BoolVal $ B.not (x2 < x1)
     (FloatVal x1,FloatVal x2) -> returnA -< boolVal (x1 <= x2)
     (DoubleVal x1,DoubleVal x2) -> returnA -< boolVal (x1 <= x2)
-    _ -> failA -< StaticException "Expected numeric variables for le"
-  shl = proc _ -> failA -< StaticException "Operation not supported yet"
-  shr = proc _ -> failA -< StaticException "Operation not supported yet"
-  ushr = proc _ -> failA -< StaticException "Operation not supported yet"
+    _ -> failA -< StaticException "Expected numeric variables for 'le'"
+  shl = proc (v1,v2) -> case (v1,v2) of
+    (IntVal x1,IntVal x2) -> returnA -< IntVal $ liftIV2 shiftL x1 x2
+    (LongVal x1,IntVal x2) -> returnA -< LongVal $ liftIV2 shiftL x1 x2
+    _ -> failA -< StaticException "Expected integer variables for 'shl'"
+  shr = proc (v1,v2) -> case (v1,v2) of
+    (IntVal x1,IntVal x2) -> returnA -< IntVal $ liftIV2 shiftR x1 x2
+    (LongVal x1,IntVal x2) -> returnA -< LongVal $ liftIV2 shiftR x1 x2
+    _ -> failA -< StaticException "Expected integer variables for 'shr'"
+  ushr = proc (v1,v2) -> case (v1,v2) of
+    (IntVal x1,IntVal x2) -> returnA -< IntVal $ liftIV2 shiftR x1 x2
+    (LongVal x1,IntVal x2) -> returnA -< LongVal $ liftIV2 shiftR x1 x2
+    _ -> failA -< StaticException "Expected integer variables for 'ushr'"
   plus = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> returnA -< IntVal (x1 + x2)
     (LongVal x1,LongVal x2) -> returnA -< LongVal (x1 + x2)
     (FloatVal x1,FloatVal x2) -> returnA -< FloatVal (x1 + x2)
     (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal (x1 + x2)
-    _ -> failA -< StaticException "Expected numeric variables for plus"
+    _ -> failA -< StaticException "Expected numeric variables for 'plus'"
   minus = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> returnA -< IntVal (x1 - x2)
     (LongVal x1,LongVal x2) -> returnA -< LongVal (x1 - x2)
     (FloatVal x1,FloatVal x2) -> returnA -< FloatVal (x1 - x2)
     (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal (x1 - x2)
-    _ -> failA -< StaticException "Expected numeric variables for minus"
+    _ -> failA -< StaticException "Expected numeric variables for 'minus'"
   mult = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> returnA -< IntVal (x1 * x2)
     (LongVal x1,LongVal x2) -> returnA -< LongVal (x1 * x2)
     (FloatVal x1,FloatVal x2) -> returnA -< FloatVal (x1 * x2)
     (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal (x1 * x2)
-    _ -> failA -< StaticException "Expected numeric variables for mult"
+    _ -> failA -< StaticException "Expected numeric variables for 'mult'"
   div = proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> case x1 / x2 of
       PE.Fail _ -> throw -< ("java.lang.ArithmeticException","/ by zero")
@@ -377,18 +431,16 @@ instance UseVal Val Interp where
       PE.Success y -> returnA -< IntVal y
     (FloatVal x1,FloatVal x2) -> returnA -< FloatVal (x1 P./ x2)
     (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal (x1 P./ x2)
-    _ -> failA -< StaticException "Expected numeric variables for div"
-  lengthOf = proc v -> do
-    v' <- unbox -< v
-    case v' of
-      ArrayVal _ s -> returnA -< s
-      _ -> failA -< StaticException "Expected an array as argument for lengthof"
+    _ -> failA -< StaticException "Expected numeric variables for 'div'"
+  lengthOf = unbox >>> proc v -> case v of
+    ArrayVal _ s -> returnA -< s
+    _ -> failA -< StaticException "Expected an array as argument for 'lengthof'"
   neg = proc v -> case v of
     IntVal n -> returnA -< IntVal (-n)
     LongVal l -> returnA -< LongVal (-l)
     FloatVal f -> returnA -< FloatVal (-f)
     DoubleVal d -> returnA -< DoubleVal (-d)
-    _ -> failA -< StaticException "Expected a number as argument for -"
+    _ -> failA -< StaticException "Expected a number as argument for '-'"
   doubleConstant = arr DoubleVal
   floatConstant = arr FloatVal
   intConstant = proc x -> do

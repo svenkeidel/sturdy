@@ -95,7 +95,7 @@ spec = do
       evalConcrete env store expr `shouldBe` Success (BoolVal true)
     it "3.0 % 2.5" $ do
       let ?bound = I.Interval (-100) 100
-      let expr = BinopExpr (FloatConstant 3.0) Mod (FloatConstant 2.5)
+      let expr = BinopExpr (FloatConstant 3.0) Rem (FloatConstant 2.5)
       evalConcrete env store expr `shouldBe` Success (FloatVal 0.5)
     it "new boolean" $ do
       let ?bound = I.Interval (-100) 100

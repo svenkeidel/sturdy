@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Shared where
 
-import           Prelude hiding (lookup,read,mod,rem,div,id,or,and)
+import           Prelude hiding (lookup,read,rem,div,id,or,and)
 
 import           Data.List (find,elemIndex)
 import           Data.Map (Map)
@@ -214,7 +214,6 @@ eval = proc e -> case e of
       Or -> or -< (v1,v2)
       Xor -> xor -< (v1,v2)
       Rem -> rem -< (v1,v2)
-      Mod -> mod -< (v1,v2)
       Cmp -> cmp -< (v1,v2)
       Cmpg -> cmpg -< (v1,v2)
       Cmpl -> cmpl -< (v1,v2)
@@ -363,7 +362,6 @@ class Arrow c => UseVal v c | c -> v where
   or :: c (v,v) v
   xor :: c (v,v) v
   rem :: c (v,v) v
-  mod :: c (v,v) v
   cmp :: c (v,v) v
   cmpg :: c (v,v) v
   cmpl :: c (v,v) v

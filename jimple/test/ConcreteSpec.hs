@@ -74,7 +74,7 @@ spec = do
       let expr = BinopExpr (IntConstant 3) Cmpne (StringConstant "three")
       evalConcrete env store expr `shouldBe` Success (BoolVal True)
     it "3.0 % 2.5" $ do
-      let expr = BinopExpr (FloatConstant 3.0) Mod (FloatConstant 2.5)
+      let expr = BinopExpr (FloatConstant 3.0) Rem (FloatConstant 2.5)
       evalConcrete env store expr `shouldBe` Success (FloatVal 0.5)
     it "new boolean" $ do
       let expr = NewExpr BooleanType
