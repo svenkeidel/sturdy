@@ -15,6 +15,7 @@ import qualified Prelude
 import GHC.Generics (Generic)
 import Syntax
 import SharedInterpreter
+import Derivations
 
 import Data.Hashable
 import Data.Set
@@ -41,22 +42,6 @@ import Control.Arrow.Except
 import Control.Arrow
 import Control.Category
 
-data Type
-    = TNumber
-    | TString
-    | TBool
-    | TUndefined
-    | TNull
-    | TLambda [Ident] Type'
-    | TObject [(Ident, Type')]
-    | TTop
-    | TBottom
-    | TRef Location'
-    | TThrown Type'
-    | TBreak Label Type'
-    deriving (Show, Eq, Generic, Ord)
-instance Generic Type'
-
 instance PreOrd Type where
     TLambda ids1 t1 ⊑ TLambda ids2 t2 = ids1 == ids2 && t1 ⊑ t2 
     TObject fields1 ⊑ TObject fields2 = all (\((f1, t1), (f2, t2)) -> f1 == f2 && t1 ⊑ t2) (zip fields1 fields2)
@@ -67,8 +52,6 @@ instance PreOrd Type where
     _ ⊑ _ = False
 
 
-type Location' = Set Location
-type Type' = Set Type
 
 newtype TypeArr x y = TypeArr (Except String (Environment Ident Location' (StoreArrow Location Type' (State Location (->)))) x y)
 deriving instance ArrowFail String TypeArr
@@ -94,9 +77,6 @@ instance (Show Ident, Identifiable Ident, ArrowChoice c) => ArrowEnv Ident Locat
   extendEnv = arr $ \(x,y,env) -> Data.Abstract.Environment.insert x y env
   localEnv (Environment f) = Environment (localA f)
 deriving instance ArrowState Location TypeArr
-
---instance Complete (Env String Location') where
---    e1 ⊔ e2 = Env (Data.HashMap.Lazy.unionWith (\x y -> x ⊔ y) e1 e2)
 
 runType :: TypeArr x y -> [(Ident, Location)] -> [(Location, Type)] -> x -> (Location, (Store Location Type', Error String y))
 runType (TypeArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Abstract.Store.fromList env2', (env', x)))

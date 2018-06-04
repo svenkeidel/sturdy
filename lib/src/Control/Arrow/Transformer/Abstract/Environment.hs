@@ -71,4 +71,5 @@ deriving instance Complete (c (Env var val,x) y) => Complete (Environment var va
 deriving instance CoComplete (c (Env var val,x) y) => CoComplete (Environment var val c x y)
 deriving instance LowerBounded (c (Env var val,x) y) => LowerBounded (Environment var val c x y)
 deriving instance UpperBounded (c (Env var val,x) y) => UpperBounded (Environment var val c x y)
---deriving instance ArrowJoin c => ArrowJoin (Environment var val c)
+deriving instance ArrowJoin c => ArrowJoin (Environment var val c)
+--

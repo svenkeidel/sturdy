@@ -64,7 +64,13 @@ data Exceptional
 instance Hashable Exceptional
 deriving instance Ord Exceptional
 
-newtype ConcreteArr x y = ConcreteArr (Except (Either String Exceptional) (Environment Ident Location (StoreArrow Location Value (State Location (->)))) x y)
+newtype ConcreteArr x y = ConcreteArr 
+    (Except 
+        (Either String Exceptional) 
+        (Environment Ident Location
+            (StoreArrow Location Value 
+                (State Location (->)))) x y)
+
 deriving instance ArrowFail (Either String Exceptional) ConcreteArr
 deriving instance ArrowEnv Ident Location (Env Ident Location) ConcreteArr
 

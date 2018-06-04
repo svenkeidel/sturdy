@@ -1,10 +1,14 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Syntax where
 
 import GHC.Generics (Generic)
 import Data.Hashable
+import Data.Set
+import Data.List (sort)
 
 type Ident = String
 data Label = Label String
@@ -74,3 +78,29 @@ data Expr
     | EEval
     deriving (Show, Eq, Generic, Ord)
 instance Hashable Expr
+
+data Type
+    = TNumber
+    | TString
+    | TBool
+    | TUndefined
+    | TNull
+    | TLambda [Ident] Type'
+    | TObject [(Ident, Type')]
+    | TTop
+    | TBottom
+    | TRef Location'
+    | TThrown Type'
+    | TBreak Label Type'
+    deriving (Show, Eq, Generic, Ord)
+deriving instance Hashable Type
+
+instance (Hashable v, Ord v) => Hashable (Set v) where
+  hashWithSalt salt set = 
+    Prelude.foldr (\x s -> s + (hash x)) salt (sort $ Data.Set.toList set)
+
+type Location' = Set Location
+instance Generic Location'
+
+type Type' = Set Type
+instance Generic Type'

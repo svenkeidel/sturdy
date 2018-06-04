@@ -4,7 +4,7 @@ import Syntax
 import SharedConcrete (ConcreteArr, Value(..))
 import qualified SharedConcrete as Interpreter (runConcrete)
 import Data.Concrete.Environment
-import Data.Abstract.HandleError
+import Data.Concrete.Error
 import Control.Arrow.Fail
 import Test.Hspec
 
