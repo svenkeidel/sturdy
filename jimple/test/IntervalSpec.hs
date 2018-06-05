@@ -256,14 +256,14 @@ spec = do
       Just m -> m
       Nothing -> error "No entry method found"
 
-    unboxMaybe = proc val -> case val of
-      Just x -> unbox >>^ (\x -> Just x) -< x
+    deepDerefMaybe = proc val -> case val of
+      Just x -> deepDeref >>^ Just -< x
       Nothing -> returnA -< Nothing
 
-    evalConcrete env' store' = runInterp (eval >>> unbox) (testCompilationUnits []) env' store' (testMethod [])
+    evalConcrete env' store' = runInterp (eval >>> deepDeref) (testCompilationUnits []) env' store' (testMethod [])
 
     runStatementsConcrete env' store' stmts =
-      runInterp (runStatements >>> unboxMaybe) (testCompilationUnits stmts) env' store' (testMethod stmts) stmts
+      runInterp (runStatements >>> deepDerefMaybe) (testCompilationUnits stmts) env' store' (testMethod stmts) stmts
 
     runProgramConcrete compilationUnits mainUnit args =
-      runInterp (runProgram >>> unboxMaybe) compilationUnits [] [] (mainMethod mainUnit) args
+      runInterp (runProgram >>> deepDerefMaybe) compilationUnits [] [] (mainMethod mainUnit) args

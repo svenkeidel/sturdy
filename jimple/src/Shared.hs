@@ -55,7 +55,7 @@ instance Complete v => Complete (Exception v) where
   DynamicException v1 ⊔ DynamicException v2 = DynamicException $ v1 ⊔ v2
 
 instance IsString (Exception v) where
-  fromString s = StaticException s
+  fromString = StaticException
 
 type CompilationUnits = Map String CompilationUnit
 type Fields = Map FieldSignature Int
@@ -82,6 +82,7 @@ type CanInterp env addr const val c = (
   CanUseConst const c,
   CanUseReader c,
   CanUseState addr c,
+  ArrowExcept (val, val) val (Exception val) c,
   ArrowExcept EInvoke (Maybe val) (Exception val) c,
   ArrowExcept [Statement] (Maybe val) (Exception val) c,
   ArrowExcept (Method, Maybe val, [Expr]) (Maybe val) (Exception val) c)
@@ -203,8 +204,8 @@ eval = proc e -> case e of
     case v of
       Just v' -> returnA -< v'
       Nothing -> failA -< StaticException "Method returned nothing"
-  ArrayRef l i -> (readLocal *** eval) >>> readIndex -< (l,i)
-  FieldRef l f -> first readLocal >>> readField -< (l,f)
+  ArrayRef l i -> ((readLocal >>> deref) *** eval) >>> readIndex -< (l,i)
+  FieldRef l f -> first (readLocal >>> deref) >>> readField -< (l,f)
   SignatureRef fieldSignature -> lookupField >>> read' -< fieldSignature
   BinopExpr i1 op i2 -> do
     v1 <- eval -< i1
@@ -233,7 +234,7 @@ eval = proc e -> case e of
   UnopExpr op i -> do
     v <- eval -< i
     case op of
-      Lengthof -> lengthOf -< v
+      Lengthof -> deref >>> lengthOf -< v
       Neg -> neg -< v
   ThisRef -> eval -< (Local "@this")
   ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
@@ -343,9 +344,7 @@ runProgram = proc args -> do
       Nothing -> returnA -< Nothing) -< Map.elems units
   mainMethod <- askA -< ()
   tryCatchA runMethod (pi2 >>> proc exception -> case exception of
-    DynamicException v -> do
-      v' <- unbox -< v
-      failA -< DynamicException v'
+    DynamicException v -> deepDeref >>> DynamicException ^>> failA -< v
     StaticException _ -> failA -< exception) -< (mainMethod,Nothing,args)
 
 class Arrow c => UseVal v c | c -> v where
@@ -380,7 +379,8 @@ class Arrow c => UseVal v c | c -> v where
   div :: c (v,v) v
   lengthOf :: c v v
   neg :: c v v
-  unbox :: c v v
+  deref :: c v v
+  deepDeref :: c v v
   defaultValue :: c Type v
   instanceOf :: c (v,Type) v
   cast :: c ((v,Type),v) v
