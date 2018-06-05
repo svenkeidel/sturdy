@@ -3,4 +3,9 @@ extra-package-dbs: []
 resolver: lts-11.10
 packages:
 - 'lib'
+- 'rtg'
+- 'pcf'
+- 'while'
+- 'stratego'
 - 'lambdajs'
+#- 'lambda-adt'
