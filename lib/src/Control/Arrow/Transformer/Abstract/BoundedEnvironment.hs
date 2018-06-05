@@ -23,6 +23,7 @@ import           Control.Category
 import           Prelude hiding ((.),id)
 
 import           Data.Order
+import           Data.String
 import           Data.Identifiable
 import           Data.Abstract.Environment (Env)
 import qualified Data.Abstract.Environment as E

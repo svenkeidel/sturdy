@@ -27,6 +27,7 @@ import Control.Arrow.Abstract.Join
 import Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 import Data.Order
+import Data.String
 import Data.Identifiable
 import Data.Hashable
 

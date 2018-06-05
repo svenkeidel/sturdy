@@ -11,6 +11,7 @@ module Control.Arrow.Transformer.Abstract.Environment where
 import Prelude hiding ((.),read)
 
 import Data.Order
+import Data.String
 import Data.Identifiable
 import Data.Abstract.Environment (Env)
 import qualified Data.Abstract.Environment as E
@@ -30,6 +31,10 @@ import Control.Arrow.Fix
 
 import Control.Arrow.Abstract.Join
 
+import Control.Arrow.Abstract.Join
+
+import Text.Printf
+
 newtype Environment var val c x y = Environment (Reader (Env var val) c x y)
 
 runEnvironment :: (Arrow c) => Environment var val c x y -> c (Env var val,x) y
@@ -48,12 +53,19 @@ instance (Show var, Identifiable var, ArrowChoice c) => ArrowEnv var val (Env va
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (local f)
 
+instance ArrowStore var val lab c => ArrowStore var val lab (Environment var' val' c) where
+  read = lift read
+  write = lift write
+
 instance ArrowApply c => ArrowApply (Environment var val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app
 
 instance ArrowReader r c => ArrowReader r (Environment var val c) where
   ask = lift ask
   local (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
+
+instance ArrowConst r c => ArrowConst r (Environment var val c) where
+  askConst = lift askConst
 
 type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
 
