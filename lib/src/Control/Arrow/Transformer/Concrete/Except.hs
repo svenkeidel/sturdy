@@ -54,6 +54,10 @@ instance (ArrowChoice c, ArrowState s c) => ArrowState s (Except e c) where
   get = lift get
   put = lift put
 
+instance (ArrowChoice c, ArrowStore var val lab c) => ArrowStore var val lab (Except e c) where
+  read = lift read
+  write = lift write
+
 instance ArrowChoice c => ArrowFail e (Except e c) where
   fail = Except (arr Fail)
 
