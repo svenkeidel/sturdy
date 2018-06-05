@@ -271,9 +271,7 @@ runStatements = proc stmts -> case stmts of
     -- -- Nop
     Ret e -> runReturn -< e
     Return e -> runReturn -< e
-    Throw immediate -> do
-      v <- eval -< immediate
-      failA -< DynamicException v
+    Throw e -> eval >>> DynamicException ^>> failA -< e
     _ -> do
       runStatement -< stmt
       runStatements -< rest
