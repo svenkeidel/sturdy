@@ -53,6 +53,7 @@ library
                        Data.Abstract.FreeCoCompletion,
                        Data.Abstract.Interval,
                        Data.Abstract.Powerset,
+                       Data.Abstract.DiscretePowerset,
                        Data.Abstract.Sign,
                        Data.Abstract.Store,
                        Data.Abstract.Widening,
@@ -65,7 +66,6 @@ library
                        Control.Arrow.Fix,
                        Control.Arrow.Lift,
                        Control.Arrow.Reader,
-                       Control.Arrow.Effect,
                        Control.Arrow.State,
                        Control.Arrow.Store,
                        Control.Arrow.Writer,
@@ -79,9 +79,6 @@ library
                        Control.Arrow.Transformer.Writer,
                        Control.Arrow.Transformer.Const,
                        Control.Arrow.Transformer.Static,
-                       Control.Arrow.Transformer.BackwardState,
-                       Control.Arrow.Transformer.ForwardAnalysis,
-                       Control.Arrow.Transformer.BackwardAnalysis,
 
                        Control.Arrow.Transformer.Concrete.Environment,
                        Control.Arrow.Transformer.Concrete.Except,
@@ -99,7 +96,7 @@ library
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
                        Control.Arrow.Transformer.Abstract.ReachingDefinitions
-  other-modules:       Control.Arrow.Transformer.Effect
+
   build-depends:       base,
                        containers,
                        hashable,

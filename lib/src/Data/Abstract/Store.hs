@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 module Data.Abstract.Store(Store,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map) where
 
 import           Prelude hiding (lookup,map)
@@ -14,6 +15,8 @@ import           Data.Order
 import           Data.Identifiable
 
 import           Data.Abstract.Widening
+
+import           GHC.Exts
 
 import           Text.Printf
 
@@ -70,8 +73,7 @@ Store m ! a = m H.! a
 keys :: Store a b -> [a]
 keys (Store m) = H.keys m
 
-toList :: Store a b -> [(a,b)]
-toList (Store m) = H.toList m
-
-fromList :: Identifiable a => [(a,b)] -> Store a b
-fromList l = Store (H.fromList l)
+instance Identifiable a => IsList (Store a b) where
+  type Item (Store a b) = (a,b)
+  toList (Store m) = H.toList m
+  fromList l = Store (H.fromList l)

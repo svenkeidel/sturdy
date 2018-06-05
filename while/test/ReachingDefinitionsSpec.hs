@@ -15,15 +15,14 @@ main = hspec spec
 spec :: Spec
 spec =
   it "x:=5; y:=1; while(x>1){y:=x*y; x:=x-1}; z := y" $ do
-    pendingWith "Needs to be fixed"
-    let stmts = generate (sequence ["x" =: 5, "y" =: 1, while (1 < "x") ["y" =: "x" * "y", "x" =: "x" - 1], "z" =: "y"])
-    run stmts [("x",Nothing),("y",Nothing)] `shouldBe`
+    let stmts = generate $ begin ["x" =: 5, "y" =: 1, while (1 < "x") ["y" =: "x" * "y", "x" =: "x" - 1], "z" =: "y"]
+    run stmts [("x",[]),("y",[])] `shouldContain`
       zip (blocks stmts) [
-        -- Entry                                                  Exit
-        ([("x",Nothing),("y",Nothing)],                           [("x",Just 1),("y",Nothing)]),                            -- 1:  x:=5
-        ([("x",Just 1),("y",Nothing)],                            [("x",Just 1),("y",Just 3)]),                             -- 3:  y:=1
-        ([("x",Just 1),("x",Just 15),("y",Just 3),("y",Just 11)], [("x",Just 1),("x",Just 15),("y",Just 3),("y",Just 11)]), -- while(1 < x) {...}
-        ([("x",Just 1),("x",Just 15),("y",Just 3),("y",Just 11)], [("x",Just 1),("x",Just 15),("y",Just 11)]),              -- 11: y:=x*x
-        ([("x",Just 1),("x",Just 15),("y",Just 11)],              [("x",Just 15),("y",Just 11)]),                           -- 15: x:=x-1
-        ([("x",Just 1),("x",Just 15),("y",Just 3),("y",Just 11)], [("x",Just 1),("x",Just 15),("y",Just 3),("y",Just 11),("z",Just 17)]) -- z:=y
+        -- Entry
+        [("x",[]), ("y",[])],        -- 1:  x:=5
+        [("x",[1]),("y",[])],        -- 3:  y:=1
+        [("x",[1,15]),("y",[3,11])], -- while(1 < x) {...}
+        [("x",[1,15]),("y",[3,11])], -- 11: y:=x*x
+        [("x",[1,15]),("y",[11])],   -- 15: x:=x-1
+        [("x",[1,15]),("y",[3,11])]  -- z:=y
       ]

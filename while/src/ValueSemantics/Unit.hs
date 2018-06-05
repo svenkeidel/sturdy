@@ -34,7 +34,6 @@ import           Control.Arrow.Store
 import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Abstract.Store
-import           Control.Monad.State
 
 -- Value semantics for the while language that does not approximate values at all.
 type Val = ()
@@ -44,8 +43,13 @@ type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,x) (Error String 
 runInterp :: Interp c x y -> c (Store Text Val,x) (Error String (Store Text Val,y))
 runInterp (Interp f) = runExcept (runStore f)
 
-run :: [State Label Statement] -> Terminating (Error String (Store Text Val))
-run ss = fmap fst <$> runLeastFixPoint (runInterp (Shared.run :: Fix [Statement] () (Interp (~>)) [Statement] ())) (S.empty,generate (sequence ss))
+run :: [LStatement] -> Terminating (Error String (Store Text Val))
+run ss =
+  fmap fst <$>
+    runLeastFixPoint
+      (runInterp
+        (Shared.run :: Fix Statement () (Interp (~>)) Statement ()))
+      (S.empty,generate (begin ss))
 
 instance ArrowChoice c => IsVal Val (Interp c) where
   boolLit = arr (const ())

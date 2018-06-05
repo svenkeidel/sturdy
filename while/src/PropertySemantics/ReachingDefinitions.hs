@@ -17,8 +17,6 @@ import           Data.Label
 import qualified Data.List as L
 import           Data.Ord (comparing)
 
-import           Data.Abstract.Terminating
-import           Data.Abstract.PropagateError
 import qualified Data.Abstract.Store as S
 
 import           Control.Arrow.Fix 
@@ -26,29 +24,32 @@ import           Control.Arrow.Lift
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
-run :: [Statement] -> ReachingDefs Text Label
-    -> [(Statement,(ReachingDefs Text Label, ReachingDefs Text Label))]
+-- | Calculates the entry sets of which definitions may be reached for each statment.
+run :: Statement -> ReachingDefs Text Label -> [(Statement,ReachingDefs Text Label)]
 run stmts defs =
-  L.sortBy (comparing (label.fst)) $
+  L.sortBy (comparing (label . fst)) $
   S.toList $
-  S.map (\((_,(entry,ss)),v) ->
-    case ss of
-      (s:_) | s `elem` blocks stmts ->
-         let exit = fst (snd (fromError (error "error")
-                             (fromTerminating (error "non terminating") v)))
-         in Just (s,(entry,exit))
-      _ -> Nothing;
-        ) $
+
+  -- Joins the reaching definitions for each statement for all call context.
+  -- Filters out statements created during execution that are not part
+  -- of the input program.
+  S.map (\((_,(entry,st)),_) ->
+    if st `elem` blocks stmts
+    then Just (st,entry)
+    else Nothing) $
+  
+  -- get the fixpoint cache
   fst $
+
+  -- Run the computation
   runLeastFixPoint'
     (runInterp
        (runReachingDefs
-        (Shared.run :: Fix [Statement] ()
+        (Shared.run :: Fix Statement ()
                          (ReachingDefinitions Text Label
-                            (Interp
-                               (~>))) [Statement] ())))
+                           (Interp
+                             (~>))) Statement ())))
     (S.empty,(defs,stmts))
-
 
 instance (IsVal val c) => IsVal val (ReachingDefinitions v l c) where
   boolLit = lift boolLit
@@ -64,7 +65,8 @@ instance (IsVal val c) => IsVal val (ReachingDefinitions v l c) where
   eq = lift eq
   lt = lift lt
 
-instance (Conditional val (ReachingDefs v l,x) (ReachingDefs v l,y) (ReachingDefs v l,(ReachingDefs v l,z)) c)
+instance (Conditional val (ReachingDefs v l,x) (ReachingDefs v l,y) (ReachingDefs v l,z) c)
   => Conditional val x y z (ReachingDefinitions v l c) where
-  if_ (ReachingDefs f1) (ReachingDefs f2) =
-    ReachingDefs $ proc (defs,(v,(x,y))) -> if_ f1 f2 -< (v,((defs,x),(defs,y)))
+  if_ f1 f2 =
+    reachingDefs $ proc (defs,(v,(x,y))) -> if_ (runReachingDefs f1) (runReachingDefs f2) -< (v,((defs,x),(defs,y)))
+

@@ -50,7 +50,6 @@ import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Abstract.Store
-import           Control.Monad.State
 
 import           GHC.Generics
 
@@ -63,8 +62,13 @@ type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,x) (Error String 
 runInterp :: IV -> Interp c x y -> c (Store Text Val,x) (Error String (Store Text Val,y))
 runInterp b (Interp f) = runExcept (runStore (runConst b f))
 
-run :: (?bound :: IV) => [State Label Statement] -> Terminating (Error String (Store Text Val))
-run ss = fmap fst <$> runLeastFixPoint (runInterp ?bound (Shared.run :: Fix [Statement] () (Interp (~>)) [Statement] ())) (S.empty,generate (sequence ss))
+run :: (?bound :: IV) => [LStatement] -> Terminating (Error String (Store Text Val))
+run ss =
+  fmap fst <$>
+    runLeastFixPoint
+      (runInterp ?bound
+        (Shared.run :: Fix Statement () (Interp (~>)) Statement ()))
+      (S.empty,generate (begin ss))
 
 instance ArrowChoice c => IsVal Val (Interp c) where
   boolLit = arr $ \(b,_) -> case b of

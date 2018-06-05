@@ -11,6 +11,7 @@ import Data.Label
 import Control.Arrow
 import Control.Arrow.Fix
 import Control.Arrow.Store
+import Control.Arrow.Utils
 
 import Data.Text (Text)
 
@@ -60,20 +61,20 @@ eval = proc e -> case e of
     v2 <- eval -< e2
     lt -< (v1,v2,l)
 
-run :: (ArrowFix [Statement] () c, ArrowChoice c, ArrowStore Text v Label c, Conditional v [Statement] [Statement] () c, IsVal v c) => c [Statement] ()
+run :: (ArrowFix Statement () c, ArrowChoice c, ArrowStore Text v Label c,
+        Conditional v Statement Statement () c, IsVal v c)
+    => c Statement ()
 run = fixA $ \run' -> proc stmts -> case stmts of
-  (Assign x e l:ss) -> do
+  Assign x e l -> do
     v <- eval -< e
     write -< (x,v,l)
-    run' -< ss
-  (If cond b1 b2 _:ss) -> do
+  If cond b1 b2 _ -> do
     b <- eval -< cond
     if_ run' run' -< (b,(b1,b2))
-    run' -< ss
-  (While cond body l:ss) ->
-    run' -< If cond (body ++ [While cond body l]) [] l : ss
-  [] ->
-    returnA -< ()
+  While cond body l ->
+    run' -< If cond (Begin [body,While cond body l] l) (Begin [] l) l
+  Begin ss _ ->
+    voidA $ mapA run' -< ss
 
 class Arrow c => IsVal v c | c -> v where
   boolLit :: c (Bool,Label) v

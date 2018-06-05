@@ -55,13 +55,15 @@ instance Show Expr where
         . showsPrec (app_prec + 1) e2
       app_prec = 10
 
-instance IsString (State Label Expr) where
+type LExpr = State Label Expr
+
+instance IsString LExpr where
   fromString x = Var (fromString x) <$> fresh
 
-true :: State Label Expr
+true :: LExpr
 true = BoolLit True <$> fresh
 
-false :: State Label Expr
+false :: LExpr
 false = BoolLit False <$> fresh
 
 -- boolLit :: Bool -> State Label Expr
@@ -79,10 +81,10 @@ false = BoolLit False <$> fresh
 -- randomNum :: State Label Expr
 -- randomNum = RandomNum <$> fresh
 
-(<) :: State Label Expr -> State Label Expr -> State Label Expr
+(<) :: LExpr -> LExpr -> LExpr
 e1 < e2 = Lt <$> e1 <*> e2 <*> fresh
 
-(~=) :: State Label Expr -> State Label Expr -> State Label Expr
+(~=) :: LExpr -> LExpr -> LExpr
 e1 ~= e2 = Eq <$> e1 <*> e2 <*> fresh
 
 instance Num (State Label Expr) where
@@ -122,9 +124,10 @@ instance PreOrd Expr where
   (≈) = (==)
 
 data Statement
-  = While Expr [Statement] Label
-  | If Expr [Statement] [Statement] Label
+  = While Expr Statement Label
+  | If Expr Statement Statement Label
   | Assign Text Expr Label
+  | Begin [Statement] Label
   deriving (Ord,Eq,Generic)
 
 instance Show Statement where
@@ -132,14 +135,20 @@ instance Show Statement where
     Assign x e _ -> showString (unpack x) . showString " := " . shows e
     While e body _ -> showString "while" . showParen True (shows e) . showString " " . shows body
     If e ifB elseB _ -> showString "if" . showParen True (shows e) . showString " " . shows ifB . showString " " . shows elseB
+    Begin ss _ -> shows ss
 
-while :: State Label Expr -> [State Label Statement] -> State Label Statement
+type LStatement = State Label Statement
+
+while :: LExpr -> [LStatement] -> State Label Statement
 while cond body = do
   l <- fresh
-  While <$> cond <*> sequence body <*> pure l
+  While <$> cond <*> begin body <*> pure l
 
 ifExpr :: State Label Expr -> [State Label Statement] -> [State Label Statement] -> State Label Statement
-ifExpr cond ifBranch elseBranch = If <$> cond <*> sequence ifBranch <*> sequence elseBranch <*> fresh
+ifExpr cond ifBranch elseBranch = If <$> cond <*> begin ifBranch <*> begin elseBranch <*> fresh
+
+begin :: [LStatement] -> LStatement
+begin ss = Begin <$> sequence ss <*> fresh
 
 (=:) :: Text -> State Label Expr -> State Label Statement
 x =: e = Assign x <$> e <*> fresh
@@ -150,17 +159,14 @@ instance HasLabel Statement where
     While _ _ l -> l
     If _ _ _ l -> l
     Assign _ _ l -> l
+    Begin _ l -> l
 
 instance Hashable Statement where
 
-type Prog = [Statement]
-
-blocks :: Prog -> [Statement]
-blocks = concatMap go
-  where
-    go :: Statement -> [Statement]
-    go s = case s of
-      Assign {} -> [s]
-      If _ ss1 ss2 _ -> s : concatMap go (ss1 ++ ss2)
-      While _ ss _ -> s : concatMap go ss
+blocks :: Statement -> [Statement]
+blocks s = case s of
+  Assign {} -> [s]
+  If _ s1 s2 _ -> s : concatMap blocks [s1, s2]
+  While _ body _ -> s : blocks body
+  Begin ss _ -> concatMap blocks ss
 

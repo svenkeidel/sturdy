@@ -45,8 +45,13 @@ type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,(StdGen,x)) (Erro
 runInterp :: Interp c x y -> c (Store Text Val, (StdGen,x)) (Error String (Store Text Val, (StdGen,y)))
 runInterp (Interp f) = runExcept (runStore (runState f))
 
-run :: [Statement] -> Error String (Store Text Val)
-run ss = fst <$> runFixPoint (runInterp (Shared.run :: Fix [Statement] () (Interp (->)) [Statement] ())) (S.empty,(mkStdGen 0,ss))
+run :: [LStatement] -> Error String (Store Text Val)
+run ss =
+  fst <$>
+    runFixPoint
+      (runInterp
+        (Shared.run :: Fix Statement () (Interp (->)) Statement ()))
+      (S.empty,(mkStdGen 0,generate (begin ss)))
 
 instance ArrowChoice c => IsVal Val (Interp c) where
   boolLit = arr (\(b,_) -> BoolVal b)
