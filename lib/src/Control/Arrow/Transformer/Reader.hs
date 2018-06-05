@@ -67,15 +67,6 @@ instance ArrowState s c => ArrowState s (Reader r c) where
   get = lift get
   put = lift put
 
-instance ArrowStore var val lab c => ArrowStore var val lab (Reader r c) where
-  -- read (Reader f) (Reader g) = Reader (read f g)
-  read f g = read f g
-  write = lift write
-
-instance ArrowState s c => ArrowState s (Reader r c) where
-  getA = lift getA
-  putA = lift putA
-
 instance ArrowWriter w c => ArrowWriter w (Reader r c) where
   tell = lift tell
 

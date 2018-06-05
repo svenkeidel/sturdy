@@ -22,8 +22,6 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Reader
 import           Control.Arrow.Store
 import           Control.Arrow.State
-import           Control.Arrow.Store
-import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Lift
 import           Control.Arrow.Except

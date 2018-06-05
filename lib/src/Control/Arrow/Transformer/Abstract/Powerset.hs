@@ -70,7 +70,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) wh
   lookup (Powerset f) (Powerset g) = Powerset (lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
-  localEnv (Powerset f) = Powerset (localEnv f)
+  localEnv (Powerset f) = Powerset $ localEnv f
 
 instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) where
   dedup (Powerset f) = Powerset $ A.dedup ^<< f
