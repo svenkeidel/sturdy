@@ -38,9 +38,6 @@ import qualified Data.Abstract.Store as S
 
 type ReachingDefs var lab = Store var (Pow lab)
 
--- fromList :: (Identifiable var, Identifiable lab) => [(var,[lab])] -> ReachingDefs var lab
--- fromList = S.fromList . map (second P.fromList)
-
 newtype ReachingDefinitions var lab c x y = ReachingDefinitions (StoreArrow var (Pow lab) c x y)
 
 reachingDefs ::Arrow c => c (ReachingDefs var lab,x) (ReachingDefs var lab,y) -> ReachingDefinitions var lab c x y
