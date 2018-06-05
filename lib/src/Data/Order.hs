@@ -34,9 +34,6 @@ class PreOrd x => Complete x where
   (⊔) :: x -> x -> x
   infix 5 ⊔
 
- -- Temporary
-deriving instance Complete String
-
 -- | Order with a least element
 class PreOrd x => LowerBounded x where
   bottom :: x
