@@ -272,7 +272,7 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
     lookup = proc id -> do
         loc <- Control.Arrow.Environment.lookup -< id
         returnA -< VRef loc
-    apply = proc (lambda, args) -> do
+    apply f1 = proc (lambda, args) -> do
         case lambda of 
             VLambda names body -> do
                 case (length names) == (length args) of
@@ -287,7 +287,7 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
                         forEnv <- arr $ uncurry zip -< (names, locations) 
                         scope <- getEnv -< ()
                         env' <- bindings -< (forEnv, scope)
-                        localEnv eval -< (env', body)
+                        localEnv f1 -< (env', body)
             _ -> failA -< Left $ "Error: apply on non-lambda value: " ++ (show lambda) ++ " " ++ (show args)
     -- store ops
     set = proc (loc, val) -> do
@@ -307,14 +307,14 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
                 returnA -< val
             _ -> failA -< Left $ "Error: EDeref lhs must be location, is: " ++ (show loc) 
     -- control flow
-    if_ = proc (cond, thenBranch, elseBranch) -> do
+    if_ f1 f2 = proc (cond, thenBranch, elseBranch) -> do
         case cond of
             VBool True -> do
-                eval -< thenBranch
+                f1 -< thenBranch
             VBool False -> do
-                eval -< elseBranch
-    label = proc (l, e) -> do
-        (l, res) <- tryCatchA (second eval) (proc ((label, _), err) -> case err of
+                f2 -< elseBranch
+    label f1 = proc (l, e) -> do
+        (l, res) <- tryCatchA (second f1) (proc ((label, _), err) -> case err of
             Left s -> failA -< Left s
             Right (Break l1 v) -> case l1 == label of
                 True -> returnA -< (label, v)
@@ -325,8 +325,8 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
         failA -< Right (Break l v)
     throw = proc v -> do
         failA -< Right (Thrown v)
-    catch = proc (try, catch) -> do
-        (c, res) <- tryCatchA (second eval) (proc ((catch, _), err) -> case err of
+    catch f1 = proc (try, catch) -> do
+        (c, res) <- tryCatchA (second f1) (proc ((catch, _), err) -> case err of
             Left s -> failA -< Left s
             Right (Break l1 v) -> failA -< Right $ Break l1 v
             Right (Thrown v) -> case catch of
@@ -335,7 +335,7 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
                     loc <- fresh -< ()
                     env' <- extendEnv -< (x, loc, scope)
                     write -< (loc, v, ())
-                    res <- localEnv eval -< (env', body)
+                    res <- localEnv f1 -< (env', body)
                     returnA -< (catch, res)
                 _ -> failA -< Left "Error: Catch block must be of type ELambda") -< (catch, try)
         returnA -< res

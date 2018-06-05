@@ -190,7 +190,7 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
     lookup = proc id -> do
         loc <- Control.Arrow.Environment.lookup -< id
         returnA -< Data.Set.fromList [TRef loc]
-    apply = proc (lambdas, args) -> do
+    apply f1 = proc (lambdas, args) -> do
         ts <- mapA (proc (lambda, args) -> case lambda of
             TLambda names bodyT -> do
                 case length names == length args of
@@ -227,15 +227,15 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
                 returnA -< foldr1 (\x y -> x ⊔ y) vals
             _ -> failA -< "Error: EDeref lhs must be location"
     -- control flow
-    if_ = proc (cond, thenBranch, elseBranch) -> do
+    if_ f1 f2 = proc (cond, thenBranch, elseBranch) -> do
         case Data.Set.toList cond of
             [TBool] -> do
-                thenT <- eval -< thenBranch
-                elseT <- eval -< elseBranch
+                thenT <- f1 -< thenBranch
+                elseT <- f2 -< elseBranch
                 returnA -< Data.Set.union thenT elseT
             _ -> failA -< "Error: Conditional must be of type bool"
-    label = proc (l, e) -> do
-        eT <- eval -< e
+    label f1 = proc (l, e) -> do
+        eT <- f1 -< e
         case Data.Set.toList eT of
             [TBreak l1 t] -> case l == l1 of
                 True -> returnA -< t
@@ -245,8 +245,8 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
         returnA -< Data.Set.fromList $ [TBreak l t]
     throw = proc t -> do
         returnA -< Data.Set.fromList $ [TThrown t]
-    catch = proc (try, catch) -> do
-        tryT <- eval -< try
+    catch f1 = proc (try, catch) -> do
+        tryT <- f1 -< try
         case Data.Set.toList tryT of
             [TThrown t] -> returnA -< t
             _ -> failA -< "Error: Expression within try must be of type thrown"

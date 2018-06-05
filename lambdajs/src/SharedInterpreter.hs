@@ -31,16 +31,16 @@ class Arrow c => AbstractValue v c | c -> v where
     evalOp :: c (Op, [v]) v
     -- environment ops
     lookup :: c Ident v
-    apply :: c (v, [v]) v
+    apply :: c Expr v -> c (v, [v]) v
     -- store ops
     set :: c (v, v) ()
     new :: c v v
     get :: c v v
     -- control flow
-    if_ :: c (v, Expr, Expr) v
-    label :: c (Label, Expr) v
+    if_ :: c Expr v -> c Expr v -> c (v, Expr, Expr) v
+    label :: c Expr v -> c (Label, Expr) v
     break :: c (Label, v) v
-    catch :: c (Expr, Expr) v
+    catch :: c Expr v -> c (Expr, Expr) v
     throw :: c v v
     -- exceptional
     error :: c String v
@@ -63,7 +63,7 @@ eval = proc e -> case e of
     EApp body args -> do
         lambda <- eval -< body
         args <- mapA eval -< args 
-        apply -< (lambda, args)
+        apply eval -< (lambda, args)
     ELet argsE body -> do
         eval -< EApp (ELambda (map fst argsE) body) (map snd argsE)
     ESetRef locE valE -> do
@@ -95,11 +95,11 @@ eval = proc e -> case e of
         eval -< two
     EIf condE thenE elseE -> do
         cond <- eval -< condE
-        if_ -< (cond, thenE, elseE)
+        if_ eval eval -< (cond, thenE, elseE)
     EWhile cond body -> do
         eval -< EIf cond (ESeq body (EWhile cond body)) (EUndefined)
     ELabel l e -> do
-        label -< (l, e)
+        label eval -< (l, e)
     EBreak l e -> do
         val <- eval -< e
         break -< (l, val)
@@ -107,7 +107,7 @@ eval = proc e -> case e of
         val <- eval -< e
         throw -< val
     ECatch try catchE -> do
-        catch -< (try, catchE)
+        catch eval -< (try, catchE)
     EFinally e1 e2 -> do
         res <- eval -< e1
         eval -< e2
