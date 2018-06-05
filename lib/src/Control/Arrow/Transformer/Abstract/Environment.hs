@@ -67,6 +67,9 @@ instance ArrowReader r c => ArrowReader r (Environment var val c) where
 instance ArrowConst r c => ArrowConst r (Environment var val c) where
   askConst = lift askConst
 
+instance ArrowConst r c => ArrowConst r (Environment var val c) where
+  askConst = lift askConst
+
 type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
 
 deriving instance ArrowJoin c => ArrowJoin (Environment var val c)
