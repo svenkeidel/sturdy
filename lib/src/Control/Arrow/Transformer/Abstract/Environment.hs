@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.Environment where
 
-import Prelude hiding ((.))
+import Prelude hiding ((.),read)
 
 import Data.Order
 import Data.Identifiable
@@ -17,6 +17,7 @@ import qualified Data.Abstract.Environment as E
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Transformer.Reader
 import Control.Arrow.Reader
 import Control.Arrow.State
@@ -26,7 +27,8 @@ import Control.Arrow.Except
 import Control.Arrow.Lift
 import Control.Arrow.Environment
 import Control.Arrow.Fix
-import Control.Arrow.Const
+
+import Control.Arrow.Abstract.Join
 
 newtype Environment var val c x y = Environment (Reader (Env var val) c x y)
 
@@ -55,6 +57,7 @@ instance ArrowReader r c => ArrowReader r (Environment var val c) where
 
 type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
 
+deriving instance ArrowJoin c => ArrowJoin (Environment var val c)
 deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (Environment var val c)
 deriving instance Arrow c => Category (Environment var val c)
 deriving instance Arrow c => Arrow (Environment var val c)

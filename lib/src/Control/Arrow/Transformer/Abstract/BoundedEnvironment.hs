@@ -33,7 +33,7 @@ import qualified Data.Abstract.Store as S
 -- are approximated by a mapping from variables to addresses and a
 -- mapping from addresses to values. The number of allocated addresses
 -- allows to tune the precision and performance of the analysis.
--- 
+--
 -- Furthermore, closures and environments are defined mutually
 -- recursively. By only allowing a finite number of addresses, the
 -- abstract domain of closures and environments becomes finite.

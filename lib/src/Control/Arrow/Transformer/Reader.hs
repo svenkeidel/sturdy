@@ -11,18 +11,18 @@ module Control.Arrow.Transformer.Reader(Reader(..)) where
 import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
-import Control.Arrow.State
 import Control.Arrow.Store
+import Control.Arrow.State
 import Control.Arrow.Deduplicate
 import Control.Arrow.Except
 import Control.Arrow.Lift
 import Control.Arrow.Writer
 import Control.Arrow.Utils
-import Control.Arrow.Const
 import Control.Arrow.Abstract.Join
 import Control.Category
 
