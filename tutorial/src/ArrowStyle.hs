@@ -21,7 +21,7 @@ eval = proc e -> case e of
     st <- get -< ()
     case Store.lookup x st of
       Just v -> returnA -< v
-      Nothing -> throw -< "Variable not in scope"
+      Nothing -> throw -< "Variable " ++ show x ++ "not in scope"
   NumLit n -> returnA -< (NumVal n)
   Add e1 e2 -> do
     v1 <- eval -< e1
@@ -47,7 +47,7 @@ get :: Arr () Store
 get = Arr (\(st,()) -> Right (st,st))
 
 put :: Arr Store ()
-put = Arr (\(st,_) -> Right (st,()))
+put = Arr (\(_,st) -> Right (st,()))
 
 throw :: Arr String a
 throw = Arr (\(_,er) -> Left er)
