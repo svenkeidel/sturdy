@@ -228,6 +228,9 @@ deriving instance ArrowStore Addr Val () Interp
 deriving instance ArrowExcept x Val (Exception Val) Interp
 deriving instance ArrowExcept x (Maybe Val) (Exception Val) Interp
 
+instance (LowerBounded e, LowerBounded a) => LowerBounded (Error e a) where
+  bottom = SuccessOrFail bottom bottom
+
 deriving instance PreOrd y => PreOrd (Interp x y)
 deriving instance (Complete y) => Complete (Interp x y)
 deriving instance LowerBounded y => LowerBounded (Interp x y)
