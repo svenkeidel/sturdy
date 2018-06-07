@@ -29,7 +29,7 @@ type Val = Interval Int
 type Addr = Int
 type Ar = Environment Text Addr Val (State Addr (Except String (->)))
 
-instance ArrowAlloc Text Addr Val (State Addr (Except String (->))) where
+instance ArrowAlloc Text Addr Val env store (State Addr (Except String (->))) where
   alloc = proc _ -> do
     addr <- getA -< ()
     putA -< (succ addr `mod` 5)
