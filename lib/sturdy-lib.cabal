@@ -58,6 +58,7 @@ library
                        Data.Abstract.Store,
                        Data.Abstract.Widening,
 
+                       Control.Arrow.Alloc,
                        Control.Arrow.Const,
                        Control.Arrow.Deduplicate,
                        Control.Arrow.Environment,
@@ -71,7 +72,6 @@ library
                        Control.Arrow.Writer,
                        Control.Arrow.Utils,
 
-                       Control.Arrow.Abstract.Alloc,
                        Control.Arrow.Abstract.Join,
 
                        Control.Arrow.Transformer.Reader,

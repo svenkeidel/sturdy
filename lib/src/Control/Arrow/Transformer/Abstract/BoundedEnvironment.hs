@@ -10,7 +10,7 @@
 module Control.Arrow.Transformer.Abstract.BoundedEnvironment(Environment,runEnvironment,ArrowAlloc(..)) where
 
 import           Control.Arrow
-import           Control.Arrow.Abstract.Alloc
+import           Control.Arrow.Alloc
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
@@ -42,7 +42,7 @@ import           Text.Printf
 newtype Environment var addr val c x y =
   Environment ( Reader (Env var addr,Store addr val) c x y )
 
-runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c)
+runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val Env Store c)
                => Environment var addr val c x y -> c ([(var,val)],x) y
 runEnvironment f =
   let Environment (Reader f') = proc (bs,x) -> do
@@ -54,7 +54,7 @@ runEnvironment f =
 instance ArrowLift (Environment var addr val) where
   lift f = Environment (lift f)
 
-instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c) =>
+instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val Env Store c) =>
   ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
   lookup = Environment $ Reader $ proc ((env,store),x) -> do
     case do {addr <- E.lookup x env; S.lookup addr store} of
@@ -64,7 +64,7 @@ instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoi
   -- | If an existing address is allocated for a new variable binding,
   -- the new value is joined with the existing value at this address.
   extendEnv = proc (x,y,(env,store)) -> do
-    addr <- lift alloc -< (x,env,store)
+    addr <- lift alloc -< (x,y,env,store)
     returnA -< (E.insert x addr env,S.insertWith (⊔) addr y store)
   localEnv (Environment (Reader f)) =
     Environment (Reader ((\(_,(e,a)) -> (e,a)) ^>> f))
