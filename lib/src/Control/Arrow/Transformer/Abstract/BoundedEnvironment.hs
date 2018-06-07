@@ -29,8 +29,6 @@ import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 
-import           Text.Printf
-
 -- | Abstract domain for environments in which concrete environments
 -- are approximated by a mapping from variables to addresses and a
 -- mapping from addresses to values. The number of allocated addresses
@@ -42,7 +40,8 @@ import           Text.Printf
 newtype Environment var addr val c x y =
   Environment ( Reader (Env var addr,Store addr val) c x y )
 
-runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val Env Store c)
+runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c,
+                   ArrowFail String c, ArrowAlloc (var,val,Env var addr,Store addr val) addr c)
                => Environment var addr val c x y -> c ([(var,val)],x) y
 runEnvironment f =
   let Environment (Reader f') = proc (bs,x) -> do
@@ -54,12 +53,15 @@ runEnvironment f =
 instance ArrowLift (Environment var addr val) where
   lift f = Environment (lift f)
 
-instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val Env Store c) =>
+instance (Identifiable var, Identifiable addr, ArrowChoice c) => ArrowLookup var val y (Environment var addr val c) where
+  lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
+    (env,store) <- askA -< ()
+    case do {addr <- E.lookup var env; S.lookup addr store} of
+      Just val -> f -< (val,x)
+      Nothing -> g -< x
+
+instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowAlloc (var,val,Env var addr,Store addr val) addr c) =>
   ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
-  lookup = Environment $ Reader $ proc ((env,store),x) -> do
-    case do {addr <- E.lookup x env; S.lookup addr store} of
-      Just v -> returnA -< v
-      Nothing -> failA -< printf "Variable %s not bound" (show x)
   getEnv = Environment askA
   -- | If an existing address is allocated for a new variable binding,
   -- the new value is joined with the existing value at this address.

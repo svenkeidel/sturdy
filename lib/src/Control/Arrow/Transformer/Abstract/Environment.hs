@@ -27,18 +27,19 @@ import Control.Arrow.Lift
 import Control.Arrow.Environment
 import Control.Arrow.Fix
 
-import Text.Printf
-
 newtype Environment var val c x y = Environment (Reader (Env var val) c x y)
 
 runEnvironment :: (Arrow c, Eq var, Hashable var) => Environment var val c x y -> c ([(var,val)],x) y
 runEnvironment (Environment (Reader f)) = first E.fromList ^>> f
 
-instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c) => ArrowEnv var val (Env var val) (Environment var val c) where
-  lookup = Environment $ Reader $ proc (env,x) -> do
-    case E.lookup x env of
-      Just y -> returnA -< y
-      Nothing -> failA -< printf "Variable %s not bound" (show x)
+instance (Identifiable var, ArrowChoice c) => ArrowLookup var val y (Environment var val c) where
+  lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
+    env <- askA -< ()
+    case E.lookup var env of
+      Just val -> f -< (val,x)
+      Nothing -> g -< x
+
+instance (Show var, Identifiable var, ArrowChoice c) => ArrowEnv var val (Env var val) (Environment var val c) where
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (localA f)

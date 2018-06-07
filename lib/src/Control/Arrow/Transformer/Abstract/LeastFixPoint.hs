@@ -12,7 +12,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
-{-# OPTIONS_GHC -DTRACE #-}
+-- {-# OPTIONS_GHC -DTRACE #-}
 module Control.Arrow.Transformer.Abstract.LeastFixPoint(type (~>),runLeastFixPoint,runLeastFixPoint',liftLeastFixPoint) where
 
 import           Prelude hiding (id,(.),lookup)
@@ -100,13 +100,13 @@ memoize (LeastFixPoint f) = LeastFixPoint $ \((inCache, outCache),x) -> do
   case S.lookup x outCache of
     -- In case the input was in the fixpoint cache, short-cut
     -- recursion and return the cached value.
-    Success y -> (outCache,y)
+    Just y -> (outCache,y)
 
     -- In case the input was not in the fixpoint cache, initialize the
     -- cache with previous knowledge about the result or ⊥, compute
     -- the result of the function and update the fixpoint cache.
-    Fail _ ->                
-      let yOld = fromError bottom (S.lookup x inCache)
+    Nothing ->                
+      let yOld = fromMaybe bottom (S.lookup x inCache)
           outCache' = S.insert x yOld outCache
           (outCache'',y) = f ((inCache, outCache'),x)
       in (S.insertWith (flip (▽)) x y outCache'',y)

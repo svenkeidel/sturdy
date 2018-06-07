@@ -4,5 +4,5 @@ module Control.Arrow.Alloc where
 
 import Control.Arrow
 
-class Arrow c => ArrowAlloc var addr val env store c where
-  alloc :: c (var,val,env var addr,store addr val) addr
+class Arrow c => ArrowAlloc x y c where
+  alloc :: c x y

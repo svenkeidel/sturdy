@@ -29,7 +29,7 @@ type Val = Interval Int
 type Addr = Int
 type Ar = Environment Text Addr Val (State Addr (Except String (->)))
 
-instance ArrowAlloc Text Addr Val env store (State Addr (Except String (->))) where
+instance ArrowAlloc (Text,val,env,store) Addr (State Addr (Except String (->))) where
   alloc = proc _ -> do
     addr <- getA -< ()
     putA -< (succ addr `mod` 5)
@@ -48,7 +48,7 @@ spec = do
           env5 <- extendEnv -< ("e",5,env4)
           env6 <- extendEnv -< ("f",6,env5)
           env7 <- extendEnv -< ("g",7,env6)
-          localEnv lookup -< (env7,x)
+          localEnv lookup' -< (env7,x)
   
     it "env(a) = [1,6]" $ runTests setup "a" `shouldBe` Success (Interval 1 6)
     it "env(b) = [2,6]" $ runTests setup "b" `shouldBe` Success (Interval 2 7)
@@ -77,7 +77,7 @@ spec = do
                extendEnv -< ("f",6,env5))
             -< (env4,())
           env7 <- extendEnv -< ("g",7,env4)
-          localEnv lookup -< (env7,x)
+          localEnv lookup' -< (env7,x)
   
     it "env(a) = [1,6]" $ runTests setup "a" `shouldBe` Success (Interval 1 1)
     it "env(b) = Nothing" $ runTests setup "b" `shouldBe` Fail "Variable \"b\" not bound"

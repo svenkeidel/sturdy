@@ -10,7 +10,6 @@ module Control.Arrow.Transformer.Concrete.Environment where
 
 import           Prelude hiding ((.))
 
-import           Data.Hashable
 import           Data.Identifiable
 import           Data.Concrete.Environment (Env)
 import qualified Data.Concrete.Environment as E
@@ -27,21 +26,23 @@ import           Control.Arrow.Except
 import           Control.Arrow.Environment
 import           Control.Arrow.Fix
 
-import           Text.Printf
-
 -- | Arrow transformer that adds an environment to a computation.
 newtype Environment var val c x y = Environment (Reader (Env var val) c x y)
 
-runEnvironment :: (Arrow c, Eq var, Hashable var) => Environment var val c x y -> c ([(var,val)],x) y
-runEnvironment (Environment (Reader f)) = first E.fromList ^>> f
+runEnvironment :: (Arrow c) => Environment var val c x y -> c (Env var val,x) y
+runEnvironment (Environment (Reader f)) = f
 
-instance (Show var, Identifiable var, ArrowChoice c, ArrowFail String c) =>
-  ArrowEnv var val (Env var val) (Environment var val c) where
-  lookup = proc x -> do
-    env <- getEnv -< ()
-    case E.lookup x env of
-      Just y -> returnA -< y
-      Nothing -> failA -< printf "Variable %s not bound" (show x)
+runEnvironment' :: (Arrow c, Identifiable var) => Environment var val c x y -> c ([(var,val)],x) y
+runEnvironment' f = first E.fromList ^>> runEnvironment f
+
+instance (Identifiable var, ArrowChoice c) => ArrowLookup var val y (Environment var val c) where
+  lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
+    env <- askA -< ()
+    case E.lookup var env of
+      Just val -> f -< (val,x)
+      Nothing -> g -< x
+
+instance (Identifiable var, ArrowChoice c) => ArrowEnv var val (Env var val) (Environment var val c) where
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (localA f)

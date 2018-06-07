@@ -15,10 +15,10 @@ import Control.Arrow.Environment
 import Data.Text (Text)
 
 -- | Shared interpreter for PCF.
-eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c, IsVal v c, IsClosure v env c)
+eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowLookup Text v v c, ArrowEnv Text v env c, ArrowFail String c, IsVal v c, IsClosure v env c)
      => c Expr v
 eval = fixA $ \ev -> proc e0 -> case e0 of
-  Var x _ -> lookup -< x
+  Var x _ -> lookup' -< x
   Lam x e l -> do
     env <- getEnv -< ()
     closure -< (Lam x e l, env)

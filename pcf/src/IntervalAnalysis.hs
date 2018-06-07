@@ -122,6 +122,7 @@ deriving instance Arrow Interp
 deriving instance ArrowChoice Interp
 deriving instance ArrowFail String Interp
 deriving instance ArrowConst IV Interp
+deriving instance ArrowLookup Text Val Val Interp
 deriving instance ArrowEnv Text Val (Env Text Addr, Store Addr Val) Interp
 deriving instance ArrowFix Expr Val Interp
 deriving instance PreOrd y => PreOrd (Interp x y)

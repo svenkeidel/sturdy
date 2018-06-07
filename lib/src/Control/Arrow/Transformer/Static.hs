@@ -66,8 +66,10 @@ instance (Applicative f, ArrowExcept x y e c) => ArrowExcept x y e (Static f c) 
   tryCatchA (Static f) (Static g) = Static $ tryCatchA <$> f <*> g
   finally (Static f) (Static g) = Static $ finally <$> f <*> g
 
+instance (Applicative f, ArrowLookup var val y c) => ArrowLookup var val y (Static f c) where
+  lookup (Static f) (Static g) = Static $ lookup <$> f <*> g
+
 instance (Applicative f, ArrowEnv x y env c) => ArrowEnv x y env (Static f c) where
-  lookup = lift lookup
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Static f) = Static $ localEnv <$> f

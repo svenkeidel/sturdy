@@ -38,7 +38,7 @@ newtype Interp x y = Interp (Fix Expr Val (Environment Text Val (Except String (
 
 -- | Takes an arrow computation and executes it.
 runInterp :: Interp x y -> [(Text,Val)] -> x -> Error String y
-runInterp (Interp f) env x = runFixPoint (runExcept (runEnvironment f)) (env,x)
+runInterp (Interp f) env x = runFixPoint (runExcept (runEnvironment' f)) (env,x)
 
 -- | The concrete interpreter function for PCF. The function is
 -- implemented by instantiating the shared semantics with the concrete
@@ -73,6 +73,7 @@ deriving instance Category Interp
 deriving instance Arrow Interp
 deriving instance ArrowChoice Interp
 deriving instance ArrowFail String Interp
+deriving instance ArrowLookup Text Val Val Interp
 deriving instance ArrowEnv Text Val (Env Text Val) Interp
 deriving instance ArrowFix Expr Val Interp
 
