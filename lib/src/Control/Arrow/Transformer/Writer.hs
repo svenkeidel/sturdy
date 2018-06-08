@@ -78,8 +78,10 @@ instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (Writer w c) where
   extendEnv = lift extendEnv
   localEnv (Writer f) = Writer (localEnv f)
 
-instance (Monoid w, ArrowStore var val lab c) => ArrowStore var val lab (Writer w c) where
-  read = lift read
+instance (Monoid w, ArrowRead var val x (w,y) c)  => ArrowRead var val x y (Writer w c) where
+  read (Writer f) (Writer g) = Writer $ read f g
+
+instance (Monoid w, ArrowWrite var val c)  => ArrowWrite var val (Writer w c) where
   write = lift write
 
 type instance Fix x y (Writer w c) = Writer w (Fix x (w,y) c)

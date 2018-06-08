@@ -81,8 +81,10 @@ instance ArrowEnv x y env c => ArrowEnv x y env (State s c) where
   extendEnv = lift extendEnv
   localEnv (State f) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
 
-instance ArrowStore var val lab c => ArrowStore var val lab (State s c) where
-  read = lift read
+instance ArrowRead var val (s,x) (s,y) c => ArrowRead var val x y (State s c) where
+  read (State f) (State g) = State $ (\(s,(v,a)) -> (v,(s,a))) ^>> read ((\(v,(s,a)) -> (s,(v,a))) ^>> f) g
+
+instance ArrowWrite var val c => ArrowWrite var val (State s c) where
   write = lift write
 
 type instance Fix x y (State s c) = State s (Fix (s,x) (s,y) c)

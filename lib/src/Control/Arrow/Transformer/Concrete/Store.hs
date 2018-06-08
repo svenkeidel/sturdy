@@ -26,8 +26,6 @@ import Data.Concrete.Store (Store)
 import qualified Data.Concrete.Store as S
 import Data.Identifiable
 
-import Text.Printf
-
 -- | Arrow transformer that adds a store to a computation.
 newtype StoreArrow var val c x y = StoreArrow (State (Store var val) c x y)
 
@@ -46,13 +44,15 @@ execStore f = runStore f >>> pi1
 instance ArrowLift (StoreArrow var val) where
   lift f = StoreArrow (lift f)
 
-instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c) =>
-  ArrowStore var val lab (StoreArrow var val c) where
-  read =
-    StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
-      Just v -> returnA -< (s,v)
-      Nothing -> failA -< printf "Variable %s not bound" (show var)
-  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
+instance (Identifiable var, ArrowChoice c) => ArrowRead var val x y (StoreArrow var val c) where
+  read (StoreArrow f) (StoreArrow g) = StoreArrow $ proc (var,x) -> do
+    s <- getA -< ()
+    case S.lookup var s of
+      Just v -> f -< (v,x)
+      Nothing -> g -< x
+
+instance (Identifiable var, Arrow c) => ArrowWrite var val (StoreArrow var val c) where
+  write = StoreArrow $ modifyA $ arr (\((x,v),s) -> S.insert x v s)
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   getA = lift getA

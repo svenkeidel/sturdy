@@ -13,7 +13,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ValueSemantics.Interval where
 
-import           Prelude hiding (Bool(..),Bounded(..),(==),(/))
+import           Prelude hiding (Bool(..),Bounded(..),(==),(/),read)
 import qualified Prelude as P
 
 import           Syntax
@@ -152,7 +152,13 @@ deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowConst IV (Interp c)
 type instance Fix x y (Interp c) = Interp (Fix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c)
 deriving instance (ArrowChoice c, ArrowFix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c) => ArrowFix x y (Interp c)
-deriving instance (Complete (c ((Store Addr Val,Val),Addr) (Error String (Store Addr Val,Val))), ArrowChoice c) => ArrowStore Addr Val Label (Interp c)
+-- deriving instance (Complete (c ((Store Addr Val,Val),Addr) (Error String (Store Addr Val,Val))), ArrowChoice c) => ArrowStore Addr Val Label (Interp c)
+instance ArrowChoice c => ArrowRead (Addr,Label) Val x y (Interp c) where
+  read (Interp f) (Interp g) = Interp $ proc ((addr,_),x) -> read f g -< (addr,x)
+                               
+instance ArrowChoice c => ArrowWrite (Addr,Label) Val (Interp c) where
+  write = Interp $ proc ((addr,_),val) -> write -< (addr,val)
+
 deriving instance ArrowChoice c => ArrowEnv Text Addr (Env Text Addr) (Interp c)
 deriving instance (PreOrd (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => PreOrd (Interp c x y)
 deriving instance (Complete (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => Complete (Interp c x y)

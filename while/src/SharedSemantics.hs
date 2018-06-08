@@ -22,13 +22,14 @@ import Syntax
 
 type Prog = [Statement]
   
-eval :: (ArrowChoice c, ArrowEnv Text addr env c, ArrowStore addr v Label c,
+eval :: (Show addr, ArrowChoice c,
+         ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
          ArrowFail String c, IsVal v c)
      => c Expr v
 eval = proc e -> case e of
   Var x l -> do
     addr <- lookup' -< x
-    read -< (addr,l)
+    read' -< (addr,l)
   BoolLit b l -> boolLit -< (b,l)
   And e1 e2 l -> do
     v1 <- eval -< e1
@@ -68,8 +69,8 @@ eval = proc e -> case e of
     v2 <- eval -< e2
     lt -< (v1,v2,l)
 
-run :: (ArrowChoice c, ArrowFix [Statement] () c,
-        ArrowEnv Text addr env c, ArrowStore addr v Label c,
+run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
+        ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
         ArrowAlloc (Text,v,Label) addr c, ArrowFail String c,
         Conditional v [Statement] [Statement] () c, IsVal v c)
     => c [Statement] ()
@@ -77,7 +78,7 @@ run = fixA $ \run' -> proc stmts -> case stmts of
   Assign x e l:ss -> do
     v <- eval -< e
     addr <- lookup pi1 alloc -< (x,(x,v,l))
-    write -< (addr,v,l)
+    write -< ((addr,l),v)
     extendEnv' run' -< (x, addr, ss)
   If cond s1 s2 _:ss -> do
     b <- eval -< cond
@@ -107,3 +108,4 @@ class Arrow c => IsVal v c | c -> v where
 
 class Arrow c => Conditional v x y z c | c -> v where
   if_ :: c x z -> c y z -> c (v,(x,y)) z
+ 

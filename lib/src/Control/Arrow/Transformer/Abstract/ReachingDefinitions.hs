@@ -46,12 +46,16 @@ reachingDefs = ReachingDefinitions . StoreArrow . State
 runReachingDefs :: Arrow c => ReachingDefinitions var lab c x y -> c (ReachingDefs var lab,x) (ReachingDefs var lab,y)
 runReachingDefs (ReachingDefinitions f) = runStore f
 
-instance (Identifiable var, Identifiable lab, ArrowStore var val lab c)
-  => ArrowStore var val lab (ReachingDefinitions var lab c) where
-  read = lift read 
-  write = ReachingDefinitions $ StoreArrow $ State $ proc (st,(x,v,l)) -> do
-    write -< (x,v,l)
-    returnA -< (S.insert x (P.singleton l) st,())
+instance (Identifiable var, Identifiable lab, ArrowRead (var,lab) val (Store var (Pow lab),x) (Store var (Pow lab),y) c)
+  => ArrowRead (var,lab) val x y (ReachingDefinitions var lab c) where
+  read (ReachingDefinitions (StoreArrow f)) (ReachingDefinitions (StoreArrow g)) =
+    ReachingDefinitions $ StoreArrow $ proc ((var,l),x) -> read f g -< ((var,l),x)
+
+instance (Identifiable var, Identifiable lab, ArrowWrite (var,lab) val c)
+  => ArrowWrite (var,lab) val (ReachingDefinitions var lab c) where
+  write = ReachingDefinitions $ StoreArrow $ State $ proc (st,((var,l),val)) -> do
+    write -< ((var,l),val)
+    returnA -< (S.insert var (P.singleton l) st,())
 
 type instance Fix x y (ReachingDefinitions var lab c) = ReachingDefinitions var lab (Fix (ReachingDefs var lab, x) (ReachingDefs var lab, y) c)
 deriving instance (Arrow c, ArrowFix x y (StoreArrow var (Pow lab) c)) => ArrowFix x y (ReachingDefinitions var lab c)

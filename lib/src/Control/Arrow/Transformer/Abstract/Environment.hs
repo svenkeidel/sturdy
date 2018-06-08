@@ -62,7 +62,7 @@ deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
 deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
 deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
-deriving instance ArrowStore x y l c => ArrowStore x y l (Environment var val c)
+deriving instance ArrowRead x y (Env var val,u) v c => ArrowRead x y u v (Environment var val c)
 
 deriving instance PreOrd (c (Env var val,x) y) => PreOrd (Environment var val c x y)
 deriving instance Complete (c (Env var val,x) y) => Complete (Environment var val c x y)

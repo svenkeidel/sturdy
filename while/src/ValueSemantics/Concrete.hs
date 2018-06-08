@@ -9,7 +9,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module ValueSemantics.Concrete where
 
-import           Prelude
+import           Prelude hiding (read)
 import qualified Prelude as P
 
 import           Syntax
@@ -105,6 +105,12 @@ instance ArrowChoice c => Conditional Val x y z (Interp c) where
     BoolVal False -> f2 -< y
     _ -> failA -< "Expected boolean as argument for 'if'"
 
+instance ArrowChoice c => ArrowRead (Addr,Label) Val x y (Interp c) where
+  read (Interp f) (Interp g) = Interp $ proc ((addr,_),x) -> read f g -< (addr,x)
+                               
+instance ArrowChoice c => ArrowWrite (Addr,Label) Val (Interp c) where
+  write = Interp $ proc ((addr,_),val) -> write -< (addr,val)
+
 deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)
 deriving instance ArrowChoice c => ArrowChoice (Interp c)
@@ -112,6 +118,5 @@ deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowState StdGen (Interp c)
 deriving instance (ArrowFix (Store Addr Val,(Env Text Addr,(StdGen,x))) (Error String (Store Addr Val,(StdGen,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
 deriving instance ArrowChoice c => ArrowEnv Text Addr (Env Text Addr) (Interp c)
-deriving instance ArrowChoice c => ArrowStore Addr Val Label (Interp c)
 
 instance Hashable Val

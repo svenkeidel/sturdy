@@ -25,8 +25,6 @@ import qualified Data.Abstract.Store as S
 import Data.Order
 import Data.Identifiable
 
-import Text.Printf
-
 newtype StoreArrow var val c x y = StoreArrow (State (Store var val) c x y)
 
 runStore :: StoreArrow var val c x y -> c (Store var val, x) (Store var val, y)
@@ -38,13 +36,16 @@ evalStore f = runStore f >>> pi2
 execStore :: Arrow c => StoreArrow var val c x y -> c (Store var val, x) (Store var val)
 execStore f = runStore f >>> pi1
 
-instance (Show var, Identifiable var, ArrowFail String c, ArrowChoice c, Complete (c ((Store var val,val),var) (Store var val,val))) =>
-  ArrowStore var val lab (StoreArrow var val c) where
-  read =
-    StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
-      Just v -> joined returnA (proc var -> failA -< printf "Variable %s not bound" (show var)) -< ((s,v),var)
-      Nothing -> failA -< printf "Variable %s not bound" (show var)
-  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
+instance (Identifiable var, ArrowChoice c, Complete (c (Store var val, ((val, x), x)) (Store var val, y)))
+  => ArrowRead var val x y (StoreArrow var val c) where
+  read (StoreArrow f) (StoreArrow g) = StoreArrow $ proc (var,x) -> do
+    s <- getA -< ()
+    case S.lookup var s of
+      Just val -> joined f g -< ((val,x),x)
+      Nothing  -> g          -< x
+
+instance (Identifiable var, Arrow c) => ArrowWrite var val (StoreArrow var val c) where
+  write = StoreArrow $ modifyA $ arr $ \((var,val),st) -> S.insert var val st
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   getA = lift getA

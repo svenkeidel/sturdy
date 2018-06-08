@@ -7,11 +7,12 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Except(Except(..)) where
 
-import Prelude hiding (id,(.),lookup)
+import Prelude hiding (id,(.),lookup,read)
 
 import Control.Arrow
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
+import Control.Arrow.Store
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
@@ -64,6 +65,12 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) wh
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Except f) = Except (localEnv f)
+
+instance (ArrowChoice c, ArrowRead var val x (Error e y) c) => ArrowRead var val x y (Except e c) where
+  read (Except f) (Except g) = Except $ read f g
+
+instance (ArrowChoice c, ArrowWrite x y c) => ArrowWrite x y (Except e c) where
+  write = lift write
 
 type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where

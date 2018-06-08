@@ -163,10 +163,10 @@ instance HasLabel Statement where
 
 instance Hashable Statement where
 
-blocks :: Statement -> [Statement]
-blocks s = case s of
+blocks :: [Statement] -> [Statement]
+blocks ss = flip concatMap ss $ \s -> case s of
   Assign {} -> [s]
-  If _ s1 s2 _ -> s : concatMap blocks [s1, s2]
-  While _ body _ -> s : blocks body
-  Begin ss _ -> concatMap blocks ss
+  If _ s1 s2 _ -> s : blocks [s1, s2]
+  While _ body _ -> s : blocks [body]
+  Begin ss' _ -> blocks ss'
 

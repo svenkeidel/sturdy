@@ -17,6 +17,7 @@ import           Data.Label
 import qualified Data.List as L
 import           Data.Ord (comparing)
 
+import qualified Data.Abstract.Environment as E
 import qualified Data.Abstract.Store as S
 
 import           Control.Arrow.Fix 
@@ -25,7 +26,7 @@ import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
 -- | Calculates the entry sets of which definitions may be reached for each statment.
-run :: Statement -> ReachingDefs Text Label -> [(Statement,ReachingDefs Text Label)]
+run :: [Statement] -> ReachingDefs Text Label -> [(Statement,ReachingDefs Text Label)]
 run stmts defs =
   L.sortBy (comparing (label . fst)) $
   S.toList $
@@ -33,10 +34,10 @@ run stmts defs =
   -- Joins the reaching definitions for each statement for all call context.
   -- Filters out statements created during execution that are not part
   -- of the input program.
-  S.map (\((_,(entry,st)),_) ->
-    if st `elem` blocks stmts
-    then Just (st,entry)
-    else Nothing) $
+  S.map (\((_,(_,(entry,stmts))),_) ->
+    case stmts of
+      stmt:_ | stmt `elem` blocks stmts -> Just (stmt,entry)
+      _ -> Nothing) $
   
   -- get the fixpoint cache
   fst $
@@ -45,11 +46,11 @@ run stmts defs =
   runLeastFixPoint'
     (runInterp
        (runReachingDefs
-        (Shared.run :: Fix Statement ()
+        (Shared.run :: Fix [Statement] ()
                          (ReachingDefinitions Text Label
                            (Interp
-                             (~>))) Statement ())))
-    (S.empty,(defs,stmts))
+                             (~>))) [Statement] ())))
+    (S.empty,(E.empty,(defs,stmts)))
 
 instance (IsVal val c) => IsVal val (ReachingDefinitions v l c) where
   boolLit = lift boolLit
