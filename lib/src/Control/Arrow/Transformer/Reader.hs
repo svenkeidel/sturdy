@@ -8,7 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Transformer.Reader(Reader(..)) where
 
-import Prelude hiding (id,(.),lookup)
+import Prelude hiding (id,(.),lookup,read)
 
 import Control.Arrow
 import Control.Arrow.Environment
@@ -16,6 +16,7 @@ import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
 import Control.Arrow.State
+import Control.Arrow.Store
 import Control.Arrow.Deduplicate
 import Control.Arrow.Except
 import Control.Arrow.Lift
@@ -74,6 +75,10 @@ instance ArrowEnv x y env c => ArrowEnv x y env (Reader r c) where
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Reader f) = Reader ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
+
+instance ArrowStore x y lab c => ArrowStore x y lab (Reader r c) where
+  read = lift read
+  write = lift write
 
 type instance Fix x y (Reader r c) = Reader r (Fix (r,x) y c)
 instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where

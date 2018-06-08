@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Environment where
 
-import           Prelude hiding ((.))
+import           Prelude hiding ((.),read)
 
 import           Data.Identifiable
 import           Data.Concrete.Environment (Env)
@@ -24,6 +24,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Lift
 import           Control.Arrow.Except
 import           Control.Arrow.Environment
+import           Control.Arrow.Store
 import           Control.Arrow.Fix
 
 -- | Arrow transformer that adds an environment to a computation.
@@ -61,6 +62,7 @@ deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
 deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
 deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
+deriving instance ArrowStore x y lab c => ArrowStore x y lab (Environment var val c)
 
 type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
 deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (Environment var val c)
