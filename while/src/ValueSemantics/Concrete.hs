@@ -111,7 +111,6 @@ deriving instance ArrowChoice c => ArrowChoice (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowState StdGen (Interp c)
 deriving instance (ArrowFix (Store Addr Val,(Env Text Addr,(StdGen,x))) (Error String (Store Addr Val,(StdGen,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
-deriving instance ArrowChoice c => ArrowLookup Text Addr Addr (Interp c)
 deriving instance ArrowChoice c => ArrowEnv Text Addr (Env Text Addr) (Interp c)
 deriving instance ArrowChoice c => ArrowStore Addr Val Label (Interp c)
 

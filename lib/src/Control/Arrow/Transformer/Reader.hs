@@ -68,10 +68,8 @@ instance ArrowWriter w c => ArrowWriter w (Reader r c) where
 instance ArrowFail e c => ArrowFail e (Reader r c) where
   failA = lift failA
 
-instance ArrowLookup var val y c => ArrowLookup var val y (Reader r c) where
-  lookup (Reader f) (Reader g) = Reader $ (\(r,(v,a)) -> (v,(r,a))) ^>> lookup ((\(v,(r,a)) -> (r,(v,a))) ^>> f) g
-
 instance ArrowEnv x y env c => ArrowEnv x y env (Reader r c) where
+  lookup (Reader f) (Reader g) = Reader $ (\(r,(v,a)) -> (v,(r,a))) ^>> lookup ((\(v,(r,a)) -> (r,(v,a))) ^>> f) g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Reader f) = Reader ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)

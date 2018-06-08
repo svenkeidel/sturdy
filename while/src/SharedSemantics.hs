@@ -22,8 +22,8 @@ import Syntax
 
 type Prog = [Statement]
   
-eval :: (ArrowChoice c, ArrowLookup Text addr addr c, ArrowEnv Text addr env c,
-         ArrowStore addr v Label c, ArrowFail String c, IsVal v c)
+eval :: (ArrowChoice c, ArrowEnv Text addr env c, ArrowStore addr v Label c,
+         ArrowFail String c, IsVal v c)
      => c Expr v
 eval = proc e -> case e of
   Var x l -> do
@@ -69,10 +69,9 @@ eval = proc e -> case e of
     lt -< (v1,v2,l)
 
 run :: (ArrowChoice c, ArrowFix [Statement] () c,
-        ArrowLookup Text addr addr c, ArrowEnv Text addr env c,
-        ArrowStore addr v Label c, ArrowAlloc (Text,v,Label) addr c,
-        ArrowFail String c, Conditional v [Statement] [Statement] () c,
-        IsVal v c)
+        ArrowEnv Text addr env c, ArrowStore addr v Label c,
+        ArrowAlloc (Text,v,Label) addr c, ArrowFail String c,
+        Conditional v [Statement] [Statement] () c, IsVal v c)
     => c [Statement] ()
 run = fixA $ \run' -> proc stmts -> case stmts of
   Assign x e l:ss -> do

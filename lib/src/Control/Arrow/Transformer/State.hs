@@ -75,10 +75,8 @@ instance ArrowReader r c => ArrowReader r (State s c) where
 instance ArrowWriter w c => ArrowWriter w (State s c) where
   tellA = lift tellA
 
-instance ArrowLookup var val (s,y) c => ArrowLookup var val y (State s c) where
-  lookup (State f) (State g) = State $ (\(s,(v,a)) -> (v,(s,a))) ^>> lookup ((\(v,(s,a)) -> (s,(v,a))) ^>> f) g
-
 instance ArrowEnv x y env c => ArrowEnv x y env (State s c) where
+  lookup (State f) (State g) = State $ (\(s,(v,a)) -> (v,(s,a))) ^>> lookup ((\(v,(s,a)) -> (s,(v,a))) ^>> f) g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (State f) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)

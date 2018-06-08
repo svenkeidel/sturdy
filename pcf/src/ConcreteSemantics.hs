@@ -73,7 +73,6 @@ deriving instance Category Interp
 deriving instance Arrow Interp
 deriving instance ArrowChoice Interp
 deriving instance ArrowFail String Interp
-deriving instance ArrowLookup Text Val Val Interp
 deriving instance ArrowEnv Text Val (Env Text Val) Interp
 deriving instance ArrowFix Expr Val Interp
 

@@ -59,10 +59,8 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Except e c) where
   askA = lift askA
   localA (Except f) = Except (localA f)
 
-instance (ArrowChoice c, ArrowLookup var val (Error e y) c) => ArrowLookup var val y (Except e c) where
-  lookup (Except f) (Except g) = Except $ lookup f g
-
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) where
+  lookup (Except f) (Except g) = Except $ lookup f g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Except f) = Except (localEnv f)

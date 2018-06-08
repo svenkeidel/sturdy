@@ -62,10 +62,8 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Completion c) where
   askA = lift askA
   localA (Completion f) = Completion (localA f)
 
-instance (ArrowChoice c, ArrowLookup var val (FreeCompletion y) c) => ArrowLookup var val y (Completion c) where
-  lookup (Completion f) (Completion g) = Completion (lookup f g)
-
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Completion c) where
+  lookup (Completion f) (Completion g) = Completion (lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Completion f) = Completion (localEnv f)

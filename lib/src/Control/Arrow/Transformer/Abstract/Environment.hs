@@ -35,14 +35,12 @@ runEnvironment (Environment (Reader f)) = f
 runEnvironment' :: (Arrow c, Identifiable var) => Environment var val c x y -> c ([(var,val)],x) y
 runEnvironment' f = first E.fromList ^>> runEnvironment f
 
-instance (Identifiable var, ArrowChoice c) => ArrowLookup var val y (Environment var val c) where
+instance (Show var, Identifiable var, ArrowChoice c) => ArrowEnv var val (Env var val) (Environment var val c) where
   lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
     env <- askA -< ()
     case E.lookup var env of
       Just val -> f -< (val,x)
       Nothing -> g -< x
-
-instance (Show var, Identifiable var, ArrowChoice c) => ArrowEnv var val (Env var val) (Environment var val c) where
   getEnv = Environment askA
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (localA f)

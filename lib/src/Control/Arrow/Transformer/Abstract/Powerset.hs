@@ -66,10 +66,8 @@ instance (ArrowChoice c, ArrowState s c) => ArrowState s (Powerset c) where
 instance (ArrowChoice c, ArrowFail e c) => ArrowFail e (Powerset c) where
   failA = lift failA
 
-instance (ArrowChoice c, ArrowLookup var val (A.Pow y) c) => ArrowLookup var val y (Powerset c) where
-  lookup (Powerset f) (Powerset g) = Powerset (lookup f g)
-
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) where
+  lookup (Powerset f) (Powerset g) = Powerset (lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Powerset f) = Powerset $ localEnv f

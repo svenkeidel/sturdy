@@ -72,10 +72,8 @@ instance (Monoid w, ArrowReader r c) => ArrowReader r (Writer w c) where
   askA = lift askA
   localA (Writer f) = Writer (localA f)
 
-instance (Monoid w, ArrowLookup var val (w,y) c) => ArrowLookup var val y (Writer w c) where
-  lookup (Writer f) (Writer g) = Writer $ lookup f g
-
 instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (Writer w c) where
+  lookup (Writer f) (Writer g) = Writer $ lookup f g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Writer f) = Writer (localEnv f)

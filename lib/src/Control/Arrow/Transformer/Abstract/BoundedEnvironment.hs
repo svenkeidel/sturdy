@@ -53,15 +53,13 @@ runEnvironment f =
 instance ArrowLift (Environment var addr val) where
   lift f = Environment (lift f)
 
-instance (Identifiable var, Identifiable addr, ArrowChoice c) => ArrowLookup var val y (Environment var addr val c) where
+instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowAlloc (var,val,Env var addr,Store addr val) addr c) =>
+  ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
   lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
     (env,store) <- askA -< ()
     case do {addr <- E.lookup var env; S.lookup addr store} of
       Just val -> f -< (val,x)
       Nothing -> g -< x
-
-instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowAlloc (var,val,Env var addr,Store addr val) addr c) =>
-  ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
   getEnv = Environment askA
   -- | If an existing address is allocated for a new variable binding,
   -- the new value is joined with the existing value at this address.
