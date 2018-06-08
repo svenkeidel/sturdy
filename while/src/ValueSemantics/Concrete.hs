@@ -17,6 +17,8 @@ import           SharedSemantics hiding (run)
 import qualified SharedSemantics as Shared
 
 import           Data.Concrete.Error
+import           Data.Concrete.Environment (Env)
+import qualified Data.Concrete.Environment as E
 import qualified Data.Concrete.Store as S
 import           Data.Concrete.Store (Store)
 import           Data.Hashable
@@ -28,9 +30,12 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.State
 import           Control.Arrow.Fix
+import           Control.Arrow.Environment
 import           Control.Arrow.Store
+import           Control.Arrow.Alloc
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Concrete.Except
+import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.Concrete.FixPoint(runFixPoint)
 
@@ -39,19 +44,23 @@ import           System.Random
 import           GHC.Generics (Generic)
 
 data Val = BoolVal Bool | NumVal Int deriving (Eq, Show, Generic)
-newtype Interp c x y = Interp (State StdGen (StoreArrow Text Val (Except String c)) x y)
+type Addr = Label
+newtype Interp c x y = Interp (State StdGen (Environment Text Addr (StoreArrow Addr Val (Except String c))) x y)
 type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,(StdGen,x)) (Error String (Store Text Val,(StdGen,y))) c)
 
-runInterp :: Interp c x y -> c (Store Text Val, (StdGen,x)) (Error String (Store Text Val, (StdGen,y)))
-runInterp (Interp f) = runExcept (runStore (runState f))
+runInterp :: ArrowChoice c => Interp c x y -> c (Store Addr Val, (Env Text Addr, (StdGen,x))) (Error String (Store Addr Val, (StdGen,y)))
+runInterp (Interp f) = runExcept (runStore (runEnvironment (runState f)))
 
-run :: [LStatement] -> Error String (Store Text Val)
+run :: [LStatement] -> Error String (Store Addr Val)
 run ss =
   fst <$>
     runFixPoint
       (runInterp
-        (Shared.run :: Fix Statement () (Interp (->)) Statement ()))
-      (S.empty,(mkStdGen 0,generate (begin ss)))
+        (Shared.run :: Fix [Statement] () (Interp (->)) [Statement] ()))
+      (S.empty,(E.empty,(mkStdGen 0, generate <$> ss)))
+
+instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp c) where
+  alloc = arr $ \(_,_,l) -> l
 
 instance ArrowChoice c => IsVal Val (Interp c) where
   boolLit = arr (\(b,_) -> BoolVal b)
@@ -101,7 +110,9 @@ deriving instance ArrowChoice c => Arrow (Interp c)
 deriving instance ArrowChoice c => ArrowChoice (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowState StdGen (Interp c)
-deriving instance (ArrowFix (Store Text Val,(StdGen,x)) (Error String (Store Text Val,(StdGen,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
-deriving instance ArrowChoice c => ArrowStore Text Val Label (Interp c)
+deriving instance (ArrowFix (Store Addr Val,(Env Text Addr,(StdGen,x))) (Error String (Store Addr Val,(StdGen,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
+deriving instance ArrowChoice c => ArrowLookup Text Addr Addr (Interp c)
+deriving instance ArrowChoice c => ArrowEnv Text Addr (Env Text Addr) (Interp c)
+deriving instance ArrowChoice c => ArrowStore Addr Val Label (Interp c)
 
 instance Hashable Val

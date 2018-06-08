@@ -9,7 +9,10 @@ import Prelude hiding (lookup, and, or, not, div, read)
 import Data.Label
 
 import Control.Arrow
+import Control.Arrow.Alloc
+import Control.Arrow.Fail
 import Control.Arrow.Fix
+import Control.Arrow.Environment
 import Control.Arrow.Store
 import Control.Arrow.Utils
 
@@ -19,9 +22,13 @@ import Syntax
 
 type Prog = [Statement]
   
-eval :: (ArrowChoice c, ArrowStore Text v Label c, IsVal v c) => c Expr v
+eval :: (ArrowChoice c, ArrowLookup Text addr addr c, ArrowEnv Text addr env c,
+         ArrowStore addr v Label c, ArrowFail String c, IsVal v c)
+     => c Expr v
 eval = proc e -> case e of
-  Var x l -> read -< (x,l)
+  Var x l -> do
+    addr <- lookup' -< x
+    read -< (addr,l)
   BoolLit b l -> boolLit -< (b,l)
   And e1 e2 l -> do
     v1 <- eval -< e1
@@ -61,20 +68,29 @@ eval = proc e -> case e of
     v2 <- eval -< e2
     lt -< (v1,v2,l)
 
-run :: (ArrowFix Statement () c, ArrowChoice c, ArrowStore Text v Label c,
-        Conditional v Statement Statement () c, IsVal v c)
-    => c Statement ()
+run :: (ArrowChoice c, ArrowFix [Statement] () c,
+        ArrowLookup Text addr addr c, ArrowEnv Text addr env c,
+        ArrowStore addr v Label c, ArrowAlloc (Text,v,Label) addr c,
+        ArrowFail String c, Conditional v [Statement] [Statement] () c,
+        IsVal v c)
+    => c [Statement] ()
 run = fixA $ \run' -> proc stmts -> case stmts of
-  Assign x e l -> do
+  Assign x e l:ss -> do
     v <- eval -< e
-    write -< (x,v,l)
-  If cond b1 b2 _ -> do
+    addr <- lookup pi1 alloc -< (x,(x,v,l))
+    write -< (addr,v,l)
+    extendEnv' run' -< (x, addr, ss)
+  If cond s1 s2 _:ss -> do
     b <- eval -< cond
-    if_ run' run' -< (b,(b1,b2))
-  While cond body l ->
-    run' -< If cond (Begin [body,While cond body l] l) (Begin [] l) l
-  Begin ss _ ->
-    voidA $ mapA run' -< ss
+    if_ run' run' -< (b,([s1],[s2]))
+    run' -< ss
+  While cond body l:ss ->
+    run' -< If cond (Begin [body,While cond body l] l) (Begin [] l) l : ss
+  Begin ss _:ss' -> do
+    run' -< ss
+    run' -< ss'
+  [] ->
+    returnA -< ()
 
 class Arrow c => IsVal v c | c -> v where
   boolLit :: c (Bool,Label) v

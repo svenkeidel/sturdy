@@ -10,7 +10,6 @@ module Control.Arrow.Transformer.Abstract.Environment where
 
 import Prelude hiding ((.))
 
-import Data.Hashable
 import Data.Order
 import Data.Identifiable
 import Data.Abstract.Environment (Env)
@@ -21,6 +20,7 @@ import Control.Arrow
 import Control.Arrow.Transformer.Reader
 import Control.Arrow.Reader
 import Control.Arrow.State
+import Control.Arrow.Store
 import Control.Arrow.Fail
 import Control.Arrow.Except
 import Control.Arrow.Lift
@@ -29,8 +29,11 @@ import Control.Arrow.Fix
 
 newtype Environment var val c x y = Environment (Reader (Env var val) c x y)
 
-runEnvironment :: (Arrow c, Eq var, Hashable var) => Environment var val c x y -> c ([(var,val)],x) y
-runEnvironment (Environment (Reader f)) = first E.fromList ^>> f
+runEnvironment :: (Arrow c) => Environment var val c x y -> c (Env var val,x) y
+runEnvironment (Environment (Reader f)) = f
+
+runEnvironment' :: (Arrow c, Identifiable var) => Environment var val c x y -> c ([(var,val)],x) y
+runEnvironment' f = first E.fromList ^>> runEnvironment f
 
 instance (Identifiable var, ArrowChoice c) => ArrowLookup var val y (Environment var val c) where
   lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
@@ -61,6 +64,7 @@ deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
 deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
 deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
+deriving instance ArrowStore x y l c => ArrowStore x y l (Environment var val c)
 
 deriving instance PreOrd (c (Env var val,x) y) => PreOrd (Environment var val c x y)
 deriving instance Complete (c (Env var val,x) y) => Complete (Environment var val c x y)

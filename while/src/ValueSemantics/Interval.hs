@@ -13,7 +13,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ValueSemantics.Interval where
 
-import           Prelude hiding (Bool(..),Bounded(..),(==),(/),(<))
+import           Prelude hiding (Bool(..),Bounded(..),(==),(/))
 import qualified Prelude as P
 
 import           Syntax
@@ -22,16 +22,18 @@ import qualified SharedSemantics as Shared
 
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
-import           Data.Abstract.Bounded hiding (lift)
 import           Data.Abstract.PropagateError (Error(..))
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
+import           Data.Abstract.Environment (Env)
+import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Terminating
 import           Data.Abstract.Widening
 import qualified Data.Abstract.Ordering as O
 import           Data.Abstract.Equality
+import           Data.Abstract.Bounded
 
 import qualified Data.Boolean as B
 import           Data.Hashable
@@ -42,33 +44,39 @@ import           Data.Text (Text)
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Alloc
 import           Control.Arrow.Const
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Store
+import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Abstract.Store
+import           Control.Arrow.Transformer.Abstract.Environment
 
 import           GHC.Generics
 
+type Addr = Label
 type IV = Interval Int
 data Val = BoolVal Bool | NumVal (Bounded IV) | Top deriving (Eq,Generic)
 
-newtype Interp c x y = Interp (Const IV (StoreArrow Text Val (Except String c)) x y)
-type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,x) (Error String (Store Text Val,y)) c)
+newtype Interp c x y = Interp (Const IV (Environment Text Addr (StoreArrow Addr Val (Except String c))) x y)
 
-runInterp :: IV -> Interp c x y -> c (Store Text Val,x) (Error String (Store Text Val,y))
-runInterp b (Interp f) = runExcept (runStore (runConst b f))
+runInterp :: ArrowChoice c => IV -> Interp c x y -> c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y))
+runInterp b (Interp f) = runExcept (runStore (runEnvironment (runConst b f)))
 
-run :: (?bound :: IV) => [LStatement] -> Terminating (Error String (Store Text Val))
-run ss =
+run :: (?bound :: IV) => [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Store Addr Val))
+run env ss =
   fmap fst <$>
     runLeastFixPoint
       (runInterp ?bound
-        (Shared.run :: Fix Statement () (Interp (~>)) Statement ()))
-      (S.empty,generate (begin ss))
+        (Shared.run :: Fix [Statement] () (Interp (~>)) [Statement] ()))
+      (S.empty,(E.fromList env, generate <$> ss))
+
+instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp c) where
+  alloc = arr $ \(_,_,l) -> l
 
 instance ArrowChoice c => IsVal Val (Interp c) where
   boolLit = arr $ \(b,_) -> case b of
@@ -140,14 +148,16 @@ instance (Complete (Interp c (x,y) z), UpperBounded z, ArrowChoice c)
 deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)
 deriving instance ArrowChoice c => ArrowChoice (Interp c)
-deriving instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowConst IV (Interp c)
-deriving instance (ArrowChoice c, ArrowFix (Store Text Val,x) (Error String (Store Text Val,y)) c) => ArrowFix x y (Interp c)
-deriving instance (Complete (c ((Store Text Val,Val),Text) (Error String (Store Text Val,Val))), ArrowChoice c) => ArrowStore Text Val Label (Interp c)
-deriving instance (PreOrd (c (Store Text Val,x) (Error String (Store Text Val,y)))) => PreOrd (Interp c x y)
-deriving instance (Complete (c (Store Text Val,x) (Error String (Store Text Val,y)))) => Complete (Interp c x y)
-deriving instance (UpperBounded (c (Store Text Val,x) (Error String (Store Text Val,y)))) => UpperBounded (Interp c x y)
+type instance Fix x y (Interp c) = Interp (Fix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c)
+deriving instance (ArrowChoice c, ArrowFix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c) => ArrowFix x y (Interp c)
+deriving instance (Complete (c ((Store Addr Val,Val),Addr) (Error String (Store Addr Val,Val))), ArrowChoice c) => ArrowStore Addr Val Label (Interp c)
+deriving instance ArrowChoice c => ArrowLookup Text Addr Addr (Interp c)
+deriving instance ArrowChoice c => ArrowEnv Text Addr (Env Text Addr) (Interp c)
+deriving instance (PreOrd (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => PreOrd (Interp c x y)
+deriving instance (Complete (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => Complete (Interp c x y)
+deriving instance (UpperBounded (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => UpperBounded (Interp c x y)
 
 instance PreOrd Val where
   _ ⊑ Top = P.True

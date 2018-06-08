@@ -20,6 +20,8 @@ import qualified SharedSemantics as Shared
 import           Data.Abstract.PropagateError (Error(..))
 import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
+import           Data.Abstract.Environment (Env)
+import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Terminating
 
 import           Data.Order
@@ -28,28 +30,34 @@ import           Data.Text (Text)
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Alloc
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Store
+import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Abstract.Store
+import           Control.Arrow.Transformer.Abstract.Environment
 
 -- Value semantics for the while language that does not approximate values at all.
+type Addr = Label
 type Val = ()
-newtype Interp c x y = Interp (StoreArrow Text Val (Except String c) x y)
-type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,x) (Error String (Store Text Val,y)) c)
+newtype Interp c x y = Interp (Environment Text Addr (StoreArrow Addr Val (Except String c)) x y)
 
-runInterp :: Interp c x y -> c (Store Text Val,x) (Error String (Store Text Val,y))
-runInterp (Interp f) = runExcept (runStore f)
+runInterp :: ArrowChoice c => Interp c x y -> c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y))
+runInterp (Interp f) = runExcept (runStore (runEnvironment f))
 
-run :: [LStatement] -> Terminating (Error String (Store Text Val))
-run ss =
+run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Store Addr Val))
+run env ss =
   fmap fst <$>
     runLeastFixPoint
       (runInterp
-        (Shared.run :: Fix Statement () (Interp (~>)) Statement ()))
-      (S.empty,generate (begin ss))
+        (Shared.run :: Fix [Statement] () (Interp (~>)) [Statement] ()))
+      (S.empty,(E.fromList env,generate <$> ss))
+
+instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp c) where
+  alloc = arr $ \(_,_,l) -> l
 
 instance ArrowChoice c => IsVal Val (Interp c) where
   boolLit = arr (const ())
@@ -72,11 +80,13 @@ instance (Complete (Interp c (x,y) z), ArrowChoice c)
 deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)
 deriving instance ArrowChoice c => ArrowChoice (Interp c)
-deriving instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
-deriving instance (ArrowChoice c, ArrowFix (Store Text Val,x) (Error String (Store Text Val,y)) c) => ArrowFix x y (Interp c)
-deriving instance (Complete (c ((Store Text Val,Val),Text) (Error String (Store Text Val,Val))), ArrowChoice c) => ArrowStore Text Val Label (Interp c)
-deriving instance (PreOrd (c (Store Text Val,x) (Error String (Store Text Val,y)))) => PreOrd (Interp c x y)
-deriving instance (Complete (c (Store Text Val,x) (Error String (Store Text Val,y)))) => Complete (Interp c x y)
-deriving instance (UpperBounded (c (Store Text Val,x) (Error String (Store Text Val,y)))) => UpperBounded (Interp c x y)
+deriving instance (Complete (c ((Store Addr Val,Val),Addr) (Error String (Store Addr Val,Val))), ArrowChoice c) => ArrowStore Addr Val Label (Interp c)
+deriving instance (ArrowChoice c) => ArrowLookup Text Addr Addr (Interp c)
+deriving instance (ArrowChoice c) => ArrowEnv Text Addr (Env Text Addr) (Interp c)
+deriving instance (PreOrd (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => PreOrd (Interp c x y)
+deriving instance (Complete (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => Complete (Interp c x y)
+deriving instance (UpperBounded (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => UpperBounded (Interp c x y)
 
+type instance Fix x y (Interp c) = Interp (Fix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c)
+deriving instance (ArrowChoice c, ArrowFix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c) => ArrowFix x y (Interp c)
