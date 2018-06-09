@@ -8,7 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Transformer.Reader(Reader(..)) where
 
-import Prelude hiding (id,(.),lookup,read)
+import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
 import Control.Arrow.Environment
@@ -55,18 +55,18 @@ instance ArrowApply c => ArrowApply (Reader r c) where
   app = Reader $ (\(r,(Reader f,b)) -> (f,(r,b))) ^>> app
 
 instance Arrow c => ArrowReader r (Reader r c) where
-  askA = Reader pi1
-  localA (Reader f) = Reader $ (\(_,(r,x)) -> (r,x)) ^>> f
+  ask = Reader pi1
+  local (Reader f) = Reader $ (\(_,(r,x)) -> (r,x)) ^>> f
 
 instance ArrowState s c => ArrowState s (Reader r c) where
-  getA = lift getA
-  putA = lift putA
+  get = lift get
+  put = lift put
 
 instance ArrowWriter w c => ArrowWriter w (Reader r c) where
-  tellA = lift tellA
+  tell = lift tell
 
 instance ArrowFail e c => ArrowFail e (Reader r c) where
-  failA = lift failA
+  fail = lift fail
 
 instance ArrowEnv x y env c => ArrowEnv x y env (Reader r c) where
   lookup (Reader f) (Reader g) = Reader $ (\(r,(v,a)) -> (v,(r,a))) ^>> lookup ((\(v,(r,a)) -> (r,(v,a))) ^>> f) g
@@ -82,14 +82,14 @@ instance ArrowWrite var val c => ArrowWrite var val (Reader r c) where
 
 type instance Fix x y (Reader r c) = Reader r (Fix (r,x) y c)
 instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where
-  fixA f = Reader (fixA (runReader . f . Reader))
+  fix f = Reader (fix (runReader . f . Reader))
 
 instance ArrowExcept (r,x) y e c => ArrowExcept x y e (Reader r c) where
-  tryCatchA (Reader f) (Reader g) = Reader $ tryCatchA f (from assoc ^>> g)
+  tryCatch (Reader f) (Reader g) = Reader $ tryCatch f (from assoc ^>> g)
   finally (Reader f) (Reader g) = Reader $ finally f g
 
 instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
-  dedupA (Reader f) = Reader (dedupA f)
+  dedup (Reader f) = Reader (dedup f)
 
 instance ArrowJoin c => ArrowJoin (Reader r c) where
   joinWith lub (Reader f) (Reader g) = Reader $ (\(r,(x,y)) -> ((r,x),(r,y))) ^>> joinWith lub f g

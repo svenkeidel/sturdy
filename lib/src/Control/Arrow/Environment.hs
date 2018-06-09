@@ -5,7 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Environment where
 
-import Prelude hiding (lookup)
+import Prelude hiding (lookup,fail)
 
 import Control.Arrow
 import Control.Arrow.Fail
@@ -31,7 +31,7 @@ lookup' :: (Show var, ArrowFail String c, ArrowEnv var val env c) => c var val
 lookup' = proc var ->
   lookup
     (proc (val,_) -> returnA -< val)
-    (proc var     -> failA   -< printf "Variable %s not bound" (show var))
+    (proc var     -> fail    -< printf "Variable %s not bound" (show var))
     -< (var,var)
 
 -- | Run a computation in an extended environment.
@@ -43,4 +43,4 @@ extendEnv' f = proc (x,y,a) -> do
 
 -- | Add a list of bindings to the given environment.
 bindings :: (ArrowChoice c, ArrowEnv var val env c) => c ([(var,val)],env) env
-bindings = foldA ((\(env,(x,y)) -> (x,y,env)) ^>> extendEnv)
+bindings = fold ((\(env,(x,y)) -> (x,y,env)) ^>> extendEnv)

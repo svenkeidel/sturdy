@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.State(State(..),evalState,execState) where
 
-import Prelude hiding (id,(.),lookup,read)
+import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
 import Control.Arrow.Deduplicate
@@ -62,18 +62,18 @@ instance ArrowApply c => ArrowApply (State s c) where
   app = State $ (\(s,(State f,b)) -> (f,(s,b))) ^>> app
 
 instance Arrow c => ArrowState s (State s c) where
-  getA = State (arr (\(a,()) -> (a,a)))
-  putA = State (arr (\(_,s) -> (s,())))
+  get = State (arr (\(a,()) -> (a,a)))
+  put = State (arr (\(_,s) -> (s,())))
 
 instance ArrowFail e c => ArrowFail e (State s c) where
-  failA = lift failA
+  fail = lift fail
 
 instance ArrowReader r c => ArrowReader r (State s c) where
-  askA = lift askA
-  localA (State f) = State $ (\(s,(r,x)) -> (r,(s,x))) ^>> localA f
+  ask = lift ask
+  local (State f) = State $ (\(s,(r,x)) -> (r,(s,x))) ^>> local f
 
 instance ArrowWriter w c => ArrowWriter w (State s c) where
-  tellA = lift tellA
+  tell = lift tell
 
 instance ArrowEnv x y env c => ArrowEnv x y env (State s c) where
   lookup (State f) (State g) = State $ (\(s,(v,a)) -> (v,(s,a))) ^>> lookup ((\(v,(s,a)) -> (s,(v,a))) ^>> f) g
@@ -89,14 +89,14 @@ instance ArrowWrite var val c => ArrowWrite var val (State s c) where
 
 type instance Fix x y (State s c) = State s (Fix (s,x) (s,y) c)
 instance ArrowFix (s,x) (s,y) c => ArrowFix x y (State s c) where
-  fixA f = State (fixA (runState . f . State))
+  fix f = State (fix (runState . f . State))
 
 instance ArrowExcept (s,x) (s,y) e c => ArrowExcept x y e (State s c) where
-  tryCatchA (State f) (State g) = State $ tryCatchA f (from assoc ^>> g)
+  tryCatch (State f) (State g) = State $ tryCatch f (from assoc ^>> g)
   finally (State f) (State g) = State $ finally f g
 
 instance (Eq s, Hashable s, ArrowDeduplicate c) => ArrowDeduplicate (State s c) where
-  dedupA (State f) = State (dedupA f)
+  dedup (State f) = State (dedup f)
 
 instance ArrowLoop c => ArrowLoop (State s c) where
   loop (State f) = State $ loop ((\((s,b),d) -> (s,(b,d))) ^>> f >>^ (\(s,(b,d)) -> ((s,b),d)))

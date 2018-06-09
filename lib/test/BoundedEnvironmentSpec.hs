@@ -31,8 +31,8 @@ type Ar = Environment Text Addr Val (State Addr (Except String (->)))
 
 instance ArrowAlloc (Text,val,env,store) Addr (State Addr (Except String (->))) where
   alloc = proc _ -> do
-    addr <- getA -< ()
-    putA -< (succ addr `mod` 5)
+    addr <- get -< ()
+    put -< (succ addr `mod` 5)
     returnA -< addr
 
 spec :: Spec

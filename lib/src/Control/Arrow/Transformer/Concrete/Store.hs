@@ -46,17 +46,17 @@ instance ArrowLift (StoreArrow var val) where
 
 instance (Identifiable var, ArrowChoice c) => ArrowRead var val x y (StoreArrow var val c) where
   read (StoreArrow f) (StoreArrow g) = StoreArrow $ proc (var,x) -> do
-    s <- getA -< ()
+    s <- get -< ()
     case S.lookup var s of
       Just v -> f -< (v,x)
       Nothing -> g -< x
 
 instance (Identifiable var, Arrow c) => ArrowWrite var val (StoreArrow var val c) where
-  write = StoreArrow $ modifyA $ arr (\((x,v),s) -> S.insert x v s)
+  write = StoreArrow $ modify $ arr (\((x,v),s) -> S.insert x v s)
 
 instance ArrowState s c => ArrowState s (StoreArrow var val c) where
-  getA = lift getA
-  putA = lift putA
+  get = lift get
+  put = lift put
 
 deriving instance Category c => Category (StoreArrow var val c)
 deriving instance Arrow c => Arrow (StoreArrow var val c)

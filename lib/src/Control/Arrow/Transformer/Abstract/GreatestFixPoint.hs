@@ -25,17 +25,17 @@ runGreatestFixPoint :: Int -> GreatestFixPoint a b -> a -> b
 runGreatestFixPoint k (GreatestFixPoint f) a = runReader f (k,a)
 
 instance UpperBounded b => ArrowFix a b GreatestFixPoint where
-  fixA f = proc x -> do
+  fix f = proc x -> do
     i <- askFuel -< ()
     if i <= 0
       then top -< ()
-      else localFuel (f (fixA f)) -< (i-1,x)
+      else localFuel (f (fix f)) -< (i-1,x)
 
 askFuel :: GreatestFixPoint () Int
-askFuel = GreatestFixPoint askA
+askFuel = GreatestFixPoint ask
 
 localFuel :: GreatestFixPoint a b -> GreatestFixPoint (Int, a) b
-localFuel (GreatestFixPoint f) = GreatestFixPoint $ proc (i,a) -> localA f -< (i,a)
+localFuel (GreatestFixPoint f) = GreatestFixPoint $ proc (i,a) -> local f -< (i,a)
 
 deriving instance Category GreatestFixPoint
 deriving instance Arrow GreatestFixPoint

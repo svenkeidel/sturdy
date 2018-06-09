@@ -37,20 +37,20 @@ runEnvironment' f = first E.fromList ^>> runEnvironment f
 
 instance (Show var, Identifiable var, ArrowChoice c) => ArrowEnv var val (Env var val) (Environment var val c) where
   lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
-    env <- askA -< ()
+    env <- ask -< ()
     case E.lookup var env of
       Just val -> f -< (val,x)
       Nothing -> g -< x
-  getEnv = Environment askA
+  getEnv = Environment ask
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
-  localEnv (Environment f) = Environment (localA f)
+  localEnv (Environment f) = Environment (local f)
 
 instance ArrowApply c => ArrowApply (Environment var val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app
 
 instance ArrowReader r c => ArrowReader r (Environment var val c) where
-  askA = lift askA
-  localA (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> localA f))
+  ask = lift ask
+  local (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
 
 type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
 
@@ -63,6 +63,7 @@ deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
 deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
 deriving instance ArrowRead x y (Env var val,u) v c => ArrowRead x y u v (Environment var val c)
+deriving instance ArrowWrite x y c => ArrowWrite x y (Environment var val c)
 
 deriving instance PreOrd (c (Env var val,x) y) => PreOrd (Environment var val c x y)
 deriving instance Complete (c (Env var val,x) y) => Complete (Environment var val c x y)

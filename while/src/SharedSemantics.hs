@@ -74,7 +74,7 @@ run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
         ArrowAlloc (Text,v,Label) addr c, ArrowFail String c,
         Conditional v [Statement] [Statement] () c, IsVal v c)
     => c [Statement] ()
-run = fixA $ \run' -> proc stmts -> case stmts of
+run = fix $ \run' -> proc stmts -> case stmts of
   Assign x e l:ss -> do
     v <- eval -< e
     addr <- lookup pi1 alloc -< (x,(x,v,l))

@@ -34,7 +34,7 @@ runConst r (Const (Static f)) = f r
 
 type instance Fix x y (Const r c) = Const r (Fix x y c)
 instance ArrowFix x y c => ArrowFix x y (Const r c) where
-  fixA f = Const $ Static $ \r -> fixA (runConst r . f . lift)
+  fix f = Const $ Static $ \r -> fix (runConst r . f . lift)
 
 instance Arrow c => ArrowConst r (Const r c) where
   askConst = Const $ Static $ \r -> arr (const r)

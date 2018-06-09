@@ -5,17 +5,19 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Fail where
 
-import Control.Arrow
+import Prelude hiding (fail)
 
-import Control.Monad.Except
+import           Control.Arrow
+import           Control.Monad.Except (MonadError)
+import qualified Control.Monad.Except as M
 
 -- | Arrow-based interface for computations that can fail.
 class Arrow c => ArrowFail e c | c -> e where
   -- | Throws an exception of type `e`.
-  failA :: c e x
+  fail :: c e x
 
 instance MonadError e m => ArrowFail e (Kleisli m) where
-  failA = Kleisli throwError
+  fail = Kleisli M.throwError
 
-failA' :: ArrowFail () c => c a b
-failA' = arr (const ()) >>> failA
+fail' :: ArrowFail () c => c a b
+fail' = arr (const ()) >>> fail

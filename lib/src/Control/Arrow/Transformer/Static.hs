@@ -8,7 +8,7 @@
 {-# LANGUAGE TupleSections #-}
 module Control.Arrow.Transformer.Static where
 
-import Prelude hiding (id,(.),lookup,read)
+import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Category
 
@@ -49,21 +49,21 @@ instance (Applicative f, ArrowChoice c) => ArrowChoice (Static f c) where
   Static f ||| Static g = Static $ (|||) <$> f <*> g
 
 instance (Applicative f, ArrowState s c) => ArrowState s (Static f c) where
-  getA = lift getA
-  putA = lift putA
+  get = lift get
+  put = lift put
 
 instance (Applicative f, ArrowReader r c) => ArrowReader r (Static f c) where
-  askA = lift askA
-  localA (Static f) = Static $ localA <$> f
+  ask = lift ask
+  local (Static f) = Static $ local <$> f
 
 instance (Applicative f, ArrowWriter w c) => ArrowWriter w (Static f c) where
-  tellA = lift tellA
+  tell = lift tell
 
 instance (Applicative f, ArrowFail e c) => ArrowFail e (Static f c) where
-  failA = lift failA
+  fail = lift fail
 
 instance (Applicative f, ArrowExcept x y e c) => ArrowExcept x y e (Static f c) where
-  tryCatchA (Static f) (Static g) = Static $ tryCatchA <$> f <*> g
+  tryCatch (Static f) (Static g) = Static $ tryCatch <$> f <*> g
   finally (Static f) (Static g) = Static $ finally <$> f <*> g
 
 instance (Applicative f, ArrowEnv x y env c) => ArrowEnv x y env (Static f c) where

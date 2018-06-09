@@ -9,7 +9,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module ValueSemantics.Concrete where
 
-import           Prelude hiding (read)
+import           Prelude hiding (read,fail)
 import qualified Prelude as P
 
 import           Syntax
@@ -66,44 +66,44 @@ instance ArrowChoice c => IsVal Val (Interp c) where
   boolLit = arr (\(b,_) -> BoolVal b)
   and = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 && b2)
-    _ -> failA -< "Expected two booleans as arguments for 'and'"
+    _ -> fail -< "Expected two booleans as arguments for 'and'"
   or = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 || b2)
-    _ -> failA -< "Expected two booleans as arguments for 'or'"
+    _ -> fail -< "Expected two booleans as arguments for 'or'"
   not = proc (v,_) -> case v of
     BoolVal b -> returnA -< BoolVal (Prelude.not b)
-    _ -> failA -< "Expected a boolean as argument for 'not'"
+    _ -> fail -< "Expected a boolean as argument for 'not'"
   numLit = arr (\(d,_) -> NumVal d)
   randomNum = proc _ -> do
-    gen <- getA -< ()
+    gen <- get -< ()
     let (r, gen') = random gen
-    putA -< gen'
+    put -< gen'
     returnA -< NumVal r
   add = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
-    _ -> failA -< "Expected two numbers as arguments for 'add'"
+    _ -> fail -< "Expected two numbers as arguments for 'add'"
   sub = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
-    _ -> failA -< "Expected two numbers as arguments for 'sub'"
+    _ -> fail -< "Expected two numbers as arguments for 'sub'"
   mul = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
-    _ -> failA -< "Expected two numbers as arguments for 'mul'"
+    _ -> fail -< "Expected two numbers as arguments for 'mul'"
   div = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 `Prelude.div` n2)
-    _ -> failA -< "Expected two numbers as arguments for 'mul'"
+    _ -> fail -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.== n2)
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 P.== b2)
-    _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
+    _ -> fail -< "Expected two values of the same type as arguments for 'eq'"
   lt = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.< n2)
-    _ -> failA -< "Expected two numbers as arguments for 'lt'"
+    _ -> fail -< "Expected two numbers as arguments for 'lt'"
 
 instance ArrowChoice c => Conditional Val x y z (Interp c) where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
-    _ -> failA -< "Expected boolean as argument for 'if'"
+    _ -> fail -< "Expected boolean as argument for 'if'"
 
 instance ArrowChoice c => ArrowRead (Addr,Label) Val x y (Interp c) where
   read (Interp f) (Interp g) = Interp $ proc ((addr,_),x) -> read f g -< (addr,x)

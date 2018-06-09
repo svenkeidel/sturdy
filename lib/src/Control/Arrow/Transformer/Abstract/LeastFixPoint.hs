@@ -16,7 +16,7 @@
 module Control.Arrow.Transformer.Abstract.LeastFixPoint(type (~>),runLeastFixPoint,runLeastFixPoint',liftLeastFixPoint) where
 
 import           Prelude hiding (id,(.),lookup)
-import           Data.Function (fix)
+import qualified Data.Function as F
 
 import           Control.Arrow
 import           Control.Arrow.Fix
@@ -73,13 +73,13 @@ liftLeastFixPoint f = LeastFixPoint ((\((_,o),x) -> (o,x)) ^>> second (f ^>> Ter
 #ifndef TRACE
 
 instance (Identifiable x, Widening y) => ArrowFix x y (LeastFixPoint x y) where
-  fixA f = proc x -> do
+  fix f = proc x -> do
     old <- getOutCache -< ()
     -- reset the current fixpoint cache
     setOutCache -< bottom
 
     -- recompute the fixpoint cache by calling 'f' and memoize its results.
-    y <- localInCache (fix (memoize . f)) -< (old,x)
+    y <- localInCache (F.fix (memoize . f)) -< (old,x)
 
     new <- getOutCache -< ()
 
@@ -90,7 +90,7 @@ instance (Identifiable x, Widening y) => ArrowFix x y (LeastFixPoint x y) where
     -- fixpoint cache.
     if (new ⊑ old)
     then returnA -< y
-    else fixA f -< x
+    else fix f -< x
 
 -- | Memoizes the results of the interpreter function. In case a value
 -- has been computed before, the cached value is returned and will not

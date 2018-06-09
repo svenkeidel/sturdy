@@ -62,15 +62,15 @@ instance (Complete e, ArrowJoin c, ArrowApply c, ArrowChoice c) => ArrowApply (E
   app = Except $ first runExcept ^>> app
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowState s c) => ArrowState s (Except e c) where
-  getA = lift getA
-  putA = lift putA
+  get = lift get
+  put = lift put
 
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowFail e (Except e c) where
-  failA = Except $ arr Fail
+  fail = Except $ arr Fail
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowReader r c) => ArrowReader r (Except e c) where
-  askA = lift askA
-  localA (Except f) = Except (localA f)
+  ask = lift ask
+  local (Except f) = Except (local f)
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) where
   lookup (Except f) (Except g) = Except $ lookup f g
@@ -79,7 +79,7 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowEnv x y env c) => ArrowEn
   localEnv (Except f) = Except (localEnv f)
 
 instance (ArrowChoice c, Complete e, ArrowJoin c, Complete (c (y,(x,e)) (Error e y))) => ArrowExcept x y e (Except e c) where
-  tryCatchA (Except f) (Except g) = Except $ proc x -> do
+  tryCatch (Except f) (Except g) = Except $ proc x -> do
     e <- f -< x
     case e of
       Success y -> returnA -< Success y
@@ -90,10 +90,10 @@ instance (ArrowChoice c, Complete e, ArrowJoin c, Complete (c (y,(x,e)) (Error e
     g -< x
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
-  fixA f = Except (fixA (runExcept . f . Except))
+  fix f = Except (fix (runExcept . f . Except))
 
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowDeduplicate (Except e c) where
-  dedupA = returnA
+  dedup = returnA
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)

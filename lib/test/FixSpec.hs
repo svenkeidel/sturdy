@@ -8,7 +8,7 @@
 {-# LANGUAGE ImplicitParams #-}
 module FixSpec where
 
-import           Prelude hiding (lookup,Bounded,Bool(..))
+import           Prelude hiding (lookup,Bounded,Bool(..),fail)
 
 import           Control.Arrow
 import           Control.Arrow.Fix
@@ -59,8 +59,8 @@ spec = do
                               returnA -< x + y))
 
     in it "should memoize numbers that have been computed before already" $ do
-         runLeastFixPoint (fixA fib :: Cache IV IV) (bounded (I.Interval 5 10)) `shouldBe` return (bounded (I.Interval 5 55))
-         runLeastFixPoint (fixA fib :: Cache IV IV) (bounded (I.Interval 0 Infinity)) `shouldBe` return (bounded top)
+         runLeastFixPoint (fix fib :: Cache IV IV) (bounded (I.Interval 5 10)) `shouldBe` return (bounded (I.Interval 5 55))
+         runLeastFixPoint (fix fib :: Cache IV IV) (bounded (I.Interval 0 Infinity)) `shouldBe` return (bounded top)
 
   describe "the analysis of the factorial function" $
     let ?bound = top in
@@ -68,7 +68,7 @@ spec = do
           ifLowerThan 1 (proc _ -> returnA -< bounded (I.Interval 1 1))
                         (proc n -> do {x <- f -< (n-bounded (I.Interval 1 1)); returnA -< n * x}) -< n
     in it "fact [-inf,inf] should produce [1,inf]" $
-         runLeastFixPoint (fixA fact :: Cache IV IV) (bounded top)
+         runLeastFixPoint (fix fact :: Cache IV IV) (bounded top)
            `shouldBe` return (bounded (I.Interval 1 Infinity))
 
   describe "the even and odd functions" $
@@ -82,7 +82,7 @@ spec = do
                                 (ifLowerThan 1 (proc _ -> returnA -< true)
                                                (proc x -> f -< (Even,x-bounded (I.Interval 1 1)))) -< x
     in it "even([-inf,inf]) should produce top" $
-         runLeastFixPoint (fixA evenOdd) (Even,bounded (I.Interval 0 Infinity)) `shouldBe` top
+         runLeastFixPoint (fix evenOdd) (Even,bounded (I.Interval 0 Infinity)) `shouldBe` top
 
   describe "the ackermann function" $
     let ?bound = I.Interval (-50) 50 in
@@ -96,7 +96,7 @@ spec = do
                                          f -< (m'- bounded (I.Interval 1 1), x)) -<< n)
             -<< m
     in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runLeastFixPoint (fixA ackermann) (bounded (I.Interval 0 Infinity), bounded (I.Interval 0 Infinity))
+         runLeastFixPoint (fix ackermann) (bounded (I.Interval 0 Infinity), bounded (I.Interval 0 Infinity))
            `shouldBe` return (bounded top)
 
   describe "the analyis of a diverging program" $
@@ -105,16 +105,16 @@ spec = do
           0 -> f -< 0
           _ -> f -< (n-1)
     in it "should terminate with bottom" $
-         runLeastFixPoint (fixA diverge) 5
+         runLeastFixPoint (fix diverge) 5
            `shouldBe` bottom
 
   describe "the analysis of a failing program" $
     let recurseFail :: ErrorFix Int Sign -> ErrorFix Int Sign
         recurseFail f = proc n -> case n of
-          0 -> failA -< ()
+          0 -> fail -< ()
           _ -> f -< (n-1)
     in it "should fail, but update the fixpoint cache" $
-         runLeastFixPoint' (runExcept (fixA recurseFail)) 5
+         runLeastFixPoint' (runExcept (fix recurseFail)) 5
             `shouldBe` (S.fromList [(n,Terminating (Fail ())) | n <- [0..5]], return (Fail ()))
 
   describe "the analysis of a stateful program" $
@@ -123,13 +123,13 @@ spec = do
         timesTwo f = proc n -> case n of
           Bounded _ (I.Interval 0 0) -> returnA -< ()
           _ -> do
-            s <- getA -< ()
-            putA -< s + bounded (I.Interval 1 1)
+            s <- get -< ()
+            put -< s + bounded (I.Interval 1 1)
             f -< (n- bounded 1)
-            s' <- getA -< ()
-            putA -< s'+ bounded (I.Interval 1 1)
+            s' <- get -< ()
+            put -< s'+ bounded (I.Interval 1 1)
     in it "should cache the state of the program" $
-         runLeastFixPoint' (runState (fixA timesTwo)) (bounded 0, bounded 5) `shouldBe`
+         runLeastFixPoint' (runState (fix timesTwo)) (bounded 0, bounded 5) `shouldBe`
            (S.fromList [((bounded (fromIntegral n),bounded 5-bounded (fromIntegral n)),
                           return (bounded 10-bounded (fromIntegral n),())) | n <- [0..5::Int]],
             return (bounded 10,()))

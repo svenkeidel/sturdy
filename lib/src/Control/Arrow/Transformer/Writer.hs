@@ -7,7 +7,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Control.Arrow.Transformer.Writer where
 
-import Prelude hiding (id,(.),lookup,read)
+import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Category
 import Control.Arrow
@@ -55,22 +55,22 @@ instance (Monoid w, ArrowApply c) => ArrowApply (Writer w c) where
   app = Writer $ (\(Writer f,x) -> (f,x)) ^>> app
 
 instance (Monoid w, ArrowState s c) => ArrowState s (Writer w c) where
-  getA = lift getA
-  putA = lift putA
+  get = lift get
+  put = lift put
 
 instance (Monoid w, Arrow c) => ArrowWriter w (Writer w c) where
-  tellA = Writer (arr (\w -> (w,())))
+  tell = Writer (arr (\w -> (w,())))
 
 instance (Monoid w, ArrowFail e c) => ArrowFail e (Writer w c) where
-  failA = lift failA
+  fail = lift fail
 
 instance (Monoid w, ArrowExcept x (w,y) e c) => ArrowExcept x y e (Writer w c) where
-  tryCatchA (Writer f) (Writer g) = Writer $ tryCatchA f g
+  tryCatch (Writer f) (Writer g) = Writer $ tryCatch f g
   finally (Writer f) (Writer g) = Writer $ finally f g
 
 instance (Monoid w, ArrowReader r c) => ArrowReader r (Writer w c) where
-  askA = lift askA
-  localA (Writer f) = Writer (localA f)
+  ask = lift ask
+  local (Writer f) = Writer (local f)
 
 instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (Writer w c) where
   lookup (Writer f) (Writer g) = Writer $ lookup f g
@@ -86,7 +86,7 @@ instance (Monoid w, ArrowWrite var val c)  => ArrowWrite var val (Writer w c) wh
 
 type instance Fix x y (Writer w c) = Writer w (Fix x (w,y) c)
 instance (Monoid w, ArrowFix x (w,y) c) => ArrowFix x y (Writer w c) where
-  fixA f = Writer (fixA (runWriter . f . Writer))
+  fix f = Writer (fix (runWriter . f . Writer))
 
 instance (Monoid w, ArrowLoop c) => ArrowLoop (Writer w c) where
   loop (Writer f) = Writer $ loop (f >>^ to assoc)

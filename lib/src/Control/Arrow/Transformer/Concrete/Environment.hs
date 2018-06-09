@@ -38,20 +38,20 @@ runEnvironment' f = first E.fromList ^>> runEnvironment f
 
 instance (Identifiable var, ArrowChoice c) => ArrowEnv var val (Env var val) (Environment var val c) where
   lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
-    env <- askA -< ()
+    env <- ask -< ()
     case E.lookup var env of
       Just val -> f -< (val,x)
       Nothing -> g -< x
-  getEnv = Environment askA
+  getEnv = Environment ask
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
-  localEnv (Environment f) = Environment (localA f)
+  localEnv (Environment f) = Environment (local f)
 
 instance ArrowApply c => ArrowApply (Environment var val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app
 
 instance ArrowReader r c => ArrowReader r (Environment var val c) where
-  askA = lift askA
-  localA (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> localA f))
+  ask = lift ask
+  local (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
 
 deriving instance Arrow c => Category (Environment var val c)
 deriving instance Arrow c => Arrow (Environment var val c)

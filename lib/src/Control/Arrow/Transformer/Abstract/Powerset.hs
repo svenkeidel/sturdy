@@ -6,7 +6,7 @@
 {-# LANGUAGE Arrows #-}
 module Control.Arrow.Transformer.Abstract.Powerset(Powerset(..)) where
 
-import           Prelude hiding (id,(.),lookup)
+import           Prelude hiding (id,(.),lookup,fail)
 
 import           Control.Arrow
 import           Control.Arrow.Abstract.Join
@@ -56,15 +56,15 @@ instance (ArrowChoice c, ArrowApply c) => ArrowApply (Powerset c) where
   app = Powerset $ first runPowerset ^>> app
 
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Powerset c) where
-  askA = lift askA
-  localA (Powerset f) = Powerset $ localA f
+  ask = lift ask
+  local (Powerset f) = Powerset $ local f
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (Powerset c) where
-  getA = lift getA
-  putA = lift putA
+  get = lift get
+  put = lift put
 
 instance (ArrowChoice c, ArrowFail e c) => ArrowFail e (Powerset c) where
-  failA = lift failA
+  fail = lift fail
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) where
   lookup (Powerset f) (Powerset g) = Powerset (lookup f g)
@@ -73,7 +73,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) wh
   localEnv (Powerset f) = Powerset $ localEnv f
 
 instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) where
-  dedupA (Powerset f) = Powerset $ proc x -> do
+  dedup (Powerset f) = Powerset $ proc x -> do
     x' <- f -< x
     returnA -< A.dedup x'
 
@@ -81,7 +81,7 @@ instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Powerset c) where
   joinWith _ (Powerset f) (Powerset g) = Powerset $ joinWith A.union f g
 
 instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (Powerset c) where
-  fixA f = Powerset (fixA (runPowerset . f . Powerset))
+  fix f = Powerset (fix (runPowerset . f . Powerset))
 
 deriving instance PreOrd (c x (A.Pow y)) => PreOrd (Powerset c x y)
 deriving instance LowerBounded (c x (A.Pow y)) => LowerBounded (Powerset c x y)

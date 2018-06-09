@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module SharedSemantics where
 
-import Prelude hiding (succ, pred)
+import Prelude hiding (succ, pred, fail)
 import Syntax (Expr(..))
 
 import Control.Arrow
@@ -17,7 +17,7 @@ import Data.Text (Text)
 -- | Shared interpreter for PCF.
 eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c, IsVal v c, IsClosure v env c)
      => c Expr v
-eval = fixA $ \ev -> proc e0 -> case e0 of
+eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> lookup' -< x
   Lam x e l -> do
     env <- getEnv -< ()
@@ -50,7 +50,7 @@ eval = fixA $ \ev -> proc e0 -> case e0 of
       Y e' l -> do
         fun' <- localEnv ev -< (env, Y e' l)
         applyClosure' ev -< (fun',arg)
-      _ -> failA -< "found unexpected epxression in closure: " ++ show e
+      _ -> fail -< "found unexpected epxression in closure: " ++ show e
 
 -- | Interface for numeric operations
 class Arrow c => IsVal v c | c -> v where

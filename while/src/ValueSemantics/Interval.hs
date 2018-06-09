@@ -13,7 +13,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ValueSemantics.Interval where
 
-import           Prelude hiding (Bool(..),Bounded(..),(==),(/),read)
+import           Prelude hiding (Bool(..),Bounded(..),(==),(/),read,fail)
 import qualified Prelude as P
 
 import           Syntax
@@ -86,16 +86,16 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.and` b2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two booleans as arguments for 'and'"
+    _ -> fail -< "Expected two booleans as arguments for 'and'"
   or = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.or` b2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two booleans as arguments for 'ord'"
+    _ -> fail -< "Expected two booleans as arguments for 'ord'"
   not = proc (v,_) -> case v of
     BoolVal b -> returnA -< BoolVal (B.not b)
     Top -> returnA -< Top
-    _ -> failA -< "Expected a boolean as argument for 'not'"
+    _ -> fail -< "Expected a boolean as argument for 'not'"
   numLit = proc (x,_) -> do
     b <- askConst -< ()
     returnA -< NumVal (Bounded b (I.Interval x x))
@@ -106,35 +106,35 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'add'"
+    _ -> fail -< "Expected two numbers as arguments for 'add'"
   sub = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'sub'"
+    _ -> fail -< "Expected two numbers as arguments for 'sub'"
   mul = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'mul'"
+    _ -> fail -< "Expected two numbers as arguments for 'mul'"
   div = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> case n1 / n2 of
-      Fail e -> failA -< e
+      Fail e -> fail -< e
       Success n3 -> returnA -< NumVal n3
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'mul'"
+    _ -> fail -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal x,NumVal y) -> returnA -< BoolVal (x == y)
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
+    _ -> fail -< "Expected two values of the same type as arguments for 'eq'"
   lt = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< BoolVal (n1 O.< n2)
     (Top,_)   -> returnA -< Top
     (_,Top)   -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'lt'"
+    _ -> fail -< "Expected two numbers as arguments for 'lt'"
 
 instance (Complete (Interp c (x,y) z), UpperBounded z, ArrowChoice c)
   => Conditional Val x y z (Interp c) where
@@ -143,7 +143,7 @@ instance (Complete (Interp c (x,y) z), UpperBounded z, ArrowChoice c)
     BoolVal B.False -> f2 -< y
     BoolVal B.Top -> joined f1 f2 -< (x,y)
     Top -> returnA -< top
-    _ -> failA -< "Expected boolean as argument for 'if'"
+    _ -> fail -< "Expected boolean as argument for 'if'"
 
 deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)
@@ -152,8 +152,9 @@ deriving instance ArrowChoice c => ArrowFail String (Interp c)
 deriving instance ArrowChoice c => ArrowConst IV (Interp c)
 type instance Fix x y (Interp c) = Interp (Fix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c)
 deriving instance (ArrowChoice c, ArrowFix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c) => ArrowFix x y (Interp c)
+
 -- deriving instance (Complete (c ((Store Addr Val,Val),Addr) (Error String (Store Addr Val,Val))), ArrowChoice c) => ArrowStore Addr Val Label (Interp c)
-instance ArrowChoice c => ArrowRead (Addr,Label) Val x y (Interp c) where
+instance (ArrowChoice c,Complete (c (Store Label Val, ((Val, (Env Text Label, x)), (Env Text Label, x))) (Error [Char] (Store Label Val, y)))) => ArrowRead (Addr,Label) Val x y (Interp c) where
   read (Interp f) (Interp g) = Interp $ proc ((addr,_),x) -> read f g -< (addr,x)
                                
 instance ArrowChoice c => ArrowWrite (Addr,Label) Val (Interp c) where

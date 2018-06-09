@@ -11,7 +11,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ValueSemantics.Unit where
 
-import           Prelude hiding (Bool(..),Bounded(..))
+import           Prelude hiding (Bool(..),Bounded(..),read)
 
 import           Syntax
 import           SharedSemantics
@@ -81,11 +81,16 @@ deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)
 deriving instance ArrowChoice c => ArrowChoice (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
-deriving instance (Complete (c ((Store Addr Val,Val),Addr) (Error String (Store Addr Val,Val))), ArrowChoice c) => ArrowStore Addr Val Label (Interp c)
 deriving instance (ArrowChoice c) => ArrowEnv Text Addr (Env Text Addr) (Interp c)
 deriving instance (PreOrd (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => PreOrd (Interp c x y)
 deriving instance (Complete (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => Complete (Interp c x y)
 deriving instance (UpperBounded (c (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)))) => UpperBounded (Interp c x y)
+
+instance (ArrowChoice c,Complete (c (Store Label Val, ((Val, (Env Text Label, x)), (Env Text Label, x))) (Error [Char] (Store Label Val, y)))) => ArrowRead (Addr,Label) Val x y (Interp c) where
+  read (Interp f) (Interp g) = Interp $ proc ((addr,_),x) -> read f g -< (addr,x)
+                               
+instance ArrowChoice c => ArrowWrite (Addr,Label) Val (Interp c) where
+  write = Interp $ proc ((addr,_),val) -> write -< (addr,val)
 
 type instance Fix x y (Interp c) = Interp (Fix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c)
 deriving instance (ArrowChoice c, ArrowFix (Store Addr Val,(Env Text Addr,x)) (Error String (Store Addr Val,y)) c) => ArrowFix x y (Interp c)

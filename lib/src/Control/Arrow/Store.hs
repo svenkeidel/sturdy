@@ -5,7 +5,7 @@
 {-# LANGUAGE Arrows #-}
 module Control.Arrow.Store where
 
-import Prelude hiding (lookup,id,read)
+import Prelude hiding (lookup,id,read,fail)
 
 import Control.Arrow
 import Control.Arrow.Fail
@@ -22,7 +22,7 @@ class Arrow c => ArrowRead var val x y c where
 read' :: (Show var, ArrowFail String c, ArrowRead var val var val c) => c var val
 read' = proc var ->
   read (proc (val,_) -> returnA -< val)
-       (proc var     -> failA   -< printf "variable %s not bound" (show var))
+       (proc var     -> fail    -< printf "variable %s not bound" (show var))
     -< (var,var)
 
 -- | Arrow-based interface to describe computations that modify a store.

@@ -56,11 +56,11 @@ instance ArrowLift (Environment var addr val) where
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowAlloc (var,val,Env var addr,Store addr val) addr c) =>
   ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
   lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
-    (env,store) <- askA -< ()
+    (env,store) <- ask -< ()
     case do {addr <- E.lookup var env; S.lookup addr store} of
       Just val -> f -< (val,x)
       Nothing -> g -< x
-  getEnv = Environment askA
+  getEnv = Environment ask
   -- | If an existing address is allocated for a new variable binding,
   -- the new value is joined with the existing value at this address.
   extendEnv = proc (x,y,(env,store)) -> do
@@ -70,9 +70,9 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Arro
     Environment (Reader ((\(_,(e,a)) -> (e,a)) ^>> f))
 
 instance ArrowReader r c => ArrowReader r (Environment var addr val c) where
-  askA = lift askA
-  localA (Environment (Reader f)) =
-    Environment $ Reader $ (\(env,(r,x)) -> (r,(env,x))) ^>> localA f
+  ask = lift ask
+  local (Environment (Reader f)) =
+    Environment $ Reader $ (\(env,(r,x)) -> (r,(env,x))) ^>> local f
 
 instance ArrowApply c => ArrowApply (Environment var addr val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app

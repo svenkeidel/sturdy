@@ -58,15 +58,15 @@ instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Except e c) where
       Success (c,d') -> returnA -< (Success c,d')
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (Except e c) where
-  getA = lift getA
-  putA = lift putA
+  get = lift get
+  put = lift put
 
 instance ArrowChoice c => ArrowFail e (Except e c) where
-  failA = Except (arr Fail)
+  fail = Except (arr Fail)
 
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Except e c) where
-  askA = lift askA
-  localA (Except f) = Except (localA f)
+  ask = lift ask
+  local (Except f) = Except (local f)
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) where
   lookup (Except f) (Except g) = Except $ lookup f g
@@ -76,7 +76,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) wh
 
 type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
-  fixA f = Except (fixA (runExcept . f . Except))
+  fix f = Except (fix (runExcept . f . Except))
 
 {- 
 There is no `ArrowExcept` instance for `Except` on purpose. This is how it would look like.
@@ -93,7 +93,7 @@ instance (ArrowChoice c, UpperBounded e, Complete (c (y,(x,e)) (Error e y))) => 
 -}
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
-  dedupA (Except f) = Except (dedupA f)
+  dedup (Except f) = Except (dedup f)
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)
