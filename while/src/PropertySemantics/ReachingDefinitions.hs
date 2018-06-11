@@ -20,8 +20,10 @@ import           Data.Ord (comparing)
 import qualified Data.Abstract.Environment as E
 import qualified Data.Abstract.Store as S
 
+import           Control.Arrow
 import           Control.Arrow.Fix 
 import           Control.Arrow.Lift
+import           Control.Arrow.Alloc
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
@@ -34,9 +36,9 @@ run stmts defs =
   -- Joins the reaching definitions for each statement for all call context.
   -- Filters out statements created during execution that are not part
   -- of the input program.
-  S.map (\((_,(_,(entry,stmts))),_) ->
-    case stmts of
-      stmt:_ | stmt `elem` blocks stmts -> Just (stmt,entry)
+  S.map (\((_,(env,(entry,st))),_) ->
+    case st of
+      stmt:_ | stmt `elem` blocks stmts -> Just (stmt, S.compose (E.toList env) entry)
       _ -> Nothing) $
   
   -- get the fixpoint cache
@@ -47,10 +49,10 @@ run stmts defs =
     (runInterp
        (runReachingDefs
         (Shared.run :: Fix [Statement] ()
-                         (ReachingDefinitions Text Label
+                         (ReachingDefinitions Addr Label
                            (Interp
                              (~>))) [Statement] ())))
-    (S.empty,(E.empty,(defs,stmts)))
+    (S.empty,(E.empty,(S.empty,stmts)))
 
 instance (IsVal val c) => IsVal val (ReachingDefinitions v l c) where
   boolLit = lift boolLit
@@ -65,6 +67,9 @@ instance (IsVal val c) => IsVal val (ReachingDefinitions v l c) where
   div = lift div
   eq = lift eq
   lt = lift lt
+
+instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (ReachingDefinitions v l (Interp c)) where
+  alloc = lift alloc
 
 instance (Conditional val (ReachingDefs v l,x) (ReachingDefs v l,y) (ReachingDefs v l,z) c)
   => Conditional val x y z (ReachingDefinitions v l c) where

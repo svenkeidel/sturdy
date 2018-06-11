@@ -26,6 +26,7 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Store
+import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.State
 
@@ -49,7 +50,7 @@ runReachingDefs (ReachingDefinitions f) = runStore f
 instance (Identifiable var, Identifiable lab, ArrowRead (var,lab) val (Store var (Pow lab),x) (Store var (Pow lab),y) c)
   => ArrowRead (var,lab) val x y (ReachingDefinitions var lab c) where
   read (ReachingDefinitions (StoreArrow f)) (ReachingDefinitions (StoreArrow g)) =
-    ReachingDefinitions $ StoreArrow $ proc ((var,l),x) -> read f g -< ((var,l),x)
+     ReachingDefinitions $ StoreArrow $ proc ((var,l),x) -> read f g -< ((var,l),x)
 
 instance (Identifiable var, Identifiable lab, ArrowWrite (var,lab) val c)
   => ArrowWrite (var,lab) val (ReachingDefinitions var lab c) where
@@ -70,6 +71,7 @@ deriving instance ArrowChoice c => ArrowChoice (ReachingDefinitions v l c)
 deriving instance ArrowReader r c => ArrowReader r (ReachingDefinitions v l c)
 deriving instance ArrowFail e c => ArrowFail e (ReachingDefinitions v l c)
 deriving instance ArrowState s c => ArrowState s (ReachingDefinitions v l c)
+deriving instance ArrowEnv x y env c => ArrowEnv x y env (ReachingDefinitions v l c)
 
 deriving instance PreOrd (c (ReachingDefs var lab,x) (ReachingDefs var lab,y)) => PreOrd (ReachingDefinitions var lab c x y)
 deriving instance LowerBounded (c (ReachingDefs var lab,x) (ReachingDefs var lab,y)) => LowerBounded (ReachingDefinitions var lab c x y)
