@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Shared where
 
-import           Prelude hiding (lookup,read,rem,div,id,or,and)
+import           Prelude hiding (lookup,read,rem,div,id,or,and,fail)
 
 import           Data.List (find,elemIndex)
 import           Data.Map (Map)
@@ -28,7 +28,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
-import           Control.Arrow.Utils
+import qualified Control.Arrow.Utils as U
 
 import           Text.Printf
 import           Syntax
@@ -64,7 +64,7 @@ type MethodReader = Method
 type CanFail val c = (ArrowChoice c,ArrowFail (Exception val) c)
 type CanUseEnv env addr c = ArrowEnv String addr (env String addr) c
 type CanUseReader c = ArrowReader MethodReader c
-type CanUseStore addr val c = ArrowStore addr val () c
+type CanUseStore addr val c = (ArrowStore addr val c,ArrowRead addr val (Exception val) val c)
 type CanUseState addr c = (Enum addr,ArrowState addr c)
 type CanUseConst const c = (ArrowConst const c,UseConst c)
 type CanUseMem env addr val c = (CanUseEnv env addr c,CanUseStore addr val c,UseMem env addr c)
@@ -91,12 +91,12 @@ type CanInterp env addr const val c = (
 assert :: (CanFail v c) => c (Bool,String) ()
 assert = proc (prop,msg) -> if prop
   then returnA -< ()
-  else failA -< StaticException msg
+  else fail -< StaticException msg
 
 justOrFail :: (CanFail v c) => c (Maybe x,String) x
 justOrFail = proc (x,e) -> case x of
   Just v -> returnA -< v
-  Nothing -> failA -< StaticException e
+  Nothing -> fail -< StaticException e
 
 liftAMaybe :: ArrowChoice c => c x z -> c (Maybe x) (Maybe z)
 liftAMaybe f = proc m -> case m of
@@ -115,7 +115,7 @@ getFieldSignatures unit p =
 getInitializedFields :: (UseVal v c,CanFail v c,CanUseConst const c) => c String [(FieldSignature,v)]
 getInitializedFields = readCompilationUnit >>> proc unit -> do
   let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
-  ownFields <- mapA (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s,t')) fieldSignatures
+  ownFields <- U.map (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s,t')) fieldSignatures
   case extends unit of
     Just p -> do
       parentFields <- getInitializedFields -< p
@@ -127,26 +127,14 @@ lookupField = proc x -> do
   fields <- askFields -< ()
   justOrFail >>> addrFromInt -< (Map.lookup x fields,printf "Field %s not bound" (show x))
 
-lookup' :: (Eq addr,CanFail v c,CanUseEnv env addr c,UseMem env addr c) => c String addr
-lookup' = proc x -> do
-  addr <- lookup -< x
-  bottomAddr <- addrFromInt -< -1
-  if addr == bottomAddr
-  then failA -< StaticException $ printf "Variable %s not bound" (show x)
-  else returnA -< addr
+lookup_ :: (Eq addr,CanFail v c,CanUseEnv env addr c,UseMem env addr c) => c String addr
+lookup_ = proc x -> lookup U.pi1 fail -< (x, StaticException $ printf "Variable %s not bound" (show x))
 
-read' :: (Show addr,Eq v,LowerBounded v,CanFail v c,CanUseStore addr v c) => c addr v
-read' = proc addr -> do
-  v <- read -< (addr,())
-  if v == bottom
-  then failA -< StaticException $ printf "Variable %s not bound" (show addr)
-  else returnA -< v
-
-write' :: CanUseStore addr val c => c (addr,val) ()
-write' = proc (addr,val) -> write -< (addr,val,())
+read_ :: (Show addr,Eq v,LowerBounded v,CanFail v c,CanUseStore addr v c) => c addr v
+read_ = proc addr -> read U.pi1 fail -< (addr, StaticException $ printf "Address %s not bound" (show addr))
 
 readLocal :: (Eq addr,Show addr,Eq val,Show val,LowerBounded val,CanFail val c,CanUseMem env addr val c) => c String val
-readLocal = lookup' >>> read'
+readLocal = lookup_ >>> read_
 
 readCompilationUnit :: (CanFail v c,CanUseConst const c) => c String CompilationUnit
 readCompilationUnit = proc n -> do
@@ -163,13 +151,13 @@ readMethod = proc (MethodSignature c retType n argTypes) -> do
   unit <- readCompilationUnit -< c
   case find (matchesSignature retType n argTypes) (fileBody unit) of
     Just (MethodMember m) -> returnA -< m
-    _ -> failA -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
+    _ -> fail -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
 
 alloc :: (UseVal val c,CanUseState addr c,CanUseStore addr val c) => c val addr
 alloc = proc val -> do
-  addr <- getA -< ()
-  write' -< (addr,val)
-  putA -< succ addr
+  addr <- get -< ()
+  write -< (addr,val)
+  put -< succ addr
   returnA -< addr
 
 evalInvoke :: CanInterp env addr const val c => c EInvoke (Maybe val)
@@ -189,7 +177,7 @@ evalInvoke =
     VirtualInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
     InterfaceInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
     StaticInvoke methodSignature args -> ev -< (Nothing,methodSignature,args)
-    DynamicInvoke{} -> failA -< StaticException "DynamicInvoke is not implemented"
+    DynamicInvoke{} -> fail -< StaticException "DynamicInvoke is not implemented"
 
 eval :: CanInterp env addr const val c => c Expr val
 eval = proc e -> case e of
@@ -202,16 +190,16 @@ eval = proc e -> case e of
     newArray -< (t,[v])
   NewMultiArrayExpr t is -> do
     assert -< (isBaseType t,"Expected a nonvoid base type for newmultiarray")
-    vs <- mapA eval -< is
+    vs <- U.map eval -< is
     newArray -< (t,vs)
   CastExpr t i -> first eval >>> (id &&& instanceOf) >>> cast -< (i,t)
   InstanceOfExpr i t -> first eval >>> instanceOf -< (i,t)
   InvokeExpr invokeExpr -> do
-    v <- tryCatchA evalInvoke (pi2 >>> failA) -< invokeExpr
+    v <- tryCatch evalInvoke (U.pi2 >>> fail) -< invokeExpr
     justOrFail -< (v,"Method returned nothing")
   ArrayRef l i -> ((readLocal >>> deref) *** eval) >>> readIndex -< (l,i)
   FieldRef l f -> first (readLocal >>> deref) >>> readField -< (l,f)
-  SignatureRef fieldSignature -> lookupField >>> read' -< fieldSignature
+  SignatureRef fieldSignature -> lookupField >>> read_ -< fieldSignature
   BinopExpr i1 op i2 -> do
     v1 <- eval -< i1
     v2 <- eval -< i2
@@ -252,7 +240,7 @@ eval = proc e -> case e of
   NullConstant -> nullConstant -< ()
   StringConstant s -> stringConstant -< s
   ClassConstant c -> classConstant -< c
-  MethodHandle _ -> failA -< StaticException "Evaluation of method handles is not implemented"
+  MethodHandle _ -> fail -< StaticException "Evaluation of method handles is not implemented"
 
 runStatements :: CanInterp env addr const val c => c [Statement] (Maybe val)
 runStatements = proc stmts -> case stmts of
@@ -261,25 +249,25 @@ runStatements = proc stmts -> case stmts of
     Label labelName -> do
       body <- currentMethodBody -< ()
       let clauses = filter (\clause -> fromLabel clause == labelName && Label (toLabel clause) `elem` stmts) (catchClauses body)
-      tryCatchA (pi1 >>> runStatements) catchException -< (rest,clauses)
+      tryCatch (U.pi1 >>> runStatements) catchException -< (rest,clauses)
     Tableswitch e cases -> runSwitch -< (e,cases)
     Lookupswitch e cases -> runSwitch -< (e,cases)
-    Identity l e _ -> first ((lookup' *** eval) >>> write') >>> pi2 >>> runStatements -< ((l,e),rest)
-    IdentityNoType l e -> first ((lookup' *** eval) >>> write') >>> pi2 >>> runStatements -< ((l,e),rest)
+    Identity l e _ -> first ((lookup_ *** eval) >>> write) >>> U.pi2 >>> runStatements -< ((l,e),rest)
+    IdentityNoType l e -> first ((lookup_ *** eval) >>> write) >>> U.pi2 >>> runStatements -< ((l,e),rest)
     If e label -> first eval >>> if_ runStatementsFromLabel runStatements -< (e,(label,rest))
     Goto label -> runStatementsFromLabel -< label
     Ret e -> liftAMaybe eval -< e
     Return e -> liftAMaybe eval -< e
-    Throw e -> eval >>> DynamicException ^>> failA -< e
+    Throw e -> eval >>> DynamicException ^>> fail -< e
     Assign var e -> do
       v <- eval -< e
       case var of
-        LocalVar l -> first lookup' >>> write' -< (l,v)
+        LocalVar l -> first lookup_ >>> write -< (l,v)
         ReferenceVar ref -> case ref of
           ArrayRef l i -> first (readLocal *** eval) >>> updateIndex -< ((l,i),v)
           FieldRef l f -> first readLocal >>> updateField -< (l,(f,v))
-          SignatureRef f -> first lookupField >>> write' -< (f,v)
-          _ -> failA -< StaticException $ printf "Can only assign a reference or a local variable"
+          SignatureRef f -> first lookupField >>> write -< (f,v)
+          _ -> fail -< StaticException $ printf "Can only assign a reference or a local variable"
       runStatements -< rest
     Invoke e -> do
       evalInvoke -< e
@@ -288,52 +276,52 @@ runStatements = proc stmts -> case stmts of
     Breakpoint -> runStatements -< rest
   where
     runStatementsFromLabel = statementsFromLabel >>> runStatements
-    currentMethodBody = askA >>> proc m -> case methodBody m of
-      EmptyBody -> failA -< StaticException $ printf "Empty body for method %s" (show m)
+    currentMethodBody = ask >>> proc m -> case methodBody m of
+      EmptyBody -> fail -< StaticException $ printf "Empty body for method %s" (show m)
       FullBody{} -> returnA -< methodBody m
     statementsFromLabel = proc label -> do
       b <- currentMethodBody -< ()
       case Label label `elemIndex` statements b of
         Just i -> returnA -< drop i (statements b)
-        Nothing -> failA -< StaticException $ printf "Undefined label: %s" label
+        Nothing -> fail -< StaticException $ printf "Undefined label: %s" label
     catchException = proc ((_,clauses),exception) -> case exception of
-        StaticException _ -> failA -< exception
+        StaticException _ -> fail -< exception
         DynamicException val -> catch handleException -< (val,clauses)
     handleException = proc (val,clause) -> do
       addr <- alloc -< val
       extendEnv' runStatementsFromLabel -< ("@caughtexception",addr,withLabel clause)
     runSwitch = first eval >>> case_
         runStatementsFromLabel
-        ((StaticException . printf "No cases match value %s" . show) ^>> failA)
+        ((StaticException . printf "No cases match value %s" . show) ^>> fail)
 
 runMethod :: CanInterp env addr const val c => c (Method,Maybe val,[Expr]) (Maybe val)
 runMethod = proc (method,this,args) -> case methodBody method of
   EmptyBody -> returnA -< Nothing
   FullBody{declarations=decs,statements=stmts} -> do
-    argVals <- mapA eval -< args
+    argVals <- U.map eval -< args
     let thisPair = maybe [] (\x -> [("@this",x)]) this
     let paramPairs = zip (map (\i -> "@parameter" ++ show i) [(0 :: Int)..]) argVals
-    decPairs <- mapA (second defaultValue) -< concatMap (\(t,d) -> zip d (repeat t)) decs
+    decPairs <- U.map (second defaultValue) -< concatMap (\(t,d) -> zip d (repeat t)) decs
     env <- createMethodEnv -< thisPair ++ paramPairs ++ decPairs
-    localEnv (localA runStatements) -< (env,(method,stmts))
+    localEnv (local runStatements) -< (env,(method,stmts))
   where
     createMethodEnv = proc pairs -> do
       e <- emptyEnv -< ()
-      foldA (proc (env,(s,v)) -> do
+      U.fold (proc (env,(s,v)) -> do
         addr <- alloc -< v
         extendEnv -< (s,addr,env)) -< (pairs,e)
 
 runProgram :: CanInterp env addr const val c => c [Expr] (Maybe val)
 runProgram = proc args -> do
   units <- askCompilationUnits -< ()
-  fields <- askFields >>> Map.toList ^>> mapA (second addrFromInt) -< ()
-  mapA (second defaultValue >>> write') -< map (\(FieldSignature _ t _,a) -> (a,t)) fields
-  mapA ((\u -> find (\m -> methodName m == "<clinit>") [m | MethodMember m <- fileBody u])
+  fields <- askFields >>> Map.toList ^>> U.map (second addrFromInt) -< ()
+  U.map (second defaultValue >>> write) -< map (\(FieldSignature _ t _,a) -> (a,t)) fields
+  U.map ((\u -> find (\m -> methodName m == "<clinit>") [m | MethodMember m <- fileBody u])
     ^>> liftAMaybe ((\m -> (m,Nothing,[])) ^>> runMethod)) -< Map.elems units
-  mainMethod <- askA -< ()
-  tryCatchA runMethod (pi2 >>> proc exception -> case exception of
-    DynamicException v -> deepDeref >>> DynamicException ^>> failA -< v
-    StaticException _ -> failA -< exception) -< (mainMethod,Nothing,args)
+  mainMethod <- ask -< ()
+  tryCatch runMethod (U.pi2 >>> proc exception -> case exception of
+    DynamicException v -> deepDeref >>> DynamicException ^>> fail -< v
+    StaticException _ -> fail -< exception) -< (mainMethod,Nothing,args)
 
 class Arrow c => UseVal v c | c -> v where
   doubleConstant :: c Float v

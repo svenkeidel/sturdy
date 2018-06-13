@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Concrete where
 
-import           Prelude hiding (id)
+import           Prelude hiding (id,fail)
 import qualified Prelude as P
 
 import           Data.Bits
@@ -36,7 +36,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
-import           Control.Arrow.Utils
+import qualified Control.Arrow.Utils as U
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
@@ -113,26 +113,13 @@ newtype Interp x y = Interp
             (Const Constants (->)))))) x y)
   deriving (Category,Arrow,ArrowChoice)
 
--- Remove these instances when env and store with continuations are available
-instance {-# OVERLAPS #-} ArrowChoice c => ArrowEnv String Addr (Env String Addr) (Environment String Addr c) where
-  lookup = Environment $ Reader $ proc (env,var) -> case E.lookup var env of
-      Just val -> returnA -< val
-      Nothing -> returnA -< -1
-  getEnv = Environment askA
-  extendEnv = arr $ \(x,y,env) -> E.insert x y env
-  localEnv (Environment f) = Environment (localA f)
-
-instance {-# OVERLAPS #-} ArrowChoice c => ArrowStore Addr Val () (StoreArrow Addr Val c) where
-  read = StoreArrow $ State $ proc (s,(var,_)) -> case S.lookup var s of
-      Just v -> returnA -< (s,v)
-      Nothing -> returnA -< (s,BottomVal)
-  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (S.insert x v s,()))))
-
 deriving instance ArrowConst Constants Interp
 deriving instance ArrowReader MethodReader Interp
 deriving instance ArrowState Addr Interp
 deriving instance ArrowEnv String Addr (Env String Addr) Interp
-deriving instance ArrowStore Addr Val () Interp
+deriving instance ArrowRead Addr Val Addr Val Interp
+deriving instance ArrowRead Addr Val (Exception Val) Val Interp
+deriving instance ArrowWrite Addr Val Interp
 deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowExcept x Val (Exception Val) Interp
 deriving instance ArrowExcept x (Maybe Val) (Exception Val) Interp
@@ -147,7 +134,7 @@ runInterp (Interp f) files env store mainMethod x =
   in runConst (Map.fromList compilationUnits,Map.fromList fields)
       (evalState
         (evalStore
-          (runEnvironment
+          (runEnvironment'
             (runReader
               (runExcept f)))))
   (latestAddr + length fields,(S.fromList store,(env,(mainMethod,x))))
@@ -158,13 +145,13 @@ withInt :: (CanFail Val c) => (Int -> Int -> Int) -> c (Val,Val) Val
 withInt op = proc (v1,v2) -> case (v1,v2) of
   (IntVal x1,IntVal x2) -> returnA -< IntVal $ op x1 x2
   (LongVal x1,LongVal x2) -> returnA -< LongVal $ op x1 x2
-  _ -> failA -< StaticException "Expected integer variables for op"
+  _ -> fail -< StaticException "Expected integer variables for op"
 
 withFloat :: (CanFail Val c) => (Float -> Float -> Float) -> c (Val,Val) Val
 withFloat op = proc (v1,v2) -> case (v1,v2) of
   (FloatVal x1,FloatVal x2) -> returnA -< FloatVal $ op x1 x2
   (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal $ op x1 x2
-  _ -> failA -< StaticException "Expected floating variables for op"
+  _ -> fail -< StaticException "Expected floating variables for op"
 
 cmpNum :: (CanFail Val c) => (Bool -> Bool) -> c (Val,Val) Val
 cmpNum post = proc (v1,v2) -> case (v1,v2) of
@@ -172,7 +159,7 @@ cmpNum post = proc (v1,v2) -> case (v1,v2) of
   (LongVal x1,LongVal x2) -> returnA -< BoolVal $ post (x1 < x2)
   (FloatVal x1,FloatVal x2) -> returnA -< BoolVal $ post (x1 < x2)
   (DoubleVal x1,DoubleVal x2) -> returnA -< BoolVal $ post (x1 < x2)
-  _ -> failA -< StaticException "Expected numeric variables for comparison"
+  _ -> fail -< StaticException "Expected numeric variables for comparison"
 
 order :: (Ord x,Arrow c) => (Int -> Int) -> c (x,x) Val
 order post = arr (IntVal . post . (\(x1,x2) -> case compare x1 x2 of
@@ -183,11 +170,11 @@ order post = arr (IntVal . post . (\(x1,x2) -> case compare x1 x2 of
 createException :: (UseVal Val c,CanFail Val c,CanUseStore Addr Val c) => c (String,String) (Exception Val)
 createException = proc (clzz,message) -> do
   RefVal addr <- newSimple -< RefType clzz
-  v <- Shared.read' -< addr
+  v <- Shared.read_ -< addr
   case v of
     ObjectVal c m -> do
       let m' = Map.insert (FieldSignature clzz (RefType "String") "message") (StringVal message) m
-      Shared.write' -< (addr,ObjectVal c m')
+      write -< (addr,ObjectVal c m')
       returnA -< DynamicException (RefVal addr)
     _ -> returnA -< StaticException $ printf "Undefined exception %s" clzz
 
@@ -200,9 +187,9 @@ instance UseVal Val Interp where
   newArray = proc (t,sizes) -> case sizes of
     (s:sizes') -> case s of
       IntVal s' -> do
-        vals <- mapA newArray -< replicate s' (t,sizes')
+        vals <- U.map newArray -< replicate s' (t,sizes')
         alloc >>^ RefVal -< ArrayVal vals
-      _ -> failA -< StaticException $ printf "Expected an integer array size, got %s" (show s)
+      _ -> fail -< StaticException $ printf "Expected an integer array size, got %s" (show s)
     [] -> defaultValue -< t
   and = withInt (.&.)
   or = withInt (.|.)
@@ -210,15 +197,15 @@ instance UseVal Val Interp where
   rem = withInt P.mod <+> withFloat mod'
   cmp = proc (v1,v2) -> case (v1,v2) of
     (LongVal x1,LongVal x2) -> order id -< (x1,x2)
-    _ -> failA -< StaticException "Expected long variables for 'cmp'"
+    _ -> fail -< StaticException "Expected long variables for 'cmp'"
   cmpg = proc (v1,v2) -> case (v1,v2) of
     (FloatVal x1,FloatVal x2) -> order id -< (x1,x2)
     (DoubleVal x1,DoubleVal x2) -> order id -< (x1,x2)
-    _ -> failA -< StaticException "Expected floating variables for 'cmpg'"
+    _ -> fail -< StaticException "Expected floating variables for 'cmpg'"
   cmpl = proc (v1,v2) -> case (v1,v2) of
     (FloatVal x1,FloatVal x2) -> order (*(-1)) -< (x1,x2)
     (DoubleVal x1,DoubleVal x2) -> order (*(-1)) -< (x1,x2)
-    _ -> failA -< StaticException "Expected floating variables for 'cmpl'"
+    _ -> fail -< StaticException "Expected floating variables for 'cmpl'"
   eq = arr (BoolVal . uncurry (==))
   neq = arr (BoolVal . uncurry (/=))
   gt = swap ^>> cmpNum id
@@ -234,20 +221,20 @@ instance UseVal Val Interp where
   div = withFloat (/) <+> proc (v1,v2) -> case (v1,v2) of
     (IntVal x1,IntVal x2) -> div_ >>^ IntVal -< (x1,x2)
     (LongVal x1,LongVal x2) -> div_ >>^ LongVal -< (x1,x2)
-    _ -> failA -< StaticException "Expected numeric variables for 'div'"
+    _ -> fail -< StaticException "Expected numeric variables for 'div'"
     where
       div_ = proc (x1,x2) -> if x2 == 0
-        then createException >>> failA -< ("java.lang.ArithmeticException","/ by zero")
+        then createException >>> fail -< ("java.lang.ArithmeticException","/ by zero")
         else returnA -< (x1 `P.div` x2)
   lengthOf = proc v -> case v of
     ArrayVal xs -> returnA -< (IntVal (length xs))
-    _ -> failA -< StaticException "Expected an array variable for 'lengthOf'"
+    _ -> fail -< StaticException "Expected an array variable for 'lengthOf'"
   neg = proc v -> case v of
     IntVal n -> returnA -< IntVal (-n)
     LongVal l -> returnA -< LongVal (-l)
     FloatVal f -> returnA -< FloatVal (-f)
     DoubleVal d -> returnA -< DoubleVal (-d)
-    _ -> failA -< StaticException "Expected a number as argument for -"
+    _ -> fail -< StaticException "Expected a number as argument for -"
   doubleConstant = arr DoubleVal
   floatConstant = arr FloatVal
   intConstant = arr IntVal
@@ -256,17 +243,17 @@ instance UseVal Val Interp where
   stringConstant = arr StringVal
   classConstant = arr ClassVal
   deref = proc val -> case val of
-    RefVal addr -> Shared.read' -< addr
+    RefVal addr -> Shared.read_ -< addr
     _ -> returnA -< val
   deepDeref = proc val -> case val of
     RefVal addr -> do
-      v <- Shared.read' -< addr
+      v <- Shared.read_ -< addr
       case v of
         ObjectVal c m -> do
           let (keys,vals) = unzip (Map.toList m)
-          vals' <- mapA deepDeref -< vals
+          vals' <- U.map deepDeref -< vals
           returnA -< ObjectVal c (Map.fromList (zip keys vals'))
-        ArrayVal xs -> mapA deepDeref >>^ ArrayVal -< xs
+        ArrayVal xs -> U.map deepDeref >>^ ArrayVal -< xs
         _ -> returnA -< v
     _ -> returnA -< val
   defaultValue = proc t -> case t of
@@ -281,7 +268,7 @@ instance UseVal Val Interp where
     NullType      -> returnA -< NullVal
     (RefType _)   -> returnA -< NullVal
     (ArrayType _) -> returnA -< NullVal
-    _             -> failA -< StaticException $ printf "No default value for type %s" (show t)
+    _             -> fail -< StaticException $ printf "No default value for type %s" (show t)
   instanceOf = first deepDeref >>> (proc (v,t) -> case (v,t) of
     (BoolVal _,     BooleanType)  -> returnA -< BoolVal True
     (IntVal n,      ByteType)     -> returnA -< BoolVal $ n >= -128   && n < 128   -- n >= (-2)^7  && n < 2^7
@@ -294,7 +281,7 @@ instance UseVal Val Interp where
     (NullVal,       NullType)     -> returnA -< BoolVal True
     (ObjectVal c _, RefType p)    -> isSuperClass -< (c,p)
     (ArrayVal xs,   ArrayType t') -> do
-      b <- (mapA instanceOf >>^ all (==BoolVal True)) -< zip xs (repeat t')
+      b <- (U.map instanceOf >>^ all (==BoolVal True)) -< zip xs (repeat t')
       returnA -< BoolVal b
     (_,_) -> returnA -< BoolVal False)
     where
@@ -306,56 +293,56 @@ instance UseVal Val Interp where
             Just c' -> isSuperClass -< (c',p)
             Nothing -> returnA -< BoolVal False
   cast = first (first (id &&& deepDeref)) >>> proc (((v,v'),t),b) -> case (b,v') of
-    (BoolVal False,_) -> createException >>> failA -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
+    (BoolVal False,_) -> createException >>> fail -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
     (BoolVal True,ObjectVal _ _) -> returnA -< v
-    (BoolVal _,_) -> failA -< StaticException "Casting of primivites and arrays is not yet supported"
+    (BoolVal _,_) -> fail -< StaticException "Casting of primivites and arrays is not yet supported"
     -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
-    (_,_) -> failA -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
+    (_,_) -> fail -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
   readIndex = proc (v,i) -> case (v,i) of
     (ArrayVal xs,IntVal n)
       | n >= 0 && n < length xs -> returnA -< xs !! n
-      | otherwise -> createException >>> failA -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
-    (ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
-    _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
+      | otherwise -> createException >>> fail -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
+    (ArrayVal _,_) -> fail -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
+    _ -> fail -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
   updateIndex = first (first (id &&& deref)) >>> proc (((ref,a),i),v) -> case (ref,a,i) of
     (RefVal addr,ArrayVal xs,IntVal n)
-      | n >= 0 && n < length xs -> Shared.write' -< (addr,ArrayVal ((\(h,(_:t)) -> h ++ v:t) $ splitAt n xs))
-      | otherwise -> createException >>> failA -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
-    (RefVal _,ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
-    _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
+      | n >= 0 && n < length xs -> write -< (addr,ArrayVal ((\(h,(_:t)) -> h ++ v:t) $ splitAt n xs))
+      | otherwise -> createException >>> fail -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
+    (RefVal _,ArrayVal _,_) -> fail -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
+    _ -> fail -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
   readField = proc (v,f) -> case v of
     (ObjectVal _ m) -> case Map.lookup f m of
       Just x -> returnA -< x
-      Nothing -> failA -< StaticException $ printf "Field %s not defined for object %s" (show f) (show v)
-    _ -> failA -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
+      Nothing -> fail -< StaticException $ printf "Field %s not defined for object %s" (show f) (show v)
+    _ -> fail -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
   updateField = first (id &&& deref) >>> proc ((ref,o),(f,v)) -> case (ref,o) of
     (RefVal addr,ObjectVal c m) -> case m Map.!? f of
-      Just _ -> Shared.write' -< (addr,ObjectVal c (Map.insert f v m))
-      Nothing -> failA -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
-    _ -> failA -< StaticException $ printf "Expected an object for field update, got %s" (show o)
+      Just _ -> write -< (addr,ObjectVal c (Map.insert f v m))
+      Nothing -> fail -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
+    _ -> fail -< StaticException $ printf "Expected an object for field update, got %s" (show o)
 
 instance UseFlow Val Interp where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
-    _ -> failA -< StaticException "Expected boolean as argument for 'if'"
+    _ -> fail -< StaticException "Expected boolean as argument for 'if'"
   case_ f g = proc (v,cases) -> case v of
     IntVal x -> case find (matchCase x) cases of
       Just (_,label) -> f -< label
       Nothing -> g -< v
-    _ -> failA -< StaticException "Expected an integer as argument for switch"
+    _ -> fail -< StaticException "Expected an integer as argument for switch"
     where
       matchCase x (c,_) = case c of
         ConstantCase n -> x == n
         DefaultCase    -> True
   catch f = proc (v,clauses) -> case clauses of
-    [] -> failA -< DynamicException v
+    [] -> fail -< DynamicException v
     (clause:rest) -> do
       b <- instanceOf -< (v,RefType (className clause))
       case b of
         BoolVal True -> f -< (v,clause)
         BoolVal False -> catch f -< (v,rest)
-        _ -> failA -< StaticException "Expected a boolean from instanceOf"
+        _ -> fail -< StaticException "Expected a boolean from instanceOf"
 
 instance UseMem Env Addr Interp where
   emptyEnv = arr $ const E.empty
