@@ -382,12 +382,8 @@ instance UseVal Val Interp where
     _ -> failA -< StaticException "Expected a number as argument for '-'"
   doubleConstant = arr DoubleVal
   floatConstant = arr FloatVal
-  intConstant = proc x -> do
-    b <- askBounds -< ()
-    returnA -< IntVal $ num b x
-  longConstant = proc x -> do
-    b <- askBounds -< ()
-    returnA -< LongVal $ num b x
+  intConstant = (id &&& constA askBounds) >>> arr (\(x,b) -> IntVal $ num b x)
+  longConstant = (id &&& constA askBounds) >>> arr (\(x,b) -> IntVal $ num b x)
   nullConstant = arr $ const NullVal
   stringConstant = arr StringVal
   classConstant = arr ClassVal
@@ -407,21 +403,19 @@ instance UseVal Val Interp where
           returnA -< ArrayVal x' s
         _ -> returnA -< v
     _ -> returnA -< val
-  defaultValue = proc t -> do
-    b <- askBounds -< ()
-    returnA -< case t of
-      BooleanType   -> BoolVal B.False
-      ByteType      -> IntVal $ num b 0
-      CharType      -> IntVal $ num b 0
-      ShortType     -> IntVal $ num b 0
-      IntType       -> IntVal $ num b 0
-      LongType      -> LongVal $ num b 0
-      FloatType     -> FloatVal 0.0
-      DoubleType    -> DoubleVal 0.0
-      NullType      -> NullVal
-      (RefType _)   -> NullVal
-      (ArrayType _) -> NullVal
-      _             -> BottomVal
+  defaultValue = (id &&& constA askBounds) >>> arr (\(t,b) -> case t of
+    BooleanType   -> BoolVal B.False
+    ByteType      -> IntVal $ num b 0
+    CharType      -> IntVal $ num b 0
+    ShortType     -> IntVal $ num b 0
+    IntType       -> IntVal $ num b 0
+    LongType      -> LongVal $ num b 0
+    FloatType     -> FloatVal 0.0
+    DoubleType    -> DoubleVal 0.0
+    NullType      -> NullVal
+    (RefType _)   -> NullVal
+    (ArrayType _) -> NullVal
+    _             -> BottomVal)
   instanceOf = first deepDeref >>> (proc (v,t) -> case (v,t) of
     (TopVal,        _)            -> returnA -< BoolVal B.Top
     (BoolVal _,     BooleanType)  -> returnA -< BoolVal B.True
@@ -496,13 +490,17 @@ instance UseFlow Val Interp where
     BoolVal B.Top -> joined f1 f2 -< (x,y)
     TopVal -> returnA -< Just top
     _ -> failA -< StaticException "Expected boolean as argument for 'if'"
-  case_ f = proc (v,cases) -> case v of
-    IntVal _ -> matchCases >>> lubA f -< (v,cases)
+  case_ f g = proc (v,cases) -> case v of
+    IntVal _ -> do
+      labels <- matchCases -< (v,cases)
+      case labels of
+        [] -> g -< v
+        _ -> lubA f -< labels
     TopVal -> returnA -< Just top
     _ -> failA -< StaticException "Expected integer argument for 'case'"
     where
       matchCases = proc (v,cases) -> case cases of
-        [] -> failA -< StaticException $ printf "No cases match value %s" (show v)
+        [] -> returnA -< []
         ((ConstantCase n,label): rest) -> do
           n' <- intConstant -< n
           b <- eq -< (n',v)

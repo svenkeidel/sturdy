@@ -17,7 +17,7 @@ import           Data.Bits
 import qualified Data.Bits as B
 import           Data.Fixed
 import           Data.Order
-import           Data.List (replicate,repeat)
+import           Data.List (replicate,repeat,find,splitAt)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Tuple (swap)
@@ -195,15 +195,13 @@ instance UseVal Val Interp where
   newSimple = proc t -> case t of
     RefType c -> do
       fields <- Shared.getInitializedFields -< c
-      addr <- alloc -< (ObjectVal c (Map.fromList fields))
-      returnA -< RefVal addr
+      alloc >>^ RefVal -< (ObjectVal c (Map.fromList fields))
     _ -> defaultValue -< t
   newArray = proc (t,sizes) -> case sizes of
     (s:sizes') -> case s of
       IntVal s' -> do
         vals <- mapA newArray -< replicate s' (t,sizes')
-        addr <- alloc -< ArrayVal vals
-        returnA -< RefVal addr
+        alloc >>^ RefVal -< ArrayVal vals
       _ -> failA -< StaticException $ printf "Expected an integer array size, got %s" (show s)
     [] -> defaultValue -< t
   and = withInt (.&.)
@@ -268,24 +266,22 @@ instance UseVal Val Interp where
           let (keys,vals) = unzip (Map.toList m)
           vals' <- mapA deepDeref -< vals
           returnA -< ObjectVal c (Map.fromList (zip keys vals'))
-        ArrayVal xs -> do
-          xs' <- mapA deepDeref -< xs
-          returnA -< ArrayVal xs'
+        ArrayVal xs -> mapA deepDeref >>^ ArrayVal -< xs
         _ -> returnA -< v
     _ -> returnA -< val
-  defaultValue = arr (\t -> case t of
-    BooleanType   -> BoolVal False
-    ByteType      -> IntVal 0
-    CharType      -> IntVal 0
-    ShortType     -> IntVal 0
-    IntType       -> IntVal 0
-    LongType      -> LongVal 0
-    FloatType     -> FloatVal 0.0
-    DoubleType    -> DoubleVal 0.0
-    NullType      -> NullVal
-    (RefType _)   -> NullVal
-    (ArrayType _) -> NullVal
-    _             -> BottomVal)
+  defaultValue = proc t -> case t of
+    BooleanType   -> returnA -< BoolVal False
+    ByteType      -> returnA -< IntVal 0
+    CharType      -> returnA -< IntVal 0
+    ShortType     -> returnA -< IntVal 0
+    IntType       -> returnA -< IntVal 0
+    LongType      -> returnA -< LongVal 0
+    FloatType     -> returnA -< FloatVal 0.0
+    DoubleType    -> returnA -< DoubleVal 0.0
+    NullType      -> returnA -< NullVal
+    (RefType _)   -> returnA -< NullVal
+    (ArrayType _) -> returnA -< NullVal
+    _             -> failA -< StaticException $ printf "No default value for type %s" (show t)
   instanceOf = first deepDeref >>> (proc (v,t) -> case (v,t) of
     (BoolVal _,     BooleanType)  -> returnA -< BoolVal True
     (IntVal n,      ByteType)     -> returnA -< BoolVal $ n >= -128   && n < 128   -- n >= (-2)^7  && n < 2^7
@@ -316,22 +312,17 @@ instance UseVal Val Interp where
     -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
     (_,_) -> failA -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
   readIndex = proc (v,i) -> case (v,i) of
-    (ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
-      then returnA -< xs !! n
-      else createException >>> failA -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
+    (ArrayVal xs,IntVal n)
+      | n >= 0 && n < length xs -> returnA -< xs !! n
+      | otherwise -> createException >>> failA -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
     (ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
     _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
   updateIndex = first (first (id &&& deref)) >>> proc (((ref,a),i),v) -> case (ref,a,i) of
-    (RefVal addr,ArrayVal xs,IntVal n) -> if n >= 0 && n < length xs
-      then Shared.write' -< (addr,ArrayVal (replace n v xs))
-      else createException >>> failA -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
+    (RefVal addr,ArrayVal xs,IntVal n)
+      | n >= 0 && n < length xs -> Shared.write' -< (addr,ArrayVal ((\(h,(_:t)) -> h ++ v:t) $ splitAt n xs))
+      | otherwise -> createException >>> failA -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
     (RefVal _,ArrayVal _,_) -> failA -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
     _ -> failA -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
-    where
-      replace :: Int -> a -> [a] -> [a]
-      replace _ _ [] = []
-      replace 0 x (_:t) = x:t
-      replace n x (h:t) = h:replace (n-1) x t
   readField = proc (v,f) -> case v of
     (ObjectVal _ m) -> case Map.lookup f m of
       Just x -> returnA -< x
@@ -348,16 +339,15 @@ instance UseFlow Val Interp where
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
     _ -> failA -< StaticException "Expected boolean as argument for 'if'"
-  case_ f = proc (v,cases) -> case v of
-    IntVal x -> matchCases >>> f -< (x,cases)
+  case_ f g = proc (v,cases) -> case v of
+    IntVal x -> case find (matchCase x) cases of
+      Just (_,label) -> f -< label
+      Nothing -> g -< v
     _ -> failA -< StaticException "Expected an integer as argument for switch"
     where
-      matchCases = proc (x,cases) -> case cases of
-        [] -> failA -< StaticException $ printf "No cases match value %s" (show x)
-        ((ConstantCase n,label): rest) -> if n == x
-          then returnA -< label
-          else matchCases -< (x,rest)
-        ((DefaultCase,label): _) -> returnA -< label
+      matchCase x (c,_) = case c of
+        ConstantCase n -> x == n
+        DefaultCase    -> True
   catch f = proc (v,clauses) -> case clauses of
     [] -> failA -< DynamicException v
     (clause:rest) -> do
