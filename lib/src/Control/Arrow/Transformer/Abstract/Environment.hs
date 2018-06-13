@@ -53,10 +53,6 @@ instance (Show var, Identifiable var, ArrowChoice c) => ArrowEnv var val (Env va
   extendEnv = arr $ \(x,y,env) -> E.insert x y env
   localEnv (Environment f) = Environment (local f)
 
-instance ArrowStore var val lab c => ArrowStore var val lab (Environment var' val' c) where
-  read = lift read
-  write = lift write
-
 instance ArrowApply c => ArrowApply (Environment var val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app
 

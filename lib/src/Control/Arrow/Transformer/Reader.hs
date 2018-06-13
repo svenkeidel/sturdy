@@ -59,10 +59,6 @@ instance Arrow c => ArrowReader r (Reader r c) where
   ask = Reader pi1
   local (Reader f) = Reader $ (\(_,(r,x)) -> (r,x)) ^>> f
 
-instance ArrowStore var val lab c => ArrowStore var val lab (Reader r c) where
-  read = lift read
-  write = lift write
-
 instance ArrowState s c => ArrowState s (Reader r c) where
   get = lift get
   put = lift put

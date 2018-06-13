@@ -26,7 +26,6 @@ import Control.Category
 import Data.Concrete.Store (Store)
 import qualified Data.Concrete.Store as S
 import Data.Identifiable
-import Data.String
 
 -- | Arrow transformer that adds a store to a computation.
 newtype StoreArrow var val c x y = StoreArrow (State (Store var val) c x y)
