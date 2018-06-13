@@ -86,7 +86,6 @@ data Val
   | DoubleVal Float
   | StringVal String
   | ClassVal String
-  | BoolVal B.Bool
   | NullVal
   | RefVal Addr
   | ArrayVal Val Val
@@ -101,7 +100,6 @@ instance Show Val where
   show (DoubleVal d) = show d
   show (StringVal s) = s
   show (ClassVal c) = "<" ++ c ++ ">"
-  show (BoolVal b) = show b
   show NullVal = "null"
   show (RefVal a) = "@" ++ show a
   show (ArrayVal x s) = show x ++ "[" ++ show s ++ "]"
@@ -115,7 +113,6 @@ instance Equality Val where
   DoubleVal d1 == DoubleVal d2 = bool $ d1 P.== d2
   StringVal s1 == StringVal s2 = bool $ s1 P.== s2
   ClassVal c1 == ClassVal c2 = bool $ c1 P.== c2
-  BoolVal b1 == BoolVal b2 = b1 == b2
   NullVal == NullVal = B.true
   ArrayVal x1 s1 == ArrayVal x2 s2 = (x1 == x2) `B.and` (s1 == s2)
   ObjectVal c1 m1 == ObjectVal c2 m2 = if c1 P.== c2
@@ -124,6 +121,7 @@ instance Equality Val where
   _ == _ = B.false
 
 instance PreOrd Val where
+  BottomVal ⊑ _ = P.True
   _ ⊑ TopVal = P.True
   IntVal n1 ⊑ IntVal n2 = n1 ⊑ n2
   LongVal l1 ⊑ LongVal l2 = l1 ⊑ l2
@@ -131,30 +129,34 @@ instance PreOrd Val where
   DoubleVal d1 ⊑ DoubleVal d2 = d1 P.== d2
   StringVal s1 ⊑ StringVal s2 = s1 P.== s2
   ClassVal c1 ⊑ ClassVal c2 = c1 P.== c2
-  BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
   NullVal ⊑ NullVal = P.True
   ArrayVal x1 s1 ⊑ ArrayVal x2 s2 = (x1 ⊑ x2) && (s1 ⊑ s2)
   ObjectVal c1 m1 ⊑ ObjectVal c2 m2 =
     c1 P.== c2 && all (uncurry (⊑)) (zip (Map.elems m1) (Map.elems m2))
   RefVal a ⊑ RefVal b = a P.== b
-  BottomVal ⊑ _ = P.True
   _ ⊑ _ = P.False
 
 instance Complete Val where
   BottomVal ⊔ v = v
+  v ⊔ BottomVal = v
   IntVal n1 ⊔ IntVal n2 = IntVal $ n1 ⊔ n2
   LongVal l1 ⊔ LongVal l2 = LongVal $ l1 ⊔ l2
-  FloatVal f1 ⊔ FloatVal f2 = if f1 P.== f2 then FloatVal f1 else top
+  FloatVal f1 ⊔ FloatVal f2 = if f1 P.== f2 then FloatVal f1 else FloatVal $ max f1 f2 -- top
   DoubleVal d1 ⊔ DoubleVal d2 = if d1 P.== d2 then DoubleVal d1 else top
   StringVal s1 ⊔ StringVal s2 = if s1 P.== s2 then StringVal s1 else top
   ClassVal c1 ⊔ ClassVal c2 = if c1 P.== c2 then ClassVal c1 else ClassVal "java.lang.Object"
-  BoolVal b1 ⊔ BoolVal b2 = BoolVal $ b1 ⊔ b2
   NullVal ⊔ NullVal = NullVal
+  ArrayVal x s ⊔ NullVal = ArrayVal x s
+  NullVal ⊔ ArrayVal x s = ArrayVal x s
+  ObjectVal c m ⊔ NullVal = ObjectVal c m
+  NullVal ⊔ ObjectVal c m = ObjectVal c m
+  RefVal a ⊔ NullVal = RefVal a
+  NullVal ⊔ RefVal a = RefVal a
   ArrayVal x1 s1 ⊔ ArrayVal x2 s2 = ArrayVal (x1 ⊔ x2) (s1 ⊔ s2)
   ObjectVal c1 m1 ⊔ ObjectVal c2 m2 = if c1 P.== c2
     then ObjectVal c1 $ Map.unionWith (⊔) m1 m2
     else top
-  RefVal a ⊔ RefVal b = if a P.== b then RefVal a else top
+  RefVal a ⊔ RefVal b = if a P.== b then RefVal a else RefVal $ max a b -- top
   _ ⊔ _ = top
 
 instance UpperBounded Val where
@@ -192,6 +194,16 @@ instance LowerBounded Val where
 ---- End of Values ----
 
 ---- Interp Type ----
+
+-- instance ArrowRead Addr Val x y (StoreArrow Addr Val Interp) where
+--   read (StoreArrow f) (StoreArrow g) = StoreArrow $ proc (var,x) -> do
+--     s <- get -< ()
+--     case S.lookup var s of
+--       Just val -> f -< (val,x)
+--       Nothing  -> g -< x
+--
+-- instance {-# OVERLAPS #-} ArrowWrite Addr Val (StoreArrow Addr Val Interp) where
+--   write = StoreArrow $ modify $ arr $ \((var,val),st) -> S.insert var val st
 
 newtype Interp x y = Interp
   (Except (Exception Val)
@@ -246,9 +258,6 @@ bool :: P.Bool -> B.Bool
 bool P.True = B.True
 bool P.False = B.False
 
-boolVal :: P.Bool -> Val
-boolVal b = BoolVal (bool b)
-
 num :: IV -> Int -> Bounded IV
 num b x = Bounded b $ I.constant x
 
@@ -273,16 +282,6 @@ withFloat op = proc (v1,v2) -> case (v1,v2) of
   (FloatVal x1,FloatVal x2) -> returnA -< FloatVal $ op x1 x2
   (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal $ op x1 x2
   _ -> fail -< StaticException $ printf "Expected floating variables for op, got %s %s" (show v1) (show v2)
-
-cmpNum :: (CanFail Val c) => (B.Bool -> B.Bool) -> c (Val,Val) Val
-cmpNum post = proc (v1,v2) -> case (v1,v2) of
-  (TopVal,_) -> returnA -< top
-  (_,TopVal) -> returnA -< top
-  (IntVal x1,IntVal x2) -> returnA -< BoolVal $ post (x1 < x2)
-  (LongVal x1,LongVal x2) -> returnA -< BoolVal $ post (x1 < x2)
-  (FloatVal x1,FloatVal x2) -> returnA -< BoolVal $ post $ bool (x1 P.< x2)
-  (DoubleVal x1,DoubleVal x2) -> returnA -< BoolVal $ post $ bool (x1 P.< x2)
-  _ -> fail -< StaticException $ printf "Expected numeric variables for comparison, got %s %s" (show v1) (show v2)
 
 order :: (Ord x,Arrow c) => (Int -> Int) -> c (IV,x,x) Val
 order post = arr (\(b,x1,x2) -> IntVal (num b (post (case compare x1 x2 of
@@ -341,12 +340,6 @@ instance UseVal Val Interp where
     (FloatVal x1,FloatVal x2) -> order (*(-1)) -< (b,x1,x2)
     (DoubleVal x1,DoubleVal x2) -> order (*(-1)) -< (b,x1,x2)
     _ -> fail -< StaticException "Expected floating variables for 'cmpl'"
-  eq = arr (BoolVal . uncurry (==))
-  neq = arr (BoolVal . B.not . uncurry (==))
-  gt = swap ^>> cmpNum id
-  ge = cmpNum B.not
-  lt = cmpNum id
-  le = swap ^>> cmpNum B.not
   shl = withInt shiftL
   shr = withInt shiftR
   ushr = withInt shiftR
@@ -396,7 +389,7 @@ instance UseVal Val Interp where
         _ -> returnA -< v
     _ -> returnA -< val
   defaultValue = (id &&& U.const askBounds) >>> arr (\(t,b) -> case t of
-    BooleanType   -> BoolVal B.False
+    BooleanType   -> IntVal $ num b 0
     ByteType      -> IntVal $ num b 0
     CharType      -> IntVal $ num b 0
     ShortType     -> IntVal $ num b 0
@@ -408,42 +401,6 @@ instance UseVal Val Interp where
     (RefType _)   -> NullVal
     (ArrayType _) -> NullVal
     _             -> BottomVal)
-  instanceOf = first deepDeref >>> (proc (v,t) -> case (v,t) of
-    (TopVal,        _)            -> returnA -< BoolVal B.Top
-    (BoolVal _,     BooleanType)  -> returnA -< BoolVal B.True
-    (IntVal n,      ByteType)     -> do
-      b <- askBounds -< ()
-      returnA -< boolVal $ n ⊑ range b (-128) 127     -- n >= (-2)^7  && n < 2^7
-    (IntVal n,      CharType)     -> do
-      b <- askBounds -< ()
-      returnA -< boolVal $ n ⊑ range b 0 65535        -- n >= 0       && n < 2^16
-    (IntVal n,      ShortType)    -> do
-      b <- askBounds -< ()
-      returnA -< boolVal $ n ⊑ range b (-32768) 32767 -- n >= (-2)^15 && n < 2^15
-    (IntVal _,      IntType)      -> returnA -< BoolVal B.True
-    (LongVal _,     LongType)     -> returnA -< BoolVal B.True
-    (FloatVal _,    FloatType)    -> returnA -< BoolVal B.True
-    (DoubleVal _,   DoubleType)   -> returnA -< BoolVal B.True
-    (NullVal,       NullType)     -> returnA -< BoolVal B.True
-    (ObjectVal c _, RefType p)    -> isSuperClass -< (c,p)
-    (ArrayVal x _,  ArrayType t') -> instanceOf -< (x,t')
-    (_,             _)            -> returnA -< BoolVal B.False)
-    where
-      isSuperClass = proc (c,p) -> if c P.== p
-        then returnA -< BoolVal B.True
-        else do
-          unit <- Shared.readCompilationUnit -< c
-          case extends unit of
-            Just c' -> isSuperClass -< (c',p)
-            Nothing -> returnA -< BoolVal B.False
-  cast = first (first (id &&& deepDeref)) >>> proc (((v,v'),t),b) -> case (b,v') of
-    (BoolVal B.False,_) -> createException >>> fail -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
-    (BoolVal B.Top,ObjectVal _ _) -> joined returnA (createException >>> fail) -< (v,("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t)))
-    (BoolVal B.True,ObjectVal _ _) -> returnA -< v
-    (BoolVal _,_) -> fail -< StaticException "Casting of primivites and arrays is not yet supported"
-    -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
-    (TopVal,_) -> returnA -< top
-    (_,_) -> fail -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
   readIndex = proc (v,i) -> case (v,i) of
     (TopVal,_) -> returnA -< top
     (_,TopVal) -> returnA -< top
@@ -476,14 +433,6 @@ instance UseVal Val Interp where
       Just _ -> write -< (addr,ObjectVal c (Map.insert f v m))
       Nothing -> fail -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
     _ -> fail -< StaticException $ printf "Expected an object for field update, got %s" (show o)
-
-instance UseFlow Val Interp where
-  if_ f1 f2 = proc (v,(x,y)) -> case v of
-    BoolVal B.True -> f1 -< x
-    BoolVal B.False -> f2 -< y
-    BoolVal B.Top -> joined f1 f2 -< (x,y)
-    TopVal -> returnA -< Just top
-    _ -> fail -< StaticException "Expected boolean as argument for 'if'"
   case_ f g = proc (v,cases) -> case v of
     IntVal _ -> do
       labels <- matchCases -< (v,cases)
@@ -499,26 +448,70 @@ instance UseFlow Val Interp where
           n' <- intConstant -< n
           b <- eq -< (n',v)
           case b of
-            BoolVal B.True -> returnA -< [label]
-            BoolVal B.False -> matchCases -< (v,rest)
-            BoolVal B.Top -> do
+            B.True -> returnA -< [label]
+            B.False -> matchCases -< (v,rest)
+            B.Top -> do
               labels <- matchCases -< (v,rest)
               returnA -< label:labels
-            TopVal -> do
-              labels <- matchCases -< (v,rest)
-              returnA -< label:labels
-            _ -> fail -< StaticException "Expected boolean from eq"
         ((DefaultCase,label): _) -> returnA -< [label]
   catch f = proc (v,clauses) -> case clauses of
     [] -> fail -< DynamicException v
     (clause:rest) -> do
       b <- instanceOf -< (v,RefType (className clause))
       case b of
-        BoolVal B.True -> f -< (v,clause)
-        BoolVal B.False -> catch f -< (v,rest)
-        BoolVal B.Top -> joined f (catch f) -< ((v,clause),(v,rest))
-        TopVal -> returnA -< Just top
-        _ -> fail -< StaticException "Expected a boolean from instanceOf"
+        B.True -> f -< (v,clause)
+        B.False -> catch f -< (v,rest)
+        B.Top -> joined f (catch f) -< ((v,clause),(v,rest))
+
+cmpNum :: (CanFail Val c) => (B.Bool -> B.Bool) -> c (Val,Val) B.Bool
+cmpNum post = proc (v1,v2) -> case (v1,v2) of
+  (TopVal,_) -> returnA -< B.Top
+  (_,TopVal) -> returnA -< B.Top
+  (IntVal x1,IntVal x2) -> returnA -< post (x1 < x2)
+  (LongVal x1,LongVal x2) -> returnA -< post (x1 < x2)
+  (FloatVal x1,FloatVal x2) -> returnA -< post $ bool (x1 P.< x2)
+  (DoubleVal x1,DoubleVal x2) -> returnA -< post $ bool (x1 P.< x2)
+  _ -> fail -< StaticException $ printf "Expected numeric variables for comparison, got %s %s" (show v1) (show v2)
+
+instance UseBool B.Bool Val Interp where
+  eq = arr $ uncurry (==)
+  neq = arr $ B.not . uncurry (==)
+  gt = swap ^>> cmpNum id
+  ge = cmpNum B.not
+  lt = cmpNum id
+  le = swap ^>> cmpNum B.not
+  instanceOf = first deepDeref >>> (id &&& U.const askBounds) >>> (proc ((v,t),b) -> case (v,t) of
+    (TopVal,        _)            -> returnA -< B.Top
+    (IntVal n,      BooleanType)  -> returnA -< bool $ n ⊑ range b 0 1
+    (IntVal n,      ByteType)     -> returnA -< bool $ n ⊑ range b (-128) 127     -- n >= (-2)^7  && n < 2^7
+    (IntVal n,      CharType)     -> returnA -< bool $ n ⊑ range b 0 65535        -- n >= 0       && n < 2^16
+    (IntVal n,      ShortType)    -> returnA -< bool $ n ⊑ range b (-32768) 32767 -- n >= (-2)^15 && n < 2^15
+    (IntVal _,      IntType)      -> returnA -< B.True
+    (LongVal _,     LongType)     -> returnA -< B.True
+    (FloatVal _,    FloatType)    -> returnA -< B.True
+    (DoubleVal _,   DoubleType)   -> returnA -< B.True
+    (NullVal,       NullType)     -> returnA -< B.True
+    (ObjectVal c _, RefType p)    -> isSuperClass -< (c,p)
+    (ArrayVal x _,  ArrayType t') -> instanceOf -< (x,t')
+    (_,             _)            -> returnA -< B.False)
+    where
+      isSuperClass = proc (c,p) -> if c P.== p
+        then returnA -< B.True
+        else do
+          unit <- Shared.readCompilationUnit -< c
+          case extends unit of
+            Just c' -> isSuperClass -< (c',p)
+            Nothing -> returnA -< B.False
+  cast = first (first (id &&& deepDeref)) >>> proc (((v,v'),t),b) -> case (b,v') of
+    (B.False,_) -> createException >>> fail -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
+    (B.Top,ObjectVal _ _) -> joined returnA (createException >>> fail) -< (v,("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t)))
+    (B.True,ObjectVal _ _) -> returnA -< v
+    (_,_) -> fail -< StaticException "Casting of primivites and arrays is not yet supported"
+    -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
+  if_ f1 f2 = proc (v,(x,y)) -> case v of
+    B.True -> f1 -< x
+    B.False -> f2 -< y
+    B.Top -> joined f1 f2 -< (x,y)
 
 instance UseMem Env Addr Interp where
   emptyEnv = arr $ const E.empty

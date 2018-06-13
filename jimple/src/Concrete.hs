@@ -59,7 +59,6 @@ data Val
   | DoubleVal Float
   | StringVal String
   | ClassVal String
-  | BoolVal Bool
   | NullVal
   | RefVal Addr
   | ArrayVal [Val]
@@ -73,7 +72,6 @@ instance Show Val where
   show (DoubleVal d) = show d ++ "d"
   show (StringVal s) = s
   show (ClassVal c) = "<" ++ c ++ ">"
-  show (BoolVal b) = show b
   show NullVal = "null"
   show (RefVal a) = "@" ++ show a
   show (ArrayVal xs) = show xs
@@ -86,7 +84,6 @@ instance PreOrd Val where
   DoubleVal d1 ⊑ DoubleVal d2 = d1 == d2
   StringVal s1 ⊑ StringVal s2 = s1 == s2
   ClassVal c1 ⊑ ClassVal c2 = c1 == c2
-  BoolVal b1 ⊑ BoolVal b2 = b1 == b2
   NullVal ⊑ NullVal = True
   ArrayVal xs ⊑ ArrayVal ys = xs == ys
   ObjectVal c1 m1 ⊑ ObjectVal c2 m2 = c1 == c2 && m1 == m2
@@ -153,14 +150,6 @@ withFloat op = proc (v1,v2) -> case (v1,v2) of
   (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal $ op x1 x2
   _ -> fail -< StaticException "Expected floating variables for op"
 
-cmpNum :: (CanFail Val c) => (Bool -> Bool) -> c (Val,Val) Val
-cmpNum post = proc (v1,v2) -> case (v1,v2) of
-  (IntVal x1,IntVal x2) -> returnA -< BoolVal $ post (x1 < x2)
-  (LongVal x1,LongVal x2) -> returnA -< BoolVal $ post (x1 < x2)
-  (FloatVal x1,FloatVal x2) -> returnA -< BoolVal $ post (x1 < x2)
-  (DoubleVal x1,DoubleVal x2) -> returnA -< BoolVal $ post (x1 < x2)
-  _ -> fail -< StaticException "Expected numeric variables for comparison"
-
 order :: (Ord x,Arrow c) => (Int -> Int) -> c (x,x) Val
 order post = arr (IntVal . post . (\(x1,x2) -> case compare x1 x2 of
   LT -> -1
@@ -206,12 +195,6 @@ instance UseVal Val Interp where
     (FloatVal x1,FloatVal x2) -> order (*(-1)) -< (x1,x2)
     (DoubleVal x1,DoubleVal x2) -> order (*(-1)) -< (x1,x2)
     _ -> fail -< StaticException "Expected floating variables for 'cmpl'"
-  eq = arr (BoolVal . uncurry (==))
-  neq = arr (BoolVal . uncurry (/=))
-  gt = swap ^>> cmpNum id
-  ge = cmpNum not
-  lt = cmpNum id
-  le = swap ^>> cmpNum not
   shl = withInt shiftL
   shr = withInt shiftR
   ushr = withInt shiftR
@@ -257,7 +240,7 @@ instance UseVal Val Interp where
         _ -> returnA -< v
     _ -> returnA -< val
   defaultValue = proc t -> case t of
-    BooleanType   -> returnA -< BoolVal False
+    BooleanType   -> returnA -< IntVal 0
     ByteType      -> returnA -< IntVal 0
     CharType      -> returnA -< IntVal 0
     ShortType     -> returnA -< IntVal 0
@@ -269,35 +252,6 @@ instance UseVal Val Interp where
     (RefType _)   -> returnA -< NullVal
     (ArrayType _) -> returnA -< NullVal
     _             -> fail -< StaticException $ printf "No default value for type %s" (show t)
-  instanceOf = first deepDeref >>> (proc (v,t) -> case (v,t) of
-    (BoolVal _,     BooleanType)  -> returnA -< BoolVal True
-    (IntVal n,      ByteType)     -> returnA -< BoolVal $ n >= -128   && n < 128   -- n >= (-2)^7  && n < 2^7
-    (IntVal n,      CharType)     -> returnA -< BoolVal $ n >= 0      && n < 65536 -- n >= 0       && n < 2^16
-    (IntVal n,      ShortType)    -> returnA -< BoolVal $ n >= -32768 && n < 32768 -- n >= (-2)^15 && n < 2^15
-    (IntVal _,      IntType)      -> returnA -< BoolVal True
-    (LongVal _,     LongType)     -> returnA -< BoolVal True
-    (FloatVal _,    FloatType)    -> returnA -< BoolVal True
-    (DoubleVal _,   DoubleType)   -> returnA -< BoolVal True
-    (NullVal,       NullType)     -> returnA -< BoolVal True
-    (ObjectVal c _, RefType p)    -> isSuperClass -< (c,p)
-    (ArrayVal xs,   ArrayType t') -> do
-      b <- (U.map instanceOf >>^ all (==BoolVal True)) -< zip xs (repeat t')
-      returnA -< BoolVal b
-    (_,_) -> returnA -< BoolVal False)
-    where
-      isSuperClass = proc (c,p) -> if c == p
-        then returnA -< BoolVal True
-        else do
-          unit <- Shared.readCompilationUnit -< c
-          case extends unit of
-            Just c' -> isSuperClass -< (c',p)
-            Nothing -> returnA -< BoolVal False
-  cast = first (first (id &&& deepDeref)) >>> proc (((v,v'),t),b) -> case (b,v') of
-    (BoolVal False,_) -> createException >>> fail -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
-    (BoolVal True,ObjectVal _ _) -> returnA -< v
-    (BoolVal _,_) -> fail -< StaticException "Casting of primivites and arrays is not yet supported"
-    -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
-    (_,_) -> fail -< StaticException $ printf "Expected boolean for instanceOf, got %s" (show b)
   readIndex = proc (v,i) -> case (v,i) of
     (ArrayVal xs,IntVal n)
       | n >= 0 && n < length xs -> returnA -< xs !! n
@@ -320,12 +274,6 @@ instance UseVal Val Interp where
       Just _ -> write -< (addr,ObjectVal c (Map.insert f v m))
       Nothing -> fail -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
     _ -> fail -< StaticException $ printf "Expected an object for field update, got %s" (show o)
-
-instance UseFlow Val Interp where
-  if_ f1 f2 = proc (v,(x,y)) -> case v of
-    BoolVal True -> f1 -< x
-    BoolVal False -> f2 -< y
-    _ -> fail -< StaticException "Expected boolean as argument for 'if'"
   case_ f g = proc (v,cases) -> case v of
     IntVal x -> case find (matchCase x) cases of
       Just (_,label) -> f -< label
@@ -340,9 +288,55 @@ instance UseFlow Val Interp where
     (clause:rest) -> do
       b <- instanceOf -< (v,RefType (className clause))
       case b of
-        BoolVal True -> f -< (v,clause)
-        BoolVal False -> catch f -< (v,rest)
-        _ -> fail -< StaticException "Expected a boolean from instanceOf"
+        True -> f -< (v,clause)
+        False -> catch f -< (v,rest)
+
+cmpNum :: (CanFail Val c) => (Bool -> Bool) -> c (Val,Val) Bool
+cmpNum post = proc (v1,v2) -> case (v1,v2) of
+  (IntVal x1,IntVal x2) -> returnA -< post (x1 < x2)
+  (LongVal x1,LongVal x2) -> returnA -< post (x1 < x2)
+  (FloatVal x1,FloatVal x2) -> returnA -< post (x1 < x2)
+  (DoubleVal x1,DoubleVal x2) -> returnA -< post (x1 < x2)
+  _ -> fail -< StaticException "Expected numeric variables for comparison"
+
+instance UseBool Bool Val Interp where
+  eq = arr (uncurry (==))
+  neq = arr (uncurry (/=))
+  gt = swap ^>> cmpNum id
+  ge = cmpNum not
+  lt = cmpNum id
+  le = swap ^>> cmpNum not
+  instanceOf = first deepDeref >>> (proc (v,t) -> case (v,t) of
+    (IntVal n,      BooleanType)  -> returnA -< n >= 0      && n <= 1
+    (IntVal n,      ByteType)     -> returnA -< n >= -128   && n < 128   -- n >= (-2)^7  && n < 2^7
+    (IntVal n,      CharType)     -> returnA -< n >= 0      && n < 65536 -- n >= 0       && n < 2^16
+    (IntVal n,      ShortType)    -> returnA -< n >= -32768 && n < 32768 -- n >= (-2)^15 && n < 2^15
+    (IntVal _,      IntType)      -> returnA -< True
+    (LongVal _,     LongType)     -> returnA -< True
+    (FloatVal _,    FloatType)    -> returnA -< True
+    (DoubleVal _,   DoubleType)   -> returnA -< True
+    (NullVal,       NullType)     -> returnA -< True
+    (ObjectVal c _, RefType p)    -> isSuperClass -< (c,p)
+    (ArrayVal xs,   ArrayType t') -> do
+      b <- (U.map instanceOf >>^ all (==True)) -< zip xs (repeat t')
+      returnA -< b
+    (_,_) -> returnA -< False)
+    where
+      isSuperClass = proc (c,p) -> if c == p
+        then returnA -< True
+        else do
+          unit <- Shared.readCompilationUnit -< c
+          case extends unit of
+            Just c' -> isSuperClass -< (c',p)
+            Nothing -> returnA -< False
+  cast = first (first (id &&& deepDeref)) >>> proc (((v,v'),t),b) -> case (b,v') of
+    (False,_) -> createException >>> fail -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
+    (True,ObjectVal _ _) -> returnA -< v
+    (_,_) -> fail -< StaticException "Casting of primivites and arrays is not yet supported"
+    -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
+  if_ f1 f2 = proc (v,(x,y)) -> case v of
+    True -> f1 -< x
+    False -> f2 -< y
 
 instance UseMem Env Addr Interp where
   emptyEnv = arr $ const E.empty

@@ -70,14 +70,14 @@ type CanUseConst const c = (ArrowConst const c,UseConst c)
 type CanUseMem env addr val c = (CanUseEnv env addr c,CanUseStore addr val c,UseMem env addr c)
 type CanCatch x val c = ArrowExcept x (Maybe val) (Exception val) c
 
-type CanInterp env addr const val c = (
+type CanInterp env addr const val bool c = (
   Show val,
   LowerBounded val,
   Eq val,
   Show addr,
   Eq addr,
   UseVal val c,
-  UseFlow val c,
+  UseBool bool val c,
   CanFail val c,
   CanUseMem env addr val c,
   CanUseConst const c,
@@ -160,7 +160,7 @@ alloc = proc val -> do
   put -< succ addr
   returnA -< addr
 
-evalInvoke :: CanInterp env addr const val c => c EInvoke (Maybe val)
+evalInvoke :: CanInterp env addr const val bool c => c EInvoke (Maybe val)
 evalInvoke =
   let ev = proc (localName,methodSignature,args) -> do
         method <- readMethod -< methodSignature
@@ -179,7 +179,23 @@ evalInvoke =
     StaticInvoke methodSignature args -> ev -< (Nothing,methodSignature,args)
     DynamicInvoke{} -> fail -< StaticException "DynamicInvoke is not implemented"
 
-eval :: CanInterp env addr const val c => c Expr val
+evalBool :: CanInterp env addr const val bool c => c Expr bool
+evalBool = proc e -> case e of
+  BinopExpr e1 op e2 -> do
+    v1 <- eval -< e1
+    v2 <- eval -< e2
+    case op of
+      Cmpeq -> eq -< (v1,v2)
+      Cmpne -> neq -< (v1,v2)
+      Cmpgt -> gt -< (v1,v2)
+      Cmpge -> ge -< (v1,v2)
+      Cmplt -> lt -< (v1,v2)
+      Cmple -> le -< (v1,v2)
+      _ -> fail -< StaticException $ printf "Operation %s cannot be evaluated to a boolean" (show op)
+  InstanceOfExpr e t -> first eval >>> instanceOf -< (e,t)
+  _ -> fail -< StaticException $ printf "Expression %s cannot be evaluated to a boolean" (show e)
+
+eval :: CanInterp env addr const val bool c => c Expr val
 eval = proc e -> case e of
   NewExpr t -> do
     assert -< (isBaseType t,"Expected a base type for new")
@@ -193,16 +209,16 @@ eval = proc e -> case e of
     vs <- U.map eval -< is
     newArray -< (t,vs)
   CastExpr t i -> first eval >>> (id &&& instanceOf) >>> cast -< (i,t)
-  InstanceOfExpr i t -> first eval >>> instanceOf -< (i,t)
+  InstanceOfExpr _ _ -> fail -< StaticException "InstanceOf should be evaluated as boolean"
   InvokeExpr invokeExpr -> do
     v <- tryCatch evalInvoke (U.pi2 >>> fail) -< invokeExpr
     justOrFail -< (v,"Method returned nothing")
   ArrayRef l i -> ((readLocal >>> deref) *** eval) >>> readIndex -< (l,i)
   FieldRef l f -> first (readLocal >>> deref) >>> readField -< (l,f)
   SignatureRef fieldSignature -> lookupField >>> read_ -< fieldSignature
-  BinopExpr i1 op i2 -> do
-    v1 <- eval -< i1
-    v2 <- eval -< i2
+  BinopExpr e1 op e2 -> do
+    v1 <- eval -< e1
+    v2 <- eval -< e2
     case op of
       And -> and -< (v1,v2)
       Or -> or -< (v1,v2)
@@ -211,12 +227,6 @@ eval = proc e -> case e of
       Cmp -> cmp -< (v1,v2)
       Cmpg -> cmpg -< (v1,v2)
       Cmpl -> cmpl -< (v1,v2)
-      Cmpeq -> eq -< (v1,v2)
-      Cmpne -> neq -< (v1,v2)
-      Cmpgt -> gt -< (v1,v2)
-      Cmpge -> ge -< (v1,v2)
-      Cmplt -> lt -< (v1,v2)
-      Cmple -> le -< (v1,v2)
       Shl -> shl -< (v1,v2)
       Shr -> shr -< (v1,v2)
       Ushr -> ushr -< (v1,v2)
@@ -224,6 +234,7 @@ eval = proc e -> case e of
       Minus -> minus -< (v1,v2)
       Mult -> mult -< (v1,v2)
       Div -> div -< (v1,v2)
+      _ -> fail -< StaticException $ printf "Operation %s should be evaluated as boolean" (show op)
   UnopExpr op i -> do
     v <- eval -< i
     case op of
@@ -242,7 +253,7 @@ eval = proc e -> case e of
   ClassConstant c -> classConstant -< c
   MethodHandle _ -> fail -< StaticException "Evaluation of method handles is not implemented"
 
-runStatements :: CanInterp env addr const val c => c [Statement] (Maybe val)
+runStatements :: CanInterp env addr const val bool c => c [Statement] (Maybe val)
 runStatements = proc stmts -> case stmts of
   [] -> returnA -< Nothing
   (stmt:rest) -> case stmt of
@@ -254,7 +265,7 @@ runStatements = proc stmts -> case stmts of
     Lookupswitch e cases -> runSwitch -< (e,cases)
     Identity l e _ -> first ((lookup_ *** eval) >>> write) >>> U.pi2 >>> runStatements -< ((l,e),rest)
     IdentityNoType l e -> first ((lookup_ *** eval) >>> write) >>> U.pi2 >>> runStatements -< ((l,e),rest)
-    If e label -> first eval >>> if_ runStatementsFromLabel runStatements -< (e,(label,rest))
+    If e label -> first evalBool >>> if_ runStatementsFromLabel runStatements -< (e,(label,rest))
     Goto label -> runStatementsFromLabel -< label
     Ret e -> liftAMaybe eval -< e
     Return e -> liftAMaybe eval -< e
@@ -294,7 +305,7 @@ runStatements = proc stmts -> case stmts of
         runStatementsFromLabel
         ((StaticException . printf "No cases match value %s" . show) ^>> fail)
 
-runMethod :: CanInterp env addr const val c => c (Method,Maybe val,[Expr]) (Maybe val)
+runMethod :: CanInterp env addr const val bool c => c (Method,Maybe val,[Expr]) (Maybe val)
 runMethod = proc (method,this,args) -> case methodBody method of
   EmptyBody -> returnA -< Nothing
   FullBody{declarations=decs,statements=stmts} -> do
@@ -311,7 +322,7 @@ runMethod = proc (method,this,args) -> case methodBody method of
         addr <- alloc -< v
         extendEnv -< (s,addr,env)) -< (pairs,e)
 
-runProgram :: CanInterp env addr const val c => c [Expr] (Maybe val)
+runProgram :: CanInterp env addr const val bool c => c [Expr] (Maybe val)
 runProgram = proc args -> do
   units <- askCompilationUnits -< ()
   fields <- askFields >>> Map.toList ^>> U.map (second addrFromInt) -< ()
@@ -340,12 +351,6 @@ class Arrow c => UseVal v c | c -> v where
   cmp :: c (v,v) v
   cmpg :: c (v,v) v
   cmpl :: c (v,v) v
-  eq :: c (v,v) v
-  neq :: c (v,v) v
-  gt :: c (v,v) v
-  ge :: c (v,v) v
-  lt :: c (v,v) v
-  le :: c (v,v) v
   shl :: c (v,v) v
   shr :: c (v,v) v
   ushr :: c (v,v) v
@@ -358,17 +363,23 @@ class Arrow c => UseVal v c | c -> v where
   deref :: c v v
   deepDeref :: c v v
   defaultValue :: c Type v
-  instanceOf :: c (v,Type) v
-  cast :: c ((v,Type),v) v
   readIndex :: c (v,v) v
   updateIndex :: c ((v,v),v) ()
   readField :: c (v,FieldSignature) v
   updateField :: c (v,(FieldSignature,v)) ()
-
-class Arrow c => UseFlow v c | c -> v where
-  if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c (v,(String,[Statement])) (Maybe v)
   case_ :: c String (Maybe v) -> c v (Maybe v) -> c (v,[CaseStatement]) (Maybe v)
   catch :: c (v,CatchClause) (Maybe v) -> c (v,[CatchClause]) (Maybe v)
+
+class Arrow c => UseBool b v c | c -> b v where
+  eq :: c (v,v) b
+  neq :: c (v,v) b
+  gt :: c (v,v) b
+  ge :: c (v,v) b
+  lt :: c (v,v) b
+  le :: c (v,v) b
+  instanceOf :: c (v,Type) b
+  cast :: c ((v,Type),b) v
+  if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c (b,(String,[Statement])) (Maybe v)
 
 class Arrow c => UseMem env addr c | c -> env addr where
   emptyEnv :: c () (env String addr)
