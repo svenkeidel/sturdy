@@ -22,7 +22,7 @@ eval env st e = case Interpreter.runAbstract env st e of
 
 spec :: Spec
 spec = do
-   describe "literals" $ do
+    describe "literals" $ do
         it "number literals" $ do
             let program = ENumber 2.0
             eval scope store program `shouldBe` Right (Data.Set.fromList [TNumber])
@@ -38,4 +38,8 @@ spec = do
             eval scope store ENull `shouldBe` Right (Data.Set.fromList [TNull])
         it "lambda literal" $ do
             eval scope store (ELambda [] (ENumber 1.0)) `shouldBe` Right (Data.Set.fromList [(TLambda [] (Data.Set.fromList [TNumber]))])
+    describe "unions" $ do
+        it "if" $ do
+            let program = EIf (EBool True) (ENumber 1.0) (EString "a")
+            eval scope store program `shouldBe` Right (Data.Set.fromList [TNumber, TString])
     where (scope, store) = ([], [])

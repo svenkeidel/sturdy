@@ -1,22 +1,22 @@
 module SharedSpec where
 
-import Syntax
-import SharedConcrete (ConcreteArr, Value(..))
-import qualified SharedConcrete as Interpreter (runConcrete)
-import Data.Concrete.Environment
-import Data.Concrete.Error
-import Control.Arrow.Fail
-import Test.Hspec
+import           Control.Arrow.Fail
+import           Data.Concrete.Environment
+import           Data.Concrete.Error
+import           SharedConcrete            (ConcreteArr, Value (..))
+import qualified SharedConcrete            as Interpreter (runConcrete)
+import           Syntax
+import           Test.Hspec
 
-import Data.Fixed (mod')
-import Data.Either (isLeft)
+import           Data.Either               (isLeft)
+import           Data.Fixed                (mod')
 
 main :: IO ()
 main = hspec spec
 
-eval :: [(Ident, Location)] -> [(Location, Value)] -> Expr -> Either String Value
+eval :: [(Ident, Value)] -> [(Location, Value)] -> Expr -> Either String Value
 eval env st e = case Interpreter.runConcrete env st e of
-  (st, Fail s) -> Left s
+  (st, Fail s)    -> Left s
   (st, Success r) -> Right r
 
 spec :: Spec
@@ -37,19 +37,19 @@ spec = do
       eval scope store ENull `shouldBe` Right (VNull)
     it "lambda literal" $ do
       eval scope store (ELambda [] (ENumber 1.0)) `shouldBe` Right ((VLambda [] (ENumber 1.0)))
-  
+
   describe "objects" $ do
     it "object with numbers" $ do
       let program = EObject [("a", ENumber 2.0), ("b", ENumber 3.0)]
       eval scope store program `shouldBe` Right (VObject [("a", VNumber 2.0), ("b", VNumber 3.0)])
-  
+
   describe "identifiers" $ do
-    it "single identifier" $ do 
+    it "single identifier" $ do
       let program = EDeref $ EId "a"
-      let scopeWithId = [("a", Location 0)]
+      let scopeWithId = [("a", VRef (Location 0))]
       let storeWithId = [(Location 0, VNumber 1.0)]
       eval scopeWithId storeWithId program `shouldBe` Right (VNumber 1.0)
-    
+
   describe "operators" $ do
     -- numer operators
     describe "numbers" $ do
@@ -127,7 +127,7 @@ spec = do
       eval scope store program `shouldBe` Right (VString "undefined" )
     it "function" $ do
       let program = EOp OTypeof [(ELambda [] (ENumber 1.0))]
-      eval scope store program `shouldBe` Right (VString "function"  )
+      eval scope store program `shouldBe` Right (VString "lambda")
     it "object" $ do
       let program = EOp OTypeof [(EObject [])]
       eval scope store program `shouldBe` Right (VString "object")
@@ -158,12 +158,15 @@ spec = do
     it "undefined" $ do
       let program = EOp OPrimToNum [(EUndefined)]
       eval scope store program `shouldSatisfy` (\a -> a /= a)
-  
+
   -- primitive to string
   describe "to string conversions" $ do
     it "number" $ do
       let program = EOp OPrimToStr [(ENumber 1.0)]
-      eval scope store program `shouldBe` Right (VString "1.0")
+      eval scope store program `shouldBe` Right (VString "1")
+    it "decimale number" $ do
+      let program = EOp OPrimToStr [(ENumber 1.1)]
+      eval scope store program `shouldBe` Right (VString "1.1")
     it "string" $ do
       let program = EOp OPrimToStr [(EString "1.0")]
       eval scope store program `shouldBe` Right (VString "1.0")
@@ -218,7 +221,7 @@ spec = do
     it "zero filling right shift" $ do
       let program = EOp OZfRShift [(ENumber (-2.0)), (ENumber 3.0)]
       eval scope store program `shouldBe` Right (VNumber 536870911)
-  
+
   -- strict equality
   describe "strict equality" $ do
     it "number" $ do
@@ -288,7 +291,7 @@ spec = do
       let program = EGetField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]) (EString "a")
       eval scope store program `shouldBe` Right (VNumber 1.0)
     it "get field proto" $ do
-      let program = EGetField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0), ("__proto__", (EObject [("c", ENumber 3.0)]))]) (EString "c")
+      let program = EGetField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0), ("$proto", ERef $ (EObject [("c", ENumber 3.0)]))]) (EString "c")
       eval scope store program `shouldBe` Right (VNumber 3.0)
     it "update field" $ do
       let program = EGetField (EUpdateField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]) (EString "a") (ENumber 3.0)) (EString "a")
@@ -296,23 +299,26 @@ spec = do
     it "delete field" $ do
       let program = EGetField (EDeleteField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]) (EString "a")) (EString "a")
       eval scope store program `shouldBe` Right VUndefined
-  
+    it "delete field" $ do
+      let program = EApp (ELambda ["$obj", "$toDel"] (EDeleteField (EId "$obj") (EId "$toDel"))) [(EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]), (EString "a")]
+      eval scope store program `shouldBe` Right (VObject [("b", VNumber 2.0)])
+
   -- lambda application
   describe "lambda application" $ do
     it "identity" $ do
-      let program = EApp (ELambda ["a"] (EDeref $ EId "a")) [(ENumber 1.0)]
+      let program = EApp (ELambda ["a"] (EId "a")) [(ENumber 1.0)]
       eval scope store program `shouldBe` Right (VNumber 1.0)
     it "double" $ do
-      let program = EApp (ELambda ["a"] (EOp ONumPlus [(EDeref $ EId "a"), (EDeref $ EId "a")])) [(ENumber 1.0)]
+      let program = EApp (ELambda ["a"] (EOp ONumPlus [(EId "a"), (EId "a")])) [(ENumber 1.0)]
       eval scope store program `shouldBe` Right (VNumber 2.0)
 
   -- let
   describe "let expression" $ do
     it "let single var" $ do
-      let program = ELet [("a", ENumber 1.0)] (EDeref $ EId "a")
+      let program = ELet [("a", ENumber 1.0)] (EId "a")
       eval scope store program `shouldBe` Right (VNumber 1.0)
     it "let double var" $ do
-      let program = ELet [("a", ENumber 1.0), ("b", ENumber 2.0)] (EOp ONumPlus [(EDeref $ EId "a"), (EDeref $ EId "b")])
+      let program = ELet [("a", ENumber 1.0), ("b", ENumber 2.0)] (EOp ONumPlus [(EId "a"), (EId "b")])
       eval scope store program `shouldBe` Right (VNumber 3.0)
 
   -- if
@@ -323,13 +329,13 @@ spec = do
     it "if else branch" $ do
       let program = EIf (EBool False) (ENumber 1.0) (ENumber 2.0)
       eval scope store program `shouldBe` Right (VNumber 2.0)
-  
+
   -- ref/seq
   describe "references/seq" $ do
     it "set ref" $ do
-      let program = (ELet [("a", ENumber 1.0)] (ESeq (ESetRef (EId "a") (ENumber 2.0)) (EDeref (EId "a"))))
+      let program = (ELet [("a", ERef $ ENumber 1.0)] (ESeq (ESetRef (EId "a") (ENumber 2.0)) (EDeref (EId "a"))))
       eval scope store program `shouldBe` Right (VNumber 2.0)
-  
+
   -- eval
   describe "eval" $ do
     it "abort" $ do
@@ -348,6 +354,6 @@ spec = do
   -- throws
   describe "throws" $ do
     it "caught throws" $ do
-      let program = ECatch (EThrow (ENumber 1.0)) (ELambda ["x"] (EDeref $ EId "x"))
+      let program = ECatch (EThrow (ENumber 1.0)) (ELambda ["x"] (EId "x"))
       eval scope store program `shouldBe` Right (VNumber 1.0)
   where (scope, store) = ([], [])
