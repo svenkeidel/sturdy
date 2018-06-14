@@ -31,32 +31,32 @@ spec :: Spec
 spec = do
   describe "Literals" $ do
     it "LocalName lookup" $ do
-      let expr = Local "x"
+      let i = Local "x"
       let nv = [("x", 1)]
       let st = [(1, IntVal 2)]
-      eval_ nv st expr `shouldBe` Success (IntVal 2)
+      evalImmediate_ nv st i `shouldBe` Success (IntVal 2)
     it "Integer literals" $ do
-      let expr = IntConstant 7
-      eval_ env store expr `shouldBe` Success (IntVal 7)
+      let i = IntConstant 7
+      evalImmediate_ env store i `shouldBe` Success (IntVal 7)
     it "Float literals" $ do
-      let expr = FloatConstant 2.5
-      eval_ env store expr `shouldBe` Success (FloatVal 2.5)
+      let i = FloatConstant 2.5
+      evalImmediate_ env store i `shouldBe` Success (FloatVal 2.5)
     it "String literals" $ do
-      let expr = StringConstant "Hello World"
-      eval_ env store expr `shouldBe` Success (StringVal "Hello World")
+      let i = StringConstant "Hello World"
+      evalImmediate_ env store i `shouldBe` Success (StringVal "Hello World")
     it "Class literals" $ do
-      let expr = ClassConstant "java.lang.Object"
-      eval_ env store expr `shouldBe` Success (ClassVal "java.lang.Object")
+      let i = ClassConstant "java.lang.Object"
+      evalImmediate_ env store i `shouldBe` Success (ClassVal "java.lang.Object")
     it "Null literals" $ do
-      let expr = NullConstant
-      eval_ env store expr `shouldBe` Success NullVal
+      let i = NullConstant
+      evalImmediate_ env store i `shouldBe` Success NullVal
 
   describe "Boolean expressions" $ do
     it "3 < 4" $ do
-      let expr = BinopExpr (IntConstant 3) Cmplt (IntConstant 4)
+      let expr = BoolExpr (IntConstant 3) Cmplt (IntConstant 4)
       evalBool_ env store expr `shouldBe` Success True
     it "3 != 'three'" $ do
-      let expr = BinopExpr (IntConstant 3) Cmpne (StringConstant "three")
+      let expr = BoolExpr (IntConstant 3) Cmpne (StringConstant "three")
       evalBool_ env store expr `shouldBe` Success True
 
   describe "Simple Expressions" $ do
@@ -82,7 +82,7 @@ spec = do
       let expr = NewExpr BooleanType
       eval_ env store expr `shouldBe` Success (IntVal 0)
     it "[1, 2, 3][2]" $ do
-      let expr = ArrayRef "xs" (IntConstant 2)
+      let expr = RefExpr (ArrayRef "xs" (IntConstant 2))
       let nv = [("xs", 1)]
       let st = [(1, RefVal 2),
                 (2, ArrayVal [IntVal 1, IntVal 2, IntVal 3])]
@@ -101,7 +101,7 @@ spec = do
                    Return (Just (Local "i0"))]
       runStatements_ nv st stmts `shouldBe` Success (Just (IntVal 5))
     it "assign non-declared variable" $ do
-      let stmts = [Assign (LocalVar "s") (IntConstant 2)]
+      let stmts = [Assign (LocalVar "s") (ImmediateExpr (IntConstant 2))]
       runStatements_ env store stmts `shouldBe` staticException "Variable \"s\" not bound"
     it "s = 2; xs = newarray (int)[s]; y = lengthof xs; return xs;" $ do
       let nv = [("s", 0),
@@ -110,13 +110,13 @@ spec = do
       let st = [(0, IntVal 0),
                 (1, NullVal),
                 (2, IntVal 0)]
-      let stmts = [Assign (LocalVar "s") (IntConstant 2),
+      let stmts = [Assign (LocalVar "s") (ImmediateExpr (IntConstant 2)),
                    Assign (LocalVar "xs") (NewArrayExpr IntType (Local "s")),
                    Assign (LocalVar "y") (UnopExpr Lengthof (Local "xs")),
                    Return (Just (Local "y"))]
       runStatements_ nv st stmts `shouldBe` Success (Just (IntVal 2))
     it "if 2 <= 3 goto l2; l1: return 1; l2: return 0;" $ do
-      let stmts = [If (BinopExpr (IntConstant 2) Cmple (IntConstant 3)) "l2",
+      let stmts = [If (BoolExpr (IntConstant 2) Cmple (IntConstant 3)) "l2",
                    Label "l1",
                    Return (Just (IntConstant 1)),
                    Label "l2",
@@ -220,6 +220,7 @@ spec = do
       Just x -> deepDeref >>^ Just -< x
       Nothing -> returnA -< Nothing
 
+    evalImmediate_ env' store' = runInterp evalImmediate (testCompilationUnits []) env' store' (testMethod [])
     evalBool_ env' store' = runInterp evalBool (testCompilationUnits []) env' store' (testMethod [])
     eval_ env' store' = runInterp (eval >>> deepDeref) (testCompilationUnits []) env' store' (testMethod [])
 

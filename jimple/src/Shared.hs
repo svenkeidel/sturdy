@@ -86,7 +86,7 @@ type CanInterp env addr const val bool c = (
   ArrowExcept (val,val) val (Exception val) c,
   CanCatch EInvoke val c,
   CanCatch ([Statement],[CatchClause]) val c,
-  CanCatch (Method,Maybe val,[Expr]) val c)
+  CanCatch (Method,Maybe val,[Immediate]) val c)
 
 assert :: (CanFail v c) => c (Bool,String) ()
 assert = proc (prop,msg) -> if prop
@@ -160,40 +160,56 @@ alloc = proc val -> do
   put -< succ addr
   returnA -< addr
 
-evalInvoke :: CanInterp env addr const val bool c => c EInvoke (Maybe val)
-evalInvoke =
-  let ev = proc (localName,methodSignature,args) -> do
-        method <- readMethod -< methodSignature
-        case localName of
-          Just n -> do
-            assert -< (Static `notElem` methodModifiers method,"Expected a non-static method for non-static invoke")
-            this <- readLocal -< n
-            runMethod -< (method,Just this,args)
-          Nothing -> do
-            assert -< (Static `elem` methodModifiers method,"Expected a static method for static invoke")
-            runMethod -< (method,Nothing,args)
-  in proc e -> case e of
-    SpecialInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
-    VirtualInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
-    InterfaceInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
-    StaticInvoke methodSignature args -> ev -< (Nothing,methodSignature,args)
-    DynamicInvoke{} -> fail -< StaticException "DynamicInvoke is not implemented"
+evalRef :: CanInterp env addr const val bool c => c ERef val
+evalRef = proc e -> case e of
+  ArrayRef l i -> ((readLocal >>> deref) *** evalImmediate) >>> readIndex -< (l,i)
+  FieldRef l f -> first (readLocal >>> deref) >>> readField -< (l,f)
+  SignatureRef fieldSignature -> lookupField >>> read_ -< fieldSignature
 
-evalBool :: CanInterp env addr const val bool c => c Expr bool
+evalInvoke :: CanInterp env addr const val bool c => c EInvoke (Maybe val)
+evalInvoke = proc e -> case e of
+  SpecialInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
+  VirtualInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
+  InterfaceInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
+  StaticInvoke methodSignature args -> ev -< (Nothing,methodSignature,args)
+  DynamicInvoke{} -> fail -< StaticException "DynamicInvoke is not implemented"
+  where
+    ev = proc (localName,methodSignature,args) -> do
+      method <- readMethod -< methodSignature
+      case localName of
+        Just n -> do
+          assert -< (Static `notElem` methodModifiers method,"Expected a non-static method for non-static invoke")
+          this <- readLocal -< n
+          runMethod -< (method,Just this,args)
+        Nothing -> do
+          assert -< (Static `elem` methodModifiers method,"Expected a static method for static invoke")
+          runMethod -< (method,Nothing,args)
+
+evalImmediate :: CanInterp env addr const val bool c => c Immediate val
+evalImmediate = proc i -> case i of
+  Local localName -> readLocal -< localName
+  DoubleConstant f -> doubleConstant -< f
+  FloatConstant f -> floatConstant -< f
+  IntConstant n -> intConstant -< n
+  LongConstant f -> longConstant -< f
+  NullConstant -> nullConstant -< ()
+  StringConstant s -> stringConstant -< s
+  ClassConstant c -> classConstant -< c
+
+evalAtIdentifier :: CanInterp env addr const val bool c => c AtIdentifier val
+evalAtIdentifier = proc i -> case i of
+  ThisRef -> evalImmediate -< Local "@this"
+  ParameterRef n -> evalImmediate -< Local ("@parameter" ++ show n)
+  CaughtExceptionRef -> evalImmediate -< Local "@caughtexception"
+
+evalBool :: CanInterp env addr const val bool c => c BoolExpr bool
 evalBool = proc e -> case e of
-  BinopExpr e1 op e2 -> do
-    v1 <- eval -< e1
-    v2 <- eval -< e2
-    case op of
-      Cmpeq -> eq -< (v1,v2)
-      Cmpne -> neq -< (v1,v2)
-      Cmpgt -> gt -< (v1,v2)
-      Cmpge -> ge -< (v1,v2)
-      Cmplt -> lt -< (v1,v2)
-      Cmple -> le -< (v1,v2)
-      _ -> fail -< StaticException $ printf "Operation %s cannot be evaluated to a boolean" (show op)
-  InstanceOfExpr e t -> first eval >>> instanceOf -< (e,t)
-  _ -> fail -< StaticException $ printf "Expression %s cannot be evaluated to a boolean" (show e)
+  BoolExpr i1 Cmpeq i2 -> eq -< (i1,i2)
+  BoolExpr i1 Cmpne i2 -> neq -< (i1,i2)
+  BoolExpr i1 Cmpgt i2 -> gt -< (i1,i2)
+  BoolExpr i1 Cmpge i2 -> ge -< (i1,i2)
+  BoolExpr i1 Cmplt i2 -> lt -< (i1,i2)
+  BoolExpr i1 Cmple i2 -> le -< (i1,i2)
 
 eval :: CanInterp env addr const val bool c => c Expr val
 eval = proc e -> case e of
@@ -202,23 +218,21 @@ eval = proc e -> case e of
     newSimple -< t
   NewArrayExpr t i -> do
     assert -< (isNonvoidType t,"Expected a nonvoid type for newarray")
-    v <- eval -< i
+    v <- evalImmediate -< i
     newArray -< (t,[v])
   NewMultiArrayExpr t is -> do
     assert -< (isBaseType t,"Expected a nonvoid base type for newmultiarray")
-    vs <- U.map eval -< is
+    vs <- U.map evalImmediate -< is
     newArray -< (t,vs)
-  CastExpr t i -> first eval >>> (id &&& instanceOf) >>> cast -< (i,t)
-  InstanceOfExpr _ _ -> fail -< StaticException "InstanceOf should be evaluated as boolean"
+  InstanceOfExpr i t -> first evalImmediate >>> instanceOf -< (i,t)
+  CastExpr t i -> first evalImmediate >>> (id &&& instanceOf) >>> cast -< (i,t)
   InvokeExpr invokeExpr -> do
     v <- tryCatch evalInvoke (U.pi2 >>> fail) -< invokeExpr
     justOrFail -< (v,"Method returned nothing")
-  ArrayRef l i -> ((readLocal >>> deref) *** eval) >>> readIndex -< (l,i)
-  FieldRef l f -> first (readLocal >>> deref) >>> readField -< (l,f)
-  SignatureRef fieldSignature -> lookupField >>> read_ -< fieldSignature
-  BinopExpr e1 op e2 -> do
-    v1 <- eval -< e1
-    v2 <- eval -< e2
+  RefExpr refExpr -> evalRef -< refExpr
+  BinopExpr i1 op i2 -> do
+    v1 <- evalImmediate -< i1
+    v2 <- evalImmediate -< i2
     case op of
       And -> and -< (v1,v2)
       Or -> or -< (v1,v2)
@@ -234,23 +248,12 @@ eval = proc e -> case e of
       Minus -> minus -< (v1,v2)
       Mult -> mult -< (v1,v2)
       Div -> div -< (v1,v2)
-      _ -> fail -< StaticException $ printf "Operation %s should be evaluated as boolean" (show op)
   UnopExpr op i -> do
-    v <- eval -< i
+    v <- evalImmediate -< i
     case op of
       Lengthof -> deref >>> lengthOf -< v
       Neg -> neg -< v
-  ThisRef -> eval -< (Local "@this")
-  ParameterRef n -> eval -< (Local ("@parameter" ++ show n))
-  CaughtExceptionRef -> eval -< (Local "@caughtexception")
-  Local localName -> readLocal -< localName
-  DoubleConstant f -> doubleConstant -< f
-  FloatConstant f -> floatConstant -< f
-  IntConstant n -> intConstant -< n
-  LongConstant f -> longConstant -< f
-  NullConstant -> nullConstant -< ()
-  StringConstant s -> stringConstant -< s
-  ClassConstant c -> classConstant -< c
+  ImmediateExpr i -> evalImmediate -< i
   MethodHandle _ -> fail -< StaticException "Evaluation of method handles is not implemented"
 
 runStatements :: CanInterp env addr const val bool c => c [Statement] (Maybe val)
@@ -261,24 +264,23 @@ runStatements = proc stmts -> case stmts of
       body <- currentMethodBody -< ()
       let clauses = filter (\clause -> fromLabel clause == labelName && Label (toLabel clause) `elem` stmts) (catchClauses body)
       tryCatch (U.pi1 >>> runStatements) catchException -< (rest,clauses)
-    Tableswitch e cases -> runSwitch -< (e,cases)
-    Lookupswitch e cases -> runSwitch -< (e,cases)
-    Identity l e _ -> first ((lookup_ *** eval) >>> write) >>> U.pi2 >>> runStatements -< ((l,e),rest)
-    IdentityNoType l e -> first ((lookup_ *** eval) >>> write) >>> U.pi2 >>> runStatements -< ((l,e),rest)
+    Tableswitch i cases -> runSwitch -< (i,cases)
+    Lookupswitch i cases -> runSwitch -< (i,cases)
+    Identity l i _ -> first ((lookup_ *** evalAtIdentifier) >>> write) >>> U.pi2 >>> runStatements -< ((l,i),rest)
+    IdentityNoType l i -> first ((lookup_ *** evalAtIdentifier) >>> write) >>> U.pi2 >>> runStatements -< ((l,i),rest)
     If e label -> first evalBool >>> if_ runStatementsFromLabel runStatements -< (e,(label,rest))
     Goto label -> runStatementsFromLabel -< label
-    Ret e -> liftAMaybe eval -< e
-    Return e -> liftAMaybe eval -< e
-    Throw e -> eval >>> DynamicException ^>> fail -< e
+    Ret i -> liftAMaybe evalImmediate -< i
+    Return i -> liftAMaybe evalImmediate -< i
+    Throw i -> evalImmediate >>> DynamicException ^>> fail -< i
     Assign var e -> do
       v <- eval -< e
       case var of
         LocalVar l -> first lookup_ >>> write -< (l,v)
         ReferenceVar ref -> case ref of
-          ArrayRef l i -> first (readLocal *** eval) >>> updateIndex -< ((l,i),v)
+          ArrayRef l i -> first (readLocal *** evalImmediate) >>> updateIndex -< ((l,i),v)
           FieldRef l f -> first readLocal >>> updateField -< (l,(f,v))
           SignatureRef f -> first lookupField >>> write -< (f,v)
-          _ -> fail -< StaticException $ printf "Can only assign a reference or a local variable"
       runStatements -< rest
     Invoke e -> do
       evalInvoke -< e
@@ -301,15 +303,13 @@ runStatements = proc stmts -> case stmts of
     handleException = proc (val,clause) -> do
       addr <- alloc -< val
       extendEnv' runStatementsFromLabel -< ("@caughtexception",addr,withLabel clause)
-    runSwitch = first eval >>> case_
-        runStatementsFromLabel
-        ((StaticException . printf "No cases match value %s" . show) ^>> fail)
+    runSwitch = first evalImmediate >>> case_ runStatementsFromLabel
 
-runMethod :: CanInterp env addr const val bool c => c (Method,Maybe val,[Expr]) (Maybe val)
+runMethod :: CanInterp env addr const val bool c => c (Method,Maybe val,[Immediate]) (Maybe val)
 runMethod = proc (method,this,args) -> case methodBody method of
   EmptyBody -> returnA -< Nothing
   FullBody{declarations=decs,statements=stmts} -> do
-    argVals <- U.map eval -< args
+    argVals <- U.map evalImmediate -< args
     let thisPair = maybe [] (\x -> [("@this",x)]) this
     let paramPairs = zip (map (\i -> "@parameter" ++ show i) [(0 :: Int)..]) argVals
     decPairs <- U.map (second defaultValue) -< concatMap (\(t,d) -> zip d (repeat t)) decs
@@ -322,7 +322,7 @@ runMethod = proc (method,this,args) -> case methodBody method of
         addr <- alloc -< v
         extendEnv -< (s,addr,env)) -< (pairs,e)
 
-runProgram :: CanInterp env addr const val bool c => c [Expr] (Maybe val)
+runProgram :: CanInterp env addr const val bool c => c [Immediate] (Maybe val)
 runProgram = proc args -> do
   units <- askCompilationUnits -< ()
   fields <- askFields >>> Map.toList ^>> U.map (second addrFromInt) -< ()
@@ -360,6 +360,8 @@ class Arrow c => UseVal v c | c -> v where
   div :: c (v,v) v
   lengthOf :: c v v
   neg :: c v v
+  instanceOf :: c (v,Type) v
+  cast :: c ((v,Type),v) v
   deref :: c v v
   deepDeref :: c v v
   defaultValue :: c Type v
@@ -367,18 +369,16 @@ class Arrow c => UseVal v c | c -> v where
   updateIndex :: c ((v,v),v) ()
   readField :: c (v,FieldSignature) v
   updateField :: c (v,(FieldSignature,v)) ()
-  case_ :: c String (Maybe v) -> c v (Maybe v) -> c (v,[CaseStatement]) (Maybe v)
+  case_ :: c String (Maybe v) -> c (v,[CaseStatement]) (Maybe v)
   catch :: c (v,CatchClause) (Maybe v) -> c (v,[CatchClause]) (Maybe v)
 
 class Arrow c => UseBool b v c | c -> b v where
-  eq :: c (v,v) b
-  neq :: c (v,v) b
-  gt :: c (v,v) b
-  ge :: c (v,v) b
-  lt :: c (v,v) b
-  le :: c (v,v) b
-  instanceOf :: c (v,Type) b
-  cast :: c ((v,Type),b) v
+  eq :: c (Immediate,Immediate) b
+  neq :: c (Immediate,Immediate) b
+  gt :: c (Immediate,Immediate) b
+  ge :: c (Immediate,Immediate) b
+  lt :: c (Immediate,Immediate) b
+  le :: c (Immediate,Immediate) b
   if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c (b,(String,[Statement])) (Maybe v)
 
 class Arrow c => UseMem env addr c | c -> env addr where

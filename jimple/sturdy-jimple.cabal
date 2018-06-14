@@ -12,6 +12,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Concrete,
                        Interval,
+                       Nullness,
                        Shared,
                        Syntax
   ghc-options:         -Wall
@@ -32,6 +33,7 @@ test-suite specs
   main-is:             Spec.hs
   other-modules:       ConcreteSpec,
                        IntervalSpec,
+                       NullnessSpec,
                        Classes.Object,
                        Classes.Throwable,
                        Classes.ArithmeticException,

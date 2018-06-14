@@ -85,7 +85,6 @@ data Method = Method { methodModifiers :: [Modifier]
 data Type
   = ArrayType Type
   | BooleanType
-  | BottomType
   | ByteType
   | CharType
   | DoubleType
@@ -101,7 +100,6 @@ data Type
 instance Show Type where
   show (ArrayType t) = show t ++ "[]"
   show BooleanType = "bool"
-  show BottomType = "⊥"
   show ByteType = "byte"
   show CharType = "char"
   show DoubleType = "double"
@@ -145,19 +143,19 @@ type Declaration = (Type, [String])
 data Statement
   = Label String
   | Breakpoint
-  -- | Entermonitor Expr -- Don't use this!
-  -- | Exitmonitor Expr -- Don't use this!
-  | Tableswitch Expr [CaseStatement]
-  | Lookupswitch Expr [CaseStatement]
-  | Identity String Expr Type
-  | IdentityNoType String Expr
+  -- | Entermonitor Immediate -- Don't use this!
+  -- | Exitmonitor Immediate -- Don't use this!
+  | Tableswitch Immediate [CaseStatement]
+  | Lookupswitch Immediate [CaseStatement]
+  | Identity String AtIdentifier Type
+  | IdentityNoType String AtIdentifier
   | Assign Variable Expr
-  | If Expr String
+  | If BoolExpr String
   | Goto String
   | Nop
-  | Ret (Maybe Expr)
-  | Return (Maybe Expr)
-  | Throw Expr
+  | Ret (Maybe Immediate)
+  | Return (Maybe Immediate)
+  | Throw Immediate
   | Invoke EInvoke deriving (Show, Eq)
 
 type CaseStatement = (CaseLabel, String)
@@ -174,39 +172,50 @@ data CatchClause = CatchClause { className :: String
 
 data Expr
   = NewExpr Type
-  | NewArrayExpr Type Expr
-  | NewMultiArrayExpr Type [Expr]
-  | CastExpr Type Expr
-  | InstanceOfExpr Expr Type
+  | NewArrayExpr Type Immediate
+  | NewMultiArrayExpr Type [Immediate]
+  | CastExpr Type Immediate
+  | InstanceOfExpr Immediate Type
   | InvokeExpr EInvoke
-  | ThisRef
-  | ParameterRef Int
-  | CaughtExceptionRef
-  | ArrayRef String Expr
-  | FieldRef String FieldSignature
-  | SignatureRef FieldSignature
-  | BinopExpr Expr Binop Expr
-  | UnopExpr Unop Expr
-  | Local String
+  | RefExpr ERef
+  | BinopExpr Immediate Binop Immediate
+  | UnopExpr Unop Immediate
+  | ImmediateExpr Immediate
+  | MethodHandle MethodSignature deriving (Show, Eq)
+
+data BoolExpr
+  = BoolExpr Immediate BoolOp Immediate deriving (Show, Eq)
+
+data Immediate
+  = Local String
   | DoubleConstant Float
   | FloatConstant Float
   | IntConstant Int
   | LongConstant Int
   | NullConstant
   | StringConstant String
-  | ClassConstant String
-  | MethodHandle MethodSignature deriving (Show, Eq)
+  | ClassConstant String deriving (Show, Eq)
+
+data AtIdentifier
+  = ThisRef
+  | ParameterRef Int
+  | CaughtExceptionRef deriving (Show, Eq)
 
 data Variable
-  = ReferenceVar Expr
+  = ReferenceVar ERef
   | LocalVar String deriving (Show, Eq)
 
+data ERef
+  = ArrayRef String Immediate
+  | FieldRef String FieldSignature
+  | SignatureRef FieldSignature deriving (Show, Eq)
+
 data EInvoke
-  = SpecialInvoke String MethodSignature [Expr]
-  | VirtualInvoke String MethodSignature [Expr]
-  | InterfaceInvoke String MethodSignature [Expr]
-  | StaticInvoke MethodSignature [Expr]
-  | DynamicInvoke String UnnamedMethodSignature [Expr] MethodSignature [Expr] deriving (Show, Eq)
+  = SpecialInvoke String MethodSignature [Immediate]
+  | VirtualInvoke String MethodSignature [Immediate]
+  | InterfaceInvoke String MethodSignature [Immediate]
+  | StaticInvoke MethodSignature [Immediate]
+  | DynamicInvoke String UnnamedMethodSignature [Immediate] MethodSignature [Immediate] deriving (Show, Eq)
 
 data MethodSignature = MethodSignature String Type String [Type] deriving (Show, Eq)
 
@@ -225,10 +234,12 @@ instance Show FieldSignature where
   show (FieldSignature c t n) =
     "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
 
+data BoolOp
+  = Cmpeq | Cmpne | Cmpgt | Cmpge | Cmplt | Cmple deriving (Show, Eq)
+
 data Binop
   = And | Or | Xor | Shl | Shr | Ushr
   | Cmp | Cmpg | Cmpl
-  | Cmpeq | Cmpne | Cmpgt | Cmpge | Cmplt | Cmple
   | Plus | Minus | Mult | Div | Rem deriving (Show, Eq)
 
 data Unop

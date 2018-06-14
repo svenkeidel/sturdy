@@ -40,7 +40,7 @@ personExampleClassInitMethod = Method {
   methodBody = FullBody {
     declarations = [],
     statements = [
-      Assign (ReferenceVar (SignatureRef personExampleMaxAgeSignature)) (IntConstant 100)
+      Assign (ReferenceVar (SignatureRef personExampleMaxAgeSignature)) (ImmediateExpr (IntConstant 100))
     ],
     catchClauses = []
   }
@@ -91,7 +91,7 @@ personExampleInitMethod = Method {
       Identity "r0" ThisRef (RefType "PersonExample"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Identity "i0" (ParameterRef 0) IntType,
-      Assign (ReferenceVar (FieldRef "r0" personExampleAgeSignature)) (Local "i0"),
+      Assign (ReferenceVar (FieldRef "r0" personExampleAgeSignature)) (ImmediateExpr (Local "i0")),
       Return Nothing
     ],
     catchClauses = []
@@ -119,8 +119,8 @@ personExampleYearsLeftMethod = Method {
     ],
     statements = [
       Identity "r0" ThisRef (RefType "PersonExample"),
-      Assign (LocalVar "i0") (FieldRef "r0" personExampleAgeSignature),
-      Assign (LocalVar "i1") (SignatureRef personExampleMaxAgeSignature),
+      Assign (LocalVar "i0") (RefExpr (FieldRef "r0" personExampleAgeSignature)),
+      Assign (LocalVar "i1") (RefExpr (SignatureRef personExampleMaxAgeSignature)),
       Assign (LocalVar "i2") (BinopExpr (Local "i1") Minus (Local "i0")),
       Return (Just (Local "i2"))
     ],

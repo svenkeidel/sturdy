@@ -64,7 +64,7 @@ arrayFieldExampleMainMethod = Method {
       Assign (LocalVar "$r2") (NewExpr (RefType "ArrayFieldExample")),
       Invoke (SpecialInvoke "$r2" arrayFieldExampleInitSignature []),
       Invoke (VirtualInvoke "$r2" arrayFieldExampleFillSignature [Local "r0"]),
-      Assign (LocalVar "r1") (FieldRef "$r2" arrayFieldExampleArrSignature),
+      Assign (LocalVar "r1") (RefExpr (FieldRef "$r2" arrayFieldExampleArrSignature)),
       Return (Just (Local "r1"))
     ],
     catchClauses = []
@@ -95,14 +95,14 @@ arrayFieldExampleFillMethod = Method {
       Identity "r0" ThisRef (RefType "ArrayFieldExample"),
       Assign (LocalVar "a0") (NewArrayExpr IntType (IntConstant 4)),
       Identity "p0" (ParameterRef 0) IntType,
-      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 0))) (Local "p0"),
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 0))) (ImmediateExpr (Local "p0")),
       Assign (LocalVar "p0") (BinopExpr (Local "p0") Mult (IntConstant 2)),
-      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 1))) (Local "p0"),
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 1))) (ImmediateExpr (Local "p0")),
       Identity "p1" (ParameterRef 0) IntType,
-      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 2))) (Local "p1"),
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 2))) (ImmediateExpr (Local "p1")),
       Assign (LocalVar "p1") (BinopExpr (Local "p1") Mult (IntConstant 2)),
-      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 3))) (Local "p1"),
-      Assign (ReferenceVar (FieldRef "r0" arrayFieldExampleArrSignature)) (Local "a0"),
+      Assign (ReferenceVar (ArrayRef "a0" (IntConstant 3))) (ImmediateExpr (Local "p1")),
+      Assign (ReferenceVar (FieldRef "r0" arrayFieldExampleArrSignature)) (ImmediateExpr (Local "a0")),
       Return Nothing
     ],
     catchClauses = []

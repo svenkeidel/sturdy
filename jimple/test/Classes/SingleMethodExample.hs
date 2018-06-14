@@ -59,7 +59,7 @@ singleMethodExampleMainMethod = Method {
     statements = [
       Assign (LocalVar "$r2") (NewExpr (RefType "SingleMethodExample")),
       Invoke (VirtualInvoke "$r2" singleMethodExampleFooSignature []),
-      Assign (LocalVar "i0") (FieldRef "$r2" singleMethodExampleXSignature),
+      Assign (LocalVar "i0") (RefExpr (FieldRef "$r2" singleMethodExampleXSignature)),
       Return (Just (Local "i0"))
     ],
     catchClauses = []
@@ -86,7 +86,7 @@ singleMethodExampleFooMethod = Method {
     ],
     statements = [
       Identity "r0" ThisRef (RefType "SingleMethodExample"),
-      Assign (ReferenceVar (FieldRef "r0" singleMethodExampleXSignature)) (IntConstant 2),
+      Assign (ReferenceVar (FieldRef "r0" singleMethodExampleXSignature)) (ImmediateExpr (IntConstant 2)),
       Return Nothing
     ],
     catchClauses = []

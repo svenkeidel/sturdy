@@ -40,7 +40,7 @@ throwableInitMethod = Method {
       Identity "r0" ThisRef (RefType "java.lang.Throwable"),
       Invoke (SpecialInvoke "r0" objectInitSignature []),
       Identity "s0" (ParameterRef 0) (RefType "java.lang.String"),
-      Assign (ReferenceVar (FieldRef "r0" throwableMessageSignature)) (Local "s0"),
+      Assign (ReferenceVar (FieldRef "r0" throwableMessageSignature)) (ImmediateExpr (Local "s0")),
       Return Nothing
     ],
     catchClauses = []
