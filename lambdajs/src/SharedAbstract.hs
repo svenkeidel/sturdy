@@ -225,7 +225,7 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
             [TRef l] -> do
                 vals <- mapA read -< zip (Data.Set.toList l) (repeat ())
                 returnA -< foldr1 (\x y -> x ⊔ y) vals
-            _ -> failA -< "Error: EDeref lhs must be location"
+            _ -> returnA -< (Data.Set.fromList [TThrown (Data.Set.fromList [TObject []])])
     -- control flow
     if_ f1 f2 = proc (cond, thenBranch, elseBranch) -> do
         case Data.Set.toList cond of
