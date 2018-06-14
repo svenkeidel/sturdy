@@ -1,64 +1,70 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import Language.LambdaJS.Desugar
-import Language.LambdaJS.Syntax
-import Language.LambdaJS.RemoveHOAS
-import qualified Syntax as S
-import Language.ECMAScript3.Syntax (JavaScript (..))
-import Language.ECMAScript3.Parser (parseScriptFromString, parseBlockStmt, 
-  parseExpression, parseJavaScriptFromFile)
-import Language.LambdaJS.ECMAEnvironment (ecma262Env)
-import Text.ParserCombinators.Parsec
-import Language.ECMAScript3.Lexer (reservedOp, whiteSpace)
-import System.Environment
-import System.IO
-import SharedConcrete
+import           Language.ECMAScript3.Lexer        (reservedOp, whiteSpace)
+import           Language.ECMAScript3.Parser       (parseBlockStmt,
+                                                    parseExpression,
+                                                    parseJavaScriptFromFile,
+                                                    parseScriptFromString)
+import           Language.ECMAScript3.Syntax       (JavaScript (..))
+import           Language.LambdaJS.Desugar
+import           Language.LambdaJS.ECMAEnvironment (ecma262Env)
+import           Language.LambdaJS.Parser          (parseBinds)
+import           Language.LambdaJS.PrettyPrint
+import           Language.LambdaJS.RemoveHOAS
+import           Language.LambdaJS.Syntax
+import           SharedConcrete
+import qualified Syntax                            as S
+import           System.Environment
+import           System.IO
+import           Text.ParserCombinators.Parsec
+import           Text.PrettyPrint.HughesPJ
 
 convertOp :: Op -> S.Op
 convertOp o = case o of
-  ONumPlus -> S.ONumPlus
-  OStrPlus -> S.OStrPlus
-  OMul -> S.OMul
-  ODiv -> S.ODiv
-  OMod -> S.OMod
-  OSub -> S.OSub
-  OLt -> S.OLt
-  OStrLt -> S.OStrLt
-  OBAnd -> S.OBAnd
-  OBOr -> S.OBOr
-  OBXOr -> S.OBXOr
-  OBNot -> S.OBNot
-  OLShift -> S.OLShift
-  OSpRShift -> S.OSpRShift
-  OZfRShift -> S.OZfRShift
-  OStrictEq -> S.OStrictEq
-  OAbstractEq -> S.OAbstractEq
-  OTypeof -> S.OTypeof
-  OPrimToNum -> S.OPrimToNum
-  OPrimToStr -> S.OPrimToStr
-  OPrimToBool -> S.OPrimToBool
-  OIsPrim -> S.OIsPrim
-  OHasOwnProp -> S.OHasOwnProp
-  OToInteger -> S.OToInteger
-  OToInt32 -> S.OToInt32
-  OToUInt32 -> S.OToUInt32
-  OStrStartsWith -> S.OStrStartsWith
-  OStrLen -> S.OStrLen
-  OMathExp -> S.OMathExp
-  OMathLog -> S.OMathLog
-  OMathCos -> S.OMathCos
-  OMathSin -> S.OMathSin
-  OMathAbs -> S.OMathAbs
-  OMathPow -> S.OMathPow
-  OSurfaceTypeof -> S.OSurfaceTypeof
-  OObjCanDelete -> S.OObjCanDelete
-  ORegExpMatch -> S.ORegExpMatch
-  ORegExpQuote -> S.ORegExpQuote
-  OStrContains -> S.OStrContains
+  ONumPlus        -> S.ONumPlus
+  OStrPlus        -> S.OStrPlus
+  OMul            -> S.OMul
+  ODiv            -> S.ODiv
+  OMod            -> S.OMod
+  OSub            -> S.OSub
+  OLt             -> S.OLt
+  OStrLt          -> S.OStrLt
+  OBAnd           -> S.OBAnd
+  OBOr            -> S.OBOr
+  OBXOr           -> S.OBXOr
+  OBNot           -> S.OBNot
+  OLShift         -> S.OLShift
+  OSpRShift       -> S.OSpRShift
+  OZfRShift       -> S.OZfRShift
+  OStrictEq       -> S.OStrictEq
+  OAbstractEq     -> S.OAbstractEq
+  OTypeof         -> S.OTypeof
+  OPrimToNum      -> S.OPrimToNum
+  OPrimToStr      -> S.OPrimToStr
+  OPrimToBool     -> S.OPrimToBool
+  OIsPrim         -> S.OIsPrim
+  OHasOwnProp     -> S.OHasOwnProp
+  OToInteger      -> S.OToInteger
+  OToInt32        -> S.OToInt32
+  OToUInt32       -> S.OToUInt32
+  OStrStartsWith  -> S.OStrStartsWith
+  OStrLen         -> S.OStrLen
+  OMathExp        -> S.OMathExp
+  OMathLog        -> S.OMathLog
+  OMathCos        -> S.OMathCos
+  OMathSin        -> S.OMathSin
+  OMathAbs        -> S.OMathAbs
+  OMathPow        -> S.OMathPow
+  OSurfaceTypeof  -> S.OSurfaceTypeof
+  OObjCanDelete   -> S.OObjCanDelete
+  ORegExpMatch    -> S.ORegExpMatch
+  ORegExpQuote    -> S.ORegExpQuote
+  OStrContains    -> S.OStrContains
   OStrSplitRegExp -> S.OStrSplitRegExp
   OStrSplitStrExp -> S.OStrSplitStrExp
-  OPrint -> S.OPrint
-  _ -> error ("Unsupported operation: " ++ (show o))
+  OPrint          -> S.OPrint
+  _               -> error ("Unsupported operation: " ++ (show o))
 
 convert :: ExprPos -> S.Expr
 convert exp = case exp of
@@ -70,7 +76,7 @@ convert exp = case exp of
   ELambda _ ids body -> S.ELambda ids (convert body)
   EObject _ fields -> S.EObject (map (\(n, e) -> (n, convert e)) fields)
   EId _ ident -> S.EId ident
-  EOp _ op exps -> S.EOp (convertOp op) (map convert exps) 
+  EOp _ op exps -> S.EOp (convertOp op) (map convert exps)
   EApp _ body args -> S.EApp (convert body) (map convert args)
   ELet _ obj body -> S.ELet (map (\(n, e) -> (n, convert e)) obj) (convert body)
   ESetRef _ ref val -> S.ESetRef (convert ref) (convert val)
@@ -90,25 +96,73 @@ convert exp = case exp of
   EEval e -> S.EEval
   _ -> error ("Unsupported expression: " ++ (show exp))
 
-main = do
-  [filename] <- getArgs
+parseEnvironment fileName = do
+  src <- readFile fileName
+  case parseBinds fileName src of
+    Left err -> fail (show err)
+    Right f  -> return f
+
+interp ast = runConcrete [] [] ast
+
+testCase envTransformer = do
+  srcLoc <- getPosition
+  testStmt <- parseBlockStmt
+  reservedOp "::"
+  expectedExpr <- parseExpression
+  reservedOp ";"
+  --let src = renderExpr (EString nopos $ show srcLoc)
+  return $ desugarStmtsWithResult [testStmt] (\e -> envTransformer (ecma262Env e))
+              (getValue (EGetField nopos (EDeref nopos $ EId nopos "$global") (EString nopos "result")))
+  --let rhs = getValue $ desugarExpr expectedExpr ecma262Env
+
+testCases envTransformer = do
+  whiteSpace
+  tests <- many (testCase envTransformer)
+  eof
+  return tests
+
+mainTestFile filename envname = do
+  testFile <- readFile filename
+  envTransformer <- parseEnvironment envname
+  case runParser (testCases envTransformer) [] "stdin" testFile of
+    Left err    -> fail (show err)
+    Right tests -> mapM_ (putStrLn . show . snd) (map (\test -> interp $ convert $ removeHOAS $ test) (take 1 $ tests))
+
+mainRunFile filename envname = do
   str <- readFile filename
-  putStrLn $ "Input JavaScript"
-  putStrLn $ "  " ++ (show str)
+
+  putStrLn "Input JavaScript"
+  putStrLn (show str)
+  putStrLn "\n"
 
   case parseScriptFromString "<stdin>" str of
     Right (Script p script) -> do
-      putStrLn $ "JavaScript AST"
-      putStrLn $ "  " ++ (show script)
+      putStrLn "JavaScript AST"
+      putStrLn (show script)
+      putStrLn "\n"
 
-      let converted = (convert $ removeHOAS $ desugar (Script p script) id)
-      putStrLn $ "LambdaJS AST"
-      putStrLn $ "  " ++ (show converted)
+      envTransformer <- parseEnvironment envname
 
-      let (env, val) = runConcrete [("$global", S.Location (-1))] [(S.Location (-1), VObject [])] converted
-      putStrLn $ "Environment" 
-      putStrLn $ "  " ++ (show env)
-      putStrLn $ "Result"
-      putStrLn $ "  " ++ (show val)
-    Left err -> do
-      putStrLn (show err)
+      let converted = (convert $ removeHOAS $ desugar (Script p script) (\e -> envTransformer (ecma262Env e)))
+      putStrLn "LambdaJS AST with env"
+      putStrLn (show converted)
+      putStrLn "\n"
+
+      let (resEnv, val) = interp converted
+      putStrLn "Environment"
+      putStrLn (show resEnv)
+      putStrLn "\n"
+
+      putStrLn "Result"
+      putStrLn (show val)
+      putStrLn "\n"
+
+    Left err -> fail (show err)
+
+main = do
+  args <- getArgs
+  case args of
+    ["file", filename, envname]     -> mainRunFile filename envname
+    ["test", testlocation, envname] -> mainTestFile testlocation envname
+    _                               -> fail "Invalid arguments"
+
