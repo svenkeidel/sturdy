@@ -9,7 +9,7 @@ import Shared
 import Nullness
 
 import           Data.List
-import           Data.Abstract.Boolean
+import           Data.Abstract.Boolean as B
 import           Data.Abstract.HandleError
 
 import Control.Arrow
@@ -58,10 +58,10 @@ spec = do
   describe "Boolean expressions" $ do
     it "3 < 4" $ do
       let expr = BoolExpr (IntConstant 3) Cmplt (IntConstant 4)
-      evalBool_ env store expr `shouldBe` Success True
+      evalBool_ env store expr `shouldBe` Success B.Top
     it "3 != 'three'" $ do
       let expr = BoolExpr (IntConstant 3) Cmpne (StringConstant "three")
-      evalBool_ env store expr `shouldBe` Success True
+      evalBool_ env store expr `shouldBe` Success B.Top
 
   describe "Simple Expressions" $ do
     it "-3" $ do

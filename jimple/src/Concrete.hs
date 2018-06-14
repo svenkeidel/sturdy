@@ -254,9 +254,7 @@ instance UseVal Val Interp where
       U.map instanceOf >>> all (==IntVal 1) ^>> fromBool -< zip xs (repeat t')
     (_,_) -> fromBool -< False)
     where
-      fromBool = arr $ \b -> case b of
-        True -> IntVal 1
-        False -> IntVal 0
+      fromBool = arr $ \b -> if b then IntVal 1 else IntVal 0
       isSuperClass = proc (c,p) -> if c == p
         then fromBool -< True
         else do
@@ -277,7 +275,7 @@ instance UseVal Val Interp where
     _ -> fail -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
   updateIndex = first (first (id &&& deref)) >>> proc (((ref,a),i),v) -> case (ref,a,i) of
     (RefVal addr,ArrayVal xs,IntVal n)
-      | n >= 0 && n < length xs -> write -< (addr,ArrayVal ((\(h,(_:t)) -> h ++ v:t) $ splitAt n xs))
+      | n >= 0 && n < length xs -> write -< (addr,ArrayVal ((\(h,_:t) -> h ++ v:t) $ splitAt n xs))
       | otherwise -> createException >>> fail -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
     (RefVal _,ArrayVal _,_) -> fail -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
     _ -> fail -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
@@ -304,12 +302,10 @@ instance UseVal Val Interp where
     [] -> fail -< DynamicException v
     (clause:rest) -> do
       b <- instanceOf >>> toBool -< (v,RefType (className clause))
-      case b of
-        True -> f -< (v,clause)
-        False -> catch f -< (v,rest)
+      if b then f -< (v,clause) else catch f -< (v,rest)
 
-cmpNum :: (Bool -> Bool) -> Interp (Immediate,Immediate) Bool
-cmpNum post = (Shared.evalImmediate *** Shared.evalImmediate) >>> proc (v1,v2) -> case (v1,v2) of
+cmpNum :: (Bool -> Bool) -> Interp (Val,Val) Bool
+cmpNum post = proc (v1,v2) -> case (v1,v2) of
   (IntVal x1,IntVal x2) -> returnA -< post (x1 < x2)
   (LongVal x1,LongVal x2) -> returnA -< post (x1 < x2)
   (FloatVal x1,FloatVal x2) -> returnA -< post (x1 < x2)
@@ -317,15 +313,13 @@ cmpNum post = (Shared.evalImmediate *** Shared.evalImmediate) >>> proc (v1,v2) -
   _ -> fail -< StaticException "Expected numeric variables for comparison"
 
 instance UseBool Bool Val Interp where
-  eq = (Shared.evalImmediate *** Shared.evalImmediate) >>> arr (uncurry (==))
-  neq = (Shared.evalImmediate *** Shared.evalImmediate) >>> arr (uncurry (/=))
+  eq = arr (uncurry (==))
+  neq = arr (uncurry (/=))
   gt = swap ^>> cmpNum id
   ge = cmpNum not
   lt = cmpNum id
   le = swap ^>> cmpNum not
-  if_ f1 f2 = proc (v,(x,y)) -> case v of
-    True -> f1 -< x
-    False -> f2 -< y
+  if_ f1 f2 = proc ((v,_),(x,y)) -> if v then f1 -< x else f2 -< y
 
 instance UseMem Env Addr Interp where
   emptyEnv = arr $ const E.empty

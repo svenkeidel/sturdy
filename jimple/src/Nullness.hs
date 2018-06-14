@@ -3,7 +3,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -12,23 +11,21 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Nullness where
 
-import           Prelude hiding (id,fail,Bounded(..),Bool(..),(<),(==),(/))
-import qualified Prelude as P
+import           Prelude hiding (id,fail,Bounded(..))
 
+import           Data.Order
 import qualified Data.Map as Map
+import qualified Data.Boolean as B
 import           Data.Abstract.Environment (Env)
 import qualified Data.Abstract.Environment as E
 import qualified Data.Abstract.Store as S
 import qualified Data.Abstract.Boolean as Abs
-import           Data.Abstract.Equality
+import qualified Data.Abstract.Equality as Abs
 import           Data.Abstract.HandleError
-
-import           Data.Order
-import qualified Data.Boolean as B
 
 import           Control.Category hiding ((.))
 
-import           Control.Arrow hiding ((<+>))
+import           Control.Arrow
 import           Control.Arrow.Const
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
@@ -70,19 +67,20 @@ instance Show Val where
   show NonNull = "NonNull"
   show Top = "⊤"
 
-instance Equality Val where
-  Top == Top = B.true
-  Null == Null = Abs.Top
+instance Abs.Equality Val where
+  Top == _ = Abs.Top
+  _ == Top = Abs.Top
+  Null == Null = Abs.True
   NonNull == NonNull = Abs.Top
-  Bottom == Bottom = B.true
-  _ == _ = B.false
+  Bottom == Bottom = Abs.True
+  _ == _ = Abs.False
 
 instance PreOrd Val where
-  Bottom ⊑ _ = P.True
-  _ ⊑ Top = P.True
-  Null ⊑ Null = P.True
-  NonNull ⊑ NonNull = P.True
-  _ ⊑ _ = P.False
+  Bottom ⊑ _ = True
+  _ ⊑ Top = True
+  Null ⊑ Null = True
+  NonNull ⊑ NonNull = True
+  _ ⊑ _ = False
 
 instance Complete Val where
   Bottom ⊔ v = v
@@ -194,20 +192,26 @@ instance UseVal Val Interp where
   catch f = proc (v,clauses) ->
     joined (lubA f) fail -< (zip (repeat v) clauses,DynamicException v)
 
-cmp_ :: UseBool Abs.Bool Val c => c (Immediate,Immediate) Abs.Bool
-cmp_ = proc (v1,v2) -> returnA -< Abs.True
-
 instance UseBool Abs.Bool Val Interp where
-  eq = cmp_
-  neq = cmp_
-  gt = cmp_
-  ge = cmp_
-  lt = cmp_
-  le = cmp_
-  if_ f1 f2 = proc (v,(x,y)) -> case v of
-    Abs.True -> f1 -< x
-    Abs.False -> f2 -< y
-    Abs.Top -> joined f1 f2 -< (x,y)
+  eq = arr $ uncurry (Abs.==)
+  neq = arr $ B.not . uncurry (Abs.==)
+  gt = arr $ const Abs.Top
+  ge = arr $ const Abs.Top
+  lt = arr $ const Abs.Top
+  le = arr $ const Abs.Top
+  if_ f g = proc ((v,BoolExpr i1 op i2),(x,y)) -> case v of
+    Abs.True -> f -< x
+    Abs.False -> g -< y
+    Abs.Top -> case (i1,op,i2) of
+      (Local l,Cmpeq,NullConstant) -> narrow-< (((l,Null),x),((l,NonNull),y))
+      (NullConstant,Cmpeq,Local l) -> narrow-< (((l,Null),x),((l,NonNull),y))
+      (Local l,Cmpne,NullConstant) -> narrow-< (((l,NonNull),x),((l,Null),y))
+      (NullConstant,Cmpne,Local l) -> narrow-< (((l,NonNull),x),((l,Null),y))
+      _ -> joined f g -< (x,y)
+    where
+      narrow = joined
+        (first ((first Shared.lookup_) >>> write) >>> U.pi2 >>> f)
+        (first ((first Shared.lookup_) >>> write) >>> U.pi2 >>> g)
 
 instance UseMem Env Addr Interp where
   emptyEnv = arr $ const E.empty

@@ -18,7 +18,7 @@ import qualified Data.Map as Map
 import           Data.Order
 import           Data.String
 
-import           Control.Category hiding ((.))
+import           Control.Category
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -202,13 +202,16 @@ evalAtIdentifier = proc i -> case i of
   CaughtExceptionRef -> evalImmediate -< Local "@caughtexception"
 
 evalBool :: CanInterp env addr const val bool c => c BoolExpr bool
-evalBool = proc e -> case e of
-  BoolExpr i1 Cmpeq i2 -> eq -< (i1,i2)
-  BoolExpr i1 Cmpne i2 -> neq -< (i1,i2)
-  BoolExpr i1 Cmpgt i2 -> gt -< (i1,i2)
-  BoolExpr i1 Cmpge i2 -> ge -< (i1,i2)
-  BoolExpr i1 Cmplt i2 -> lt -< (i1,i2)
-  BoolExpr i1 Cmple i2 -> le -< (i1,i2)
+evalBool = proc (BoolExpr i1 op i2) -> do
+  v1 <- evalImmediate -< i1
+  v2 <- evalImmediate -< i2
+  case op of
+    Cmpeq -> eq -< (v1,v2)
+    Cmpne -> neq -< (v1,v2)
+    Cmpgt -> gt -< (v1,v2)
+    Cmpge -> ge -< (v1,v2)
+    Cmplt -> lt -< (v1,v2)
+    Cmple -> le -< (v1,v2)
 
 eval :: CanInterp env addr const val bool c => c Expr val
 eval = proc e -> case e of
@@ -267,7 +270,7 @@ runStatements = proc stmts -> case stmts of
     Lookupswitch i cases -> runSwitch -< (i,cases)
     Identity l i _ -> first ((lookup_ *** evalAtIdentifier) >>> write) >>> U.pi2 >>> runStatements -< ((l,i),rest)
     IdentityNoType l i -> first ((lookup_ *** evalAtIdentifier) >>> write) >>> U.pi2 >>> runStatements -< ((l,i),rest)
-    If e label -> first evalBool >>> if_ runStatementsFromLabel runStatements -< (e,(label,rest))
+    If e label -> first (evalBool &&& id) >>> if_ runStatementsFromLabel runStatements -< (e,(label,rest))
     Goto label -> runStatementsFromLabel -< label
     Ret i -> liftAMaybe evalImmediate -< i
     Return i -> liftAMaybe evalImmediate -< i
@@ -372,13 +375,13 @@ class Arrow c => UseVal v c | c -> v where
   catch :: c (v,CatchClause) (Maybe v) -> c (v,[CatchClause]) (Maybe v)
 
 class Arrow c => UseBool b v c | c -> b v where
-  eq :: c (Immediate,Immediate) b
-  neq :: c (Immediate,Immediate) b
-  gt :: c (Immediate,Immediate) b
-  ge :: c (Immediate,Immediate) b
-  lt :: c (Immediate,Immediate) b
-  le :: c (Immediate,Immediate) b
-  if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c (b,(String,[Statement])) (Maybe v)
+  eq :: c (v,v) b
+  neq :: c (v,v) b
+  gt :: c (v,v) b
+  ge :: c (v,v) b
+  lt :: c (v,v) b
+  le :: c (v,v) b
+  if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c ((b,BoolExpr),(String,[Statement])) (Maybe v)
 
 class Arrow c => UseMem env addr c | c -> env addr where
   emptyEnv :: c () (env String addr)
