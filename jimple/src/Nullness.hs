@@ -133,20 +133,22 @@ deriving instance LowerBounded y => LowerBounded (Interp x y)
 
 ---- Program Boilerplate ----
 
-runInterp :: Interp x y -> [CompilationUnit] -> [(String,Addr)] -> [(Addr,Val)] -> MethodReader -> x -> Error (Exception Val) y
-runInterp (Interp f) files env store mainMethod x =
-  let compilationUnits = map (\file -> (fileName file,file)) files
-      latestAddr = case map snd env ++ map fst store of
-        [] -> 0
-        addrs -> maximum addrs
-      fields = zip (concatMap (\u -> Shared.getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
-  in runConst (Map.fromList compilationUnits,Map.fromList fields)
-      (evalState
-        (evalStore
-          (runEnvironment'
-            (runReader
-              (runExcept f)))))
+runInterp :: Interp x y -> [CompilationUnit] -> MethodReader -> [(String,Val)] -> x -> Error (Exception Val) y
+runInterp (Interp f) files mainMethod mem x =
+  runConst (Map.fromList compilationUnits,Map.fromList fields)
+    (evalState
+      (evalStore
+        (runEnvironment'
+          (runReader
+            (runExcept f)))))
   (latestAddr + length fields,(S.fromList store,(env,(mainMethod,x))))
+  where
+    compilationUnits = map (\file -> (fileName file,file)) files
+    (env,store) = unzip $ map (\((l,v),a) -> ((l,a),(a,v))) $ reverse $ zip mem [0..]
+    latestAddr = case store of
+      [] -> 0
+      (a,_):_ -> a
+    fields = zip (concatMap (\u -> Shared.getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
 
 ---- End of Program Boilerplate ----
 

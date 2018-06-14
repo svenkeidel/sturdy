@@ -101,8 +101,8 @@ deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowExcept x Val (Exception Val) Interp
 deriving instance ArrowExcept x (Maybe Val) (Exception Val) Interp
 
-runInterp :: Interp x y -> [CompilationUnit] -> [(String,Val)] -> MethodReader -> x -> Error (Exception Val) y
-runInterp (Interp f) files mem mainMethod x =
+runInterp :: Interp x y -> [CompilationUnit] -> MethodReader -> [(String,Val)] -> x -> Error (Exception Val) y
+runInterp (Interp f) files mainMethod mem x =
   runConst (Map.fromList compilationUnits,Map.fromList fields)
       (evalState
         (evalStore
@@ -113,7 +113,7 @@ runInterp (Interp f) files mem mainMethod x =
   where
     compilationUnits = map (\file -> (fileName file,file)) files
     (env,store) = (\(nv,st) -> (nv,expand st)) $ unzip $ map (\((l,v),a) -> ((l,a),(a,v))) $ reverse $ zip mem [0..]
-    expand = foldl (\st (a,v) -> case (st,v) of
+    expand = foldl (\st (a,v) -> case (st,v) of -- Extend this function to dereference nested arrays and objects
       ([],ObjectVal c m) ->       [(a + 1,ObjectVal c m),(a,RefVal (a + 1))]
       ((a',_):_,ObjectVal c m) -> [(a' + 1,ObjectVal c m),(a,RefVal (a' + 1))] ++ st
       ([],ArrayVal xs) ->       [(a + 1,ArrayVal xs),(a,RefVal (a + 1))]

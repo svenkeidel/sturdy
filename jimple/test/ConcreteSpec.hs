@@ -196,12 +196,12 @@ spec = do
     try' f = tryCatch (f >>> deepDeref) (U.pi2 >>> deepDerefDynamic >>> fail)
     try'' f = tryCatch (f >>> deepDerefMaybe) (U.pi2 >>> deepDerefDynamic >>> fail)
 
-    evalImmediate_ mem = runInterp evalImmediate (testCompilationUnits []) mem (testMethod [])
-    evalBool_ mem = runInterp evalBool (testCompilationUnits []) mem (testMethod [])
-    eval_ mem = runInterp (try' eval) (testCompilationUnits []) mem (testMethod [])
+    evalImmediate_ = runInterp evalImmediate (testCompilationUnits []) (testMethod [])
+    evalBool_ = runInterp evalBool (testCompilationUnits []) (testMethod [])
+    eval_ = runInterp (try' eval) (testCompilationUnits []) (testMethod [])
 
     runStatements_ mem stmts =
-      runInterp (try'' runStatements) (testCompilationUnits stmts) mem (testMethod stmts) stmts
+      runInterp (try'' runStatements) (testCompilationUnits stmts) (testMethod stmts) mem stmts
 
     runProgram_ compilationUnits mainUnit =
-      runInterp (try'' runProgram) compilationUnits [] (mainMethod mainUnit)
+      runInterp (try'' runProgram) compilationUnits (mainMethod mainUnit) []
