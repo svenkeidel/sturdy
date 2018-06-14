@@ -1,14 +1,14 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass       #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE StandaloneDeriving   #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
 module Syntax where
 
-import GHC.Generics (Generic)
-import Data.Hashable
-import Data.Set
-import Data.List (sort)
+import           Data.Hashable
+import           Data.List     (sort)
+import           Data.Set
+import           GHC.Generics  (Generic)
 
 type Ident = String
 data Label = Label String
@@ -28,7 +28,7 @@ data Op
     | OLShift | OSpRShift | OZfRShift
     | OStrictEq
     | OAbstractEq
-    | OTypeof 
+    | OTypeof
     | OSurfaceTypeof -- not implemented
     | OPrimToNum
     | OPrimToStr
@@ -96,7 +96,7 @@ data Type
 deriving instance Hashable Type
 
 instance (Hashable v, Ord v) => Hashable (Set v) where
-  hashWithSalt salt set = 
+  hashWithSalt salt set =
     Prelude.foldr (\x s -> s + (hash x)) salt (sort $ Data.Set.toList set)
 
 type Location' = Set Location
