@@ -116,18 +116,6 @@ readCompilationUnit = proc n -> do
   compilationUnits <- askCompilationUnits -< ()
   justOrFail -< (Map.lookup n compilationUnits,printf "CompilationUnit %s not loaded" (show n))
 
-matchesSignature :: Type -> String -> [Type] -> Member -> Bool
-matchesSignature retType n argTypes (MethodMember m) =
-  methodName m == n && returnType m == retType && parameters m == argTypes
-matchesSignature _ _ _ _ = False
-
-readMethod :: (CanFail v c,CanUseConst const c) => c MethodSignature Method
-readMethod = proc (MethodSignature c retType n argTypes) -> do
-  unit <- readCompilationUnit -< c
-  case find (matchesSignature retType n argTypes) (fileBody unit) of
-    Just (MethodMember m) -> returnA -< m
-    _ -> fail -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
-
 evalInvoke :: CanInterp env addr const val bool c => c EInvoke (Maybe val)
 evalInvoke = proc e -> case e of
   SpecialInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
@@ -143,6 +131,15 @@ evalInvoke = proc e -> case e of
         Just _ -> assert -< (Static `notElem` methodModifiers method,"Expected a non-static method for non-static invoke")
         Nothing -> assert -< (Static `elem` methodModifiers method,"Expected a static method for static invoke")
       runMethod -< (method,this,args)
+    readMethod = proc (MethodSignature c retType n argTypes) -> do
+      unit <- readCompilationUnit -< c
+      case find (matchesSignature retType n argTypes) (fileBody unit) of
+        Just (MethodMember m) -> returnA -< m
+        _ -> fail -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
+    matchesSignature :: Type -> String -> [Type] -> Member -> Bool
+    matchesSignature retType n argTypes (MethodMember m) =
+      methodName m == n && returnType m == retType && parameters m == argTypes
+    matchesSignature _ _ _ _ = False
 
 evalImmediate :: CanInterp env addr const val bool c => c Immediate val
 evalImmediate = proc i -> case i of

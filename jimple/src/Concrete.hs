@@ -101,20 +101,29 @@ deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowExcept x Val (Exception Val) Interp
 deriving instance ArrowExcept x (Maybe Val) (Exception Val) Interp
 
-runInterp :: Interp x y -> [CompilationUnit] -> [(String,Addr)] -> [(Addr,Val)] -> MethodReader -> x -> Error (Exception Val) y
-runInterp (Interp f) files env store mainMethod x =
-  let compilationUnits = map (\file -> (fileName file,file)) files
-      latestAddr = case map snd env ++ map fst store of
-        [] -> 0
-        addrs -> maximum addrs
-      fields = zip (concatMap (\u -> Shared.getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
-  in runConst (Map.fromList compilationUnits,Map.fromList fields)
+runInterp :: Interp x y -> [CompilationUnit] -> [(String,Val)] -> MethodReader -> x -> Error (Exception Val) y
+runInterp (Interp f) files mem mainMethod x =
+  runConst (Map.fromList compilationUnits,Map.fromList fields)
       (evalState
         (evalStore
           (runEnvironment'
             (runReader
               (runExcept f)))))
   (latestAddr + length fields,(S.fromList store,(env,(mainMethod,x))))
+  where
+    compilationUnits = map (\file -> (fileName file,file)) files
+    (env,store) = (\(nv,st) -> (nv,expand st)) $ unzip $ map (\((l,v),a) -> ((l,a),(a,v))) $ reverse $ zip mem [0..]
+    expand = foldl (\st (a,v) -> case (st,v) of
+      ([],ObjectVal c m) ->       [(a + 1,ObjectVal c m),(a,RefVal (a + 1))]
+      ((a',_):_,ObjectVal c m) -> [(a' + 1,ObjectVal c m),(a,RefVal (a' + 1))] ++ st
+      ([],ArrayVal xs) ->       [(a + 1,ArrayVal xs),(a,RefVal (a + 1))]
+      ((a',_):_,ArrayVal xs) -> [(a' + 1,ArrayVal xs),(a,RefVal (a' + 1))] ++ st
+      (_,_) -> (a,v):st
+      ) []
+    latestAddr = case store of
+      [] -> 0
+      (a,_):_ -> a
+    fields = zip (concatMap (\u -> Shared.getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
 
 ---- End of Interp type ----
 
@@ -180,7 +189,6 @@ lookupStaticField :: Interp FieldSignature Addr
 lookupStaticField = proc f -> do
   (_,fields) <- askConst -< ()
   justOrFail -< (Map.lookup f fields,printf "Field %s not bound" (show f))
-
 
 deref :: Interp Val Val
 deref = proc val -> case val of
