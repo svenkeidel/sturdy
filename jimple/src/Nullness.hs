@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Nullness where
 
-import           Prelude hiding (id,fail,Bounded(..))
+import           Prelude hiding (id,lookup,read,fail,Bounded(..))
 
 import           Data.Order
 import qualified Data.Map as Map
@@ -44,6 +44,8 @@ import           Control.Arrow.Transformer.Abstract.Store
 
 import           Syntax
 import           Shared
+
+import           Text.Printf
 
 ---- Values ----
 type Constants = (CompilationUnits,Fields)
@@ -147,6 +149,13 @@ runInterp (Interp f) files env store mainMethod x =
   (latestAddr + length fields,(S.fromList store,(env,(mainMethod,x))))
 
 ---- End of Program Boilerplate ----
+
+lookup_ :: Interp String Addr
+lookup_ = proc x -> lookup U.pi1 fail -< (x, StaticException $ printf "Variable %s not bound" (show x))
+
+read_ :: Interp Addr Val
+read_ = proc addr -> read U.pi1 fail -< (addr, StaticException $ printf "Address %s not bound" (show addr))
+
 instance UseVal Val Interp where
   newSimple = arr $ const NonNull
   newArray = arr $ const NonNull
@@ -173,8 +182,6 @@ instance UseVal Val Interp where
   nullConstant = arr $ const Null
   stringConstant = arr $ const NonNull
   classConstant = arr $ const NonNull
-  deref = arr id
-  deepDeref = arr id
   defaultValue = arr (\t -> case t of
     NullType      -> Null
     (ArrayType _) -> Null
@@ -184,10 +191,14 @@ instance UseVal Val Interp where
     _             -> NonNull)
   instanceOf = arr $ const NonNull
   cast = proc ((v,_),_) -> joined returnA fail -< (v,DynamicException NonNull)
+  readVar = lookup_ >>> read_
+  updateVar f = first (first lookup_ >>> write) >>> U.pi2 >>> f
   readIndex = arr fst
-  updateIndex = U.void $ arr id
+  updateIndex f = first (U.void $ arr id) >>> U.pi2 >>> f
   readField = arr fst
-  updateField = U.void $ arr id
+  updateField f = first (U.void $ arr id) >>> U.pi2 >>> f
+  readStaticField = proc _ -> fail -< StaticException "Not implemented yet"
+  updateStaticField f = proc _ -> fail -< StaticException "Not implemented yet"
   case_ f = U.pi2 >>> map snd ^>> lubA f
   catch f = proc (v,clauses) ->
     joined (lubA f) fail -< (zip (repeat v) clauses,DynamicException v)
@@ -210,8 +221,8 @@ instance UseBool Abs.Bool Val Interp where
       _ -> joined f g -< (x,y)
     where
       narrow = joined
-        (first ((first Shared.lookup_) >>> write) >>> U.pi2 >>> f)
-        (first ((first Shared.lookup_) >>> write) >>> U.pi2 >>> g)
+        (first ((first lookup_) >>> write) >>> U.pi2 >>> f)
+        (first ((first lookup_) >>> write) >>> U.pi2 >>> g)
 
 instance UseMem Env Addr Interp where
   emptyEnv = arr $ const E.empty

@@ -221,16 +221,12 @@ spec = do
         Just m -> m
         Nothing -> error "No entry method found"
 
-    deepDerefMaybe = proc val -> case val of
-      Just x -> deepDeref >>^ Just -< x
-      Nothing -> returnA -< Nothing
-
     evalImmediate_ env' store' = runInterp evalImmediate (testCompilationUnits []) env' store' (testMethod [])
     evalBool_ env' store' = runInterp evalBool (testCompilationUnits []) env' store' (testMethod [])
-    eval_ env' store' = runInterp (eval >>> deepDeref) (testCompilationUnits []) env' store' (testMethod [])
+    eval_ env' store' = runInterp eval (testCompilationUnits []) env' store' (testMethod [])
 
     runStatements_ env' store' stmts =
-      runInterp (runStatements >>> deepDerefMaybe) (testCompilationUnits stmts) env' store' (testMethod stmts) stmts
+      runInterp runStatements (testCompilationUnits stmts) env' store' (testMethod stmts) stmts
 
     runProgram_ compilationUnits mainUnit =
-      runInterp (runProgram >>> deepDerefMaybe) compilationUnits [] [] (mainMethod mainUnit)
+      runInterp runProgram compilationUnits [] [] (mainMethod mainUnit)

@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Concrete where
 
-import           Prelude hiding (id,fail)
+import           Prelude hiding (id,fail,lookup,read)
 import qualified Prelude as P
 
 import           Data.Bits
@@ -118,6 +118,29 @@ runInterp (Interp f) files env store mainMethod x =
 
 ---- End of Interp type ----
 
+getInitializedFields :: (UseVal v c,CanFail v c,CanUseConst const c) => c String [(FieldSignature,v)]
+getInitializedFields = readCompilationUnit >>> proc unit -> do
+  let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
+  ownFields <- U.map (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s,t')) fieldSignatures
+  case extends unit of
+    Just p -> do
+      parentFields <- getInitializedFields -< p
+      returnA -< parentFields ++ ownFields
+    Nothing -> returnA -< ownFields
+
+lookup_ :: (CanFail val c,CanUseEnv env addr c,UseMem env addr c) => c String addr
+lookup_ = proc x -> lookup U.pi1 fail -< (x, StaticException $ printf "Variable %s not bound" (show x))
+
+read_ :: (Show addr,CanFail val c,CanUseStore addr val c) => c addr val
+read_ = proc addr -> read U.pi1 fail -< (addr, StaticException $ printf "Address %s not bound" (show addr))
+
+alloc :: (UseVal val c,CanUseState addr c,CanUseStore addr val c) => c val addr
+alloc = proc val -> do
+  addr <- get -< ()
+  write -< (addr,val)
+  put -< succ addr
+  returnA -< addr
+
 withInt :: (CanFail Val c) => (Int -> Int -> Int) -> c (Val,Val) Val
 withInt op = proc (v1,v2) -> case (v1,v2) of
   (IntVal x1,IntVal x2) -> returnA -< IntVal $ op x1 x2
@@ -145,18 +168,29 @@ toBool = proc b -> case b of
 createException :: (UseVal Val c,CanFail Val c,CanUseStore Addr Val c) => c (String,String) (Exception Val)
 createException = proc (clzz,message) -> do
   RefVal addr <- newSimple -< RefType clzz
-  v <- Shared.read_ -< addr
+  v <- read_ -< addr
   case v of
     ObjectVal c m -> do
-      let m' = Map.insert (FieldSignature clzz (RefType "String") "message") (StringVal message) m
+      let m' = Map.insert (FieldSignature "java.lang.Throwable" (RefType "java.lang.String") "message") (StringVal message) m
       write -< (addr,ObjectVal c m')
       returnA -< DynamicException (RefVal addr)
     _ -> returnA -< StaticException $ printf "Undefined exception %s" clzz
 
+lookupStaticField :: Interp FieldSignature Addr
+lookupStaticField = proc f -> do
+  (_,fields) <- askConst -< ()
+  justOrFail -< (Map.lookup f fields,printf "Field %s not bound" (show f))
+
+
+deref :: Interp Val Val
+deref = proc val -> case val of
+  RefVal addr -> read_ -< addr
+  _ -> returnA -< val
+
 instance UseVal Val Interp where
   newSimple = proc t -> case t of
     RefType c -> do
-      fields <- Shared.getInitializedFields -< c
+      fields <- getInitializedFields -< c
       alloc >>^ RefVal -< (ObjectVal c (Map.fromList fields))
     _ -> defaultValue -< t
   newArray = proc (t,sizes) -> case sizes of
@@ -195,7 +229,7 @@ instance UseVal Val Interp where
       div_ = proc (x1,x2) -> if x2 == 0
         then createException >>> fail -< ("java.lang.ArithmeticException","/ by zero")
         else returnA -< (x1 `P.div` x2)
-  lengthOf = proc v -> case v of
+  lengthOf = deref >>> proc v -> case v of
     ArrayVal xs -> returnA -< (IntVal (length xs))
     _ -> fail -< StaticException "Expected an array variable for 'lengthOf'"
   neg = proc v -> case v of
@@ -211,20 +245,6 @@ instance UseVal Val Interp where
   nullConstant = arr $ const NullVal
   stringConstant = arr StringVal
   classConstant = arr ClassVal
-  deref = proc val -> case val of
-    RefVal addr -> Shared.read_ -< addr
-    _ -> returnA -< val
-  deepDeref = proc val -> case val of
-    RefVal addr -> do
-      v <- Shared.read_ -< addr
-      case v of
-        ObjectVal c m -> do
-          let (keys,vals) = unzip (Map.toList m)
-          vals' <- U.map deepDeref -< vals
-          returnA -< ObjectVal c (Map.fromList (zip keys vals'))
-        ArrayVal xs -> U.map deepDeref >>^ ArrayVal -< xs
-        _ -> returnA -< v
-    _ -> returnA -< val
   defaultValue = proc t -> case t of
     BooleanType   -> returnA -< IntVal 0
     ByteType      -> returnA -< IntVal 0
@@ -238,7 +258,7 @@ instance UseVal Val Interp where
     (RefType _)   -> returnA -< NullVal
     (ArrayType _) -> returnA -< NullVal
     _             -> fail -< StaticException $ printf "No default value for type %s" (show t)
-  instanceOf = first deepDeref >>> (proc (v,t) -> case (v,t) of
+  instanceOf = first deref >>> (proc (v,t) -> case (v,t) of
     (IntVal 0,      BooleanType)  -> fromBool -< True
     (IntVal 1,      BooleanType)  -> fromBool -< True
     (IntVal n,      ByteType)     -> fromBool -< n >= -128   && n < 128   -- n >= (-2)^7  && n < 2^7
@@ -262,33 +282,38 @@ instance UseVal Val Interp where
           case extends unit of
             Just c' -> isSuperClass -< (c',p)
             Nothing -> fromBool -< False
-  cast = first (first (id &&& deepDeref)) >>> second toBool >>> proc (((v,v'),t),b) -> case (b,v') of
+  cast = first (first (id &&& deref)) >>> second toBool >>> proc (((v,v'),t),b) -> case (b,v') of
     (False,_) -> createException >>> fail -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
     (True,ObjectVal _ _) -> returnA -< v
     (_,_) -> fail -< StaticException "Casting of primivites and arrays is not yet supported"
     -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
-  readIndex = proc (v,i) -> case (v,i) of
+  declare f = proc ((l,v),x) -> do
+    addr <- alloc -< v
+    extendEnv' f -< (l,addr,x)
+  readVar = lookup_ >>> read_
+  updateVar f = first (first lookup_ >>> write) >>> U.pi2 >>> f
+  readIndex = first deref >>> proc (v,i) -> case (v,i) of
     (ArrayVal xs,IntVal n)
       | n >= 0 && n < length xs -> returnA -< xs !! n
       | otherwise -> createException >>> fail -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
     (ArrayVal _,_) -> fail -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
     _ -> fail -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
-  updateIndex = first (first (id &&& deref)) >>> proc (((ref,a),i),v) -> case (ref,a,i) of
+  updateIndex f = first (first (first (id &&& deref)) >>> proc (((ref,a),i),v) -> case (ref,a,i) of
     (RefVal addr,ArrayVal xs,IntVal n)
       | n >= 0 && n < length xs -> write -< (addr,ArrayVal ((\(h,_:t) -> h ++ v:t) $ splitAt n xs))
       | otherwise -> createException >>> fail -< ("java.lang.ArrayIndexOutOfBoundsException",printf "Index %d out of bounds" (show n))
     (RefVal _,ArrayVal _,_) -> fail -< StaticException $ printf "Expected an integer index for array lookup, got %s" (show i)
-    _ -> fail -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)
-  readField = proc (v,f) -> case v of
-    (ObjectVal _ m) -> case Map.lookup f m of
-      Just x -> returnA -< x
-      Nothing -> fail -< StaticException $ printf "Field %s not defined for object %s" (show f) (show v)
+    _ -> fail -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)) >>> U.pi2 >>> f
+  readField = first deref >>> proc (v,f) -> case v of
+    (ObjectVal _ m) -> justOrFail -< (Map.lookup f m, printf "Field %s not defined for object %s" (show f) (show v))
     _ -> fail -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
-  updateField = first (id &&& deref) >>> proc ((ref,o),(f,v)) -> case (ref,o) of
+  updateField g = first (first (id &&& deref) >>> proc ((ref,o),(f,v)) -> case (ref,o) of
     (RefVal addr,ObjectVal c m) -> case m Map.!? f of
       Just _ -> write -< (addr,ObjectVal c (Map.insert f v m))
       Nothing -> fail -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
-    _ -> fail -< StaticException $ printf "Expected an object for field update, got %s" (show o)
+    _ -> fail -< StaticException $ printf "Expected an object for field update, got %s" (show o)) >>> U.pi2 >>> g
+  readStaticField = lookupStaticField >>> read_
+  updateStaticField f = first (first lookupStaticField >>> write) >>> U.pi2 >>> f
   case_ f = proc (v,cases) -> case v of
     IntVal x -> case find (matchCase x) cases of
       Just (_,label) -> f -< label

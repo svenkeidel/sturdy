@@ -1,6 +1,8 @@
 {-# LANGUAGE Arrows #-}
 module ConcreteSpec where
 
+import Prelude hiding (fail)
+
 import Syntax
 import Shared
 import Concrete
@@ -9,6 +11,9 @@ import qualified Data.Map as Map
 import Data.List
 import Data.Concrete.Error
 import Control.Arrow
+import Control.Arrow.Except
+import Control.Arrow.Fail
+import qualified Control.Arrow.Utils as U
 
 import Test.Hspec
 
@@ -74,7 +79,7 @@ spec = do
       eval_ env store expr `shouldBe` Success (IntVal 10)
     it "8 / 0" $ do
       let expr = BinopExpr (IntConstant 8) Div (IntConstant 0)
-      eval_ env store expr `shouldBe` Fail (DynamicException (RefVal 0))
+      eval_ env store expr `shouldBe` dynamicException "java.lang.ArithmeticException" "/ by zero"
     it "3.0 % 2.5" $ do
       let expr = BinopExpr (FloatConstant 3.0) Rem (FloatConstant 2.5)
       eval_ env store expr `shouldBe` Success (FloatVal 0.5)
@@ -208,24 +213,44 @@ spec = do
                                                   , implements = []
                                                   , fileBody = [MethodMember (testMethod stmts)]
                                                   }] ++ baseCompilationUnits
-    getMethod :: Member -> [Method]
-    getMethod (MethodMember m) = [m]
-    getMethod _ = []
-    getMethods members = concatMap getMethod members
-    mainMethod unit = case find (\m -> methodName m == "main") (getMethods (fileBody unit)) of
-      Just m -> m
-      Nothing -> error "No entry method found"
 
+    mainMethod unit =
+      case find (\m -> methodName m == "main") [m | MethodMember m <- fileBody unit] of
+        Just m -> m
+        Nothing -> error "No entry method found"
+
+    deepDeref :: Interp Val Val
+    deepDeref = proc val -> case val of
+      RefVal addr -> do
+        v <- read_ -< addr
+        case v of
+          ObjectVal c m -> do
+            let (keys,vals) = unzip (Map.toList m)
+            vals' <- U.map deepDeref -< vals
+            returnA -< ObjectVal c (Map.fromList (zip keys vals'))
+          ArrayVal xs -> U.map deepDeref >>^ ArrayVal -< xs
+          _ -> returnA -< v
+      _ -> returnA -< val
+
+    deepDerefMaybe :: Interp (Maybe Val) (Maybe Val)
     deepDerefMaybe = proc val -> case val of
       Just x -> deepDeref >>^ Just -< x
       Nothing -> returnA -< Nothing
 
+    deepDerefDynamic :: Interp (Exception Val) (Exception Val)
+    deepDerefDynamic = proc e -> case e of
+      DynamicException v -> deepDeref >>^ DynamicException -< v
+      StaticException _ -> returnA -< e
+
+    try' f = (tryCatch (f >>> deepDeref) (U.pi2 >>> deepDerefDynamic >>> fail))
+    try'' f = (tryCatch (f >>> deepDerefMaybe) (U.pi2 >>> deepDerefDynamic >>> fail))
+
     evalImmediate_ env' store' = runInterp evalImmediate (testCompilationUnits []) env' store' (testMethod [])
     evalBool_ env' store' = runInterp evalBool (testCompilationUnits []) env' store' (testMethod [])
-    eval_ env' store' = runInterp (eval >>> deepDeref) (testCompilationUnits []) env' store' (testMethod [])
+    eval_ env' store' = runInterp (try' eval) (testCompilationUnits []) env' store' (testMethod [])
 
     runStatements_ env' store' stmts =
-      runInterp (runStatements >>> deepDerefMaybe) (testCompilationUnits stmts) env' store' (testMethod stmts) stmts
+      runInterp (try'' runStatements) (testCompilationUnits stmts) env' store' (testMethod stmts) stmts
 
     runProgram_ compilationUnits mainUnit args =
-      runInterp (runProgram >>> deepDerefMaybe) compilationUnits [] [] (mainMethod mainUnit) args
+      runInterp (try'' runProgram) compilationUnits [] [] (mainMethod mainUnit) args
