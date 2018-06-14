@@ -72,3 +72,4 @@ executable lambdajs
     , parsec >= 3.0.0
     , mtl >= 1.1.0.1
     , syb >= 0.1
+    , pretty >= 0.1
