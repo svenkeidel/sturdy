@@ -72,7 +72,6 @@ type CanCatch x val c = ArrowExcept x (Maybe val) (Exception val) c
 
 type CanInterp env addr const val bool c = (
   Show val,
-  LowerBounded val,
   Eq val,
   Show addr,
   Eq addr,
@@ -127,13 +126,13 @@ lookupField = proc x -> do
   fields <- askFields -< ()
   justOrFail >>> addrFromInt -< (Map.lookup x fields,printf "Field %s not bound" (show x))
 
-lookup_ :: (Eq addr,CanFail v c,CanUseEnv env addr c,UseMem env addr c) => c String addr
+lookup_ :: (CanFail v c,CanUseEnv env addr c,UseMem env addr c) => c String addr
 lookup_ = proc x -> lookup U.pi1 fail -< (x, StaticException $ printf "Variable %s not bound" (show x))
 
-read_ :: (Show addr,Eq v,LowerBounded v,CanFail v c,CanUseStore addr v c) => c addr v
+read_ :: (Show addr,CanFail v c,CanUseStore addr v c) => c addr v
 read_ = proc addr -> read U.pi1 fail -< (addr, StaticException $ printf "Address %s not bound" (show addr))
 
-readLocal :: (Eq addr,Show addr,Eq val,Show val,LowerBounded val,CanFail val c,CanUseMem env addr val c) => c String val
+readLocal :: (Show addr,CanFail val c,CanUseMem env addr val c) => c String val
 readLocal = lookup_ >>> read_
 
 readCompilationUnit :: (CanFail v c,CanUseConst const c) => c String CompilationUnit

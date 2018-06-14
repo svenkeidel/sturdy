@@ -78,7 +78,7 @@ spec = do
       eval_ env store expr `shouldBe` Success NonNull
     it "8 / 0" $ do
       let expr = BinopExpr (IntConstant 8) Div (IntConstant 0)
-      eval_ env store expr `shouldBe` Fail (DynamicException NonNull)
+      eval_ env store expr `shouldBe` SuccessOrFail (DynamicException NonNull) NonNull
     it "3.0 % 2.5" $ do
       let expr = BinopExpr (FloatConstant 3.0) Rem (FloatConstant 2.5)
       eval_ env store expr `shouldBe` Success NonNull
@@ -157,26 +157,26 @@ spec = do
                    Assign (LocalVar "f1") (BinopExpr (Local "f0") Mult (FloatConstant 2.5)),
                    Return (Just (Local "f1"))]
       runStatements_ nv st stmts `shouldSatisfy` ifSuccess (Just NonNull)
-
-  describe "Complete program" $ do
-    it "10! = 3628800" $ do
-      let files = baseCompilationUnits ++ [factorialExampleFile]
-      runProgram_ files factorialExampleFile [IntConstant 10] `shouldSatisfy` ifSuccess (Just NonNull)
-    it "s = new SingleMethodExample; s.x = 2; return s.x" $ do
-      let files = baseCompilationUnits ++ [singleMethodExampleFile]
-      runProgram_ files singleMethodExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
-    it "(-10)! throws IllegalArgumentException" $ do
-      let files = baseCompilationUnits ++ [factorialExampleFile]
-      runProgram_ files factorialExampleFile [IntConstant (-10)] `shouldBe` dynamicException "java.lang.IllegalArgumentException"
-    it "5 -> [5,10,5,10]" $ do
-      let files = baseCompilationUnits ++ [arrayFieldExampleFile]
-      runProgram_ files arrayFieldExampleFile [IntConstant 5] `shouldSatisfy` ifSuccess (Just NonNull)
-    it "(new Person(10)).yearsToLive() = 90" $ do
-      let files = baseCompilationUnits ++ [personExampleFile]
-      runProgram_ files personExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
-    it "try { throw e } catch (e) { throw e' }" $ do
-      let files = baseCompilationUnits ++ [tryCatchExampleFile]
-      runProgram_ files tryCatchExampleFile [] `shouldBe` dynamicException "java.lang.ArrayIndexOutOfBoundsException"
+  --
+  -- describe "Complete program" $ do
+  --   it "10! = 3628800" $ do
+  --     let files = baseCompilationUnits ++ [factorialExampleFile]
+  --     runProgram_ files factorialExampleFile [IntConstant 10] `shouldSatisfy` ifSuccess (Just NonNull)
+  --   it "s = new SingleMethodExample; s.x = 2; return s.x" $ do
+  --     let files = baseCompilationUnits ++ [singleMethodExampleFile]
+  --     runProgram_ files singleMethodExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
+  --   it "(-10)! throws IllegalArgumentException" $ do
+  --     let files = baseCompilationUnits ++ [factorialExampleFile]
+  --     runProgram_ files factorialExampleFile [IntConstant (-10)] `shouldBe` dynamicException "java.lang.IllegalArgumentException"
+  --   it "5 -> [5,10,5,10]" $ do
+  --     let files = baseCompilationUnits ++ [arrayFieldExampleFile]
+  --     runProgram_ files arrayFieldExampleFile [IntConstant 5] `shouldSatisfy` ifSuccess (Just NonNull)
+  --   it "(new Person(10)).yearsToLive() = 90" $ do
+  --     let files = baseCompilationUnits ++ [personExampleFile]
+  --     runProgram_ files personExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
+  --   it "try { throw e } catch (e) { throw e' }" $ do
+  --     let files = baseCompilationUnits ++ [tryCatchExampleFile]
+  --     runProgram_ files tryCatchExampleFile [] `shouldBe` dynamicException "java.lang.ArrayIndexOutOfBoundsException"
 
   where
     baseCompilationUnits = [objectFile,

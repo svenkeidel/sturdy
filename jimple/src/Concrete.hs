@@ -16,7 +16,6 @@ import qualified Prelude as P
 import           Data.Bits
 import qualified Data.Bits as B
 import           Data.Fixed
-import           Data.Order
 import           Data.List (replicate,repeat,find,splitAt)
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -52,8 +51,7 @@ import           Shared
 ---- Values ----
 
 data Val
-  = BottomVal
-  | IntVal Int
+  = IntVal Int
   | LongVal Int
   | FloatVal Float
   | DoubleVal Float
@@ -65,7 +63,6 @@ data Val
   | ObjectVal String (Map FieldSignature Val) deriving (Eq)
 
 instance Show Val where
-  show BottomVal = "⊥"
   show (IntVal n) = show n
   show (LongVal l) = show l ++ "l"
   show (FloatVal f) = show f
@@ -76,24 +73,6 @@ instance Show Val where
   show (RefVal a) = "@" ++ show a
   show (ArrayVal xs) = show xs
   show (ObjectVal c m) = show c ++ "{" ++ show m ++ "}"
-
--- TODO: WHY?
-instance PreOrd Val where
-  IntVal n1 ⊑ IntVal n2 = n1 == n2
-  LongVal l1 ⊑ LongVal l2 = l1 == l2
-  FloatVal f1 ⊑ FloatVal f2 = f1 == f2
-  DoubleVal d1 ⊑ DoubleVal d2 = d1 == d2
-  StringVal s1 ⊑ StringVal s2 = s1 == s2
-  ClassVal c1 ⊑ ClassVal c2 = c1 == c2
-  NullVal ⊑ NullVal = True
-  ArrayVal xs ⊑ ArrayVal ys = xs == ys
-  ObjectVal c1 m1 ⊑ ObjectVal c2 m2 = c1 == c2 && m1 == m2
-  RefVal a ⊑ RefVal b = a == b
-  BottomVal ⊑ _ = True
-  _ ⊑ _ = False
-
-instance LowerBounded Val where
-  bottom = BottomVal
 
 ---- End of Values ----
 
