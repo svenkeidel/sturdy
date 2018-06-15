@@ -10,82 +10,35 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Shared where
 
-import           Prelude hiding (lookup,read,rem,div,id,or,and,fail)
+import           Prelude hiding (rem,div,id,or,and,fail)
 
 import           Data.List (find,elemIndex)
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.Order
-import           Data.String
+import           Data.Exception
 
 import           Control.Category
 
 import           Control.Arrow
-import           Control.Arrow.Const
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Reader
-import           Control.Arrow.State
-import           Control.Arrow.Store
 import qualified Control.Arrow.Utils as U
 
 import           Text.Printf
 import           Syntax
 
-data Exception v = StaticException String | DynamicException v deriving (Eq)
-
-instance Show v => Show (Exception v) where
-  show (StaticException s) = "Static: " ++ s
-  show (DynamicException v) = "Dynamic: " ++ show v
-
-instance PreOrd v => PreOrd (Exception v) where
-  StaticException s1 ⊑ StaticException s2 = s1 == s2
-  _ ⊑ StaticException _ = True
-  DynamicException v1 ⊑ DynamicException v2 = v1 ⊑ v2
-  _ ⊑ _ = False
-
-instance LowerBounded v => LowerBounded (Exception v) where
-  bottom = StaticException "Bottom exception"
-
-instance Complete v => Complete (Exception v) where
-  StaticException s1 ⊔ StaticException s2 = StaticException $ s1 ++ "\n" ++ s2
-  StaticException s ⊔ _ = StaticException s
-  _ ⊔ StaticException s = StaticException s
-  DynamicException v1 ⊔ DynamicException v2 = DynamicException $ v1 ⊔ v2
-
-instance IsString (Exception v) where
-  fromString = StaticException
-
-type CompilationUnits = Map String CompilationUnit
-type Fields = Map FieldSignature Int
-type MethodReader = Method
-
 type CanFail val c = (ArrowChoice c,ArrowFail (Exception val) c)
-type CanUseEnv env addr c = ArrowEnv String addr (env String addr) c
-type CanUseReader c = ArrowReader MethodReader c
-type CanUseStore addr val c = (ArrowStore addr val c,ArrowRead addr val (Exception val) val c)
-type CanUseState addr c = (Enum addr,ArrowState addr c)
-type CanUseConst const c = (ArrowConst const c,UseConst c)
-type CanUseMem env addr val c = (CanUseEnv env addr c,CanUseStore addr val c,UseMem env addr c)
-type CanCatch x val c = ArrowExcept x (Maybe val) (Exception val) c
 
-type CanInterp env addr const val bool c = (
-  Show val,
-  Eq val,
-  Show addr,
-  Eq addr,
+type CanInterp env var' val' const val bool c = (
   UseVal val c,
   UseBool bool val c,
   CanFail val c,
-  CanUseMem env addr val c,
-  CanUseConst const c,
-  CanUseReader c,
-  CanUseState addr c,
-  ArrowExcept (val,val) val (Exception val) c,
-  CanCatch EInvoke val c,
-  CanCatch ([Statement],[CatchClause]) val c,
-  CanCatch (Method,Maybe val,[Immediate]) val c)
+  UseConst c,
+  ArrowReader Method c,
+  ArrowEnv var' val' (env var' val') c,
+  UseEnv (env var' val') c,
+  ArrowExcept EInvoke (Maybe val) (Exception val) c,
+  ArrowExcept ([Statement],[CatchClause]) (Maybe val) (Exception val) c)
 
 assert :: (CanFail v c) => c (Bool,String) ()
 assert = proc (prop,msg) -> if prop
@@ -102,30 +55,25 @@ liftAMaybe f = proc m -> case m of
   Just x -> f >>^ Just -< x
   Nothing -> returnA -< Nothing
 
-getFieldSignatures :: CompilationUnit -> ([Modifier] -> Bool) -> [FieldSignature]
-getFieldSignatures unit p =
-  concatMap toFieldSignature (fileBody unit)
-  where
-    toFieldSignature :: Member -> [FieldSignature]
-    toFieldSignature (FieldMember f) =
-      [FieldSignature (fileName unit) (fieldType f) (fieldName f) | p (fieldModifiers f)]
-    toFieldSignature _ = []
+getFieldSignatures :: ([Modifier] -> Bool) -> CompilationUnit -> [FieldSignature]
+getFieldSignatures p unit =
+  [fieldSignature unit m | FieldMember m <- fileBody unit, p (fieldModifiers m)]
 
-readCompilationUnit :: (CanFail v c,CanUseConst const c) => c String CompilationUnit
+readCompilationUnit :: (CanFail v c,UseConst c) => c String CompilationUnit
 readCompilationUnit = proc n -> do
   compilationUnits <- askCompilationUnits -< ()
-  justOrFail -< (Map.lookup n compilationUnits,printf "CompilationUnit %s not loaded" (show n))
+  justOrFail -< (find (\u -> fileName u == n) compilationUnits,printf "CompilationUnit %s not loaded" (show n))
 
-evalInvoke :: CanInterp env addr const val bool c => c EInvoke (Maybe val)
+evalInvoke :: CanInterp env var' val' const val bool c => c EInvoke (Maybe val)
 evalInvoke = proc e -> case e of
-  SpecialInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
-  VirtualInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
-  InterfaceInvoke localName methodSignature args -> ev -< (Just localName,methodSignature,args)
-  StaticInvoke methodSignature args -> ev -< (Nothing,methodSignature,args)
+  SpecialInvoke localName m args -> ev -< (Just localName,m,args)
+  VirtualInvoke localName m args -> ev -< (Just localName,m,args)
+  InterfaceInvoke localName m args -> ev -< (Just localName,m,args)
+  StaticInvoke m args -> ev -< (Nothing,m,args)
   DynamicInvoke{} -> fail -< StaticException "DynamicInvoke is not implemented"
   where
-    ev = proc (localName,methodSignature,args) -> do
-      method <- readMethod -< methodSignature
+    ev = proc (localName,m,args) -> do
+      method <- readMethod -< m
       this <- liftAMaybe readVar -< localName
       case this of
         Just _ -> assert -< (Static `notElem` methodModifiers method,"Expected a non-static method for non-static invoke")
@@ -141,7 +89,7 @@ evalInvoke = proc e -> case e of
       methodName m == n && returnType m == retType && parameters m == argTypes
     matchesSignature _ _ _ _ = False
 
-evalImmediate :: CanInterp env addr const val bool c => c Immediate val
+evalImmediate :: (ArrowChoice c,UseVal val c) => c Immediate val
 evalImmediate = proc i -> case i of
   Local localName -> readVar -< localName
   DoubleConstant f -> doubleConstant -< f
@@ -152,13 +100,13 @@ evalImmediate = proc i -> case i of
   StringConstant s -> stringConstant -< s
   ClassConstant c -> classConstant -< c
 
-evalAtIdentifier :: CanInterp env addr const val bool c => c AtIdentifier val
+evalAtIdentifier :: (ArrowChoice c,UseVal val c) => c AtIdentifier val
 evalAtIdentifier = proc i -> case i of
   ThisRef -> evalImmediate -< Local "@this"
   ParameterRef n -> evalImmediate -< Local ("@parameter" ++ show n)
   CaughtExceptionRef -> evalImmediate -< Local "@caughtexception"
 
-evalBool :: CanInterp env addr const val bool c => c BoolExpr bool
+evalBool :: (ArrowChoice c,UseBool bool val c,UseVal val c) => c BoolExpr bool
 evalBool = proc (BoolExpr i1 op i2) -> do
   v1 <- evalImmediate -< i1
   v2 <- evalImmediate -< i2
@@ -170,7 +118,7 @@ evalBool = proc (BoolExpr i1 op i2) -> do
     Cmplt -> lt -< (v1,v2)
     Cmple -> le -< (v1,v2)
 
-eval :: CanInterp env addr const val bool c => c Expr val
+eval :: CanInterp env var' val' const val bool c => c Expr val
 eval = proc e -> case e of
   NewExpr t -> do
     assert -< (isBaseType t,"Expected a base type for new")
@@ -218,7 +166,7 @@ eval = proc e -> case e of
   ImmediateExpr i -> evalImmediate -< i
   MethodHandle _ -> fail -< StaticException "Evaluation of method handles is not implemented"
 
-runStatements :: CanInterp env addr const val bool c => c [Statement] (Maybe val)
+runStatements :: CanInterp env var' val' const val bool c => c [Statement] (Maybe val)
 runStatements = proc stmts -> case stmts of
   [] -> returnA -< Nothing
   (stmt:rest) -> case stmt of
@@ -242,7 +190,9 @@ runStatements = proc stmts -> case stmts of
         ReferenceVar ref -> case ref of
           ArrayRef l i -> first (first (readVar *** evalImmediate)) >>> updateIndex runStatements -< (((l,i),v),rest)
           FieldRef l f -> first (first readVar) >>> updateField runStatements -< ((l,(f,v)),rest)
-          SignatureRef f -> updateStaticField runStatements -< ((f,v),rest)
+          SignatureRef f -> do
+            updateStaticField -< (f,v)
+            runStatements -< rest
     Invoke e -> do
       evalInvoke -< e
       runStatements -< rest
@@ -265,7 +215,7 @@ runStatements = proc stmts -> case stmts of
       declare runStatementsFromLabel -< (("@caughtexception",val),withLabel clause)
     runSwitch = first evalImmediate >>> case_ runStatementsFromLabel
 
-runMethod :: CanInterp env addr const val bool c => c (Method,Maybe val,[Immediate]) (Maybe val)
+runMethod :: CanInterp env var' val' const val bool c => c (Method,Maybe val,[Immediate]) (Maybe val)
 runMethod = proc (method,this,args) -> case methodBody method of
   EmptyBody -> returnA -< Nothing
   FullBody{declarations=decs,statements=stmts} -> do
@@ -280,15 +230,18 @@ runMethod = proc (method,this,args) -> case methodBody method of
       [] -> local runStatements -< x
       (binding:rest) -> declare runWithBindings -< (binding,(rest,x))
 
-runProgram :: CanInterp env addr const val bool c => c [Immediate] (Maybe val)
+runProgram :: CanInterp env var' val' const val bool c => c [Immediate] (Maybe val)
 runProgram = proc args -> do
   units <- askCompilationUnits -< ()
-  fields <- askFields >>> Map.toList ^>> U.map (second addrFromInt) -< ()
-  U.map (second defaultValue >>> write) -< map (\(FieldSignature _ t _,a) -> (a,t)) fields
-  U.map ((\u -> find (\m -> methodName m == "<clinit>") [m | MethodMember m <- fileBody u])
-    ^>> liftAMaybe ((\m -> (m,Nothing,[])) ^>> runMethod)) -< Map.elems units
+  U.map (second defaultValue >>> updateStaticField) -< concatMap staticFieldsWithType units
+  U.map runMethod -< concatMap clinitMethodWithArgs units
   mainMethod <- ask -< ()
   runMethod -< (mainMethod,Nothing,args)
+  where
+    staticFieldsWithType u =
+      [(fieldSignature u m,fieldType m) | FieldMember m <- fileBody u, Static `elem` fieldModifiers m]
+    clinitMethodWithArgs u =
+      [(m,Nothing,[]) | MethodMember m <- fileBody u, methodName m == "<clinit>"]
 
 class Arrow c => UseVal v c | c -> v where
   doubleConstant :: c Float v
@@ -327,7 +280,7 @@ class Arrow c => UseVal v c | c -> v where
   readField :: c (v,FieldSignature) v
   updateField :: c [Statement] (Maybe v) -> c ((v,(FieldSignature,v)),[Statement]) (Maybe v)
   readStaticField :: c FieldSignature v
-  updateStaticField :: c [Statement] (Maybe v) -> c ((FieldSignature,v),[Statement]) (Maybe v)
+  updateStaticField :: c (FieldSignature,v) ()
   case_ :: c String (Maybe v) -> c (v,[CaseStatement]) (Maybe v)
   catch :: c (v,CatchClause) (Maybe v) -> c (v,[CatchClause]) (Maybe v)
 
@@ -340,10 +293,8 @@ class Arrow c => UseBool b v c | c -> b v where
   le :: c (v,v) b
   if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c ((b,BoolExpr),(String,[Statement])) (Maybe v)
 
-class Arrow c => UseMem env addr c | c -> env addr where
-  emptyEnv :: c () (env String addr)
-  addrFromInt :: c Int addr
+class Arrow c => UseEnv env c | c -> env where
+  emptyEnv :: c () env
 
 class Arrow c => UseConst c where
-  askCompilationUnits :: c () CompilationUnits
-  askFields :: c () Fields
+  askCompilationUnits :: c () [CompilationUnit]

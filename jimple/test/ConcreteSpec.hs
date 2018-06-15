@@ -11,6 +11,7 @@ import Syntax
 import Shared
 import Concrete
 
+import           Data.Exception
 import qualified Data.Map as Map
 import           Data.Concrete.Error
 

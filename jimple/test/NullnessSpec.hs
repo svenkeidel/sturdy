@@ -12,6 +12,7 @@ import Syntax
 import Shared
 import Nullness
 
+import           Data.Exception
 import           Data.List
 import           Data.Abstract.Boolean as B
 import           Data.Abstract.HandleError

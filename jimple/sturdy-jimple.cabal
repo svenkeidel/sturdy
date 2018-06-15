@@ -14,7 +14,8 @@ library
                        Interval,
                        Nullness,
                        Shared,
-                       Syntax
+                       Syntax,
+                       Data.Exception
   ghc-options:         -Wall
   build-depends:       base,
                        containers,
@@ -34,6 +35,7 @@ test-suite specs
   other-modules:       ConcreteSpec,
                        IntervalSpec,
                        NullnessSpec,
+                       Utils,
                        Classes.Object,
                        Classes.Throwable,
                        Classes.ArithmeticException,

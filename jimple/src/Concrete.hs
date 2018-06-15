@@ -13,6 +13,7 @@ module Concrete where
 import           Prelude hiding (id,fail,lookup,read)
 import qualified Prelude as P
 
+import           Data.Exception
 import           Data.Bits
 import qualified Data.Bits as B
 import           Data.Fixed
@@ -48,8 +49,6 @@ import           Text.Printf
 import           Syntax
 import           Shared
 
----- Values ----
-
 data Val
   = IntVal Int
   | LongVal Int
@@ -74,16 +73,12 @@ instance Show Val where
   show (ArrayVal xs) = show xs
   show (ObjectVal c m) = show c ++ "{" ++ show m ++ "}"
 
----- End of Values ----
-
----- Interp Type ----
-
 type Addr = Int
-type Constants = (CompilationUnits,Fields)
+type Constants = ([CompilationUnit],Map FieldSignature Addr)
 
 newtype Interp x y = Interp
   (Except (Exception Val)
-    (Reader MethodReader
+    (Reader Method
       (Environment String Addr
         (StoreArrow Addr Val
           (State Addr
@@ -91,27 +86,24 @@ newtype Interp x y = Interp
   deriving (Category,Arrow,ArrowChoice)
 
 deriving instance ArrowConst Constants Interp
-deriving instance ArrowReader MethodReader Interp
+deriving instance ArrowReader Method Interp
 deriving instance ArrowState Addr Interp
 deriving instance ArrowEnv String Addr (Env String Addr) Interp
-deriving instance ArrowRead Addr Val Addr Val Interp
-deriving instance ArrowRead Addr Val (Exception Val) Val Interp
+deriving instance ArrowRead Addr Val x Val Interp
 deriving instance ArrowWrite Addr Val Interp
 deriving instance ArrowFail (Exception Val) Interp
-deriving instance ArrowExcept x Val (Exception Val) Interp
-deriving instance ArrowExcept x (Maybe Val) (Exception Val) Interp
+deriving instance ArrowExcept x y (Exception Val) Interp
 
-runInterp :: Interp x y -> [CompilationUnit] -> MethodReader -> [(String,Val)] -> x -> Error (Exception Val) y
-runInterp (Interp f) files mainMethod mem x =
-  runConst (Map.fromList compilationUnits,Map.fromList fields)
-      (evalState
-        (evalStore
-          (runEnvironment'
-            (runReader
-              (runExcept f)))))
-  (latestAddr + length fields,(S.fromList store,(env,(mainMethod,x))))
+runInterp :: Interp x y -> [CompilationUnit] -> Method -> [(String,Val)] -> x -> Error (Exception Val) y
+runInterp (Interp f) compilationUnits mainMethod mem x =
+  runConst (compilationUnits,fields)
+    (evalState
+      (evalStore
+        (runEnvironment'
+          (runReader
+            (runExcept f)))))
+  (latestAddr + Map.size fields,(S.fromList store,(env,(mainMethod,x))))
   where
-    compilationUnits = map (\file -> (fileName file,file)) files
     (env,store) = (\(nv,st) -> (nv,expand st)) $ unzip $ map (\((l,v),a) -> ((l,a),(a,v))) $ reverse $ zip mem [0..]
     expand = foldl (\st (a,v) -> case (st,v) of -- Extend this function to dereference nested arrays and objects
       ([],ObjectVal c m) ->       [(a + 1,ObjectVal c m),(a,RefVal (a + 1))]
@@ -123,27 +115,17 @@ runInterp (Interp f) files mainMethod mem x =
     latestAddr = case store of
       [] -> 0
       (a,_):_ -> a
-    fields = zip (concatMap (\u -> Shared.getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
+    fields = Map.fromList $ zip
+      (concatMap (getFieldSignatures (\m -> Static `elem` m)) compilationUnits)
+      [latestAddr..]
 
----- End of Interp type ----
-
-getInitializedFields :: (UseVal v c,CanFail v c,CanUseConst const c) => c String [(FieldSignature,v)]
-getInitializedFields = readCompilationUnit >>> proc unit -> do
-  let fieldSignatures = getFieldSignatures unit (\m -> Static `notElem` m)
-  ownFields <- U.map (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s,t')) fieldSignatures
-  case extends unit of
-    Just p -> do
-      parentFields <- getInitializedFields -< p
-      returnA -< parentFields ++ ownFields
-    Nothing -> returnA -< ownFields
-
-lookup_ :: (CanFail val c,CanUseEnv env addr c,UseMem env addr c) => c String addr
+lookup_ :: Interp String Addr
 lookup_ = proc x -> lookup U.pi1 fail -< (x, StaticException $ printf "Variable %s not bound" (show x))
 
-read_ :: (Show addr,CanFail val c,CanUseStore addr val c) => c addr val
+read_ :: Interp Addr Val
 read_ = proc addr -> read U.pi1 fail -< (addr, StaticException $ printf "Address %s not bound" (show addr))
 
-alloc :: (UseVal val c,CanUseState addr c,CanUseStore addr val c) => c val addr
+alloc :: Interp Val Addr
 alloc = proc val -> do
   addr <- get -< ()
   write -< (addr,val)
@@ -174,7 +156,7 @@ toBool = proc b -> case b of
   IntVal 1 -> returnA -< True
   _ -> fail -< StaticException $ printf "Expected boolean value, got %s" (show b)
 
-createException :: (UseVal Val c,CanFail Val c,CanUseStore Addr Val c) => c (String,String) (Exception Val)
+createException :: Interp (String,String) (Exception Val)
 createException = proc (clzz,message) -> do
   RefVal addr <- newSimple -< RefType clzz
   v <- read_ -< addr
@@ -201,6 +183,15 @@ instance UseVal Val Interp where
       fields <- getInitializedFields -< c
       alloc >>^ RefVal -< (ObjectVal c (Map.fromList fields))
     _ -> defaultValue -< t
+    where
+      getInitializedFields = readCompilationUnit >>> proc unit -> do
+        let fieldSignatures = getFieldSignatures (\m -> Static `notElem` m) unit
+        ownFields <- U.map (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s,t')) fieldSignatures
+        case extends unit of
+          Just p -> do
+            parentFields <- getInitializedFields -< p
+            returnA -< parentFields ++ ownFields
+          Nothing -> returnA -< ownFields
   newArray = proc (t,sizes) -> case sizes of
     (s:sizes') -> case s of
       IntVal s' -> do
@@ -286,7 +277,7 @@ instance UseVal Val Interp where
       isSuperClass = proc (c,p) -> if c == p
         then fromBool -< True
         else do
-          unit <- Shared.readCompilationUnit -< c
+          unit <- readCompilationUnit -< c
           case extends unit of
             Just c' -> isSuperClass -< (c',p)
             Nothing -> fromBool -< False
@@ -321,7 +312,7 @@ instance UseVal Val Interp where
       Nothing -> fail -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
     _ -> fail -< StaticException $ printf "Expected an object for field update, got %s" (show o)) >>> U.pi2 >>> g
   readStaticField = lookupStaticField >>> read_
-  updateStaticField f = first (first lookupStaticField >>> write) >>> U.pi2 >>> f
+  updateStaticField = first lookupStaticField >>> write
   case_ f = proc (v,cases) -> case v of
     IntVal x -> case find (matchCase x) cases of
       Just (_,label) -> f -< label
@@ -354,12 +345,8 @@ instance UseBool Bool Val Interp where
   le = swap ^>> cmpNum not
   if_ f1 f2 = proc ((v,_),(x,y)) -> if v then f1 -< x else f2 -< y
 
-instance UseMem Env Addr Interp where
+instance UseEnv (Env String Addr) Interp where
   emptyEnv = arr $ const E.empty
-  addrFromInt = arr id
 
 instance UseConst Interp where
   askCompilationUnits = askConst >>^ fst
-  askFields = askConst >>^ snd
-
----- End of Actual Evaluation methods ----

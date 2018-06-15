@@ -2,6 +2,8 @@
 
 module Syntax where
 
+import Data.Hashable
+
 data CompilationUnit = CompilationUnit { fileModifiers :: [Modifier]
                                        , fileType :: FileType
                                        , fileName :: String
@@ -67,12 +69,36 @@ instance Show FileType where
   show ClassFile = "class"
   show InterfaceFile = "interface"
 
+data MethodSignature = MethodSignature String Type String [Type] deriving (Show, Eq)
+
+data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Show, Eq)
+
+data FieldSignature = FieldSignature String Type String deriving (Eq)
+
+instance Ord FieldSignature where
+  compare (FieldSignature c1 _ n1) (FieldSignature c2 _ n2) =
+    case compare c1 c2 of
+      LT -> LT
+      EQ -> compare n1 n2
+      GT -> GT
+
+instance Show FieldSignature where
+  show (FieldSignature c t n) =
+    "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
+
+instance Hashable FieldSignature where
+  hashWithSalt s (FieldSignature c t n) = s + hash c + hash t + hash n
+
 data Member = FieldMember Field | MethodMember Method
 
 data Field = Field { fieldModifiers :: [Modifier]
                    , fieldType :: Type
                    , fieldName :: String
                    }
+
+fieldSignature :: CompilationUnit -> Field -> FieldSignature
+fieldSignature CompilationUnit{fileName=c} Field{fieldType=t,fieldName=n}
+  = FieldSignature c t n
 
 data Method = Method { methodModifiers :: [Modifier]
                      , returnType :: Type
@@ -81,6 +107,10 @@ data Method = Method { methodModifiers :: [Modifier]
                      , throws :: [String]
                      , methodBody :: MethodBody
                      } deriving (Show, Eq)
+
+methodSignature :: CompilationUnit -> Method -> MethodSignature
+methodSignature CompilationUnit{fileName=c} Method{returnType=t,parameters=p,methodName=n}
+  = MethodSignature c t n p
 
 data Type
   = ArrayType Type
@@ -112,13 +142,8 @@ instance Show Type where
   show UnknownType = "<untyped>"
   show VoidType = "void"
 
-isIntegerType :: Type -> Bool
-isIntegerType BooleanType = True
-isIntegerType ByteType = True
-isIntegerType CharType = True
-isIntegerType IntType = True
-isIntegerType ShortType = True
-isIntegerType _ = False
+instance Hashable Type where
+  hashWithSalt n t = n + hash (show t)
 
 isNonvoidType :: Type -> Bool
 isNonvoidType VoidType = False
@@ -216,23 +241,6 @@ data EInvoke
   | InterfaceInvoke String MethodSignature [Immediate]
   | StaticInvoke MethodSignature [Immediate]
   | DynamicInvoke String UnnamedMethodSignature [Immediate] MethodSignature [Immediate] deriving (Show, Eq)
-
-data MethodSignature = MethodSignature String Type String [Type] deriving (Show, Eq)
-
-data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Show, Eq)
-
-data FieldSignature = FieldSignature String Type String deriving (Eq)
-
-instance Ord FieldSignature where
-  compare (FieldSignature c1 _ n1) (FieldSignature c2 _ n2) =
-    case compare c1 c2 of
-      LT -> LT
-      EQ -> compare n1 n2
-      GT -> GT
-
-instance Show FieldSignature where
-  show (FieldSignature c t n) =
-    "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
 
 data BoolOp
   = Cmpeq | Cmpne | Cmpgt | Cmpge | Cmplt | Cmple deriving (Show, Eq)

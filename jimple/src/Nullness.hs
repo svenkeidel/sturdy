@@ -13,8 +13,8 @@ module Nullness where
 
 import           Prelude hiding (id,lookup,read,fail,Bounded(..))
 
+import           Data.Exception
 import           Data.Order
-import qualified Data.Map as Map
 import qualified Data.Boolean as B
 import           Data.Abstract.Environment (Env)
 import qualified Data.Abstract.Environment as E
@@ -31,7 +31,6 @@ import           Control.Arrow.Environment
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Reader
-import           Control.Arrow.State
 import           Control.Arrow.Store
 import qualified Control.Arrow.Utils as U
 import           Control.Arrow.Abstract.Join
@@ -46,16 +45,6 @@ import           Syntax
 import           Shared
 
 import           Text.Printf
-
----- Values ----
-type Constants = (CompilationUnits,Fields)
-
-type Addr = Int
--- Remove these instances when abstract multi-env is available.
-instance LowerBounded Addr where
-  bottom = (-2)^(29 :: Int)
-instance Complete Addr where
-  a ⊔ _ = a
 
 data Val
   = Bottom
@@ -97,30 +86,22 @@ instance UpperBounded Val where
 instance LowerBounded Val where
   bottom = Bottom
 
----- End of Values ----
-
----- Interp Type ----
-
 newtype Interp x y = Interp
   (Except (Exception Val)
-    (Reader MethodReader
-      (Environment String Addr
-        (StoreArrow Addr Val
-          (State Addr
-            (Const Constants (->)))))) x y)
+    (Reader Method
+      (Environment String Val
+        (StoreArrow FieldSignature Val
+          (Const [CompilationUnit] (->))))) x y)
   deriving (Category,Arrow,ArrowChoice)
 
 deriving instance ArrowJoin Interp
-deriving instance ArrowConst Constants Interp
+deriving instance ArrowConst [CompilationUnit] Interp
 deriving instance ArrowFail (Exception Val) Interp
-deriving instance ArrowReader MethodReader Interp
-deriving instance ArrowState Addr Interp
-deriving instance ArrowEnv String Addr (Env String Addr) Interp
-deriving instance ArrowRead Addr Val Addr Val Interp
-deriving instance ArrowRead Addr Val (Exception Val) Val Interp
-deriving instance ArrowWrite Addr Val Interp
-deriving instance ArrowExcept x Val (Exception Val) Interp
-deriving instance ArrowExcept x (Maybe Val) (Exception Val) Interp
+deriving instance ArrowReader Method Interp
+deriving instance ArrowEnv String Val (Env String Val) Interp
+deriving instance ArrowRead FieldSignature Val x Val Interp
+deriving instance ArrowWrite FieldSignature Val Interp
+deriving instance Complete y => ArrowExcept x y (Exception Val) Interp
 
 instance (LowerBounded e, LowerBounded a) => LowerBounded (Error e a) where
   bottom = SuccessOrFail bottom bottom
@@ -129,34 +110,21 @@ deriving instance PreOrd y => PreOrd (Interp x y)
 deriving instance (Complete y) => Complete (Interp x y)
 deriving instance LowerBounded y => LowerBounded (Interp x y)
 
----- End of Interp type ----
-
----- Program Boilerplate ----
-
-runInterp :: Interp x y -> [CompilationUnit] -> MethodReader -> [(String,Val)] -> x -> Error (Exception Val) y
-runInterp (Interp f) files mainMethod mem x =
-  runConst (Map.fromList compilationUnits,Map.fromList fields)
-    (evalState
-      (evalStore
-        (runEnvironment'
-          (runReader
-            (runExcept f)))))
-  (latestAddr + length fields,(S.fromList store,(env,(mainMethod,x))))
+runInterp :: Interp x y -> [CompilationUnit] -> Method -> [(String,Val)] -> x -> Error (Exception Val) y
+runInterp (Interp f) compilationUnits mainMethod mem x =
+  runConst compilationUnits
+    (evalStore
+      (runEnvironment'
+        (runReader
+          (runExcept f))))
+  (fields,(mem,(mainMethod,x)))
   where
-    compilationUnits = map (\file -> (fileName file,file)) files
-    (env,store) = unzip $ map (\((l,v),a) -> ((l,a),(a,v))) $ reverse $ zip mem [0..]
-    latestAddr = case store of
-      [] -> 0
-      (a,_):_ -> a
-    fields = zip (concatMap (\u -> Shared.getFieldSignatures u (\m -> Static `elem` m)) files) [latestAddr..]
+    fields = S.fromList $ zip
+      (concatMap (getFieldSignatures (\m -> Static `elem` m)) compilationUnits)
+      (repeat Bottom)
 
----- End of Program Boilerplate ----
-
-lookup_ :: Interp String Addr
+lookup_ :: Interp String Val
 lookup_ = proc x -> lookup U.pi1 fail -< (x, StaticException $ printf "Variable %s not bound" (show x))
-
-read_ :: Interp Addr Val
-read_ = proc addr -> read U.pi1 fail -< (addr, StaticException $ printf "Address %s not bound" (show addr))
 
 instance UseVal Val Interp where
   newSimple = arr $ const NonNull
@@ -193,14 +161,17 @@ instance UseVal Val Interp where
     _             -> NonNull)
   instanceOf = arr $ const NonNull
   cast = proc ((v,_),_) -> joined returnA fail -< (v,DynamicException NonNull)
-  readVar = lookup_ >>> read_
-  updateVar f = first (first lookup_ >>> write) >>> U.pi2 >>> f
+  declare f = (\((l,v),x) -> (l,v,x)) ^>> extendEnv' f
+  readVar = lookup_
+  updateVar f = proc ((l,v),x) -> do
+    lookup_ -< l
+    extendEnv' f -< (l,v,x)
   readIndex = arr fst
-  updateIndex f = first (U.void $ arr id) >>> U.pi2 >>> f
+  updateIndex f = U.pi2 >>> f
   readField = arr fst
-  updateField f = first (U.void $ arr id) >>> U.pi2 >>> f
-  readStaticField = proc _ -> fail -< StaticException "Not implemented yet"
-  updateStaticField f = proc _ -> fail -< StaticException "Not implemented yet"
+  updateField f = U.pi2 >>> f
+  readStaticField = proc f -> read U.pi1 fail -< (f, StaticException $ printf "FieldReference %s not bound" (show f))
+  updateStaticField = proc _ -> fail -< StaticException "Not implemented yet"
   case_ f = U.pi2 >>> map snd ^>> lubA f
   catch f = proc (v,clauses) ->
     joined (lubA f) fail -< (zip (repeat v) clauses,DynamicException v)
@@ -216,22 +187,16 @@ instance UseBool Abs.Bool Val Interp where
     Abs.True -> f -< x
     Abs.False -> g -< y
     Abs.Top -> case (i1,op,i2) of
-      (Local l,Cmpeq,NullConstant) -> narrow-< (((l,Null),x),((l,NonNull),y))
-      (NullConstant,Cmpeq,Local l) -> narrow-< (((l,Null),x),((l,NonNull),y))
-      (Local l,Cmpne,NullConstant) -> narrow-< (((l,NonNull),x),((l,Null),y))
-      (NullConstant,Cmpne,Local l) -> narrow-< (((l,NonNull),x),((l,Null),y))
+      (Local l,Cmpeq,NullConstant) -> narrow -< ((l,Null,x),(l,NonNull,y))
+      (NullConstant,Cmpeq,Local l) -> narrow -< ((l,Null,x),(l,NonNull,y))
+      (Local l,Cmpne,NullConstant) -> narrow -< ((l,NonNull,x),(l,Null,y))
+      (NullConstant,Cmpne,Local l) -> narrow -< ((l,NonNull,x),(l,Null,y))
       _ -> joined f g -< (x,y)
     where
-      narrow = joined
-        (first ((first lookup_) >>> write) >>> U.pi2 >>> f)
-        (first ((first lookup_) >>> write) >>> U.pi2 >>> g)
+      narrow = joined (extendEnv' f) (extendEnv' g)
 
-instance UseMem Env Addr Interp where
+instance UseEnv (Env String Val) Interp where
   emptyEnv = arr $ const E.empty
-  addrFromInt = arr id
 
 instance UseConst Interp where
-  askCompilationUnits = askConst >>^ fst
-  askFields = askConst >>^ snd
-
----- End of Actual Evaluation methods ----
+  askCompilationUnits = askConst
