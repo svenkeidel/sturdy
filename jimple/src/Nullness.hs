@@ -13,15 +13,16 @@ module Nullness where
 
 import           Prelude hiding (id,lookup,read,fail,Bounded(..))
 
+import qualified Data.Boolean as B
 import           Data.Exception
 import           Data.Order
-import qualified Data.Boolean as B
+
+import qualified Data.Abstract.Boolean as Abs
 import           Data.Abstract.Environment (Env)
 import qualified Data.Abstract.Environment as E
-import qualified Data.Abstract.Store as S
-import qualified Data.Abstract.Boolean as Abs
 import qualified Data.Abstract.Equality as Abs
 import           Data.Abstract.HandleError
+import qualified Data.Abstract.Store as S
 
 import           Control.Category hiding ((.))
 
@@ -32,8 +33,9 @@ import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Reader
 import           Control.Arrow.Store
-import qualified Control.Arrow.Utils as U
 import           Control.Arrow.Abstract.Join
+import qualified Control.Arrow.Utils as U
+
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State

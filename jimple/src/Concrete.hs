@@ -11,11 +11,9 @@
 module Concrete where
 
 import           Prelude hiding (id,fail,lookup,read)
-import qualified Prelude as P
 
-import           Data.Exception
 import           Data.Bits
-import qualified Data.Bits as B
+import           Data.Exception
 import           Data.Fixed
 import           Data.List (replicate,repeat,find,splitAt)
 import           Data.Map (Map)
@@ -28,6 +26,7 @@ import qualified Data.Concrete.Environment as E
 import qualified Data.Concrete.Store as S
 
 import           Control.Category hiding ((.))
+
 import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Const
 import           Control.Arrow.Environment
@@ -37,6 +36,7 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import qualified Control.Arrow.Utils as U
+
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
@@ -44,10 +44,10 @@ import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Store
 
-import           Text.Printf
-
 import           Syntax
 import           Shared
+
+import           Text.Printf
 
 data Val
   = IntVal Int
@@ -201,8 +201,8 @@ instance UseVal Val Interp where
     [] -> defaultValue -< t
   and = withInt (.&.)
   or = withInt (.|.)
-  xor = withInt B.xor
-  rem = withInt P.mod <+> withFloat mod'
+  xor = withInt Data.Bits.xor
+  rem = withInt mod <+> withFloat mod'
   cmp = proc (v1,v2) -> case (v1,v2) of
     (LongVal x1,LongVal x2) -> order id -< (x1,x2)
     _ -> fail -< StaticException "Expected long variables for 'cmp'"
@@ -227,7 +227,7 @@ instance UseVal Val Interp where
     where
       div_ = proc (x1,x2) -> if x2 == 0
         then createException >>> fail -< ("java.lang.ArithmeticException","/ by zero")
-        else returnA -< (x1 `P.div` x2)
+        else returnA -< (x1 `Prelude.div` x2)
   lengthOf = deref >>> proc v -> case v of
     ArrayVal xs -> returnA -< (IntVal (length xs))
     _ -> fail -< StaticException "Expected an array variable for 'lengthOf'"

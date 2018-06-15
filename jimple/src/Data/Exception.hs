@@ -1,7 +1,7 @@
 module Data.Exception where
 
-import           Data.Order
-import           Data.String
+import Data.Order
+import Data.String
 
 data Exception v = StaticException String | DynamicException v deriving (Eq)
 
