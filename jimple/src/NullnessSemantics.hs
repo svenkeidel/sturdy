@@ -9,7 +9,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Nullness where
+module NullnessSemantics where
 
 import           Prelude hiding (id,lookup,read,fail,Bounded(..))
 
@@ -45,7 +45,11 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Store
 
 import           Syntax
-import           Shared
+import           SharedSemantics
+
+import           Data.GaloisConnection
+import qualified Data.Concrete.Powerset as Con
+import qualified ConcreteSemantics as Con
 
 import           Text.Printf
 
@@ -88,6 +92,12 @@ instance UpperBounded Val where
 
 instance LowerBounded Val where
   bottom = Bottom
+
+instance Galois (Con.Pow Con.Val) Val where
+  alpha = lifted $ \v -> case v of
+    Con.NullVal -> Null
+    _ -> NonNull
+  gamma = error "noncomputable"
 
 newtype Interp x y = Interp
   (Except (Exception Val)

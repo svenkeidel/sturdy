@@ -8,7 +8,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Shared where
+module SharedSemantics where
 
 import           Prelude hiding (rem,div,id,or,and,fail)
 

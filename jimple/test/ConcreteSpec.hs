@@ -8,8 +8,8 @@ import Test.Hspec
 import Utils
 
 import Syntax
-import Shared
-import Concrete
+import SharedSemantics
+import ConcreteSemantics
 
 import           Data.Exception
 import qualified Data.Map as Map

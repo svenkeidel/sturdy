@@ -8,13 +8,14 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Concrete where
+module ConcreteSemantics where
 
 import           Prelude hiding (id,fail,lookup,read)
 
 import           Data.Bits
 import           Data.Exception
 import           Data.Fixed
+import           Data.Hashable
 import           Data.List (replicate,repeat,find,splitAt)
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -47,7 +48,7 @@ import           Control.Arrow.Transformer.Concrete.FixPoint
 import           Control.Arrow.Transformer.Concrete.Store
 
 import           Syntax
-import           Shared
+import           SharedSemantics
 
 import           Text.Printf
 
@@ -74,6 +75,9 @@ instance Show Val where
   show (RefVal a) = "@" ++ show a
   show (ArrayVal xs) = show xs
   show (ObjectVal c m) = show c ++ "{" ++ show m ++ "}"
+
+instance Hashable Val where
+  hashWithSalt n v = n + hash (show v)
 
 type Addr = Int
 type Constants = ([CompilationUnit],Map FieldSignature Addr)

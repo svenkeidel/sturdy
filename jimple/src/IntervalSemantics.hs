@@ -10,7 +10,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Interval where
+module IntervalSemantics where
 --
 -- import           Prelude hiding (id,fail,Bounded(..),Bool(..),(<),(==),(/))
 -- import qualified Prelude as P

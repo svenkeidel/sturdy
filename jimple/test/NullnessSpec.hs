@@ -9,8 +9,8 @@ import Test.Hspec
 import Utils
 
 import Syntax
-import Shared
-import Nullness
+import SharedSemantics
+import NullnessSemantics
 
 import           Data.Exception
 import           Data.List
