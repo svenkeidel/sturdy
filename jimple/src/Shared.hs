@@ -21,6 +21,7 @@ import           Control.Arrow
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
+import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import qualified Control.Arrow.Utils as U
 
@@ -32,11 +33,12 @@ type CanFail val c = (ArrowChoice c,ArrowFail (Exception val) c)
 type CanInterp env var' val' const val bool c = (
   UseVal val c,
   UseBool bool val c,
-  CanFail val c,
   UseConst c,
+  UseEnv (env var' val') c,
+  CanFail val c,
   ArrowReader Method c,
   ArrowEnv var' val' (env var' val') c,
-  UseEnv (env var' val') c,
+  ArrowFix [Statement] (Maybe val) c,
   ArrowExcept EInvoke (Maybe val) (Exception val) c,
   ArrowExcept ([Statement],[CatchClause]) (Maybe val) (Exception val) c)
 
@@ -167,53 +169,53 @@ eval = proc e -> case e of
   MethodHandle _ -> fail -< StaticException "Evaluation of method handles is not implemented"
 
 runStatements :: CanInterp env var' val' const val bool c => c [Statement] (Maybe val)
-runStatements = proc stmts -> case stmts of
+runStatements = fix $ \run -> proc stmts -> case stmts of
   [] -> returnA -< Nothing
   (stmt:rest) -> case stmt of
     Label labelName -> do
       body <- currentMethodBody -< ()
       let clauses = filter (\clause -> fromLabel clause == labelName && Label (toLabel clause) `elem` stmts) (catchClauses body)
-      tryCatch (U.pi1 >>> runStatements) catchException -< (rest,clauses)
-    Tableswitch i cases -> runSwitch -< (i,cases)
-    Lookupswitch i cases -> runSwitch -< (i,cases)
-    If e label -> first (evalBool &&& id) >>> if_ runStatementsFromLabel runStatements -< (e,(label,rest))
-    Goto label -> runStatementsFromLabel -< label
+      tryCatch (U.pi1 >>> run) (catchException run) -< (rest,clauses)
+    Tableswitch i cases -> runSwitch run -< (i,cases)
+    Lookupswitch i cases -> runSwitch run -< (i,cases)
+    If e label -> first (evalBool &&& id) >>> if_ (atLabel run) run -< (e,(label,rest))
+    Goto label -> (atLabel run) -< label
     Ret i -> liftAMaybe evalImmediate -< i
     Return i -> liftAMaybe evalImmediate -< i
     Throw i -> evalImmediate >>> DynamicException ^>> fail -< i
-    Identity l i _ -> first (second evalAtIdentifier) >>> updateVar runStatements -< ((l,i),rest)
-    IdentityNoType l i -> first (second evalAtIdentifier) >>> updateVar runStatements -< ((l,i),rest)
+    Identity l i _ -> first (second evalAtIdentifier) >>> updateVar run -< ((l,i),rest)
+    IdentityNoType l i -> first (second evalAtIdentifier) >>> updateVar run -< ((l,i),rest)
     Assign var e -> do
       v <- eval -< e
       case var of
-        LocalVar l -> updateVar runStatements -< ((l,v),rest)
+        LocalVar l -> updateVar run -< ((l,v),rest)
         ReferenceVar ref -> case ref of
-          ArrayRef l i -> first (first (readVar *** evalImmediate)) >>> updateIndex runStatements -< (((l,i),v),rest)
-          FieldRef l f -> first (first readVar) >>> updateField runStatements -< ((l,(f,v)),rest)
+          ArrayRef l i -> first (first (readVar *** evalImmediate)) >>> updateIndex run -< (((l,i),v),rest)
+          FieldRef l f -> first (first readVar) >>> updateField run -< ((l,(f,v)),rest)
           SignatureRef f -> do
             updateStaticField -< (f,v)
-            runStatements -< rest
+            run -< rest
     Invoke e -> do
       evalInvoke -< e
-      runStatements -< rest
-    Nop -> runStatements -< rest
-    Breakpoint -> runStatements -< rest
+      run -< rest
+    Nop -> run -< rest
+    Breakpoint -> run -< rest
   where
-    runStatementsFromLabel = statementsFromLabel >>> runStatements
     currentMethodBody = ask >>> proc m -> case methodBody m of
       EmptyBody -> fail -< StaticException $ printf "Empty body for method %s" (show m)
       FullBody{} -> returnA -< methodBody m
+    atLabel f = statementsFromLabel >>> f
     statementsFromLabel = proc label -> do
       b <- currentMethodBody -< ()
       case Label label `elemIndex` statements b of
         Just i -> returnA -< drop i (statements b)
         Nothing -> fail -< StaticException $ printf "Undefined label: %s" label
-    catchException = proc ((_,clauses),exception) -> case exception of
+    catchException f = proc ((_,clauses),exception) -> case exception of
         StaticException _ -> fail -< exception
-        DynamicException val -> catch handleException -< (val,clauses)
-    handleException = proc (val,clause) ->
-      declare runStatementsFromLabel -< (("@caughtexception",val),withLabel clause)
-    runSwitch = first evalImmediate >>> case_ runStatementsFromLabel
+        DynamicException val -> catch (handleException f) -< (val,clauses)
+    handleException f = proc (val,clause) ->
+      declare (atLabel f) -< (("@caughtexception",val),withLabel clause)
+    runSwitch f = first evalImmediate >>> case_ (atLabel f)
 
 runMethod :: CanInterp env var' val' const val bool c => c (Method,Maybe val,[Immediate]) (Maybe val)
 runMethod = proc (method,this,args) -> case methodBody method of

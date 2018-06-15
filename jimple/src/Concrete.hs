@@ -32,6 +32,7 @@ import           Control.Arrow.Const
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
+import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
@@ -42,6 +43,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Environment
+import           Control.Arrow.Transformer.Concrete.FixPoint
 import           Control.Arrow.Transformer.Concrete.Store
 
 import           Syntax
@@ -77,31 +79,35 @@ type Addr = Int
 type Constants = ([CompilationUnit],Map FieldSignature Addr)
 
 newtype Interp x y = Interp
-  (Except (Exception Val)
-    (Reader Method
-      (Environment String Addr
-        (StoreArrow Addr Val
-          (State Addr
-            (Const Constants (->)))))) x y)
+  (Fix [Statement] (Maybe Val)
+    (Except (Exception Val)
+      (Reader Method
+        (Environment String Addr
+          (StoreArrow Addr Val
+            (State Addr
+              (Const Constants
+                (->))))))) x y)
   deriving (Category,Arrow,ArrowChoice)
 
 deriving instance ArrowConst Constants Interp
-deriving instance ArrowReader Method Interp
-deriving instance ArrowState Addr Interp
 deriving instance ArrowEnv String Addr (Env String Addr) Interp
-deriving instance ArrowRead Addr Val x Val Interp
-deriving instance ArrowWrite Addr Val Interp
-deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowExcept x y (Exception Val) Interp
+deriving instance ArrowFail (Exception Val) Interp
+deriving instance ArrowFix [Statement] (Maybe Val) Interp
+deriving instance ArrowReader Method Interp
+deriving instance ArrowRead Addr Val x Val Interp
+deriving instance ArrowState Addr Interp
+deriving instance ArrowWrite Addr Val Interp
 
 runInterp :: Interp x y -> [CompilationUnit] -> Method -> [(String,Val)] -> x -> Error (Exception Val) y
 runInterp (Interp f) compilationUnits mainMethod mem x =
-  runConst (compilationUnits,fields)
-    (evalState
-      (evalStore
-        (runEnvironment'
-          (runReader
-            (runExcept f)))))
+  runFixPoint
+    (runConst (compilationUnits,fields)
+      (evalState
+        (evalStore
+          (runEnvironment'
+            (runReader
+              (runExcept f))))))
   (latestAddr + Map.size fields,(S.fromList store,(env,(mainMethod,x))))
   where
     (env,store) = (\(nv,st) -> (nv,expand st)) $ unzip $ map (\((l,v),a) -> ((l,a),(a,v))) $ reverse $ zip mem [0..]

@@ -31,6 +31,7 @@ import           Control.Arrow.Const
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
+import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.Store
 import           Control.Arrow.Abstract.Join
@@ -93,17 +94,19 @@ newtype Interp x y = Interp
     (Reader Method
       (Environment String Val
         (StoreArrow FieldSignature Val
-          (Const [CompilationUnit] (->))))) x y)
+          (Const [CompilationUnit]
+            (->))))) x y)
   deriving (Category,Arrow,ArrowChoice)
 
-deriving instance ArrowJoin Interp
 deriving instance ArrowConst [CompilationUnit] Interp
+deriving instance Complete y => ArrowExcept x y (Exception Val) Interp
 deriving instance ArrowFail (Exception Val) Interp
-deriving instance ArrowReader Method Interp
+deriving instance ArrowFix [Statement] (Maybe Val) Interp
 deriving instance ArrowEnv String Val (Env String Val) Interp
+deriving instance ArrowJoin Interp
+deriving instance ArrowReader Method Interp
 deriving instance ArrowRead FieldSignature Val x Val Interp
 deriving instance ArrowWrite FieldSignature Val Interp
-deriving instance Complete y => ArrowExcept x y (Exception Val) Interp
 
 instance (LowerBounded e, LowerBounded a) => LowerBounded (Error e a) where
   bottom = SuccessOrFail bottom bottom
