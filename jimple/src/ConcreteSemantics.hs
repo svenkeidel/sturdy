@@ -80,12 +80,13 @@ instance Hashable Val where
   hashWithSalt n v = n + hash (show v)
 
 type Addr = Int
+type Context = ([Statement],[CatchClause])
 type Constants = ([CompilationUnit],Map FieldSignature Addr)
 
 newtype Interp x y = Interp
   (Fix [Statement] (Maybe Val)
     (Except (Exception Val)
-      (Reader Method
+      (Reader Context
         (Environment String Addr
           (StoreArrow Addr Val
             (State Addr
@@ -98,13 +99,13 @@ deriving instance ArrowEnv String Addr (Env String Addr) Interp
 deriving instance ArrowExcept x y (Exception Val) Interp
 deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowFix [Statement] (Maybe Val) Interp
-deriving instance ArrowReader Method Interp
+deriving instance ArrowReader Context Interp
 deriving instance ArrowRead Addr Val x Val Interp
 deriving instance ArrowState Addr Interp
 deriving instance ArrowWrite Addr Val Interp
 
-runInterp :: Interp x y -> [CompilationUnit] -> Method -> [(String,Val)] -> x -> Error (Exception Val) y
-runInterp (Interp f) compilationUnits mainMethod mem x =
+runInterp :: Interp x y -> [CompilationUnit] -> Mem -> x -> Error (Exception Val) y
+runInterp (Interp f) compilationUnits mem x =
   runFixPoint
     (runConst (compilationUnits,fields)
       (evalState
@@ -112,10 +113,12 @@ runInterp (Interp f) compilationUnits mainMethod mem x =
           (runEnvironment'
             (runReader
               (runExcept f))))))
-  (latestAddr + Map.size fields,(S.fromList store,(env,(mainMethod,x))))
+  (latestAddr + Map.size fields,(S.fromList store,(env,(([],[]),x))))
   where
-    (env,store) = (\(nv,st) -> (nv,expand st)) $ unzip $ map (\((l,v),a) -> ((l,a),(a,v))) $ reverse $ zip mem [0..]
-    expand = foldl (\st (a,v) -> case (st,v) of -- Extend this function to dereference nested arrays and objects
+    (env,store) = (\(nv,st) -> (nv,expand st)) $
+      unzip $ map (\((l,v),a) -> ((l,a),(a,v))) $ reverse $ zip mem [0..]
+    -- TODO Extend this function to dereference nested arrays and objects
+    expand = foldl (\st (a,v) -> case (st,v) of
       ([],ObjectVal c m) ->       [(a + 1,ObjectVal c m),(a,RefVal (a + 1))]
       ((a',_):_,ObjectVal c m) -> [(a' + 1,ObjectVal c m),(a,RefVal (a' + 1))] ++ st
       ([],ArrayVal xs) ->       [(a + 1,ArrayVal xs),(a,RefVal (a + 1))]
@@ -129,63 +132,25 @@ runInterp (Interp f) compilationUnits mainMethod mem x =
       (concatMap (getFieldSignatures (\m -> Static `elem` m)) compilationUnits)
       [latestAddr..]
 
-lookup_ :: Interp String Addr
-lookup_ = proc x -> lookup U.pi1 fail -< (x, StaticException $ printf "Variable %s not bound" (show x))
+type Out v = Error (Exception Val) v
+type Mem = [(String,Val)]
 
-read_ :: Interp Addr Val
-read_ = proc addr -> read U.pi1 fail -< (addr, StaticException $ printf "Address %s not bound" (show addr))
+runProgram' :: [CompilationUnit] -> (Method,[Immediate]) -> Out (Maybe Val)
+runProgram' units = runInterp (try' runProgram deepDerefMaybe) units []
 
-alloc :: Interp Val Addr
-alloc = proc val -> do
-  addr <- get -< ()
-  write -< (addr,val)
-  put -< succ addr
-  returnA -< addr
+runStatements' :: Mem -> [Statement] -> Out (Maybe Val)
+runStatements' = runInterp (initStatements (try' runStatements deepDerefMaybe)) []
 
-withInt :: (CanFail Val c) => (Int -> Int -> Int) -> c (Val,Val) Val
-withInt op = proc (v1,v2) -> case (v1,v2) of
-  (IntVal x1,IntVal x2) -> returnA -< IntVal $ op x1 x2
-  (LongVal x1,LongVal x2) -> returnA -< LongVal $ op x1 x2
-  _ -> fail -< StaticException "Expected integer variables for op"
+eval' :: Mem -> Expr -> Out Val
+eval' = runInterp (try' eval deepDeref) []
 
-withFloat :: (CanFail Val c) => (Float -> Float -> Float) -> c (Val,Val) Val
-withFloat op = proc (v1,v2) -> case (v1,v2) of
-  (FloatVal x1,FloatVal x2) -> returnA -< FloatVal $ op x1 x2
-  (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal $ op x1 x2
-  _ -> fail -< StaticException "Expected floating variables for op"
+evalBool' :: Mem -> BoolExpr -> Out Bool
+evalBool' = runInterp (try' evalBool id) []
 
-order :: (Ord x,Arrow c) => (Int -> Int) -> c (x,x) Val
-order post = arr (IntVal . post . (\(x1,x2) -> case compare x1 x2 of
-  LT -> -1
-  EQ -> 0
-  GT -> 1))
+evalImmediate' :: Mem -> Immediate -> Out Val
+evalImmediate' = runInterp (try' evalImmediate deepDeref) []
 
-toBool :: (CanFail Val c) => c Val Bool
-toBool = proc b -> case b of
-  IntVal 0 -> returnA -< False
-  IntVal 1 -> returnA -< True
-  _ -> fail -< StaticException $ printf "Expected boolean value, got %s" (show b)
-
-createException :: Interp (String,String) (Exception Val)
-createException = proc (clzz,message) -> do
-  RefVal addr <- newSimple -< RefType clzz
-  v <- read_ -< addr
-  case v of
-    ObjectVal c m -> do
-      let m' = Map.insert (FieldSignature "java.lang.Throwable" (RefType "java.lang.String") "message") (StringVal message) m
-      write -< (addr,ObjectVal c m')
-      returnA -< DynamicException (RefVal addr)
-    _ -> returnA -< StaticException $ printf "Undefined exception %s" clzz
-
-lookupStaticField :: Interp FieldSignature Addr
-lookupStaticField = proc f -> do
-  (_,fields) <- askConst -< ()
-  justOrFail -< (Map.lookup f fields,printf "Field %s not bound" (show f))
-
-deref :: Interp Val Val
-deref = proc val -> case val of
-  RefVal addr -> read_ -< addr
-  _ -> returnA -< val
+---- Instances -----------------------------------------------------------------
 
 instance UseVal Val Interp where
   newSimple = proc t -> case t of
@@ -196,7 +161,8 @@ instance UseVal Val Interp where
     where
       getInitializedFields = readCompilationUnit >>> proc unit -> do
         let fieldSignatures = getFieldSignatures (\m -> Static `notElem` m) unit
-        ownFields <- U.map (second defaultValue) -< map (\s@(FieldSignature _ t' _) -> (s,t')) fieldSignatures
+        ownFields <- U.map (second defaultValue) -<
+          map (\s@(FieldSignature _ t' _) -> (s,t')) fieldSignatures
         case extends unit of
           Just p -> do
             parentFields <- getInitializedFields -< p
@@ -207,7 +173,8 @@ instance UseVal Val Interp where
       IntVal s' -> do
         vals <- U.map newArray -< replicate s' (t,sizes')
         alloc >>^ RefVal -< ArrayVal vals
-      _ -> fail -< StaticException $ printf "Expected an integer array size, got %s" (show s)
+      _ -> fail -<
+        StaticException $ printf "Expected an integer array size, got %s" (show s)
     [] -> defaultValue -< t
   and = withInt (.&.)
   or = withInt (.|.)
@@ -236,7 +203,8 @@ instance UseVal Val Interp where
     _ -> fail -< StaticException "Expected numeric variables for 'div'"
     where
       div_ = proc (x1,x2) -> if x2 == 0
-        then createException >>> fail -< ("java.lang.ArithmeticException","/ by zero")
+        then createException >>> fail -<
+          ("java.lang.ArithmeticException","/ by zero")
         else returnA -< (x1 `Prelude.div` x2)
   lengthOf = deref >>> proc v -> case v of
     ArrayVal xs -> returnA -< (IntVal (length xs))
@@ -266,13 +234,14 @@ instance UseVal Val Interp where
     NullType      -> returnA -< NullVal
     (RefType _)   -> returnA -< NullVal
     (ArrayType _) -> returnA -< NullVal
-    _             -> fail -< StaticException $ printf "No default value for type %s" (show t)
+    _             ->
+      fail -< StaticException $ printf "No default value for type %s" (show t)
   instanceOf = first deref >>> (proc (v,t) -> case (v,t) of
     (IntVal 0,      BooleanType)  -> fromBool -< True
     (IntVal 1,      BooleanType)  -> fromBool -< True
-    (IntVal n,      ByteType)     -> fromBool -< n >= -128   && n < 128   -- n >= (-2)^7  && n < 2^7
-    (IntVal n,      CharType)     -> fromBool -< n >= 0      && n < 65536 -- n >= 0       && n < 2^16
-    (IntVal n,      ShortType)    -> fromBool -< n >= -32768 && n < 32768 -- n >= (-2)^15 && n < 2^15
+    (IntVal n,      ByteType)     -> fromBool -< n >= -128   && n < 128
+    (IntVal n,      CharType)     -> fromBool -< n >= 0      && n < 65536
+    (IntVal n,      ShortType)    -> fromBool -< n >= -32768 && n < 32768
     (IntVal _,      IntType)      -> fromBool -< True
     (LongVal _,     LongType)     -> fromBool -< True
     (FloatVal _,    FloatType)    -> fromBool -< True
@@ -338,14 +307,6 @@ instance UseVal Val Interp where
       b <- instanceOf >>> toBool -< (v,RefType (className clause))
       if b then f -< (v,clause) else catch f -< (v,rest)
 
-cmpNum :: (Bool -> Bool) -> Interp (Val,Val) Bool
-cmpNum post = proc (v1,v2) -> case (v1,v2) of
-  (IntVal x1,IntVal x2) -> returnA -< post (x1 < x2)
-  (LongVal x1,LongVal x2) -> returnA -< post (x1 < x2)
-  (FloatVal x1,FloatVal x2) -> returnA -< post (x1 < x2)
-  (DoubleVal x1,DoubleVal x2) -> returnA -< post (x1 < x2)
-  _ -> fail -< StaticException "Expected numeric variables for comparison"
-
 instance UseBool Bool Val Interp where
   eq = arr (uncurry (==))
   neq = arr (uncurry (/=))
@@ -360,3 +321,100 @@ instance UseEnv (Env String Addr) Interp where
 
 instance UseConst Interp where
   askCompilationUnits = askConst >>^ fst
+
+---- Helper Methods ------------------------------------------------------------
+
+lookup_ :: Interp String Addr
+lookup_ = proc x -> lookup U.pi1 fail -<
+  (x, StaticException $ printf "Variable %s not bound" (show x))
+
+read_ :: Interp Addr Val
+read_ = proc addr -> read U.pi1 fail -<
+  (addr, StaticException $ printf "Address %s not bound" (show addr))
+
+alloc :: Interp Val Addr
+alloc = proc val -> do
+  addr <- get -< ()
+  write -< (addr,val)
+  put -< succ addr
+  returnA -< addr
+
+withInt :: (CanFail Val c) => (Int -> Int -> Int) -> c (Val,Val) Val
+withInt op = proc (v1,v2) -> case (v1,v2) of
+  (IntVal x1,IntVal x2) -> returnA -< IntVal $ op x1 x2
+  (LongVal x1,LongVal x2) -> returnA -< LongVal $ op x1 x2
+  _ -> fail -< StaticException "Expected integer variables for op"
+
+withFloat :: (CanFail Val c) => (Float -> Float -> Float) -> c (Val,Val) Val
+withFloat op = proc (v1,v2) -> case (v1,v2) of
+  (FloatVal x1,FloatVal x2) -> returnA -< FloatVal $ op x1 x2
+  (DoubleVal x1,DoubleVal x2) -> returnA -< DoubleVal $ op x1 x2
+  _ -> fail -< StaticException "Expected floating variables for op"
+
+order :: (Ord x,Arrow c) => (Int -> Int) -> c (x,x) Val
+order post = arr (IntVal . post . (\(x1,x2) -> case compare x1 x2 of
+  LT -> -1
+  EQ -> 0
+  GT -> 1))
+
+toBool :: (CanFail Val c) => c Val Bool
+toBool = proc b -> case b of
+  IntVal 0 -> returnA -< False
+  IntVal 1 -> returnA -< True
+  _ -> fail -< StaticException $ printf "Expected boolean value, got %s" (show b)
+
+cmpNum :: (Bool -> Bool) -> Interp (Val,Val) Bool
+cmpNum post = proc (v1,v2) -> case (v1,v2) of
+  (IntVal x1,IntVal x2) -> returnA -< post (x1 < x2)
+  (LongVal x1,LongVal x2) -> returnA -< post (x1 < x2)
+  (FloatVal x1,FloatVal x2) -> returnA -< post (x1 < x2)
+  (DoubleVal x1,DoubleVal x2) -> returnA -< post (x1 < x2)
+  _ -> fail -< StaticException "Expected numeric variables for comparison"
+
+createException :: Interp (String,String) (Exception Val)
+createException = proc (clzz,message) -> do
+  RefVal addr <- newSimple -< RefType clzz
+  v <- read_ -< addr
+  case v of
+    ObjectVal c m -> do
+      let m' = Map.insert (FieldSignature "java.lang.Throwable" (RefType "java.lang.String") "message") (StringVal message) m
+      write -< (addr,ObjectVal c m')
+      returnA -< DynamicException (RefVal addr)
+    _ -> returnA -< StaticException $ printf "Undefined exception %s" clzz
+
+lookupStaticField :: Interp FieldSignature Addr
+lookupStaticField = proc f -> do
+  (_,fields) <- askConst -< ()
+  justOrFail -< (Map.lookup f fields,printf "Field %s not bound" (show f))
+
+deref :: Interp Val Val
+deref = proc val -> case val of
+  RefVal addr -> read_ -< addr
+  _ -> returnA -< val
+
+deepDeref :: Interp Val Val
+deepDeref = proc val -> case val of
+  RefVal addr -> do
+    v <- read_ -< addr
+    case v of
+      ObjectVal c m -> do
+        let (keys,vals) = unzip (Map.toList m)
+        vals' <- U.map deepDeref -< vals
+        returnA -< ObjectVal c (Map.fromList (zip keys vals'))
+      ArrayVal xs -> U.map deepDeref >>^ ArrayVal -< xs
+      _ -> returnA -< v
+  _ -> returnA -< val
+
+deepDerefMaybe :: Interp (Maybe Val) (Maybe Val)
+deepDerefMaybe = liftAMaybe deepDeref
+
+deepDerefDynamic :: Interp (Exception Val) (Exception Val)
+deepDerefDynamic = proc e -> case e of
+  DynamicException v -> deepDeref >>^ DynamicException -< v
+  StaticException _ -> returnA -< e
+
+try' :: Interp x y -> Interp y y -> Interp x y
+try' f p = tryCatch (f >>> p) (U.pi2 >>> deepDerefDynamic >>> fail)
+
+initStatements :: Interp [Statement] (Maybe Val) -> Interp [Statement] (Maybe Val)
+initStatements f = (\s -> ((s,[]),s)) ^>> local f

@@ -99,9 +99,11 @@ instance Galois (Con.Pow Con.Val) Val where
     _ -> NonNull
   gamma = error "noncomputable"
 
+type Context = ([Statement],[CatchClause])
+
 newtype Interp x y = Interp
   (Except (Exception Val)
-    (Reader Method
+    (Reader Context
       (Environment String Val
         (StoreArrow FieldSignature Val
           (Const [CompilationUnit]
@@ -114,7 +116,7 @@ deriving instance ArrowFail (Exception Val) Interp
 deriving instance ArrowFix [Statement] (Maybe Val) Interp
 deriving instance ArrowEnv String Val (Env String Val) Interp
 deriving instance ArrowJoin Interp
-deriving instance ArrowReader Method Interp
+deriving instance ArrowReader Context Interp
 deriving instance ArrowRead FieldSignature Val x Val Interp
 deriving instance ArrowWrite FieldSignature Val Interp
 
@@ -125,21 +127,40 @@ deriving instance PreOrd y => PreOrd (Interp x y)
 deriving instance (Complete y) => Complete (Interp x y)
 deriving instance LowerBounded y => LowerBounded (Interp x y)
 
-runInterp :: Interp x y -> [CompilationUnit] -> Method -> [(String,Val)] -> x -> Error (Exception Val) y
-runInterp (Interp f) compilationUnits mainMethod mem x =
+runInterp :: Interp x y ->
+             [CompilationUnit] -> Mem -> x ->
+             Error (Exception Val) y
+runInterp (Interp f) compilationUnits mem x =
   runConst compilationUnits
     (evalStore
       (runEnvironment'
         (runReader
           (runExcept f))))
-  (fields,(mem,(mainMethod,x)))
+  (fields,(mem,(([],[]),x)))
   where
     fields = S.fromList $ zip
       (concatMap (getFieldSignatures (\m -> Static `elem` m)) compilationUnits)
       (repeat Bottom)
 
-lookup_ :: Interp String Val
-lookup_ = proc x -> lookup U.pi1 fail -< (x, StaticException $ printf "Variable %s not bound" (show x))
+type Out v = Error (Exception Val) v
+type Mem = [(String,Val)]
+
+runProgram' :: [CompilationUnit] -> (Method,[Immediate]) -> Out (Maybe Val)
+runProgram' units = runInterp runProgram units []
+
+runStatements' :: Mem -> [Statement] -> Out (Maybe Val)
+runStatements' = runInterp (initStatements runStatements) []
+
+eval' :: Mem -> Expr -> Out Val
+eval' = runInterp eval []
+
+evalBool' :: Mem -> BoolExpr -> Out Abs.Bool
+evalBool' = runInterp evalBool []
+
+evalImmediate' :: Mem -> Immediate -> Out Val
+evalImmediate' = runInterp evalImmediate []
+
+---- Instances -----------------------------------------------------------------
 
 instance UseVal Val Interp where
   newSimple = arr $ const NonNull
@@ -185,7 +206,8 @@ instance UseVal Val Interp where
   updateIndex f = U.pi2 >>> f
   readField = arr fst
   updateField f = U.pi2 >>> f
-  readStaticField = proc f -> read U.pi1 fail -< (f, StaticException $ printf "FieldReference %s not bound" (show f))
+  readStaticField = proc f -> read U.pi1 fail -<
+    (f, StaticException $ printf "FieldReference %s not bound" (show f))
   updateStaticField = proc _ -> fail -< StaticException "Not implemented yet"
   case_ f = U.pi2 >>> map snd ^>> lubA f
   catch f = proc (v,clauses) ->
@@ -215,3 +237,12 @@ instance UseEnv (Env String Val) Interp where
 
 instance UseConst Interp where
   askCompilationUnits = askConst
+
+---- Helper Methods ------------------------------------------------------------
+
+lookup_ :: Interp String Val
+lookup_ = proc x -> lookup U.pi1 fail -<
+  (x, StaticException $ printf "Variable %s not bound" (show x))
+
+initStatements :: Interp [Statement] (Maybe Val) -> Interp [Statement] (Maybe Val)
+initStatements f = (\s -> ((s,[]),s)) ^>> local f

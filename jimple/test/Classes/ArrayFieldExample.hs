@@ -60,7 +60,7 @@ arrayFieldExampleMainMethod = Method {
       (RefType "ArrayFieldExample", ["$r2"])
     ],
     statements = [
-      Identity "r0" (ParameterRef 0) (IntType),
+      Identity "r0" (ParameterRef 0) IntType,
       Assign (LocalVar "$r2") (NewExpr (RefType "ArrayFieldExample")),
       Invoke (SpecialInvoke "$r2" arrayFieldExampleInitSignature []),
       Invoke (VirtualInvoke "$r2" arrayFieldExampleFillSignature [Local "r0"]),

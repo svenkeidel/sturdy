@@ -47,7 +47,7 @@ factorialExampleMainMethod = Method {
       (RefType "FactorialExample", ["$r2"])
     ],
     statements = [
-      Identity "r0" (ParameterRef 0) (IntType),
+      Identity "r0" (ParameterRef 0) IntType,
       Assign (LocalVar "$r2") (NewExpr (RefType "FactorialExample")),
       Invoke (SpecialInvoke "$r2" factorialExampleInitSignature []),
       Assign (LocalVar "r1") (InvokeExpr (VirtualInvoke "$r2" factorialExampleExecSignature [Local "r0"])),

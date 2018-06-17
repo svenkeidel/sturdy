@@ -1,15 +1,15 @@
-{-# LANGUAGE Arrows #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
+-- {-# LANGUAGE Arrows #-}
+-- {-# LANGUAGE ConstraintKinds #-}
+-- {-# LANGUAGE FlexibleContexts #-}
+-- {-# LANGUAGE FlexibleInstances #-}
+-- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- {-# LANGUAGE ImplicitParams #-}
+-- {-# LANGUAGE MultiParamTypeClasses #-}
+-- {-# LANGUAGE RankNTypes #-}
+-- {-# LANGUAGE ScopedTypeVariables #-}
+-- {-# LANGUAGE StandaloneDeriving #-}
+-- {-# LANGUAGE TypeSynonymInstances #-}
+-- {-# LANGUAGE UndecidableInstances #-}
 module IntervalSemantics where
 --
 -- import           Prelude hiding (id,fail,Bounded(..),Bool(..),(<),(==),(/))

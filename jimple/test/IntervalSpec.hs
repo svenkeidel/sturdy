@@ -1,5 +1,5 @@
-{-# LANGUAGE Arrows #-}
-{-# LANGUAGE ImplicitParams #-}
+-- {-# LANGUAGE Arrows #-}
+-- {-# LANGUAGE ImplicitParams #-}
 module IntervalSpec where
 
 import Test.Hspec
@@ -8,9 +8,9 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = do
-  describe "Stub" $ do
-    it "Simple addition" $ do
+spec =
+  describe "Stub" $
+    it "Simple addition" $
       (1 + 1) `shouldBe` 2
 --
 -- import           Prelude hiding (Bool(..))

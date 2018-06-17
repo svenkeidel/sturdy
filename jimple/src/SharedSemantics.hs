@@ -30,17 +30,17 @@ import           Syntax
 
 type CanFail val c = (ArrowChoice c,ArrowFail (Exception val) c)
 
-type CanInterp env var' val' const val bool c = (
+type CanInterp env envval val bool c = (
   UseVal val c,
   UseBool bool val c,
   UseConst c,
-  UseEnv (env var' val') c,
+  UseEnv (env String envval) c,
   CanFail val c,
-  ArrowReader Method c,
-  ArrowEnv var' val' (env var' val') c,
-  ArrowFix [Statement] (Maybe val) c,
+  ArrowEnv String envval (env String envval) c,
   ArrowExcept EInvoke (Maybe val) (Exception val) c,
-  ArrowExcept ([Statement],[CatchClause]) (Maybe val) (Exception val) c)
+  ArrowExcept ([Statement],[CatchClause]) (Maybe val) (Exception val) c,
+  ArrowFix [Statement] (Maybe val) c,
+  ArrowReader ([Statement],[CatchClause]) c)
 
 assert :: (CanFail v c) => c (Bool,String) ()
 assert = proc (prop,msg) -> if prop
@@ -66,7 +66,7 @@ readCompilationUnit = proc n -> do
   compilationUnits <- askCompilationUnits -< ()
   justOrFail -< (find (\u -> fileName u == n) compilationUnits,printf "CompilationUnit %s not loaded" (show n))
 
-evalInvoke :: CanInterp env var' val' const val bool c => c EInvoke (Maybe val)
+evalInvoke :: CanInterp env envval val bool c => c EInvoke (Maybe val)
 evalInvoke = proc e -> case e of
   SpecialInvoke localName m args -> ev -< (Just localName,m,args)
   VirtualInvoke localName m args -> ev -< (Just localName,m,args)
@@ -120,7 +120,7 @@ evalBool = proc (BoolExpr i1 op i2) -> do
     Cmplt -> lt -< (v1,v2)
     Cmple -> le -< (v1,v2)
 
-eval :: CanInterp env var' val' const val bool c => c Expr val
+eval :: CanInterp env envval val bool c => c Expr val
 eval = proc e -> case e of
   NewExpr t -> do
     assert -< (isBaseType t,"Expected a base type for new")
@@ -168,13 +168,13 @@ eval = proc e -> case e of
   ImmediateExpr i -> evalImmediate -< i
   MethodHandle _ -> fail -< StaticException "Evaluation of method handles is not implemented"
 
-runStatements :: CanInterp env var' val' const val bool c => c [Statement] (Maybe val)
+runStatements :: CanInterp env envval val bool c => c [Statement] (Maybe val)
 runStatements = fix $ \run -> proc stmts -> case stmts of
   [] -> returnA -< Nothing
   (stmt:rest) -> case stmt of
     Label labelName -> do
-      body <- currentMethodBody -< ()
-      let clauses = filter (\clause -> fromLabel clause == labelName && Label (toLabel clause) `elem` stmts) (catchClauses body)
+      (_,cs) <- ask -< ()
+      let clauses = filter (\c -> fromLabel c == labelName && Label (toLabel c) `elem` stmts) cs
       tryCatch (U.pi1 >>> run) (catchException run) -< (rest,clauses)
     Tableswitch i cases -> runSwitch run -< (i,cases)
     Lookupswitch i cases -> runSwitch run -< (i,cases)
@@ -201,14 +201,11 @@ runStatements = fix $ \run -> proc stmts -> case stmts of
     Nop -> run -< rest
     Breakpoint -> run -< rest
   where
-    currentMethodBody = ask >>> proc m -> case methodBody m of
-      EmptyBody -> fail -< StaticException $ printf "Empty body for method %s" (show m)
-      FullBody{} -> returnA -< methodBody m
     atLabel f = statementsFromLabel >>> f
     statementsFromLabel = proc label -> do
-      b <- currentMethodBody -< ()
-      case Label label `elemIndex` statements b of
-        Just i -> returnA -< drop i (statements b)
+      (ss,_) <- ask -< ()
+      case Label label `elemIndex` ss of
+        Just i -> returnA -< drop i ss
         Nothing -> fail -< StaticException $ printf "Undefined label: %s" label
     catchException f = proc ((_,clauses),exception) -> case exception of
         StaticException _ -> fail -< exception
@@ -217,28 +214,27 @@ runStatements = fix $ \run -> proc stmts -> case stmts of
       declare (atLabel f) -< (("@caughtexception",val),withLabel clause)
     runSwitch f = first evalImmediate >>> case_ (atLabel f)
 
-runMethod :: CanInterp env var' val' const val bool c => c (Method,Maybe val,[Immediate]) (Maybe val)
+runMethod :: CanInterp env envval val bool c => c (Method,Maybe val,[Immediate]) (Maybe val)
 runMethod = proc (method,this,args) -> case methodBody method of
-  EmptyBody -> returnA -< Nothing
-  FullBody{declarations=decs,statements=stmts} -> do
+  EmptyBody -> fail -< StaticException "Cannot run method with empty body"
+  FullBody{declarations=decs,statements=stmts,catchClauses=clauses} -> do
     argVals <- U.map evalImmediate -< args
     let thisBinding = maybe [] (\x -> [("@this",x)]) this
     let paramBindings = zip (map (\i -> "@parameter" ++ show i) [(0 :: Int)..]) argVals
     decBindings <- U.map (second defaultValue) -< concatMap (\(t,d) -> zip d (repeat t)) decs
     env <- emptyEnv -< ()
-    localEnv runWithBindings -< (env,(thisBinding ++ paramBindings ++ decBindings,(method,stmts)))
+    localEnv runWithBindings -< (env,(thisBinding ++ paramBindings ++ decBindings,(stmts,clauses)))
   where
-    runWithBindings = proc (bs,x) -> case bs of
-      [] -> local runStatements -< x
-      (binding:rest) -> declare runWithBindings -< (binding,(rest,x))
+    runWithBindings = proc (bs,(stmts,clauses)) -> case bs of
+      [] -> local runStatements -< ((stmts,clauses),stmts)
+      (binding:rest) -> declare runWithBindings -< (binding,(rest,(stmts,clauses)))
 
-runProgram :: CanInterp env var' val' const val bool c => c [Immediate] (Maybe val)
-runProgram = proc args -> do
+runProgram :: CanInterp env envval val bool c => c (Method,[Immediate]) (Maybe val)
+runProgram = proc (main,params) -> do
   units <- askCompilationUnits -< ()
   U.map (second defaultValue >>> updateStaticField) -< concatMap staticFieldsWithType units
   U.map runMethod -< concatMap clinitMethodWithArgs units
-  mainMethod <- ask -< ()
-  runMethod -< (mainMethod,Nothing,args)
+  runMethod -< (main,Nothing,params)
   where
     staticFieldsWithType u =
       [(fieldSignature u m,fieldType m) | FieldMember m <- fileBody u, Static `elem` fieldModifiers m]
