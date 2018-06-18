@@ -14,9 +14,9 @@ import           Data.Exception
 import qualified Data.Abstract.Boolean as Abs
 import           Data.Abstract.HandleError
 
-import Classes.Throwable
+-- import Classes.Throwable
 import Classes.ArrayFieldExample
-import Classes.FactorialExample
+-- import Classes.FactorialExample
 import Classes.PersonExample
 import Classes.SingleMethodExample
 import Classes.TryCatchExample
@@ -91,7 +91,7 @@ spec = do
       runStatements' mem stmts `shouldSatisfy` ifSuccess (Just NonNull)
     it "assign non-declared variable" $ do
       let stmts = [Assign (LocalVar "s") (ImmediateExpr (IntConstant 2))]
-      runStatements' [] stmts `shouldBe` staticException "Variable \"s\" not bound"
+      runStatements' [] stmts `shouldBe` Fail (StaticException "Variable \"s\" not bound")
     it "s = 2; xs = newarray (int)[s]; y = lengthof xs; return xs;" $ do
       let mem = [("s",  NonNull),
                 ("xs", Null),
@@ -142,16 +142,16 @@ spec = do
   describe "Complete program" $ do
     -- it "10! = 3628800" $ do
     --   runProgram'' factorialExampleFile [IntConstant 10] `shouldSatisfy` ifSuccess (Just NonNull)
-    it "s = new SingleMethodExample; s.x = 2; return s.x" $ do
+    it "s = new SingleMethodExample; s.x = 2; return s.x" $
       runProgram'' singleMethodExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
     -- it "(-10)! throws IllegalArgumentException" $ do
-    --   runProgram'' factorialExampleFile [IntConstant (-10)] `shouldBe` dynamicException "java.lang.IllegalArgumentException"
-    it "5 -> [5,10,5,10]" $ do
+    --   runProgram'' factorialExampleFile [IntConstant (-10)] `shouldBe` Fail (DynamicException NonNull)
+    it "5 -> [5,10,5,10]" $
       runProgram'' arrayFieldExampleFile [IntConstant 5] `shouldSatisfy` ifSuccess (Just NonNull)
-    it "(new Person(10)).yearsToLive() = 90" $ do
+    it "(new Person(10)).yearsToLive() = 90" $
       runProgram'' personExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
-    it "try { throw e } catch (e) { throw e' }" $ do
-      runProgram'' tryCatchExampleFile [] `shouldBe` dynamicException "java.lang.ArrayIndexOutOfBoundsException"
+    it "try { throw e } catch (e) { throw e' }" $
+      runProgram'' tryCatchExampleFile [] `shouldSatisfy` ifFail (DynamicException NonNull)
 
   describe "Sound interpretation" $ jimpleSoundness
     Con.evalImmediate' evalImmediate'
@@ -161,11 +161,14 @@ spec = do
     Con.runProgram'    runProgram'
 
   where
-    staticException msg = Fail (StaticException msg)
-    dynamicException clzz = Fail (DynamicException NonNull)
     runProgram'' unit params = runProgram' (unit:baseCompilationUnits) (mainMethod unit,params)
 
     ifSuccess x e = case e of
       Success y -> y == x
       SuccessOrFail _ y -> y == x
+      _ -> False
+
+    ifFail x e = case e of
+      Fail y -> y == x
+      SuccessOrFail y _ -> y == x
       _ -> False

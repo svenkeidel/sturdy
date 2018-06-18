@@ -208,7 +208,9 @@ instance UseVal Val Interp where
   updateField f = U.pi2 >>> f
   readStaticField = proc f -> read U.pi1 fail -<
     (f, StaticException $ printf "FieldReference %s not bound" (show f))
-  updateStaticField = proc _ -> fail -< StaticException "Not implemented yet"
+  updateStaticField = proc (f,v) -> do
+    readStaticField -< f
+    write -< (f,v)
   case_ f = U.pi2 >>> map snd ^>> lubA f
   catch f = proc (v,clauses) ->
     joined (lubA f) fail -< (zip (repeat v) clauses,DynamicException v)

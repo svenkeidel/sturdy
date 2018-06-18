@@ -35,23 +35,25 @@ soundImmediate :: (Arbitrary a,Show a,Galois (Con.Pow vc) va,Complete va,Eq vc,H
 soundImmediate desc mem gen runConcrete runAbstract =
   it ("sound value approximation " ++ desc) $ property $ \a -> do
     let mema = map (\(l,vc) -> (l,alpha (singleton vc))) mem
-    let i = gen a
-    let rc = runConcrete mem i
-    let ra = runAbstract mema i
+    let immediate = gen a
+    let rc = runConcrete mem immediate
+    let ra = runAbstract mema immediate
     rc `shouldBeApproximated` ra
 
-soundBoolExpr :: (Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va,
+soundBoolExpr :: (Arbitrary a,Show a,
+                  Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va,
                   Galois (Con.Pow bc) ba,Complete ba,Eq bc,Hashable bc,Show bc,Show ba) =>
   String ->
-  [(String,vc)] -> BoolExpr ->
+  [(String,vc)] -> (a -> BoolExpr) ->
   ([(String,vc)] -> BoolExpr -> Con.Error (Exception vc) bc) ->
   ([(String,va)] -> BoolExpr -> Abs.Error (Exception va) ba) ->
   Spec
-soundBoolExpr desc mem x runConcrete runAbstract =
-  it ("sound value approximation " ++ desc) $ do
+soundBoolExpr desc mem gen runConcrete runAbstract =
+  it ("sound value approximation " ++ desc) $ property $ \a -> do
     let mema = map (\(l,vc) -> (l,alpha (singleton vc))) mem
-    let rc = runConcrete mem x
-    let ra = runAbstract mema x
+    let boolExpr = gen a
+    let rc = runConcrete mem boolExpr
+    let ra = runAbstract mema boolExpr
     rc `shouldBeApproximated` ra
 
 soundExpr :: (Arbitrary a,Show a,Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
@@ -68,27 +70,29 @@ soundExpr desc mem gen runConcrete runAbstract =
     let ra = runAbstract mema expr
     rc `shouldBeApproximated` ra
 
-soundStatements :: (Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
+soundStatements :: (Arbitrary a,Show a,Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
   String ->
-  [(String,vc)] -> [Statement] ->
+  [(String,vc)] -> (a -> [Statement]) ->
   ([(String,vc)] -> [Statement] -> Con.Error (Exception vc) (Maybe vc)) ->
   ([(String,va)] -> [Statement] -> Abs.Error (Exception va) (Maybe va)) ->
   Spec
-soundStatements desc mem x runConcrete runAbstract =
-  it ("sound value approximation " ++ desc) $ do
+soundStatements desc mem gen runConcrete runAbstract =
+  it ("sound value approximation " ++ desc) $ property $ \a -> do
     let mema = map (\(l,vc) -> (l,alpha (singleton vc))) mem
-    let rc = runConcrete mem x
-    let ra = runAbstract mema x
+    let stmts = gen a
+    let rc = runConcrete mem stmts
+    let ra = runAbstract mema stmts
     rc `shouldBeApproximated` ra
 
-soundProgram :: (Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
+soundProgram :: (Arbitrary a,Show a,Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
   String ->
-  [CompilationUnit] -> (Method,[Immediate]) ->
+  [CompilationUnit] -> (a -> (Method,[Immediate])) ->
   ([CompilationUnit] -> (Method,[Immediate]) -> Con.Error (Exception vc) (Maybe vc)) ->
   ([CompilationUnit] -> (Method,[Immediate]) -> Abs.Error (Exception va) (Maybe va)) ->
   Spec
-soundProgram desc units x runConcrete runAbstract =
-  it ("sound value approximation " ++ desc) $ do
-    let rc = runConcrete units x
-    let ra = runAbstract units x
+soundProgram desc units gen runConcrete runAbstract =
+  it ("sound value approximation " ++ desc) $ property $ \a -> do
+    let input = gen a
+    let rc = runConcrete units input
+    let ra = runAbstract units input
     rc `shouldBeApproximated` ra

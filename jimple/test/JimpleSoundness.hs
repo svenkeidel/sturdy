@@ -34,9 +34,7 @@ jimpleSoundness
   evalCon          evalAbs
   runStatementsCon runStatementsAbs
   runProgramCon    runProgramAbs = do
-    soundImmediate "Integer literal" [] (\x ->
-      IntConstant x
-      ) evalImmediateCon evalImmediateAbs
+    soundImmediate "Integer literal" [] IntConstant evalImmediateCon evalImmediateAbs
 
     soundExpr "x+y" [] (\(x,y) ->
       BinopExpr (IntConstant x) Plus (IntConstant y)

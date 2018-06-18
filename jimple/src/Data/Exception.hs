@@ -27,7 +27,7 @@ instance PreOrd v => PreOrd (Exception v) where
   _ ⊑ _ = False
 
 instance LowerBounded v => LowerBounded (Exception v) where
-  bottom = StaticException "Bottom exception"
+  bottom = DynamicException bottom
 
 instance Complete v => Complete (Exception v) where
   StaticException s1 ⊔ StaticException s2 = StaticException $ s1 ++ "\n" ++ s2
