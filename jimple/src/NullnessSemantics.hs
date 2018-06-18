@@ -190,7 +190,6 @@ instance UseVal Val Interp where
   classConstant = arr $ const NonNull
   defaultValue = arr (\t -> case t of
     NullType      -> Null
-    (ArrayType _) -> Null
     (RefType _)   -> Null
     UnknownType   -> top
     VoidType      -> bottom
@@ -202,10 +201,14 @@ instance UseVal Val Interp where
   updateVar f = proc ((l,v),x) -> do
     lookup_ -< l
     extendEnv' f -< (l,v,x)
-  readIndex = arr fst
+  readIndex = arr $ const top
   updateIndex f = U.pi2 >>> f
-  readField = arr fst
-  updateField f = U.pi2 >>> f
+  readField = proc (v,FieldSignature _ t _) -> case v of
+    Bottom -> returnA -< bottom
+    Null -> fail -< DynamicException NonNull
+    NonNull -> defaultValue >>^ (⊔ NonNull) -< t
+    Top -> joined fail (defaultValue >>^ (⊔ NonNull)) -< (DynamicException NonNull,t)
+  updateField f = first ((\(o,(v,_)) -> (o,v)) ^>> readField) >>> U.pi2 >>> f
   readStaticField = proc f -> read U.pi1 fail -<
     (f, StaticException $ printf "FieldReference %s not bound" (show f))
   updateStaticField = proc (f,v) -> do

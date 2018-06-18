@@ -286,11 +286,13 @@ instance UseVal Val Interp where
     _ -> fail -< StaticException $ printf "Expected an array for index lookup, got %s" (show v)) >>> U.pi2 >>> f
   readField = first deref >>> proc (v,f) -> case v of
     (ObjectVal _ m) -> justOrFail -< (Map.lookup f m, printf "Field %s not defined for object %s" (show f) (show v))
+    NullVal -> createException >>> fail -< ("java.lang.NullPointerException","")
     _ -> fail -< StaticException $ printf "Expected an object for field lookup, got %s" (show v)
   updateField g = first (first (id &&& deref) >>> proc ((ref,o),(f,v)) -> case (ref,o) of
     (RefVal addr,ObjectVal c m) -> case m Map.!? f of
       Just _ -> write -< (addr,ObjectVal c (Map.insert f v m))
       Nothing -> fail -< StaticException $ printf "FieldSignature %s not defined on object %s" (show f) (show o)
+    (NullVal,_) -> createException >>> fail -< ("java.lang.NullPointerException","")
     _ -> fail -< StaticException $ printf "Expected an object for field update, got %s" (show o)) >>> U.pi2 >>> g
   readStaticField = lookupStaticField >>> read_
   updateStaticField = first lookupStaticField >>> write

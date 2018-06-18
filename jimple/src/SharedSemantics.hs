@@ -272,11 +272,11 @@ class Arrow c => UseVal v c | c -> v where
   defaultValue :: c Type v
   declare :: c x (Maybe v) -> c ((String,v),x) (Maybe v)
   readVar :: c String v
-  updateVar :: c [Statement] (Maybe v) -> c ((String,v),[Statement]) (Maybe v)
+  updateVar :: c x (Maybe v) -> c ((String,v),x) (Maybe v)
   readIndex :: c (v,v) v
-  updateIndex :: c [Statement] (Maybe v) -> c (((v,v),v),[Statement]) (Maybe v)
+  updateIndex :: c x (Maybe v) -> c (((v,v),v),x) (Maybe v)
   readField :: c (v,FieldSignature) v
-  updateField :: c [Statement] (Maybe v) -> c ((v,(FieldSignature,v)),[Statement]) (Maybe v)
+  updateField :: c x (Maybe v) -> c ((v,(FieldSignature,v)),x) (Maybe v)
   readStaticField :: c FieldSignature v
   updateStaticField :: c (FieldSignature,v) ()
   case_ :: c String (Maybe v) -> c (v,[CaseStatement]) (Maybe v)
@@ -289,7 +289,7 @@ class Arrow c => UseBool b v c | c -> b v where
   ge :: c (v,v) b
   lt :: c (v,v) b
   le :: c (v,v) b
-  if_ :: c String (Maybe v) -> c [Statement] (Maybe v) -> c ((b,BoolExpr),(String,[Statement])) (Maybe v)
+  if_ :: c String (Maybe v) -> c x (Maybe v) -> c ((b,BoolExpr),(String,x)) (Maybe v)
 
 class Arrow c => UseEnv env c | c -> env where
   emptyEnv :: c () env

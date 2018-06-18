@@ -78,7 +78,7 @@ spec = do
     it "[1, 2, 3][2]" $ do
       let expr = RefExpr (ArrayRef "xs" (IntConstant 2))
       let mem = [("xs",NonNull)]
-      eval' mem expr `shouldSatisfy` ifSuccess NonNull
+      eval' mem expr `shouldSatisfy` ifSuccess Top
     it "newmultiarray (float) [3][2]" $ do
       let expr = NewMultiArrayExpr FloatType [IntConstant 3, IntConstant 2]
       eval' [] expr `shouldSatisfy` ifSuccess NonNull
