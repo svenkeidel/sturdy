@@ -11,7 +11,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     ConcreteSemantics,
-                       IntervalSemantics,
+                       -- IntervalSemantics,
                        NullnessSemantics,
                        SharedSemantics,
                        Syntax,
@@ -33,9 +33,9 @@ test-suite specs
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:       ConcreteSpec,
-                       IntervalSpec,
+                       -- IntervalSpec,
                        NullnessSpec,
-                       SoundnessSpec,
+                       JimpleSoundness,
                        Soundness,
                        Utils,
                        Classes.Object,
@@ -50,6 +50,7 @@ test-suite specs
                        Classes.TryCatchExample
   build-depends:       base,
                        containers,
+                       hashable,
                        hspec,
                        hspec-core,
                        sturdy-lib,

@@ -128,7 +128,7 @@ deriving instance (Complete y) => Complete (Interp x y)
 deriving instance LowerBounded y => LowerBounded (Interp x y)
 
 runInterp :: Interp x y ->
-             [CompilationUnit] -> Mem -> x ->
+             [CompilationUnit] -> [(String,Val)] -> x ->
              Error (Exception Val) y
 runInterp (Interp f) compilationUnits mem x =
   runConst compilationUnits

@@ -104,7 +104,9 @@ deriving instance ArrowRead Addr Val x Val Interp
 deriving instance ArrowState Addr Interp
 deriving instance ArrowWrite Addr Val Interp
 
-runInterp :: Interp x y -> [CompilationUnit] -> Mem -> x -> Error (Exception Val) y
+runInterp :: Interp x y ->
+             [CompilationUnit] -> [(String,Val)] -> x ->
+             Error (Exception Val) y
 runInterp (Interp f) compilationUnits mem x =
   runFixPoint
     (runConst (compilationUnits,fields)

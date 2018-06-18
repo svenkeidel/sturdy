@@ -5,9 +5,12 @@ import Test.Hspec
 import Utils
 
 import Syntax
+import qualified ConcreteSemantics as Con
 import NullnessSemantics
+import JimpleSoundness
 
 import           Data.Exception
+
 import qualified Data.Abstract.Boolean as Abs
 import           Data.Abstract.HandleError
 
@@ -135,20 +138,27 @@ spec = do
                    Assign (LocalVar "f1") (BinopExpr (Local "f0") Mult (FloatConstant 2.5)),
                    Return (Just (Local "f1"))]
       runStatements' mem stmts `shouldSatisfy` ifSuccess (Just NonNull)
-  --
-  -- describe "Complete program" $ do
-  --   it "10! = 3628800" $ do
-  --     runProgram'' factorialExampleFile [IntConstant 10] `shouldSatisfy` ifSuccess (Just NonNull)
-  --   it "s = new SingleMethodExample; s.x = 2; return s.x" $ do
-  --     runProgram'' singleMethodExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
-  --   it "(-10)! throws IllegalArgumentException" $ do
-  --     runProgram'' factorialExampleFile [IntConstant (-10)] `shouldBe` dynamicException "java.lang.IllegalArgumentException"
-  --   it "5 -> [5,10,5,10]" $ do
-  --     runProgram'' arrayFieldExampleFile [IntConstant 5] `shouldSatisfy` ifSuccess (Just NonNull)
-  --   it "(new Person(10)).yearsToLive() = 90" $ do
-  --     runProgram'' personExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
-  --   it "try { throw e } catch (e) { throw e' }" $ do
-  --     runProgram'' tryCatchExampleFile [] `shouldBe` dynamicException "java.lang.ArrayIndexOutOfBoundsException"
+
+  describe "Complete program" $ do
+    -- it "10! = 3628800" $ do
+    --   runProgram'' factorialExampleFile [IntConstant 10] `shouldSatisfy` ifSuccess (Just NonNull)
+    it "s = new SingleMethodExample; s.x = 2; return s.x" $ do
+      runProgram'' singleMethodExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
+    -- it "(-10)! throws IllegalArgumentException" $ do
+    --   runProgram'' factorialExampleFile [IntConstant (-10)] `shouldBe` dynamicException "java.lang.IllegalArgumentException"
+    it "5 -> [5,10,5,10]" $ do
+      runProgram'' arrayFieldExampleFile [IntConstant 5] `shouldSatisfy` ifSuccess (Just NonNull)
+    it "(new Person(10)).yearsToLive() = 90" $ do
+      runProgram'' personExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
+    it "try { throw e } catch (e) { throw e' }" $ do
+      runProgram'' tryCatchExampleFile [] `shouldBe` dynamicException "java.lang.ArrayIndexOutOfBoundsException"
+
+  describe "Sound interpretation" $ jimpleSoundness
+    Con.evalImmediate' evalImmediate'
+    Con.evalBool'      evalBool'
+    Con.eval'          eval'
+    Con.runStatements' runStatements'
+    Con.runProgram'    runProgram'
 
   where
     staticException msg = Fail (StaticException msg)

@@ -7,9 +7,10 @@ import Utils
 import Syntax
 import ConcreteSemantics
 
-import           Data.Exception
-import qualified Data.Map as Map
-import           Data.Concrete.Error
+import Data.Exception
+import Data.Map
+
+import Data.Concrete.Error
 
 import Classes.Throwable
 import Classes.ArrayFieldExample
@@ -154,5 +155,5 @@ spec = do
 
   where
     staticException msg = Fail (StaticException msg)
-    dynamicException clzz msg = Fail (DynamicException (ObjectVal clzz (Map.fromList [(throwableMessageSignature, StringVal msg)])))
+    dynamicException clzz msg = Fail (DynamicException (ObjectVal clzz (fromList [(throwableMessageSignature, StringVal msg)])))
     runProgram'' unit params = runProgram' (unit:baseCompilationUnits) (mainMethod unit,params)
