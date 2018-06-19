@@ -156,6 +156,15 @@ isBaseType UnknownType = False
 isBaseType (ArrayType _) = False
 isBaseType _ = True
 
+isIntegerType :: Type -> Bool
+isIntegerType BooleanType = True
+isIntegerType ByteType = True
+isIntegerType CharType = True
+isIntegerType IntType = True
+isIntegerType LongType = True
+isIntegerType ShortType = True
+isIntegerType _ = False
+
 data MethodBody
   = EmptyBody
   | FullBody { declarations :: [Declaration]

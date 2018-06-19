@@ -12,6 +12,8 @@ import Data.Map
 
 import Data.Concrete.Error
 
+import Data.Number.Transfinite
+
 import Classes.Throwable
 import Classes.ArrayFieldExample
 import Classes.FactorialExample
@@ -57,27 +59,30 @@ spec = do
     it "-3" $ do
       let expr = UnopExpr Neg (IntConstant 3)
       eval' [] expr `shouldBe` Success (IntVal (-3))
-    it "lengthof [1, 2, 3]" $ do
+    it "lengthof [1, 2, 3] = 3" $ do
       let expr = UnopExpr Lengthof (Local "x")
       let mem = [("x",ArrayVal [IntVal 1, IntVal 2, IntVal 3])]
       eval' mem expr `shouldBe` Success (IntVal 3)
-    it "8 + 2" $ do
+    it "8 + 2 = 10" $ do
       let expr = BinopExpr (IntConstant 8) Plus (IntConstant 2)
       eval' [] expr `shouldBe` Success (IntVal 10)
-    it "8 / 0" $ do
+    it "8 / 0 -> java.lang.ArithmeticException" $ do
       let expr = BinopExpr (IntConstant 8) Div (IntConstant 0)
       eval' [] expr `shouldBe` staticException "CompilationUnit \"java.lang.ArithmeticException\" not loaded"
-    it "3.0 % 2.5" $ do
+    it "3.0 / 0.0 = ∞" $ do
+      let expr = BinopExpr (FloatConstant 3.0) Div (FloatConstant 0.0)
+      eval' [] expr `shouldBe` Success (FloatVal infinity)
+    it "3.0 % 2.5 = .5" $ do
       let expr = BinopExpr (FloatConstant 3.0) Rem (FloatConstant 2.5)
       eval' [] expr `shouldBe` Success (FloatVal 0.5)
-    it "new boolean" $ do
+    it "new boolean -> int 0" $ do
       let expr = NewExpr BooleanType
       eval' [] expr `shouldBe` Success (IntVal 0)
-    it "[1, 2, 3][2]" $ do
+    it "[1, 2, 3][2] = 2" $ do
       let expr = RefExpr (ArrayRef "xs" (IntConstant 2))
       let mem = [("xs",ArrayVal [IntVal 1, IntVal 2, IntVal 3])]
       eval' mem expr `shouldBe` Success (IntVal 3)
-    it "newmultiarray (float) [3][2]" $ do
+    it "newmultiarray (float) [3][2] = [[0.0,0.0],[0.0,0.0],[0.0,0.0]]" $ do
       let expr = NewMultiArrayExpr FloatType [IntConstant 3, IntConstant 2]
       eval' [] expr `shouldBe` Success (ArrayVal [ArrayVal [FloatVal 0.0, FloatVal 0.0],
                                                  ArrayVal [FloatVal 0.0, FloatVal 0.0],
@@ -156,4 +161,4 @@ spec = do
   where
     staticException msg = Fail (StaticException msg)
     dynamicException clzz msg = Fail (DynamicException (ObjectVal clzz (fromList [(throwableMessageSignature, StringVal msg)])))
-    runProgram'' unit params = runProgram' (unit:baseCompilationUnits) (mainMethod unit,params)
+    runProgram'' unit params = runProgram' (unit:baseCompilationUnits) (methodSignature unit (mainMethod unit),params)

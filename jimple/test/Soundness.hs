@@ -86,9 +86,9 @@ soundStatements desc mem gen runConcrete runAbstract =
 
 soundProgram :: (Arbitrary a,Show a,Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
   String ->
-  [CompilationUnit] -> (a -> (Method,[Immediate])) ->
-  ([CompilationUnit] -> (Method,[Immediate]) -> Con.Error (Exception vc) (Maybe vc)) ->
-  ([CompilationUnit] -> (Method,[Immediate]) -> Abs.Error (Exception va) (Maybe va)) ->
+  [CompilationUnit] -> (a -> (MethodSignature,[Immediate])) ->
+  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Con.Error (Exception vc) (Maybe vc)) ->
+  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Abs.Error (Exception va) (Maybe va)) ->
   Spec
 soundProgram desc units gen runConcrete runAbstract =
   it ("sound value approximation " ++ desc) $ property $ \a -> do

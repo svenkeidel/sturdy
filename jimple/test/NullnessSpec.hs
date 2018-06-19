@@ -147,7 +147,7 @@ spec = do
     -- it "(-10)! throws IllegalArgumentException" $ do
     --   runProgram'' factorialExampleFile [IntConstant (-10)] `shouldBe` Fail (DynamicException NonNull)
     it "5 -> [5,10,5,10]" $
-      runProgram'' arrayFieldExampleFile [IntConstant 5] `shouldSatisfy` ifSuccess (Just NonNull)
+      runProgram'' arrayFieldExampleFile [IntConstant 5] `shouldSatisfy` ifSuccess (Just Top)
     it "(new Person(10)).yearsToLive() = 90" $
       runProgram'' personExampleFile [] `shouldSatisfy` ifSuccess (Just NonNull)
     it "try { throw e } catch (e) { throw e' }" $
@@ -161,7 +161,7 @@ spec = do
     Con.runProgram'    runProgram'
 
   where
-    runProgram'' unit params = runProgram' (unit:baseCompilationUnits) (mainMethod unit,params)
+    runProgram'' unit params = runProgram' (unit:baseCompilationUnits) (methodSignature unit (mainMethod unit),params)
 
     ifSuccess x e = case e of
       Success y -> y == x

@@ -22,6 +22,7 @@ library
                        hashable,
                        mtl,
                        random,
+                       logfloat,
                        sturdy-lib,
                        text
   hs-source-dirs:      src
@@ -51,6 +52,7 @@ test-suite specs
   build-depends:       base,
                        containers,
                        hashable,
+                       logfloat,
                        hspec,
                        hspec-core,
                        sturdy-lib,

@@ -137,7 +137,7 @@ runInterp (Interp f) compilationUnits mem x =
 type Out v = Error (Exception Val) v
 type Mem = [(String,Val)]
 
-runProgram' :: [CompilationUnit] -> (Method,[Immediate]) -> Out (Maybe Val)
+runProgram' :: [CompilationUnit] -> (MethodSignature,[Immediate]) -> Out (Maybe Val)
 runProgram' units = runInterp (try' runProgram deepDerefMaybe) units []
 
 runStatements' :: Mem -> [Statement] -> Out (Maybe Val)
@@ -265,6 +265,12 @@ instance UseVal Val Interp where
   cast = first (first (id &&& deref)) >>> second toBool >>> proc (((v,v'),t),b) -> case (b,v') of
     (False,_) -> createException >>> fail -< ("java.lang.ClassCastException",printf "Cannot cast %s to type %s" (show v) (show t))
     (True,ObjectVal _ _) -> returnA -< v
+    (_,IntVal n) -> returnA -< (if t == FloatType then FloatVal else DoubleVal) $ fromIntegral n
+    (_,LongVal n) -> returnA -< (if t == FloatType then FloatVal else DoubleVal) $ fromIntegral n
+    (_,FloatVal n) | isIntegerType t -> returnA -< IntVal $ round n
+    (_,DoubleVal n) | isIntegerType t -> returnA -< IntVal $ round n
+    (_,FloatVal n) | isIntegerType t -> returnA -< IntVal $ round n
+    (_,DoubleVal n) | isIntegerType t -> returnA -< IntVal $ round n
     (_,_) -> fail -< StaticException "Casting of primivites and arrays is not yet supported"
     -- https://docs.oracle.com/javase/specs/jls/se7/html/jls-5.html#jls-5.1.2
   declare f = proc ((l,v),x) -> do

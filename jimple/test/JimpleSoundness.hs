@@ -25,8 +25,8 @@ jimpleSoundness :: (Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc
   ([(String,va)] -> Expr -> Abs.Error (Exception va) va) ->
   ([(String,vc)] -> [Statement] -> Con.Error (Exception vc) (Maybe vc)) ->
   ([(String,va)] -> [Statement] -> Abs.Error (Exception va) (Maybe va)) ->
-  ([CompilationUnit] -> (Method,[Immediate]) -> Con.Error (Exception vc) (Maybe vc)) ->
-  ([CompilationUnit] -> (Method,[Immediate]) -> Abs.Error (Exception va) (Maybe va)) ->
+  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Con.Error (Exception vc) (Maybe vc)) ->
+  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Abs.Error (Exception va) (Maybe va)) ->
   Spec
 jimpleSoundness
   evalImmediateCon evalImmediateAbs

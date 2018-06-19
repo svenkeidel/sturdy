@@ -145,7 +145,7 @@ runInterp (Interp f) compilationUnits mem x =
 type Out v = Error (Exception Val) v
 type Mem = [(String,Val)]
 
-runProgram' :: [CompilationUnit] -> (Method,[Immediate]) -> Out (Maybe Val)
+runProgram' :: [CompilationUnit] -> (MethodSignature,[Immediate]) -> Out (Maybe Val)
 runProgram' units = runInterp runProgram units []
 
 runStatements' :: Mem -> [Statement] -> Out (Maybe Val)

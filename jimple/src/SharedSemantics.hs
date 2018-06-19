@@ -68,28 +68,11 @@ readCompilationUnit = proc n -> do
 
 evalInvoke :: CanInterp env envval val bool c => c EInvoke (Maybe val)
 evalInvoke = proc e -> case e of
-  SpecialInvoke localName m args -> ev -< (Just localName,m,args)
-  VirtualInvoke localName m args -> ev -< (Just localName,m,args)
-  InterfaceInvoke localName m args -> ev -< (Just localName,m,args)
-  StaticInvoke m args -> ev -< (Nothing,m,args)
+  SpecialInvoke localName m params -> runMethod -< (Just localName,m,params)
+  VirtualInvoke localName m params -> runMethod -< (Just localName,m,params)
+  InterfaceInvoke localName m params -> runMethod -< (Just localName,m,params)
+  StaticInvoke m params -> runMethod -< (Nothing,m,params)
   DynamicInvoke{} -> fail -< StaticException "DynamicInvoke is not implemented"
-  where
-    ev = proc (localName,m,args) -> do
-      method <- readMethod -< m
-      this <- liftAMaybe readVar -< localName
-      case this of
-        Just _ -> assert -< (Static `notElem` methodModifiers method,"Expected a non-static method for non-static invoke")
-        Nothing -> assert -< (Static `elem` methodModifiers method,"Expected a static method for static invoke")
-      runMethod -< (method,this,args)
-    readMethod = proc (MethodSignature c retType n argTypes) -> do
-      unit <- readCompilationUnit -< c
-      case find (matchesSignature retType n argTypes) (fileBody unit) of
-        Just (MethodMember m) -> returnA -< m
-        _ -> fail -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
-    matchesSignature :: Type -> String -> [Type] -> Member -> Bool
-    matchesSignature retType n argTypes (MethodMember m) =
-      methodName m == n && returnType m == retType && parameters m == argTypes
-    matchesSignature _ _ _ _ = False
 
 evalImmediate :: (ArrowChoice c,UseVal val c) => c Immediate val
 evalImmediate = proc i -> case i of
@@ -214,32 +197,45 @@ runStatements = fix $ \run -> proc stmts -> case stmts of
       declare (atLabel f) -< (("@caughtexception",val),withLabel clause)
     runSwitch f = first evalImmediate >>> case_ (atLabel f)
 
-runMethod :: CanInterp env envval val bool c => c (Method,Maybe val,[Immediate]) (Maybe val)
-runMethod = proc (method,this,args) -> case methodBody method of
-  EmptyBody -> fail -< StaticException "Cannot run method with empty body"
-  FullBody{declarations=decs,statements=stmts,catchClauses=clauses} -> do
-    argVals <- U.map evalImmediate -< args
-    let thisBinding = maybe [] (\x -> [("@this",x)]) this
-    let paramBindings = zip (map (\i -> "@parameter" ++ show i) [(0 :: Int)..]) argVals
-    decBindings <- U.map (second defaultValue) -< concatMap (\(t,d) -> zip d (repeat t)) decs
-    env <- emptyEnv -< ()
-    localEnv runWithBindings -< (env,(thisBinding ++ paramBindings ++ decBindings,(stmts,clauses)))
+runMethod :: CanInterp env envval val bool c => c (Maybe String,MethodSignature,[Immediate]) (Maybe val)
+runMethod = proc (this,sig,params) -> do
+  method <- askMethod -< sig
+  (decs,stmts,clauses) <- askMethodBody -< method
+  thisVal <- liftAMaybe readVar -< this
+  case this of
+    Just _ -> assert -< (Static `notElem` methodModifiers method,"Expected a non-static method for non-static invoke")
+    Nothing -> assert -< (Static `elem` methodModifiers method,"Expected a static method for static invoke")
+  let thisBinding = maybe [] (\x -> [("@this",x)]) thisVal
+  paramVals <- U.map evalImmediate -< params
+  let paramBindings = zip (map (\i -> "@parameter" ++ show i) [(0 :: Int)..]) paramVals
+  decBindings <- U.map (second defaultValue) -< concatMap (\(t,d) -> zip d (repeat t)) decs
+  env <- emptyEnv -< ()
+  localEnv runWithBindings -< (env,(thisBinding ++ paramBindings ++ decBindings,(stmts,clauses)))
   where
+    askMethod = proc sig@(MethodSignature c _ n _) -> do
+      unit <- readCompilationUnit -< c
+      case [m | MethodMember m <- fileBody unit, methodSignature unit m == sig] of
+        m:_ -> returnA -< m
+        [] -> fail -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
+    askMethodBody = proc m -> case methodBody m of
+      EmptyBody -> fail -< StaticException "Cannot run method with empty body"
+      FullBody{declarations=decs,statements=stmts,catchClauses=clauses} ->
+        returnA -< (decs,stmts,clauses)
     runWithBindings = proc (bs,(stmts,clauses)) -> case bs of
       [] -> local runStatements -< ((stmts,clauses),stmts)
       (binding:rest) -> declare runWithBindings -< (binding,(rest,(stmts,clauses)))
 
-runProgram :: CanInterp env envval val bool c => c (Method,[Immediate]) (Maybe val)
+runProgram :: CanInterp env envval val bool c => c (MethodSignature,[Immediate]) (Maybe val)
 runProgram = proc (main,params) -> do
   units <- askCompilationUnits -< ()
   U.map (second defaultValue >>> updateStaticField) -< concatMap staticFieldsWithType units
   U.map runMethod -< concatMap clinitMethodWithArgs units
-  runMethod -< (main,Nothing,params)
+  runMethod -< (Nothing,main,params)
   where
     staticFieldsWithType u =
       [(fieldSignature u m,fieldType m) | FieldMember m <- fileBody u, Static `elem` fieldModifiers m]
     clinitMethodWithArgs u =
-      [(m,Nothing,[]) | MethodMember m <- fileBody u, methodName m == "<clinit>"]
+      [(Nothing,methodSignature u m,[]) | MethodMember m <- fileBody u, methodName m == "<clinit>"]
 
 class Arrow c => UseVal v c | c -> v where
   doubleConstant :: c Float v
