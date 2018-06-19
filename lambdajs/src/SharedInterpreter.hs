@@ -48,7 +48,7 @@ class Arrow c => AbstractValue v c | c -> v where
 
 eval :: (ArrowChoice c, AbstractValue v c, Show v) => c Expr v
 eval = proc e -> do
-    case trace (take 200 $ show e) (e) of
+    case e of
         ENumber d -> do
             numVal -< d
         EString s -> do
@@ -90,9 +90,9 @@ eval = proc e -> do
             field <- eval -< fieldE
             getField -< (obj, field)
         EUpdateField objE fieldE valE -> do
+            val <- eval -< valE
             obj <- eval -< objE
             field <- eval -< fieldE
-            val <- eval -< valE
             updateField -< (obj, field, val)
         EDeleteField objE fieldE -> do
             obj <- eval -< objE

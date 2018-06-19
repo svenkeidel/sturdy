@@ -356,4 +356,24 @@ spec = do
     it "caught throws" $ do
       let program = ECatch (EThrow (ENumber 1.0)) (ELambda ["x"] (EId "x"))
       eval scope store program `shouldBe` Right (VNumber 1.0)
+
+  describe "error?" $ do
+    it "set and get global" $ do
+      let program = (ELet [("$global", ERef $ EObject [])]
+                      (ESeq
+                        (ESetRef
+                          (EId "$global")
+                          (EUpdateField
+                              (EDeref (EId "$global"))
+                              (EString "t")
+                              (ESeq
+                                  (ESetRef
+                                      (EId "$global")
+                                      (EUpdateField
+                                          (EDeref (EId "$global"))
+                                          (EString "z")
+                                          (ENumber 40.0)))
+                                  (ENumber 1.0))))
+                        (EGetField (EDeref (EId "$global")) (EString "z"))))
+      eval scope store program `shouldBe` Right (VNumber 40.0)
   where (scope, store) = ([], [])

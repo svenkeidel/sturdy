@@ -23,6 +23,7 @@ library
     , pretty >= 0.1
     , mtl >= 1.1.0.1
     , unordered-containers
+    , split >= 0.2.3.3
   exposed-modules:
     Syntax
     Derivations
@@ -53,6 +54,7 @@ test-suite lambdajs-test
     , hspec
     , containers
     , sturdy-lib
+    , split >= 0.2.3.3
   other-modules:
     SharedSpec
     TypeSpec
@@ -73,3 +75,4 @@ executable lambdajs
     , mtl >= 1.1.0.1
     , syb >= 0.1
     , pretty >= 0.1
+    , split >= 0.2.3.3

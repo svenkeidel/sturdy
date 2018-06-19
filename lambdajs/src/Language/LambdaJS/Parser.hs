@@ -2,14 +2,15 @@ module Language.LambdaJS.Parser
   ( parseBinds
   ) where
 
-import Prelude hiding (id, break, undefined, null, seq)
-import Language.LambdaJS.Lexer
-import Text.Parsec hiding (label, string)
-import Text.Parsec.Expr
-import Language.LambdaJS.Syntax hiding (label)
-import Language.LambdaJS.PrettyPrint (opReps)
-import Control.Monad
-import Debug.Trace
+import           Control.Monad
+import           Debug.Trace
+import           Language.LambdaJS.Lexer
+import           Language.LambdaJS.PrettyPrint (opReps)
+import           Language.LambdaJS.Syntax      hiding (label)
+import           Prelude                       hiding (break, id, null, seq,
+                                                undefined)
+import           Text.Parsec                   hiding (label, string)
+import           Text.Parsec.Expr
 
 right p lst = do
   let f e = do { e' <- choice (map (\g -> g e) lst); f e' } <|> (return e)
@@ -30,7 +31,7 @@ bool = liftM2 EBool getPosition (true <|> false)
 undefined = reserved "undefined" >> (liftM EUndefined getPosition)
 
 null = reserved "null" >> (liftM ENull getPosition)
- 
+
 lambda = do
   p <- getPosition
   reserved "fun"
@@ -92,13 +93,13 @@ getUpdateField e1 = do
   reservedOp "["
   e2 <- expr
   let upd = do
-        reservedOp ":=" 
+        reservedOp ":="
         e3 <- expr
         reservedOp "]" <?> "closing bracket"
         return (EUpdateField p e1 e2 e3)
   let get = do
         reservedOp "]"
-        return (EGetField p e1 e2)      
+        return (EGetField p e1 e2)
   upd <|> get
 
 deleteField = do
@@ -193,16 +194,16 @@ exprTable =
     [ setref ] ]
 
 
-atom = string <|> id <|> deref <|> parens expr <|> number <|> bool <|> 
-         undefined <|> null <|> object <|> typeof <|> ref
+atom = null <|> string <|> id <|> deref <|> parens expr <|> number <|> bool <|>
+         undefined <|> object <|> typeof <|> ref
 
 term = buildExpressionParser exprTable atom
 
 expr' = right term [ app, getUpdateField ]
-  
+
 
 operator =
-  let tbl = map (\(op,str) -> do { reserved str; return op }) opReps 
+  let tbl = map (\(op,str) -> do { reserved str; return op }) opReps
     in choice tbl
 
 op = do
@@ -216,7 +217,7 @@ op = do
   return (EOp p name args)
 
 expr = chainr1 exp seq
-  where exp = if_ <|> while <|> deleteField <|>  tryCatchFinally <|> 
+  where exp = if_ <|> while <|> deleteField <|>  tryCatchFinally <|>
                 label <|> break <|> lambda <|> let_ <|> throw <|>
                 op <|> expr'
         seq = do
@@ -227,7 +228,7 @@ expr = chainr1 exp seq
 parseBinds :: String -- ^source name
            -> String -- ^source text
            -> Either ParseError (Expr SourcePos -> Expr SourcePos)
-parseBinds name src = 
+parseBinds name src =
   let parseOne = do
         reserved "let"
         x <- identifier
@@ -241,5 +242,5 @@ parseBinds name src =
         let fn body = foldr (\(x, e) body -> ELet p [(x, e)] body) body binds
         return fn
     in parse parser name src
-      
+
 

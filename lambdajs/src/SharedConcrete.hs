@@ -23,8 +23,11 @@ import           Data.Bits                                      (bit, shift)
 import           Data.Fixed                                     (mod')
 import           Data.Hashable
 import           Data.Identifiable
-import           Data.List                                      (find,
-                                                                 isPrefixOf)
+import           Data.List                                      (elemIndex,
+                                                                 find,
+                                                                 isPrefixOf,
+                                                                 sort)
+import           Data.List.Split                                (splitOn)
 import           Data.Word                                      (Word32)
 
 import           Data.Concrete.Environment
@@ -46,7 +49,7 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Category
-import           Debug.Trace
+import           Debug.Trace                                    (trace)
 
 
 data Value
@@ -55,11 +58,14 @@ data Value
     | VBool Bool
     | VUndefined
     | VNull
-    | VLambda [Ident] Expr
+    | VLambda [Ident] Expr (Env Ident Value)
     | VObject [(String, Value)]
     | VRef Location
     deriving (Show, Eq, Generic)
 instance Hashable Value
+instance Ord (Env Ident Value) where
+    (<=) a b = (sort $ Data.Concrete.Environment.toList a) <= (sort $ Data.Concrete.Environment.toList b)
+
 deriving instance Ord Value
 
 data Exceptional
@@ -142,6 +148,12 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
     (OStrLt, [(VString a), (VString b)]) -> returnA -< VBool (a < b)
     (OStrLen, [(VString a)]) -> returnA -< VNumber $ fromIntegral $ length a
     (OStrStartsWith, [(VString a), (VString b)]) -> returnA -< VBool $ isPrefixOf b a
+    (OStrSplitStrExp, [(VString subject), (VString delim)]) -> do
+        let elems = zip (map show [0..]) (map VString $ splitOn delim subject)
+        returnA -< VObject (elems ++ [("length", VNumber $ fromIntegral $ length elems), ("$proto", VString "Array")])
+    (OStrSplitRegExp, _) -> failA -< Left $ "Regex operations not implemented"
+    (ORegExpMatch, _) -> failA -< Left $ "Regex operations not implemented"
+    (ORegExpQuote, _) -> failA -< Left $ "Regex operations not implemented"
     -- boolean operators
     (OBAnd, [(VBool a), (VBool b)]) -> returnA -< VBool (a && b)
     (OBOr, [(VBool a), (VBool b)]) -> returnA -< VBool (a || b)
@@ -183,14 +195,14 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
         (VObject _)  -> VBool True)
     -- typeOf operator
     (OTypeof, [a]) -> returnA -< (case a of
-        (VNumber _)   -> VString "number"
-        (VString _)   -> VString "string"
-        (VBool _)     -> VString "boolean"
-        (VUndefined)  -> VString "undefined"
-        (VNull)       -> VString "object"
-        (VLambda _ _) -> VString "lambda"
-        (VObject _)   -> VString "object"
-        (VRef l)      -> VString "location")
+        (VNumber _)     -> VString "number"
+        (VString _)     -> VString "string"
+        (VBool _)       -> VString "boolean"
+        (VUndefined)    -> VString "undefined"
+        (VNull)         -> VString "null"
+        (VLambda _ _ _) -> VString "lambda"
+        (VObject _)     -> VString "object"
+        (VRef l)        -> VString "location")
     -- equality operators
     (OStrictEq, [a, b]) -> returnA -< VBool $ a == b
     (OAbstractEq, [(VNumber a), (VString b)]) -> do
@@ -205,10 +217,9 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
     (OAbstractEq, [(VNumber a), (VBool b)]) -> do
         res <- evalOp_ -< (OPrimToNum, [VBool b])
         returnA -< VBool $ (VNumber a) == res
-    (OAbstractEq, [(VNumber a), (VNumber b)]) -> returnA -< VBool $ a == b
     (OAbstractEq, [VNull, VUndefined]) -> returnA -< VBool True
     (OAbstractEq, [VUndefined, VNull]) -> returnA -< VBool True
-    (OAbstractEq, [VString a, VString b]) -> returnA -< VBool $ a == b
+    (OAbstractEq, [a, b]) -> returnA -< VBool $ a == b
     -- math operators
     (OMathExp, [(VNumber a)]) -> returnA -< VNumber $ exp a
     (OMathLog, [(VNumber a)]) -> returnA -< VNumber $ log a
@@ -221,6 +232,26 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
         returnA -< VBool $ any (\(name, value) -> (name == field)) fields
     (OObjCanDelete, [(VObject fields), (VString field)]) ->
         returnA -< VBool $ (length field) > 0 && (not $ head field == '$')
+    (OObjIterHasNext, [(VObject obj), VUndefined]) -> do
+        let newObj = filter (\(n, v) -> (head n /= '$')) obj
+        returnA -< VBool $ (length newObj) > 0
+    (OObjIterHasNext, [(VObject obj), (VNumber i)]) -> do
+        let obj2 = drop ((floor i) + 1) obj
+        let obj3 = filter (\(n, v) -> (head n /= '$')) obj2
+        returnA -< (VBool $ (length obj3) > 0)
+    (OObjIterNext, [(VObject obj), VUndefined]) -> do
+        let newObj = filter (\(n, v) -> (head n /= '$')) obj
+        case elemIndex (head newObj) obj of
+            Just n  -> returnA -< (VNumber $ fromIntegral n)
+            Nothing -> failA -< Left $ "Error no such element"
+    (OObjIterNext, [(VObject obj), (VNumber i)]) -> do
+        let obj2 = drop ((floor i) + 1) obj
+        let elem = head $ dropWhile (\(n, v) -> (head n == '$')) obj2
+        case elemIndex elem obj of
+            Just n  -> returnA -< (VNumber $ fromIntegral n)
+            Nothing -> failA -< Left $ "Error no such element"
+    (OObjIterKey, [(VObject obj), (VNumber i)]) -> do
+        returnA -< (VString $ fst $ obj !! floor i)
     (OSurfaceTypeof, [a]) -> returnA -< VString (case a of
         VObject fields -> if elem "$code" (map fst fields) then "function" else "object"
         VNull          -> "object"
@@ -251,9 +282,10 @@ getField_ = proc (VObject fields, VString fieldName) -> do
                         Just (pn, VRef l) -> do
                             protoV <- read -< (l, ())
                             getField_ -< (protoV, VString fieldName)
+                        -- When proto exists but none of the special semantics apply
+                        Just (_, _) -> returnA -< VUndefined
                         -- E-GetField-NotFound
                         Nothing -> returnA -< VUndefined
-                        _ -> failA -< Left $ "Error: $proto field must be null or reference if it exists"
 
 updateField_ :: (ArrowFail (Either String Exceptional) e, ArrowChoice e, ArrowEnv Ident Value (Env Ident Value) e) => e (Value, Value, Value) Value
 updateField_ = proc (fields, name, value) -> do
@@ -283,7 +315,9 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
     stringVal = proc s -> returnA -< VString s
     undefVal = proc () -> returnA -< VUndefined
     nullVal = proc () -> returnA -< VNull
-    lambdaVal = proc (ids, body) -> returnA -< VLambda ids body
+    lambdaVal = proc (ids, body) -> do
+        env <- getEnv -< ()
+        returnA -< VLambda ids body env
     objectVal = proc (fields) -> returnA -< VObject fields
     getField = proc (obj, field) -> getField_ -< (obj, field)
     updateField = proc (obj, field, val) -> updateField_ -< (obj, field, val)
@@ -298,14 +332,15 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
             _ -> returnA -< v
     apply f1 = proc (lambda, args) -> do
         case lambda of
-            VLambda names body -> do
+            VLambda names body closureEnv -> do
                 case (length names) == (length args) of
                     False -> failA -< Left $ "Error: applied lambda with less/more params than arguments"
                     True -> do
-                        forEnv <- arr $ uncurry zip -< (names, args)
-                        scope <- getEnv -< ()
-                        env' <- bindings -< (forEnv, scope)
-                        localEnv f1 -< (env', body)
+                        newBindings <- arr $ uncurry zip -< (names, args)
+                        bindingEnv <- bindings -< (newBindings, closureEnv)
+                        outsideEnv <- getEnv -< ()
+                        finalEnv <- bindings -< (Data.Concrete.Environment.toList bindingEnv, outsideEnv)
+                        localEnv f1 -< (finalEnv, body)
             _ -> failA -< Left $ "Error: apply on non-lambda value: " ++ (show lambda) ++ " " ++ (show args)
     -- store ops
     set = proc (loc, val) -> do

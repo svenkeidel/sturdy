@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
+import           Debug.Trace                       (trace)
 import           Language.ECMAScript3.Lexer        (reservedOp, whiteSpace)
 import           Language.ECMAScript3.Parser       (parseBlockStmt,
                                                     parseExpression,
@@ -64,6 +65,9 @@ convertOp o = case o of
   OStrSplitRegExp -> S.OStrSplitRegExp
   OStrSplitStrExp -> S.OStrSplitStrExp
   OPrint          -> S.OPrint
+  OObjIterHasNext -> S.OObjIterHasNext
+  OObjIterNext    -> S.OObjIterNext
+  OObjIterKey     -> S.OObjIterKey
   _               -> error ("Unsupported operation: " ++ (show o))
 
 convert :: ExprPos -> S.Expr
@@ -104,29 +108,38 @@ parseEnvironment fileName = do
 
 interp ast = runConcrete [] [] ast
 
-testCase envTransformer = do
+testCase envTransformer ecmaEnv = do
   srcLoc <- getPosition
   testStmt <- parseBlockStmt
   reservedOp "::"
   expectedExpr <- parseExpression
   reservedOp ";"
-  --let src = renderExpr (EString nopos $ show srcLoc)
-  return $ desugarStmtsWithResult [testStmt] (\e -> envTransformer (ecma262Env e))
-              (getValue (EGetField nopos (EDeref nopos $ EId nopos "$global") (EString nopos "result")))
-  --let rhs = getValue $ desugarExpr expectedExpr ecma262Env
+  let lhs = desugarStmtsWithResult [testStmt] (\e -> envTransformer (ecmaEnv e)) (getValue (EGetField nopos (EDeref nopos $ EId nopos "$global") (EString nopos "result")))
+  let rhs = desugarExpr (expectedExpr) (\e -> envTransformer (ecmaEnv (getValue e)))
+  return (lhs, rhs)
 
-testCases envTransformer = do
+testCases envTransformer ecmaEnv = do
   whiteSpace
-  tests <- many (testCase envTransformer)
+  tests <- many (testCase envTransformer ecmaEnv)
   eof
   return tests
 
 mainTestFile filename envname = do
   testFile <- readFile filename
   envTransformer <- parseEnvironment envname
-  case runParser (testCases envTransformer) [] "stdin" testFile of
+  case runParser (testCases envTransformer ecma262Env) [] "stdin" testFile of
     Left err    -> fail (show err)
-    Right tests -> mapM_ (putStrLn . show . snd) (map (\test -> interp $ convert $ removeHOAS $ test) (take 1 $ tests))
+    Right tests -> do
+      let results = map (snd . interp . convert . removeHOAS . fst) (tests)
+      let shouldBe = map (snd . interp . convert . removeHOAS . snd) (tests)
+      putStr $ unlines (map (\(l, r) -> (if l == r then "PASS" else "FAIL") ++ ": " ++ (show l) ++ ", " ++ (show r)) (zip results shouldBe))
+
+printTestAST filename = do
+  testFile <- readFile filename
+  case runParser (testCases id id) [] "stdin" testFile of
+    Left err    -> fail (show err)
+    Right tests -> do
+      mapM_ (putStrLn . show . convert . removeHOAS . fst) tests
 
 mainRunFile filename envname = do
   str <- readFile filename
@@ -164,5 +177,6 @@ main = do
   case args of
     ["file", filename, envname]     -> mainRunFile filename envname
     ["test", testlocation, envname] -> mainTestFile testlocation envname
+    ["ast", testlocation]           -> printTestAST testlocation
     _                               -> fail "Invalid arguments"
 

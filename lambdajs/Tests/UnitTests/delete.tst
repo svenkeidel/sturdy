@@ -1,8 +1,8 @@
 //testing delete
 {
   var z = 50;
-  result = (function() { z = 40; return ""+1; })();
-  result = result + z;
+  result = ""+z;
+  result = result + (delete z);
   if (typeof z == "undefined") result += "deleted";
 } :: "50truedeleted";
 
