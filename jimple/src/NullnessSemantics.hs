@@ -191,6 +191,7 @@ instance UseVal Val Interp where
   defaultValue = arr (\t -> case t of
     NullType      -> Null
     (RefType _)   -> Null
+    (ArrayType _) -> Null
     UnknownType   -> top
     VoidType      -> bottom
     _             -> NonNull)
@@ -201,8 +202,12 @@ instance UseVal Val Interp where
   updateVar f = proc ((l,v),x) -> do
     lookup_ -< l
     extendEnv' f -< (l,v,x)
-  readIndex = arr $ const top
-  updateIndex f = U.pi2 >>> f
+  readIndex = proc (v,_) -> case v of
+    Bottom -> returnA -< bottom
+    Null -> fail -< DynamicException NonNull
+    NonNull -> returnA -< top
+    Top -> joined fail returnA -< (DynamicException NonNull,top)
+  updateIndex f = first (first readIndex) >>> U.pi2 >>> f
   readField = proc (v,FieldSignature _ t _) -> case v of
     Bottom -> returnA -< bottom
     Null -> fail -< DynamicException NonNull
