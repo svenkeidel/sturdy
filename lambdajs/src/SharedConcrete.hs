@@ -319,9 +319,15 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
         env <- getEnv -< ()
         returnA -< VLambda ids body env
     objectVal = proc (fields) -> returnA -< VObject fields
-    getField = proc (obj, field) -> getField_ -< (obj, field)
-    updateField = proc (obj, field, val) -> updateField_ -< (obj, field, val)
-    deleteField = proc (obj, field) -> deleteField_ -< (obj, field)
+    getField f1 = proc (obj, fieldE) -> do
+        field <- f1 -< fieldE
+        getField_ -< (obj, field)
+    updateField f1 = proc (obj, fieldE, val) -> do
+        field <- f1 -< fieldE
+        updateField_ -< (obj, field, val)
+    deleteField f1 = proc (obj, fieldE) -> do
+        field <- f1 -< fieldE
+        deleteField_ -< (obj, field)
     -- operator/delta function
     evalOp = proc (op, vals) -> evalOp_ -< (op, vals)
     -- environment ops
@@ -367,6 +373,11 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
             VBool False -> do
                 f2 -< elseBranch
             _ -> failA -< Left $ (show cond)
+    while_ f1 f2 = proc (cond, body) -> do
+        condV <- f1 -< cond
+        case condV of
+            VBool True  -> f2 -< (ESeq body (EWhile cond body))
+            VBool False -> returnA -< VUndefined
     label f1 = proc (l, e) -> do
         (l, res) <- tryCatchA (second f1) (proc ((label, _), err) -> case err of
             Left s -> failA -< Left s

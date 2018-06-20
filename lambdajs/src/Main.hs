@@ -14,6 +14,7 @@ import           Language.LambdaJS.Parser          (parseBinds)
 import           Language.LambdaJS.PrettyPrint
 import           Language.LambdaJS.RemoveHOAS
 import           Language.LambdaJS.Syntax
+import           SharedAbstract
 import           SharedConcrete
 import qualified Syntax                            as S
 import           System.Environment
@@ -106,7 +107,8 @@ parseEnvironment fileName = do
     Left err -> fail (show err)
     Right f  -> return f
 
-interp ast = runConcrete [] [] ast
+interpConcrete ast = runConcrete [] [] ast
+interpType ast = runAbstract [] [] ast
 
 testCase envTransformer ecmaEnv = do
   srcLoc <- getPosition
@@ -130,9 +132,12 @@ mainTestFile filename envname = do
   case runParser (testCases envTransformer ecma262Env) [] "stdin" testFile of
     Left err    -> fail (show err)
     Right tests -> do
-      let results = map (snd . interp . convert . removeHOAS . fst) (tests)
-      let shouldBe = map (snd . interp . convert . removeHOAS . snd) (tests)
-      putStr $ unlines (map (\(l, r) -> (if l == r then "PASS" else "FAIL") ++ ": " ++ (show l) ++ ", " ++ (show r)) (zip results shouldBe))
+      let converted = map (convert . removeHOAS . fst) (tests)
+      --let results = map (snd . interpConcrete) (converted)
+      --let shouldBe = map (snd . interpConcrete) (converted)
+      let types = map (snd . interpType) (converted)
+      --putStr $ unlines (map (\(l, r, t) -> (if l == r then "PASS" else "FAIL") ++ ": " ++ (show l) ++ ", " ++ (show r) ++ ", " ++ (show t)) (zip3 results shouldBe types))
+      putStrLn (show types)
 
 printTestAST filename = do
   testFile <- readFile filename
@@ -161,7 +166,7 @@ mainRunFile filename envname = do
       putStrLn (show converted)
       putStrLn "\n"
 
-      let (resEnv, val) = interp converted
+      let (resEnv, val) = interpConcrete converted
       putStrLn "Environment"
       putStrLn (show resEnv)
       putStrLn "\n"

@@ -25,9 +25,9 @@ class Arrow c => AbstractValue v c | c -> v where
     nullVal :: c () v
     lambdaVal :: c ([Ident], Expr) v
     objectVal :: c [(Ident, v)] v
-    getField :: c (v, v) v
-    updateField :: c (v, v, v) v
-    deleteField :: c (v, v) v
+    getField :: c Expr v -> c (v, Expr) v
+    updateField :: c Expr v -> c (v, Expr, v) v
+    deleteField :: c Expr v -> c (v, Expr) v
     -- operator/delta function
     evalOp :: c (Op, [v]) v
     -- environment ops
@@ -39,6 +39,7 @@ class Arrow c => AbstractValue v c | c -> v where
     get :: c v v
     -- control flow
     if_ :: c Expr v -> c Expr v -> c (v, Expr, Expr) v
+    while_ :: c Expr v -> c Expr v -> c (Expr, Expr) v
     label :: c Expr v -> c (Label, Expr) v
     break :: c (Label, v) v
     catch :: c Expr v -> c (Expr, Expr) v
@@ -48,7 +49,7 @@ class Arrow c => AbstractValue v c | c -> v where
 
 eval :: (ArrowChoice c, AbstractValue v c, Show v) => c Expr v
 eval = proc e -> do
-    case e of
+    case trace (take 200 $ show e) e of
         ENumber d -> do
             numVal -< d
         EString s -> do
@@ -87,18 +88,14 @@ eval = proc e -> do
             get -< loc
         EGetField objE fieldE -> do
             obj <- eval -< objE
-            field <- eval -< fieldE
-            getField -< (obj, field)
+            getField eval -< (obj, fieldE)
         EUpdateField objE fieldE valE -> do
             val <- eval -< valE
             obj <- eval -< objE
-            field <- eval -< fieldE
-            updateField -< (obj, field, val)
+            updateField eval -< (obj, fieldE, val)
         EDeleteField objE fieldE -> do
             obj <- eval -< objE
-            field <- eval -< fieldE
-            res <- deleteField -< (obj, field)
-            returnA -< res
+            deleteField eval -< (obj, fieldE)
         ESeq one two -> do
             eval -< one
             eval -< two
@@ -106,7 +103,7 @@ eval = proc e -> do
             cond <- eval -< condE
             if_ eval eval -< (cond, thenE, elseE)
         EWhile cond body -> do
-            eval -< EIf cond (ESeq body (EWhile cond body)) (EUndefined)
+            while_ eval eval -< (cond, body)
         ELabel l e -> do
             label eval -< (l, e)
         EBreak l e -> do

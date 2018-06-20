@@ -5,10 +5,11 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 module Syntax where
 
+import           Data.Abstract.Environment
 import           Data.Hashable
-import           Data.List     (sort)
+import           Data.List                 (sort)
 import           Data.Set
-import           GHC.Generics  (Generic)
+import           GHC.Generics              (Generic)
 
 type Ident = String
 data Label = Label String
@@ -85,7 +86,7 @@ data Type
     | TBool
     | TUndefined
     | TNull
-    | TLambda [Ident] Type'
+    | TLambda [Ident] Expr (Env Ident Type')
     | TObject [(Ident, Type')]
     | TTop
     | TBottom
@@ -94,6 +95,9 @@ data Type
     | TBreak Label Type'
     deriving (Show, Eq, Generic, Ord)
 deriving instance Hashable Type
+
+instance Ord (Env Ident Type') where
+    (<=) a b = (sort $ Data.Abstract.Environment.toList a) <= (sort $ Data.Abstract.Environment.toList b)
 
 instance (Hashable v, Ord v) => Hashable (Set v) where
   hashWithSalt salt set =
