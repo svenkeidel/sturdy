@@ -26,16 +26,19 @@ c `shouldBeApproximated` a = unless (ca ⊑ a) (expectationFailure msg)
   where ca = alpha (singleton c)
         msg = "soundness check failed: " ++ show ca ++ " ⊑ " ++ show a
 
-soundImmediate :: (Arbitrary a,Show a,Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
+soundImmediate :: (Arbitrary a,Show a,
+                   Arbitrary b,Show b,
+                   Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
   String ->
-  [(String,vc)] -> (a -> Immediate) ->
+  (a -> [(String,vc)]) -> (b -> Immediate) ->
   ([(String,vc)] -> Immediate -> Con.Error (Exception vc) vc) ->
   ([(String,va)] -> Immediate -> Abs.Error (Exception va) va) ->
   Spec
-soundImmediate desc mem gen runConcrete runAbstract =
-  it ("sound value approximation " ++ desc) $ property $ \a -> do
+soundImmediate desc genMem genI runConcrete runAbstract =
+  it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
+    let mem = genMem a
     let mema = map (\(l,vc) -> (l,alpha (singleton vc))) mem
-    let immediate = gen a
+    let immediate = genI b
     let rc = runConcrete mem immediate
     let ra = runAbstract mema immediate
     rc `shouldBeApproximated` ra
@@ -48,10 +51,10 @@ soundBoolExpr :: (Arbitrary a,Show a,
   ([(String,vc)] -> BoolExpr -> Con.Error (Exception vc) bc) ->
   ([(String,va)] -> BoolExpr -> Abs.Error (Exception va) ba) ->
   Spec
-soundBoolExpr desc mem gen runConcrete runAbstract =
+soundBoolExpr desc mem genBool runConcrete runAbstract =
   it ("sound value approximation " ++ desc) $ property $ \a -> do
     let mema = map (\(l,vc) -> (l,alpha (singleton vc))) mem
-    let boolExpr = gen a
+    let boolExpr = genBool a
     let rc = runConcrete mem boolExpr
     let ra = runAbstract mema boolExpr
     rc `shouldBeApproximated` ra
