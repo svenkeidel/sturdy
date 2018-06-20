@@ -132,9 +132,10 @@ mainTestFile filename envname = do
   case runParser (testCases envTransformer ecma262Env) [] "stdin" testFile of
     Left err    -> fail (show err)
     Right tests -> do
-      let converted = map (convert . removeHOAS . fst) (tests)
-      let results = map (snd . interpConcrete) (converted)
-      let shouldBe = map (snd . interpConcrete) (converted)
+      let convertedCode = map (convert . removeHOAS . fst) (tests)
+      let results = map (snd . interpConcrete) (convertedCode)
+      let convertedShouldBe = map (convert . removeHOAS . snd) (tests)
+      let shouldBe = map (snd . interpConcrete) (convertedShouldBe)
       -- Typechecking runs in an infinite loop, so it is disabled for now
       --let types = map (snd . interpType) (converted)
       putStr $ unlines (map (\(l, r) -> (if l == r then "PASS" else "FAIL") ++ ": " ++ (show l) ++ ", " ++ (show r)) (zip results shouldBe))
