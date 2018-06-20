@@ -226,10 +226,10 @@ instance UseVal Val Interp where
 instance UseBool Abs.Bool Val Interp where
   eq = arr $ uncurry (Abs.==)
   neq = arr $ B.not . uncurry (Abs.==)
-  gt = arr $ const Abs.Top
-  ge = arr $ const Abs.Top
-  lt = arr $ const Abs.Top
-  le = arr $ const Abs.Top
+  gt = cmpBool
+  ge = cmpBool
+  lt = cmpBool
+  le = cmpBool
   if_ f g = proc ((v,BoolExpr i1 op i2),(x,y)) -> case v of
     Abs.True -> f -< x
     Abs.False -> g -< y
@@ -256,3 +256,7 @@ lookup_ = proc x -> lookup U.pi1 fail -<
 
 initStatements :: Interp [Statement] (Maybe Val) -> Interp [Statement] (Maybe Val)
 initStatements f = (\s -> ((s,[]),s)) ^>> local f
+
+cmpBool :: Interp (Val,Val) Abs.Bool
+cmpBool = proc _ -> joined returnA fail -<
+  (Abs.Top, StaticException "Expected numeric variables for comparison")

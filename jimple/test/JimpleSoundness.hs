@@ -36,21 +36,20 @@ jimpleSoundness
   evalCon          evalAbs
   runStatementsCon runStatementsAbs
   runProgramCon    runProgramAbs = do
-    soundImmediate "Double literal"  emptyMem DoubleConstant evalImmediateCon evalImmediateAbs
-    soundImmediate "Float literal"   emptyMem FloatConstant  evalImmediateCon evalImmediateAbs
-    soundImmediate "Integer literal" emptyMem IntConstant    evalImmediateCon evalImmediateAbs
-    soundImmediate "Long literal"    emptyMem LongConstant   evalImmediateCon evalImmediateAbs
-    soundImmediate "Null literal"    emptyMem (const NullConstant::()->Immediate) evalImmediateCon evalImmediateAbs
-    soundImmediate "String literal"  emptyMem StringConstant evalImmediateCon evalImmediateAbs
-    soundImmediate "Class literal"   emptyMem ClassConstant  evalImmediateCon evalImmediateAbs
+    soundImmediate "Literals" emptyMem id evalImmediateCon evalImmediateAbs
     soundImmediate "Localvar literal"
       toMem
       (\() -> Local "a")
       evalImmediateCon evalImmediateAbs
 
-    soundExpr "x+y" emptyMem (\(x,y) ->
-      BinopExpr (IntConstant x) Plus (IntConstant y)
+    soundBoolExpr "Boolean expressions" emptyMem (\(a,b,c) -> BoolExpr a b c) evalBoolCon evalBoolAbs
+
+    soundExpr "int x 'op' int y" emptyMem (\(x,op,y) ->
+        BinopExpr (IntConstant x) op (IntConstant y)
       ) evalCon evalAbs
+
+    soundExpr "General expressions" emptyMem id evalCon evalAbs
+
   where
     emptyMem :: () -> [(String,vc)]
     emptyMem = const []

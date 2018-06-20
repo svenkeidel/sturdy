@@ -4,6 +4,10 @@ module Syntax where
 
 import Data.Hashable
 
+import Control.Monad
+
+import Test.QuickCheck
+
 data CompilationUnit = CompilationUnit { fileModifiers :: [Modifier]
                                        , fileType :: FileType
                                        , fileName :: String
@@ -145,6 +149,20 @@ instance Show Type where
 instance Hashable Type where
   hashWithSalt n t = n + hash (show t)
 
+instance Arbitrary Type where
+  arbitrary = oneof $ refType:(map return [
+    BooleanType,
+    ByteType,
+    CharType,
+    DoubleType,
+    FloatType,
+    IntType,
+    LongType,
+    NullType,
+    ShortType])
+    where
+      refType = fmap RefType arbitrary
+
 isNonvoidType :: Type -> Bool
 isNonvoidType VoidType = False
 isNonvoidType UnknownType = False
@@ -217,8 +235,25 @@ data Expr
   | ImmediateExpr Immediate
   | MethodHandle MethodSignature deriving (Show, Eq)
 
+instance Arbitrary Expr where
+  arbitrary = oneof [
+    fmap NewExpr arbitrary,
+    liftM2 NewArrayExpr arbitrary arbitrary,
+    liftM2 NewMultiArrayExpr arbitrary (replicateM 2 arbitrary),
+    liftM2 CastExpr arbitrary arbitrary,
+    liftM2 InstanceOfExpr arbitrary arbitrary,
+    -- InvokeExpr EInvoke,
+    -- RefExpr ERef,
+    liftM3 BinopExpr arbitrary arbitrary arbitrary,
+    liftM2 UnopExpr arbitrary arbitrary,
+    fmap ImmediateExpr arbitrary]
+    -- MethodHandle MethodSignature]
+
 data BoolExpr
   = BoolExpr Immediate BoolOp Immediate deriving (Show, Eq)
+
+instance Arbitrary BoolExpr where
+  arbitrary = liftM3 BoolExpr arbitrary arbitrary arbitrary
 
 data Immediate
   = Local String
@@ -229,6 +264,17 @@ data Immediate
   | NullConstant
   | StringConstant String
   | ClassConstant String deriving (Show, Eq)
+
+instance Arbitrary Immediate where
+  arbitrary = oneof [
+    fmap Local arbitrary,
+    fmap DoubleConstant arbitrary,
+    fmap FloatConstant arbitrary,
+    fmap IntConstant arbitrary,
+    fmap LongConstant arbitrary,
+    return NullConstant,
+    fmap StringConstant arbitrary,
+    fmap ClassConstant arbitrary]
 
 data AtIdentifier
   = ThisRef
@@ -254,11 +300,22 @@ data EInvoke
 data BoolOp
   = Cmpeq | Cmpne | Cmpgt | Cmpge | Cmplt | Cmple deriving (Show, Eq)
 
+instance Arbitrary BoolOp where
+  arbitrary = oneof $ map return [Cmpeq, Cmpne, Cmpgt, Cmpge, Cmplt, Cmple]
+
 data Binop
   = And | Or | Xor | Shl | Shr | Ushr
   | Cmp | Cmpg | Cmpl
   | Plus | Minus | Mult | Div | Rem deriving (Show, Eq)
 
+instance Arbitrary Binop where
+  arbitrary = oneof $ map return [And, Or, Xor, Shl, Shr, Ushr,
+                                  Cmp, Cmpg, Cmpl,
+                                  Plus, Minus, Mult, Div, Rem]
+
 data Unop
   = Lengthof
   | Neg deriving (Show, Eq)
+
+instance Arbitrary Unop where
+  arbitrary = oneof $ map return [Lengthof, Neg]

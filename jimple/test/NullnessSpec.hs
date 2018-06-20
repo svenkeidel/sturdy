@@ -50,7 +50,7 @@ spec = do
   describe "Boolean expressions" $ do
     it "3 < 4" $ do
       let expr = BoolExpr (IntConstant 3) Cmplt (IntConstant 4)
-      evalBool' [] expr `shouldBe` Success Abs.Top
+      evalBool' [] expr `shouldSatisfy` ifSuccess Abs.Top
     it "3 != 'three'" $ do
       let expr = BoolExpr (IntConstant 3) Cmpne (StringConstant "three")
       evalBool' [] expr `shouldBe` Success Abs.Top
@@ -107,7 +107,7 @@ spec = do
                    Return (Just (IntConstant 1)),
                    Label "l2",
                    Return (Just (IntConstant 0))]
-      runStatements' [] stmts `shouldBe` Success (Just NonNull)
+      runStatements' [] stmts `shouldSatisfy` ifSuccess (Just NonNull)
     it "lookupswitch(4) { case 0: goto l1; case 4: goto l2; default: goto l3;}; l1: return 1; l2: return 2; l3: return 3;" $ do
       let stmts = [Lookupswitch (IntConstant 4) [(ConstantCase 0, "l1"),
                                                  (ConstantCase 4, "l2"),
