@@ -9,7 +9,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module WildcardSemantics where
 
-import           Prelude hiding ((.))
+import           Prelude hiding ((.),fail)
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics
@@ -31,7 +31,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category
 import           Control.DeepSeq
-import           Control.Monad
+import           Control.Monad hiding (fail)
 
 import           Data.Abstract.FreeCompletion
 import qualified Data.Abstract.Powerset as A
@@ -87,17 +87,17 @@ deriving instance ArrowFix (Strat,Term) Term Interp
 deriving instance PreOrd y => ArrowExcept x y () Interp
 
 instance ArrowFail () Interp where
-  failA = Interp failA
+  fail = Interp fail
 
 instance HasStratEnv Interp where
-  readStratEnv = Interp (const () ^>> askA)
+  readStratEnv = Interp (const () ^>> ask)
   localStratEnv senv f = proc a -> do
-    r <- localA f -< (senv,a)
+    r <- local f -< (senv,a)
     returnA -< r
 
 instance IsTermEnv TermEnv Term Interp where
-  getTermEnv = getA
-  putTermEnv = putA
+  getTermEnv = get
+  putTermEnv = put
   lookupTermVar f g = proc (v,TermEnv env) ->
     case M.lookup v env of
       Just t -> f -< t
@@ -118,24 +118,24 @@ instance IsTerm Term Interp where
       returnA -< Cons c ts''
     Wildcard -> do
       ts'' <- matchSubterms -< (ts,[ Wildcard | _ <- [1..(length ts)] ])
-      returnA ⊔ failA' -< Cons c ts''
-    _ -> failA -< ()
+      returnA ⊔ fail' -< Cons c ts''
+    _ -> fail -< ()
   
   matchTermAgainstString = proc (s,t) -> case t of
     StringLiteral s'
       | s == s' -> returnA -< t
-      | otherwise -> failA -< ()
+      | otherwise -> fail -< ()
     Wildcard ->
-      returnA ⊔ failA' -< StringLiteral s
-    _ -> failA' -< ()
+      returnA ⊔ fail' -< StringLiteral s
+    _ -> fail' -< ()
   
   matchTermAgainstNumber = proc (n,t) -> case t of
     NumberLiteral n'
       | n == n' -> returnA -< t
-      | otherwise -> failA -< ()
+      | otherwise -> fail -< ()
     Wildcard ->
-      success ⊔ failA' -< NumberLiteral n
-    _ -> failA' -< ()
+      success ⊔ fail' -< NumberLiteral n
+    _ -> fail' -< ()
   
   matchTermAgainstExplode matchCons matchSubterms = proc t -> case t of
       Cons (Constructor c) ts -> do
@@ -165,22 +165,22 @@ instance IsTerm Term Interp where
           | c == c' && eqLength ts ts' -> do
           ts'' <- zipWithA equal -< (ts,ts')
           returnA -< Cons c ts''
-          | otherwise -> failA -< ()
+          | otherwise -> fail -< ()
       (StringLiteral s, StringLiteral s')
           | s == s' -> success -< t1
-          | otherwise -> failA -< ()
+          | otherwise -> fail -< ()
       (NumberLiteral n, NumberLiteral n')
           | n == n' -> success -< t1
-          | otherwise -> failA -< ()
-      (Wildcard, t) -> failA' ⊔ success -< t
-      (t, Wildcard) -> failA' ⊔ success -< t
-      (_,_) -> failA' -< ()
+          | otherwise -> fail -< ()
+      (Wildcard, t) -> fail' ⊔ success -< t
+      (t, Wildcard) -> fail' ⊔ success -< t
+      (_,_) -> fail' -< ()
   
   convertFromList = proc (c,ts) -> case (c,go ts) of
     (StringLiteral c', Just ts'') -> returnA -< Cons (Constructor c') ts''
-    (Wildcard, Just _)            -> failA' ⊔ success -< Wildcard
-    (_,                Nothing)   -> failA' ⊔ success -< Wildcard
-    _                             -> failA' -< ()
+    (Wildcard, Just _)            -> fail' ⊔ success -< Wildcard
+    (_,                Nothing)   -> fail' ⊔ success -< Wildcard
+    _                             -> fail' -< ()
     where
       go t = case t of
         Cons "Cons" [x,tl] -> (x:) <$> go tl
@@ -195,7 +195,7 @@ instance IsTerm Term Interp where
         returnA -< Cons c ts'
       StringLiteral _ -> returnA -< t
       NumberLiteral _ -> returnA -< t
-      Wildcard -> failA' ⊔ success -< Wildcard
+      Wildcard -> fail' ⊔ success -< Wildcard
   
   cons = arr (uncurry Cons)
   numberLiteral = arr NumberLiteral
