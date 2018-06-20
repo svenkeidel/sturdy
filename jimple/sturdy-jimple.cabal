@@ -24,7 +24,8 @@ library
                        random,
                        logfloat,
                        sturdy-lib,
-                       text
+                       text,
+                       QuickCheck
   hs-source-dirs:      src
   default-language:    Haskell2010
 

@@ -26,6 +26,7 @@ import           Data.Concrete.Environment (Env)
 import qualified Data.Concrete.Environment as E
 import qualified Data.Concrete.Store as S
 
+import           Control.Monad (return,fmap,replicateM)
 import           Control.Category hiding ((.))
 
 import           Control.Arrow hiding ((<+>))
@@ -51,6 +52,7 @@ import           Syntax
 import           SharedSemantics
 
 import           Text.Printf
+import           Test.QuickCheck hiding ((.&.),label)
 
 data Val
   = IntVal Int
@@ -428,3 +430,55 @@ try' f p = tryCatch (f >>> p) (U.pi2 >>> deepDerefDynamic >>> fail)
 
 initStatements :: Interp [Statement] (Maybe Val) -> Interp [Statement] (Maybe Val)
 initStatements f = (\s -> ((s,[]),s)) ^>> local f
+
+-- instance Arbitrary Tree where
+--   arbitrary = sized tree'
+--     where tree' 0 = liftM Leaf arbitrary
+-- 	  tree' n | n>0 =
+-- 		oneof [liftM Leaf arbitrary,
+-- 	          liftM2 Branch subtree subtree]
+--   	    where subtree = tree' (n `div` 2)
+--   coarbitrary (Leaf n) =
+-- 	variant 0 . coarbitrary n
+--   coarbitrary (Branch t1 t2) =
+-- 	variant 1 . coarbitrary t1 . coarbitrary t2
+--
+-- instance Arbitrary Term where
+--   arbitrary = do
+--     h <- choose (0,7)
+--     w <- choose (0,4)
+--     arbitraryTerm h w
+
+instance Arbitrary Val where
+  arbitrary = sized val'
+    where
+      val' 0 = oneof [
+        fmap IntVal arbitrary,
+        fmap LongVal arbitrary,
+        fmap FloatVal arbitrary,
+        fmap DoubleVal arbitrary,
+        fmap StringVal arbitrary,
+        fmap ClassVal arbitrary,
+        return NullVal]
+      val' n = oneof [
+        fmap IntVal arbitrary,
+        fmap LongVal arbitrary,
+        fmap FloatVal arbitrary,
+        fmap DoubleVal arbitrary,
+        fmap StringVal arbitrary,
+        fmap ClassVal arbitrary,
+        return NullVal,
+        fmap ArrayVal arrayVals]
+        where
+          arrayVals = replicateM 2 (val' (n `Prelude.div` 2))
+  --
+  -- coarbitrary (IntVal n)      = variant 0 . coarbitrary n
+  -- coarbitrary (LongVal l)     = variant 1 . coarbitrary l
+  -- coarbitrary (FloatVal f)    = variant 2 . coarbitrary f
+  -- coarbitrary (DoubleVal d)   = variant 3 . coarbitrary d
+  -- coarbitrary (StringVal s)   = variant 4 . coarbitrary s
+  -- coarbitrary (ClassVal c)    = variant 5 . coarbitrary c
+  -- coarbitrary NullVal         = variant 6
+  -- coarbitrary (RefVal a)      = variant 7 . coarbitrary a
+  -- coarbitrary (ArrayVal xs)   = variant 8 . coarbitrary xs
+  -- coarbitrary (ObjectVal c m) = variant 9 . coarbitrary c . coarbitrary m
