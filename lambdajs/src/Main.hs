@@ -133,11 +133,11 @@ mainTestFile filename envname = do
     Left err    -> fail (show err)
     Right tests -> do
       let converted = map (convert . removeHOAS . fst) (tests)
-      --let results = map (snd . interpConcrete) (converted)
-      --let shouldBe = map (snd . interpConcrete) (converted)
-      let types = map (snd . interpType) (converted)
-      --putStr $ unlines (map (\(l, r, t) -> (if l == r then "PASS" else "FAIL") ++ ": " ++ (show l) ++ ", " ++ (show r) ++ ", " ++ (show t)) (zip3 results shouldBe types))
-      putStrLn (show types)
+      let results = map (snd . interpConcrete) (converted)
+      let shouldBe = map (snd . interpConcrete) (converted)
+      -- Typechecking runs in an infinite loop, so it is disabled for now
+      --let types = map (snd . interpType) (converted)
+      putStr $ unlines (map (\(l, r) -> (if l == r then "PASS" else "FAIL") ++ ": " ++ (show l) ++ ", " ++ (show r)) (zip results shouldBe))
 
 printTestAST filename = do
   testFile <- readFile filename

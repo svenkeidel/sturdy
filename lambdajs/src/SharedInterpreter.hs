@@ -49,7 +49,7 @@ class Arrow c => AbstractValue v c | c -> v where
 
 eval :: (ArrowChoice c, AbstractValue v c, Show v) => c Expr v
 eval = proc e -> do
-    case trace (take 200 $ show e) e of
+    case e of
         ENumber d -> do
             numVal -< d
         EString s -> do
