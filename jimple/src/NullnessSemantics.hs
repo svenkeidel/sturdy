@@ -11,16 +11,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 module NullnessSemantics where
 
-import           Prelude hiding (id,lookup,read,fail,Bounded(..))
+import           Prelude hiding (lookup,read,fail,Bounded(..))
 
 import qualified Data.Boolean as B
-import           Data.Exception
 import           Data.Order
+import           Data.Set (singleton)
 
 import qualified Data.Abstract.Boolean as Abs
 import           Data.Abstract.Environment (Env)
 import qualified Data.Abstract.Environment as E
 import qualified Data.Abstract.Equality as Abs
+import           Data.Abstract.Exception
 import           Data.Abstract.HandleError
 import qualified Data.Abstract.Store as S
 
@@ -120,7 +121,7 @@ deriving instance ArrowReader Context Interp
 deriving instance ArrowRead FieldSignature Val x Val Interp
 deriving instance ArrowWrite FieldSignature Val Interp
 
-instance (LowerBounded e, LowerBounded a) => LowerBounded (Error e a) where
+instance (LowerBounded e,LowerBounded a) => LowerBounded (Error e a) where
   bottom = SuccessOrFail bottom bottom
 
 deriving instance PreOrd y => PreOrd (Interp x y)
@@ -148,39 +149,51 @@ type Mem = [(String,Val)]
 runProgram' :: [CompilationUnit] -> (MethodSignature,[Immediate]) -> Out (Maybe Val)
 runProgram' units = runInterp runProgram units []
 
-runStatements' :: Mem -> [Statement] -> Out (Maybe Val)
-runStatements' = runInterp (initStatements runStatements) []
+runStatements' :: [CompilationUnit] -> Mem -> [Statement] -> Out (Maybe Val)
+runStatements' = runInterp (initStatements runStatements)
 
-eval' :: Mem -> Expr -> Out Val
-eval' = runInterp eval []
+eval' :: [CompilationUnit] -> Mem -> Expr -> Out Val
+eval' = runInterp eval
 
-evalBool' :: Mem -> BoolExpr -> Out Abs.Bool
-evalBool' = runInterp evalBool []
+evalBool' :: [CompilationUnit] -> Mem -> BoolExpr -> Out Abs.Bool
+evalBool' = runInterp evalBool
 
-evalImmediate' :: Mem -> Immediate -> Out Val
-evalImmediate' = runInterp evalImmediate []
+evalImmediate' :: [CompilationUnit] -> Mem -> Immediate -> Out Val
+evalImmediate' = runInterp evalImmediate
 
 ---- Instances -----------------------------------------------------------------
 
 instance UseVal Val Interp where
-  newSimple = arr $ const NonNull
-  newArray = arr $ const NonNull
-  and = arr $ uncurry (⊔)
-  or = arr $ uncurry (⊔)
-  xor = arr $ uncurry (⊔)
-  rem = arr $ uncurry (⊔)
-  cmp = arr $ uncurry (⊔)
-  cmpg = arr $ uncurry (⊔)
-  cmpl = arr $ uncurry (⊔)
-  shl = arr $ uncurry (⊔)
-  shr = arr $ uncurry (⊔)
-  ushr = arr $ uncurry (⊔)
-  plus = arr $ uncurry (⊔)
-  minus = arr $ uncurry (⊔)
-  mult = arr $ uncurry (⊔)
-  div = proc (v1,v2) -> joined returnA fail -< (v1 ⊔ v2,DynamicException NonNull)
-  lengthOf = arr id
-  neg = arr id
+  newSimple = proc t -> case t of
+    RefType c -> do
+      readCompilationUnit -< c
+      returnA -< NonNull
+    NullType -> returnA -< Null
+    _ -> returnA -< NonNull
+  newArray = proc _ -> joined returnA failStatic -<
+    (NonNull,"Expected an integer array size")
+  and = binopInteger
+  or = binopInteger
+  xor = binopInteger
+  rem = binopInteger
+  cmp = proc _ -> joined returnA failStatic -<
+    (NonNull,"Expected long variables for 'cmp'")
+  cmpg = proc _ -> joined returnA failStatic -<
+    (NonNull,"Expected floating variables for 'cmpg'")
+  cmpl = proc _ -> joined returnA failStatic -<
+    (NonNull,"Expected floating variables for 'cmpl'")
+  shl = binopInteger
+  shr = binopInteger
+  ushr = binopInteger
+  plus = binopNum
+  minus = binopNum
+  mult = binopNum
+  div = proc (v1,v2) -> joined returnA (joined failDynamic failStatic) -< (v1 ⊔ v2,
+    (NonNull,"Expected numeric variables for 'div'"))
+  lengthOf = proc v -> joined returnA failStatic -<
+    (v,"Expected an array variable for 'lengthOf'")
+  neg = proc v -> joined returnA failStatic -<
+    (v,"Expected a number as argument for -")
   doubleConstant = arr $ const NonNull
   floatConstant = arr $ const NonNull
   intConstant = arr $ const NonNull
@@ -196,7 +209,7 @@ instance UseVal Val Interp where
     VoidType      -> bottom
     _             -> NonNull)
   instanceOf = arr $ const NonNull
-  cast = proc ((v,_),_) -> joined returnA fail -< (v,DynamicException NonNull)
+  cast = proc ((v,_),_) -> joined returnA failDynamic -< (v,NonNull)
   declare f = (\((l,v),x) -> (l,v,x)) ^>> extendEnv' f
   readVar = lookup_
   updateVar f = proc ((l,v),x) -> do
@@ -204,24 +217,30 @@ instance UseVal Val Interp where
     extendEnv' f -< (l,v,x)
   readIndex = proc (v,_) -> case v of
     Bottom -> returnA -< bottom
-    Null -> fail -< DynamicException NonNull
+    Null -> failDynamic -< NonNull
     NonNull -> returnA -< top
-    Top -> joined fail returnA -< (DynamicException NonNull,top)
+    Top -> joined returnA failDynamic -< (top,NonNull)
   updateIndex f = first (first readIndex) >>> U.pi2 >>> f
   readField = proc (v,FieldSignature _ t _) -> case v of
     Bottom -> returnA -< bottom
-    Null -> fail -< DynamicException NonNull
+    Null -> failDynamic -< NonNull
     NonNull -> defaultValue >>^ (⊔ NonNull) -< t
-    Top -> joined fail (defaultValue >>^ (⊔ NonNull)) -< (DynamicException NonNull,t)
+    Top -> joined (defaultValue >>^ (⊔ NonNull)) failDynamic -< (t,NonNull)
   updateField f = first ((\(o,(v,_)) -> (o,v)) ^>> readField) >>> U.pi2 >>> f
-  readStaticField = proc f -> read U.pi1 fail -<
-    (f, StaticException $ printf "FieldReference %s not bound" (show f))
+  readStaticField = proc f -> read U.pi1 failStatic -<
+    (f,printf "FieldReference %s not bound" (show f))
   updateStaticField = proc (f,v) -> do
     readStaticField -< f
     write -< (f,v)
   case_ f = U.pi2 >>> map snd ^>> lubA f
-  catch f = proc (v,clauses) ->
-    joined (lubA f) fail -< (zip (repeat v) clauses,DynamicException v)
+
+instance UseException Exception Val Interp where
+  catch f = proc (ex,clauses) -> case ex of
+    StaticException _ -> fail -< ex
+    DynamicException v ->
+      joined (lubA f) failDynamic -< (zip (repeat v) clauses,v)
+  failDynamic = DynamicException ^>> fail
+  failStatic = (\s -> StaticException $ singleton s) ^>> fail
 
 instance UseBool Abs.Bool Val Interp where
   eq = arr $ uncurry (Abs.==)
@@ -251,12 +270,21 @@ instance UseConst Interp where
 ---- Helper Methods ------------------------------------------------------------
 
 lookup_ :: Interp String Val
-lookup_ = proc x -> lookup U.pi1 fail -<
-  (x, StaticException $ printf "Variable %s not bound" (show x))
+lookup_ = proc x -> lookup U.pi1 failStatic -<
+  (x,printf "Variable %s not bound" (show x))
 
 initStatements :: Interp [Statement] (Maybe Val) -> Interp [Statement] (Maybe Val)
 initStatements f = (\s -> ((s,[]),s)) ^>> local f
 
+binopInteger :: Interp (Val,Val) Val
+binopInteger = proc _ -> joined returnA failStatic -<
+  (NonNull,"Expected integer variables for op")
+
+binopNum :: Interp (Val,Val) Val
+binopNum = proc _ -> joined returnA (joined failStatic failStatic) -<
+  (NonNull,("Expected integer variables for op",
+            "Expected floating variables for op"))
+
 cmpBool :: Interp (Val,Val) Abs.Bool
-cmpBool = proc _ -> joined returnA fail -<
-  (Abs.Top, StaticException "Expected numeric variables for comparison")
+cmpBool = proc _ -> joined returnA failStatic -<
+  (Abs.Top,"Expected numeric variables for comparison")

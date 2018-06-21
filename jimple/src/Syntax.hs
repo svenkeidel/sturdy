@@ -150,7 +150,7 @@ instance Hashable Type where
   hashWithSalt n t = n + hash (show t)
 
 instance Arbitrary Type where
-  arbitrary = oneof $ refType:(map return [
+  arbitrary = oneof $ refType:map return [
     BooleanType,
     ByteType,
     CharType,
@@ -159,7 +159,7 @@ instance Arbitrary Type where
     IntType,
     LongType,
     NullType,
-    ShortType])
+    ShortType]
     where
       refType = fmap RefType arbitrary
 

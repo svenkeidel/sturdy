@@ -13,7 +13,6 @@ module SharedSemantics where
 import           Prelude hiding (rem,div,id,or,and,fail)
 
 import           Data.List (find,elemIndex)
-import           Data.Exception
 
 import           Control.Category
 
@@ -28,29 +27,29 @@ import qualified Control.Arrow.Utils as U
 import           Text.Printf
 import           Syntax
 
-type CanFail val c = (ArrowChoice c,ArrowFail (Exception val) c)
+type CanFail ex val c = (ArrowChoice c,ArrowFail (ex val) c,UseException ex val c)
 
-type CanInterp env envval val bool c = (
+type CanInterp env envval val ex bool c = (
   UseVal val c,
   UseBool bool val c,
   UseConst c,
   UseEnv (env String envval) c,
-  CanFail val c,
+  CanFail ex val c,
   ArrowEnv String envval (env String envval) c,
-  ArrowExcept EInvoke (Maybe val) (Exception val) c,
-  ArrowExcept ([Statement],[CatchClause]) (Maybe val) (Exception val) c,
+  ArrowExcept EInvoke (Maybe val) (ex val) c,
+  ArrowExcept ([Statement],[CatchClause]) (Maybe val) (ex val) c,
   ArrowFix [Statement] (Maybe val) c,
   ArrowReader ([Statement],[CatchClause]) c)
 
-assert :: (CanFail v c) => c (Bool,String) ()
+assert :: (CanFail e v c) => c (Bool,String) ()
 assert = proc (prop,msg) -> if prop
   then returnA -< ()
-  else fail -< StaticException msg
+  else failStatic -< msg
 
-justOrFail :: (CanFail v c) => c (Maybe x,String) x
+justOrFail :: (CanFail e v c) => c (Maybe x,String) x
 justOrFail = proc (x,e) -> case x of
   Just v -> returnA -< v
-  Nothing -> fail -< StaticException e
+  Nothing -> failStatic -< e
 
 liftAMaybe :: ArrowChoice c => c x z -> c (Maybe x) (Maybe z)
 liftAMaybe f = proc m -> case m of
@@ -61,18 +60,18 @@ getFieldSignatures :: ([Modifier] -> Bool) -> CompilationUnit -> [FieldSignature
 getFieldSignatures p unit =
   [fieldSignature unit m | FieldMember m <- fileBody unit, p (fieldModifiers m)]
 
-readCompilationUnit :: (CanFail v c,UseConst c) => c String CompilationUnit
+readCompilationUnit :: (CanFail e v c,UseConst c) => c String CompilationUnit
 readCompilationUnit = proc n -> do
   compilationUnits <- askCompilationUnits -< ()
   justOrFail -< (find (\u -> fileName u == n) compilationUnits,printf "CompilationUnit %s not loaded" (show n))
 
-evalInvoke :: CanInterp env envval val bool c => c EInvoke (Maybe val)
+evalInvoke :: CanInterp env envval val ex bool c => c EInvoke (Maybe val)
 evalInvoke = proc e -> case e of
   SpecialInvoke localName m params -> runMethod -< (Just localName,m,params)
   VirtualInvoke localName m params -> runMethod -< (Just localName,m,params)
   InterfaceInvoke localName m params -> runMethod -< (Just localName,m,params)
   StaticInvoke m params -> runMethod -< (Nothing,m,params)
-  DynamicInvoke{} -> fail -< StaticException "DynamicInvoke is not implemented"
+  DynamicInvoke{} -> failStatic -< "DynamicInvoke is not implemented"
 
 evalImmediate :: (ArrowChoice c,UseVal val c) => c Immediate val
 evalImmediate = proc i -> case i of
@@ -103,7 +102,7 @@ evalBool = proc (BoolExpr i1 op i2) -> do
     Cmplt -> lt -< (v1,v2)
     Cmple -> le -< (v1,v2)
 
-eval :: CanInterp env envval val bool c => c Expr val
+eval :: CanInterp env envval val ex bool c => c Expr val
 eval = proc e -> case e of
   NewExpr t -> do
     assert -< (isBaseType t,"Expected a base type for new")
@@ -149,9 +148,9 @@ eval = proc e -> case e of
       Lengthof -> lengthOf -< v
       Neg -> neg -< v
   ImmediateExpr i -> evalImmediate -< i
-  MethodHandle _ -> fail -< StaticException "Evaluation of method handles is not implemented"
+  MethodHandle _ -> failStatic -< "Evaluation of method handles is not implemented"
 
-runStatements :: CanInterp env envval val bool c => c [Statement] (Maybe val)
+runStatements :: CanInterp env envval val ex bool c => c [Statement] (Maybe val)
 runStatements = fix $ \run -> proc stmts -> case stmts of
   [] -> returnA -< Nothing
   (stmt:rest) -> case stmt of
@@ -165,7 +164,7 @@ runStatements = fix $ \run -> proc stmts -> case stmts of
     Goto label -> (atLabel run) -< label
     Ret i -> liftAMaybe evalImmediate -< i
     Return i -> liftAMaybe evalImmediate -< i
-    Throw i -> evalImmediate >>> DynamicException ^>> fail -< i
+    Throw i -> evalImmediate >>> failDynamic -< i
     Identity l i _ -> first (second evalAtIdentifier) >>> updateVar run -< ((l,i),rest)
     IdentityNoType l i -> first (second evalAtIdentifier) >>> updateVar run -< ((l,i),rest)
     Assign var e -> do
@@ -189,15 +188,14 @@ runStatements = fix $ \run -> proc stmts -> case stmts of
       (ss,_) <- ask -< ()
       case Label label `elemIndex` ss of
         Just i -> returnA -< drop i ss
-        Nothing -> fail -< StaticException $ printf "Undefined label: %s" label
-    catchException f = proc ((_,clauses),exception) -> case exception of
-        StaticException _ -> fail -< exception
-        DynamicException val -> catch (handleException f) -< (val,clauses)
+        Nothing -> failStatic -< printf "Undefined label: %s" label
+    catchException f = proc ((_,clauses),exception) ->
+      catch (handleException f) -< (exception,clauses)
     handleException f = proc (val,clause) ->
       declare (atLabel f) -< (("@caughtexception",val),withLabel clause)
     runSwitch f = first evalImmediate >>> case_ (atLabel f)
 
-runMethod :: CanInterp env envval val bool c => c (Maybe String,MethodSignature,[Immediate]) (Maybe val)
+runMethod :: CanInterp env envval val ex bool c => c (Maybe String,MethodSignature,[Immediate]) (Maybe val)
 runMethod = proc (this,sig,params) -> do
   method <- askMethod -< sig
   (decs,stmts,clauses) <- askMethodBody -< method
@@ -216,16 +214,16 @@ runMethod = proc (this,sig,params) -> do
       unit <- readCompilationUnit -< c
       case [m | MethodMember m <- fileBody unit, methodSignature unit m == sig] of
         m:_ -> returnA -< m
-        [] -> fail -< StaticException $ printf "Method %s not defined for class %s" (show n) (show c)
+        [] -> failStatic -< printf "Method %s not defined for class %s" (show n) (show c)
     askMethodBody = proc m -> case methodBody m of
-      EmptyBody -> fail -< StaticException "Cannot run method with empty body"
+      EmptyBody -> failStatic -< "Cannot run method with empty body"
       FullBody{declarations=decs,statements=stmts,catchClauses=clauses} ->
         returnA -< (decs,stmts,clauses)
     runWithBindings = proc (bs,(stmts,clauses)) -> case bs of
       [] -> local runStatements -< ((stmts,clauses),stmts)
       (binding:rest) -> declare runWithBindings -< (binding,(rest,(stmts,clauses)))
 
-runProgram :: CanInterp env envval val bool c => c (MethodSignature,[Immediate]) (Maybe val)
+runProgram :: CanInterp env envval val ex bool c => c (MethodSignature,[Immediate]) (Maybe val)
 runProgram = proc (main,params) -> do
   units <- askCompilationUnits -< ()
   U.map (second defaultValue >>> updateStaticField) -< concatMap staticFieldsWithType units
@@ -276,7 +274,11 @@ class Arrow c => UseVal v c | c -> v where
   readStaticField :: c FieldSignature v
   updateStaticField :: c (FieldSignature,v) ()
   case_ :: c String (Maybe v) -> c (v,[CaseStatement]) (Maybe v)
-  catch :: c (v,CatchClause) (Maybe v) -> c (v,[CatchClause]) (Maybe v)
+
+class (ArrowChoice c,ArrowFail (e v) c) => UseException e v c | c -> e v where
+  failStatic :: c String a
+  failDynamic :: c v a
+  catch :: c (v,CatchClause) (Maybe v) -> c (e v,[CatchClause]) (Maybe v)
 
 class Arrow c => UseBool b v c | c -> b v where
   eq :: c (v,v) b
