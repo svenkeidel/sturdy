@@ -175,7 +175,7 @@ instance UseVal Val Interp where
   and = binopInteger
   or = binopInteger
   xor = binopInteger
-  rem = binopInteger
+  rem = binopNum
   cmp = proc _ -> joined returnA failStatic -<
     (NonNull,"Expected long variables for 'cmp'")
   cmpg = proc _ -> joined returnA failStatic -<
@@ -209,7 +209,8 @@ instance UseVal Val Interp where
     VoidType      -> bottom
     _             -> NonNull)
   instanceOf = arr $ const NonNull
-  cast = proc ((v,_),_) -> joined returnA failDynamic -< (v,NonNull)
+  cast = proc ((v,_),_) -> joined returnA (joined failDynamic failStatic) -< (v,
+    (NonNull,"Casting of primivites and arrays is not yet supported"))
   declare f = (\((l,v),x) -> (l,v,x)) ^>> extendEnv' f
   readVar = lookup_
   updateVar f = proc ((l,v),x) -> do

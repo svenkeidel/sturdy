@@ -304,7 +304,7 @@ instance UseVal Val Interp where
       printf "Expected an array for index lookup, got %s" (show v)) >>> U.pi2 >>> f
   readField = first deref >>> proc (v,f) -> case v of
     (ObjectVal _ m) -> justOrFail -<
-      (Map.lookup f m, printf "Field %s not defined for object %s" (show f) (show v))
+      (Map.lookup f m,printf "Field %s not defined for object %s" (show f) (show v))
     NullVal -> createException >>> failDynamic -< ("java.lang.NullPointerException","")
     _ -> failStatic -<
       printf "Expected an object for field lookup, got %s" (show v)
@@ -360,11 +360,11 @@ instance UseConst Interp where
 
 lookup_ :: Interp String Addr
 lookup_ = proc x -> lookup U.pi1 fail -<
-  (x, StaticException $ printf "Variable %s not bound" (show x))
+  (x,StaticException $ printf "Variable %s not bound" (show x))
 
 read_ :: Interp Addr Val
 read_ = proc addr -> read U.pi1 fail -<
-  (addr, StaticException $ printf "Address %s not bound" (show addr))
+  (addr,StaticException $ printf "Address %s not bound" (show addr))
 
 alloc :: Interp Val Addr
 alloc = proc val -> do
