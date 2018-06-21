@@ -5,19 +5,23 @@ import Data.Maybe (fromMaybe)
 
 import Syntax
 
-import Classes.Object
-import Classes.Throwable
-import Classes.IllegalArgumentException
-import Classes.ArrayIndexOutOfBoundsException
-import Classes.ArithmeticException
+import Java.Lang.ArithmeticException
+import Java.Lang.ArrayIndexOutOfBoundsException
+import Java.Lang.ClassCastException
+import Java.Lang.IllegalArgumentException
+import Java.Lang.NullPointerException
+import Java.Lang.Object
+import Java.Lang.Throwable
 
 baseCompilationUnits :: [CompilationUnit]
 baseCompilationUnits = [
-  objectFile,
-  throwableFile,
-  illegalArgumentExceptionFile,
+  arithmeticExceptionFile,
   arrayIndexOutOfBoundsExceptionFile,
-  arithmeticExceptionFile]
+  classCastExceptionFile,
+  illegalArgumentExceptionFile,
+  nullPointerExceptionFile,
+  objectFile,
+  throwableFile]
 
 mainMethod :: CompilationUnit -> Method
 mainMethod unit = fromMaybe (error "No entry method found")

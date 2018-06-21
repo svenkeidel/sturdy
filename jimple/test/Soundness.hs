@@ -5,13 +5,14 @@ import Syntax
 
 import Control.Monad (unless)
 
-import Data.Exception
 import Data.GaloisConnection
 import Data.Hashable
 import Data.Order
 
 import Data.Concrete.Error as Con
 import Data.Abstract.HandleError as Abs
+import Data.Concrete.Exception as Con
+import Data.Abstract.Exception as Abs
 import Data.Concrete.Powerset as Con
 
 import Test.Hspec
@@ -31,8 +32,8 @@ soundImmediate :: (Arbitrary a,Show a,
                    Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
   String ->
   (a -> [(String,vc)]) -> (b -> Immediate) ->
-  ([(String,vc)] -> Immediate -> Con.Error (Exception vc) vc) ->
-  ([(String,va)] -> Immediate -> Abs.Error (Exception va) va) ->
+  ([(String,vc)] -> Immediate -> Con.Error (Con.Exception vc) vc) ->
+  ([(String,va)] -> Immediate -> Abs.Error (Abs.Exception va) va) ->
   Spec
 soundImmediate desc genMem genImmediate runConcrete runAbstract =
   it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
@@ -49,8 +50,8 @@ soundBoolExpr :: (Arbitrary a,Show a,
                   Galois (Con.Pow bc) ba,Complete ba,Eq bc,Hashable bc,Show bc,Show ba) =>
   String ->
   (a -> [(String,vc)]) -> (b -> BoolExpr) ->
-  ([(String,vc)] -> BoolExpr -> Con.Error (Exception vc) bc) ->
-  ([(String,va)] -> BoolExpr -> Abs.Error (Exception va) ba) ->
+  ([(String,vc)] -> BoolExpr -> Con.Error (Con.Exception vc) bc) ->
+  ([(String,va)] -> BoolExpr -> Abs.Error (Abs.Exception va) ba) ->
   Spec
 soundBoolExpr desc genMem genBool runConcrete runAbstract =
   it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
@@ -66,8 +67,8 @@ soundExpr :: (Arbitrary a,Show a,
               Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
   String ->
   (a -> [(String,vc)]) -> (b -> Expr) ->
-  ([(String,vc)] -> Expr -> Con.Error (Exception vc) vc) ->
-  ([(String,va)] -> Expr -> Abs.Error (Exception va) va) ->
+  ([(String,vc)] -> Expr -> Con.Error (Con.Exception vc) vc) ->
+  ([(String,va)] -> Expr -> Abs.Error (Abs.Exception va) va) ->
   Spec
 soundExpr desc genMem genExpr runConcrete runAbstract =
   it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
@@ -83,8 +84,8 @@ soundStatements :: (Arbitrary a,Show a,
                     Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
   String ->
   (a -> [(String,vc)]) -> (b -> [Statement]) ->
-  ([(String,vc)] -> [Statement] -> Con.Error (Exception vc) (Maybe vc)) ->
-  ([(String,va)] -> [Statement] -> Abs.Error (Exception va) (Maybe va)) ->
+  ([(String,vc)] -> [Statement] -> Con.Error (Con.Exception vc) (Maybe vc)) ->
+  ([(String,va)] -> [Statement] -> Abs.Error (Abs.Exception va) (Maybe va)) ->
   Spec
 soundStatements desc genMem genStatements runConcrete runAbstract =
   it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
@@ -99,8 +100,8 @@ soundProgram :: (Arbitrary a,Show a,
                  Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
   String ->
   [CompilationUnit] -> (a -> (MethodSignature,[Immediate])) ->
-  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Con.Error (Exception vc) (Maybe vc)) ->
-  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Abs.Error (Exception va) (Maybe va)) ->
+  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Con.Error (Con.Exception vc) (Maybe vc)) ->
+  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Abs.Error (Abs.Exception va) (Maybe va)) ->
   Spec
 soundProgram desc units gen runConcrete runAbstract =
   it ("sound value approximation " ++ desc) $ property $ \a -> do
