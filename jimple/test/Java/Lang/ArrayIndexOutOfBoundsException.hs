@@ -1,8 +1,8 @@
-module Classes.ArrayIndexOutOfBoundsException where
+module Java.Lang.ArrayIndexOutOfBoundsException where
 
 import Syntax
 
-import Classes.Throwable
+import Java.Lang.Throwable
 
 arrayIndexOutOfBoundsExceptionInitSignature :: MethodSignature
 arrayIndexOutOfBoundsExceptionInitSignature = MethodSignature

@@ -2,7 +2,7 @@ module Classes.PersonExample where
 
 import Syntax
 
-import Classes.Object
+import Java.Lang.Object
 
 personExampleAgeSignature :: FieldSignature
 personExampleAgeSignature = FieldSignature

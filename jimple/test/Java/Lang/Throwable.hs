@@ -1,8 +1,8 @@
-module Classes.Throwable where
+module Java.Lang.Throwable where
 
 import Syntax
 
-import Classes.Object
+import Java.Lang.Object
 
 throwableMessageSignature :: FieldSignature
 throwableMessageSignature = FieldSignature

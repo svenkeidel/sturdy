@@ -2,7 +2,7 @@ module Classes.ArrayFieldExample where
 
 import Syntax
 
-import Classes.Object
+import Java.Lang.Object
 
 arrayFieldExampleArrSignature :: FieldSignature
 arrayFieldExampleArrSignature = FieldSignature

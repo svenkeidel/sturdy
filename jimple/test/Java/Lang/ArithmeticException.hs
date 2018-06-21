@@ -1,8 +1,8 @@
-module Classes.ArithmeticException where
+module Java.Lang.ArithmeticException where
 
 import Syntax
 
-import Classes.Throwable
+import Java.Lang.Throwable
 
 arithmeticExceptionInitSignature :: MethodSignature
 arithmeticExceptionInitSignature = MethodSignature

@@ -1,18 +1,18 @@
-module Classes.NullPointerException where
+module Java.Lang.ClassCastException where
 
 import Syntax
 
-import Classes.Throwable
+import Java.Lang.Throwable
 
-nullPointerExceptionInitSignature :: MethodSignature
-nullPointerExceptionInitSignature = MethodSignature
-  "java.lang.NullPointerException"
+classCastExceptionInitSignature :: MethodSignature
+classCastExceptionInitSignature = MethodSignature
+  "java.lang.ClassCastException"
   VoidType
   "<init>"
   [RefType "java.lang.String"]
 
-nullPointerExceptionInitMethod :: Method
-nullPointerExceptionInitMethod = Method {
+classCastExceptionInitMethod :: Method
+classCastExceptionInitMethod = Method {
   methodModifiers = [Public],
   returnType = VoidType,
   methodName = "<init>",
@@ -20,11 +20,11 @@ nullPointerExceptionInitMethod = Method {
   throws = [],
   methodBody = FullBody {
     declarations = [
-      (RefType "java.lang.NullPointerException", ["r0"]),
+      (RefType "java.lang.ClassCastException", ["r0"]),
       (RefType "java.lang.String", ["s0"])
     ],
     statements = [
-      Identity "r0" ThisRef (RefType "java.lang.NullPointerException"),
+      Identity "r0" ThisRef (RefType "java.lang.ClassCastException"),
       Identity "s0" (ParameterRef 0) (RefType "java.lang.String"),
       Invoke (SpecialInvoke "r0" throwableInitSignature [Local "s0"]),
       Return Nothing
@@ -33,14 +33,14 @@ nullPointerExceptionInitMethod = Method {
   }
 }
 
-nullPointerExceptionFile :: CompilationUnit
-nullPointerExceptionFile = CompilationUnit {
+classCastExceptionFile :: CompilationUnit
+classCastExceptionFile = CompilationUnit {
   fileModifiers = [Public],
   fileType = ClassFile,
-  fileName = "java.lang.NullPointerException",
+  fileName = "java.lang.ClassCastException",
   extends = Just "java.lang.Throwable",
   implements = [],
   fileBody = [
-    MethodMember nullPointerExceptionInitMethod
+    MethodMember classCastExceptionInitMethod
   ]
 }

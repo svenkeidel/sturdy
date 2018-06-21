@@ -2,7 +2,7 @@ module Classes.SingleMethodExample where
 
 import Syntax
 
-import Classes.Object
+import Java.Lang.Object
 
 singleMethodExampleXSignature :: FieldSignature
 singleMethodExampleXSignature = FieldSignature

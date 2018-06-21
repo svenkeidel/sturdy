@@ -2,8 +2,8 @@ module Classes.FactorialExample where
 
 import Syntax
 
-import Classes.Object
-import Classes.IllegalArgumentException
+import Java.Lang.Object
+import Java.Lang.IllegalArgumentException
 
 factorialExampleInitSignature :: MethodSignature
 factorialExampleInitSignature = MethodSignature

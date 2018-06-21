@@ -2,7 +2,7 @@ module Classes.TryCatchExample where
 
 import Syntax
 
-import Classes.ArrayIndexOutOfBoundsException
+import Java.Lang.ArrayIndexOutOfBoundsException
 
 tryCatchExampleMainMethod :: Method
 tryCatchExampleMainMethod = Method {

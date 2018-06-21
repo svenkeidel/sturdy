@@ -1,4 +1,4 @@
-module Classes.Object where
+module Java.Lang.Object where
 
 import Syntax
 
