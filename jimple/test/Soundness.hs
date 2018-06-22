@@ -96,13 +96,13 @@ soundStatements n desc genMem genStatements runConcrete runAbstract =
 soundProgram :: (Arbitrary a,Show a,
                  Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
   Int -> String ->
-  [CompilationUnit] -> (a -> (MethodSignature,[Immediate])) ->
-  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Con.Error (Con.Exception vc) (Maybe vc)) ->
-  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Abs.Error (Abs.Exception va) (Maybe va)) ->
+  CompilationUnit -> (a -> [Immediate]) ->
+  (CompilationUnit -> [Immediate] -> Con.Error (Con.Exception vc) (Maybe vc)) ->
+  (CompilationUnit -> [Immediate] -> Abs.Error (Abs.Exception va) (Maybe va)) ->
   Spec
-soundProgram n desc units gen runConcrete runAbstract =
+soundProgram n desc units genParams runConcrete runAbstract =
   modifyMaxSuccess (const n) $ it ("sound value approximation " ++ desc) $ property $ \a -> do
-    let input = gen a
-    let rc = runConcrete units input
-    let ra = runAbstract units input
+    let params = genParams a
+    let rc = runConcrete units params
+    let ra = runAbstract units params
     rc `shouldBeApproximated` ra

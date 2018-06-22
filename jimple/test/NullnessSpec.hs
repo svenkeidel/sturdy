@@ -159,7 +159,7 @@ spec = do
     (Con.evalBool' baseCompilationUnits)      evalBool''
     (Con.eval' baseCompilationUnits)          eval''
     (Con.runStatements' baseCompilationUnits) runStatements''
-    Con.runProgram'                           runProgram'
+    runProgramCon                             runProgram''
 
   where
     evalImmediate'' = evalImmediate' baseCompilationUnits
@@ -167,6 +167,7 @@ spec = do
     eval'' = eval' baseCompilationUnits
     runStatements'' = runStatements' baseCompilationUnits
     runProgram'' unit params = runProgram' (unit:baseCompilationUnits) (methodSignature unit (mainMethod unit),params)
+    runProgramCon unit params = Con.runProgram' (unit:baseCompilationUnits) (methodSignature unit (mainMethod unit),params)
 
     ifSuccess x e = case e of
       Success y -> y == x

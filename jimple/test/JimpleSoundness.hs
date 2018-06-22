@@ -14,6 +14,8 @@ import Data.Abstract.HandleError as Abs
 import Data.Concrete.Exception as Con
 import Data.Abstract.Exception as Abs
 
+import Classes.ArrayFieldExample
+
 import Test.Hspec
 import Test.QuickCheck
 
@@ -28,8 +30,8 @@ jimpleSoundness :: (Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc
   ([(String,va)] -> Expr -> Abs.Error (Abs.Exception va) va) ->
   ([(String,vc)] -> [Statement] -> Con.Error (Con.Exception vc) (Maybe vc)) ->
   ([(String,va)] -> [Statement] -> Abs.Error (Abs.Exception va) (Maybe va)) ->
-  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Con.Error (Con.Exception vc) (Maybe vc)) ->
-  ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Abs.Error (Abs.Exception va) (Maybe va)) ->
+  (CompilationUnit -> [Immediate] -> Con.Error (Con.Exception vc) (Maybe vc)) ->
+  (CompilationUnit -> [Immediate] -> Abs.Error (Abs.Exception va) (Maybe va)) ->
   Spec
 jimpleSoundness
   evalImmediateCon evalImmediateAbs
@@ -49,6 +51,11 @@ jimpleSoundness
     soundExpr 1000 "General expressions" emptyMem id evalCon evalAbs
 
     soundStatements 1000 "Single statements" toMem (:[]) runStatementsCon runStatementsAbs
+
+    soundProgram 10 "Simple program"
+      arrayFieldExampleFile
+      (\x -> [IntConstant x])
+      runProgramCon runProgramAbs
 
   where
     uncurry3 :: (a -> b -> c -> d) -> ((a,b,c) -> d)
