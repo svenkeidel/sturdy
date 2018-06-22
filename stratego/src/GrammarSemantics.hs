@@ -158,7 +158,7 @@ instance IsTerm Term Interp where
   matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,Term g) -> do
     lubA (reconstruct <<< second matchSubterms <<< checkConstructorAndLength c ts) -<< toSubterms g
 
-  matchTermAgainstExplode matchCons matchSubterms = undefined
+  matchTermAgainstExplode _ _ = undefined
 
   matchTermAgainstNumber = proc (n,g) -> matchLit -< (g, NumLit n)
   matchTermAgainstString = proc (s,g) -> matchLit -< (g, StringLit s)
