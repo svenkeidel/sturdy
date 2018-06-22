@@ -19,9 +19,6 @@ import Test.Hspec
 import Test.QuickCheck
 import Test.Hspec.Core.QuickCheck (modifyMaxSuccess)
 
-withSize :: Spec -> Spec
-withSize = modifyMaxSuccess (const 1000)
-
 shouldBeApproximated :: (HasCallStack,Galois (Con.Pow c) a,Show a,Show c) => c -> a -> Expectation
 c `shouldBeApproximated` a = unless (ca ⊑ a) (expectationFailure msg)
   where ca = alpha (singleton c)
@@ -30,13 +27,13 @@ c `shouldBeApproximated` a = unless (ca ⊑ a) (expectationFailure msg)
 soundImmediate :: (Arbitrary a,Show a,
                    Arbitrary b,Show b,
                    Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
-  String ->
+  Int -> String ->
   (a -> [(String,vc)]) -> (b -> Immediate) ->
   ([(String,vc)] -> Immediate -> Con.Error (Con.Exception vc) vc) ->
   ([(String,va)] -> Immediate -> Abs.Error (Abs.Exception va) va) ->
   Spec
-soundImmediate desc genMem genImmediate runConcrete runAbstract =
-  it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
+soundImmediate n desc genMem genImmediate runConcrete runAbstract =
+  modifyMaxSuccess (const n) $ it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
     let mem = genMem a
     let mema = map (\(l,vc) -> (l,alpha (singleton vc))) mem
     let immediate = genImmediate b
@@ -48,13 +45,13 @@ soundBoolExpr :: (Arbitrary a,Show a,
                   Arbitrary b,Show b,
                   Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va,
                   Galois (Con.Pow bc) ba,Complete ba,Eq bc,Hashable bc,Show bc,Show ba) =>
-  String ->
+  Int -> String ->
   (a -> [(String,vc)]) -> (b -> BoolExpr) ->
   ([(String,vc)] -> BoolExpr -> Con.Error (Con.Exception vc) bc) ->
   ([(String,va)] -> BoolExpr -> Abs.Error (Abs.Exception va) ba) ->
   Spec
-soundBoolExpr desc genMem genBool runConcrete runAbstract =
-  it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
+soundBoolExpr n desc genMem genBool runConcrete runAbstract =
+  modifyMaxSuccess (const n) $ it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
     let mem = genMem a
     let mema = map (\(l,vc) -> (l,alpha (singleton vc))) mem
     let boolExpr = genBool b
@@ -65,13 +62,13 @@ soundBoolExpr desc genMem genBool runConcrete runAbstract =
 soundExpr :: (Arbitrary a,Show a,
               Arbitrary b,Show b,
               Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
-  String ->
+  Int -> String ->
   (a -> [(String,vc)]) -> (b -> Expr) ->
   ([(String,vc)] -> Expr -> Con.Error (Con.Exception vc) vc) ->
   ([(String,va)] -> Expr -> Abs.Error (Abs.Exception va) va) ->
   Spec
-soundExpr desc genMem genExpr runConcrete runAbstract =
-  it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
+soundExpr n desc genMem genExpr runConcrete runAbstract =
+  modifyMaxSuccess (const n) $ it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
     let mem = genMem a
     let mema = map (\(l,vc) -> (l,alpha (singleton vc))) mem
     let expr = genExpr b
@@ -82,13 +79,13 @@ soundExpr desc genMem genExpr runConcrete runAbstract =
 soundStatements :: (Arbitrary a,Show a,
                     Arbitrary b,Show b,
                     Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
-  String ->
+  Int -> String ->
   (a -> [(String,vc)]) -> (b -> [Statement]) ->
   ([(String,vc)] -> [Statement] -> Con.Error (Con.Exception vc) (Maybe vc)) ->
   ([(String,va)] -> [Statement] -> Abs.Error (Abs.Exception va) (Maybe va)) ->
   Spec
-soundStatements desc genMem genStatements runConcrete runAbstract =
-  it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
+soundStatements n desc genMem genStatements runConcrete runAbstract =
+  modifyMaxSuccess (const n) $ it ("sound value approximation " ++ desc) $ property $ \(a,b) -> do
     let mem = genMem a
     let mema = map (\(l,vc) -> (l,alpha (singleton vc))) mem
     let stmts = genStatements b
@@ -98,13 +95,13 @@ soundStatements desc genMem genStatements runConcrete runAbstract =
 
 soundProgram :: (Arbitrary a,Show a,
                  Galois (Con.Pow vc) va,Complete va,Eq vc,Hashable vc,Show vc,Show va) =>
-  String ->
+  Int -> String ->
   [CompilationUnit] -> (a -> (MethodSignature,[Immediate])) ->
   ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Con.Error (Con.Exception vc) (Maybe vc)) ->
   ([CompilationUnit] -> (MethodSignature,[Immediate]) -> Abs.Error (Abs.Exception va) (Maybe va)) ->
   Spec
-soundProgram desc units gen runConcrete runAbstract =
-  it ("sound value approximation " ++ desc) $ property $ \a -> do
+soundProgram n desc units gen runConcrete runAbstract =
+  modifyMaxSuccess (const n) $ it ("sound value approximation " ++ desc) $ property $ \a -> do
     let input = gen a
     let rc = runConcrete units input
     let ra = runAbstract units input

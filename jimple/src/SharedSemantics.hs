@@ -67,15 +67,15 @@ readCompilationUnit = proc n -> do
 
 evalInvoke :: CanInterp env envval val ex bool c => c EInvoke (Maybe val)
 evalInvoke = proc e -> case e of
-  SpecialInvoke localName m params -> runMethod -< (Just localName,m,params)
-  VirtualInvoke localName m params -> runMethod -< (Just localName,m,params)
-  InterfaceInvoke localName m params -> runMethod -< (Just localName,m,params)
+  SpecialInvoke this m params -> runMethod -< (Just this,m,params)
+  VirtualInvoke this m params -> runMethod -< (Just this,m,params)
+  InterfaceInvoke this m params -> runMethod -< (Just this,m,params)
   StaticInvoke m params -> runMethod -< (Nothing,m,params)
   DynamicInvoke{} -> failStatic -< "DynamicInvoke is not implemented"
 
 evalImmediate :: (ArrowChoice c,UseVal val c) => c Immediate val
 evalImmediate = proc i -> case i of
-  Local localName -> readVar -< localName
+  Local name -> readVar -< name
   DoubleConstant f -> doubleConstant -< f
   FloatConstant f -> floatConstant -< f
   IntConstant n -> intConstant -< n

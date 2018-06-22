@@ -321,7 +321,7 @@ instance UseVal Val Interp where
   case_ f = proc (v,cases) -> case v of
     IntVal x -> case find (matchCase x) cases of
       Just (_,label) -> f -< label
-      Nothing -> failStatic -< printf "No cases match value %s" (show v)
+      Nothing -> failStatic -< "No matching cases"
     _ -> failStatic -< "Expected an integer as argument for switch"
     where
       matchCase x (c,_) = case c of

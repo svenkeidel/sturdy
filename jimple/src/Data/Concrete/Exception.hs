@@ -4,7 +4,6 @@
 module Data.Concrete.Exception where
 
 import Data.Hashable
-import Data.String
 
 data Exception v = StaticException String | DynamicException v deriving (Eq)
 
@@ -15,6 +14,3 @@ instance Show v => Show (Exception v) where
 instance Hashable v => Hashable (Exception v) where
   hashWithSalt h (StaticException s) = h + hash s
   hashWithSalt h (DynamicException v) = h + hash v
-
-instance IsString (Exception v) where
-  fromString = StaticException

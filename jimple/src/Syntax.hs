@@ -1,5 +1,4 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-
 module Syntax where
 
 import Data.Hashable
@@ -8,6 +7,8 @@ import Control.Monad
 
 import Test.QuickCheck
 
+---- Data ----------------------------------------------------------------------
+
 data CompilationUnit = CompilationUnit { fileModifiers :: [Modifier]
                                        , fileType :: FileType
                                        , fileName :: String
@@ -15,25 +16,6 @@ data CompilationUnit = CompilationUnit { fileModifiers :: [Modifier]
                                        , implements :: [String]
                                        , fileBody :: [Member]
                                        }
-
-instance Eq CompilationUnit where
-  (==) f1 f2 = fileName f1 == fileName f2
-
-instance Show CompilationUnit where
-  show f = "CompilationUnit {"
-           ++ show (fileModifiers f) ++ " "
-           ++ show (fileType f) ++ " "
-           ++ show (fileName f) ++ " "
-           ++ ex
-           ++ impl
-           ++ "}"
-    where
-      ex = case extends f of
-        Just c -> "extends " ++ show c
-        Nothing -> ""
-      impl = case length (implements f) of
-        0 -> ""
-        xs -> "implements " ++ show xs
 
 data Modifier
   = Abstract
@@ -50,48 +32,15 @@ data Modifier
   | Enum
   | Annotation deriving (Eq)
 
-instance Show Modifier where
-  show Abstract     = "abstract"
-  show Final        = "final"
-  show Native       = "native"
-  show Public       = "public"
-  show Protected    = "protected"
-  show Private      = "private"
-  show Static       = "static"
-  show Synchronized = "synchronized"
-  show Transient    = "transient"
-  show Volatile     = "volatile"
-  show Strictfp     = "strictfp"
-  show Enum         = "enum"
-  show Annotation   = "annotation"
-
 data FileType
   = ClassFile
   | InterfaceFile
-
-instance Show FileType where
-  show ClassFile = "class"
-  show InterfaceFile = "interface"
 
 data MethodSignature = MethodSignature String Type String [Type] deriving (Show, Eq)
 
 data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Show, Eq)
 
 data FieldSignature = FieldSignature String Type String deriving (Eq)
-
-instance Ord FieldSignature where
-  compare (FieldSignature c1 _ n1) (FieldSignature c2 _ n2) =
-    case compare c1 c2 of
-      LT -> LT
-      EQ -> compare n1 n2
-      GT -> GT
-
-instance Show FieldSignature where
-  show (FieldSignature c t n) =
-    "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
-
-instance Hashable FieldSignature where
-  hashWithSalt s (FieldSignature c t n) = s + hash c + hash t + hash n
 
 data Member = FieldMember Field | MethodMember Method
 
@@ -100,10 +49,6 @@ data Field = Field { fieldModifiers :: [Modifier]
                    , fieldName :: String
                    }
 
-fieldSignature :: CompilationUnit -> Field -> FieldSignature
-fieldSignature CompilationUnit{fileName=c} Field{fieldType=t,fieldName=n}
-  = FieldSignature c t n
-
 data Method = Method { methodModifiers :: [Modifier]
                      , returnType :: Type
                      , methodName :: String
@@ -111,10 +56,6 @@ data Method = Method { methodModifiers :: [Modifier]
                      , throws :: [String]
                      , methodBody :: MethodBody
                      } deriving (Show, Eq)
-
-methodSignature :: CompilationUnit -> Method -> MethodSignature
-methodSignature CompilationUnit{fileName=c} Method{returnType=t,parameters=p,methodName=n}
-  = MethodSignature c t n p
 
 data Type
   = ArrayType Type
@@ -130,58 +71,6 @@ data Type
   | ShortType
   | UnknownType
   | VoidType deriving (Eq)
-
-instance Show Type where
-  show (ArrayType t) = show t ++ "[]"
-  show BooleanType = "bool"
-  show ByteType = "byte"
-  show CharType = "char"
-  show DoubleType = "double"
-  show FloatType = "float"
-  show IntType = "int"
-  show LongType = "long"
-  show NullType = "null"
-  show (RefType s) = show s
-  show ShortType = "short"
-  show UnknownType = "<untyped>"
-  show VoidType = "void"
-
-instance Hashable Type where
-  hashWithSalt n t = n + hash (show t)
-
-instance Arbitrary Type where
-  arbitrary = oneof $ refType:map return [
-    BooleanType,
-    ByteType,
-    CharType,
-    DoubleType,
-    FloatType,
-    IntType,
-    LongType,
-    NullType,
-    ShortType]
-    where
-      refType = fmap RefType arbitrary
-
-isNonvoidType :: Type -> Bool
-isNonvoidType VoidType = False
-isNonvoidType UnknownType = False
-isNonvoidType _ = True
-
-isBaseType :: Type -> Bool
-isBaseType VoidType = False
-isBaseType UnknownType = False
-isBaseType (ArrayType _) = False
-isBaseType _ = True
-
-isIntegerType :: Type -> Bool
-isIntegerType BooleanType = True
-isIntegerType ByteType = True
-isIntegerType CharType = True
-isIntegerType IntType = True
-isIntegerType LongType = True
-isIntegerType ShortType = True
-isIntegerType _ = False
 
 data MethodBody
   = EmptyBody
@@ -235,25 +124,8 @@ data Expr
   | ImmediateExpr Immediate
   | MethodHandle MethodSignature deriving (Show, Eq)
 
-instance Arbitrary Expr where
-  arbitrary = oneof [
-    fmap NewExpr arbitrary,
-    liftM2 NewArrayExpr arbitrary arbitrary,
-    liftM2 NewMultiArrayExpr arbitrary (replicateM 2 arbitrary),
-    liftM2 CastExpr arbitrary arbitrary,
-    liftM2 InstanceOfExpr arbitrary arbitrary,
-    -- InvokeExpr EInvoke,
-    -- RefExpr ERef,
-    liftM3 BinopExpr arbitrary arbitrary arbitrary,
-    liftM2 UnopExpr arbitrary arbitrary,
-    fmap ImmediateExpr arbitrary]
-    -- MethodHandle MethodSignature]
-
 data BoolExpr
   = BoolExpr Immediate BoolOp Immediate deriving (Show, Eq)
-
-instance Arbitrary BoolExpr where
-  arbitrary = liftM3 BoolExpr arbitrary arbitrary arbitrary
 
 data Immediate
   = Local String
@@ -264,17 +136,6 @@ data Immediate
   | NullConstant
   | StringConstant String
   | ClassConstant String deriving (Show, Eq)
-
-instance Arbitrary Immediate where
-  arbitrary = oneof [
-    fmap Local arbitrary,
-    fmap DoubleConstant arbitrary,
-    fmap FloatConstant arbitrary,
-    fmap IntConstant arbitrary,
-    fmap LongConstant arbitrary,
-    return NullConstant,
-    fmap StringConstant arbitrary,
-    fmap ClassConstant arbitrary]
 
 data AtIdentifier
   = ThisRef
@@ -300,22 +161,237 @@ data EInvoke
 data BoolOp
   = Cmpeq | Cmpne | Cmpgt | Cmpge | Cmplt | Cmple deriving (Show, Eq)
 
-instance Arbitrary BoolOp where
-  arbitrary = oneof $ map return [Cmpeq, Cmpne, Cmpgt, Cmpge, Cmplt, Cmple]
-
 data Binop
   = And | Or | Xor | Shl | Shr | Ushr
   | Cmp | Cmpg | Cmpl
   | Plus | Minus | Mult | Div | Rem deriving (Show, Eq)
 
+data Unop
+  = Lengthof
+  | Neg deriving (Show, Eq)
+
+---- Helpers -------------------------------------------------------------------
+
+fieldSignature :: CompilationUnit -> Field -> FieldSignature
+fieldSignature CompilationUnit{fileName=c} Field{fieldType=t,fieldName=n}
+  = FieldSignature c t n
+
+methodSignature :: CompilationUnit -> Method -> MethodSignature
+methodSignature CompilationUnit{fileName=c} Method{returnType=t,parameters=p,methodName=n}
+  = MethodSignature c t n p
+
+isNonvoidType :: Type -> Bool
+isNonvoidType VoidType = False
+isNonvoidType UnknownType = False
+isNonvoidType _ = True
+
+isBaseType :: Type -> Bool
+isBaseType VoidType = False
+isBaseType UnknownType = False
+isBaseType (ArrayType _) = False
+isBaseType _ = True
+
+isIntegerType :: Type -> Bool
+isIntegerType BooleanType = True
+isIntegerType ByteType = True
+isIntegerType CharType = True
+isIntegerType IntType = True
+isIntegerType LongType = True
+isIntegerType ShortType = True
+isIntegerType _ = False
+
+arbitraryLabel :: Gen String
+arbitraryLabel = do
+  n <- choose (1::Int,10::Int)
+  return $ "label" ++ show n
+
+arbitraryLocalName :: Gen String
+arbitraryLocalName = oneof $ map (return . show) (decreasing 26 ['a'..'z'])
+  where
+    decreasing _ [] = []
+    decreasing n (h:t) = replicate (n*n) h:decreasing (n - 1) t
+
+arbitraryFieldName :: Gen String
+arbitraryFieldName = oneof $ arbitrary : map return ["foo","bar","baz"]
+
+arbitraryMethodName :: Gen String
+arbitraryMethodName = oneof $ arbitrary : map return ["<clinit>","<init>","main","foo","bar","baz"]
+
+arbitraryClassName :: Gen String
+arbitraryClassName = oneof $ arbitrary : map return ["java.lang.Object"]
+
+---- Instances -----------------------------------------------------------------
+
+instance Show Modifier where
+  show Abstract     = "abstract"
+  show Final        = "final"
+  show Native       = "native"
+  show Public       = "public"
+  show Protected    = "protected"
+  show Private      = "private"
+  show Static       = "static"
+  show Synchronized = "synchronized"
+  show Transient    = "transient"
+  show Volatile     = "volatile"
+  show Strictfp     = "strictfp"
+  show Enum         = "enum"
+  show Annotation   = "annotation"
+
+instance Ord FieldSignature where
+  compare (FieldSignature c1 _ n1) (FieldSignature c2 _ n2) =
+    case compare c1 c2 of
+      LT -> LT
+      EQ -> compare n1 n2
+      GT -> GT
+
+instance Show FieldSignature where
+  show (FieldSignature c t n) =
+    "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
+
+instance Hashable FieldSignature where
+  hashWithSalt s (FieldSignature c t n) = s + hash c + hash t + hash n
+
+instance Show Type where
+  show (ArrayType t) = show t ++ "[]"
+  show BooleanType = "bool"
+  show ByteType = "byte"
+  show CharType = "char"
+  show DoubleType = "double"
+  show FloatType = "float"
+  show IntType = "int"
+  show LongType = "long"
+  show NullType = "null"
+  show (RefType s) = show s
+  show ShortType = "short"
+  show UnknownType = "<untyped>"
+  show VoidType = "void"
+
+instance Hashable Type where
+  hashWithSalt n t = n + hash (show t)
+
+---- Arbitrary Instances -------------------------------------------------------
+
+-- instance Arbitrary CompilationUnit where
+--instance Arbitrary Modifier where
+--instance Arbitrary FileType where
+
+instance Arbitrary MethodSignature where
+  arbitrary = liftM4 MethodSignature arbitraryClassName arbitrary arbitraryMethodName arbitrary
+
+instance Arbitrary UnnamedMethodSignature where
+  arbitrary = liftM2 UnnamedMethodSignature arbitrary arbitrary
+
+instance Arbitrary FieldSignature where
+  arbitrary = liftM3 FieldSignature arbitraryClassName arbitrary arbitraryFieldName
+
+--instance Arbitrary Member where
+--instance Arbitrary Field where
+--instance Arbitrary Method where
+
+instance Arbitrary Type where
+  arbitrary = oneof $ refType:map return [
+    BooleanType,
+    ByteType,
+    CharType,
+    DoubleType,
+    FloatType,
+    IntType,
+    LongType,
+    NullType,
+    ShortType,
+    UnknownType,
+    VoidType]
+    where
+      refType = fmap RefType arbitrary
+
+--instance Arbitrary MethodBody where
+-- type Declaration
+
+instance Arbitrary Statement where
+  arbitrary = oneof [
+    fmap Label arbitraryLabel,
+    return Breakpoint,
+    liftM2 Tableswitch arbitrary arbitrary,
+    liftM2 Lookupswitch arbitrary arbitrary,
+    liftM3 Identity arbitraryLocalName arbitrary arbitrary,
+    liftM2 IdentityNoType arbitraryLocalName arbitrary,
+    liftM2 Assign arbitrary arbitrary,
+    liftM2 If arbitrary arbitraryLabel,
+    fmap Goto arbitraryLabel,
+    return Nop,
+    fmap Ret arbitrary,
+    fmap Return arbitrary,
+    fmap Throw arbitrary,
+    fmap Invoke arbitrary]
+
+-- type CaseStatement
+
+instance Arbitrary CaseLabel where
+  arbitrary = oneof $
+    return DefaultCase :
+    replicate 5 (fmap ConstantCase arbitrary)
+
+--instance Arbitrary CatchClause where
+
+instance Arbitrary Expr where
+  arbitrary = oneof [
+    fmap NewExpr arbitrary,
+    liftM2 NewArrayExpr arbitrary arbitrary,
+    liftM2 NewMultiArrayExpr arbitrary (replicateM 2 arbitrary),
+    liftM2 CastExpr arbitrary arbitrary,
+    liftM2 InstanceOfExpr arbitrary arbitrary,
+    fmap InvokeExpr arbitrary,
+    fmap RefExpr arbitrary,
+    liftM3 BinopExpr arbitrary arbitrary arbitrary,
+    liftM2 UnopExpr arbitrary arbitrary,
+    fmap ImmediateExpr arbitrary,
+    fmap MethodHandle arbitrary]
+
+instance Arbitrary BoolExpr where
+  arbitrary = liftM3 BoolExpr arbitrary arbitrary arbitrary
+
+instance Arbitrary Immediate where
+  arbitrary = oneof [
+    fmap Local arbitraryLocalName,
+    fmap DoubleConstant arbitrary,
+    fmap FloatConstant arbitrary,
+    fmap IntConstant arbitrary,
+    fmap LongConstant arbitrary,
+    return NullConstant,
+    fmap StringConstant arbitrary,
+    fmap ClassConstant arbitrary]
+
+instance Arbitrary AtIdentifier where
+  arbitrary = oneof $ [
+    return ThisRef,
+    return CaughtExceptionRef] ++ replicate 4 (fmap ParameterRef arbitrary)
+
+instance Arbitrary Variable where
+  arbitrary = oneof [
+    fmap ReferenceVar arbitrary,
+    fmap LocalVar arbitrary]
+
+instance Arbitrary ERef where
+  arbitrary = oneof [
+    liftM2 ArrayRef arbitraryLocalName arbitrary,
+    liftM2 FieldRef arbitraryLocalName arbitrary,
+    fmap SignatureRef arbitrary]
+
+instance Arbitrary EInvoke where
+  arbitrary = oneof [
+    liftM3 SpecialInvoke arbitraryLocalName arbitrary arbitrary,
+    liftM3 VirtualInvoke arbitraryLocalName arbitrary arbitrary,
+    liftM3 InterfaceInvoke arbitraryLocalName arbitrary arbitrary,
+    liftM2 StaticInvoke arbitrary arbitrary,
+    liftM5 DynamicInvoke arbitraryLocalName arbitrary arbitrary arbitrary arbitrary]
+
+instance Arbitrary BoolOp where
+  arbitrary = oneof $ map return [Cmpeq, Cmpne, Cmpgt, Cmpge, Cmplt, Cmple]
+
 instance Arbitrary Binop where
   arbitrary = oneof $ map return [And, Or, Xor, Shl, Shr, Ushr,
                                   Cmp, Cmpg, Cmpl,
                                   Plus, Minus, Mult, Div, Rem]
-
-data Unop
-  = Lengthof
-  | Neg deriving (Show, Eq)
 
 instance Arbitrary Unop where
   arbitrary = oneof $ map return [Lengthof, Neg]

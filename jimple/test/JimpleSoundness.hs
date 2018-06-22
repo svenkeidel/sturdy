@@ -37,22 +37,22 @@ jimpleSoundness
   evalCon          evalAbs
   runStatementsCon runStatementsAbs
   runProgramCon    runProgramAbs = do
-    soundImmediate "Literals" emptyMem id evalImmediateCon evalImmediateAbs
-    soundImmediate "Localvar literal"
-      toMem
-      (\() -> Local "a")
+    soundImmediate 50 "Literals" emptyMem id evalImmediateCon evalImmediateAbs
+    soundImmediate 10 "Localvar literal"
+      toMem (\() -> Local "a")
       evalImmediateCon evalImmediateAbs
 
-    soundBoolExpr "Boolean expressions" emptyMem id evalBoolCon evalBoolAbs
+    soundBoolExpr 100 "Boolean expressions" emptyMem id evalBoolCon evalBoolAbs
 
-    soundExpr "Unary operations" emptyMem (uncurry UnopExpr) evalCon evalAbs
-    soundExpr "Binary operations" emptyMem (\(x,op,y) ->
-        BinopExpr (IntConstant x) op (IntConstant y)
-      ) evalCon evalAbs
+    soundExpr 100 "Unary operations" emptyMem (uncurry UnopExpr) evalCon evalAbs
+    soundExpr 100 "Binary operations" emptyMem (uncurry3 BinopExpr) evalCon evalAbs
+    soundExpr 1000 "General expressions" emptyMem id evalCon evalAbs
 
-    soundExpr "General expressions" emptyMem id evalCon evalAbs
+    soundStatements 1000 "Single statements" toMem (:[]) runStatementsCon runStatementsAbs
 
   where
+    uncurry3 :: (a -> b -> c -> d) -> ((a,b,c) -> d)
+    uncurry3 f = (\(a,b,c) -> f a b c)
     emptyMem :: () -> [(String,vc)]
     emptyMem = const []
     toMem :: [vc] -> [(String,vc)]

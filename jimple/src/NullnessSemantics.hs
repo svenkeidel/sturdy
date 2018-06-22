@@ -15,7 +15,7 @@ import           Prelude hiding (lookup,read,fail,Bounded(..))
 
 import qualified Data.Boolean as B
 import           Data.Order
-import           Data.Set (singleton)
+import           Data.String (fromString)
 
 import qualified Data.Abstract.Boolean as Abs
 import           Data.Abstract.Environment (Env)
@@ -229,11 +229,13 @@ instance UseVal Val Interp where
     Top -> joined (defaultValue >>^ (⊔ NonNull)) failDynamic -< (t,NonNull)
   updateField f = first ((\(o,(v,_)) -> (o,v)) ^>> readField) >>> U.pi2 >>> f
   readStaticField = proc f -> read U.pi1 failStatic -<
-    (f,printf "FieldReference %s not bound" (show f))
+    (f,printf "Field %s not bound" (show f))
   updateStaticField = proc (f,v) -> do
     readStaticField -< f
     write -< (f,v)
-  case_ f = U.pi2 >>> map snd ^>> lubA f
+  case_ f = proc (_,cases) ->
+    joined (lubA f) (joined failStatic failStatic) -< (map snd cases,
+      ("No matching cases","Expected an integer as argument for switch"))
 
 instance UseException Exception Val Interp where
   catch f = proc (ex,clauses) -> case ex of
@@ -241,7 +243,7 @@ instance UseException Exception Val Interp where
     DynamicException v ->
       joined (lubA f) failDynamic -< (zip (repeat v) clauses,v)
   failDynamic = DynamicException ^>> fail
-  failStatic = (\s -> StaticException $ singleton s) ^>> fail
+  failStatic = fromString ^>> fail
 
 instance UseBool Abs.Bool Val Interp where
   eq = arr $ uncurry (Abs.==)
