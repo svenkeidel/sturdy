@@ -104,7 +104,10 @@ instance Hashable Constr where
   hashWithSalt s (NumLit n) = s `hashWithSalt` (2::Int) `hashWithSalt` n
 
 instance PreOrd (GrammarBuilder Constr) where
-  (⊑) = subsetOf
+  g1 ⊑ g2 = d1 `subsetOf` d2 where
+    -- TODO: fix this
+    d1 = {-if isDeterministic g1 then g1 else-} determinize g1
+    d2 = {-if isDeterministic g2 then g2 else-} determinize g2
 
 instance Complete (GrammarBuilder Constr) where
   (⊔) = union
@@ -132,10 +135,9 @@ instance ArrowFix (Strat,Term) Term Interp where
       localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> local g -< ((env,i,alph),a)
 
 instance ArrowDeduplicate Term Term Interp where
-  dedupA f = proc x -> do
-    x' <- fromTerm ^<< f -< x
-    -- TODO: dropUnreachable breaks the grammars
-    returnA -< Term $ normalize (epsilonClosure (dedup x'))
+  -- We normalize and determinize here to reduce duplicated production
+  -- rules, which can save us up to X times the work.
+  dedup f = Term . determinize . normalize . fromTerm ^<< f
 
 instance HasStratEnv Interp where
   readStratEnv = Interp (const () ^>> ask >>^ (\(a,_,_) -> a))
@@ -171,8 +173,8 @@ instance IsTerm Term Interp where
 
   equal = proc (Term g1, Term g2) -> case intersection g1 g2 of
     g | isEmpty g -> fail -< ()
-      | isSingleton g1 && isSingleton g2 -> returnA -< Term (normalize g)
-      | otherwise -> returnA ⊔ fail' -< Term (normalize g)
+      | isSingleton g1 && isSingleton g2 -> returnA -< Term g
+      | otherwise -> returnA ⊔ fail' -< Term g
 
   convertFromList = undefined
 

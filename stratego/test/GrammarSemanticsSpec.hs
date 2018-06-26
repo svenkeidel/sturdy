@@ -222,6 +222,7 @@ spec = do
       let tenv = termEnv [("x", numberGrammar 42)]
       in geval 1 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv (Term pcf) `shouldBe`
          Lower (Success (tenv, Term $ grammar "S" $ M.fromList [("S", [ Ctor (Constr "Ifz") ["S1", "S2", "S3"]])
+                                                               ,("S1", [ Ctor (NumLit 42) [] ])
                                                                ,("S2", [ Ctor (Constr "Succ") ["S1"]])
                                                                ,("S3", [ Ctor (Constr "Zero") []])]))
 
@@ -343,6 +344,9 @@ spec = do
 
     showLub :: C.Term -> C.Term -> String
     showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: Term)
+
+    empty :: GrammarBuilder Constr
+    empty = grammar "empty" M.empty
 
     pcf = grammar "S" $ M.fromList [
       ("S", [ Eps "Exp", Eps "Type" ])
