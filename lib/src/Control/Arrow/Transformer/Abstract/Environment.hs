@@ -26,6 +26,7 @@ import Control.Arrow.Except
 import Control.Arrow.Lift
 import Control.Arrow.Environment
 import Control.Arrow.Fix
+import Control.Arrow.Const
 
 newtype Environment var val c x y = Environment (Reader (Env var val) c x y)
 
@@ -64,6 +65,7 @@ deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
 deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
 deriving instance ArrowRead x y (Env var val,u) v c => ArrowRead x y u v (Environment var val c)
 deriving instance ArrowWrite x y c => ArrowWrite x y (Environment var val c)
+deriving instance ArrowConst x c => ArrowConst x (Environment var val c)
 
 deriving instance PreOrd (c (Env var val,x) y) => PreOrd (Environment var val c x y)
 deriving instance Complete (c (Env var val,x) y) => Complete (Environment var val c x y)

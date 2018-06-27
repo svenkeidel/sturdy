@@ -22,6 +22,7 @@ import Control.Arrow.Except
 import Control.Arrow.Lift
 import Control.Arrow.Writer
 import Control.Arrow.Utils
+import Control.Arrow.Const
 import Control.Arrow.Abstract.Join
 import Control.Category
 
@@ -93,6 +94,9 @@ instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
 
 instance ArrowJoin c => ArrowJoin (Reader r c) where
   joinWith lub (Reader f) (Reader g) = Reader $ (\(r,(x,y)) -> ((r,x),(r,y))) ^>> joinWith lub f g
+
+instance ArrowConst x c => ArrowConst x (Reader r c) where
+  askConst = lift askConst
 
 deriving instance PreOrd (c (r,x) y) => PreOrd (Reader r c x y)
 deriving instance LowerBounded (c (r,x) y) => LowerBounded (Reader r c x y)

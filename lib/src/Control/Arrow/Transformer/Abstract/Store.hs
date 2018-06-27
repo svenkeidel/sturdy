@@ -9,6 +9,7 @@
 module Control.Arrow.Transformer.Abstract.Store where
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
@@ -61,6 +62,7 @@ deriving instance ArrowFail e c => ArrowFail e (StoreArrow var val c)
 deriving instance ArrowExcept (Store var val,x) (Store var val,y) e c => ArrowExcept x y e (StoreArrow var val c)
 deriving instance ArrowLoop c => ArrowLoop (StoreArrow var val c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (StoreArrow var val c)
+deriving instance ArrowConst x c => ArrowConst x (StoreArrow var val c)
 instance ArrowApply c => ArrowApply (StoreArrow var val c) where app = StoreArrow $ (\(StoreArrow f,x) -> (f,x)) ^>> app
 type instance Fix x y (StoreArrow var val c) = StoreArrow var val (Fix (Store var val,x) (Store var val,y) c)
 

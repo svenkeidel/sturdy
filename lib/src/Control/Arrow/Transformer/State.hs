@@ -9,6 +9,7 @@ module Control.Arrow.Transformer.State(State(..),evalState,execState) where
 import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
 import Control.Arrow.Fail
@@ -104,6 +105,9 @@ instance ArrowLoop c => ArrowLoop (State s c) where
 instance (ArrowJoin c, Complete s) => ArrowJoin (State s c) where
   joinWith lub (State f) (State g) =
     State $ (\(s,(x,y)) -> ((s,x),(s,y))) ^>> joinWith (\(s1,z1) (s2,z2) -> (s1⊔s2,lub z1 z2)) f g
+
+instance ArrowConst x c => ArrowConst x (State s c) where
+  askConst = lift askConst
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (State s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (State s c x y)

@@ -10,6 +10,7 @@ module Control.Arrow.Transformer.Abstract.PropagateExcept(Except(..)) where
 import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
 import Control.Arrow.Fail
@@ -94,6 +95,9 @@ instance (ArrowChoice c, UpperBounded e, Complete (c (y,(x,e)) (Error e y))) => 
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedup (Except f) = Except (dedup f)
+
+instance (ArrowChoice c, ArrowConst x c) => ArrowConst x (Except e c) where
+  askConst = lift askConst
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)

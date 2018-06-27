@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-module Data.Abstract.Store(Store,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map,compose) where
+module Data.Abstract.Store(Store,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map,mapValues,compose) where
 
 import           Prelude hiding (lookup,map)
 
@@ -45,6 +45,9 @@ instance (Identifiable a, PreOrd b) => LowerBounded (Store a b) where
            
 map :: (Identifiable a', Complete b') => ((a,b) -> Maybe (a',b')) -> Store a b -> Store a' b'
 map f (Store h) = Store (H.fromListWith (⊔) [ (a,b) | Just (a,b) <- fmap f (H.toList h)])
+
+mapValues :: (b -> b') -> Store a b -> Store a b'
+mapValues f (Store h) = Store (H.map f h)
 
 subsetKeys :: Identifiable a => HashMap a b -> HashMap a b -> Bool
 subsetKeys m1 m2 = subset (S.fromMap (H.map (const ()) m1)) (S.fromMap (H.map (const ()) m2))
