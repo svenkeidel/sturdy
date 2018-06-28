@@ -59,7 +59,7 @@ jimpleSoundness
 
   where
     uncurry3 :: (a -> b -> c -> d) -> ((a,b,c) -> d)
-    uncurry3 f = (\(a,b,c) -> f a b c)
+    uncurry3 f (a,b,c) = f a b c
     emptyMem :: () -> [(String,vc)]
     emptyMem = const []
     toMem :: [vc] -> [(String,vc)]
