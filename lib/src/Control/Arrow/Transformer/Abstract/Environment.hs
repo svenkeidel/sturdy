@@ -11,7 +11,6 @@ module Control.Arrow.Transformer.Abstract.Environment where
 import Prelude hiding ((.),read)
 
 import Data.Order
-import Data.String
 import Data.Identifiable
 import Data.Abstract.Environment (Env)
 import qualified Data.Abstract.Environment as E

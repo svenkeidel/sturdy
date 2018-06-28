@@ -62,7 +62,8 @@ instance (Hashable a, Eq a, Complete a', Galois (Con.Pow a) a')
   alpha = lifted $ \e -> case e of
     Just x -> Just (alphaSing x)
     Nothing -> Nothing
-    
+  gamma = error "noncomputable"
+
 instance Galois (Con.Pow a) a' => Galois (Con.Pow a) (Abs.Pow a') where
   alpha x = Abs.fromFoldable (fmap alphaSing x)
   gamma y' = Con.unions (Con.fromFoldable (fmap gamma y'))
