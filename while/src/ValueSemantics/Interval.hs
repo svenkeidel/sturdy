@@ -8,30 +8,30 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ValueSemantics.Interval where
 
-import           Prelude hiding (Bool(..),Bounded(..),(==),(/),(<))
+import           Prelude hiding (Bool(..),Bounded(..),(==),(/),fail)
 import qualified Prelude as P
 
 import           Syntax
 import           SharedSemantics
 import qualified SharedSemantics as Shared
+import           ValueSemantics.Abstract
 
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
-import           Data.Abstract.Bounded hiding (lift)
 import           Data.Abstract.PropagateError (Error(..))
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
+import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Terminating
 import           Data.Abstract.Widening
 import qualified Data.Abstract.Ordering as O
 import           Data.Abstract.Equality
+import           Data.Abstract.Bounded
 
 import qualified Data.Boolean as B
 import           Data.Hashable
@@ -40,33 +40,33 @@ import           Data.Order
 import           Data.Label
 import           Data.Text (Text)
 
-import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Alloc
 import           Control.Arrow.Const
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Store
 import           Control.Arrow.Transformer.Const
-import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
-import           Control.Arrow.Transformer.Abstract.Store
-import           Control.Monad.State
 
 import           GHC.Generics
 
+type Addr = Label
 type IV = Interval Int
 data Val = BoolVal Bool | NumVal (Bounded IV) | Top deriving (Eq,Generic)
 
-newtype Interp c x y = Interp (Const IV (StoreArrow Text Val (Except String c)) x y)
-type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,x) (Error String (Store Text Val,y)) c)
+run :: (?bound :: IV) => [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Store Addr Val))
+run env ss =
+  fmap fst <$>
+    runLeastFixPoint
+      (runConst ?bound
+        (runInterp
+          (Shared.run :: Fix [Statement] () (Interp Addr Val (Const IV (~>))) [Statement] ())))
+      (S.empty,(E.fromList env, generate <$> ss))
 
-runInterp :: IV -> Interp c x y -> c (Store Text Val,x) (Error String (Store Text Val,y))
-runInterp b (Interp f) = runExcept (runStore (runConst b f))
+instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp Addr Val c) where
+  alloc = arr $ \(_,_,l) -> l
 
-run :: (?bound :: IV) => [State Label Statement] -> Terminating (Error String (Store Text Val))
-run ss = fmap fst <$> runLeastFixPoint (runInterp ?bound (Shared.run :: Fix [Statement] () (Interp (~>)) [Statement] ())) (S.empty,generate (sequence ss))
-
-instance ArrowChoice c => IsVal Val (Interp c) where
+instance (ArrowChoice c, ArrowConst IV c) => IsVal Val (Interp Addr Val c) where
   boolLit = arr $ \(b,_) -> case b of
     P.True -> BoolVal B.True
     P.False -> BoolVal B.False
@@ -74,16 +74,16 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.and` b2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two booleans as arguments for 'and'"
+    _ -> fail -< "Expected two booleans as arguments for 'and'"
   or = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.or` b2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two booleans as arguments for 'ord'"
+    _ -> fail -< "Expected two booleans as arguments for 'ord'"
   not = proc (v,_) -> case v of
     BoolVal b -> returnA -< BoolVal (B.not b)
     Top -> returnA -< Top
-    _ -> failA -< "Expected a boolean as argument for 'not'"
+    _ -> fail -< "Expected a boolean as argument for 'not'"
   numLit = proc (x,_) -> do
     b <- askConst -< ()
     returnA -< NumVal (Bounded b (I.Interval x x))
@@ -94,56 +94,44 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'add'"
+    _ -> fail -< "Expected two numbers as arguments for 'add'"
   sub = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'sub'"
+    _ -> fail -< "Expected two numbers as arguments for 'sub'"
   mul = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'mul'"
+    _ -> fail -< "Expected two numbers as arguments for 'mul'"
   div = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> case n1 / n2 of
-      Fail e -> failA -< e
+      Fail e -> fail -< e
       Success n3 -> returnA -< NumVal n3
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'mul'"
+    _ -> fail -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal x,NumVal y) -> returnA -< BoolVal (x == y)
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 == b2)
     (Top,_) -> returnA -< Top
     (_,Top) -> returnA -< Top
-    _ -> failA -< "Expected two values of the same type as arguments for 'eq'"
+    _ -> fail -< "Expected two values of the same type as arguments for 'eq'"
   lt = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< BoolVal (n1 O.< n2)
     (Top,_)   -> returnA -< Top
     (_,Top)   -> returnA -< Top
-    _ -> failA -< "Expected two numbers as arguments for 'lt'"
+    _ -> fail -< "Expected two numbers as arguments for 'lt'"
 
-instance (Complete (Interp c (x,y) z), UpperBounded z, ArrowChoice c)
-  => Conditional Val x y z (Interp c) where
+instance (Complete (Interp Addr Val c (x,y) z), UpperBounded z, ArrowChoice c)
+  => Conditional Val x y z (Interp Addr Val c) where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True -> f1 -< x
     BoolVal B.False -> f2 -< y
     BoolVal B.Top -> joined f1 f2 -< (x,y)
     Top -> returnA -< top
-    _ -> failA -< "Expected boolean as argument for 'if'"
-
-deriving instance ArrowChoice c => Category (Interp c)
-deriving instance ArrowChoice c => Arrow (Interp c)
-deriving instance ArrowChoice c => ArrowChoice (Interp c)
-deriving instance (ArrowChoice c, ArrowLoop c) => ArrowLoop (Interp c)
-deriving instance ArrowChoice c => ArrowFail String (Interp c)
-deriving instance ArrowChoice c => ArrowConst IV (Interp c)
-deriving instance (ArrowChoice c, ArrowFix (Store Text Val,x) (Error String (Store Text Val,y)) c) => ArrowFix x y (Interp c)
-deriving instance (Complete (c ((Store Text Val,Val),Text) (Error String (Store Text Val,Val))), ArrowChoice c) => ArrowStore Text Val Label (Interp c)
-deriving instance (PreOrd (c (Store Text Val,x) (Error String (Store Text Val,y)))) => PreOrd (Interp c x y)
-deriving instance (Complete (c (Store Text Val,x) (Error String (Store Text Val,y)))) => Complete (Interp c x y)
-deriving instance (UpperBounded (c (Store Text Val,x) (Error String (Store Text Val,y)))) => UpperBounded (Interp c x y)
+    _ -> fail -< "Expected boolean as argument for 'if'"
 
 instance PreOrd Val where
   _ ⊑ Top = P.True

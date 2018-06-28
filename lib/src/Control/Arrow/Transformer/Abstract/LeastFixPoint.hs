@@ -12,11 +12,11 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
-{-# OPTIONS_GHC -DTRACE #-}
+-- {-# OPTIONS_GHC -DTRACE #-}
 module Control.Arrow.Transformer.Abstract.LeastFixPoint(type (~>),runLeastFixPoint,runLeastFixPoint',liftLeastFixPoint) where
 
 import           Prelude hiding (id,(.),lookup)
-import           Data.Function (fix)
+import qualified Data.Function as F
 
 import           Control.Arrow
 import           Control.Arrow.Fix
@@ -73,13 +73,13 @@ liftLeastFixPoint f = LeastFixPoint ((\((_,o),x) -> (o,x)) ^>> second (f ^>> Ter
 #ifndef TRACE
 
 instance (Identifiable x, Widening y) => ArrowFix x y (LeastFixPoint x y) where
-  fixA f = proc x -> do
+  fix f = proc x -> do
     old <- getOutCache -< ()
     -- reset the current fixpoint cache
     setOutCache -< bottom
 
     -- recompute the fixpoint cache by calling 'f' and memoize its results.
-    y <- localInCache (fix (memoize . f)) -< (old,x)
+    y <- localInCache (F.fix (memoize . f)) -< (old,x)
 
     new <- getOutCache -< ()
 
@@ -90,7 +90,7 @@ instance (Identifiable x, Widening y) => ArrowFix x y (LeastFixPoint x y) where
     -- fixpoint cache.
     if (new ⊑ old)
     then returnA -< y
-    else fixA f -< x
+    else fix f -< x
 
 -- | Memoizes the results of the interpreter function. In case a value
 -- has been computed before, the cached value is returned and will not
@@ -100,13 +100,13 @@ memoize (LeastFixPoint f) = LeastFixPoint $ \((inCache, outCache),x) -> do
   case S.lookup x outCache of
     -- In case the input was in the fixpoint cache, short-cut
     -- recursion and return the cached value.
-    Success y -> (outCache,y)
+    Just y -> (outCache,y)
 
     -- In case the input was not in the fixpoint cache, initialize the
     -- cache with previous knowledge about the result or ⊥, compute
     -- the result of the function and update the fixpoint cache.
-    Fail _ ->                
-      let yOld = fromError bottom (S.lookup x inCache)
+    Nothing ->                
+      let yOld = fromMaybe bottom (S.lookup x inCache)
           outCache' = S.insert x yOld outCache
           (outCache'',y) = f ((inCache, outCache'),x)
       in (S.insertWith (flip (▽)) x y outCache'',y)

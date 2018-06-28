@@ -23,7 +23,8 @@ import Control.Arrow.Store
 import Control.Arrow.Const
 import Control.Arrow.Writer
 import Control.Arrow.Transformer.Static
-    
+import Control.Arrow.Abstract.Join
+
 import Data.Order
 
 -- | Passes along constant data.
@@ -34,7 +35,7 @@ runConst r (Const (Static f)) = f r
 
 type instance Fix x y (Const r c) = Const r (Fix x y c)
 instance ArrowFix x y c => ArrowFix x y (Const r c) where
-  fixA f = Const $ Static $ \r -> fixA (runConst r . f . lift)
+  fix f = Const $ Static $ \r -> fix (runConst r . f . lift)
 
 instance Arrow c => ArrowConst r (Const r c) where
   askConst = Const $ Static $ \r -> arr (const r)
@@ -42,6 +43,7 @@ instance Arrow c => ArrowConst r (Const r c) where
 instance ArrowApply c => ArrowApply (Const r c) where
   app = Const $ Static $ \r -> (\(Const (Static f),x) -> (f r,x)) ^>> app
 
+deriving instance ArrowJoin c => ArrowJoin (Const r c)
 deriving instance ArrowLift (Const r)
 deriving instance Arrow c => Category (Const r c)
 deriving instance Arrow c => Arrow (Const r c)
@@ -51,7 +53,8 @@ deriving instance ArrowState s c => ArrowState s (Const r c)
 deriving instance ArrowReader r c => ArrowReader r (Const r' c)
 deriving instance ArrowWriter w c => ArrowWriter w (Const r c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (Const r c)
-deriving instance ArrowStore var val lab c => ArrowStore var val lab (Const r c)
+deriving instance ArrowRead var val x y c => ArrowRead var val x y (Const r c)
+deriving instance ArrowWrite var val c => ArrowWrite var val (Const r c)
 deriving instance ArrowFail e c => ArrowFail e (Const r c)
 deriving instance ArrowExcept x y e c => ArrowExcept x y e (Const r c)
 

@@ -14,8 +14,9 @@ library
                        SharedSemantics,
 
                        ValueSemantics.Concrete
+                       ValueSemantics.Abstract
                        ValueSemantics.Interval
-                       ValueSemantics.Symbolic
+                       -- ValueSemantics.Symbolic
                        ValueSemantics.Unit
 
                        -- Vals.Symbolic.Val

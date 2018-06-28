@@ -10,9 +10,10 @@
 module SharedInterpreter where
 
 import           Control.Arrow
-import           Control.Arrow.Utils (foldA, mapA, pi1, pi2)
+import           Control.Arrow.Utils (fold, map, pi1, pi2)
 import           Debug.Trace         (trace)
-import           Prelude             hiding (break, error, lookup, read)
+import           Prelude             hiding (break, error, fold, lookup, map,
+                                      read)
 import qualified Prelude
 import           Syntax
 
@@ -63,18 +64,18 @@ eval = proc e -> do
         ELambda ids exp -> do
             lambdaVal -< (ids, exp)
         EObject fields -> do
-            vals <- (mapA $ second eval) -< fields
+            vals <- (Control.Arrow.Utils.map $ second eval) -< fields
             objectVal -< vals
         EId id -> SharedInterpreter.lookup -< id
         EOp op exps -> do
-            vals <- (mapA eval) -< exps
+            vals <- (map eval) -< exps
             evalOp -< (op, vals)
         EApp body args -> do
             lambda <- eval -< body
-            args <- mapA eval -< args
+            args <- map eval -< args
             apply eval -< (lambda, args)
         ELet argsE body -> do
-            eval -< EApp (ELambda (map fst argsE) body) (map snd argsE)
+            eval -< EApp (ELambda (Prelude.map fst argsE) body) (Prelude.map snd argsE)
         ESetRef locE valE -> do
             loc <- eval -< locE
             val <- eval -< valE

@@ -11,10 +11,10 @@ import Control.Arrow
 -- | Arrow-based interface for describing fixpoint computations.
 class Arrow c => ArrowFix x y c where
   -- | Computes the fixpoint of an arrow computation.
-  fixA :: (c x y -> c x y) -> c x y
+  fix :: (c x y -> c x y) -> c x y
 
 instance ArrowFix x y (->) where
-  fixA f = f (fixA f)
+  fix f = f (fix f)
 
 -- | Computes the type of the fixpoint cache used by 'LeastFixPoint'.
 --

@@ -104,4 +104,3 @@ deriving instance LowerBounded (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVars
 deriving instance Complete (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => Complete (LiveVariables v c x y)
 deriving instance CoComplete (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => CoComplete (LiveVariables v c x y)
 deriving instance UpperBounded (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => UpperBounded (LiveVariables v c x y)
-

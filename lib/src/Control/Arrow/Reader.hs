@@ -4,16 +4,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Reader where
 
-import Control.Arrow
-import Control.Monad.Reader
+import           Control.Arrow
+import           Control.Monad.Reader (MonadReader)
+import qualified Control.Monad.Reader as M
 
 -- | Arrow-based interface for read-only values.
 class Arrow c => ArrowReader r c | c -> r where
   -- | Retrieves the current read-only value.
-  askA :: c () r
+  ask :: c () r
   -- | Runs a computation with a new value.
-  localA :: c x y -> c (r,x) y
+  local :: c x y -> c (r,x) y
 
 instance MonadReader r m => ArrowReader r (Kleisli m) where
-  askA = Kleisli (const ask)
-  localA (Kleisli f) = Kleisli (\(r,x) -> local (const r) (f x))
+  ask = Kleisli (const M.ask)
+  local (Kleisli f) = Kleisli (\(r,x) -> M.local (const r) (f x))

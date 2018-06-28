@@ -23,4 +23,3 @@ spec =
                 ]
     run' stmts Store.empty `shouldBe`
       Right (Store.fromList [("x", NumVal 10), ("y", NumVal 36)])
-

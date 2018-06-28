@@ -7,5 +7,7 @@ packages:
 - 'pcf'
 - 'while'
 - 'stratego'
+# - 'lambda-adt'
+ - 'jimple'
 - 'lambdajs'
-#- 'lambda-adt'
+# - 'tutorial'

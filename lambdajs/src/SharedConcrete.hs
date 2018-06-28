@@ -12,8 +12,9 @@ module SharedConcrete where
 
 import           GHC.Generics                                   (Generic)
 import           Prelude                                        hiding (break,
-                                                                 error, lookup,
-                                                                 read)
+                                                                 error, fail,
+                                                                 fold, lookup,
+                                                                 map, read)
 import qualified Prelude
 import           SharedInterpreter
 import           Syntax
@@ -39,7 +40,7 @@ import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Utils                            (mapA, pi1, pi2)
+import           Control.Arrow.Utils                            (map, pi1, pi2)
 
 import           Control.Arrow
 import           Control.Arrow.Environment
@@ -84,35 +85,17 @@ newtype ConcreteArr x y = ConcreteArr
 
 deriving instance ArrowFail (Either String Exceptional) ConcreteArr
 deriving instance ArrowEnv Ident Value (Env Ident Value) ConcreteArr
-
-instance (Show Location, Identifiable Value, ArrowChoice c) => ArrowStore Location Value lab (StoreArrow Location Value c) where
-  read =
-    StoreArrow $ State $ proc (s,(var,_)) -> case Data.Concrete.Store.lookup var s of
-      Just v  -> returnA -< (s,v)
-      Nothing -> returnA -< (s, VUndefined)
-  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (Data.Concrete.Store.insert x v s,()))))
-instance (Show Ident, Identifiable Ident, ArrowChoice c) => ArrowEnv Ident Value (Env Ident Value) (Environment Ident Value c) where
-  lookup = proc x -> do
-    env <- getEnv -< ()
-    case Data.Concrete.Environment.lookup x env of
-      Just y  -> returnA -< y
-      Nothing -> returnA -< VRef $ Location (-1)
-  getEnv = Environment askA
-  extendEnv = arr $ \(x,y,env) -> Data.Concrete.Environment.insert x y env
-  localEnv (Environment f) = Environment (localA f)
-
-deriving instance ArrowStore Location Value () ConcreteArr
 deriving instance ArrowState Location ConcreteArr
 deriving instance ArrowChoice ConcreteArr
 deriving instance Arrow ConcreteArr
 deriving instance Category ConcreteArr
-
-
+deriving instance ArrowRead Location Value x Value ConcreteArr
+deriving instance ArrowWrite Location Value ConcreteArr
 deriving instance ArrowExcept (Label, Expr) (Label, Value) (Either String Exceptional) ConcreteArr
 deriving instance ArrowExcept (Expr, Expr) (Expr, Value) (Either String Exceptional) ConcreteArr
 
 runLJS :: ConcreteArr x y -> [(Ident, Value)] -> [(Location, Value)] -> x -> (Location, (Store Location Value, Error (Either String Exceptional) y))
-runLJS (ConcreteArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Concrete.Store.fromList env2, (env, x)))
+runLJS (ConcreteArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Concrete.Store.fromList env2, (Data.Concrete.Environment.fromList env, x)))
 
 runConcrete :: [(Ident, Value)] -> [(Location, Value)] -> Expr -> (Store Location Value, Error String Value)
 runConcrete env st exp =
@@ -149,11 +132,11 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
     (OStrLen, [(VString a)]) -> returnA -< VNumber $ fromIntegral $ length a
     (OStrStartsWith, [(VString a), (VString b)]) -> returnA -< VBool $ isPrefixOf b a
     (OStrSplitStrExp, [(VString subject), (VString delim)]) -> do
-        let elems = zip (map show [0..]) (map VString $ splitOn delim subject)
+        let elems = zip (Prelude.map show [0..]) (Prelude.map VString $ splitOn delim subject)
         returnA -< VObject (elems ++ [("length", VNumber $ fromIntegral $ length elems), ("$proto", VString "Array")])
-    (OStrSplitRegExp, _) -> failA -< Left $ "Regex operations not implemented"
-    (ORegExpMatch, _) -> failA -< Left $ "Regex operations not implemented"
-    (ORegExpQuote, _) -> failA -< Left $ "Regex operations not implemented"
+    (OStrSplitRegExp, _) -> fail -< Left $ "Regex operations not implemented"
+    (ORegExpMatch, _) -> fail -< Left $ "Regex operations not implemented"
+    (ORegExpQuote, _) -> fail -< Left $ "Regex operations not implemented"
     -- boolean operators
     (OBAnd, [(VBool a), (VBool b)]) -> returnA -< VBool (a && b)
     (OBOr, [(VBool a), (VBool b)]) -> returnA -< VBool (a || b)
@@ -243,31 +226,31 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
         let newObj = filter (\(n, v) -> (head n /= '$')) obj
         case elemIndex (head newObj) obj of
             Just n  -> returnA -< (VNumber $ fromIntegral n)
-            Nothing -> failA -< Left $ "Error no such element"
+            Nothing -> fail -< Left $ "Error no such element"
     (OObjIterNext, [(VObject obj), (VNumber i)]) -> do
         let obj2 = drop ((floor i) + 1) obj
         let elem = head $ dropWhile (\(n, v) -> (head n == '$')) obj2
         case elemIndex elem obj of
             Just n  -> returnA -< (VNumber $ fromIntegral n)
-            Nothing -> failA -< Left $ "Error no such element"
+            Nothing -> fail -< Left $ "Error no such element"
     (OObjIterKey, [(VObject obj), (VNumber i)]) -> do
         returnA -< (VString $ fst $ obj !! floor i)
     (OSurfaceTypeof, [a]) -> returnA -< VString (case a of
-        VObject fields -> if elem "$code" (map fst fields) then "function" else "object"
+        VObject fields -> if elem "$code" (Prelude.map fst fields) then "function" else "object"
         VNull          -> "object"
         VUndefined     -> "undefined"
         VNumber _      -> "number"
         VString _      -> "string"
         VBool _        -> "boolean")
-    x -> failA -< Left $ "Unimplemented operator: " ++ (show op) ++ " with args: " ++ (show vals)
+    x -> fail -< Left $ "Unimplemented operator: " ++ (show op) ++ " with args: " ++ (show vals)
 
 fresh :: ArrowState Location c => c () Location
 fresh = proc () -> do
-    Location s <- getA -< ()
-    putA -< Location $ s + 1
+    Location s <- Control.Arrow.State.get -< ()
+    put -< Location $ s + 1
     returnA -< Location $ s + 1
 
-getField_ :: (ArrowFail (Either String Exceptional) c, ArrowChoice c, ArrowStore Location Value () c) => c (Value, Value) Value
+getField_ :: (ArrowFail (Either String Exceptional) c, ArrowChoice c, ArrowRead Location Value Value Value c) => c (Value, Value) Value
 getField_ = proc (VObject fields, VString fieldName) -> do
     let fieldV = find (\(fn, fv) -> fieldName == fn) fields in
         case fieldV of
@@ -280,7 +263,7 @@ getField_ = proc (VObject fields, VString fieldName) -> do
                         Just (pn, VNull) -> returnA -< VUndefined
                         -- E-GetField-Proto
                         Just (pn, VRef l) -> do
-                            protoV <- read -< (l, ())
+                            protoV <- read pi1 Control.Category.id -< (l, VUndefined)
                             getField_ -< (protoV, VString fieldName)
                         -- When proto exists but none of the special semantics apply
                         Just (_, _) -> returnA -< VUndefined
@@ -298,10 +281,10 @@ updateField_ = proc (fields, name, value) -> do
                     -- add field with new value to obj
                     newFields <- arr (\(fs, n, v) -> (n, v) : fs) -< (obj, name, value)
                     returnA -< VObject newFields
-                _ -> failA -< Left "Error: deleteField returned non-object value"
+                _ -> fail -< Left "Error: deleteField returned non-object value"
         _ -> do
             env <- getEnv -< ()
-            failA -< Left $ "Error: non exhaustive pattern in updateField_ with params: (" ++ (show fields) ++ ") (" ++ (show name) ++ ") (" ++ show value ++ ") " ++ (show env)
+            fail -< Left $ "Error: non exhaustive pattern in updateField_ with params: (" ++ (show fields) ++ ") (" ++ (show name) ++ ") (" ++ show value ++ ") " ++ (show env)
 
 deleteField_ :: ArrowFail (Either String Exceptional) e => e (Value, Value) Value
 deleteField_ = proc (VObject obj, VString field) -> do
@@ -332,29 +315,29 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
     evalOp = proc (op, vals) -> evalOp_ -< (op, vals)
     -- environment ops
     lookup = proc id -> do
-        v <- Control.Arrow.Environment.lookup -< id
+        v <- Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id, VRef (Location (-1)))
         case v of
-            VRef (Location (-1)) -> failA -< Left $ "Error: " ++ (show id) ++ " does not exist"
+            VRef (Location (-1)) -> fail -< Left $ "Error: " ++ (show id) ++ " does not exist"
             _ -> returnA -< v
     apply f1 = proc (lambda, args) -> do
         case lambda of
             VLambda names body closureEnv -> do
                 case (length names) == (length args) of
-                    False -> failA -< Left $ "Error: applied lambda with less/more params than arguments"
+                    False -> fail -< Left $ "Error: applied lambda with less/more params than arguments"
                     True -> do
                         newBindings <- arr $ uncurry zip -< (names, args)
                         bindingEnv <- bindings -< (newBindings, closureEnv)
                         outsideEnv <- getEnv -< ()
                         finalEnv <- bindings -< (Data.Concrete.Environment.toList bindingEnv, outsideEnv)
                         localEnv f1 -< (finalEnv, body)
-            _ -> failA -< Left $ "Error: apply on non-lambda value: " ++ (show lambda) ++ " " ++ (show args)
+            _ -> fail -< Left $ "Error: apply on non-lambda value: " ++ (show lambda) ++ " " ++ (show args)
     -- store ops
     set = proc (loc, val) -> do
         case loc of
             VRef l -> do
-                write -< (l, val, ())
+                write -< (l, val)
                 returnA -< ()
-            _ -> failA -< Left $ "Error: ESetRef lhs must be location, is: " ++ (show loc)
+            _ -> fail -< Left $ "Error: ESetRef lhs must be location, is: " ++ (show loc)
     new = proc (val) -> do
         loc <- fresh -< ()
         set -< (VRef loc, val)
@@ -362,9 +345,9 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
     get = proc (loc) -> do
         case loc of
             VRef l -> do
-                val <- read -< (l, ())
+                val <- read pi1 Control.Category.id -< (l, VUndefined)
                 returnA -< val
-            _ -> failA -< Left $ "Error: EDeref lhs must be location, is: " ++ (show loc)
+            _ -> fail -< Left $ "Error: EDeref lhs must be location, is: " ++ (show loc)
     -- control flow
     if_ f1 f2 = proc (cond, thenBranch, elseBranch) -> do
         case cond of
@@ -372,34 +355,34 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
                 f1 -< thenBranch
             VBool False -> do
                 f2 -< elseBranch
-            _ -> failA -< Left $ (show cond)
+            _ -> fail -< Left $ (show cond)
     while_ f1 f2 = proc (cond, body) -> do
         condV <- f1 -< cond
         case condV of
             VBool True  -> f2 -< (ESeq body (EWhile cond body))
             VBool False -> returnA -< VUndefined
     label f1 = proc (l, e) -> do
-        (l, res) <- tryCatchA (second f1) (proc ((label, _), err) -> case err of
-            Left s -> failA -< Left s
+        (l, res) <- tryCatch (second f1) (proc ((label, _), err) -> case err of
+            Left s -> fail -< Left s
             Right (Break l1 v) -> case l1 == label of
                 True  -> returnA -< (label, v)
-                False -> failA -< (Right $ Break l1 v)
-            Right (Thrown v) -> failA -< (Right $ Thrown v)) -< (l, e)
+                False -> fail -< (Right $ Break l1 v)
+            Right (Thrown v) -> fail -< (Right $ Thrown v)) -< (l, e)
         returnA -< res
     break = proc (l, v) -> do
-        failA -< Right (Break l v)
+        fail -< Right (Break l v)
     throw = proc v -> do
-        failA -< Right (Thrown v)
+        fail -< Right (Thrown v)
     catch f1 = proc (try, catch) -> do
-        (c, res) <- tryCatchA (second f1) (proc ((catch, _), err) -> case err of
-            Left s -> failA -< Left s
-            Right (Break l1 v) -> failA -< Right $ Break l1 v
+        (c, res) <- tryCatch (second f1) (proc ((catch, _), err) -> case err of
+            Left s -> fail -< Left s
+            Right (Break l1 v) -> fail -< Right $ Break l1 v
             Right (Thrown v) -> case catch of
                 ELambda [x] body -> do
                     scope <- getEnv -< ()
                     env' <- extendEnv -< (x, v, scope)
                     res <- localEnv f1 -< (env', body)
                     returnA -< (catch, res)
-                _ -> failA -< Left "Error: Catch block must be of type ELambda") -< (catch, try)
+                _ -> fail -< Left "Error: Catch block must be of type ELambda") -< (catch, try)
         returnA -< res
-    error = proc s -> failA -< Left $ "Error: aborted with message: " ++ s
+    error = proc s -> fail -< Left $ "Error: aborted with message: " ++ s

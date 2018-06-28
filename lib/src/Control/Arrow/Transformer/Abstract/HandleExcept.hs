@@ -7,15 +7,17 @@
 {-# LANGUAGE GADTs #-}
 module Control.Arrow.Transformer.Abstract.HandleExcept(Except(..)) where
 
-import Prelude hiding (id,lookup,(.))
+import Prelude hiding (id,lookup,(.),read)
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
+import Control.Arrow.Store
 import Control.Arrow.Except
 import Control.Arrow.Store
 import Control.Arrow.Fix
@@ -63,24 +65,30 @@ instance (Complete e, ArrowJoin c, ArrowApply c, ArrowChoice c) => ArrowApply (E
   app = Except $ first runExcept ^>> app
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowState s c) => ArrowState s (Except e c) where
-  getA = lift getA
-  putA = lift putA
+  get = lift get
+  put = lift put
+
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowRead var val x (Error e y) c) => ArrowRead var val x y (Except e c) where
+  read (Except f) (Except g) = Except $ read f g
+
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowWrite x y c) => ArrowWrite x y (Except e c) where
+  write = lift write
 
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowFail e (Except e c) where
-  failA = Except $ arr Fail
+  fail = Except $ arr Fail
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowReader r c) => ArrowReader r (Except e c) where
-  askA = lift askA
-  localA (Except f) = Except (localA f)
+  ask = lift ask
+  local (Except f) = Except (local f)
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Except e c) where
-  lookup = lift lookup
+  lookup (Except f) (Except g) = Except $ lookup f g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Except f) = Except (localEnv f)
 
 instance (ArrowChoice c, Complete e, ArrowJoin c, Complete (c (y,(x,e)) (Error e y))) => ArrowExcept x y e (Except e c) where
-  tryCatchA (Except f) (Except g) = Except $ proc x -> do
+  tryCatch (Except f) (Except g) = Except $ proc x -> do
     e <- f -< x
     case e of
       Success y -> returnA -< Success y
@@ -91,14 +99,26 @@ instance (ArrowChoice c, Complete e, ArrowJoin c, Complete (c (y,(x,e)) (Error e
     g -< x
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
-  fixA f = Except (fixA (runExcept . f . Except))
+  fix f = Except (fix (runExcept . f . Except))
 
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowDeduplicate (Except e c) where
-  dedupA = returnA
+  dedup = returnA
 
-instance (ArrowStore loc val lab c, ArrowChoice c, ArrowJoin c, Complete r) => ArrowStore loc val lab (Except r c) where
-  read = lift Control.Arrow.Store.read
-  write = lift write
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where
+  askConst = lift askConst
+
+instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowJoin (Except e c) where
+  joinWith lub' (Except f) (Except g) = Except $ joinWith (\r1 r2 -> case (r1, r2) of
+    (Success y1,          Success y2)          -> Success (y1 `lub'` y2)
+    (Success y1,          SuccessOrFail e y2)  -> SuccessOrFail e (y1 `lub'` y2)
+    (Success y,           Fail e)              -> SuccessOrFail e y
+    (SuccessOrFail e y1,  Success y2)          -> SuccessOrFail e (y1 `lub'` y2)
+    (SuccessOrFail e1 y1, SuccessOrFail e2 y2) -> SuccessOrFail (e1 ⊔ e2) (y1 `lub'` y2)
+    (SuccessOrFail e1 y,  Fail e2)             -> SuccessOrFail (e1 ⊔ e2) y
+    (Fail e,              Success y)           -> SuccessOrFail e y
+    (Fail e1,             SuccessOrFail e2 y)  -> SuccessOrFail (e1 ⊔ e2) y
+    (Fail e1,             Fail e2)             -> Fail (e1 ⊔ e2)
+    ) f g
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)

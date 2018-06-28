@@ -12,7 +12,7 @@
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module IntervalAnalysis where
 
-import           Prelude hiding (Bounded)
+import           Prelude hiding (Bounded,fail)
 
 import           Control.Category
 import           Control.Arrow
@@ -25,7 +25,7 @@ import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
 import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.Const
-import           Control.Monad.State hiding (lift)
+import           Control.Monad.State hiding (lift,fail)
 
 import           Data.Foldable (toList)
 import           Data.Hashable
@@ -92,11 +92,11 @@ instance IsVal Val Interp where
   succ = proc x -> case x of
     Top -> returnA -< Top
     NumVal n -> returnA -< NumVal $ lift (+ 1) n -- uses the `Num` instance of intervals
-    ClosureVal _ -> failA -< "Expected a number as argument for 'succ'"
+    ClosureVal _ -> fail -< "Expected a number as argument for 'succ'"
   pred = proc x -> case x of
     Top -> returnA -< Top
     NumVal n -> returnA -< NumVal $ lift (+ negate 1) n
-    ClosureVal _ -> failA -< "Expected a number as argument for 'pred'"
+    ClosureVal _ -> fail -< "Expected a number as argument for 'pred'"
   zero = proc _ -> do
     b <- askConst -< ()
     returnA -< (NumVal (Bounded b 0))
@@ -106,7 +106,7 @@ instance IsVal Val Interp where
       | (i1, i2) == (0, 0) -> f -< x      -- case the interval is exactly zero
       | i1 > 0 || i2 < 0 -> g -< y        -- case the interval does not contain zero
       | otherwise -> (f -< x) ⊔ (g -< y)  -- case the interval contains zero and other numbers.
-    (ClosureVal _, _) -> failA -< "Expected a number as condition for 'ifZero'"
+    (ClosureVal _, _) -> fail -< "Expected a number as condition for 'ifZero'"
 
 instance IsClosure Val (Env Text Addr,Store Addr Val) Interp where
   closure = arr $ \(e, env) -> ClosureVal (S.singleton (Closure e env))
@@ -115,7 +115,7 @@ instance IsClosure Val (Env Text Addr,Store Addr Val) Interp where
     ClosureVal cls ->
       -- Apply the interpreter function `f` on all closures and join their results.
       lubA (proc (Closure e env,arg) -> f -< ((e,env),arg)) -< [ (c,arg) | c <- toList cls]
-    NumVal _ -> failA -< "Expected a closure"
+    NumVal _ -> fail -< "Expected a closure"
 
 deriving instance Category Interp
 deriving instance Arrow Interp

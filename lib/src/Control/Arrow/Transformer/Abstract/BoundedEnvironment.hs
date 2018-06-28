@@ -10,7 +10,7 @@
 module Control.Arrow.Transformer.Abstract.BoundedEnvironment(Environment,runEnvironment,ArrowAlloc(..)) where
 
 import           Control.Arrow
-import           Control.Arrow.Abstract.Alloc
+import           Control.Arrow.Alloc
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
@@ -29,20 +29,19 @@ import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 
-import           Text.Printf
-
 -- | Abstract domain for environments in which concrete environments
 -- are approximated by a mapping from variables to addresses and a
 -- mapping from addresses to values. The number of allocated addresses
 -- allows to tune the precision and performance of the analysis.
--- 
+--
 -- Furthermore, closures and environments are defined mutually
 -- recursively. By only allowing a finite number of addresses, the
 -- abstract domain of closures and environments becomes finite.
 newtype Environment var addr val c x y =
   Environment ( Reader (Env var addr,Store addr val) c x y )
 
-runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c)
+runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c,
+                   ArrowFail String c, ArrowAlloc (var,val,Env var addr,Store addr val) addr c)
                => Environment var addr val c x y -> c ([(var,val)],x) y
 runEnvironment f =
   let Environment (Reader f') = proc (bs,x) -> do
@@ -54,25 +53,26 @@ runEnvironment f =
 instance ArrowLift (Environment var addr val) where
   lift f = Environment (lift f)
 
-instance (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowFail String c, ArrowAlloc var addr val c) =>
+instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowAlloc (var,val,Env var addr,Store addr val) addr c) =>
   ArrowEnv var val (Env var addr,Store addr val) (Environment var addr val c) where
-  lookup = Environment $ Reader $ proc ((env,store),x) -> do
-    case do {addr <- E.lookup x env; S.lookup addr store} of
-      Just v -> returnA -< v
-      Nothing -> failA -< printf "Variable %s not bound" (show x)
-  getEnv = Environment askA
+  lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
+    (env,store) <- ask -< ()
+    case do {addr <- E.lookup var env; S.lookup addr store} of
+      Just val -> f -< (val,x)
+      Nothing -> g -< x
+  getEnv = Environment ask
   -- | If an existing address is allocated for a new variable binding,
   -- the new value is joined with the existing value at this address.
   extendEnv = proc (x,y,(env,store)) -> do
-    addr <- lift alloc -< (x,env,store)
+    addr <- lift alloc -< (x,y,env,store)
     returnA -< (E.insert x addr env,S.insertWith (⊔) addr y store)
   localEnv (Environment (Reader f)) =
     Environment (Reader ((\(_,(e,a)) -> (e,a)) ^>> f))
 
 instance ArrowReader r c => ArrowReader r (Environment var addr val c) where
-  askA = lift askA
-  localA (Environment (Reader f)) =
-    Environment $ Reader $ (\(env,(r,x)) -> (r,(env,x))) ^>> localA f
+  ask = lift ask
+  local (Environment (Reader f)) =
+    Environment $ Reader $ (\(env,(r,x)) -> (r,(env,x))) ^>> local f
 
 instance ArrowApply c => ArrowApply (Environment var addr val c) where
   app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app

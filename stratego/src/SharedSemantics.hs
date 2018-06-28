@@ -7,7 +7,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 module SharedSemantics where
 
-import           Prelude hiding ((.),id,all,sequence,curry, uncurry)
+import           Prelude hiding ((.),id,all,sequence,curry, uncurry,fail)
 
 import           Syntax hiding (Fail,TermPattern(..))
 import           Syntax (TermPattern)
@@ -33,9 +33,9 @@ eval' :: (ArrowChoice c, ArrowExcept t t () c, ArrowExcept (t,[t]) (t,[t]) () c,
           ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c)
       => (Strat -> c t t)
-eval' = fixA' $ \ev s0 -> dedupA $ case s0 of
+eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Id -> id
-    S.Fail -> failA'
+    S.Fail -> fail'
     Seq s1 s2 -> sequence (ev s1) (ev s2)
     GuardedChoice s1 s2 s3 -> guardedChoice (ev s1) (ev s2) (ev s3)
     One s -> mapSubterms (one (ev s))
@@ -64,7 +64,7 @@ one f = proc l -> case l of
   (t:ts) -> do
     (t',ts') <- first f <+> second (one f) -< (t,ts)
     returnA -< (t':ts')
-  [] -> failA -< ()
+  [] -> fail -< ()
 
 -- | Apply a strategy to as many subterms as possible (as long as the
 -- strategy does not fail).
@@ -76,7 +76,7 @@ some f = go
         (t',ts') <- tryA (first f) (second go') (second go) -< (t,ts)
         returnA -< t':ts'
       -- the strategy did not succeed for any of the subterms, i.e. some(s) fails
-      [] -> failA -< ()
+      [] -> fail -< ()
     go' = proc l -> case l of
       (t:ts) -> do
         (t',ts') <- tryA (first f) (second go') (second go') -< (t,ts)
@@ -127,7 +127,7 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
     Nothing -> error (printf "strategy %s not in scope" (show f)) -< ()
   where
     bindTermArg = proc (actual,formal) ->
-      lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t) failA -<< actual
+      lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t) fail -<< actual
     {-# INLINE bindTermArg #-}
 
     bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
@@ -177,7 +177,7 @@ build :: (ArrowChoice c, ArrowFail () c, IsTerm t c, IsTermEnv env t c)
 build = proc p -> case p of
   S.As _ _ -> error "As-pattern in build is disallowed" -< ()
   S.Var x ->
-    lookupTermVar' returnA failA -< x
+    lookupTermVar' returnA fail -< x
   S.Cons c ts -> do
     ts' <- mapA build -< ts
     cons -< (c,ts')
@@ -270,7 +270,7 @@ deleteTermVars' = proc vs -> do
 
 -- | Fixpoint combinator used by Stratego.
 fixA' :: (ArrowFix (z,x) y c, ArrowApply c) => ((z -> c x y) -> (z -> c x y)) -> (z -> c x y)
-fixA' f = curry (fixA (uncurry . f . curry))
+fixA' f = curry (fix (uncurry . f . curry))
   where
     curry :: Arrow c => c (z,x) y -> (z -> c x y)
     curry g z = proc x -> g -< (z,x)

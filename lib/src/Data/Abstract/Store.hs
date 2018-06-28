@@ -1,7 +1,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Abstract.Store(Store,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map) where
+{-# LANGUAGE TypeFamilies #-}
+module Data.Abstract.Store(Store,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map,mapValues,compose) where
 
 import           Prelude hiding (lookup,map)
 
@@ -14,6 +15,8 @@ import           Data.Order
 import           Data.Identifiable
 
 import           Data.Abstract.Widening
+
+import           GHC.Exts
 
 import           Text.Printf
 
@@ -39,9 +42,12 @@ instance (Identifiable a, Widening b) => Widening (Store a b) where
 
 instance (Identifiable a, PreOrd b) => LowerBounded (Store a b) where
   bottom = empty
-
+           
 map :: (Identifiable a', Complete b') => ((a,b) -> Maybe (a',b')) -> Store a b -> Store a' b'
 map f (Store h) = Store (H.fromListWith (⊔) [ (a,b) | Just (a,b) <- fmap f (H.toList h)])
+
+mapValues :: (b -> b') -> Store a b -> Store a b'
+mapValues f (Store h) = Store (H.map f h)
 
 subsetKeys :: Identifiable a => HashMap a b -> HashMap a b -> Bool
 subsetKeys m1 m2 = subset (S.fromMap (H.map (const ()) m1)) (S.fromMap (H.map (const ()) m2))
@@ -70,8 +76,10 @@ Store m ! a = m H.! a
 keys :: Store a b -> [a]
 keys (Store m) = H.keys m
 
-toList :: Store a b -> [(a,b)]
-toList (Store m) = H.toList m
+compose :: (Identifiable a, Identifiable b, Complete c) => [(a,b)] -> Store b c -> Store a c
+compose f (Store g) = Store $ H.fromListWith (⊔) [ (a,c) | (a,b) <- f, Just c <- return $ H.lookup b g ]
 
-fromList :: Identifiable a => [(a,b)] -> Store a b
-fromList l = Store (H.fromList l)
+instance Identifiable a => IsList (Store a b) where
+  type Item (Store a b) = (a,b)
+  toList (Store m) = H.toList m
+  fromList l = Store (H.fromList l)

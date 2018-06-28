@@ -8,15 +8,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Transformer.Abstract.ReachingDefinitions(
-  ReachingDefinitions,
-  pattern ReachingDefs,
+  ReachingDefinitions(..),
+  reachingDefs,
   runReachingDefs,
-  runReachingDefs',
-  ReachingDefs
 ) where
 
 import           Prelude hiding ((.),read)
+
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fix
@@ -25,45 +25,49 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Store
-import           Control.Arrow.Effect
-import           Control.Arrow.Transformer.Effect
-import           Control.Arrow.Transformer.ForwardAnalysis
+import           Control.Arrow.Environment
 
 import           Data.Identifiable
-import qualified Data.HashSet as H
+import           Data.Order
+import           Data.Abstract.DiscretePowerset(Pow)
+import qualified Data.Abstract.DiscretePowerset as P
 
-type ReachingDef v l = (v,Maybe l)
-type ReachingDefs v l = Forward (ReachingDef v l)
+newtype ReachingDefinitions c x y = ReachingDefinitions (c x y)
 
-newtype ReachingDefinitions v l c x y = ReachingDefinitions (ForwardAnalysis (ReachingDef v l) c x y)
+reachingDefs ::Arrow c => c x y -> ReachingDefinitions c x y
+reachingDefs = ReachingDefinitions
 
-{-# COMPLETE ReachingDefs #-}
-pattern ReachingDefs :: c (ReachingDefs v l,x) (ReachingDefs v l,(ReachingDefs v l,y)) -> ReachingDefinitions v l c x y
-pattern ReachingDefs f = ReachingDefinitions (Effect f)
+runReachingDefs :: Arrow c => ReachingDefinitions c x y -> c x y
+runReachingDefs (ReachingDefinitions f) = f
 
-runReachingDefs :: Arrow c => ReachingDefinitions v l c x y -> c (ReachingDefs v l,x) y
-runReachingDefs (ReachingDefinitions f) = runForwardAnalysis f
+instance (Identifiable var, Identifiable lab, ArrowRead var (val,Pow lab) x y c)
+ => ArrowRead (var,lab) val x y (ReachingDefinitions c) where
+ read (ReachingDefinitions f) (ReachingDefinitions g) = ReachingDefinitions $ proc ((var,_),x) -> do
+   read ((\((v,_::Pow lab),x) -> (v,x)) ^>> f) g -< (var,x)
 
-runReachingDefs' :: Arrow c => ReachingDefinitions v l c x y -> c (ReachingDefs v l,x) (ReachingDefs v l,(ReachingDefs v l,y))
-runReachingDefs' (ReachingDefs f) = f
+instance (Identifiable var, Identifiable lab, ArrowWrite var (val,Pow lab) c)
+  => ArrowWrite (var,lab) val (ReachingDefinitions c) where
+  write = ReachingDefinitions $ proc ((var,l),val) ->
+    write -< (var,(val,P.singleton l))
 
-instance (Identifiable var, Identifiable lab, ArrowStore var val lab c)
-  => ArrowStore var val lab (ReachingDefinitions var lab c) where
-  read = lift read 
-  write = ReachingDefinitions $ proc (x,v,l) -> do
-    record (\(x,l) (defs) -> H.insert (x,Just l) (H.filter (\(y,_) -> x /= y) defs)) -< (x,l)
-    write -< (x,v,l)
+type instance Fix x y (ReachingDefinitions c) = ReachingDefinitions (Fix x y c)
+deriving instance (Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefinitions c)
 
-type instance Fix x y (ReachingDefinitions v l c) = ReachingDefinitions v l (Fix x y (ForwardAnalysis (ReachingDef v l) c))
-deriving instance (Arrow c, ArrowFix x y (ForwardAnalysis (ReachingDef v l) c)) => ArrowFix x y (ReachingDefinitions v l c)
-
-instance (ArrowApply c) => ArrowApply (ReachingDefinitions v l c) where
+instance ArrowApply c => ArrowApply (ReachingDefinitions c) where
   app = ReachingDefinitions ((\(ReachingDefinitions f,x) -> (f,x)) ^>> app)
 
-deriving instance ArrowLift (ReachingDefinitions v l)
-deriving instance Arrow c => Category (ReachingDefinitions v l c)
-deriving instance Arrow c => Arrow (ReachingDefinitions v l c)
-deriving instance ArrowChoice c => ArrowChoice (ReachingDefinitions v l c)
-deriving instance ArrowReader r c => ArrowReader r (ReachingDefinitions v l c)
-deriving instance ArrowFail e c => ArrowFail e (ReachingDefinitions v l c)
-deriving instance ArrowState s c => ArrowState s (ReachingDefinitions v l c)
+instance ArrowLift ReachingDefinitions where
+  lift f = ReachingDefinitions f
+
+deriving instance Category c => Category (ReachingDefinitions c)
+deriving instance Arrow c => Arrow (ReachingDefinitions c)
+deriving instance ArrowChoice c => ArrowChoice (ReachingDefinitions c)
+deriving instance ArrowReader r c => ArrowReader r (ReachingDefinitions c)
+deriving instance ArrowFail e c => ArrowFail e (ReachingDefinitions c)
+deriving instance ArrowState s c => ArrowState s (ReachingDefinitions c)
+deriving instance ArrowEnv x y env c => ArrowEnv x y env (ReachingDefinitions c)
+deriving instance PreOrd (c x y) => PreOrd (ReachingDefinitions c x y)
+deriving instance LowerBounded (c x y) => LowerBounded (ReachingDefinitions c x y)
+deriving instance Complete (c x y) => Complete (ReachingDefinitions c x y)
+deriving instance CoComplete (c x y) => CoComplete (ReachingDefinitions c x y)
+deriving instance UpperBounded (c x y) => UpperBounded (ReachingDefinitions c x y)

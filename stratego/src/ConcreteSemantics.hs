@@ -12,7 +12,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module ConcreteSemantics where
 
-import           Prelude hiding ((.))
+import           Prelude hiding ((.),fail)
 
 import           SharedSemantics
 import           Syntax (TermPattern)
@@ -75,15 +75,15 @@ deriving instance ArrowExcept x y () Interp
 deriving instance ArrowFix (Strat,Term) Term Interp
 
 instance ArrowFail () Interp where
-  failA = Interp failA
+  fail = Interp fail
 
 instance HasStratEnv Interp where
-  readStratEnv = Interp (const () ^>> askA)
-  localStratEnv senv f = proc a -> localA f -< (senv,a)
+  readStratEnv = Interp (const () ^>> ask)
+  localStratEnv senv f = proc a -> local f -< (senv,a)
 
 instance IsTermEnv TermEnv Term Interp where
-  getTermEnv = getA
-  putTermEnv = putA
+  getTermEnv = get
+  putTermEnv = put
   lookupTermVar f g = proc (v,TermEnv env) ->
     case M.lookup v env of
       Just t -> f -< t
@@ -100,19 +100,19 @@ instance IsTerm Term Interp where
     Cons c' ts' | c == c' && eqLength ts ts' -> do
       ts'' <- matchSubterms -< (ts,ts')
       returnA -< Cons c ts''
-    _ -> failA -< ()
+    _ -> fail -< ()
 
   matchTermAgainstString = proc (s,t) -> case t of
     StringLiteral s'
       | s == s' -> returnA -< t
-      | otherwise -> failA -< ()
-    _ -> failA -< ()
+      | otherwise -> fail -< ()
+    _ -> fail -< ()
 
   matchTermAgainstNumber = proc (n,t) -> case t of
     NumberLiteral n'
       | n == n' -> returnA -< t
-      | otherwise -> failA -< ()
-    _ -> failA -< ()
+      | otherwise -> fail -< ()
+    _ -> fail -< ()
 
   matchTermAgainstExplode matchCons matchSubterms = proc t -> case t of
       Cons (Constructor c) ts -> do
@@ -132,18 +132,18 @@ instance IsTerm Term Interp where
           | c == c' && eqLength ts ts' -> do
           ts'' <- zipWithA equal -< (ts,ts')
           cons -< (c,ts'')
-          | otherwise -> failA -< ()
+          | otherwise -> fail -< ()
       (StringLiteral s, StringLiteral s')
           | s == s' -> success -< t1
-          | otherwise -> failA -< ()
+          | otherwise -> fail -< ()
       (NumberLiteral n, NumberLiteral n')
           | n == n' -> success -< t1
-          | otherwise -> failA -< ()
-      (_,_) -> failA -< ()
+          | otherwise -> fail -< ()
+      (_,_) -> fail -< ()
 
   convertFromList = proc (c,ts) -> case (c,go ts) of
     (StringLiteral c', Just ts') -> returnA -< Cons (Constructor c') ts'
-    _                            -> failA -< ()
+    _                            -> fail -< ()
     where
       go t = case t of
         Cons "Cons" [x,tl] -> (x:) <$> go tl

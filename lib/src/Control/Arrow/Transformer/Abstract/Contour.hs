@@ -11,7 +11,7 @@ module Control.Arrow.Transformer.Abstract.Contour(CallString,Contour,runContour)
 import           Prelude hiding (id,(.),lookup)
 
 import           Control.Arrow
-import           Control.Arrow.Abstract.Alloc
+import           Control.Arrow.Alloc
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
@@ -40,23 +40,23 @@ runContour k (Contour (Reader f)) = (\a -> (empty k,a)) ^>> f
 type instance Fix x y (Contour c) = Contour (Fix x y c)
 instance (ArrowFix x y c, ArrowApply c, HasLabel x) => ArrowFix x y (Contour c) where
   -- Pushes the label of the last argument on the call string and truncate the call string in case it reached the maximum length
-  fixA f = Contour $ Reader $ proc (c,x) -> fixA (unlift c . f . lift) -<< x
+  fix f = Contour $ Reader $ proc (c,x) -> fix (unlift c . f . lift) -<< x
     where
       unlift :: (HasLabel x, ArrowApply c) => CallString -> Contour c x y -> c x y
       unlift c (Contour (Reader f')) = proc x -> do
         y <- f' -< (push (label x) c, x)
         returnA -< y
 
-instance Arrow c => ArrowAlloc var (var,CallString) val (Contour c) where
+instance Arrow c => ArrowAlloc (var,val,env,store) (var,CallString) (Contour c) where
   -- | Return the variable together with the current call string as address.
-  alloc = Contour $ Reader $ proc (l,(x,_,_)) -> returnA -< (x,l)
+  alloc = Contour $ Reader $ proc (l,(x,_,_,_)) -> returnA -< (x,l)
 
 instance ArrowApply c => ArrowApply (Contour c) where
   app = Contour $ (\(Contour f,x) -> (f,x)) ^>> app
 
 instance ArrowReader r c => ArrowReader r (Contour c) where
-  askA = lift askA
-  localA (Contour (Reader f)) = Contour (Reader ((\(c,(r,x)) -> (r,(c,x))) ^>> localA f))
+  ask = lift ask
+  local (Contour (Reader f)) = Contour (Reader ((\(c,(r,x)) -> (r,(c,x))) ^>> local f))
 
 deriving instance Arrow c => Category (Contour c)
 deriving instance Arrow c => Arrow (Contour c)

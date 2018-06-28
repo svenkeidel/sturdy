@@ -6,7 +6,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Completion(Completion(..)) where
 
-import Prelude hiding ((.),id,lookup)
+import Prelude hiding ((.),id,lookup,fail)
 
 import Control.Arrow
 import Control.Arrow.Deduplicate
@@ -52,31 +52,31 @@ instance (ArrowApply c, ArrowChoice c) => ArrowApply (Completion c) where
   app = Completion $ first runCompletion ^>> app
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (Completion c) where
-  getA = lift getA
-  putA = lift putA
+  get = lift get
+  put = lift put
 
 instance (ArrowChoice c, ArrowFail e c) => ArrowFail e (Completion c) where
-  failA = lift failA
+  fail = lift fail
 
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Completion c) where
-  askA = lift askA
-  localA (Completion f) = Completion (localA f)
+  ask = lift ask
+  local (Completion f) = Completion (local f)
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Completion c) where
-  lookup = lift lookup
+  lookup (Completion f) (Completion g) = Completion (lookup f g)
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (Completion f) = Completion (localEnv f)
 
 instance (ArrowChoice c, ArrowExcept x (FreeCompletion y) e c) => ArrowExcept x y e (Completion c) where
-  tryCatchA (Completion f) (Completion g) = Completion $ tryCatchA f g 
-  finally (Completion f) (Completion g) = Completion $ finally f g 
+  tryCatch (Completion f) (Completion g) = Completion $ tryCatch f g
+  finally (Completion f) (Completion g) = Completion $ finally f g
 
 instance ArrowChoice c => ArrowDeduplicate (Completion c) where
-  dedupA = returnA
+  dedup = returnA
 
 instance (ArrowChoice c, ArrowFix x (FreeCompletion y) c) => ArrowFix x y (Completion c) where
-  fixA f = Completion (fixA (runCompletion . f . Completion))
+  fix f = Completion (fix (runCompletion . f . Completion))
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Completion c) where
   joinWith lub (Completion f) (Completion g) = Completion $ joinWith join f g

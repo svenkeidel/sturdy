@@ -7,7 +7,7 @@
 -- | Concrete semantics of PCF.
 module ConcreteSemantics where
 
-import Prelude
+import Prelude hiding (fail)
 
 import Control.Category
 import Control.Arrow
@@ -17,7 +17,7 @@ import Control.Arrow.Fix
 import Control.Arrow.Transformer.Concrete.Environment
 import Control.Arrow.Transformer.Concrete.Except
 import Control.Arrow.Transformer.Concrete.FixPoint
-import Control.Monad.State
+import Control.Monad.State hiding (fail)
 
 import Data.Concrete.Error
 import Data.Concrete.Environment (Env)
@@ -38,7 +38,7 @@ newtype Interp x y = Interp (Fix Expr Val (Environment Text Val (Except String (
 
 -- | Takes an arrow computation and executes it.
 runInterp :: Interp x y -> [(Text,Val)] -> x -> Error String y
-runInterp (Interp f) env x = runFixPoint (runExcept (runEnvironment f)) (env,x)
+runInterp (Interp f) env x = runFixPoint (runExcept (runEnvironment' f)) (env,x)
 
 -- | The concrete interpreter function for PCF. The function is
 -- implemented by instantiating the shared semantics with the concrete
@@ -50,22 +50,22 @@ evalConcrete env e = runInterp eval env (generate e)
 instance IsVal Val Interp where
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal (n + 1)
-    _ -> failA -< "Expected a number as argument for 'succ'"
+    _ -> fail -< "Expected a number as argument for 'succ'"
   pred = proc x -> case x of
     NumVal n -> returnA -< NumVal (n - 1)
-    _ -> failA -< "Expected a number as argument for 'pred'"
+    _ -> fail -< "Expected a number as argument for 'pred'"
   zero = arr $ const (NumVal 0)
   ifZero f g = proc (v1, (x, y)) -> case v1 of
     NumVal 0 -> f -< x
     NumVal _ -> g -< y
-    _ -> failA -< "Expected a number as condition for 'ifZero'"
+    _ -> fail -< "Expected a number as condition for 'ifZero'"
 
 -- | Concrete instance of the interface for closure operations.
 instance IsClosure Val (Env Text Val) Interp where
   closure = arr $ \(e, env) -> ClosureVal $ Closure e env
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal (Closure e env) -> f -< ((e,env),arg)
-    NumVal _ -> failA -< "Expected a closure"
+    NumVal _ -> fail -< "Expected a closure"
 
 -- All other instances for the concrete interpreter arrow can be
 -- derived from the instances of the underlying arrow transformers.

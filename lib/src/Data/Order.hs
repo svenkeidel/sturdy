@@ -48,7 +48,7 @@ joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
 -- joined f1 f2 = proc (x1,x2) -> (f1 -< x1) ⊔ (f2 -< x2)
 
 -- This is what the compiler desugars it to (we simplified it):
--- joined = 
+-- joined =
 --   (arr (\(x1, x2) -> ((x2, x1), ())) )
 --   >>>
 --   (op
@@ -105,7 +105,7 @@ instance Complete () where
   () ⊔ () = ()
 
 instance (PreOrd a,PreOrd b) => PreOrd (a,b) where
-  (a1,b1) ⊑ (a2,b2) = a1 ⊑ a2 && b1 ⊑ b2 
+  (a1,b1) ⊑ (a2,b2) = a1 ⊑ a2 && b1 ⊑ b2
 
 instance (LowerBounded a,LowerBounded b) => LowerBounded (a,b) where
   bottom = (bottom,bottom)
@@ -120,7 +120,7 @@ instance (CoComplete a, CoComplete b) => CoComplete (a,b) where
   (a1,b1) ⊓ (a2,b2) = (a1 ⊓ a2, b1 ⊓ b2)
 
 instance (PreOrd a,PreOrd b,PreOrd c) => PreOrd (a,b,c) where
-  (a1,b1,c1) ⊑ (a2,b2,c2) = a1 ⊑ a2 && b1 ⊑ b2 && c1 ⊑ c2 
+  (a1,b1,c1) ⊑ (a2,b2,c2) = a1 ⊑ a2 && b1 ⊑ b2 && c1 ⊑ c2
 
 instance (LowerBounded a,LowerBounded b,LowerBounded c) => LowerBounded (a,b,c) where
   bottom = (bottom,bottom,bottom)
@@ -175,12 +175,22 @@ instance PreOrd Double where
   (≈) = (==)
 
 instance PreOrd a => PreOrd (Maybe a) where
-  Just x ⊑ Just y = x ⊑ y 
-  Nothing ⊑ Nothing = True
+  Just x ⊑ Just y = x ⊑ y
+  _ ⊑ Just _ = True
+  Nothing ⊑ _ = True
   _ ⊑ _ = False
-  Just x ≈ Just y = x ≈ y 
+  Just x ≈ Just y = x ≈ y
   Nothing ≈ Nothing = True
   _ ≈ _ = False
+
+instance Complete a => Complete (Maybe a) where
+  Just x ⊔ Just y = Just $ x ⊔ y
+  Just x ⊔ _ = Just x
+  _ ⊔ Just x = Just x
+  Nothing ⊔ Nothing = Nothing
+
+instance PreOrd a => LowerBounded (Maybe a) where
+  bottom = Nothing
 
 instance PreOrd a => LowerBounded (Set a) where
   bottom = S.empty

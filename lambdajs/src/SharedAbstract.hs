@@ -13,7 +13,8 @@ module SharedAbstract where
 import           Derivations
 import           GHC.Generics                                    (Generic)
 import           Prelude                                         hiding (break,
-                                                                  error, lookup,
+                                                                  error, fail,
+                                                                  lookup, map,
                                                                   read)
 import qualified Prelude
 import           SharedInterpreter
@@ -33,8 +34,7 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.HandleExcept
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Utils                             (mapA, pi1,
-                                                                  pi2)
+import           Control.Arrow.Utils                             (map, pi1, pi2)
 
 import           Control.Arrow
 import           Control.Arrow.Environment
@@ -57,33 +57,24 @@ instance PreOrd Type where
 
 
 
-newtype TypeArr x y = TypeArr (Except String (Environment Ident Type' (StoreArrow Location Type' (State Location (->)))) x y)
+newtype TypeArr x y = TypeArr
+    (Except
+        String
+        (Environment Ident Type'
+            (StoreArrow Location Type'
+                (State Location (->)))) x y)
+
 deriving instance ArrowFail String TypeArr
 deriving instance ArrowEnv Ident Type' (Env Ident Type') TypeArr
 deriving instance Category TypeArr
 deriving instance Arrow TypeArr
 deriving instance ArrowChoice TypeArr
-
-instance (Show Location, Identifiable Type, ArrowChoice c) => ArrowStore Location Type' lab (StoreArrow Location Type' c) where
-  read =
-    StoreArrow $ State $ proc (s,(var,_)) -> case Data.Abstract.Store.lookup var s of
-      Just v  -> returnA -< (s,v)
-      Nothing -> returnA -< (s, Data.Set.fromList [TUndefined])
-  write = StoreArrow (State (arr (\(s,(x,v,_)) -> (Data.Abstract.Store.insert x v s,()))))
-deriving instance ArrowStore Location Type' () TypeArr
-instance (Show Ident, Identifiable Ident, ArrowChoice c) => ArrowEnv Ident Type' (Env Ident Type') (Environment Ident Type' c) where
-  lookup = proc x -> do
-    env <- getEnv -< ()
-    case Data.Abstract.Environment.lookup x env of
-      Just y  -> returnA -< y
-      Nothing -> returnA -< Data.Set.fromList $ [TRef $ Data.Set.fromList [Location 0]]
-  getEnv = Environment askA
-  extendEnv = arr $ \(x,y,env) -> Data.Abstract.Environment.insert x y env
-  localEnv (Environment f) = Environment (localA f)
+deriving instance ArrowRead Location Type' x Type' TypeArr
+deriving instance ArrowWrite Location Type' TypeArr
 deriving instance ArrowState Location TypeArr
 
 runType :: TypeArr x y -> [(Ident, Type)] -> [(Location, Type)] -> x -> (Location, (Store Location Type', Error String y))
-runType (TypeArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Abstract.Store.fromList env2', (env', x)))
+runType (TypeArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Abstract.Store.fromList env2', (Data.Abstract.Environment.fromList env', x)))
         where env' = Prelude.map (\(x, y) -> (x, Data.Set.fromList [y])) env
               env2' = Prelude.map (\(x, y) -> (x, Data.Set.fromList [y])) env2
 
@@ -127,7 +118,7 @@ typeEvalBinOp_ = proc (op, v1, v2) -> case (op, v1, v2) of
     (OHasOwnProp, (TObject _), TString) -> returnA -< TBool
     (_, TTop, _) -> returnA -< TTop
     (_, _, TTop) -> returnA -< TTop
-    x -> failA -< "Unimplemented op: " ++ (show op) ++ ", params: " ++ (show v1) ++ ", " ++ (show v2)
+    x -> fail -< "Unimplemented op: " ++ (show op) ++ ", params: " ++ (show v1) ++ ", " ++ (show v2)
 
 typeEvalUnOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type) Type
 typeEvalUnOp_ = proc (op, vals) -> case (op, vals) of
@@ -159,8 +150,8 @@ typeEvalUnOp_ = proc (op, vals) -> case (op, vals) of
 
 fresh :: ArrowState Location c => c () Location
 fresh = proc () -> do
-    Location s <- getA -< ()
-    putA -< Location $ s + 1
+    Location s <- Control.Arrow.State.get -< ()
+    put -< Location $ s + 1
     returnA -< Location $ s + 1
 
 getField_ :: ArrowChoice c => c (Type, String) Type'
@@ -187,7 +178,7 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
         returnA -< Data.Set.fromList [TObject fields]
     getField f1 = proc (subject, field) -> do
         case field of
-            EString name -> returnA -< Prelude.foldr Data.Set.union (Data.Set.empty) (mapA getField_ (zip (Data.Set.toList subject) (repeat name)))
+            EString name -> returnA -< Prelude.foldr Data.Set.union (Data.Set.empty) (Prelude.map getField_ (zip (Data.Set.toList subject) (repeat name)))
             _            -> returnA -< singleton TTop
     updateField f1 = proc (_, _, _) -> returnA -< singleton TTop
     deleteField f1 = proc (_, _) -> returnA -< singleton TTop
@@ -195,7 +186,7 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
     evalOp = proc (op, vals) -> do
         case length vals of
             1 -> do
-                t <- mapA typeEvalUnOp_ -< zip (repeat op) (Data.Set.toList $ head vals)
+                t <- Control.Arrow.Utils.map typeEvalUnOp_ -< zip (repeat op) (Data.Set.toList $ head vals)
                 returnA -< Data.Set.fromList t
             2 -> do
                 let
@@ -205,15 +196,15 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
                     True -> do
                         t <- typeEvalBinOp_ -< (op, head v1, head v2)
                         returnA -< Data.Set.fromList [t]
-                    False -> failA -< "Error: Binary op with set of type params not supported"
+                    False -> fail -< "Error: Binary op with set of type params not supported"
     -- environment ops
     lookup = proc id -> do
-        Control.Arrow.Environment.lookup -< id
+        Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id, Data.Set.singleton TUndefined)
     apply f1 = proc (lambdas, args) -> do
-        ts <- mapA (proc (lambda, args) -> case lambda of
+        ts <- Control.Arrow.Utils.map (proc (lambda, args) -> case lambda of
             TLambda names body closureEnv -> do
                 case length names == length args of
-                    False -> failA -< "Error: lambda must be applied with same amount of args as params"
+                    False -> fail -< "Error: lambda must be applied with same amount of args as params"
                     True -> do
                         newBindings <- arr $ uncurry zip -< (names, args)
                         bindingEnv <- bindings -< (newBindings, closureEnv)
@@ -226,9 +217,9 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
     set = proc (loc, val) -> do
         case Data.Set.toList loc of
             [TRef l] -> do
-                mapA write -< zip3 (Data.Set.toList l) (repeat val) (repeat ())
+                Control.Arrow.Utils.map write -< zip (Data.Set.toList l) (repeat val)
                 returnA -< ()
-            _ -> failA -< "Error: ESetRef lhs must be location"
+            _ -> fail -< "Error: ESetRef lhs must be location"
     new = proc (val) -> do
         loc <- fresh >>> (arr (:[])) >>> (arr Data.Set.fromList) -< ()
         set -< (Data.Set.fromList [TRef loc], val)
@@ -236,7 +227,7 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
     get = proc (loc) -> do
         case Data.Set.toList loc of
             [TRef l] -> do
-                vals <- mapA read -< zip (Data.Set.toList l) (repeat ())
+                vals <- Control.Arrow.Utils.map (read pi1 Control.Category.id) -< zip (Data.Set.toList l) (repeat (Data.Set.singleton TUndefined))
                 returnA -< foldr1 (\x y -> x ⊔ y) vals
             _ -> returnA -< (Data.Set.fromList [TThrown (Data.Set.fromList [TObject []])])
     -- control flow
@@ -246,20 +237,20 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
                 thenT <- f1 -< thenBranch
                 elseT <- f2 -< elseBranch
                 returnA -< Data.Set.union thenT elseT
-            _ -> failA -< "Error: If conditional must be of type bool"
+            _ -> fail -< "Error: If conditional must be of type bool"
     while_ f1 f2 = proc (cond, body) -> do
         condT <- f1 -< cond
         case Data.Set.toList condT of
             [TBool] -> do
                 f2 -< body
-            _ -> failA -< "Error: While conditional must be of type bool"
+            _ -> fail -< "Error: While conditional must be of type bool"
     label f1 = proc (l, e) -> do
         eT <- f1 -< e
         case Data.Set.toList eT of
             [TBreak l1 t] -> case l == l1 of
                 True -> returnA -< t
-                False -> failA -< "Error: Expression within label must be of type break to that label"
-            _ -> failA -< "Error: Expression within label must be of type break to that label"
+                False -> fail -< "Error: Expression within label must be of type break to that label"
+            _ -> fail -< "Error: Expression within label must be of type break to that label"
     break = proc (l, t) -> do
         returnA -< singleton (TBreak l t)
     throw = proc t -> do
@@ -268,5 +259,5 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
         tryT <- f1 -< try
         case Data.Set.toList tryT of
             [TThrown t] -> returnA -< t
-            _ -> failA -< "Error: Expression within try must be of type thrown"
-    error = proc s -> failA -< "Error: aborted with message: " ++ s
+            _ -> fail -< "Error: Expression within try must be of type thrown"
+    error = proc s -> fail -< "Error: aborted with message: " ++ s
