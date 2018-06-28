@@ -60,9 +60,6 @@ instance ArrowReader r c => ArrowReader r (Environment var val c) where
   ask = lift ask
   local (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
 
-instance ArrowConst r c => ArrowConst r (Environment var val c) where
-  askConst = lift askConst
-
 type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
 
 deriving instance ArrowJoin c => ArrowJoin (Environment var val c)
