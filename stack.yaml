@@ -8,3 +8,5 @@ packages:
 - 'while'
 - 'stratego'
 # - 'lambda-adt'
+- 'jimple'
+# - 'tutorial'

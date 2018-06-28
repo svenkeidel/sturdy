@@ -79,7 +79,7 @@ type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fix f = Except (fix (runExcept . f . Except))
 
-{- 
+{-
 There is no `ArrowExcept` instance for `Except` on purpose. This is how it would look like.
 
 instance (ArrowChoice c, UpperBounded e, Complete (c (y,(x,e)) (Error e y))) => ArrowExcept x y e (Except e c) where

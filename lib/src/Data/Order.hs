@@ -170,7 +170,8 @@ instance PreOrd Double where
 
 instance PreOrd a => PreOrd (Maybe a) where
   Just x ⊑ Just y = x ⊑ y
-  Nothing ⊑ Nothing = True
+  _ ⊑ Just _ = True
+  Nothing ⊑ _ = True
   _ ⊑ _ = False
   Just x ≈ Just y = x ≈ y
   Nothing ≈ Nothing = True
