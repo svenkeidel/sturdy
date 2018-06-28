@@ -1,23 +1,24 @@
 module TypeSpec where
 
-import Syntax
-import SharedAbstract (TypeArr)
-import qualified SharedAbstract as Interpreter (runAbstract)
-import Data.Concrete.Environment
-import Data.Abstract.HandleError
-import Control.Arrow.Fail
-import Test.Hspec
+import           Control.Arrow.Fail
+import           Data.Abstract.Environment
+import           Data.Abstract.HandleError
+import           Data.Concrete.Environment
+import           SharedAbstract            (TypeArr)
+import qualified SharedAbstract            as Interpreter (runAbstract)
+import           Syntax
+import           Test.Hspec
 
-import Data.Fixed (mod')
-import Data.Either (isLeft)
-import Data.Set
+import           Data.Either               (isLeft)
+import           Data.Fixed                (mod')
+import           Data.Set
 
 main :: IO ()
 main = hspec spec
 
-eval :: [(Ident, Location)] -> [(Location, Type)] -> Expr -> Either String Type'
+eval :: [(Ident, Type)] -> [(Location, Type)] -> Expr -> Either String Type'
 eval env st e = case Interpreter.runAbstract env st e of
-  (st, Fail s) -> Left s
+  (st, Fail s)    -> Left s
   (st, Success r) -> Right r
 
 spec :: Spec
@@ -37,7 +38,7 @@ spec = do
         it "null literal" $ do
             eval scope store ENull `shouldBe` Right (Data.Set.fromList [TNull])
         it "lambda literal" $ do
-            eval scope store (ELambda [] (ENumber 1.0)) `shouldBe` Right (Data.Set.fromList [(TLambda [] (Data.Set.fromList [TNumber]))])
+            eval scope store (ELambda [] (ENumber 1.0)) `shouldBe` Right (Data.Set.fromList [(TLambda [] (ENumber 1.0) Data.Abstract.Environment.empty)])
     describe "unions" $ do
         it "if" $ do
             let program = EIf (EBool True) (ENumber 1.0) (EString "a")

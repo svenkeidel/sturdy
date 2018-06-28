@@ -36,7 +36,7 @@ spec = do
     it "null literal" $ do
       eval scope store ENull `shouldBe` Right (VNull)
     it "lambda literal" $ do
-      eval scope store (ELambda [] (ENumber 1.0)) `shouldBe` Right ((VLambda [] (ENumber 1.0)))
+      eval scope store (ELambda [] (ENumber 1.0)) `shouldBe` Right ((VLambda [] (ENumber 1.0) (empty)))
 
   describe "objects" $ do
     it "object with numbers" $ do
@@ -291,7 +291,13 @@ spec = do
       let program = EGetField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]) (EString "a")
       eval scope store program `shouldBe` Right (VNumber 1.0)
     it "get field proto" $ do
-      let program = EGetField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0), ("$proto", ERef $ (EObject [("c", ENumber 3.0)]))]) (EString "c")
+      let program =
+                EGetField
+                  (EObject
+                    [("a", ENumber 1.0),
+                    ("b", ENumber 2.0),
+                    ("$proto", ERef (EObject [("c", ENumber 3.0)]))])
+                  (EString "c")
       eval scope store program `shouldBe` Right (VNumber 3.0)
     it "update field" $ do
       let program = EGetField (EUpdateField (EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]) (EString "a") (ENumber 3.0)) (EString "a")
@@ -333,7 +339,12 @@ spec = do
   -- ref/seq
   describe "references/seq" $ do
     it "set ref" $ do
-      let program = (ELet [("a", ERef $ ENumber 1.0)] (ESeq (ESetRef (EId "a") (ENumber 2.0)) (EDeref (EId "a"))))
+      let program =
+                ELet
+                  [("a", ERef $ ENumber 1.0)]
+                  (ESeq
+                    (ESetRef (EId "a") (ENumber 2.0))
+                    (EDeref (EId "a")))
       eval scope store program `shouldBe` Right (VNumber 2.0)
 
   -- eval
@@ -345,7 +356,12 @@ spec = do
   -- labels
   describe "labels" $ do
     it "caught label" $ do
-      let program = ELabel (Label "label1") (ESeq (EBreak (Label "label1") (ENumber 1.0)) (EUndefined))
+      let program =
+                ELabel
+                  (Label "label1")
+                  (ESeq
+                    (EBreak (Label "label1") (ENumber 1.0))
+                    (EUndefined))
       eval scope store program `shouldBe` Right (VNumber 1.0)
     it "escape while" $ do
       let program = ELabel (Label "label1") (EWhile (EOp OStrictEq [(ENumber 1.0), (ENumber 1.0)]) (EBreak (Label "label1") (ENumber 2.0)))
@@ -354,7 +370,10 @@ spec = do
   -- throws
   describe "throws" $ do
     it "caught throws" $ do
-      let program = ECatch (EThrow (ENumber 1.0)) (ELambda ["x"] (EId "x"))
+      let program =
+              ECatch
+                (EThrow (ENumber 1.0))
+                (ELambda ["x"] (EId "x"))
       eval scope store program `shouldBe` Right (VNumber 1.0)
 
   describe "error?" $ do
