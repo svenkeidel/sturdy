@@ -9,6 +9,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module NullnessSemantics where
 
 import           Prelude hiding (lookup,read,fail,Bounded(..))
@@ -121,6 +122,7 @@ deriving instance ArrowReader Context Interp
 deriving instance ArrowRead FieldSignature Val x Val Interp
 deriving instance ArrowWrite FieldSignature Val Interp
 
+-- This instance is not in lib because it interferes with an instance in Stratego
 instance (LowerBounded e,LowerBounded a) => LowerBounded (Error e a) where
   bottom = SuccessOrFail bottom bottom
 
