@@ -11,6 +11,7 @@ module Control.Arrow.Transformer.Concrete.Store where
 import Prelude hiding ((.))
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Except
 import Control.Arrow.Fix
@@ -58,6 +59,7 @@ instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   get = lift get
   put = lift put
 
+deriving instance ArrowConst r c => ArrowConst r (StoreArrow var val c)
 deriving instance Category c => Category (StoreArrow var val c)
 deriving instance Arrow c => Arrow (StoreArrow var val c)
 deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)

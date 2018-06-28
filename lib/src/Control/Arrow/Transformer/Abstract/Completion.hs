@@ -70,7 +70,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Completion c) 
 
 instance (ArrowChoice c, ArrowExcept x (FreeCompletion y) e c) => ArrowExcept x y e (Completion c) where
   tryCatch (Completion f) (Completion g) = Completion $ tryCatch f g 
-  finally (Completion f) (Completion g) = Completion $ finally f g 
+  finally (Completion f) (Completion g) = Completion $ finally f g
 
 instance ArrowChoice c => ArrowDeduplicate (Completion c) where
   dedup = returnA

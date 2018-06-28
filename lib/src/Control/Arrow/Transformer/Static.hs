@@ -89,4 +89,3 @@ deriving instance Complete (f (c x y)) => Complete (Static f c x y)
 deriving instance CoComplete (f (c x y)) => CoComplete (Static f c x y)
 deriving instance UpperBounded (f (c x y)) => UpperBounded (Static f c x y)
 deriving instance LowerBounded (f (c x y)) => LowerBounded (Static f c x y)
-         

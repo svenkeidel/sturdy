@@ -7,7 +7,7 @@
 {-# LANGUAGE GADTs #-}
 module Control.Arrow.Transformer.Abstract.HandleExcept(Except(..)) where
 
-import Prelude hiding (id,lookup,(.))
+import Prelude hiding (id,lookup,(.),read)
 
 import Control.Arrow
 import Control.Arrow.Const
@@ -17,6 +17,7 @@ import Control.Arrow.Fail
 import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
+import Control.Arrow.Store
 import Control.Arrow.Except
 import Control.Arrow.Fix
 import Control.Arrow.Abstract.Join
@@ -66,6 +67,12 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowState s c) => ArrowState 
   get = lift get
   put = lift put
 
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowRead var val x (Error e y) c) => ArrowRead var val x y (Except e c) where
+  read (Except f) (Except g) = Except $ read f g
+
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowWrite x y c) => ArrowWrite x y (Except e c) where
+  write = lift write
+
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowFail e (Except e c) where
   fail = Except $ arr Fail
 
@@ -96,8 +103,21 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix x (Error e y) c) => A
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowDeduplicate (Except e c) where
   dedup = returnA
 
-instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowConst x c) => ArrowConst x (Except e c) where
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where
   askConst = lift askConst
+
+instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowJoin (Except e c) where
+  joinWith lub' (Except f) (Except g) = Except $ joinWith (\r1 r2 -> case (r1, r2) of
+    (Success y1,          Success y2)          -> Success (y1 `lub'` y2)
+    (Success y1,          SuccessOrFail e y2)  -> SuccessOrFail e (y1 `lub'` y2)
+    (Success y,           Fail e)              -> SuccessOrFail e y
+    (SuccessOrFail e y1,  Success y2)          -> SuccessOrFail e (y1 `lub'` y2)
+    (SuccessOrFail e1 y1, SuccessOrFail e2 y2) -> SuccessOrFail (e1 ⊔ e2) (y1 `lub'` y2)
+    (SuccessOrFail e1 y,  Fail e2)             -> SuccessOrFail (e1 ⊔ e2) y
+    (Fail e,              Success y)           -> SuccessOrFail e y
+    (Fail e1,             SuccessOrFail e2 y)  -> SuccessOrFail (e1 ⊔ e2) y
+    (Fail e1,             Fail e2)             -> Fail (e1 ⊔ e2)
+    ) f g
 
 deriving instance PreOrd (c x (Error e y)) => PreOrd (Except e c x y)
 deriving instance LowerBounded (c x (Error e y)) => LowerBounded (Except e c x y)

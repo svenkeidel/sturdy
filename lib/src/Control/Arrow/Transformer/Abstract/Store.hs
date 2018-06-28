@@ -22,10 +22,13 @@ import Control.Arrow.Transformer.State
 import Control.Arrow.Utils
 import Control.Category
 
+import Control.Arrow.Abstract.Join
+
 import Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 import Data.Order
 import Data.Identifiable
+import Data.Hashable
 
 newtype StoreArrow var val c x y = StoreArrow (State (Store var val) c x y)
 
@@ -53,6 +56,7 @@ instance ArrowState s c => ArrowState s (StoreArrow var val c) where
   get = lift get
   put = lift put
 
+deriving instance (Eq var,Hashable var,Complete val,ArrowJoin c) => ArrowJoin (StoreArrow var val c)
 deriving instance Category c => Category (StoreArrow var val c)
 deriving instance Arrow c => Arrow (StoreArrow var val c)
 deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)

@@ -17,14 +17,15 @@ import qualified Data.Concrete.Environment as E
 import           Control.Category
 
 import           Control.Arrow
+import           Control.Arrow.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Reader
+import           Control.Arrow.Store
 import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Lift
 import           Control.Arrow.Except
 import           Control.Arrow.Environment
-import           Control.Arrow.Store
 import           Control.Arrow.Fix
 
 -- | Arrow transformer that adds an environment to a computation.
@@ -60,6 +61,7 @@ deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
 deriving instance ArrowState s c => ArrowState s (Environment var val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
 deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
+deriving instance ArrowConst r c => ArrowConst r (Environment var val c)
 deriving instance ArrowRead x y  (Env var val,u) v c => ArrowRead x y u v (Environment var val c)
 deriving instance ArrowWrite x y c => ArrowWrite x y (Environment var val c)
 

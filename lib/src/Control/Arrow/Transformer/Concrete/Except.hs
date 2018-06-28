@@ -10,13 +10,14 @@ module Control.Arrow.Transformer.Concrete.Except(Except(..)) where
 import Prelude hiding (id,(.),lookup,read)
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
-import Control.Arrow.Store
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Reader
+import Control.Arrow.Store
 import Control.Arrow.State
 import Control.Arrow.Except
 import Control.Category
@@ -89,3 +90,6 @@ instance ArrowChoice c => ArrowExcept x y e (Except e c) where
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
   dedup (Except f) = Except (dedup f)
+
+instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where
+  askConst = lift askConst
