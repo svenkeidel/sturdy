@@ -73,9 +73,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) wh
   localEnv (Powerset f) = Powerset $ localEnv f
 
 instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) where
-  dedup (Powerset f) = Powerset $ proc x -> do
-    x' <- f -< x
-    returnA -< A.dedup x'
+  dedup (Powerset f) = Powerset $ A.dedup ^<< f
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Powerset c) where
   joinWith _ (Powerset f) (Powerset g) = Powerset $ joinWith A.union f g

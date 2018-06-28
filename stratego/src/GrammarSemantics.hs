@@ -10,7 +10,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module GrammarSemantics where
 
-import           Prelude hiding (id)
+import           Prelude hiding (id,fail)
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics hiding (all,sequence)
@@ -123,19 +123,19 @@ instance Complete TermEnv where
         [] -> TermEnv env3
 
 instance ArrowFix (Strat,Term) Term Interp where
-  fixA f = proc x -> do
-    (env,i,alph) <- askA -< ()
+  fix f = proc x -> do
+    (env,i,alph) <- ask -< ()
     if i <= 0
       then top' -< ()
-      else localFuel (f (fixA f)) -< ((env,i-1,alph),x)
+      else localFuel (f (fix f)) -< ((env,i-1,alph),x)
     where
-      localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> localA g -< ((env,i,alph),a)
+      localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> local g -< ((env,i,alph),a)
 
 instance HasStratEnv Interp where
-  readStratEnv = Interp (const () ^>> askA >>^ (\(a,_,_) -> a))
+  readStratEnv = Interp (const () ^>> ask >>^ (\(a,_,_) -> a))
   localStratEnv senv f = proc a -> do
-    (_,i,alph) <- askA -< ()
-    r <- localA f -< ((senv,i,alph),a)
+    (_,i,alph) <- ask -< ()
+    r <- local f -< ((senv,i,alph),a)
     returnA -< r
 
 instance Complete (FreeCompletion Term) where
@@ -158,15 +158,15 @@ instance IsTerm Term Interp where
   matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,Term g) -> do
     lubA (reconstruct <<< second matchSubterms <<< checkConstructorAndLength c ts) -<< toSubterms g
 
-  matchTermAgainstExplode matchCons matchSubterms = undefined
+  matchTermAgainstExplode _ _ = undefined
 
   matchTermAgainstNumber = proc (n,g) -> matchLit -< (g, NumLit n)
   matchTermAgainstString = proc (s,g) -> matchLit -< (g, StringLit s)
 
   equal = proc (Term g1, Term g2) -> case intersection g1 g2 of
-    g | isEmpty g -> failA -< ()
+    g | isEmpty g -> fail -< ()
       | isSingleton g1 && isSingleton g2 -> returnA -< Term (normalize g)
-      | otherwise -> returnA ⊔ failA' -< Term (normalize g)
+      | otherwise -> returnA ⊔ fail' -< Term (normalize g)
 
   convertFromList = undefined
 
@@ -186,8 +186,8 @@ instance TermUtils Term where
   height (Term g) = TreeAutomata.height g
 
 instance IsTermEnv TermEnv Term Interp where
-  getTermEnv = getA
-  putTermEnv = putA
+  getTermEnv = get
+  putTermEnv = put
   lookupTermVar f g = proc (v,TermEnv env) ->
     case LM.lookup v env of
       Just t -> f -< t
@@ -248,18 +248,18 @@ reconstruct = proc (c, ts) -> returnA -< (Term (fromSubterms [(Constr c, fromTer
 checkConstructorAndLength :: Text -> [t'] -> Interp (Constr, [GrammarBuilder Constr]) (Text, ([t'], [Term]))
 checkConstructorAndLength c ts = proc (c', gs) -> case c' of
   Constr c'' | eqLength ts gs && c == c'' -> returnA -< (c, (ts, toTerms gs))
-             | otherwise -> failA -< ()
-  _ -> failA -< ()
+             | otherwise -> fail -< ()
+  _ -> fail -< ()
 
 top' :: Interp () Term
-top' = proc () -> returnA ⊔ failA' <<< (Term . wildcard . thrd ^<< askA) -< ()
+top' = proc () -> returnA ⊔ fail' <<< (Term . wildcard . thrd ^<< ask) -< ()
 
 matchLit :: Interp (Term, Constr) Term
 -- TODO: check if production to n has empty argument list? This should be the case by design.
 matchLit = proc (Term g,l) -> case g `produces` l of
   True | isSingleton g -> returnA -< Term g
-       | otherwise -> returnA ⊔ failA' -< Term g
-  False -> failA -< ()
+       | otherwise -> returnA ⊔ fail' -< Term g
+  False -> fail -< ()
 
 stringGrammar :: Text -> Term
 stringGrammar s = Term (singleton (StringLit s))
