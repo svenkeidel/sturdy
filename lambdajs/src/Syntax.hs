@@ -104,7 +104,5 @@ instance (Hashable v, Ord v) => Hashable (Set v) where
     Prelude.foldr (\x s -> s + (hash x)) salt (sort $ Data.Set.toList set)
 
 type Location' = Set Location
-instance Generic Location'
 
 type Type' = Set Type
-instance Generic Type'
