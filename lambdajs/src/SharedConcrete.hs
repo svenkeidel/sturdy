@@ -19,7 +19,7 @@ import           SharedInterpreter
 import           Syntax
 import           Text.Read                                      (readMaybe)
 
-import           Data.Bits                                      (bit, shift)
+import           Data.Bits                                      (shift)
 import           Data.Fixed                                     (mod')
 import           Data.Hashable
 import           Data.Identifiable
@@ -49,7 +49,6 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Category
-import           Debug.Trace                                    (trace)
 
 
 data Value

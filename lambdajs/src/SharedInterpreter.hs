@@ -10,10 +10,8 @@
 module SharedInterpreter where
 
 import           Control.Arrow
-import           Control.Arrow.Utils (fold, map, pi1, pi2)
-import           Debug.Trace         (trace)
-import           Prelude             hiding (break, error, fold, lookup, map,
-                                      read)
+import           Control.Arrow.Utils (map)
+import           Prelude             hiding (break, error, lookup, map, read)
 import qualified Prelude
 import           Syntax
 

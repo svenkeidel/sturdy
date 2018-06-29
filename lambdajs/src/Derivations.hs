@@ -1,10 +1,10 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass       #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE StandaloneDeriving   #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
 module Derivations where
-import Syntax
-import Data.Order
+import           Data.Order
+import           Syntax
 deriving instance PreOrd Location
 deriving instance Complete Location
 deriving instance Complete String
