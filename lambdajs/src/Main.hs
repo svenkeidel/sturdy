@@ -2,24 +2,22 @@
 module Main where
 
 import           ConcreteSemantics
-import           Debug.Trace                       (trace)
+import qualified Data.Abstract.HandleError         as AbstractError
+import qualified Data.Abstract.Store               as AbstractStore
+import qualified Data.Concrete.Error               as ConcreteError
+import qualified Data.Concrete.Store               as ConcreteStore
 import           Language.ECMAScript3.Lexer        (reservedOp, whiteSpace)
-import           Language.ECMAScript3.Parser       (parseBlockStmt,
-                                                    parseExpression,
-                                                    parseJavaScriptFromFile,
-                                                    parseScriptFromString)
+import           Language.ECMAScript3.Parser       (expression, parseFromString,
+                                                    statement)
 import           Language.ECMAScript3.Syntax       (JavaScript (..))
 import           Language.LambdaJS.Desugar
 import           Language.LambdaJS.ECMAEnvironment (ecma262Env)
 import           Language.LambdaJS.Parser          (parseBinds)
-import           Language.LambdaJS.PrettyPrint
 import           Language.LambdaJS.RemoveHOAS
 import           Language.LambdaJS.Syntax
 import qualified Syntax                            as S
 import           System.Environment
-import           System.IO
 import           Text.ParserCombinators.Parsec
-import           Text.PrettyPrint.HughesPJ
 import           TypeSemantics
 
 convertOp :: Op -> S.Op
@@ -69,10 +67,9 @@ convertOp o = case o of
   OObjIterHasNext -> S.OObjIterHasNext
   OObjIterNext    -> S.OObjIterNext
   OObjIterKey     -> S.OObjIterKey
-  _               -> error ("Unsupported operation: " ++ (show o))
 
 convert :: ExprPos -> S.Expr
-convert exp = case exp of
+convert expr = case expr of
   ENumber _ d -> S.ENumber d
   EString _ s -> S.EString s
   EBool _ b -> S.EBool b
@@ -96,25 +93,29 @@ convert exp = case exp of
   ELabel _ l body -> S.ELabel (S.Label l) (convert body)
   EBreak _ l body -> S.EBreak (S.Label l) (convert body)
   EThrow _ val -> S.EThrow (convert val)
-  ECatch _ try catch -> S.ECatch (convert try) (convert catch)
-  EFinally _ try finally -> S.EFinally (convert try) (convert finally)
-  EEval e -> S.EEval
-  _ -> error ("Unsupported expression: " ++ (show exp))
+  ECatch _ try_ catch -> S.ECatch (convert try_) (convert catch)
+  EFinally _ try_ finally -> S.EFinally (convert try_) (convert finally)
+  EEval _ -> S.EEval
+  e -> error ("Unsupported expression: " ++ (show e))
 
+parseEnvironment :: FilePath -> IO (ExprPos -> ExprPos)
 parseEnvironment fileName = do
   src <- readFile fileName
   case parseBinds fileName src of
     Left err -> fail (show err)
     Right f  -> return f
 
+interpConcrete :: S.Expr -> (ConcreteStore.Store S.Location Value, ConcreteError.Error String Value)
 interpConcrete ast = runConcrete [] [] ast
+
+interpType :: S.Expr -> (AbstractStore.Store S.Location S.Type', AbstractError.Error String S.Type')
 interpType ast = runAbstract [] [] ast
 
 testCase envTransformer ecmaEnv = do
-  srcLoc <- getPosition
-  testStmt <- parseBlockStmt
+  _ <- getPosition
+  testStmt <- statement
   reservedOp "::"
-  expectedExpr <- parseExpression
+  expectedExpr <- expression
   reservedOp ";"
   let lhs = desugarStmtsWithResult [testStmt] (\e -> envTransformer (ecmaEnv e)) (getValue (EGetField nopos (EDeref nopos $ EId nopos "$global") (EString nopos "result")))
   let rhs = desugarExpr (expectedExpr) (\e -> envTransformer (ecmaEnv (getValue e)))
@@ -126,6 +127,7 @@ testCases envTransformer ecmaEnv = do
   eof
   return tests
 
+mainTestFile :: FilePath -> FilePath -> IO ()
 mainTestFile filename envname = do
   testFile <- readFile filename
   envTransformer <- parseEnvironment envname
@@ -140,6 +142,7 @@ mainTestFile filename envname = do
       --let types = map (snd . interpType) (converted)
       putStr $ unlines (map (\(l, r) -> (if l == r then "PASS" else "FAIL") ++ ": " ++ (show l) ++ ", " ++ (show r)) (zip results shouldBe))
 
+printTestAST :: FilePath -> IO ()
 printTestAST filename = do
   testFile <- readFile filename
   case runParser (testCases id id) [] "stdin" testFile of
@@ -147,6 +150,7 @@ printTestAST filename = do
     Right tests -> do
       mapM_ (putStrLn . show . convert . removeHOAS . fst) tests
 
+mainRunFile :: FilePath -> FilePath -> IO ()
 mainRunFile filename envname = do
   str <- readFile filename
 
@@ -154,7 +158,7 @@ mainRunFile filename envname = do
   putStrLn (show str)
   putStrLn "\n"
 
-  case parseScriptFromString "<stdin>" str of
+  case parseFromString str of
     Right (Script p script) -> do
       putStrLn "JavaScript AST"
       putStrLn (show script)
@@ -178,6 +182,7 @@ mainRunFile filename envname = do
 
     Left err -> fail (show err)
 
+main :: IO ()
 main = do
   args <- getArgs
   case args of
