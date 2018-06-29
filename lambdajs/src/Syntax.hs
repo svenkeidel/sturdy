@@ -8,6 +8,7 @@ module Syntax where
 import           Data.Abstract.Environment
 import           Data.Hashable
 import           Data.List                 (sort)
+import           Data.Order
 import           Data.Set
 import           GHC.Generics              (Generic)
 
@@ -95,6 +96,15 @@ data Type
     | TBreak Label Type'
     deriving (Show, Eq, Generic, Ord)
 deriving instance Hashable Type
+
+instance PreOrd Type where
+    TLambda ids1 _ e1 ⊑ TLambda ids2 _ e2 = ids1 == ids2 && e1 ⊑ e2
+    TObject fields1 ⊑ TObject fields2 = all (\((f1, t1), (f2, t2)) -> f1 == f2 && t1 ⊑ t2) (zip fields1 fields2)
+    TRef l1 ⊑ TRef l2 = Data.Set.isSubsetOf l1 l2
+    TThrown t1 ⊑ TThrown t2 = Data.Set.isSubsetOf t1 t2
+    TBreak l1 t1 ⊑ TBreak l2 t2 = Data.Set.isSubsetOf t1 t2 && l1 == l2
+    a ⊑ b | a == b = True
+    _ ⊑ _ = False
 
 instance Ord (Env Ident Type') where
     (<=) a b = (sort $ Data.Abstract.Environment.toList a) <= (sort $ Data.Abstract.Environment.toList b)

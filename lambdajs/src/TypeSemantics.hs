@@ -9,8 +9,8 @@
 {-# LANGUAGE TypeSynonymInstances       #-}
 module TypeSemantics where
 
-import           Derivations
-import           GHC.Generics                                    (Generic)
+import           Derivations                                     ()
+import           GHC.Generics                                    ()
 import           Prelude                                         hiding (break,
                                                                   error, fail,
                                                                   lookup, map,
@@ -19,8 +19,8 @@ import qualified Prelude
 import           SharedInterpreter
 import           Syntax
 
-import           Data.Hashable
-import           Data.Identifiable
+import           Data.Hashable                                   ()
+import           Data.Identifiable                               ()
 import           Data.Set
 
 import           Data.Abstract.Environment
@@ -33,28 +33,14 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.HandleExcept
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Utils                             (map, pi1, pi2)
+import           Control.Arrow.Utils                             (map, pi1)
 
 import           Control.Arrow
 import           Control.Arrow.Environment
-import           Control.Arrow.Except
 import           Control.Arrow.Fail
-import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Category
-
-
-instance PreOrd Type where
-    TLambda ids1 _ e1 ⊑ TLambda ids2 _ e2 = ids1 == ids2 && e1 ⊑ e2
-    TObject fields1 ⊑ TObject fields2 = all (\((f1, t1), (f2, t2)) -> f1 == f2 && t1 ⊑ t2) (zip fields1 fields2)
-    TRef l1 ⊑ TRef l2 = Data.Set.isSubsetOf l1 l2
-    TThrown t1 ⊑ TThrown t2 = Data.Set.isSubsetOf t1 t2
-    TBreak l1 t1 ⊑ TBreak l2 t2 = Data.Set.isSubsetOf t1 t2 && l1 == l2
-    a ⊑ b | a == b = True
-    _ ⊑ _ = False
-
-
 
 newtype TypeArr x y = TypeArr
     (Except
@@ -74,13 +60,14 @@ deriving instance ArrowState Location TypeArr
 
 runType :: TypeArr x y -> [(Ident, Type)] -> [(Location, Type)] -> x -> (Location, (Store Location Type', Error String y))
 runType (TypeArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Abstract.Store.fromList env2', (Data.Abstract.Environment.fromList env', x)))
-        where env' = Prelude.map (\(x, y) -> (x, Data.Set.fromList [y])) env
-              env2' = Prelude.map (\(x, y) -> (x, Data.Set.fromList [y])) env2
+        where env' = Prelude.map (\(a, b) -> (a, Data.Set.fromList [b])) env
+              env2' = Prelude.map (\(a, b) -> (a, Data.Set.fromList [b])) env2
 
 runAbstract :: [(Ident, Type)] -> [(Location, Type)] -> Expr -> (Store Location Type', Error String Type')
-runAbstract env st exp = case runType eval env st exp of
-    (l, (st, Fail e))      -> (st, Fail e)
-    (l, (st, Success res)) -> (st, Success res)
+runAbstract env st expr = case runType eval env st expr of
+    (_, (newSt, Fail e))            -> (newSt, Fail e)
+    (_, (newSt, Success res))       -> (newSt, Success res)
+    (_, (newSt, SuccessOrFail e _)) -> (newSt, Fail e)
 
 typeEvalBinOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type, Type) Type
 typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) of
@@ -103,7 +90,7 @@ typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) 
     (OBOr, TBool, TBool)                -> TBool
     (OBXOr, TBool, TBool)               -> TBool
     -- equality operators
-    (OStrictEq, a, b)                   -> TBool
+    (OStrictEq, _, _)                   -> TBool
     (OAbstractEq, TNumber, TString)     -> TBool
     (OAbstractEq, TString, TNumber)     -> TBool
     (OAbstractEq, TBool, TNumber)       -> TBool
@@ -116,7 +103,8 @@ typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) 
     -- object operators
     (OHasOwnProp, (TObject _), TString) -> TBool
     (_, TTop, _)                        -> TTop
-    (_, _, TTop)                        -> TTop) -< (op, v1, v2)
+    (_, _, TTop)                        -> TTop
+    _                                   -> TTop) -< (op, v1, v2)
 --  x -> fail -< "Unimplemented op: " ++ (show op) ++ ", params: " ++ (show v1) ++ ", " ++ (show v2)
 
 typeEvalUnOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type) Type
@@ -145,7 +133,8 @@ typeEvalUnOp_ = proc (op, vals) -> (arr $ \(op, vals) -> case (op, vals) of
     (OMathLog, TNumber)   -> TNumber
     (OMathCos, TNumber)   -> TNumber
     (OMathSin, TNumber)   -> TNumber
-    (OMathAbs, TNumber)   -> TNumber) -< (op, vals)
+    (OMathAbs, TNumber)   -> TNumber
+    _                     -> TTop) -< (op, vals)
 
 fresh :: ArrowState Location c => c () Location
 fresh = proc () -> do
@@ -156,9 +145,9 @@ fresh = proc () -> do
 getField_ :: ArrowChoice c => c (Type, String) Type'
 getField_ = proc (t, s) -> do
     case t of
-        TObject fs -> case find (\(n, t) -> n == s) fs of
-            Just (n, t) -> returnA -< t
-            Nothing     -> returnA -< Data.Set.fromList [TUndefined]
+        TObject fs -> case find (\(n, _) -> n == s) fs of
+            Just (_, fieldT) -> returnA -< fieldT
+            Nothing          -> returnA -< Data.Set.fromList [TUndefined]
         _ -> returnA -< Data.Set.fromList [TObject [("0", Data.Set.singleton TString), ("length", Data.Set.singleton TNumber), ("$isArgs", Data.Set.singleton TBool)]]
 
 
@@ -175,12 +164,12 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
         returnA -< Data.Set.fromList [TLambda ids body closure]
     objectVal = proc (fields) -> do
         returnA -< Data.Set.fromList [TObject fields]
-    getField f1 = proc (subject, field) -> do
+    getField _ = proc (subject, field) -> do
         case field of
             EString name -> returnA -< Prelude.foldr Data.Set.union (Data.Set.empty) (Prelude.map getField_ (zip (Data.Set.toList subject) (repeat name)))
             _            -> returnA -< singleton TTop
-    updateField f1 = proc (_, _, _) -> returnA -< singleton TTop
-    deleteField f1 = proc (_, _) -> returnA -< singleton TTop
+    updateField _ = proc (_, _, _) -> returnA -< singleton TTop
+    deleteField _ = proc (_, _) -> returnA -< singleton TTop
     -- operator/delta function
     evalOp = proc (op, vals) -> do
         case vals of
@@ -197,8 +186,8 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
                         returnA -< Data.Set.fromList [t]
                     False -> fail -< "Error: Binary op with set of type params not supported"
     -- environment ops
-    lookup = proc id -> do
-        Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id, Data.Set.singleton TUndefined)
+    lookup = proc id_ -> do
+        Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id_, Data.Set.singleton TUndefined)
     apply f1 = proc (lambdas, args) -> do
         ts <- Control.Arrow.Utils.map (proc (lambda, args) -> case lambda of
             TLambda names body closureEnv
@@ -253,7 +242,7 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
         returnA -< singleton (TBreak l t)
     throw = proc t -> do
         returnA -< singleton (TThrown t)
-    catch f1 = proc (try, catch) -> do
+    catch f1 = proc (try, _) -> do
         tryT <- f1 -< try
         case Data.Set.toList tryT of
             [TThrown t] -> returnA -< t

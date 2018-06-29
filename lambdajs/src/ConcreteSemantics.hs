@@ -37,13 +37,13 @@ import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Utils                            (map, pi1, pi2)
+import           Control.Arrow.Utils                            (pi1)
 
 import           Control.Arrow
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
-import           Control.Arrow.Reader
+import           Control.Arrow.Reader                           ()
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Category
@@ -94,11 +94,11 @@ runLJS :: ConcreteArr x y -> [(Ident, Value)] -> [(Location, Value)] -> x -> (Lo
 runLJS (ConcreteArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Concrete.Store.fromList env2, (Data.Concrete.Environment.fromList env, x)))
 
 runConcrete :: [(Ident, Value)] -> [(Location, Value)] -> Expr -> (Store Location Value, Error String Value)
-runConcrete env st exp =
-    case runLJS eval env st exp of
-        (_, (st, Fail (Left e))) -> (st, Fail e)
-        (_, (st, Fail (Right e))) -> (st, Fail $ "Error: Uncaught throws or label break: " ++ (show e))
-        (_, (st, Success res)) -> (st, Success res)
+runConcrete env st expr =
+    case runLJS eval env st expr of
+        (_, (newSt, Fail (Left e))) -> (newSt, Fail e)
+        (_, (newSt, Fail (Right e))) -> (newSt, Fail $ "Error: Uncaught throws or label break: " ++ (show e))
+        (_, (newSt, Success res)) -> (newSt, Success res)
 
 evalOp_ :: (ArrowFail (Either String Exceptional) c, ArrowChoice c) => c (Op, [Value]) Value
 evalOp_ = proc (op, vals) -> case (op, vals) of
@@ -111,10 +111,10 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
     (OLt, [(VNumber a), (VNumber b)]) -> returnA -< VBool (a < b)
     (OToInteger, [(VNumber a)]) -> returnA -< VNumber $ fromInteger (truncate a)
     (OToInt32, [(VNumber a)]) ->
-        returnA -< (let n = mod (truncate a) (2^32 :: Integer) in
-            if n > (2^31) then VNumber $ fromInteger $ n - (2^32)
+        returnA -< (let n = mod (truncate a) ((2::Integer)^(32 :: Integer)) in
+            if n > ((2::Integer)^(31 :: Integer)) then VNumber $ fromInteger $ n - ((2::Integer)^(32 :: Integer))
             else VNumber $ fromInteger $ n)
-    (OToUInt32, [(VNumber a)]) -> returnA -< VNumber $ fromInteger $ mod (abs $ truncate a) (2^32)
+    (OToUInt32, [(VNumber a)]) -> returnA -< VNumber $ fromInteger $ mod (abs $ truncate a) ((2::Integer)^(32 :: Integer))
     -- shift operators
     (OLShift, [(VNumber a), (VNumber b)]) ->
         returnA -< VNumber $ fromInteger $ shift (truncate a) (truncate b)
@@ -128,7 +128,7 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
     (OStrLen, [(VString a)]) -> returnA -< VNumber $ fromIntegral $ length a
     (OStrStartsWith, [(VString a), (VString b)]) -> returnA -< VBool $ isPrefixOf b a
     (OStrSplitStrExp, [(VString subject), (VString delim)]) -> do
-        let elems = zip (Prelude.map show [0..]) (Prelude.map VString $ splitOn delim subject)
+        let elems = zip (Prelude.map (show :: Integer -> String) [0..]) (Prelude.map VString $ splitOn delim subject)
         returnA -< VObject (elems ++ [("length", VNumber $ fromIntegral $ length elems), ("$proto", VString "Array")])
     (OStrSplitRegExp, _) -> fail -< Left $ "Regex operations not implemented"
     (ORegExpMatch, _) -> fail -< Left $ "Regex operations not implemented"
@@ -148,40 +148,43 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
         _            -> VBool False)
     -- primToNum operator
     -- #todo object conversions -> valueOf call
-    (OPrimToNum, [a]) -> returnA -< (case a of
-        (VNumber a)  -> VNumber a
-        (VString s)  -> VNumber $ (case (readMaybe s :: Maybe Double) of
+    (OPrimToNum, [a]) -> case a of
+        (VNumber n)  -> returnA -< VNumber n
+        (VString s)  -> returnA -< VNumber $ (case (readMaybe s :: Maybe Double) of
             Just num -> num
             Nothing  -> 0/0)
-        (VBool b)    -> if b then VNumber 1.0 else VNumber 0.0
-        (VNull)      -> VNumber 0
-        (VUndefined) -> VNumber (0/0))
+        (VBool b)    -> returnA -< if b then VNumber 1.0 else VNumber 0.0
+        (VNull)      -> returnA -< VNumber 0
+        (VUndefined) -> returnA -< VNumber (0/0)
+        _            -> fail    -< Left $ "Error: unimplemented primToNum for " ++ (show a)
     -- primToStr operator
-    (OPrimToStr, [a]) -> returnA -< (case a of
-        (VNumber a)  -> if (fromInteger $ floor a) == a then (VString $ show $ floor a) else (VString $ show a)
-        (VString s)  -> VString s
-        (VBool b)    -> VString $ if b then "true" else "false"
-        (VNull)      -> VString "null"
-        (VUndefined) -> VString "undefined"
-        (VObject _)  -> VString "object")
+    (OPrimToStr, [a]) -> case a of
+        (VNumber n)  -> returnA -< if (fromInteger $ floor n) == n then (VString $ show $ (floor::Double->Integer) n) else (VString $ show n)
+        (VString s)  -> returnA -< VString s
+        (VBool b)    -> returnA -< VString $ if b then "true" else "false"
+        (VNull)      -> returnA -< VString "null"
+        (VUndefined) -> returnA -< VString "undefined"
+        (VObject _)  -> returnA -< VString "object"
+        _            -> fail    -< Left $ "Error: unimplemented primToStr for " ++ (show a)
     -- primToBool operator
-    (OPrimToBool, [a]) -> returnA -< (case a of
-        (VNumber a)  -> VBool $ (a /= 0.0) && (not (isNaN a))
-        (VString s)  -> VBool $ not $ s == ""
-        (VBool b)    -> VBool b
-        (VNull)      -> VBool False
-        (VUndefined) -> VBool False
-        (VObject _)  -> VBool True)
+    (OPrimToBool, [a]) -> case a of
+        (VNumber n)  -> returnA -< VBool $ (n /= 0.0) && (not (isNaN n))
+        (VString s)  -> returnA -< VBool $ not $ s == ""
+        (VBool b)    -> returnA -< VBool b
+        (VNull)      -> returnA -< VBool False
+        (VUndefined) -> returnA -< VBool False
+        (VObject _)  -> returnA -< VBool True
+        _            -> fail    -< Left $ "Error: unimplemented primToBool for " ++ (show a)
     -- typeOf operator
-    (OTypeof, [a]) -> returnA -< (case a of
-        (VNumber _)     -> VString "number"
-        (VString _)     -> VString "string"
-        (VBool _)       -> VString "boolean"
-        (VUndefined)    -> VString "undefined"
-        (VNull)         -> VString "null"
-        (VLambda _ _ _) -> VString "lambda"
-        (VObject _)     -> VString "object"
-        (VRef l)        -> VString "location")
+    (OTypeof, [a]) -> returnA -< VString (case a of
+        (VNumber _)     -> "number"
+        (VString _)     -> "string"
+        (VBool _)       -> "boolean"
+        (VUndefined)    -> "undefined"
+        (VNull)         -> "null"
+        (VLambda _ _ _) -> "lambda"
+        (VObject _)     -> "object"
+        (VRef _)        -> "location")
     -- equality operators
     (OStrictEq, [a, b]) -> returnA -< VBool $ a == b
     (OAbstractEq, [(VNumber a), (VString b)]) -> do
@@ -208,37 +211,38 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
     (OMathPow, [(VNumber a), (VNumber b)]) -> returnA -< VNumber $ a ** b
     -- object operators
     (OHasOwnProp, [(VObject fields), (VString field)]) ->
-        returnA -< VBool $ any (\(name, value) -> (name == field)) fields
-    (OObjCanDelete, [(VObject fields), (VString field)]) ->
+        returnA -< VBool $ any (\(name, _) -> (name == field)) fields
+    (OObjCanDelete, [(VObject _), (VString field)]) ->
         returnA -< VBool $ (length field) > 0 && (not $ head field == '$')
     (OObjIterHasNext, [(VObject obj), VUndefined]) -> do
-        let newObj = filter (\(n, v) -> (head n /= '$')) obj
+        let newObj = filter (\(n, _) -> (head n /= '$')) obj
         returnA -< VBool $ (length newObj) > 0
     (OObjIterHasNext, [(VObject obj), (VNumber i)]) -> do
         let obj2 = drop ((floor i) + 1) obj
-        let obj3 = filter (\(n, v) -> (head n /= '$')) obj2
+        let obj3 = filter (\(n, _) -> (head n /= '$')) obj2
         returnA -< (VBool $ (length obj3) > 0)
     (OObjIterNext, [(VObject obj), VUndefined]) -> do
-        let newObj = filter (\(n, v) -> (head n /= '$')) obj
+        let newObj = filter (\(n, _) -> (head n /= '$')) obj
         case elemIndex (head newObj) obj of
             Just n  -> returnA -< (VNumber $ fromIntegral n)
             Nothing -> fail -< Left $ "Error no such element"
     (OObjIterNext, [(VObject obj), (VNumber i)]) -> do
         let obj2 = drop ((floor i) + 1) obj
-        let elem = head $ dropWhile (\(n, v) -> (head n == '$')) obj2
-        case elemIndex elem obj of
+        let element = head $ dropWhile (\(n, _) -> (head n == '$')) obj2
+        case elemIndex element obj of
             Just n  -> returnA -< (VNumber $ fromIntegral n)
             Nothing -> fail -< Left $ "Error no such element"
     (OObjIterKey, [(VObject obj), (VNumber i)]) -> do
         returnA -< (VString $ fst $ obj !! floor i)
-    (OSurfaceTypeof, [a]) -> returnA -< VString (case a of
-        VObject fields -> if elem "$code" (Prelude.map fst fields) then "function" else "object"
-        VNull          -> "object"
-        VUndefined     -> "undefined"
-        VNumber _      -> "number"
-        VString _      -> "string"
-        VBool _        -> "boolean")
-    x -> fail -< Left $ "Unimplemented operator: " ++ (show op) ++ " with args: " ++ (show vals)
+    (OSurfaceTypeof, [a]) -> case a of
+        VObject fields -> returnA -< VString $ if elem "$code" (Prelude.map fst fields) then "function" else "object"
+        VNull          -> returnA -< VString "object"
+        VUndefined     -> returnA -< VString "undefined"
+        VNumber _      -> returnA -< VString "number"
+        VString _      -> returnA -< VString "string"
+        VBool _        -> returnA -< VString "boolean"
+        _              -> fail    -< Left $ "Error: unimplemented typeOf for " ++ (show a)
+    _ -> fail -< Left $ "Unimplemented operator: " ++ (show op) ++ " with args: " ++ (show vals)
 
 fresh :: ArrowState Location c => c () Location
 fresh = proc () -> do
@@ -248,17 +252,17 @@ fresh = proc () -> do
 
 getField_ :: (ArrowFail (Either String Exceptional) c, ArrowChoice c, ArrowRead Location Value Value Value c) => c (Value, Value) Value
 getField_ = proc (VObject fields, VString fieldName) -> do
-    let fieldV = find (\(fn, fv) -> fieldName == fn) fields in
+    let fieldV = find (\(fn, _) -> fieldName == fn) fields in
         case fieldV of
             -- E-GetField
-            Just (n, v) -> returnA -< v
+            Just (_, v) -> returnA -< v
             Nothing ->
-                let protoFieldV = find (\(fn, fv) -> fn == "$proto") fields in
+                let protoFieldV = find (\(fn, _) -> fn == "$proto") fields in
                     case protoFieldV of
                         -- E-GetField-Proto-Null
-                        Just (pn, VNull) -> returnA -< VUndefined
+                        Just (_, VNull) -> returnA -< VUndefined
                         -- E-GetField-Proto
-                        Just (pn, VRef l) -> do
+                        Just (_, VRef l) -> do
                             protoV <- read pi1 id -< (l, VUndefined)
                             getField_ -< (protoV, VString fieldName)
                         -- When proto exists but none of the special semantics apply
@@ -267,20 +271,18 @@ getField_ = proc (VObject fields, VString fieldName) -> do
                         Nothing -> returnA -< VUndefined
 
 updateField_ :: (ArrowFail (Either String Exceptional) e, ArrowChoice e, ArrowEnv Ident Value (Env Ident Value) e) => e (Value, Value, Value) Value
-updateField_ = proc (fields, name, value) -> do
-    case (fields, name) of
-        (VObject fields, VString name) -> do
+updateField_ = proc (subject, name, value) -> do
+    case (subject, name) of
+        (VObject _, VString nameValue) -> do
             -- remove field from obj
-            filtered <- deleteField_ -< (VObject fields, VString name)
+            filtered <- deleteField_ -< (subject, name)
             case filtered of
-                VObject obj -> do
+                VObject deletedFieldObj -> do
                     -- add field with new value to obj
-                    newFields <- arr (\(fs, n, v) -> (n, v) : fs) -< (obj, name, value)
+                    newFields <- arr (\(fs, n, v) -> (n, v) : fs) -< (deletedFieldObj, nameValue, value)
                     returnA -< VObject newFields
                 _ -> fail -< Left "Error: deleteField returned non-object value"
-        _ -> do
-            env <- getEnv -< ()
-            fail -< Left $ "Error: non exhaustive pattern in updateField_ with params: (" ++ (show fields) ++ ") (" ++ (show name) ++ ") (" ++ show value ++ ") " ++ (show env)
+        _ -> fail -< Left $ "Error: updateField takes object and name"
 
 deleteField_ :: ArrowFail (Either String Exceptional) e => e (Value, Value) Value
 deleteField_ = proc (VObject obj, VString field) -> do
@@ -310,8 +312,8 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
     -- operator/delta function
     evalOp = proc (op, vals) -> evalOp_ -< (op, vals)
     -- environment ops
-    lookup = proc id -> do
-        Control.Arrow.Environment.lookup pi1 (proc (_) -> fail -< Left $ "id does not exist") -< (id, id)
+    lookup = proc id_ -> do
+        Control.Arrow.Environment.lookup pi1 (proc (_) -> fail -< Left $ "id does not exist") -< (id_, id_)
     apply f1 = proc (lambda, args) -> do
         case lambda of
             VLambda names body closureEnv
@@ -343,38 +345,37 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
     -- control flow
     if_ f1 f2 = proc (cond, thenBranch, elseBranch) -> do
         case cond of
-            VBool True -> do
-                f1 -< thenBranch
-            VBool False -> do
-                f2 -< elseBranch
-            _ -> fail -< Left $ (show cond)
+            VBool True  -> f1 -< thenBranch
+            VBool False -> f2 -< elseBranch
+            _           -> fail -< Left $ (show cond)
     while_ f1 f2 = proc (cond, body) -> do
         condV <- f1 -< cond
         case condV of
             VBool True  -> f2 -< (ESeq body (EWhile cond body))
             VBool False -> returnA -< VUndefined
+            _ -> fail -< Left $ "Error: condition must be evaluate to boolean value"
     label f1 = proc (l, e) -> do
-        (l, res) <- tryCatch (second f1) (proc ((label, _), err) -> case err of
+        (_, res) <- tryCatch (second f1) (proc ((label_, _), err) -> case err of
             Left s -> fail -< Left s
-            Right (Break l1 v) -> case l1 == label of
-                True  -> returnA -< (label, v)
-                False -> fail -< (Right $ Break l1 v)
+            Right (Break l1 v)
+                | l1 == label_ -> returnA -< (label_, v)
+                | otherwise -> fail -< (Right $ Break l1 v)
             Right (Thrown v) -> fail -< (Right $ Thrown v)) -< (l, e)
         returnA -< res
     break = proc (l, v) -> do
         fail -< Right (Break l v)
     throw = proc v -> do
         fail -< Right (Thrown v)
-    catch f1 = proc (try, catch) -> do
-        (c, res) <- tryCatch (second f1) (proc ((catch, _), err) -> case err of
+    catch f1 = proc (try, catch_) -> do
+        (_, res) <- tryCatch (second f1) (proc ((catch_, _), err) -> case err of
             Left s -> fail -< Left s
             Right (Break l1 v) -> fail -< Right $ Break l1 v
-            Right (Thrown v) -> case catch of
+            Right (Thrown v) -> case catch_ of
                 ELambda [x] body -> do
                     scope <- getEnv -< ()
                     env' <- extendEnv -< (x, v, scope)
                     res <- localEnv f1 -< (env', body)
-                    returnA -< (catch, res)
-                _ -> fail -< Left "Error: Catch block must be of type ELambda") -< (catch, try)
+                    returnA -< (catch_, res)
+                _ -> fail -< Left "Error: Catch block must be of type ELambda") -< (catch_, try)
         returnA -< res
     error = proc s -> fail -< Left $ "Error: aborted with message: " ++ s
