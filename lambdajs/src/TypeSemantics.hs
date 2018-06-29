@@ -7,7 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
-module SharedAbstract where
+module TypeSemantics where
 
 import           Derivations
 import           GHC.Generics                                    (Generic)
@@ -83,75 +83,75 @@ runAbstract env st exp = case runType eval env st exp of
     (l, (st, Success res)) -> (st, Success res)
 
 typeEvalBinOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type, Type) Type
-typeEvalBinOp_ = proc (op, v1, v2) -> case (op, v1, v2) of
+typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) of
     -- number operators
-    (ONumPlus, TNumber, TNumber)        -> returnA -< TNumber
-    (OMul, TNumber, TNumber)            -> returnA -< TNumber
-    (ODiv, TNumber, TNumber)            -> returnA -< TNumber
-    (OMod, TNumber, TNumber)            -> returnA -< TNumber
-    (OSub, TNumber, TNumber)            -> returnA -< TNumber
-    (OLt, TNumber, TNumber)             -> returnA -< TBool
+    (ONumPlus, TNumber, TNumber)        -> TNumber
+    (OMul, TNumber, TNumber)            -> TNumber
+    (ODiv, TNumber, TNumber)            -> TNumber
+    (OMod, TNumber, TNumber)            -> TNumber
+    (OSub, TNumber, TNumber)            -> TNumber
+    (OLt, TNumber, TNumber)             -> TBool
     -- shift operators
-    (OLShift, TNumber, TNumber)         -> returnA -< TNumber
-    (OSpRShift, TNumber, TNumber)       -> returnA -< TNumber
-    (OZfRShift, TNumber, TNumber)       -> returnA -< TNumber
+    (OLShift, TNumber, TNumber)         -> TNumber
+    (OSpRShift, TNumber, TNumber)       -> TNumber
+    (OZfRShift, TNumber, TNumber)       -> TNumber
     -- string operators
-    (OStrPlus, TString, TString)        -> returnA -< TString
-    (OStrLt, TString, TString)          -> returnA -< TBool
+    (OStrPlus, TString, TString)        -> TString
+    (OStrLt, TString, TString)          -> TBool
     -- boolean operators
-    (OBAnd, TBool, TBool)               -> returnA -< TBool
-    (OBOr, TBool, TBool)                -> returnA -< TBool
-    (OBXOr, TBool, TBool)               -> returnA -< TBool
+    (OBAnd, TBool, TBool)               -> TBool
+    (OBOr, TBool, TBool)                -> TBool
+    (OBXOr, TBool, TBool)               -> TBool
     -- equality operators
-    (OStrictEq, a, b)                   -> returnA -< TBool
-    (OAbstractEq, TNumber, TString)     -> returnA -< TBool
-    (OAbstractEq, TString, TNumber)     -> returnA -< TBool
-    (OAbstractEq, TBool, TNumber)       -> returnA -< TBool
-    (OAbstractEq, TNumber, TBool)       -> returnA -< TBool
-    (OAbstractEq, TNumber, TNumber)     -> returnA -< TBool
-    (OAbstractEq, TNull, TUndefined)    -> returnA -< TBool
-    (OAbstractEq, TUndefined, TNull)    -> returnA -< TBool
+    (OStrictEq, a, b)                   -> TBool
+    (OAbstractEq, TNumber, TString)     -> TBool
+    (OAbstractEq, TString, TNumber)     -> TBool
+    (OAbstractEq, TBool, TNumber)       -> TBool
+    (OAbstractEq, TNumber, TBool)       -> TBool
+    (OAbstractEq, TNumber, TNumber)     -> TBool
+    (OAbstractEq, TNull, TUndefined)    -> TBool
+    (OAbstractEq, TUndefined, TNull)    -> TBool
     -- math operators
-    (OMathPow, TNumber, TNumber)        -> returnA -< TNumber
+    (OMathPow, TNumber, TNumber)        -> TNumber
     -- object operators
-    (OHasOwnProp, (TObject _), TString) -> returnA -< TBool
-    (_, TTop, _) -> returnA -< TTop
-    (_, _, TTop) -> returnA -< TTop
-    x -> fail -< "Unimplemented op: " ++ (show op) ++ ", params: " ++ (show v1) ++ ", " ++ (show v2)
+    (OHasOwnProp, (TObject _), TString) -> TBool
+    (_, TTop, _)                        -> TTop
+    (_, _, TTop)                        -> TTop) -< (op, v1, v2)
+--  x -> fail -< "Unimplemented op: " ++ (show op) ++ ", params: " ++ (show v1) ++ ", " ++ (show v2)
 
 typeEvalUnOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type) Type
-typeEvalUnOp_ = proc (op, vals) -> case (op, vals) of
+typeEvalUnOp_ = proc (op, vals) -> (arr $ \(op, vals) -> case (op, vals) of
     -- number operator
-    (OToInteger, TNumber) -> returnA -< TNumber
-    (OToInt32, TNumber)   -> returnA -< TNumber
-    (OToUInt32, TNumber)  -> returnA -< TNumber
+    (OToInteger, TNumber) -> TNumber
+    (OToInt32, TNumber)   -> TNumber
+    (OToUInt32, TNumber)  -> TNumber
     -- boolean operator
-    (OBNot, TBool)        -> returnA -< TBool
+    (OBNot, TBool)        -> TBool
     -- string operators
-    (OStrLen, TString)    -> returnA -< TNumber
+    (OStrLen, TString)    -> TNumber
     -- isPrimitive operator
-    (OIsPrim, _)          -> returnA -< TBool
+    (OIsPrim, _)          -> TBool
     -- primToNum operator
     -- #todo object conversions -> valueOf call
-    (OPrimToNum, _)       -> returnA -< TNumber
+    (OPrimToNum, _)       -> TNumber
     -- primToStr operator
-    (OPrimToStr, _)       -> returnA -< TString
+    (OPrimToStr, _)       -> TString
     -- primToBool operator
-    (OPrimToBool, _)      -> returnA -< TBool
+    (OPrimToBool, _)      -> TBool
     -- typeOf operator
-    (OTypeof, _)          -> returnA -< TString
+    (OTypeof, _)          -> TString
     -- math operators
-    (OMathExp, TNumber)   -> returnA -< TNumber
-    (OMathLog, TNumber)   -> returnA -< TNumber
-    (OMathCos, TNumber)   -> returnA -< TNumber
-    (OMathSin, TNumber)   -> returnA -< TNumber
-    (OMathAbs, TNumber)   -> returnA -< TNumber
+    (OMathExp, TNumber)   -> TNumber
+    (OMathLog, TNumber)   -> TNumber
+    (OMathCos, TNumber)   -> TNumber
+    (OMathSin, TNumber)   -> TNumber
+    (OMathAbs, TNumber)   -> TNumber) -< (op, vals)
 
 fresh :: ArrowState Location c => c () Location
 fresh = proc () -> do
     Location s <- Control.Arrow.State.get -< ()
     put -< Location $ s + 1
-    returnA -< Location $ s + 1
+    returnA -< Location s
 
 getField_ :: ArrowChoice c => c (Type, String) Type'
 getField_ = proc (t, s) -> do
@@ -183,11 +183,11 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
     deleteField f1 = proc (_, _) -> returnA -< singleton TTop
     -- operator/delta function
     evalOp = proc (op, vals) -> do
-        case length vals of
-            1 -> do
+        case vals of
+            [_] -> do
                 t <- Control.Arrow.Utils.map typeEvalUnOp_ -< zip (repeat op) (Data.Set.toList $ head vals)
                 returnA -< Data.Set.fromList t
-            2 -> do
+            _ -> do
                 let
                     v1 = Data.Set.toList (head vals)
                     v2 = Data.Set.toList (head $ tail vals)
@@ -201,15 +201,14 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
         Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id, Data.Set.singleton TUndefined)
     apply f1 = proc (lambdas, args) -> do
         ts <- Control.Arrow.Utils.map (proc (lambda, args) -> case lambda of
-            TLambda names body closureEnv -> do
-                case length names == length args of
-                    False -> fail -< "Error: lambda must be applied with same amount of args as params"
-                    True -> do
-                        newBindings <- arr $ uncurry zip -< (names, args)
-                        bindingEnv <- bindings -< (newBindings, closureEnv)
-                        outsideEnv <- getEnv -< ()
-                        finalEnv <- bindings -< (Data.Abstract.Environment.toList bindingEnv, outsideEnv)
-                        localEnv f1 -< (finalEnv, body)
+            TLambda names body closureEnv
+                | length names == length args -> do
+                    newBindings <- arr $ uncurry zip -< (names, args)
+                    bindingEnv <- bindings -< (newBindings, closureEnv)
+                    outsideEnv <- getEnv -< ()
+                    finalEnv <- bindings -< (Data.Abstract.Environment.toList bindingEnv, outsideEnv)
+                    localEnv f1 -< (finalEnv, body)
+                | otherwise -> fail -< "Error: lambda must be applied with same amount of args as params"
             _ -> returnA -< Data.Set.fromList [TObject [("0", singleton TString), ("length", singleton TNumber), ("$isArgs", singleton TBool)]]) -< zip (Data.Set.toList lambdas) (repeat args)
         returnA -< Prelude.foldr Data.Set.union (Data.Set.empty) ts
     -- store ops
@@ -246,9 +245,9 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
     label f1 = proc (l, e) -> do
         eT <- f1 -< e
         case Data.Set.toList eT of
-            [TBreak l1 t] -> case l == l1 of
-                True -> returnA -< t
-                False -> fail -< "Error: Expression within label must be of type break to that label"
+            [TBreak l1 t]
+                | l == l1 -> returnA -< t
+                | otherwise -> fail -< "Error: Expression within label must be of type break to that label"
             _ -> fail -< "Error: Expression within label must be of type break to that label"
     break = proc (l, t) -> do
         returnA -< singleton (TBreak l t)

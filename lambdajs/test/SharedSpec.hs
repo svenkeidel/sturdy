@@ -1,10 +1,10 @@
 module SharedSpec where
 
+import           ConcreteSemantics         (ConcreteArr, Value (..))
+import qualified ConcreteSemantics         as Interpreter (runConcrete)
 import           Control.Arrow.Fail
 import           Data.Concrete.Environment
 import           Data.Concrete.Error
-import           SharedConcrete            (ConcreteArr, Value (..))
-import qualified SharedConcrete            as Interpreter (runConcrete)
 import           Syntax
 import           Test.Hspec
 

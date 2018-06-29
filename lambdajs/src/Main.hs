@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
+import           ConcreteSemantics
 import           Debug.Trace                       (trace)
 import           Language.ECMAScript3.Lexer        (reservedOp, whiteSpace)
 import           Language.ECMAScript3.Parser       (parseBlockStmt,
@@ -14,13 +15,12 @@ import           Language.LambdaJS.Parser          (parseBinds)
 import           Language.LambdaJS.PrettyPrint
 import           Language.LambdaJS.RemoveHOAS
 import           Language.LambdaJS.Syntax
-import           SharedAbstract
-import           SharedConcrete
 import qualified Syntax                            as S
 import           System.Environment
 import           System.IO
 import           Text.ParserCombinators.Parsec
 import           Text.PrettyPrint.HughesPJ
+import           TypeSemantics
 
 convertOp :: Op -> S.Op
 convertOp o = case o of

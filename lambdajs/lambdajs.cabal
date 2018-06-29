@@ -29,8 +29,8 @@ library
     Syntax
     Derivations
     SharedInterpreter
-    SharedAbstract
-    SharedConcrete
+    TypeSemantics
+    ConcreteSemantics
     Language.LambdaJS.Desugar
     Language.LambdaJS.ECMAEnvironment
     Language.LambdaJS.DesugarWith
@@ -71,8 +71,8 @@ executable lambdajs
     Syntax
     Derivations
     SharedInterpreter
-    SharedAbstract
-    SharedConcrete
+    TypeSemantics
+    ConcreteSemantics
     Language.LambdaJS.Desugar
     Language.LambdaJS.ECMAEnvironment
     Language.LambdaJS.DesugarWith

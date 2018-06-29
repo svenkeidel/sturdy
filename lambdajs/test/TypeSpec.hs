@@ -4,10 +4,10 @@ import           Control.Arrow.Fail
 import           Data.Abstract.Environment
 import           Data.Abstract.HandleError
 import           Data.Concrete.Environment
-import           SharedAbstract            (TypeArr)
-import qualified SharedAbstract            as Interpreter (runAbstract)
 import           Syntax
 import           Test.Hspec
+import           TypeSemantics             (TypeArr)
+import qualified TypeSemantics             as Interpreter (runAbstract)
 
 import           Data.Either               (isLeft)
 import           Data.Fixed                (mod')

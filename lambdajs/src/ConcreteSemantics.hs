@@ -7,12 +7,12 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
-module SharedConcrete where
+module ConcreteSemantics where
 
 import           GHC.Generics                                   (Generic)
 import           Prelude                                        hiding (break,
                                                                  error, fail,
-                                                                 fold, lookup,
+                                                                 id, lookup,
                                                                  map, read)
 import qualified Prelude
 import           SharedInterpreter
@@ -22,7 +22,6 @@ import           Text.Read                                      (readMaybe)
 import           Data.Bits                                      (shift)
 import           Data.Fixed                                     (mod')
 import           Data.Hashable
-import           Data.Identifiable
 import           Data.List                                      (elemIndex,
                                                                  find,
                                                                  isPrefixOf,
@@ -33,7 +32,6 @@ import           Data.Word                                      (Word32)
 import           Data.Concrete.Environment
 import           Data.Concrete.Error
 import           Data.Concrete.Store
-import           Data.Order
 
 import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Except
@@ -246,7 +244,7 @@ fresh :: ArrowState Location c => c () Location
 fresh = proc () -> do
     Location s <- Control.Arrow.State.get -< ()
     put -< Location $ s + 1
-    returnA -< Location $ s + 1
+    returnA -< Location s
 
 getField_ :: (ArrowFail (Either String Exceptional) c, ArrowChoice c, ArrowRead Location Value Value Value c) => c (Value, Value) Value
 getField_ = proc (VObject fields, VString fieldName) -> do
@@ -261,7 +259,7 @@ getField_ = proc (VObject fields, VString fieldName) -> do
                         Just (pn, VNull) -> returnA -< VUndefined
                         -- E-GetField-Proto
                         Just (pn, VRef l) -> do
-                            protoV <- read pi1 Control.Category.id -< (l, VUndefined)
+                            protoV <- read pi1 id -< (l, VUndefined)
                             getField_ -< (protoV, VString fieldName)
                         -- When proto exists but none of the special semantics apply
                         Just (_, _) -> returnA -< VUndefined
@@ -313,21 +311,17 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
     evalOp = proc (op, vals) -> evalOp_ -< (op, vals)
     -- environment ops
     lookup = proc id -> do
-        v <- Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id, VRef (Location (-1)))
-        case v of
-            VRef (Location (-1)) -> fail -< Left $ "Error: " ++ (show id) ++ " does not exist"
-            _ -> returnA -< v
+        Control.Arrow.Environment.lookup pi1 (proc (_) -> fail -< Left $ "id does not exist") -< (id, id)
     apply f1 = proc (lambda, args) -> do
         case lambda of
-            VLambda names body closureEnv -> do
-                case (length names) == (length args) of
-                    False -> fail -< Left $ "Error: applied lambda with less/more params than arguments"
-                    True -> do
-                        newBindings <- arr $ uncurry zip -< (names, args)
-                        bindingEnv <- bindings -< (newBindings, closureEnv)
-                        outsideEnv <- getEnv -< ()
-                        finalEnv <- bindings -< (Data.Concrete.Environment.toList bindingEnv, outsideEnv)
-                        localEnv f1 -< (finalEnv, body)
+            VLambda names body closureEnv
+                | length names == length args -> do
+                    newBindings <- arr $ uncurry zip -< (names, args)
+                    bindingEnv <- bindings -< (newBindings, closureEnv)
+                    outsideEnv <- getEnv -< ()
+                    finalEnv <- bindings -< (Data.Concrete.Environment.toList bindingEnv, outsideEnv)
+                    localEnv f1 -< (finalEnv, body)
+                | otherwise -> fail -< Left $ "Error: applied lambda with less/more params than arguments"
             _ -> fail -< Left $ "Error: apply on non-lambda value: " ++ (show lambda) ++ " " ++ (show args)
     -- store ops
     set = proc (loc, val) -> do
@@ -343,7 +337,7 @@ instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
     get = proc (loc) -> do
         case loc of
             VRef l -> do
-                val <- read pi1 Control.Category.id -< (l, VUndefined)
+                val <- read pi1 id -< (l, VUndefined)
                 returnA -< val
             _ -> fail -< Left $ "Error: EDeref lhs must be location, is: " ++ (show loc)
     -- control flow
