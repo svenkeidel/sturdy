@@ -3,11 +3,11 @@ extra-package-dbs: []
 resolver: lts-11.10
 packages:
 - 'lib'
-- 'rtg'
-- 'pcf'
-- 'while'
-- 'stratego'
+#- 'rtg'
+#- 'pcf'
+#- 'while'
+#- 'stratego'
 # - 'lambda-adt'
-- 'jimple'
+#- 'jimple'
 # - 'tutorial'
 - 'lambdajs'
