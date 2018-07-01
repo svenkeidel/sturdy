@@ -100,7 +100,7 @@ instance (ArrowChoice c, Complete e, ArrowJoin c, Complete (c (y,(x,e)) (Error e
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fix f = Except (fix (runExcept . f . Except))
 
-instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowDeduplicate (Except e c) where
+instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowDeduplicate x y (Except e c) where
   dedup = returnA
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where

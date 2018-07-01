@@ -88,7 +88,7 @@ instance ArrowChoice c => ArrowExcept x y e (Except e c) where
     _ <- f -< x
     g -< x
 
-instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
+instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Error e y) c) => ArrowDeduplicate x y (Except e c) where
   dedup (Except f) = Except (dedup f)
 
 instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where

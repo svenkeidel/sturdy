@@ -89,7 +89,7 @@ instance ArrowExcept (r,x) y e c => ArrowExcept x y e (Reader r c) where
   tryCatch (Reader f) (Reader g) = Reader $ tryCatch f (from assoc ^>> g)
   finally (Reader f) (Reader g) = Reader $ finally f g
 
-instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
+instance ArrowDeduplicate (r, x) y c => ArrowDeduplicate x y (Reader r c) where
   dedup (Reader f) = Reader (dedup f)
 
 instance ArrowJoin c => ArrowJoin (Reader r c) where
