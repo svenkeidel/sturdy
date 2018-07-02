@@ -11,11 +11,13 @@ import Control.Arrow
 import Control.Arrow.Fix
 import Control.Arrow.Fail
 import Control.Arrow.Environment
+import Control.Arrow.Conditional
 
 import Data.Text (Text)
 
 -- | Shared interpreter for PCF.
-eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c, IsVal v c, IsClosure v env c)
+eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c,
+         ArrowCond v Expr Expr v c, IsVal v c, IsClosure v env c)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> lookup' -< x
@@ -35,7 +37,7 @@ eval = fix $ \ev -> proc e0 -> case e0 of
     pred -< v
   IfZero e1 e2 e3 _ -> do
     v1 <- ev -< e1
-    ifZero ev ev -< (v1, (e2, e3))
+    if_ ev ev -< (v1, (e2, e3))
   Y e l -> do
     fun <- ev -< e
     env <- getEnv -< ()
@@ -62,11 +64,6 @@ class Arrow c => IsVal v c | c -> v where
 
   -- | creates the numeric value zero.
   zero :: c () v
-
-  -- | performs a case distinction on the given numeric value. In case
-  -- the number is zero, the first contiunation is executed, in case
-  -- the number is not zero the second continuation is executed.
-  ifZero :: c x v -> c y v -> c (v, (x, y)) v
 
 -- | Interface for closures
 class Arrow c => IsClosure v env c | c -> env, c -> v where

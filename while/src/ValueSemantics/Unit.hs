@@ -29,6 +29,7 @@ import           Data.Text (Text)
 import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Fix
+import           Control.Arrow.Conditional
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
 -- Value semantics for the while language that does not approximate values at all.
@@ -61,5 +62,5 @@ instance ArrowChoice c => IsVal Val (Interp addr val c) where
   lt = arr (const ())
 
 instance (Complete (Interp addr val c (x,y) z), ArrowChoice c)
-  => Conditional Val x y z (Interp addr val c) where
+  => ArrowCond Val x y z (Interp addr val c) where
   if_ f1 f2 = proc (_,(x,y)) -> joined f1 f2 -< (x,y)

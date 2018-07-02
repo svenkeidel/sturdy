@@ -45,6 +45,7 @@ import           Control.Arrow.Alloc
 import           Control.Arrow.Const
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Conditional
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
@@ -125,7 +126,7 @@ instance (ArrowChoice c, ArrowConst IV c) => IsVal Val (Interp Addr Val c) where
     _ -> fail -< "Expected two numbers as arguments for 'lt'"
 
 instance (Complete (Interp Addr Val c (x,y) z), UpperBounded z, ArrowChoice c)
-  => Conditional Val x y z (Interp Addr Val c) where
+  => ArrowCond Val x y z (Interp Addr Val c) where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True -> f1 -< x
     BoolVal B.False -> f2 -< y

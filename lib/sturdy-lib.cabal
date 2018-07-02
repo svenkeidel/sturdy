@@ -60,6 +60,7 @@ library
 
                        Control.Arrow.Alloc,
                        Control.Arrow.Const,
+                       Control.Arrow.Conditional,
                        Control.Arrow.Deduplicate,
                        Control.Arrow.Environment,
                        Control.Arrow.Fail,

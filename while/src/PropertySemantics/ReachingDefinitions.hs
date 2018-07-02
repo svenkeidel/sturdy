@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -27,6 +26,7 @@ import           Data.Abstract.DiscretePowerset(Pow)
 
 import           Control.Arrow.Fix 
 import           Control.Arrow.Alloc
+import           Control.Arrow.Conditional
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
@@ -61,5 +61,5 @@ run stmts =
 
 deriving instance IsVal val c => IsVal val (ReachingDefinitions c)
 deriving instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefinitions c)
-deriving instance Conditional val x y z c => Conditional val x y z (ReachingDefinitions c)
+deriving instance ArrowCond val x y z c => ArrowCond val x y z (ReachingDefinitions c)
 

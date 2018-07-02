@@ -33,6 +33,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
 import           Control.Arrow.Alloc
+import           Control.Arrow.Conditional
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Environment
@@ -99,7 +100,7 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.< n2)
     _ -> fail -< "Expected two numbers as arguments for 'lt'"
 
-instance ArrowChoice c => Conditional Val x y z (Interp c) where
+instance ArrowChoice c => ArrowCond Val x y z (Interp c) where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y

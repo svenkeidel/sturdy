@@ -10,6 +10,7 @@ import Data.Label
 
 import Control.Arrow
 import Control.Arrow.Alloc
+import Control.Arrow.Conditional
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Environment
@@ -72,7 +73,7 @@ eval = proc e -> case e of
 run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
         ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
         ArrowAlloc (Text,v,Label) addr c, ArrowFail String c,
-        Conditional v [Statement] [Statement] () c, IsVal v c)
+        ArrowCond v [Statement] [Statement] () c, IsVal v c)
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
   Assign x e l:ss -> do
@@ -105,7 +106,4 @@ class Arrow c => IsVal v c | c -> v where
   div :: c (v,v,Label) v
   eq :: c (v,v,Label) v
   lt :: c (v,v,Label) v
-
-class Arrow c => Conditional v x y z c | c -> v where
-  if_ :: c x z -> c y z -> c (v,(x,y)) z
  

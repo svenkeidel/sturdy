@@ -19,6 +19,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Const
 import           Control.Arrow.Fix
+import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
@@ -100,8 +101,10 @@ instance IsVal Val Interp where
   zero = proc _ -> do
     b <- askConst -< ()
     returnA -< (NumVal (Bounded b 0))
-  ifZero f g = proc v -> case v of
-    (Top, _) -> returnA -< Top
+
+instance (Complete z, UpperBounded z) => ArrowCond Val x y z Interp where
+  if_ f g = proc v -> case v of
+    (Top, _) -> returnA -< top
     (NumVal (Bounded _ (I.Interval i1 i2)), (x, y))
       | (i1, i2) == (0, 0) -> f -< x      -- case the interval is exactly zero
       | i1 > 0 || i2 < 0 -> g -< y        -- case the interval does not contain zero
@@ -145,6 +148,9 @@ instance Widening Val where
   -- Only intervals require widening, everything else has finite height.
   NumVal x ▽ NumVal y = NumVal (x ▽ y)
   x ▽ y =  x ⊔ y
+
+instance UpperBounded Val where
+  top = Top
 
 instance HasLabel ((Env Text Addr,Store (Text, CallString) Val),Expr) where
   label ((_,_),e) = label e
