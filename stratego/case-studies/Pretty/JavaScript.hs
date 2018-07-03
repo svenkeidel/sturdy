@@ -74,6 +74,8 @@ ppParams = ppSepList' ppIdentifier comma
 ppObject :: Term -> Doc
 ppObject t = case t of
   Cons "KeyValue" [ident,e] -> ppIdentifier ident <> char ':' <+> ppExp e
+  Cons "KeyValue" _ -> error $ "unexpected KeyValue while pprinting object"
+  _ -> error $ "unexpected object while pprinting object"
 
 ppIdentifier :: Term -> Doc
 ppIdentifier = ppStrLit
