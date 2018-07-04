@@ -6,8 +6,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module PropertySemantics.ReachingDefinitions where
 
-import           Prelude hiding (and,or,not,div)
-
 import           Syntax
 import           SharedSemantics
 import qualified SharedSemantics as Shared
@@ -62,4 +60,5 @@ run stmts =
 deriving instance IsVal val c => IsVal val (ReachingDefinitions c)
 deriving instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefinitions c)
 deriving instance ArrowCond val x y z c => ArrowCond val x y z (ReachingDefinitions c)
+deriving instance ArrowRand val c => ArrowRand val (ReachingDefinitions c)
 

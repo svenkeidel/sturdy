@@ -18,13 +18,13 @@ class Arrow c => ArrowEnv var val env c | c -> var, c -> val, c -> env where
   -- | Lookup a variable in the current environment. The first
   -- continuation is called if the variable is in the enviroment, the
   -- second if it is not.
-  lookup :: c (val,a) y -> c a y -> c (var,a) y
+  lookup :: c (val,x) y -> c x y -> c (var,x) y
   -- | Retrieve the current environment.
   getEnv :: c () env
   -- | Extend an environment with a binding.
   extendEnv :: c (var,val,env) env
   -- | Run a computation with a modified environment.
-  localEnv :: c a b -> c (env,a) b
+  localEnv :: c x y -> c (env,x) y
 
 -- | Simpler version of environment lookup.
 lookup' :: (Show var, ArrowFail String c, ArrowEnv var val env c) => c var val

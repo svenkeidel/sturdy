@@ -53,13 +53,15 @@ instance ArrowChoice c => IsVal Val (Interp addr val c) where
   or = arr (const ())
   not = arr (const ())
   numLit = arr (const ())
-  randomNum = arr (const ())
   add = arr (const ())
   sub = arr (const ())
   mul = arr (const ())
   div = arr (const ())
   eq = arr (const ())
   lt = arr (const ())
+
+instance ArrowChoice c => ArrowRand Val (Interp addr val c) where
+  random = arr (const ())
 
 instance (Complete (Interp addr val c (x,y) z), ArrowChoice c)
   => ArrowCond Val x y z (Interp addr val c) where

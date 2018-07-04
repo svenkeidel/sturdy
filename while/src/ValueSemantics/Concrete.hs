@@ -40,7 +40,8 @@ import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.Concrete.FixPoint(runFixPoint)
 
-import           System.Random
+import           System.Random (StdGen)
+import qualified System.Random as R
 
 import           GHC.Generics (Generic)
 
@@ -58,7 +59,7 @@ run ss =
     runFixPoint
       (runInterp
         (Shared.run :: Fix [Statement] () (Interp (->)) [Statement] ()))
-      (S.empty,(E.empty,(mkStdGen 0, generate <$> ss)))
+      (S.empty,(E.empty,(R.mkStdGen 0, generate <$> ss)))
 
 instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp c) where
   alloc = arr $ \(_,_,l) -> l
@@ -75,11 +76,6 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     BoolVal b -> returnA -< BoolVal (Prelude.not b)
     _ -> fail -< "Expected a boolean as argument for 'not'"
   numLit = arr (\(d,_) -> NumVal d)
-  randomNum = proc _ -> do
-    gen <- get -< ()
-    let (r, gen') = random gen
-    put -< gen'
-    returnA -< NumVal r
   add = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
     _ -> fail -< "Expected two numbers as arguments for 'add'"
@@ -111,6 +107,13 @@ instance ArrowChoice c => ArrowRead (Addr,Label) Val x y (Interp c) where
                                
 instance ArrowChoice c => ArrowWrite (Addr,Label) Val (Interp c) where
   write = Interp $ proc ((addr,_),val) -> write -< (addr,val)
+
+instance ArrowChoice c => ArrowRand Val (Interp c) where
+  random = proc () -> do
+    gen <- get -< ()
+    let (r, gen') = R.random gen
+    put -< gen'
+    returnA -< NumVal r
 
 deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)

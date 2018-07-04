@@ -23,7 +23,7 @@ import Syntax
 
 type Prog = [Statement]
   
-eval :: (Show addr, ArrowChoice c,
+eval :: (Show addr, ArrowChoice c, ArrowRand v c,
          ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
          ArrowFail String c, IsVal v c)
      => c Expr v
@@ -44,7 +44,7 @@ eval = proc e -> case e of
     v1 <- eval -< e1
     not -< (v1,l)
   NumLit n l -> numLit -< (n,l)
-  RandomNum l -> randomNum -< l
+  RandomNum l -> random -< ()
   Add e1 e2 l -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
@@ -73,7 +73,8 @@ eval = proc e -> case e of
 run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
         ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
         ArrowAlloc (Text,v,Label) addr c, ArrowFail String c,
-        ArrowCond v [Statement] [Statement] () c, IsVal v c)
+        ArrowCond v [Statement] [Statement] () c, ArrowRand v c,
+        IsVal v c)
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
   Assign x e l:ss -> do
@@ -93,13 +94,15 @@ run = fix $ \run' -> proc stmts -> case stmts of
   [] ->
     returnA -< ()
 
+class ArrowRand n c where
+  random :: c () n
+
 class Arrow c => IsVal v c | c -> v where
   boolLit :: c (Bool,Label) v
   and :: c (v,v,Label) v
   or :: c (v,v,Label) v
   not :: c (v,Label) v
   numLit :: c (Int,Label) v
-  randomNum :: c Label v
   add :: c (v,v,Label) v
   sub :: c (v,v,Label) v
   mul :: c (v,v,Label) v

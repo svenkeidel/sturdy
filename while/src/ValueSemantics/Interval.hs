@@ -88,9 +88,6 @@ instance (ArrowChoice c, ArrowConst IV c) => IsVal Val (Interp Addr Val c) where
   numLit = proc (x,_) -> do
     b <- askConst -< ()
     returnA -< NumVal (Bounded b (I.Interval x x))
-  randomNum = proc _ -> do
-    b <- askConst -< ()
-    returnA -< NumVal (Bounded b top)
   add = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
     (Top,_) -> returnA -< Top
@@ -133,6 +130,11 @@ instance (Complete (Interp Addr Val c (x,y) z), UpperBounded z, ArrowChoice c)
     BoolVal B.Top -> joined f1 f2 -< (x,y)
     Top -> returnA -< top
     _ -> fail -< "Expected boolean as argument for 'if'"
+
+instance (ArrowConst IV (Interp addr val c), ArrowChoice c) => ArrowRand Val (Interp addr val c) where
+  random = proc _ -> do
+    b <- askConst -< ()
+    returnA -< NumVal (Bounded b top)
 
 instance PreOrd Val where
   _ ⊑ Top = P.True
