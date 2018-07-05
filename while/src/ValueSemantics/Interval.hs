@@ -46,6 +46,8 @@ import           Control.Arrow.Const
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Conditional
+import           Control.Arrow.Random
+
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 

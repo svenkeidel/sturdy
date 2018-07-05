@@ -23,8 +23,6 @@ import qualified Data.Abstract.Store as S
 import           Data.Abstract.DiscretePowerset(Pow)
 
 import           Control.Arrow.Fix 
-import           Control.Arrow.Alloc
-import           Control.Arrow.Conditional
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
@@ -55,10 +53,4 @@ run stmts =
                              (~>))) [Statement] ())))
     (S.empty,(E.empty,stmts))
 
-
-
 deriving instance IsVal val c => IsVal val (ReachingDefinitions c)
-deriving instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefinitions c)
-deriving instance ArrowCond val x y z c => ArrowCond val x y z (ReachingDefinitions c)
-deriving instance ArrowRand val c => ArrowRand val (ReachingDefinitions c)
-

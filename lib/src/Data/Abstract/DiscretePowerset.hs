@@ -25,6 +25,22 @@ union Top _ = Top
 union _ Top = Top
 union (Pow xs) (Pow ys) = Pow (H.union xs ys)
 
+unions :: Identifiable x => Pow (Pow x) -> Pow x
+unions (Pow xs) = foldr union empty xs
+unions Top = Top
+
+insert :: Identifiable x => x -> Pow x -> Pow x
+insert x (Pow xs) = Pow (H.insert x xs)
+insert _ Top = Top
+                    
+delete :: Identifiable x => x -> Pow x -> Pow x
+delete x (Pow xs) = Pow (H.delete x xs)
+delete _ Top = Top -- Less precise than it could be.
+
+map :: Identifiable y => (x -> y) -> Pow x -> Pow y
+map f (Pow xs) = Pow (H.map f xs)
+map _ Top = Top
+
 instance Show a => Show (Pow a) where
   show (Pow a) = "{" ++ intercalate ", " (show <$> H.toList a) ++ "}"
   show Top = "⊤"

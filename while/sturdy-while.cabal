@@ -23,7 +23,7 @@ library
                        -- Vals.Symbolic.Semantics
 
                        -- PropertySemantics.FailedReads
-                       -- PropertySemantics.LiveVariables
+                       PropertySemantics.LiveVariables
                        PropertySemantics.ReachingDefinitions
 
                        -- Props.FailedReads.Prop
@@ -61,6 +61,7 @@ library
                        hashable,
                        mtl,
                        random,
+                       unordered-containers,
                        sturdy-lib,
                        text
   hs-source-dirs:      src

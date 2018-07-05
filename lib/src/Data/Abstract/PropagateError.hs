@@ -79,10 +79,9 @@ fromMaybe :: Maybe a -> Error () a
 fromMaybe Nothing = Fail ()
 fromMaybe (Just a) = Success a
 
--- toMaybe :: Error e a -> Maybe a
--- toMaybe (Error _) = Nothing
--- toMaybe (Success a) = Just a
-
+toMaybe :: Error e a -> Maybe a
+toMaybe (Fail _) = Nothing
+toMaybe (Success a) = Just a
 
 instance Monoidal Error where
   mmap f _ (Fail x) = Fail (f x)

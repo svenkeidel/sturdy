@@ -29,7 +29,7 @@ type Val = Interval Int
 type Addr = Int
 type Ar = Environment Text Addr Val (State Addr (Except String (->)))
 
-instance ArrowAlloc (Text,val,env,store) Addr (State Addr (Except String (->))) where
+instance {-# OVERLAPS #-} ArrowAlloc (Text,val,env,store) Addr (State Addr (Except String (->))) where
   alloc = proc _ -> do
     addr <- get -< ()
     put -< (succ addr `mod` 5)

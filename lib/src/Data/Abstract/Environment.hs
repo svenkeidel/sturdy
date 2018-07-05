@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Abstract.Environment(Env,empty,lookup,insert,insertWith,fromList,toList) where
+module Data.Abstract.Environment(Env,empty,lookup,insert,insertWith,fromList,toList,toMap) where
 
 import           Prelude hiding (lookup)
 
@@ -41,3 +41,6 @@ fromList = Env . H.fromList
 
 toList :: Env a b -> [(a,b)]
 toList (Env e) = H.toList e
+
+toMap :: Env a b -> HashMap a b
+toMap (Env e) = e

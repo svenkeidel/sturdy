@@ -12,83 +12,85 @@ import           Prelude hiding (id,(.),read)
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Alloc
+import           Control.Arrow.Conditional
+import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Lift
+import           Control.Arrow.Random
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
-import           Control.Arrow.Writer
-import           Control.Arrow.Transformer.Effect
 
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as H
+import           Control.Arrow.Transformer.State
+
 import           Data.Identifiable
+import           Data.Hashable
 import           Data.Order
+import           Data.Semigroup
+
 import           Data.Abstract.Widening
+import           Data.Abstract.DiscretePowerset(Pow)
+import qualified Data.Abstract.DiscretePowerset as P
 
-import           GHC.Exts
-import           GHC.Generics
-import           Text.Printf
+-- | Transition function for live variables
+newtype LiveVars v = LiveVars (Pow v -> Pow v)
 
-data LiveVars v = LiveVars (HashSet v) | Top deriving (Eq,Generic)
+vars :: LiveVars v -> Pow v
+vars (LiveVars f) = f P.empty
 
-empty :: LiveVars v
-empty = LiveVars H.empty
+instance Hashable v => Hashable (LiveVars v) where
+  hashWithSalt salt lv = hashWithSalt salt (vars lv)
 
-instance Show v => Show (LiveVars v) where
-  show (LiveVars vs) = show (H.toList vs)
-  show Top = "⊤"
+instance Eq v => Eq (LiveVars v) where
+  lv1 == lv2 = vars lv1 == vars lv2
 
 instance Identifiable v => PreOrd (LiveVars v) where
-  _ ⊑ Top = True
-  LiveVars xs ⊑ LiveVars ys = all (\x -> H.member x ys) xs
-  _ ⊑ _ = False
+  lv1 ⊑ lv2 = vars lv1 ⊑ vars lv2
 
 instance Identifiable v => Complete (LiveVars v) where
-  Top ⊔ _ = Top
-  _ ⊔ Top = Top
-  LiveVars xs ⊔ LiveVars ys = LiveVars (H.union xs ys)
+  LiveVars f ⊔ LiveVars g = LiveVars (\lv -> f lv ⊔ g lv)
 
 instance Identifiable v => Widening (LiveVars v)
 
-instance Identifiable v => UpperBounded (LiveVars v) where
-  top = Top
+live :: Identifiable v => v -> LiveVars v
+live x = LiveVars $ P.insert x
 
-instance Identifiable v => IsList (LiveVars v) where
-  type Item (LiveVars v) = v
-  fromList = LiveVars . H.fromList
-  toList (LiveVars vs) = H.toList vs
-  toList Top = error "toList ⊤"
+dead :: Identifiable v => v -> LiveVars v
+dead x = LiveVars $ P.delete x
 
-live :: Identifiable v => v -> LiveVars v -> LiveVars v
-live x (LiveVars vars) = LiveVars (H.insert x vars)
-live _ Top = Top
+-- | Composing two transition functions
+instance Semigroup (LiveVars v) where
+  (<>) = mappend
 
-dead :: Identifiable v => v -> LiveVars v -> (LiveVars v)
-dead x (LiveVars vars) = LiveVars (H.delete x vars)
-dead _ Top = Top
+instance Monoid (LiveVars v) where
+  mempty = LiveVars id
+  mappend (LiveVars f) (LiveVars g) = LiveVars (f . g)
 
-newtype LiveVariables v c x y = LiveVariables (Backward (LiveVars v) c x y)
+-- | An arrow transformer that tracks the live variables.
+newtype LiveVariables v c x y = LiveVariables (State (LiveVars v) c x y)
 
-runLiveVariables :: LiveVariables v c x y -> c (LiveVars v,x) y
-runLiveVariables (LiveVariables f) = runWriter (runState f)
+runLiveVariables :: LiveVariables v c x y -> c (LiveVars v,x) (LiveVars v,y)
+runLiveVariables (LiveVariables f) = runState f
 
-instance (Identifiable var, ArrowStore var val lab c) => ArrowStore var val lab (LiveVariables var c) where
-  read = LiveVariables $ proc (x,l) -> do
-    effect live -< x
-    read -< (x,l)
-  write = LiveVariables $ proc (x,v,l) -> do
-    modifyA' dead -< x
-    write -< (x,v,l)
+instance (Identifiable var, ArrowRead var val (LiveVars var,x) (LiveVars var,y) c)
+  => ArrowRead var val x y (LiveVariables var c) where
+  read (LiveVariables f) (LiveVariables g) = LiveVariables $ proc (var,x) -> do
+    lvs <- get -< ()
+    put -< lvs <> live var
+    read f g -< (var,x)
 
-type instance Fix x y (LiveVariables v c) = LiveVariables v (Fix x (LiveVarsTrans v,y) c)
-instance (ArrowFix (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y)) c) => ArrowFix x y (LiveVariables v c) where
-  fixA f = LiveVariables (State (Writer (fixA (runLiveVariables . f . LiveVariables . State . Writer))))
+instance (Identifiable var, ArrowWrite var val c) => ArrowWrite var val (LiveVariables var c) where
+  write = LiveVariables $ proc (var,val) -> do
+    lvs <- get -< ()
+    put -< lvs <> dead var
+    write -< (var,val)
 
-instance ArrowLift (LiveVariables v) where
-  lift f = LiveVariables (lift (lift f))
+type instance Fix x y (LiveVariables v c) = LiveVariables v (Fix (LiveVars v,x) (LiveVars v,y) c)
+deriving instance (ArrowFix (LiveVars v,x) (LiveVars v,y) c) => ArrowFix x y (LiveVariables v c)
 
+deriving instance ArrowLift (LiveVariables v)
 instance (ArrowApply c) => ArrowApply (LiveVariables v c) where
   app = LiveVariables ((\(LiveVariables f,x) -> (f,x)) ^>> app)
 
@@ -98,9 +100,13 @@ deriving instance (ArrowChoice c) => ArrowChoice (LiveVariables v c)
 deriving instance (ArrowReader r c) => ArrowReader r (LiveVariables v c)
 deriving instance (ArrowFail e c) => ArrowFail e (LiveVariables v c)
 -- deriving instance (ArrowState s c) => ArrowState s (LiveVariables v c)
+deriving instance ArrowAlloc x y c => ArrowAlloc x y (LiveVariables v c)
+deriving instance ArrowRand r c => ArrowRand r (LiveVariables v c)
+deriving instance ArrowCond val (LiveVars v,x) (LiveVars v,y) (LiveVars v,z) c => ArrowCond val x y z (LiveVariables v c)
+deriving instance ArrowEnv x y env c => ArrowEnv x y env (LiveVariables v c)
 
-deriving instance PreOrd (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => PreOrd (LiveVariables v c x y)
-deriving instance LowerBounded (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => LowerBounded (LiveVariables v c x y)
-deriving instance Complete (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => Complete (LiveVariables v c x y)
-deriving instance CoComplete (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => CoComplete (LiveVariables v c x y)
-deriving instance UpperBounded (c (LiveVarsTrans v,x) (LiveVarsTrans v,(LiveVarsTrans v,y))) => UpperBounded (LiveVariables v c x y)
+deriving instance PreOrd (c (LiveVars v,x) (LiveVars v,y)) => PreOrd (LiveVariables v c x y)
+deriving instance LowerBounded (c (LiveVars v,x) (LiveVars v,y)) => LowerBounded (LiveVariables v c x y)
+deriving instance Complete (c (LiveVars v,x) (LiveVars v,y)) => Complete (LiveVariables v c x y)
+deriving instance CoComplete (c (LiveVars v,x) (LiveVars v,y)) => CoComplete (LiveVariables v c x y)
+deriving instance UpperBounded (c (LiveVars v,x) (LiveVars v,y)) => UpperBounded (LiveVariables v c x y)

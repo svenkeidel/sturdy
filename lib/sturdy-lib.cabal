@@ -67,6 +67,7 @@ library
                        Control.Arrow.Except,
                        Control.Arrow.Fix,
                        Control.Arrow.Lift,
+                       Control.Arrow.Random,
                        Control.Arrow.Reader,
                        Control.Arrow.State,
                        Control.Arrow.Store,
@@ -85,6 +86,7 @@ library
                        Control.Arrow.Transformer.Concrete.Except,
                        Control.Arrow.Transformer.Concrete.FixPoint,
                        Control.Arrow.Transformer.Concrete.Store,
+                       Control.Arrow.Transformer.Concrete.Random,
 
                        Control.Arrow.Transformer.Abstract.Completion,
                        Control.Arrow.Transformer.Abstract.Environment,
@@ -96,12 +98,14 @@ library
                        Control.Arrow.Transformer.Abstract.GreatestFixPoint,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
-                       Control.Arrow.Transformer.Abstract.ReachingDefinitions
+                       Control.Arrow.Transformer.Abstract.ReachingDefinitions,
+                       Control.Arrow.Transformer.Abstract.LiveVariables
 
   build-depends:       base,
                        containers,
                        hashable,
                        mtl,
+                       random,
                        text,
                        unordered-containers
   hs-source-dirs:      src/

@@ -9,12 +9,15 @@ module Control.Arrow.Transformer.State(State(..),evalState,execState) where
 import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
+import Control.Arrow.Alloc
 import Control.Arrow.Const
+import Control.Arrow.Conditional
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
+import Control.Arrow.Random
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
@@ -108,6 +111,15 @@ instance (ArrowJoin c, Complete s) => ArrowJoin (State s c) where
 
 instance ArrowConst x c => ArrowConst x (State s c) where
   askConst = lift askConst
+
+instance ArrowAlloc x y c => ArrowAlloc x y (State s c) where
+  alloc = lift alloc
+
+instance ArrowCond v (s,x) (s,y) (s,z) c => ArrowCond v x y z (State s c) where
+  if_ (State f) (State g) = State $ (\(s,(v,(x,y))) -> (v,((s,x),(s,y)))) ^>> if_ f g
+
+instance ArrowRand v c => ArrowRand v (State s c) where
+  random = lift random
 
 deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (State s c x y)
 deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (State s c x y)

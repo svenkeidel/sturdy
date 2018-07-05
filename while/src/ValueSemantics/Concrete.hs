@@ -9,11 +9,11 @@
 {-# LANGUAGE UndecidableInstances #-}
 module ValueSemantics.Concrete where
 
-import           Prelude hiding (read,fail)
+import           Prelude hiding (read,fail,(.))
 import qualified Prelude as P
 
 import           Syntax
-import           SharedSemantics hiding (run)
+import           SharedSemantics
 import qualified SharedSemantics as Shared
 
 import           Data.Concrete.Error
@@ -28,15 +28,16 @@ import           Data.Label
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail
-import           Control.Arrow.State
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
 import           Control.Arrow.Alloc
 import           Control.Arrow.Conditional
+import           Control.Arrow.Random
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Environment
+import           Control.Arrow.Transformer.Concrete.Random
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.Concrete.FixPoint(runFixPoint)
 
@@ -47,11 +48,11 @@ import           GHC.Generics (Generic)
 
 data Val = BoolVal Bool | NumVal Int deriving (Eq, Show, Generic)
 type Addr = Label
-newtype Interp c x y = Interp (State StdGen (Environment Text Addr (StoreArrow Addr Val (Except String c))) x y)
+newtype Interp c x y = Interp (Random (Environment Text Addr (StoreArrow Addr Val (Except String c))) x y)
 type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,(StdGen,x)) (Error String (Store Text Val,(StdGen,y))) c)
 
 runInterp :: ArrowChoice c => Interp c x y -> c (Store Addr Val, (Env Text Addr, (StdGen,x))) (Error String (Store Addr Val, (StdGen,y)))
-runInterp (Interp f) = runExcept (runStore (runEnvironment (runState f)))
+runInterp (Interp f) = runExcept (runStore (runEnvironment (runRandom f)))
 
 run :: [LStatement] -> Error String (Store Addr Val)
 run ss =
@@ -108,19 +109,17 @@ instance ArrowChoice c => ArrowRead (Addr,Label) Val x y (Interp c) where
 instance ArrowChoice c => ArrowWrite (Addr,Label) Val (Interp c) where
   write = Interp $ proc ((addr,_),val) -> write -< (addr,val)
 
-instance ArrowChoice c => ArrowRand Val (Interp c) where
-  random = proc () -> do
-    gen <- get -< ()
-    let (r, gen') = R.random gen
-    put -< gen'
-    returnA -< NumVal r
-
 deriving instance ArrowChoice c => Category (Interp c)
 deriving instance ArrowChoice c => Arrow (Interp c)
 deriving instance ArrowChoice c => ArrowChoice (Interp c)
 deriving instance ArrowChoice c => ArrowFail String (Interp c)
-deriving instance ArrowChoice c => ArrowState StdGen (Interp c)
 deriving instance (ArrowFix (Store Addr Val,(Env Text Addr,(StdGen,x))) (Error String (Store Addr Val,(StdGen,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
 deriving instance ArrowChoice c => ArrowEnv Text Addr (Env Text Addr) (Interp c)
+deriving instance (R.Random v, ArrowChoice c) => ArrowRand v (Interp c)
+
+instance R.Random Val where
+  randomR (NumVal x,NumVal y) = first NumVal . R.randomR (x,y)
+  randomR _ = error "random not defined for other values than numerical"
+  random = first NumVal . R.random
 
 instance Hashable Val

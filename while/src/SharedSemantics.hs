@@ -14,6 +14,7 @@ import Control.Arrow.Conditional
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Environment
+import Control.Arrow.Random
 import Control.Arrow.Store
 import Control.Arrow.Utils
 
@@ -44,7 +45,7 @@ eval = proc e -> case e of
     v1 <- eval -< e1
     not -< (v1,l)
   NumLit n l -> numLit -< (n,l)
-  RandomNum l -> random -< ()
+  RandomNum _ -> random -< ()
   Add e1 e2 l -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
@@ -93,9 +94,6 @@ run = fix $ \run' -> proc stmts -> case stmts of
     run' -< ss'
   [] ->
     returnA -< ()
-
-class ArrowRand n c where
-  random :: c () n
 
 class Arrow c => IsVal v c | c -> v where
   boolLit :: c (Bool,Label) v

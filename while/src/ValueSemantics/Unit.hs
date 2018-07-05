@@ -9,7 +9,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ValueSemantics.Unit where
 
-import           Prelude hiding (Bool(..),Bounded(..),read)
+import           Prelude hiding (Bool(..),Bounded(..))
 
 import           Syntax
 import           SharedSemantics
@@ -30,6 +30,7 @@ import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Fix
 import           Control.Arrow.Conditional
+import           Control.Arrow.Random
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
 -- Value semantics for the while language that does not approximate values at all.
