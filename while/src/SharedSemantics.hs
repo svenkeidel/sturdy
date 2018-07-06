@@ -19,6 +19,7 @@ import Control.Arrow.Store
 import Control.Arrow.Utils
 
 import Data.Text (Text)
+import Data.String
 
 import Syntax
 
@@ -26,7 +27,7 @@ type Prog = [Statement]
   
 eval :: (Show addr, ArrowChoice c, ArrowRand v c,
          ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
-         ArrowFail String c, IsVal v c)
+         ArrowFail e c, IsString e, IsVal v c)
      => c Expr v
 eval = proc e -> case e of
   Var x l -> do
@@ -73,9 +74,9 @@ eval = proc e -> case e of
 
 run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
         ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
-        ArrowAlloc (Text,v,Label) addr c, ArrowFail String c,
+        ArrowAlloc (Text,v,Label) addr c, ArrowFail e c,
         ArrowCond v [Statement] [Statement] () c, ArrowRand v c,
-        IsVal v c)
+        IsString e, IsVal v c)
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
   Assign x e l:ss -> do

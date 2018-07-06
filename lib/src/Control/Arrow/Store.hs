@@ -10,6 +10,7 @@ import Prelude hiding (lookup,id,read,fail)
 import Control.Arrow
 import Control.Arrow.Fail
 import Text.Printf
+import Data.String
 
 -- | Arrow-based interface to describe computations that read from a store.
 -- The parameter `y` needs to be exposed, because abstract instances
@@ -19,10 +20,10 @@ class Arrow c => ArrowRead var val x y c where
   read :: c (val,x) y -> c x y -> c (var,x) y
 
 -- | Simpler version of 'read'
-read' :: (Show var, ArrowFail String c, ArrowRead var val var val c) => c var val
+read' :: (Show var, IsString e, ArrowFail e c, ArrowRead var val var val c) => c var val
 read' = proc var ->
   read (proc (val,_) -> returnA -< val)
-       (proc var     -> fail    -< printf "variable %s not bound" (show var))
+       (proc var     -> fail    -< fromString $ printf "variable %s not bound" (show var))
     -< (var,var)
 
 -- | Arrow-based interface to describe computations that modify a store.
