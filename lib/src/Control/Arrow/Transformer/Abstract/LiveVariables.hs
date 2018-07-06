@@ -15,6 +15,7 @@ import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
+import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Lift
@@ -99,6 +100,7 @@ deriving instance (Arrow c) => Arrow (LiveVariables v c)
 deriving instance (ArrowChoice c) => ArrowChoice (LiveVariables v c)
 deriving instance (ArrowReader r c) => ArrowReader r (LiveVariables v c)
 deriving instance (ArrowFail e c) => ArrowFail e (LiveVariables v c)
+deriving instance (ArrowExcept (LiveVars v,x) (LiveVars v,y) e c) => ArrowExcept x y e (LiveVariables v c)
 -- deriving instance (ArrowState s c) => ArrowState s (LiveVariables v c)
 deriving instance ArrowAlloc x y c => ArrowAlloc x y (LiveVariables v c)
 deriving instance ArrowRand r c => ArrowRand r (LiveVariables v c)

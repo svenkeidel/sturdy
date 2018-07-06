@@ -21,6 +21,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Conditional
+import           Control.Arrow.Except
 import           Control.Arrow.Fix
 import           Control.Arrow.Lift
 import           Control.Arrow.Reader
@@ -67,6 +68,7 @@ deriving instance Arrow c => Arrow (ReachingDefinitions c)
 deriving instance ArrowChoice c => ArrowChoice (ReachingDefinitions c)
 deriving instance ArrowReader r c => ArrowReader r (ReachingDefinitions c)
 deriving instance ArrowFail e c => ArrowFail e (ReachingDefinitions c)
+deriving instance ArrowExcept x y e c => ArrowExcept x y e (ReachingDefinitions c)
 deriving instance ArrowState s c => ArrowState s (ReachingDefinitions c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (ReachingDefinitions c)
 deriving instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefinitions c)

@@ -12,6 +12,7 @@ import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
+import           Control.Arrow.Except
 import           Control.Arrow.Lift
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
@@ -43,6 +44,7 @@ deriving instance ArrowChoice c => ArrowChoice (Random c)
 deriving instance ArrowLift Random
 deriving instance ArrowReader r c => ArrowReader r (Random c)
 deriving instance ArrowFail e c => ArrowFail e (Random c)
+deriving instance ArrowExcept (StdGen,x) (StdGen,y) e c => ArrowExcept x y e (Random c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (Random c)
 deriving instance ArrowAlloc x y c => ArrowAlloc x y (Random c)
 deriving instance ArrowCond val (StdGen,x) (StdGen,y) (StdGen,z) c => ArrowCond val x y z (Random c)
