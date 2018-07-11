@@ -20,7 +20,7 @@ class ArrowFail e c => ArrowExcept x y e c | c -> e where
 
   -- | Executes the second computation, no matter if the first
   -- computation fails or not.
-  finally :: c x u -> c x y -> c x y
+  finally :: c x y -> c x u -> c x y
 
 tryCatch' :: ArrowExcept x y e c => c x y -> c e y -> c x y
 tryCatch' f g = tryCatch f (pi2 >>> g)

@@ -94,8 +94,9 @@ instance (ArrowChoice c, Complete e, ArrowJoin c, Complete (c (y,(x,e)) (Error e
       SuccessOrFail er y -> joined (arr Success) g -< (y,(x,er))
       Fail er -> g -< (x,er)
   finally (Except f) (Except g) = Except $ proc x -> do
-    _ <- f -< x
+    e <- f -< x
     g -< x
+    returnA -< e
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fix f = Except (fix (runExcept . f . Except))
