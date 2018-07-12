@@ -82,7 +82,8 @@ test-suite specs
                        QuickCheck
   default-language:    Haskell2010
   other-modules:       IntervalAnalysisSpec,
-                       ReachingDefinitionsSpec
+                       ReachingDefinitionsSpec,
+                       LiveVariablesSpec
   --                      Soundness
   --                      WhileLanguageSoundness
 

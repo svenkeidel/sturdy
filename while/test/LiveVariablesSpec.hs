@@ -13,17 +13,46 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec =
+spec = do
+  it "x:=5; y:=x" $ do
+    let stmts = generate (sequence ["x" =: 5, "y" =: "x"])
+    run stmts `shouldContain`
+      zip (blocks stmts) [
+        -- Entry Sets
+        [],    -- x:=5
+        ["x"]  -- y:=x
+      ]
+
+  it "x:=5; x:=6; y:=x" $ do
+    let stmts = generate (sequence ["x" =: 5, "x" =: 6, "y" =: "x"])
+    run stmts `shouldContain`
+      zip (blocks stmts) [
+        -- Entry Sets
+        [],    -- x:=5
+        [],    -- x:=6
+        ["x"]  -- y:=x
+      ]
+
+  it "x:=5; {y:=6}; z:=x" $ do
+    let stmts = generate (sequence ["x" =: 5, begin ["y" =: 6], "z" =: "x"])
+    run stmts `shouldContain`
+      zip (blocks stmts) [
+        -- Entry Sets
+        [],    -- x:=5
+        ["x"],    -- y:=6
+        ["x"]  -- y:=x
+      ]
+
+
   it "x:=5; y:=1; while(x>1){y:=x*y; x:=x-1}; z := y" $ do
-    pendingWith "does not terminate"
     let stmts = generate (sequence ["x" =: 5, "y" =: 1, while (1 < "x") ["y" =: "x" * "y", "x" =: "x" - 1], "z" =: "y"])
     run stmts `shouldContain`
       zip (blocks stmts) [
         -- Entry
-        [],                          -- 1:  x:=5
-        [],                 -- 3:  y:=1
-        [], -- while(1 < x) {...}
-        [], -- 11: y:=x*x
-        [],   -- 15: x:=x-1
-        []  -- z:=y
+        [],        -- x:=5
+        ["x"],     -- y:=1
+        ["x","y"], -- while(1 < x) {...}
+        ["x","y"],   -- y:=x*y
+        ["x"],       -- x:=x-1
+        ["y"]      -- z:=y
       ]

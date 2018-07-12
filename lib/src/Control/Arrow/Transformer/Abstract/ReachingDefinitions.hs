@@ -44,10 +44,10 @@ reachingDefs = ReachingDefinitions
 runReachingDefs :: Arrow c => ReachingDefinitions c x y -> c x y
 runReachingDefs (ReachingDefinitions f) = f
 
-instance (Identifiable var, Identifiable lab, ArrowRead var (val,Pow lab) x y c)
+instance (Identifiable var, Identifiable lab, ArrowRead (var,lab) (val,Pow lab) x y c)
  => ArrowRead (var,lab) val x y (ReachingDefinitions c) where
- read (ReachingDefinitions f) (ReachingDefinitions g) = ReachingDefinitions $ proc ((var,_),x) -> do
-   read ((\((v,_::Pow lab),x) -> (v,x)) ^>> f) g -< (var,x)
+ read (ReachingDefinitions f) (ReachingDefinitions g) = ReachingDefinitions $ proc ((var,lab),x) -> do
+   read ((\((v,_::Pow lab),x) -> (v,x)) ^>> f) g -< ((var,lab),x)
 
 instance (Identifiable var, Identifiable lab, ArrowWrite (var,lab) (val,Pow lab) c)
   => ArrowWrite (var,lab) val (ReachingDefinitions c) where

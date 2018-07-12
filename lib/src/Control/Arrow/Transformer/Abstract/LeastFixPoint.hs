@@ -12,7 +12,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
--- {-# OPTIONS_GHC -DTRACE #-}
+{-# OPTIONS_GHC -DTRACE #-}
 module Control.Arrow.Transformer.Abstract.LeastFixPoint(type (~>),runLeastFixPoint,runLeastFixPoint',liftLeastFixPoint) where
 
 import           Prelude hiding (id,(.),lookup)
@@ -115,29 +115,26 @@ memoize (LeastFixPoint f) = LeastFixPoint $ \((inCache, outCache),x) -> do
 
 instance (Show x, Show y, Identifiable x, Widening y)
   => ArrowFix x y (LeastFixPoint x y) where
-  fixA f = trace (printf "fixA f") $ proc x -> do
+  fix f = trace (printf "fixpoint iteration") $ proc x -> do
     old <- getOutCache -< ()
     setOutCache -< bottom
-    y <- localInCache (fix (memoize . f)) -< (old,x)
+    y <- localInCache (F.fix (memoize . f)) -< (old,x)
     new <- getOutCache -< ()
     if new ⊑ old -- We are in the reductive set of `f` and have overshot the fixpoint
     then returnA -< y
-    else fixA f -< x
+    else fix f -< x
 
 memoize :: (Show x, Show y, Identifiable x, Widening y)
         => LeastFixPoint x y x y -> LeastFixPoint x y x y
 memoize (LeastFixPoint f) = LeastFixPoint $ \((inCache, outCache),x) -> do
-  case trace (printf "\tmemoize -< %s" (show x)) (S.lookup x outCache) of
-    Just y -> trace (printf "\t%s <- memoize -< %s" (show y) (show x)) (outCache,y)
+  case trace (printf "\teval -< %s" (show x)) (S.lookup x outCache) of
+    Just y -> trace (printf "\t%s <- eval -< %s" (show y) (show x)) (outCache,y)
     Nothing ->
       let yOld = fromMaybe bottom (S.lookup x inCache)
           outCache' = S.insert x yOld outCache
-          (outCache'',y) = trace (printf "\tf -< %s" (show x)) (f ((inCache, outCache'),x))
+          (outCache'',y) = f ((inCache, outCache'),x)
           outCache''' = S.insertWith (flip (▽)) x y outCache''
-      in trace (printf "\t%s <- f -< %s\n" (show y) (show x) ++
-                printf "\t%s <- memoize -< %s" (show y) (show x))
-                  (outCache''',y)
-
+      in trace (printf "\t%s <- eval -< %s" (show y) (show x)) (outCache''',y)
 #endif
 
 getOutCache :: LeastFixPoint x y () (Store x (Terminating y))

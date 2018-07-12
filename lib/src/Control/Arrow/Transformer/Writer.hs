@@ -11,6 +11,9 @@ import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Alloc
+import Control.Arrow.Random
+import Control.Arrow.Conditional
 import Control.Arrow.State
 import Control.Arrow.Reader
 import Control.Arrow.Fail
@@ -93,6 +96,15 @@ instance (Monoid w, ArrowLoop c) => ArrowLoop (Writer w c) where
 
 instance (Monoid w, Complete w, ArrowJoin c) => ArrowJoin (Writer w c) where
   joinWith lub (Writer f) (Writer g) = Writer $ joinWith (\(w1,z1) (w2,z2) -> (w1 ⊔ w2, lub z1 z2)) f g
+
+instance (Monoid w, ArrowAlloc x y c) => ArrowAlloc x y (Writer w c) where
+  alloc = lift alloc
+
+instance (Monoid w, ArrowCond v x y (w,z) c) => ArrowCond v x y z (Writer w c) where
+  if_ (Writer f) (Writer g) = Writer $ if_ f g
+
+instance (Monoid w, ArrowRand v c) => ArrowRand v (Writer w c) where
+  random = lift random
 
 deriving instance PreOrd (c x (w,y)) => PreOrd (Writer w c x y)
 deriving instance LowerBounded (c x (w,y)) => LowerBounded (Writer w c x y)

@@ -6,7 +6,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module PropertySemantics.LiveVariables where
 
-import           Prelude hiding (and,or,not,div)
+import           Prelude hiding (and,or,not,div,read)
 
 import           Syntax
 import           SharedSemantics
@@ -18,7 +18,6 @@ import           Data.Text (Text)
 import           Data.Label
 import           Data.Identifiable
 import qualified Data.List as L
-import           Data.Ord
 import qualified Data.HashMap.Lazy as H
 import           Data.HashMap.Lazy (HashMap)
 
@@ -38,15 +37,15 @@ import           GHC.Exts
 
 run :: [Statement] -> [(Statement,Pow Text)]
 run stmts =
-  L.sortBy (comparing (label.fst)) $
+  L.sortOn (label.fst) $
   S.toList $
-  S.map (\((_,(env,(_,st))),v) ->
+  S.map (\((_,(env,st)),v) ->
     case st of
       stmt:_ | stmt `elem` blocks stmts -> do
         -- Extract the transfer function from the value.
         trans <- fst . snd <$> (P.toMaybe =<< T.toMaybe v)
         let -- Extract the addresses from the transfer function
-            liveAddresses = P.map snd $ vars trans
+            liveAddresses = vars trans
             -- Extract the live variables by inverting the environment and reading out the live addresses
             liveVars = P.unions $ domain liveAddresses $ invert $ E.toMap env
         Just (stmt,liveVars)
@@ -56,8 +55,8 @@ run stmts =
   runLeastFixPoint'
     (runInterp
        (runLiveVariables
-          (Shared.run :: Fix [Statement] () (LiveVariables (Label,Addr) (Interp Addr Val (~>))) [Statement] ())))
-      (S.empty,(E.empty,(mempty,stmts)))
+          (Shared.run :: Fix [Statement] () (LiveVariables Addr (Interp Addr Val (~>))) [Statement] ())))
+      (S.empty,(E.empty,stmts))
 
   where
     invert :: (Identifiable a, Identifiable b) => HashMap a b -> HashMap b (Pow a)
@@ -65,7 +64,6 @@ run stmts =
                 
     domain :: (Identifiable a, Identifiable b) => Pow a -> HashMap a b -> Pow b
     domain dom f = fromList [ y | x <- toList dom, Just y <- [H.lookup x f] ]
-
 
 instance (Identifiable v, IsVal val c) => IsVal val (LiveVariables v c) where
   boolLit = lift boolLit

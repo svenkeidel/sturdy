@@ -21,10 +21,10 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Lift
 import           Control.Arrow.Random
 import           Control.Arrow.Reader
-import           Control.Arrow.State
 import           Control.Arrow.Store
+import           Control.Arrow.Writer
 
-import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Writer
 
 import           Data.Identifiable
 import           Data.Hashable
@@ -41,8 +41,11 @@ newtype LiveVars v = LiveVars (Pow v -> Pow v)
 vars :: LiveVars v -> Pow v
 vars (LiveVars f) = f P.empty
 
+instance Show v => Show (LiveVars v) where
+  show = show . vars
+
 instance Hashable v => Hashable (LiveVars v) where
-  hashWithSalt salt lv = hashWithSalt salt (vars lv)
+  hashWithSalt salt = hashWithSalt salt . vars
 
 instance Eq v => Eq (LiveVars v) where
   lv1 == lv2 = vars lv1 == vars lv2
@@ -70,26 +73,24 @@ instance Monoid (LiveVars v) where
   mappend (LiveVars f) (LiveVars g) = LiveVars (f . g)
 
 -- | An arrow transformer that tracks the live variables.
-newtype LiveVariables v c x y = LiveVariables (State (LiveVars v) c x y)
+newtype LiveVariables v c x y = LiveVariables (Writer (LiveVars v) c x y)
 
-runLiveVariables :: LiveVariables v c x y -> c (LiveVars v,x) (LiveVars v,y)
-runLiveVariables (LiveVariables f) = runState f
+runLiveVariables :: LiveVariables v c x y -> c x (LiveVars v,y)
+runLiveVariables (LiveVariables f) = runWriter f
 
-instance (Identifiable var, ArrowRead var val (LiveVars var,x) (LiveVars var,y) c)
-  => ArrowRead var val x y (LiveVariables var c) where
-  read (LiveVariables f) (LiveVariables g) = LiveVariables $ proc (var,x) -> do
-    lvs <- get -< ()
-    put -< lvs <> live var
-    read f g -< (var,x)
+instance (Identifiable var, ArrowRead (var,lab) val x (LiveVars var,y) c)
+  => ArrowRead (var,lab) val x y (LiveVariables var c) where
+  read (LiveVariables f) (LiveVariables g) = LiveVariables $ proc ((var,lab),x) -> do
+    tell -< live var
+    read f g -< ((var,lab),x)
 
-instance (Identifiable var, ArrowWrite var val c) => ArrowWrite var val (LiveVariables var c) where
-  write = LiveVariables $ proc (var,val) -> do
-    lvs <- get -< ()
-    put -< lvs <> dead var
-    write -< (var,val)
+instance (Identifiable var, ArrowWrite (var,lab) val c) => ArrowWrite (var,lab) val (LiveVariables var c) where
+  write = LiveVariables $ proc ((var,lab),val) -> do
+    tell -< dead var
+    write -< ((var,lab),val)
 
-type instance Fix x y (LiveVariables v c) = LiveVariables v (Fix (LiveVars v,x) (LiveVars v,y) c)
-deriving instance (ArrowFix (LiveVars v,x) (LiveVars v,y) c) => ArrowFix x y (LiveVariables v c)
+type instance Fix x y (LiveVariables v c) = LiveVariables v (Fix x (LiveVars v,y) c)
+deriving instance (ArrowFix x (LiveVars v,y) c) => ArrowFix x y (LiveVariables v c)
 
 deriving instance ArrowLift (LiveVariables v)
 instance (ArrowApply c) => ArrowApply (LiveVariables v c) where
@@ -100,15 +101,15 @@ deriving instance (Arrow c) => Arrow (LiveVariables v c)
 deriving instance (ArrowChoice c) => ArrowChoice (LiveVariables v c)
 deriving instance (ArrowReader r c) => ArrowReader r (LiveVariables v c)
 deriving instance (ArrowFail e c) => ArrowFail e (LiveVariables v c)
-deriving instance (ArrowExcept (LiveVars v,x) (LiveVars v,y) e c) => ArrowExcept x y e (LiveVariables v c)
+deriving instance (ArrowExcept x (LiveVars v,y) e c) => ArrowExcept x y e (LiveVariables v c)
 -- deriving instance (ArrowState s c) => ArrowState s (LiveVariables v c)
 deriving instance ArrowAlloc x y c => ArrowAlloc x y (LiveVariables v c)
 deriving instance ArrowRand r c => ArrowRand r (LiveVariables v c)
-deriving instance ArrowCond val (LiveVars v,x) (LiveVars v,y) (LiveVars v,z) c => ArrowCond val x y z (LiveVariables v c)
+deriving instance ArrowCond val x y (LiveVars v,z) c => ArrowCond val x y z (LiveVariables v c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (LiveVariables v c)
 
-deriving instance PreOrd (c (LiveVars v,x) (LiveVars v,y)) => PreOrd (LiveVariables v c x y)
-deriving instance LowerBounded (c (LiveVars v,x) (LiveVars v,y)) => LowerBounded (LiveVariables v c x y)
-deriving instance Complete (c (LiveVars v,x) (LiveVars v,y)) => Complete (LiveVariables v c x y)
-deriving instance CoComplete (c (LiveVars v,x) (LiveVars v,y)) => CoComplete (LiveVariables v c x y)
-deriving instance UpperBounded (c (LiveVars v,x) (LiveVars v,y)) => UpperBounded (LiveVariables v c x y)
+deriving instance PreOrd (c x (LiveVars v,y)) => PreOrd (LiveVariables v c x y)
+deriving instance LowerBounded (c x (LiveVars v,y)) => LowerBounded (LiveVariables v c x y)
+deriving instance Complete (c x (LiveVars v,y)) => Complete (LiveVariables v c x y)
+deriving instance CoComplete (c x (LiveVars v,y)) => CoComplete (LiveVariables v c x y)
+deriving instance UpperBounded (c x (LiveVars v,y)) => UpperBounded (LiveVariables v c x y)
