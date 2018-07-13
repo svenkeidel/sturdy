@@ -6,48 +6,59 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 module TypeSemantics where
 
-import           Derivations                                     ()
-import           GHC.Generics                                    ()
-import           Prelude                                         hiding (break,
-                                                                  error, fail,
-                                                                  lookup, map,
-                                                                  read)
+import           Derivations                                           ()
+import           GHC.Generics                                          ()
+import           Prelude                                               hiding
+                                                                        (break,
+                                                                        error,
+                                                                        fail,
+                                                                        lookup,
+                                                                        map,
+                                                                        read)
 import qualified Prelude
 import           SharedInterpreter
 import           Syntax
 
-import           Data.Hashable                                   ()
-import           Data.Identifiable                               ()
-import           Data.Set
+import           Data.Hashable                                         ()
+import           Data.Identifiable                                     ()
 
+import           Data.Abstract.Bounded
 import           Data.Abstract.Environment
 import           Data.Abstract.HandleError
+import qualified Data.Abstract.Powerset                                as P
 import           Data.Abstract.Store
-import           Data.List                                       (find)
+import           Data.Abstract.Terminating
+import           Data.List                                             (find)
 import           Data.Order
+import           Data.Set
 
-import           Control.Arrow.Transformer.Abstract.Environment
+import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
+import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.HandleExcept
-import           Control.Arrow.Transformer.Abstract.Store
+import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Utils                             (map, pi1)
+import           Control.Arrow.Utils                                   (map,
+                                                                        pi1)
 
 import           Control.Arrow
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
+import           Control.Arrow.Fix
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Category
 
 newtype TypeArr x y = TypeArr
-    (Except
-        String
-        (Environment Ident Type'
-            (StoreArrow Location Type'
-                (State Location (->)))) x y)
+    (Fix Expr Type'
+        (Except
+            String
+            (Environment Ident Location Type'
+                (Contour
+                    (State Location (~>))))) x y)
 
 deriving instance ArrowFail String TypeArr
 deriving instance ArrowEnv Ident Type' (Env Ident Type') TypeArr
@@ -57,17 +68,17 @@ deriving instance ArrowChoice TypeArr
 deriving instance ArrowRead Location Type' x Type' TypeArr
 deriving instance ArrowWrite Location Type' TypeArr
 deriving instance ArrowState Location TypeArr
+deriving instance ArrowFix Expr Type' TypeArr
 
-runType :: TypeArr x y -> [(Ident, Type)] -> [(Location, Type)] -> x -> (Location, (Store Location Type', Error String y))
-runType (TypeArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Abstract.Store.fromList env2', (Data.Abstract.Environment.fromList env', x)))
-        where env' = Prelude.map (\(a, b) -> (a, Data.Set.fromList [b])) env
-              env2' = Prelude.map (\(a, b) -> (a, Data.Set.fromList [b])) env2
+runType :: TypeArr x y -> [(Ident, Type)] -> x -> Terminating (Location, Error String y)
+runType (TypeArr f) env x = runLeastFixPoint (runState (runEnvironment (runExcept f))) (Location 0, (env', x))
+        where env' = Prelude.map (\(a, b) -> (a, P.singleton b)) env
 
-runAbstract :: [(Ident, Type)] -> [(Location, Type)] -> Expr -> (Store Location Type', Error String Type')
-runAbstract env st expr = case runType eval env st expr of
-    (_, (newSt, Fail e))            -> (newSt, Fail e)
-    (_, (newSt, Success res))       -> (newSt, Success res)
-    (_, (newSt, SuccessOrFail e _)) -> (newSt, Fail e)
+--runAbstract :: [(Ident, Type)] -> [(Location, Type)] -> Expr -> (Store Location Type', Error String Type')
+--runAbstract env st expr = case runType eval env st expr of
+--    (_, (newSt, Fail e))            -> (newSt, Fail e)
+--    (_, (newSt, Success res))       -> (newSt, Success res)
+--    (_, (newSt, SuccessOrFail e _)) -> (newSt, Fail e)
 
 typeEvalBinOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type, Type) Type
 typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) of
@@ -147,47 +158,47 @@ getField_ = proc (t, s) -> do
     case t of
         TObject fs -> case find (\(n, _) -> n == s) fs of
             Just (_, fieldT) -> returnA -< fieldT
-            Nothing          -> returnA -< Data.Set.fromList [TUndefined]
-        _ -> returnA -< Data.Set.fromList [TObject [("0", Data.Set.singleton TString), ("length", Data.Set.singleton TNumber), ("$isArgs", Data.Set.singleton TBool)]]
+            Nothing          -> returnA -< P.fromFoldable [TUndefined]
+        _ -> returnA -< P.fromFoldable [TObject [("0", P.singleton TString), ("length", P.singleton TNumber), ("$isArgs", P.singleton TBool)]]
 
 
 
 instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
     -- values
-    numVal = proc _ -> returnA -< Data.Set.fromList [TNumber]
-    boolVal = proc _ -> returnA -< Data.Set.fromList [TBool]
-    stringVal = proc _ -> returnA -< Data.Set.fromList [TString]
-    undefVal = proc () -> returnA -< Data.Set.fromList [TUndefined]
-    nullVal = proc () -> returnA -< Data.Set.fromList [TNull]
+    numVal = proc _ -> returnA -< P.singleton TNumber
+    boolVal = proc _ -> returnA -< P.fromFoldable [TBool]
+    stringVal = proc _ -> returnA -< P.fromFoldable [TString]
+    undefVal = proc () -> returnA -< P.fromFoldable [TUndefined]
+    nullVal = proc () -> returnA -< P.fromFoldable [TNull]
     lambdaVal = proc (ids, body) -> do
         closure <- getEnv -< ()
-        returnA -< Data.Set.fromList [TLambda ids body closure]
+        returnA -< P.fromFoldable [TLambda ids body closure]
     objectVal = proc (fields) -> do
-        returnA -< Data.Set.fromList [TObject fields]
+        returnA -< P.fromFoldable [TObject fields]
     getField _ = proc (subject, field) -> do
         case field of
-            EString name -> returnA -< Prelude.foldr Data.Set.union (Data.Set.empty) (Prelude.map getField_ (zip (Data.Set.toList subject) (repeat name)))
-            _            -> returnA -< singleton TTop
-    updateField _ = proc (_, _, _) -> returnA -< singleton TTop
-    deleteField _ = proc (_, _) -> returnA -< singleton TTop
+            EString name -> returnA -< Prelude.foldr P.union (P.empty) (Prelude.map getField_ (zip (P.toList subject) (repeat name)))
+            _            -> returnA -< P.singleton TTop
+    updateField _ = proc (_, _, _) -> returnA -< P.singleton TTop
+    deleteField _ = proc (_, _) -> returnA -< P.singleton TTop
     -- operator/delta function
     evalOp = proc (op, vals) -> do
         case vals of
             [_] -> do
-                t <- Control.Arrow.Utils.map typeEvalUnOp_ -< zip (repeat op) (Data.Set.toList $ head vals)
-                returnA -< Data.Set.fromList t
+                t <- Control.Arrow.Utils.map typeEvalUnOp_ -< zip (repeat op) (P.toList $ head vals)
+                returnA -< P.fromFoldable t
             _ -> do
                 let
-                    v1 = Data.Set.toList (head vals)
-                    v2 = Data.Set.toList (head $ tail vals)
+                    v1 = P.toList (head vals)
+                    v2 = P.toList (head $ tail vals)
                 case length v1 == 1 && length v2 == 1 of
                     True -> do
                         t <- typeEvalBinOp_ -< (op, head v1, head v2)
-                        returnA -< Data.Set.fromList [t]
+                        returnA -< P.fromFoldable [t]
                     False -> fail -< "Error: Binary op with set of type params not supported"
     -- environment ops
     lookup = proc id_ -> do
-        Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id_, Data.Set.singleton TUndefined)
+        Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id_, P.singleton TUndefined)
     apply f1 = proc (lambdas, args) -> do
         ts <- Control.Arrow.Utils.map (proc (lambda, args) -> case lambda of
             TLambda names body closureEnv
@@ -198,53 +209,53 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
                     finalEnv <- bindings -< (Data.Abstract.Environment.toList bindingEnv, outsideEnv)
                     localEnv f1 -< (finalEnv, body)
                 | otherwise -> fail -< "Error: lambda must be applied with same amount of args as params"
-            _ -> returnA -< Data.Set.fromList [TObject [("0", singleton TString), ("length", singleton TNumber), ("$isArgs", singleton TBool)]]) -< zip (Data.Set.toList lambdas) (repeat args)
-        returnA -< Prelude.foldr Data.Set.union (Data.Set.empty) ts
+            _ -> returnA -< P.fromFoldable [TObject [("0", P.singleton TString), ("length", P.singleton TNumber), ("$isArgs", P.singleton TBool)]]) -< zip (P.toList lambdas) (repeat args)
+        returnA -< Prelude.foldr P.union (P.empty) ts
     -- store ops
     set = proc (loc, val) -> do
-        case Data.Set.toList loc of
+        case P.toList loc of
             [TRef l] -> do
                 Control.Arrow.Utils.map write -< zip (Data.Set.toList l) (repeat val)
                 returnA -< ()
             _ -> fail -< "Error: ESetRef lhs must be location"
     new = proc (val) -> do
         loc <- fresh >>> (arr (:[])) >>> (arr Data.Set.fromList) -< ()
-        set -< (Data.Set.fromList [TRef loc], val)
-        returnA -< Data.Set.fromList [TRef loc]
+        set -< (P.fromFoldable [TRef loc], val)
+        returnA -< P.singleton $ TRef loc
     get = proc (loc) -> do
-        case Data.Set.toList loc of
+        case P.toList loc of
             [TRef l] -> do
-                vals <- Control.Arrow.Utils.map (read pi1 Control.Category.id) -< zip (Data.Set.toList l) (repeat (Data.Set.singleton TUndefined))
+                vals <- Control.Arrow.Utils.map (read pi1 Control.Category.id) -< zip (Data.Set.toList l) (repeat (P.singleton TUndefined))
                 returnA -< foldr1 (\x y -> x ⊔ y) vals
-            _ -> returnA -< (Data.Set.fromList [TThrown (Data.Set.fromList [TObject []])])
+            _ -> returnA -< (P.fromFoldable [TThrown (P.fromFoldable [TObject []])])
     -- control flow
     if_ f1 f2 = proc (cond, thenBranch, elseBranch) -> do
-        case Data.Set.toList cond of
+        case P.toList cond of
             [TBool] -> do
                 thenT <- f1 -< thenBranch
                 elseT <- f2 -< elseBranch
-                returnA -< Data.Set.union thenT elseT
+                returnA -< P.union thenT elseT
             _ -> fail -< "Error: If conditional must be of type bool"
     while_ f1 f2 = proc (cond, body) -> do
         condT <- f1 -< cond
-        case Data.Set.toList condT of
+        case P.toList condT of
             [TBool] -> do
                 f2 -< body
             _ -> fail -< "Error: While conditional must be of type bool"
     label f1 = proc (l, e) -> do
         eT <- f1 -< e
-        case Data.Set.toList eT of
+        case P.toList eT of
             [TBreak l1 t]
                 | l == l1 -> returnA -< t
                 | otherwise -> fail -< "Error: Expression within label must be of type break to that label"
             _ -> fail -< "Error: Expression within label must be of type break to that label"
     break = proc (l, t) -> do
-        returnA -< singleton (TBreak l t)
+        returnA -< P.singleton (TBreak l t)
     throw = proc t -> do
-        returnA -< singleton (TThrown t)
+        returnA -< P.singleton (TThrown t)
     catch f1 = proc (try, _) -> do
         tryT <- f1 -< try
-        case Data.Set.toList tryT of
+        case P.toList tryT of
             [TThrown t] -> returnA -< t
             _ -> fail -< "Error: Expression within try must be of type thrown"
     error = proc s -> fail -< "Error: aborted with message: " ++ s

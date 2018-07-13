@@ -35,6 +35,7 @@ import           Data.Concrete.Store
 
 import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Except
+import           Control.Arrow.Transformer.Concrete.FixPoint
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils                            (pi1)
@@ -43,6 +44,7 @@ import           Control.Arrow
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
+import           Control.Arrow.Fix
 import           Control.Arrow.Reader                           ()
 import           Control.Arrow.State
 import           Control.Arrow.Store
@@ -73,11 +75,12 @@ instance Hashable Exceptional
 deriving instance Ord Exceptional
 
 newtype ConcreteArr x y = ConcreteArr
-    (Except
-        (Either String Exceptional)
-        (Environment Ident Value
-            (StoreArrow Location Value
-                (State Location (->)))) x y)
+    (Fix Expr Value
+        (Except
+            (Either String Exceptional)
+            (Environment Ident Value
+                (StoreArrow Location Value
+                    (State Location (->))))) x y)
 
 deriving instance ArrowFail (Either String Exceptional) ConcreteArr
 deriving instance ArrowEnv Ident Value (Env Ident Value) ConcreteArr
@@ -89,9 +92,10 @@ deriving instance ArrowRead Location Value x Value ConcreteArr
 deriving instance ArrowWrite Location Value ConcreteArr
 deriving instance ArrowExcept (Label, Expr) (Label, Value) (Either String Exceptional) ConcreteArr
 deriving instance ArrowExcept (Expr, Expr) (Expr, Value) (Either String Exceptional) ConcreteArr
+deriving instance ArrowFix Expr Value ConcreteArr
 
 runLJS :: ConcreteArr x y -> [(Ident, Value)] -> [(Location, Value)] -> x -> (Location, (Store Location Value, Error (Either String Exceptional) y))
-runLJS (ConcreteArr f) env env2 x = runState (runStore (runEnvironment (runExcept f))) (Location 0, (Data.Concrete.Store.fromList env2, (Data.Concrete.Environment.fromList env, x)))
+runLJS (ConcreteArr f) env env2 x = runFixPoint (runState (runStore (runEnvironment (runExcept f)))) (Location 0, (Data.Concrete.Store.fromList env2, (Data.Concrete.Environment.fromList env, x)))
 
 runConcrete :: [(Ident, Value)] -> [(Location, Value)] -> Expr -> (Store Location Value, Error String Value)
 runConcrete env st expr =

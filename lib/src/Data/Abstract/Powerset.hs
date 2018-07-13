@@ -1,27 +1,27 @@
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveTraversable          #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 module Data.Abstract.Powerset where
 
-import           Prelude hiding ((.))
+import           Prelude                hiding ((.))
 
-import           Control.Applicative hiding (empty)
+import           Control.Applicative    hiding (empty)
 import           Control.Category
 import           Control.Monad
 
-import           Data.Sequence (Seq,(<|))
-import           Data.Hashable
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as H
-import           Data.Foldable (foldl',toList)
-import           Data.List (intercalate)
-import           Data.Order
 import           Data.Abstract.Widening
+import           Data.Foldable          (foldl', toList)
+import           Data.Hashable
+import           Data.HashSet           (HashSet)
+import qualified Data.HashSet           as H
+import           Data.List              (intercalate)
+import           Data.Order
+import           Data.Sequence          (Seq, (<|))
 
-import           GHC.Generics (Generic)
+import           GHC.Generics           (Generic)
 
 newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, MonadPlus, Monoid, Foldable, Traversable, Generic)
 
@@ -43,7 +43,7 @@ instance UpperBounded a => UpperBounded (Pow a) where
   top = singleton top
 
 instance Show a => Show (Pow a) where
-  show (Pow a) = "{" ++ intercalate ", " (show <$> toList a) ++ "}"
+  show (Pow a) = "{" ++ intercalate ", " (show <$> Data.Foldable.toList a) ++ "}"
 
 instance (Eq a, Hashable a) => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
@@ -68,6 +68,9 @@ cartesian (as,bs) = do
 
 toHashSet :: (Hashable a, Eq a) => Pow a -> HashSet a
 toHashSet = foldl' (flip H.insert) H.empty
+
+toList :: (Hashable a, Eq a) => Pow a -> [a]
+toList = H.toList . toHashSet
 
 fromFoldable :: (Foldable f, Monad t, Monoid (t a)) => f a -> t a
 fromFoldable = foldMap return

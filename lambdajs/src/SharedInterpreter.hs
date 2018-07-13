@@ -10,6 +10,7 @@
 module SharedInterpreter where
 
 import           Control.Arrow
+import           Control.Arrow.Fix
 import           Control.Arrow.Utils (map)
 import           Prelude             hiding (break, error, lookup, map, read)
 import qualified Prelude
@@ -46,8 +47,8 @@ class Arrow c => AbstractValue v c | c -> v where
     -- exceptional
     error :: c String v
 
-eval :: (ArrowChoice c, AbstractValue v c, Show v) => c Expr v
-eval = proc e -> do
+eval :: (ArrowChoice c, ArrowFix Expr v c, AbstractValue v c, Show v) => c Expr v
+eval = fix $ \ev -> proc e -> do
     case e of
         ENumber d -> do
             numVal -< d
@@ -59,62 +60,62 @@ eval = proc e -> do
             undefVal -< ()
         ENull -> do
             nullVal -< ()
-        ELambda ids exp -> do
-            lambdaVal -< (ids, exp)
+        ELambda ids ex -> do
+            lambdaVal -< (ids, ex)
         EObject fields -> do
-            vals <- (Control.Arrow.Utils.map $ second eval) -< fields
+            vals <- (Control.Arrow.Utils.map $ second ev) -< fields
             objectVal -< vals
-        EId id -> SharedInterpreter.lookup -< id
+        EId ident -> SharedInterpreter.lookup -< ident
         EOp op exps -> do
-            vals <- (map eval) -< exps
+            vals <- (map ev) -< exps
             evalOp -< (op, vals)
-        EApp body args -> do
-            lambda <- eval -< body
-            args <- map eval -< args
-            apply eval -< (lambda, args)
+        EApp body argsE -> do
+            lambda <- ev -< body
+            args <- map ev -< argsE
+            apply ev -< (lambda, args)
         ELet argsE body -> do
-            eval -< EApp (ELambda (Prelude.map fst argsE) body) (Prelude.map snd argsE)
+            ev -< EApp (ELambda (Prelude.map fst argsE) body) (Prelude.map snd argsE)
         ESetRef locE valE -> do
-            loc <- eval -< locE
-            val <- eval -< valE
+            loc <- ev -< locE
+            val <- ev -< valE
             set -< (loc, val)
             returnA -< loc
         ERef valE -> do
-            val <- eval -< valE
+            val <- ev -< valE
             new -< val
         EDeref locE -> do
-            loc <- eval -< locE
+            loc <- ev -< locE
             get -< loc
         EGetField objE fieldE -> do
-            obj <- eval -< objE
-            getField eval -< (obj, fieldE)
+            obj <- ev -< objE
+            getField ev -< (obj, fieldE)
         EUpdateField objE fieldE valE -> do
-            val <- eval -< valE
-            obj <- eval -< objE
-            updateField eval -< (obj, fieldE, val)
+            val <- ev -< valE
+            obj <- ev -< objE
+            updateField ev -< (obj, fieldE, val)
         EDeleteField objE fieldE -> do
-            obj <- eval -< objE
-            deleteField eval -< (obj, fieldE)
+            obj <- ev -< objE
+            deleteField ev -< (obj, fieldE)
         ESeq one two -> do
-            eval -< one
-            eval -< two
+            ev -< one
+            ev -< two
         EIf condE thenE elseE -> do
-            cond <- eval -< condE
-            if_ eval eval -< (cond, thenE, elseE)
+            cond <- ev -< condE
+            if_ ev ev -< (cond, thenE, elseE)
         EWhile cond body -> do
-            while_ eval eval -< (cond, body)
-        ELabel l e -> do
-            label eval -< (l, e)
-        EBreak l e -> do
-            val <- eval -< e
+            while_ ev ev -< (cond, body)
+        ELabel l ex -> do
+            label ev -< (l, ex)
+        EBreak l ex -> do
+            val <- ev -< ex
             break -< (l, val)
-        EThrow e -> do
-            val <- eval -< e
+        EThrow ex -> do
+            val <- ev -< ex
             throw -< val
         ECatch try catchE -> do
-            catch eval -< (try, catchE)
+            catch ev -< (try, catchE)
         EFinally e1 e2 -> do
-            res <- eval -< e1
-            eval -< e2
+            res <- ev -< e1
+            ev -< e2
             returnA -< res
         EEval -> error -< "Encountered EEval"
