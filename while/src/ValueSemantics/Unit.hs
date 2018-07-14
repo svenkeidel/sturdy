@@ -17,8 +17,8 @@ import qualified SharedSemantics as Shared
 import           ValueSemantics.Abstract
 
 import           Data.Abstract.PropagateError (Error(..))
-import           Data.Abstract.Store (Store)
-import qualified Data.Abstract.Store as S
+import           Data.Abstract.PreciseStore (Store)
+import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Terminating
 

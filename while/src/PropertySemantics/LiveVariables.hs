@@ -1,12 +1,10 @@
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE Arrows #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module PropertySemantics.LiveVariables where
 
-import           Prelude hiding (and,or,not,div,read)
+import           Prelude hiding (and,or,not,div)
 
 import           Syntax
 import           SharedSemantics
@@ -25,6 +23,7 @@ import qualified Data.Abstract.PropagateError as P
 import qualified Data.Abstract.Terminating as T
 import qualified Data.Abstract.Environment as E
 import qualified Data.Abstract.Store as S
+import qualified Data.Abstract.PreciseStore as PS
 import           Data.Abstract.DiscretePowerset (Pow)
 import qualified Data.Abstract.DiscretePowerset as P
 
@@ -56,7 +55,7 @@ run stmts =
     (runInterp
        (runLiveVariables
           (Shared.run :: Fix [Statement] () (LiveVariables Addr (Interp Addr Val (~>))) [Statement] ())))
-      (S.empty,(E.empty,stmts))
+      (PS.empty,(E.empty,stmts))
 
   where
     invert :: (Identifiable a, Identifiable b) => HashMap a b -> HashMap b (Pow a)

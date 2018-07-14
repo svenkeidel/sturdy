@@ -24,8 +24,8 @@ import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.PropagateError (Error(..))
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
-import           Data.Abstract.Store (Store)
-import qualified Data.Abstract.Store as S
+import           Data.Abstract.PreciseStore (Store)
+import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Terminating
 import           Data.Abstract.Widening

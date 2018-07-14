@@ -40,6 +40,7 @@ library
                        Data.Concrete.Powerset,
                        Data.Concrete.Store,
 
+                       Data.Abstract.Either,
                        Data.Abstract.Equality,
                        Data.Abstract.Ordering,
                        Data.Abstract.Boolean,
@@ -47,15 +48,17 @@ library
                        Data.Abstract.Environment,
                        Data.Abstract.PropagateError,
                        Data.Abstract.HandleError,
-                       Data.Abstract.Terminating,
                        Data.Abstract.InfiniteNumbers,
                        Data.Abstract.FreeCompletion,
                        Data.Abstract.FreeCoCompletion,
                        Data.Abstract.Interval,
+                       Data.Abstract.Maybe,
                        Data.Abstract.Powerset,
                        Data.Abstract.DiscretePowerset,
                        Data.Abstract.Sign,
                        Data.Abstract.Store,
+                       Data.Abstract.PreciseStore,
+                       Data.Abstract.Terminating,
                        Data.Abstract.Widening,
 
                        Control.Arrow.Alloc,
@@ -123,5 +126,6 @@ test-suite specs
                      unordered-containers,
                      text
   other-modules:     BoundedEnvironmentSpec,
-                     FixSpec
+                     FixSpec,
+                     StoreSpec
   default-language:  Haskell2010

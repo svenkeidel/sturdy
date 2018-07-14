@@ -75,6 +75,7 @@ instance Equality Sign where
   _ == _ = B.False
 
 instance PreOrd Sign where
+  _ ⊑ Top = P.True
   Negative ⊑ Negative = P.True
   Zero ⊑ Zero = P.True
   Positive ⊑ Positive = P.True

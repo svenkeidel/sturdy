@@ -12,7 +12,7 @@ module ValueSemantics.Abstract where
 import           Prelude hiding (read)
 
 import           Data.Abstract.PropagateError (Error(..))
-import           Data.Abstract.Store (Store)
+import           Data.Abstract.PreciseStore (Store)
 import           Data.Abstract.Environment (Env)
 import           Data.Order
 import           Data.Label

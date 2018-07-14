@@ -12,7 +12,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
-{-# OPTIONS_GHC -DTRACE #-}
+-- {-# OPTIONS_GHC -DTRACE #-}
 module Control.Arrow.Transformer.Abstract.LeastFixPoint(type (~>),runLeastFixPoint,runLeastFixPoint',liftLeastFixPoint) where
 
 import           Prelude hiding (id,(.),lookup)

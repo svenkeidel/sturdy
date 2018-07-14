@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.Store where
 
+import Prelude hiding (Maybe(..))
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Fail
@@ -24,13 +25,14 @@ import Control.Category
 
 import Control.Arrow.Abstract.Join
 
-import Data.Abstract.Store (Store)
-import qualified Data.Abstract.Store as S
+import Data.Abstract.Maybe
+import Data.Abstract.PreciseStore (Store)
+import qualified Data.Abstract.PreciseStore as S
 import Data.Order
 import Data.Identifiable
 import Data.Hashable
 
-newtype StoreArrow var val c x y = StoreArrow (State (Store var val) c x y)
+newtype StoreArrow var val c x y = StoreArrow (State (S.Store var val) c x y)
 
 runStore :: StoreArrow var val c x y -> c (Store var val, x) (Store var val, y)
 runStore (StoreArrow (State f)) = f
@@ -46,8 +48,9 @@ instance (Identifiable var, ArrowChoice c, Complete (c (Store var val, ((val, x)
   read (StoreArrow f) (StoreArrow g) = StoreArrow $ proc (var,x) -> do
     s <- get -< ()
     case S.lookup var s of
-      Just val -> joined f g -< ((val,x),x)
-      Nothing  -> g          -< x
+      Just val        -> f          -< (val,x)
+      JustNothing val -> joined f g -< ((val,x),x)
+      Nothing         -> g          -< x
 
 instance (Identifiable var, Arrow c) => ArrowWrite var val (StoreArrow var val c) where
   write = StoreArrow $ modify $ arr $ \((var,val),st) -> S.insert var val st
