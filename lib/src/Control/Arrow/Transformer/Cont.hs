@@ -1,13 +1,20 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Cont where
 
-import Prelude hiding (id,(.))
+import Prelude hiding (id,(.),fail)
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Conditional
 import Control.Arrow.Fix
+import Control.Arrow.Fail
+import Control.Arrow.Lift
+import Control.Arrow.Reader
+import Control.Arrow.State
+import Control.Arrow.Writer
 
 newtype Cont r c x y = Cont {runCont :: c y r -> c x r}
 
@@ -30,3 +37,23 @@ instance (ArrowApply c, ArrowChoice c) => ArrowChoice (Cont r c) where
 
 instance ArrowApply c => ArrowFix x y (Cont r c) where
   fix f = Cont $ fix (runCont . f . Cont)
+
+instance ArrowLift (Cont r) where
+  lift f = Cont $ \k -> k . f
+
+instance (ArrowApply c, ArrowState s c) => ArrowState s (Cont r c) where
+  get = lift get
+  put = lift put
+
+instance (ArrowApply c, ArrowReader s c) => ArrowReader s (Cont r c) where
+  ask = lift ask
+  local (Cont f) = Cont $ \k -> local (f k)
+
+instance (ArrowApply c, ArrowWriter w c) => ArrowWriter w (Cont r c) where
+  tell = lift tell
+
+instance (ArrowApply c, ArrowFail e c) => ArrowFail e (Cont r c) where
+  fail = lift fail
+
+instance (ArrowApply c, ArrowCond v x y r c) => ArrowCond v x y z (Cont r c) where
+  if_ (Cont f) (Cont g) = Cont $ \k -> if_ (f k) (g k)
