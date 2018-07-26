@@ -20,6 +20,7 @@ import           Syntax hiding (Fail)
 import           Utils
 
 import           Control.Arrow
+import           Control.Arrow.Const
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
@@ -28,6 +29,7 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Transformer.Abstract.Completion
 import           Control.Arrow.Transformer.Abstract.HandleExcept
+import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category hiding ((.))
@@ -55,11 +57,11 @@ data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
 newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
-newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Except () (Completion (->)))) a b)
-  deriving (Arrow, ArrowApply, ArrowChoice, Category, PreOrd)
+newtype Interp a b = Interp (Const (Alphabet Constr) (Reader (StratEnv, Int) (State TermEnv (Except () (Completion (->))))) a b)
+  deriving (Arrow, ArrowChoice, Category, PreOrd)
 
 runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> FreeCompletion (Error () (TermEnv, b))
-runInterp (Interp f) i alph senv tenv a = runCompletion (runExcept (runState (runReader f))) (tenv, ((senv, i, alph), a))
+runInterp (Interp f) i alph senv tenv a = runCompletion (runExcept (runState (runReader (runConst alph f)))) (tenv, ((senv, i), a))
 
 eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> FreeCompletion (Error () (TermEnv, Term))
 eval i s = runInterp (eval' s) i
@@ -87,7 +89,8 @@ createGrammar (Signature (_, sorts) _) = grammar startSymbol prods
     prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
 
 -- Instances -----------------------------------------------------------------------------------------
-deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
+deriving instance ArrowConst (Alphabet Constr) Interp
+deriving instance ArrowReader (StratEnv, Int) Interp
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowFail () Interp
 deriving instance (Complete (FreeCompletion y), PreOrd y) => ArrowExcept x y () Interp
@@ -122,14 +125,17 @@ instance Complete TermEnv where
           _                  -> go vs env1 env2 env3
         [] -> TermEnv env3
 
+instance ArrowApply Interp where
+  app = Interp $ (\(Interp f, b) -> (f,b)) ^>> app
+
 instance ArrowFix (Strat,Term) Term Interp where
   fix f = proc x -> do
-    (env,i,alph) <- ask -< ()
+    (env,i) <- ask -< ()
     if i <= 0
       then top' -< ()
-      else localFuel (f (fix f)) -< ((env,i-1,alph),x)
+      else localFuel (f (fix f)) -< ((env,i-1),x)
     where
-      localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> local g -< ((env,i,alph),a)
+      localFuel (Interp g) = Interp $ proc ((env,i),a) -> local g -< ((env,i),a)
 
 instance ArrowDeduplicate Term Term Interp where
   -- We normalize and determinize here to reduce duplicated production
@@ -137,11 +143,10 @@ instance ArrowDeduplicate Term Term Interp where
   dedup f = Term . determinize . normalize . fromTerm ^<< f
 
 instance HasStratEnv Interp where
-  readStratEnv = Interp (const () ^>> ask >>^ (\(a,_,_) -> a))
+  readStratEnv = Interp (const () ^>> ask >>^ fst)
   localStratEnv senv f = proc a -> do
-    (_,i,alph) <- ask -< ()
-    r <- local f -< ((senv,i,alph),a)
-    returnA -< r
+    fuel <- snd ^<< ask -< ()
+    local f -< ((senv,fuel),a)
 
 instance Complete (FreeCompletion Term) where
   Lower x ⊔ Lower y = Lower (x ⊔ y)
@@ -235,9 +240,6 @@ instance Soundness (StratEnv, Alphabet Constr) Interp where
 dom :: HashMap TermVar t -> [TermVar]
 dom = LM.keys
 
-thrd :: (a,b,c) -> c
-thrd (_,_,c) = c
-
 mapSnd :: (a -> b) -> [(c, a)] -> [(c, b)]
 mapSnd _ [] = []
 mapSnd f ((x,y):s) = (x,f y) : mapSnd f s
@@ -260,7 +262,7 @@ checkConstructorAndLength c ts = proc (c', gs) -> case c' of
   _ -> fail -< ()
 
 top' :: Interp () Term
-top' = proc () -> returnA ⊔ fail' <<< (Term . wildcard . thrd ^<< ask) -< ()
+top' = proc () -> returnA ⊔ fail' <<< (Term . wildcard ^<< askConst) -< ()
 
 matchLit :: Interp (Term, Constr) Term
 -- TODO: check if production to n has empty argument list? This should be the case by design.
