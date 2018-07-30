@@ -40,8 +40,7 @@ import qualified Data.Abstract.FiniteMap as M
 newtype Environment var addr val c x y =
   Environment ( Const (c (var,val,Map var addr val) addr) (Reader (Map var addr val) c) x y )
 
-runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c,
-                   ArrowFail String c)
+runEnvironment :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c)
                => c (var,val,Map var addr val) addr -> Environment var addr val c x y -> c ([(var,val)],x) y
 runEnvironment alloc f =
   let Environment f' = proc (bs,x) -> do
