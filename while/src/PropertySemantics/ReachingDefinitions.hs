@@ -44,13 +44,13 @@ run stmts =
   fst $
 
   -- Run the computation
-  runLeastFixPoint'
+  runLeastFix'
     (runInterp
        (runReachingDefs
         (Shared.run :: Fix [Statement] ()
                          (ReachingDefinitions
                            (Interp Addr (Val,Pow Label)
-                             (~>))) [Statement] ())))
+                             (LeastFix () () (->)))) [Statement] ())))
     (P.empty,(E.empty,stmts))
 
 deriving instance IsVal val c => IsVal val (ReachingDefinitions c)

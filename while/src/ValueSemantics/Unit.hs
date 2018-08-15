@@ -40,9 +40,9 @@ type Val = ()
 run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Store Addr Val))
 run env ss =
   fmap fst <$>
-    runLeastFixPoint
+    runLeastFix
       (runInterp
-        (Shared.run :: Fix [Statement] () (Interp Addr Val (~>)) [Statement] ()))
+        (Shared.run :: Fix [Statement] () (Interp Addr Val (LeastFix () () (->))) [Statement] ()))
       (S.empty,(E.fromList env,generate <$> ss))
 
 instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp addr val c) where

@@ -71,14 +71,15 @@ newtype Interp x y =
         (Environment Text Addr Val  -- threads the environment and store
           (Contour                  -- records the k-bounded call stack used for address allocation
             (Except String          -- allows to fail with an error message
-              (~>))))) x y)
+              (LeastFix () ()
+                (->)))))) x y)
 
 -- | Run an interpreter computation on inputs. The arguments are the
 -- maximum interval bound, the depth `k` of the longest call string,
 -- an environment, and the input of the computation.
 runInterp :: Interp x y -> IV -> Int -> [(Text,Val)] -> x -> Terminating (Error String y)
 runInterp (Interp f) b k env x = 
-  runLeastFixPoint
+  runLeastFix
     (runExcept
       (runContour k
         (runEnvironment

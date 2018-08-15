@@ -25,9 +25,10 @@ instance ArrowFix x y (->) where
 --
 -- For the abstract interpreter use 'Fix' with '~>' as last component of the arrow transformer stack:
 -- @
---   Fix Expr Val (State Store (~>)) x y = State Store (LeastFixPoint (Store,Expr) (Store,Val))
+--   Fix Expr Val (State Store (LeastFix () ())) x y = State Store (LeastFixPoint (Store,Expr) (Store,Val))
 -- @
 type family Fix x y (c :: * -> * -> *) :: * -> * -> *
+type instance Fix a b (->) = (->)
 
 -- | Generic lifting operation for the fixpoint operator 'fix'.
 -- Example usage: fix = liftFix State runState

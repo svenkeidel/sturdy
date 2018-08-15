@@ -51,10 +51,10 @@ run stmts =
       _ -> Nothing
     ) $
   fst $
-  runLeastFixPoint'
+  runLeastFix'
     (runInterp
        (runLiveVariables
-          (Shared.run :: Fix [Statement] () (LiveVariables Addr (Interp Addr Val (~>))) [Statement] ())))
+          (Shared.run :: Fix [Statement] () (LiveVariables Addr (Interp Addr Val (LeastFix () () (->)))) [Statement] ())))
       (PS.empty,(E.empty,stmts))
 
   where

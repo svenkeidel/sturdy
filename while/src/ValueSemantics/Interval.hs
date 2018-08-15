@@ -60,10 +60,10 @@ data Val = BoolVal Bool | NumVal (Bounded IV) | Top deriving (Eq,Generic)
 run :: (?bound :: IV) => [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Store Addr Val))
 run env ss =
   fmap fst <$>
-    runLeastFixPoint
+    runLeastFix
       (runConst ?bound
         (runInterp
-          (Shared.run :: Fix [Statement] () (Interp Addr Val (Const IV (~>))) [Statement] ())))
+          (Shared.run :: Fix [Statement] () (Interp Addr Val (Const IV (LeastFix () () (->)))) [Statement] ())))
       (S.empty,(E.fromList env, generate <$> ss))
 
 instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp Addr Val c) where

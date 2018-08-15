@@ -39,9 +39,9 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Cache x y = Fix x y (~>) x y
-type ErrorFix x y = Fix x y (Except () (~>)) x y
-type StateFix x y = Fix x y (State IV (~>)) x y
+type Cache x y = Fix x y (LeastFix () () (->)) x y
+type ErrorFix x y = Fix x y (Except () (LeastFix () () (->))) x y
+type StateFix x y = Fix x y (State IV (LeastFix () () (->))) x y
 type IV = Bounded (Interval (InfiniteNumber Int))
 
 spec :: Spec
@@ -59,8 +59,8 @@ spec = do
                               returnA -< x + y))
 
     in it "should memoize numbers that have been computed before already" $ do
-         runLeastFixPoint (fix fib :: Cache IV IV) (bounded (I.Interval 5 10)) `shouldBe` return (bounded (I.Interval 5 55))
-         runLeastFixPoint (fix fib :: Cache IV IV) (bounded (I.Interval 0 Infinity)) `shouldBe` return (bounded top)
+         runLeastFix (fix fib :: Cache IV IV) (bounded (I.Interval 5 10)) `shouldBe` return (bounded (I.Interval 5 55))
+         runLeastFix (fix fib :: Cache IV IV) (bounded (I.Interval 0 Infinity)) `shouldBe` return (bounded top)
 
   describe "the analysis of the factorial function" $
     let ?bound = top in
@@ -68,7 +68,7 @@ spec = do
           ifLowerThan 1 (proc _ -> returnA -< bounded (I.Interval 1 1))
                         (proc n -> do {x <- f -< (n-bounded (I.Interval 1 1)); returnA -< n * x}) -< n
     in it "fact [-inf,inf] should produce [1,inf]" $
-         runLeastFixPoint (fix fact :: Cache IV IV) (bounded top)
+         runLeastFix (fix fact :: Cache IV IV) (bounded top)
            `shouldBe` return (bounded (I.Interval 1 Infinity))
 
   describe "the even and odd functions" $
@@ -82,7 +82,7 @@ spec = do
                                 (ifLowerThan 1 (proc _ -> returnA -< true)
                                                (proc x -> f -< (Even,x-bounded (I.Interval 1 1)))) -< x
     in it "even([-inf,inf]) should produce top" $
-         runLeastFixPoint (fix evenOdd) (Even,bounded (I.Interval 0 Infinity)) `shouldBe` top
+         runLeastFix (fix evenOdd) (Even,bounded (I.Interval 0 Infinity)) `shouldBe` top
 
   describe "the ackermann function" $
     let ?bound = I.Interval (-50) 50 in
@@ -96,7 +96,7 @@ spec = do
                                          f -< (m'- bounded (I.Interval 1 1), x)) -<< n)
             -<< m
     in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runLeastFixPoint (fix ackermann) (bounded (I.Interval 0 Infinity), bounded (I.Interval 0 Infinity))
+         runLeastFix (fix ackermann) (bounded (I.Interval 0 Infinity), bounded (I.Interval 0 Infinity))
            `shouldBe` return (bounded top)
 
   describe "the analyis of a diverging program" $
@@ -105,7 +105,7 @@ spec = do
           0 -> f -< 0
           _ -> f -< (n-1)
     in it "should terminate with bottom" $
-         runLeastFixPoint (fix diverge) 5
+         runLeastFix (fix diverge) 5
            `shouldBe` bottom
 
   describe "the analysis of a failing program" $
@@ -114,7 +114,7 @@ spec = do
           0 -> fail -< ()
           _ -> f -< (n-1)
     in it "should fail, but update the fixpoint cache" $
-         runLeastFixPoint' (runExcept (fix recurseFail)) 5
+         runLeastFix' (runExcept (fix recurseFail)) 5
             `shouldBe` (S.fromList [(n,Terminating (Fail ())) | n <- [0..5]], return (Fail ()))
 
   describe "the analysis of a stateful program" $
@@ -129,7 +129,7 @@ spec = do
             s' <- get -< ()
             put -< s'+ bounded (I.Interval 1 1)
     in it "should cache the state of the program" $
-         runLeastFixPoint' (runState (fix timesTwo)) (bounded 0, bounded 5) `shouldBe`
+         runLeastFix' (runState (fix timesTwo)) (bounded 0, bounded 5) `shouldBe`
            (S.fromList [((bounded (fromIntegral n),bounded 5-bounded (fromIntegral n)),
                           return (bounded 10-bounded (fromIntegral n),())) | n <- [0..5::Int]],
             return (bounded 10,()))
