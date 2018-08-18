@@ -36,10 +36,11 @@ instance Monoid w => ArrowLift (Writer w) where
 
 instance (Monoid w, Arrow c) => Category (Writer w c) where
   id = Writer (arr mempty &&& id)
-  Writer g . Writer f = Writer $ proc x -> do
-    (w1,y) <- f -< x
-    (w2,z) <- g -< y
-    returnA -< (w1 <> w2,z)
+  Writer g . Writer f = Writer $ f >>> second g >>^ \(w1,(w2,z)) -> (w1 <> w2,z)
+  -- proc x -> do
+  --   (w1,y) <- f -< x
+  --   (w2,z) <- g -< y
+  --   returnA -< (w1 <> w2,z)
 
 instance (Monoid w, Arrow c) => Arrow (Writer w c) where
   arr f = Writer (arr mempty &&& arr f)

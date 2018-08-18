@@ -82,6 +82,7 @@ library
                        Control.Arrow.Transformer.Reader,
                        Control.Arrow.Transformer.State,
                        Control.Arrow.Transformer.Writer,
+                       Control.Arrow.Transformer.Cont,
                        Control.Arrow.Transformer.Const,
                        Control.Arrow.Transformer.Static,
 
@@ -90,6 +91,7 @@ library
                        Control.Arrow.Transformer.Concrete.FixPoint,
                        Control.Arrow.Transformer.Concrete.Store,
                        Control.Arrow.Transformer.Concrete.Random,
+                       Control.Arrow.Transformer.Concrete.Trace,
 
                        Control.Arrow.Transformer.Abstract.Completion,
                        Control.Arrow.Transformer.Abstract.Environment,

@@ -16,7 +16,13 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Writer
 
-newtype Cont r c x y = Cont {runCont :: c y r -> c x r}
+newtype Cont r c x y = Cont (c y r -> c x r)
+
+runCont :: Category c => Cont y c x y -> c x y
+runCont (Cont f) = f id
+
+runCont' :: Category c => Cont r c x y -> c y r -> c x r
+runCont' (Cont f) = f
 
 instance Category (Cont r c) where
   id = Cont id
@@ -35,8 +41,13 @@ instance (ArrowApply c, ArrowChoice c) => ArrowChoice (Cont r c) where
   Cont f ||| Cont g = Cont $ \k -> f k ||| g k
   Cont f +++ Cont g = Cont $ \k -> f (k . arr Left) ||| g (k . arr Right)
 
-instance ArrowApply c => ArrowFix x y (Cont r c) where
-  fix f = Cont $ fix (runCont . f . Cont)
+-- instance (ArrowApply c) => ArrowFix x y (Cont r c) where
+--   fix f = Cont $ \k -> fix (runCont' . f . Cont) k
+--   fix f = Cont $ \k -> (f . ... . f) k
+
+-- Instance that lifts the fixpoint operator through the continuation arrow.
+instance (ArrowApply c, ArrowFix x y c) => ArrowFix x y (Cont y c) where
+  fix f = Cont $ \k -> fix $ \h -> let Cont g = f (Cont (\j -> j . h)) in g k
 
 instance ArrowLift (Cont r) where
   lift f = Cont $ \k -> k . f
