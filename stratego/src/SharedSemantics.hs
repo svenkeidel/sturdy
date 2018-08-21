@@ -193,7 +193,7 @@ build = proc p -> case p of
 -- Interface of the shared interpreter
 
 -- | Arrow-based interface for matching and constructing terms.
-class IsTerm t c | c -> t where
+class Arrow c => IsTerm t c | c -> t where
   -- | Match a term against a constructor and a list of subterms.
   matchTermAgainstConstructor :: c ([t'],[t]) [t] -> c (Constructor, [t'], t) t 
 
