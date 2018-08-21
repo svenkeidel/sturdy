@@ -3,7 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TupleSections #-}
-module Data.Abstract.PreciseStore (Store,singleton,empty,lookup,insert,insertWith,adjust,toList,fromList,mapMaybe,map,compose,widening) where
+module Data.Abstract.PreciseStore (Store,singleton,empty,lookup,insert,insertWith,delete,union,adjust,toList,fromList,mapMaybe,map,compose,widening) where
 
 import           Prelude hiding (lookup,map,Either(..),(**))
 
@@ -76,6 +76,15 @@ insertWith f a b (Store m) = Store (H.insertWith (\(_,new) (here,old) -> case he
     Must -> (Must,f new old)
     May -> (Must,new ⊔ f new old)
   ) a (Must,b) m)
+
+delete :: Identifiable a => a -> Store a b -> Store a b
+delete a (Store m) = Store (H.delete a m)
+
+union :: (Identifiable a, Complete b) => Store a b -> Store a b -> Store a b
+union (Store m1) (Store m2) = Store (H.unionWith (\(here,l) (_,r) -> case here of
+    Must -> (Must,l)
+    May -> (May,l ⊔ r)
+  ) m1 m2)
 
 adjust :: Identifiable a => (b -> b) -> a -> Store a b -> Store a b
 adjust f a (Store m) = Store (H.adjust (second f) a m)
