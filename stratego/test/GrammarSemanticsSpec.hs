@@ -13,6 +13,7 @@ import           Control.Arrow
 import           Data.ATerm
 import           Data.Abstract.FreeCompletion
 import           Data.Abstract.HandleError
+import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Concrete.Powerset as C
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as LM
@@ -244,14 +245,14 @@ spec = do
       geval 1 (Scope ["x"] (Build "x")) tenv (numberGrammar 42) `shouldBe`
         Lower (SuccessOrFail () (tenv, Term (wildcard (alphabet n))))
       geval 2 (Scope ["x"] (Match "x")) tenv (numberGrammar 42) `shouldBe`
-        Lower (SuccessOrFail () (tenv, numberGrammar 42))
+        Lower (Success (tenv, numberGrammar 42))
 
     it "should make non-declared variables available" $ do
       let tenv = termEnv [("x", numberGrammar 42)]
       geval 2 (Scope ["y"] (Build "x")) tenv (numberGrammar 42) `shouldBe`
         Lower (Success (tenv, numberGrammar 42))
       geval 2 (Scope ["y"] (Match "z")) tenv (numberGrammar 42) `shouldBe`
-        Lower (SuccessOrFail () (termEnv [("x", numberGrammar 42), ("z", numberGrammar 42)], numberGrammar 42))
+        Lower (Success (termEnv [("x", numberGrammar 42), ("z", numberGrammar 42)], numberGrammar 42))
 
   describe "Let" $ do
     it "should apply a single function call" $ do
@@ -271,7 +272,7 @@ spec = do
                      (fromTerm (convertToList []))
           tenv = termEnv []; tenv' = termEnv [("x",t)]
       geval 13 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) tenv t
-        `shouldBe` Lower (SuccessOrFail () (tenv', Term t'))
+        `shouldBe` Lower (Success (tenv', Term t'))
 
   describe "Call" $ do
     it "should apply a single function call" $ do
@@ -304,7 +305,7 @@ spec = do
       -- initially empty environment. The guarded choice, then, has to take the least
       -- upper bound, which results in the extra Nil constructor.
       geval' 13 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
-        `shouldBe` Lower (SuccessOrFail () (tenv', Term t'))
+        `shouldBe` Lower (Success (tenv', Term t'))
 
     it "should support recursion on a list of numbers" $ do
       let senv = LM.fromList [("map", Closure map' LM.empty)]
@@ -313,7 +314,7 @@ spec = do
                      (fromTerm (convertToList []))
           tenv = termEnv []; tenv' = termEnv [("x",t)]
       geval' 12 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
-        `shouldBe` Lower (SuccessOrFail () (tenv', Term t'))
+        `shouldBe` Lower (Success (tenv', Term t'))
 
     prop "should be sound" $ do
       i <- choose (0,10)
@@ -339,7 +340,7 @@ spec = do
       f = eval' s :: C.Interp C.Term C.Term
       g = eval' s :: Interp Term Term
 
-    termEnv = TermEnv . LM.fromList
+    termEnv = S.fromList
     termEnv' = C.TermEnv . LM.fromList
 
     showLub :: C.Term -> C.Term -> String

@@ -10,7 +10,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module GrammarSemantics where
 
-import           Prelude hiding (id,fail)
+import           Prelude hiding (id,fail,Just,Nothing)
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics hiding (all,sequence)
@@ -36,11 +36,13 @@ import           Control.Category hiding ((.))
 
 import           Data.Abstract.FreeCompletion
 import           Data.Abstract.HandleError
+import           Data.Abstract.Maybe
+import           Data.Abstract.PreciseStore (Store)
+import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Concrete.Powerset as C
 import           Data.Constructor
 import           Data.Foldable (foldr')
 import           Data.GaloisConnection
-import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as LM
 import           Data.Hashable
 import qualified Data.Map as M
@@ -56,7 +58,7 @@ import           Text.Printf
 data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
 newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
 
-newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
+type TermEnv = Store TermVar Term
 newtype Interp a b = Interp (Const (Alphabet Constr) (Reader (StratEnv, Int) (State TermEnv (Except () (Completion (->))))) a b)
   deriving (Arrow, ArrowChoice, Category, PreOrd)
 
@@ -111,19 +113,6 @@ instance PreOrd (GrammarBuilder Constr) where
 
 instance Complete (GrammarBuilder Constr) where
   (⊔) = union
-
-instance PreOrd TermEnv where
-  TermEnv env1 ⊑ TermEnv env2 =
-    all (\v -> fromMaybe (LM.lookup v env1) ⊑ fromMaybe (LM.lookup v env2)) (dom env2)
-
-instance Complete TermEnv where
-  TermEnv env1' ⊔ TermEnv env2' = go (dom env1') env1' env2' LM.empty
-    where
-      go vars env1 env2 env3 = case vars of
-        (v:vs) -> case (LM.lookup v env1, LM.lookup v env2) of
-          (Just t1, Just t2) -> go vs env1 env2 (LM.insert v (t1 ⊔ t2) env3)
-          _                  -> go vs env1 env2 env3
-        [] -> TermEnv env3
 
 instance ArrowApply Interp where
   app = Interp $ (\(Interp f, b) -> (f,b)) ^>> app
@@ -198,19 +187,14 @@ instance TermUtils Term where
 instance IsTermEnv TermEnv Term Interp where
   getTermEnv = get
   putTermEnv = put
-  lookupTermVar f g = proc (v,TermEnv env) ->
-    case LM.lookup v env of
+  lookupTermVar f g = proc (v,env) ->
+    case S.lookup v env of
       Just t -> f -< t
-      Nothing ->
-        (proc () -> do
-            t <- top' -< ()
-            putTermEnv -< TermEnv (LM.insert v t env)
-            f -< t)
-        ⊔ g
-        -<< ()
-  insertTerm = arr $ \(v,t,TermEnv env) -> TermEnv (LM.insert v t env)
-  deleteTermVars = arr $ \(vars,TermEnv env) -> TermEnv (foldr' LM.delete env vars)
-  unionTermEnvs = arr (\(vars,TermEnv e1,TermEnv e2) -> TermEnv (LM.union e1 (foldr' LM.delete e2 vars)))
+      JustNothing t -> joined f g -< (t,())
+      Nothing -> g -< ()
+  insertTerm = arr $ \(v,t,env) -> S.insert v t env
+  deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
+  unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
 
 instance Galois (C.Pow C.Term) (GrammarBuilder Constr) where
   alpha = lub . fmap go
@@ -225,7 +209,7 @@ instance Galois (C.Pow C.Term) Term where
   gamma = error "Uncomputable"
 
 instance Galois (C.Pow C.TermEnv) TermEnv where
-  alpha = lub . fmap (\(C.TermEnv e) -> TermEnv (fmap alphaSing e))
+  alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (LM.toList (fmap alphaSing e)))
   gamma = undefined
 
 instance Soundness (StratEnv, Alphabet Constr) Interp where
@@ -237,9 +221,6 @@ instance Soundness (StratEnv, Alphabet Constr) Interp where
     in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 -- Helpers -------------------------------------------------------------------------------------------
-dom :: HashMap TermVar t -> [TermVar]
-dom = LM.keys
-
 mapSnd :: (a -> b) -> [(c, a)] -> [(c, b)]
 mapSnd _ [] = []
 mapSnd f ((x,y):s) = (x,f y) : mapSnd f s
