@@ -268,6 +268,10 @@ deleteTermVars' = proc vs -> do
   env <- getTermEnv -< ()
   putTermEnv <<< deleteTermVars -< (vs,env)
 
+class Arrow c => HasStratEnv c where
+  readStratEnv :: c a StratEnv
+  localStratEnv :: StratEnv -> c a b -> c a b
+
 -- | Fixpoint combinator used by Stratego.
 fixA' :: (ArrowFix (z,x) y c, ArrowApply c) => ((z -> c x y) -> (z -> c x y)) -> (z -> c x y)
 fixA' f = curry (fix (uncurry . f . curry))
