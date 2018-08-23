@@ -49,6 +49,7 @@ library
                        Data.Abstract.PropagateError,
                        Data.Abstract.HandleError,
                        Data.Abstract.InfiniteNumbers,
+                       Data.Abstract.FiniteMap,
                        Data.Abstract.FreeCompletion,
                        Data.Abstract.FreeCoCompletion,
                        Data.Abstract.Interval,

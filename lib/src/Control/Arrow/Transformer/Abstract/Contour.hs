@@ -47,9 +47,9 @@ instance (ArrowFix x y c, ArrowApply c, HasLabel x) => ArrowFix x y (Contour c) 
         y <- f' -< (c,x)
         returnA -< y
 
-instance Arrow c => ArrowAlloc (var,val,env,store) (var,CallString) (Contour c) where
+instance Arrow c => ArrowAlloc (var,val,env) (var,CallString) (Contour c) where
   -- | Return the variable together with the current call string as address.
-  alloc = Contour $ Reader $ proc (l,(x,_,_,_)) -> returnA -< (x,l)
+  alloc = Contour $ Reader $ proc (l,(x,_,_)) -> returnA -< (x,l)
 
 instance ArrowApply c => ArrowApply (Contour c) where
   app = Contour $ (\(Contour f,x) -> (f,x)) ^>> app

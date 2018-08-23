@@ -22,7 +22,6 @@ instance (Show a,Show b) => Show (Env a b) where
 
 instance (Identifiable a, PreOrd b) => PreOrd (Env a b) where
   Env m1 ⊑ Env m2 = H.keys m1 == H.keys m2 && all (\(k,v1) -> v1 ⊑ (m2 H.! k)) (H.toList m1)
-  Env m1 ≈ Env m2 = H.keys m1 == H.keys m2 && all (\(k,v_o) -> v_o ⊑ (m2 H.! k)) (H.toList m1)
 
 empty :: Env a b
 empty = Env H.empty

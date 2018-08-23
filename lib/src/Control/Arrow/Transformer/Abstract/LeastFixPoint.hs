@@ -1,5 +1,4 @@
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -11,8 +10,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE CPP #-}
--- {-# OPTIONS_GHC -DTRACE #-}
 module Control.Arrow.Transformer.Abstract.LeastFixPoint(LeastFix,runLeastFix,runLeastFix',liftLeastFix) where
 
 import           Prelude hiding (id,(.),lookup)
@@ -33,18 +30,13 @@ import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
 import           Data.Abstract.Widening
 
-#ifdef TRACE
-import           Debug.Trace
-import           Text.Printf
-#endif
-
 type instance Fix a b (LeastFix () () c) = LeastFix a b (Fix a b c)
 
 -- | Computes the least fixpoint of an arrow computation. The
 -- assumption is that the inputs of the computation are finite and the
 -- computation is monotone. The inputs of the computation are
 -- determined by /all/ layers of the arrow transformer stack, e.g.,
--- a computation of type 'Fix Expr Val (Reader Env (State Store (~>)))'
+-- a computation of type 'Fix Expr Val (Reader Env (State Store (LeastFix () ())))'
 -- has the inputs 'Expr', 'Env' and 'State'.
 --
 -- The main idea of the fixpoint algorithm is to cache calls to the
@@ -58,6 +50,7 @@ type instance Fix a b (LeastFix () () c) = LeastFix a b (Fix a b c)
 -- We made some changes to the algorithm to simplify it and adjust it to our use case.
 type family Underlying (c :: * -> * -> *) x y :: *
 type instance Underlying (LeastFix a b c) x y = c ((Store a (Terminating b), Store a (Terminating b)),x) (Store a (Terminating b), Terminating y)
+
 newtype LeastFix a b c x y =
   LeastFix (c ((Store a (Terminating b), Store a (Terminating b)),x) (Store a (Terminating b), Terminating y))
 
@@ -70,8 +63,6 @@ runLeastFix' (LeastFix f) = (\x -> ((S.empty,S.empty),x)) ^>> f
 liftLeastFix :: Arrow c => c x y -> LeastFix a b c x y
 liftLeastFix f = LeastFix ((\((_,o),x) -> (o,x)) ^>> second (f >>^ Terminating))
 
-
-#ifndef TRACE
 
 instance (Identifiable x, Widening y, ArrowChoice c) => ArrowFix x y (LeastFix x y c) where
   fix f = proc x -> do
@@ -111,32 +102,6 @@ memoize (LeastFix f) = LeastFix $ proc ((inCache, outCache),x) -> do
           outCache' = S.insert x yOld outCache
       (outCache'',y) <- f -< ((inCache, outCache'),x)
       returnA -< (S.insertWith (flip (▽)) x y outCache'',y)
-
-#else
-
-instance (Show x, Show y, Identifiable x, Widening y)
-  => ArrowFix x y (LeastFix x y) where
-  fixA f = trace (printf "fixA f") $ proc x -> do
-    old <- getOutCache -< ()
-    setOutCache -< bottom
-    y <- localInCache (F.fix (memoize . f)) -< (old,x)
-    new <- getOutCache -< ()
-    if new ⊑ old -- We are in the reductive set of `f` and have overshot the fixpoint
-    then returnA -< y
-    else fix f -< x
-
-memoize :: (Show x, Show y, Identifiable x, Widening y)
-        => LeastFix x y c x y -> LeastFix x y c x y
-memoize (LeastFix f) = LeastFix $ \((inCache, outCache),x) -> do
-  case trace (printf "\tmemoize -< %s" (show x)) (S.lookup x outCache) of
-    Just y -> trace (printf "\t%s <- memoize -< %s" (show y) (show x)) (outCache,y)
-    Nothing ->
-      let yOld = fromMaybe bottom (S.lookup x inCache)
-          outCache' = S.insert x yOld outCache
-          (outCache'',y) = f ((inCache, outCache'),x)
-          outCache''' = S.insertWith (flip (▽)) x y outCache''
-      in trace (printf "\t%s <- eval -< %s" (show y) (show x)) (outCache''',y)
-#endif
 
 getOutCache :: Arrow c => LeastFix x y c () (Store x (Terminating y))
 getOutCache = LeastFix $ arr $ \((_,o),()) -> (o,return o)

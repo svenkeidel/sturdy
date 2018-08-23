@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-module Data.Abstract.Store(Store,singleton,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map,mapValues,compose) where
+module Data.Abstract.Store(Store(..),singleton,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map,mapValues,compose) where
 
 import           Prelude hiding (lookup,map)
 
