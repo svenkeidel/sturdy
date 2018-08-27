@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Arrows #-}
@@ -75,6 +76,7 @@ instance (ArrowChoice c, ArrowExcept x (FreeCompletion y) e c) => ArrowExcept x 
 instance ArrowChoice c => ArrowDeduplicate x y (Completion c) where
   dedup = returnA
 
+type instance Fix x y (Completion c) = Completion (Fix x (FreeCompletion y) c)
 instance (ArrowChoice c, ArrowFix x (FreeCompletion y) c) => ArrowFix x y (Completion c) where
   fix f = Completion (fix (runCompletion . f . Completion))
 
