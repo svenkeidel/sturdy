@@ -99,6 +99,7 @@ library
                        Control.Arrow.Transformer.Abstract.BoundedEnvironment,
                        Control.Arrow.Transformer.Abstract.PropagateExcept,
                        Control.Arrow.Transformer.Abstract.HandleExcept,
+                       Control.Arrow.Transformer.Abstract.GreatestFixPoint,
                        Control.Arrow.Transformer.Abstract.Fixpoint,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
