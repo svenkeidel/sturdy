@@ -36,7 +36,7 @@ instance (Show a,Show b) => Show (Store a b) where
     | otherwise = "[" ++ init (unwords [ printf "%s%s -> %s," (show k) (show t) (show v) | (k,(t,v)) <- H.toList h]) ++ "]"
 
 instance (Identifiable a, PreOrd b) => PreOrd (Store a b) where
-  Store m1 ⊑ m2 = all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2) (toList m1)
+  Store m1 ⊑ m2 = all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2) (H.toList m1)
 
 instance (Identifiable a, Complete b) => Complete (Store a b) where
   Store m1 ⊔ Store m2 = Store $ H.map join $ H.unionWith (⊔) (H.map Left m1) (H.map Right m2)
