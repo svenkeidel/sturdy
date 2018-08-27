@@ -54,6 +54,7 @@ instance Complete Bool where
 instance UpperBounded Bool where
   top = Top
 
-instance Widening Bool where
-
 instance Hashable Bool
+
+widening :: Widening Bool
+widening = finite

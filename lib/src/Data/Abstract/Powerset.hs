@@ -19,7 +19,6 @@ import qualified Data.HashSet as H
 import           Data.Foldable (foldl',toList)
 import           Data.List (intercalate)
 import           Data.Order
-import           Data.Abstract.Widening
 
 import           GHC.Generics (Generic)
 
@@ -33,8 +32,6 @@ instance (Eq a, Hashable a) => Eq (Pow a) where
 
 instance PreOrd a => Complete (Pow a) where
   as ⊔ bs = as `union` bs
-
-instance PreOrd a => Widening (Pow a)
 
 instance PreOrd a => LowerBounded (Pow a) where
   bottom = empty

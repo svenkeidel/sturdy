@@ -44,10 +44,10 @@ instance Complete a => Complete (Error e a) where
 instance UpperBounded a => UpperBounded (Error e a) where
   top = Success top
 
-instance Widening a => Widening (Error e a) where
-  Fail _ ▽ b = b
-  a ▽ Fail _ = a
-  Success x ▽ Success y = Success (x ▽ y)
+widening :: Widening a -> Widening (Error e a)
+widening _ (Fail _) b = b
+widening _ a (Fail _) = a
+widening w (Success x) (Success y) = Success (x `w` y)
 
 instance MonadError e (Error e) where
   throwError = Fail

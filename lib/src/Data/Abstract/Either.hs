@@ -44,17 +44,17 @@ instance (Complete a, Complete b) => Complete (Either a b) where
     (Left a, LeftRight a' b') -> LeftRight (a ⊔ a') b'
     (LeftRight a b, LeftRight a' b') -> LeftRight (a ⊔ a') (b ⊔ b')
 
-instance (Widening a, Widening b) => Widening (Either a b) where
-  m1 ▽ m2 = case (m1,m2) of
-    (Right b, Right b') -> Right (b ▽ b')
+widening :: Widening a -> Widening b -> Widening (Either a b)
+widening wa wb m1 m2 = case (m1,m2) of
+    (Right b, Right b') -> Right (b `wb` b')
     (Right b, Left a') -> LeftRight a' b
     (Left a, Right b') -> LeftRight a b'
-    (Left a, Left a') -> Left (a ▽ a')
-    (LeftRight a b, Right b') -> LeftRight a (b ▽ b')
-    (Right b, LeftRight a' b') -> LeftRight a' (b ▽ b')
-    (LeftRight a b, Left a') -> LeftRight (a ▽ a') b
-    (Left a, LeftRight a' b') -> LeftRight (a ▽ a') b'
-    (LeftRight a b, LeftRight a' b') -> LeftRight (a ▽ a') (b ▽ b')
+    (Left a, Left a') -> Left (a `wa` a')
+    (LeftRight a b, Right b') -> LeftRight a (b `wb` b')
+    (Right b, LeftRight a' b') -> LeftRight a' (b `wb` b')
+    (LeftRight a b, Left a') -> LeftRight (a `wa` a') b
+    (Left a, LeftRight a' b') -> LeftRight (a `wa` a') b'
+    (LeftRight a b, LeftRight a' b') -> LeftRight (a `wa` a') (b `wb` b')
 
 instance Bifunctor Either where
   bimap f g x = case x of
