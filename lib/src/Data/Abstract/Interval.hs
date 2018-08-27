@@ -13,6 +13,8 @@ import Data.Abstract.Boolean
 import Data.Abstract.Equality
 import Data.Abstract.Ordering
 import Data.Abstract.PropagateError
+import Data.Abstract.InfiniteNumbers
+import Data.Abstract.Widening
 
 import GHC.Generics
 
@@ -74,3 +76,8 @@ withBounds2 f (Interval i1 i2) (Interval j1 j2) =
 
 instance (Ord n, Bounded n) => UpperBounded (Interval n) where
   top = Interval minBound maxBound
+
+widening :: Ord n => Widening (Interval (InfiniteNumber n))
+widening (Interval i1 i2) (Interval j1 j2) =
+  Interval (if j1 P.< i1 then NegInfinity else j1)
+           (if j2 P.> i2 then Infinity else i2)

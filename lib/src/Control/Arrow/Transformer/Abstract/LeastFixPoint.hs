@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Abstract.LeastFixPoint(LeastFix,runLeastFix,runLeastFix',liftLeastFix) where
+module Control.Arrow.Transformer.Abstract.LeastFixPoint(LeastFix,runLeastFix,runLeastFix',runLeastFix'',liftLeastFix) where
 
 import           Prelude hiding (id,(.),lookup)
 import qualified Data.Function as F
@@ -19,8 +19,10 @@ import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Abstract.Join
 import           Control.Category
+import           Control.Monad.State hiding (fix)
 
-import           Data.Abstract.Terminating
+import           Data.Abstract.Terminating hiding (widening)
+import qualified Data.Abstract.Terminating as T
 import           Data.Order hiding (lub)
 import           Data.Identifiable
 import           Data.Monoidal
@@ -28,43 +30,53 @@ import           Data.Maybe
 
 import           Data.Abstract.Store (Store)
 import qualified Data.Abstract.Store as S
-import           Data.Abstract.Widening
+import           Data.Abstract.Widening (Widening)
+import qualified Data.Abstract.Widening as W
+import           Data.Abstract.StackWidening (StackWidening)
+import qualified Data.Abstract.StackWidening as SW
 
-type instance Fix a b (LeastFix () () c) = LeastFix a b (Fix a b c)
+type instance Fix a b (LeastFix stack () () c) = LeastFix stack a b (Fix a b c)
 
--- | Computes the least fixpoint of an arrow computation. The
--- assumption is that the inputs of the computation are finite and the
--- computation is monotone. The inputs of the computation are
--- determined by /all/ layers of the arrow transformer stack, e.g.,
--- a computation of type 'Fix Expr Val (Reader Env (State Store (LeastFix () ())))'
--- has the inputs 'Expr', 'Env' and 'State'.
+-- | Fixpoint algorithm that computes the least fixpoint of an arrow computation.
+-- This fixpoint caching algorithm is due to /Abstract Definitional
+-- Interpreters, David Darais et. al., ICFP' 17/.  We made some
+-- changes to the algorithm to simplify it and adjust it to our use
+-- case.  The main idea of the fixpoint algorithm is to cache calls to
+-- the interpreter function. Whenever, the interpreter function is
+-- called on the same argument for the second time, the cached result
+-- is returned instead of continue recursing. Widening of the domain
+-- and codomain and monotonicity of the interpreter function ensure
+-- the the termination of this algorithm.
 --
--- The main idea of the fixpoint algorithm is to cache calls to the
--- interpreter function. Whenever, the interpreter function is called
--- on the same argument for the second time, the cached result is
--- returned instead of continue recursing. A finite domain and
--- monotonicity of the interpreter function ensure the the termination
--- of this algorithm.
--- 
--- This fixpoint caching algorithm is due to- /Abstract Definitional Interpreters, David Darais et. al., ICFP' 17/.
--- We made some changes to the algorithm to simplify it and adjust it to our use case.
-type family Underlying (c :: * -> * -> *) x y :: *
-type instance Underlying (LeastFix a b c) x y = c ((Store a (Terminating b), Store a (Terminating b)),x) (Store a (Terminating b), Terminating y)
+-- Because of the caching of calls interpreter calls, 'LeastFix stack a b'
+-- needs to know precisely the type of the domain and codomain of the
+-- interpreter, which is captured in the type parameters 'a' and 'b'.
+-- What 'a' and 'b' have to be is determined by /all/ layers of the
+-- arrow transformer stack. For instance, in the arrow-transformer
+-- stack 'Reader Env (State Store (LeastFix stack a b))' the input
+-- type 'a' contains 'Env' and 'Store' and the output type only
+-- contains 'Store'.  These types can be computed automatically with
+-- the type family 'Fix'. For example, the type expression
+-- 'Fix Expr Val (Reader Env (State Store (LeastFix Stack () ())))'
+-- evaluates to
+-- 'Reader Env (State Store (LeastFix Stack (Store,(Env,Expr)) (Store)))'
 
-newtype LeastFix a b c x y =
-  LeastFix (c ((Store a (Terminating b), Store a (Terminating b)),x) (Store a (Terminating b), Terminating y))
+type Underlying s a b c x y = (StackWidening s a, Widening b) -> c (((s a,Store a (Terminating b)), Store a (Terminating b)),x) (Store a (Terminating b), Terminating y)
+newtype LeastFix s a b c x y = LeastFix (Underlying s a b c x y)
 
-runLeastFix :: Arrow c => LeastFix a b c x y -> c x (Terminating y)
-runLeastFix f = runLeastFix' f >>^ snd
+runLeastFix :: (Arrow c, Complete b) => LeastFix SW.Unit a b c x y -> c x (Terminating y)
+runLeastFix f = runLeastFix' SW.finite W.finite f
 
-runLeastFix' :: Arrow c => LeastFix a b c x y -> (c x (Store a (Terminating b), Terminating y))
-runLeastFix' (LeastFix f) = (\x -> ((S.empty,S.empty),x)) ^>> f
+runLeastFix' :: (Monoid (s a),Arrow c) => StackWidening s a -> Widening b -> LeastFix s a b c x y -> c x (Terminating y)
+runLeastFix' sw w f = runLeastFix'' sw mempty w f >>^ snd
 
-liftLeastFix :: Arrow c => c x y -> LeastFix a b c x y
-liftLeastFix f = LeastFix ((\((_,o),x) -> (o,x)) ^>> second (f >>^ Terminating))
+runLeastFix'' :: Arrow c => StackWidening s a -> s a -> Widening b -> LeastFix s a b c x y -> c x (Store a (Terminating b), Terminating y)
+runLeastFix'' sw s0 w (LeastFix f) = (\x -> (((s0,S.empty),S.empty),x)) ^>> f (sw,w)
 
+liftLeastFix :: Arrow c => c x y -> LeastFix s a b c x y
+liftLeastFix f = LeastFix $ \_ -> ((\((_,o),x) -> (o,x)) ^>> second (f >>^ Terminating))
 
-instance (Identifiable x, Widening y, ArrowChoice c) => ArrowFix x y (LeastFix x y c) where
+instance (Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (LeastFix s x y c) where
   fix f = proc x -> do
     old <- getOutCache -< ()
     -- reset the current fixpoint cache
@@ -87,8 +99,8 @@ instance (Identifiable x, Widening y, ArrowChoice c) => ArrowFix x y (LeastFix x
 -- | Memoizes the results of the interpreter function. In case a value
 -- has been computed before, the cached value is returned and will not
 -- be recomputed.
-memoize :: (Identifiable x, Widening y, ArrowChoice c) => LeastFix x y c x y -> LeastFix x y c x y
-memoize (LeastFix f) = LeastFix $ proc ((inCache, outCache),x) -> do
+memoize :: (Identifiable x, PreOrd y, ArrowChoice c) => LeastFix s x y c x y -> LeastFix s x y c x y
+memoize (LeastFix f) = LeastFix $ \(stackWidening,widening) -> proc (((stack,inCache), outCache),x) -> do
   case S.lookup x outCache of
     -- In case the input was in the fixpoint cache, short-cut
     -- recursion and return the cached value.
@@ -100,55 +112,56 @@ memoize (LeastFix f) = LeastFix $ proc ((inCache, outCache),x) -> do
     Nothing -> do
       let yOld = fromMaybe bottom (S.lookup x inCache)
           outCache' = S.insert x yOld outCache
-      (outCache'',y) <- f -< ((inCache, outCache'),x)
-      returnA -< (S.insertWith (flip (▽)) x y outCache'',y)
+          (x',stack') = runState (stackWidening x) stack 
+      (outCache'',y) <- f (stackWidening,widening) -< (((stack',inCache), outCache'),x')
+      returnA -< (S.insertWith (flip (T.widening widening)) x y outCache'',y)
 
-getOutCache :: Arrow c => LeastFix x y c () (Store x (Terminating y))
-getOutCache = LeastFix $ arr $ \((_,o),()) -> (o,return o)
+getOutCache :: Arrow c => LeastFix s x y c () (Store x (Terminating y))
+getOutCache = LeastFix $ \_ -> arr $ \((_,o),()) -> (o,return o)
 
-setOutCache :: Arrow c => LeastFix x y c (Store x (Terminating y)) ()
-setOutCache = LeastFix $ arr $ \((_,_),o) -> (o,return ())
+setOutCache :: Arrow c => LeastFix s x y c (Store x (Terminating y)) ()
+setOutCache = LeastFix $ \_ -> arr $ \((_,_),o) -> (o,return ())
 
-localInCache :: Arrow c => LeastFix x y c x y -> LeastFix x y c (Store x (Terminating y),x) y
-localInCache (LeastFix f) = LeastFix $ proc ((_,o),(i,x)) -> f -< ((i,o),x)
+localInCache :: Arrow c => LeastFix s x y c x y -> LeastFix s x y c (Store x (Terminating y),x) y
+localInCache (LeastFix f) = LeastFix $ \w -> proc (((s,_),o),(i,x)) -> f w -< (((s,i),o),x)
 
-instance ArrowChoice c => Category (LeastFix i o c) where
+instance ArrowChoice c => Category (LeastFix s i o c) where
   id = liftLeastFix id
-  LeastFix f . LeastFix g = LeastFix $ proc ((i,o),x) -> do
-    (o',y) <- g -< ((i,o),x)
+  LeastFix f . LeastFix g = LeastFix $ \w -> proc ((i,o),x) -> do
+    (o',y) <- g w -< ((i,o),x)
     case y of
       NonTerminating -> returnA -< (o',NonTerminating)
-      Terminating y' -> f -< ((i,o'),y')
+      Terminating y' -> f w -< ((i,o'),y')
 
-instance ArrowChoice c => Arrow (LeastFix i o c) where
+instance ArrowChoice c => Arrow (LeastFix s i o c) where
   arr f = liftLeastFix (arr f)
-  first (LeastFix f) = LeastFix $ to assoc ^>> first f >>^ (\((o,x'),y) -> (o,strength1 (x',y)))
+  first (LeastFix f) = LeastFix $ \w -> to assoc ^>> first (f w) >>^ (\((o,x'),y) -> (o,strength1 (x',y)))
 
-instance ArrowChoice c => ArrowChoice (LeastFix i o c) where
-  left (LeastFix f) = LeastFix $ proc ((i,o),e) -> case e of
-    Left x -> second (arr (fmap Left)) . f -< ((i,o),x)
+instance ArrowChoice c => ArrowChoice (LeastFix s i o c) where
+  left (LeastFix f) = LeastFix $ \w -> proc ((i,o),e) -> case e of
+    Left x -> second (arr (fmap Left)) . f w -< ((i,o),x)
     Right y -> returnA -< (o,return (Right y))
-  right (LeastFix f) = LeastFix $ proc ((i,o),e) -> case e of
+  right (LeastFix f) = LeastFix $ \w -> proc ((i,o),e) -> case e of
     Left x -> returnA -< (o,return (Left x))
-    Right y -> second (arr (fmap Right)) . f -< ((i,o),y)
-  LeastFix f ||| LeastFix g = LeastFix $ proc ((i,o),e) -> case e of
-    Left x -> f -< ((i,o),x)
-    Right y -> g -< ((i,o),y)
+    Right y -> second (arr (fmap Right)) . f w -< ((i,o),y)
+  LeastFix f ||| LeastFix g = LeastFix $ \w -> proc ((i,o),e) -> case e of
+    Left x -> f w -< ((i,o),x)
+    Right y -> g w -< ((i,o),y)
 
-instance (ArrowChoice c, ArrowApply c) => ArrowApply (LeastFix i o c) where
-  app = LeastFix $ (\(io,(LeastFix f,x)) -> (f,(io,x))) ^>> app
+instance (ArrowChoice c, ArrowApply c) => ArrowApply (LeastFix s i o c) where
+  app = LeastFix $ \w -> (\(io,(LeastFix f,x)) -> (f w,(io,x))) ^>> app
 
-instance (Identifiable i, Complete o, ArrowJoin c, ArrowChoice c) => ArrowJoin (LeastFix i o c) where
-  joinWith lub (LeastFix f) (LeastFix g) = LeastFix $ proc ((i,o),(x,y)) -> do
+instance (Identifiable i, Complete o, ArrowJoin c, ArrowChoice c) => ArrowJoin (LeastFix s i o c) where
+  joinWith lub (LeastFix f) (LeastFix g) = LeastFix $ \w -> proc ((i,o),(x,y)) -> do
     joinWith (\(o1,t1) (o2,t2) -> (o1 ⊔ o2, case (t1,t2) of
       (Terminating y',Terminating v') -> Terminating (lub y' v')
       (Terminating y',NonTerminating) -> Terminating y'
       (NonTerminating,Terminating v') -> Terminating v'
       (NonTerminating,NonTerminating) -> NonTerminating))
-      f g -< (((i,o),x),((i,o),y))
+      (f w) (g w) -< (((i,o),x),((i,o),y))
 
-deriving instance (PreOrd (Underlying (LeastFix a b c) x y)) => PreOrd (LeastFix a b c x y)
-deriving instance (Complete (Underlying (LeastFix a b c) x y)) => Complete (LeastFix a b c x y)
-deriving instance (CoComplete (Underlying (LeastFix a b c) x y)) => CoComplete (LeastFix a b c x y)
-deriving instance (LowerBounded (Underlying (LeastFix a b c) x y)) => LowerBounded (LeastFix a b c x y)
-deriving instance (UpperBounded (Underlying (LeastFix a b c) x y)) => UpperBounded (LeastFix a b c x y)
+deriving instance (PreOrd (Underlying s a b c x y)) => PreOrd (LeastFix s a b c x y)
+deriving instance (Complete (Underlying s a b c x y)) => Complete (LeastFix s a b c x y)
+deriving instance (CoComplete (Underlying s a b c x y)) => CoComplete (LeastFix s a b c x y)
+deriving instance (LowerBounded (Underlying s a b c x y)) => LowerBounded (LeastFix s a b c x y)
+deriving instance (UpperBounded (Underlying s a b c x y)) => UpperBounded (LeastFix s a b c x y)

@@ -53,8 +53,6 @@ instance Identifiable x => PreOrd (Pow x) where
 instance Identifiable x => Complete (Pow x) where
   (⊔) = union
 
-instance Identifiable x => Widening (Pow x)
-
 instance Hashable x => Hashable (Pow x)
 
 instance Identifiable x => UpperBounded (Pow x) where

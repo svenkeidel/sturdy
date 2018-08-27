@@ -3,9 +3,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TupleSections #-}
-module Data.Abstract.PreciseStore (Store,singleton,empty,lookup,insert,insertWith,adjust,toList,fromList,mapMaybe,map,compose) where
+module Data.Abstract.PreciseStore (Store,singleton,empty,lookup,insert,insertWith,adjust,toList,fromList,mapMaybe,map,compose,widening) where
 
-import           Prelude hiding (lookup,map,Either(..))
+import           Prelude hiding (lookup,map,Either(..),(**))
 
 import           Control.Arrow
 
@@ -15,7 +15,8 @@ import           Data.Hashable
 import           Data.Order
 import           Data.Identifiable
 import qualified Data.Abstract.Maybe as M
-import           Data.Abstract.Either
+import qualified Data.Abstract.Either as E
+import           Data.Abstract.Either (Either(..))
 
 import           Data.Abstract.Widening
 
@@ -45,16 +46,6 @@ instance (Identifiable a, Complete b) => Complete (Store a b) where
         Left (_,a) -> (May,a)
         Right (_,b) -> (May,b)
         LeftRight (t1,a) (t2,b) -> (t1 ⊔ t2,a ⊔ b)
-
-instance (Identifiable a, Widening b) => Widening (Store a b) where
-  Store m1 ▽ Store m2 = Store $ H.map join $ H.unionWith (▽) (H.map Left m1) (H.map Right m2)
-    where
-      join :: Widening a => Either (There,a) (There,a) -> (There,a)
-      join e = case e of
-        Left (_,a) -> (May,a)
-        Right (_,b) -> (May,b)
-        LeftRight (t1,a) (t2,b) -> (t1 ⊔ t2,a ▽ b)
-
 
 instance (Identifiable a, PreOrd b) => LowerBounded (Store a b) where
   bottom = empty
@@ -92,6 +83,14 @@ adjust f a (Store m) = Store (H.adjust (second f) a m)
 compose :: (Identifiable a, Identifiable b, Complete c) => [(a,b)] -> Store b c -> Store a c
 compose f (Store g) = Store $ H.fromListWith (⊔) [ (a,c) | (a,b) <- f, Just c <- return $ H.lookup b g ]
 
+widening :: Identifiable a => Widening b -> Widening (Store a b)
+widening w (Store m1) (Store m2) = Store $ H.map join $ H.unionWith (E.widening (finite ** w) (finite ** w)) (H.map Left m1) (H.map Right m2)
+    where
+      join e = case e of
+        Left (_,a) -> (May,a)
+        Right (_,b) -> (May,b)
+        LeftRight (t1,a) (t2,b) -> (t1 ⊔ t2,a `w` b)
+
 instance Identifiable a => IsList (Store a b) where
   type Item (Store a b) = (a,b)
   toList (Store m) = H.toList (H.map snd m)
@@ -110,8 +109,6 @@ instance PreOrd There where
 instance Complete There where
   Must ⊔ Must = Must
   _ ⊔ _ = May
-
-instance Widening There
 
 instance Hashable There where
   hashWithSalt s Must = s `hashWithSalt` (1::Int)

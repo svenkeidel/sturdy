@@ -49,17 +49,17 @@ instance (Complete e, Complete a) => Complete (Error e a) where
     (Fail e, SuccessOrFail e' y) -> SuccessOrFail (e ⊔ e') y
     (SuccessOrFail e x, SuccessOrFail e' y) -> SuccessOrFail (e ⊔ e') (x ⊔ y)
 
-instance (Widening e, Widening a) => Widening (Error e a) where
-  m1 ▽ m2 = case (m1,m2) of
-    (Success x, Success y) -> Success (x ▽ y)
+widening :: Widening e -> Widening a -> Widening (Error e a)
+widening we wa m1 m2 = case (m1,m2) of
+    (Success x, Success y) -> Success (x `wa` y)
     (Success x, Fail e) -> SuccessOrFail e x
     (Fail e, Success y) -> SuccessOrFail e y
-    (Fail e, Fail e') -> Fail (e ▽ e')
-    (SuccessOrFail e x, Success y) -> SuccessOrFail e (x ▽ y)
-    (Success x, SuccessOrFail e y) -> SuccessOrFail e (x ▽ y)
-    (SuccessOrFail e x, Fail e') -> SuccessOrFail (e ▽ e') x
-    (Fail e, SuccessOrFail e' y) -> SuccessOrFail (e ▽ e') y
-    (SuccessOrFail e x, SuccessOrFail e' y) -> SuccessOrFail (e ▽ e') (x ▽ y)
+    (Fail e, Fail e') -> Fail (e `we` e')
+    (SuccessOrFail e x, Success y) -> SuccessOrFail e (x `wa` y)
+    (Success x, SuccessOrFail e y) -> SuccessOrFail e (x `wa` y)
+    (SuccessOrFail e x, Fail e') -> SuccessOrFail (e `we` e') x
+    (Fail e, SuccessOrFail e' y) -> SuccessOrFail (e `we` e') y
+    (SuccessOrFail e x, SuccessOrFail e' y) -> SuccessOrFail (e `we` e') (x `wa` y)
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeCompletion a)) => Complete (FreeCompletion (Error e a)) where
   Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of

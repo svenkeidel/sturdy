@@ -44,7 +44,6 @@ library
                        Data.Abstract.Equality,
                        Data.Abstract.Ordering,
                        Data.Abstract.Boolean,
-                       Data.Abstract.Bounded,
                        Data.Abstract.Environment,
                        Data.Abstract.PropagateError,
                        Data.Abstract.HandleError,
@@ -61,6 +60,7 @@ library
                        Data.Abstract.PreciseStore,
                        Data.Abstract.Terminating,
                        Data.Abstract.Widening,
+                       Data.Abstract.StackWidening,
 
                        Control.Arrow.Alloc,
                        Control.Arrow.Const,
@@ -130,5 +130,6 @@ test-suite specs
                      text
   other-modules:     BoundedEnvironmentSpec,
                      FixSpec,
-                     StoreSpec
+                     StoreSpec,
+                     TraceSpec
   default-language:  Haskell2010
