@@ -88,7 +88,7 @@ library
 
                        Control.Arrow.Transformer.Concrete.Environment,
                        Control.Arrow.Transformer.Concrete.Except,
-                       Control.Arrow.Transformer.Concrete.FixPoint,
+                       Control.Arrow.Transformer.Concrete.Fixpoint,
                        Control.Arrow.Transformer.Concrete.Store,
                        Control.Arrow.Transformer.Concrete.Random,
                        Control.Arrow.Transformer.Concrete.Trace,
@@ -99,8 +99,7 @@ library
                        Control.Arrow.Transformer.Abstract.BoundedEnvironment,
                        Control.Arrow.Transformer.Abstract.PropagateExcept,
                        Control.Arrow.Transformer.Abstract.HandleExcept,
-                       Control.Arrow.Transformer.Abstract.LeastFixPoint,
-                       Control.Arrow.Transformer.Abstract.GreatestFixPoint,
+                       Control.Arrow.Transformer.Abstract.Fixpoint,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
                        Control.Arrow.Transformer.Abstract.ReachingDefinitions,
