@@ -20,6 +20,7 @@ import qualified Criterion.Types as CT
 
 import           Data.ATerm
 import           Data.Abstract.HandleError
+import qualified Data.Abstract.PreciseStore as S
 import           Data.Foldable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
@@ -62,7 +63,7 @@ caseStudy eval name function = do
   case parseModule =<< parseATerm file of
     Left e -> fail (show e)
     Right module_ -> do
-      let res = eval (Call (fromString function) [] []) (stratEnv module_) W.emptyEnv W.Wildcard
+      let res = eval (Call (fromString function) [] []) (stratEnv module_) S.empty W.Wildcard
       let terms = H.fromList $ toList $ filterResults (toList res)
 
       _ <- CM.measure (CT.nfIO (return terms)) 1

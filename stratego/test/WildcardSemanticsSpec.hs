@@ -15,6 +15,7 @@ import           Control.Arrow
 
 import           Data.Abstract.HandleError
 import qualified Data.Abstract.Powerset as A
+import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Concrete.Powerset as C
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as M
@@ -123,4 +124,4 @@ spec = do
               (Build (Cons "Nil" []))))
 
     weval :: Int -> Strat -> W.Term -> A.Pow (Error () (W.TermEnv,W.Term))
-    weval i s = W.eval i s M.empty (W.TermEnv M.empty)
+    weval i s = W.eval i s M.empty S.empty

@@ -9,7 +9,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module WildcardSemantics where
 
-import           Prelude hiding ((.),fail)
+import           Prelude hiding ((.),fail,Just,Nothing)
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics
@@ -34,13 +34,15 @@ import           Control.DeepSeq
 import           Control.Monad hiding (fail)
 
 import           Data.Abstract.FreeCompletion
-import qualified Data.Abstract.Powerset as A
 import           Data.Abstract.HandleError
+import           Data.Abstract.Maybe
+import qualified Data.Abstract.Powerset as A
+import           Data.Abstract.PreciseStore (Store)
+import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Concrete.Powerset as CP
 import           Data.Constructor
 import           Data.Foldable (foldr')
 import           Data.GaloisConnection
-import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.Order
@@ -59,8 +61,8 @@ data Term
     | Wildcard
     deriving (Eq)
 
-newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
-    
+type TermEnv = Store TermVar Term
+
 -- | 
 newtype Interp a b = Interp (Reader StratEnv (State TermEnv (Except () (Powerset GreatestFixPoint))) a b)
   deriving (Category,Arrow,ArrowChoice,ArrowApply,PreOrd,Complete)
@@ -76,9 +78,6 @@ runInterp (Interp f) k senv tenv a =
 
 eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> A.Pow (Error () (TermEnv,Term))
 eval i s = runInterp (eval' s) i
-
-emptyEnv :: TermEnv
-emptyEnv = TermEnv M.empty
 
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader StratEnv Interp
@@ -99,18 +98,14 @@ instance HasStratEnv Interp where
 instance IsTermEnv TermEnv Term Interp where
   getTermEnv = get
   putTermEnv = put
-  lookupTermVar f g = proc (v,TermEnv env) ->
-    case M.lookup v env of
+  lookupTermVar f g = proc (v,env) ->
+    case S.lookup v env of
       Just t -> f -< t
-      Nothing ->
-        (proc () -> do
-          putTermEnv -< TermEnv (M.insert v Wildcard env)
-          f -< Wildcard)
-        ⊔ g
-        -<< ()
-  insertTerm = arr $ \(v,t,TermEnv env) -> TermEnv (M.insert v t env)
-  deleteTermVars = arr $ \(vars,TermEnv env) -> TermEnv (foldr' M.delete env vars)
-  unionTermEnvs = arr (\(vars,TermEnv e1,TermEnv e2) -> TermEnv (M.union e1 (foldr' M.delete e2 vars)))
+      JustNothing t -> joined f g -< (t,())
+      Nothing -> g -< ()
+  insertTerm = arr $ \(v,t,env) -> S.insert v t env
+  deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
+  unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
 
 instance IsTerm Term Interp where
   matchTermAgainstConstructor matchSubterms = proc (c,ts,t) -> case t of
@@ -317,33 +312,11 @@ arbitraryTerm h w = do
   fmap (Cons c) $ vectorOf w' $ join $
     arbitraryTerm <$> choose (0,h-1) <*> pure w
 
-internal :: Arrow c => c (HashMap TermVar Term) (HashMap TermVar Term) -> c TermEnv TermEnv
-internal f = arr TermEnv . f . arr (\(TermEnv e) -> e)
-
-map :: ArrowChoice c => c Term Term -> c TermEnv TermEnv
-map f = internal (arr M.fromList . mapA (second f) . arr M.toList)
-
-dom :: HashMap TermVar t -> [TermVar]
-dom = M.keys
-
-instance PreOrd TermEnv where
-  TermEnv env1 ⊑ TermEnv env2 =
-    Prelude.all (\v -> fromMaybe (M.lookup v env1) ⊑ fromMaybe (M.lookup v env2)) (dom env2)
-
-instance Complete TermEnv where
-  TermEnv env1' ⊔ TermEnv env2' = go (dom env1') env1' env2' M.empty
-    where
-      go vars env1 env2 env3 = case vars of
-        (v:vs) -> case (M.lookup v env1,M.lookup v env2) of
-          (Just t1,Just t2) -> go vs env1 env2 (M.insert v (t1⊔t2) env3)
-          _                 -> go vs env1 env2 env3
-        [] -> TermEnv env3
-
 instance UpperBounded TermEnv where
-  top = TermEnv M.empty
+  top = S.empty
 
 instance Galois (CP.Pow C.TermEnv) TermEnv where
-  alpha = lub . fmap (\(C.TermEnv e) -> TermEnv (fmap alphaSing e))
+  alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (M.toList (fmap alphaSing e)))
   gamma = undefined
 
 -- prim :: (ArrowTry p, ArrowAppend p, IsTerm t p, IsTermEnv (AbstractTermEnv t) t p)
