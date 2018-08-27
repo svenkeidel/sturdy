@@ -3,7 +3,6 @@
 module Data.Abstract.DiscretePowerset where
 
 import           Data.Order
-import           Data.Abstract.Widening
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
 import           Data.Hashable

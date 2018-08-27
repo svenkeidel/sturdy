@@ -12,7 +12,7 @@ import           Prelude hiding (lookup,Bounded,Bool(..),fail)
 
 import           Control.Arrow
 import           Control.Arrow.Fix
-import           Control.Arrow.Transformer.Abstract.LeastFixPoint
+import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Fail
@@ -40,9 +40,9 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Cache s x y = Fix x y (LeastFix s () () (->)) x y
-type ErrorFix s x y = Fix x y (Except () (LeastFix s () () (->))) x y
-type StateFix s x y = Fix x y (State IV (LeastFix s () () (->))) x y
+type Cache s x y = Fix x y (Fixpoint s () () (->)) x y
+type ErrorFix s x y = Fix x y (Except () (Fixpoint s () () (->))) x y
+type StateFix s x y = Fix x y (State IV (Fixpoint s () () (->))) x y
 type IV = Interval (InfiniteNumber Int)
 
 spec :: Spec
@@ -59,8 +59,8 @@ spec = do
                               returnA -< x + y))
 
     in it "should memoize numbers that have been computed before already" $ do
-         runLeastFix' SW.finite W.finite fib (I.Interval 5 10) `shouldBe` return (I.Interval 5 55)
-         runLeastFix' SW.finite I.widening fib (I.Interval 0 Infinity) `shouldBe` return (I.Interval 0 Infinity)
+         runFix' SW.finite W.finite fib (I.Interval 5 10) `shouldBe` return (I.Interval 5 55)
+         runFix' SW.finite I.widening fib (I.Interval 0 Infinity) `shouldBe` return (I.Interval 0 Infinity)
 
   describe "the analysis of the factorial function" $
     let fact :: Cache s IV IV
@@ -68,7 +68,7 @@ spec = do
           ifLowerThan 1 (proc _ -> returnA -< I.Interval 1 1)
                         (proc n -> do {x <- f -< (n-I.Interval 1 1); returnA -< n * x}) -< n
     in it "fact [-inf,inf] should produce [1,inf]" $
-         runLeastFix' SW.finite I.widening fact top `shouldBe` return (I.Interval 1 Infinity)
+         runFix' SW.finite I.widening fact top `shouldBe` return (I.Interval 1 Infinity)
 
   describe "the even and odd functions" $
     let evenOdd :: Cache s (EvenOdd,IV) Bool
@@ -80,7 +80,7 @@ spec = do
                                 (ifLowerThan 1 (proc _ -> returnA -< true)
                                                (proc x -> f -< (Even,x-I.Interval 1 1))) -< x
     in it "even([-inf,inf]) should produce top" $
-         runLeastFix' SW.finite W.finite evenOdd (Even,I.Interval 0 Infinity) `shouldBe` top
+         runFix' SW.finite W.finite evenOdd (Even,I.Interval 0 Infinity) `shouldBe` top
 
   describe "the ackermann function" $
     let ackermann :: Cache s (IV,IV) IV
@@ -93,7 +93,7 @@ spec = do
                                          f -< (m'- I.Interval 1 1, x)) -<< n)
             -<< m
     in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runLeastFix' (SW.stack (SW.reuse (const head) SW.topOut)) W.finite ackermann (I.Interval 0 Infinity, I.Interval 0 Infinity)
+         runFix' (SW.stack (SW.reuse (const head) SW.topOut)) W.finite ackermann (I.Interval 0 Infinity, I.Interval 0 Infinity)
            `shouldBe` return (I.Interval 1 Infinity)
 
   describe "the analyis of a diverging program" $
@@ -102,7 +102,7 @@ spec = do
           0 -> f -< 0
           _ -> f -< (n-1)
     in it "should terminate with bottom" $
-         runLeastFix diverge 5 `shouldBe` bottom
+         runFix diverge 5 `shouldBe` bottom
 
   describe "the analysis of a failing program" $
     let recurseFail :: ErrorFix s Int Sign
@@ -110,7 +110,7 @@ spec = do
           0 -> fail -< ()
           _ -> f -< (n-1)
     in it "should fail, but update the fixpoint cache" $
-         runLeastFix'' SW.finite SW.Unit W.finite (runExcept recurseFail) 5
+         runFix'' SW.finite SW.Unit W.finite (runExcept recurseFail) 5
             `shouldBe` (S.fromList [(n,Terminating (Fail ())) | n <- [0..5]], return (Fail ()))
 
   describe "the analysis of a stateful program" $
@@ -124,7 +124,7 @@ spec = do
             s' <- get -< ()
             put -< s'+ I.Interval 1 1
     in it "should cache the state of the program" $
-         runLeastFix'' SW.finite SW.Unit W.finite (runState timesTwo) (0,5) `shouldBe`
+         runFix'' SW.finite SW.Unit W.finite (runState timesTwo) (0,5) `shouldBe`
            (S.fromList [((fromIntegral n,5-fromIntegral n),
                           return (10-fromIntegral n,())) | n <- [0..5::Int]],
             return (10,()))
