@@ -252,8 +252,7 @@ reconstruct = proc (c, ts) -> returnA -< (Term (fromSubterms [(Constr c, fromTer
 
 checkConstructorAndLength :: Text -> [t'] -> Interp (Constr, [GrammarBuilder Constr]) (Text, ([t'], [Term]))
 checkConstructorAndLength c ts = proc (c', gs) -> case c' of
-  Constr c'' | eqLength ts gs && c == c'' -> returnA -< (c, (ts, toTerms gs))
-             | otherwise -> fail -< ()
+  Constr c'' | c == c'' && eqLength ts gs -> returnA -< (c, (ts, toTerms gs))
   _ -> fail -< ()
 
 top' :: Interp () Term
