@@ -51,7 +51,6 @@ library
                        Data.Abstract.InfiniteNumbers,
                        Data.Abstract.FiniteMap,
                        Data.Abstract.FreeCompletion,
-                       Data.Abstract.FreeCoCompletion,
                        Data.Abstract.Interval,
                        Data.Abstract.Maybe,
                        Data.Abstract.Powerset,
