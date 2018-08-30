@@ -8,9 +8,7 @@
 {-# LANGUAGE UndecidableInstances       #-}
 module Control.Arrow.Transformer.Abstract.Store where
 
-<<<<<<< HEAD
 import           Control.Arrow
-import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Const
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
@@ -23,40 +21,16 @@ import           Control.Arrow.Store
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils
 import           Control.Category
-import           Data.Hashable
-=======
-import Prelude hiding (Maybe(..))
-import Control.Arrow
-import Control.Arrow.Const
-import Control.Arrow.Fail
-import Control.Arrow.Fix
-import Control.Arrow.Lift
-import Control.Arrow.Reader
-import Control.Arrow.State
-import Control.Arrow.Store
-import Control.Arrow.Except
-import Control.Arrow.Environment
-import Control.Arrow.Transformer.State
-import Control.Arrow.Utils
-import Control.Category
->>>>>>> master
+import           Prelude                         hiding (Maybe (..))
 
 import           Control.Arrow.Abstract.Join
 
-<<<<<<< HEAD
-import           Data.Abstract.Store             (Store)
-import qualified Data.Abstract.Store             as S
+import           Data.Abstract.Maybe
+import           Data.Abstract.PreciseStore      (Store)
+import qualified Data.Abstract.PreciseStore      as S
 import           Data.Hashable
 import           Data.Identifiable
 import           Data.Order
-=======
-import Data.Abstract.Maybe
-import Data.Abstract.PreciseStore (Store)
-import qualified Data.Abstract.PreciseStore as S
-import Data.Order
-import Data.Identifiable
-import Data.Hashable
->>>>>>> master
 
 newtype StoreArrow var val c x y = StoreArrow (State (S.Store var val) c x y)
 

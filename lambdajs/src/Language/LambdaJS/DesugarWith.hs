@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -w #-}
 -- |Removes all 'WithStmt's.
 --
 -- A @with@ statement seems to break lexical scope, since it adds an arbitrary
@@ -29,13 +30,13 @@
 -- @
 module Language.LambdaJS.DesugarWith (desugarWith) where
 
-import qualified Data.Set as S
-import Language.LambdaJS.Syntax
+import qualified Data.Set                 as S
+import           Language.LambdaJS.Syntax
 
 type Env = S.Set Ident
 
 -- |We first desugar, then desugar @with@, since desugared ASTs are simpler.
--- 
+--
 expr :: Ident -> Env -> Expr a -> Expr a
 expr wId env e = case e of
   ENumber a _ -> e
@@ -66,24 +67,24 @@ expr wId env e = case e of
     where f (x, e') = (x, expr wId env e')
           env' = (S.fromList (map fst binds)) `S.union` env
   ELet1 a e1 f -> ELet1 a (expr wId env e1) $ \x -> expr wId (S.insert x env) (f x)
-  ELet2 a e1 e2 f -> 
-    ELet2 a (expr wId env e1) (expr wId env e2) $ \x y -> 
+  ELet2 a e1 e2 f ->
+    ELet2 a (expr wId env e1) (expr wId env e2) $ \x y ->
       expr wId (S.insert y (S.insert x env)) (f x y)
-  ESetRef a1 (EId a2 "$global") 
+  ESetRef a1 (EId a2 "$global")
           (EUpdateField a3 (EDeref a4 (EId a5 "$global")) (EString a6 x) e) ->
     EIf a1 (EOp a3 OHasOwnProp [EDeref a4 $ EId a5 wId, EString a6 x])
-        (ESetRef a3 (EId a5 wId) 
+        (ESetRef a3 (EId a5 wId)
                      (EUpdateField a3 (EDeref a4 (EId a5 wId)) (EString a6 x) (expr wId env e)))
         -- Preserve the $global[x] = e, so that an outer with can macro-expand
         -- the same way.
-        (ESetRef a3 (EId a5 "$global") 
-                     (EUpdateField a3 (EDeref a4 (EId a5 "$global")) 
-                                       (EString a6 x) 
+        (ESetRef a3 (EId a5 "$global")
+                     (EUpdateField a3 (EDeref a4 (EId a5 "$global"))
+                                       (EString a6 x)
                                        (expr wId env e)))
   ESetRef a1 (EId a2 x) rhs -> case x `S.member` env of
     True -> e
     False -> EIf a1 (EOp a1 OHasOwnProp [EDeref a1 $ EId a2 wId, EString a2 x])
-     (ESetRef a1 (EId a2 wId) (EUpdateField a1 (EDeref a1 $ EId a2 wId) (EString a2 x) 
+     (ESetRef a1 (EId a2 wId) (EUpdateField a1 (EDeref a1 $ EId a2 wId) (EString a2 x)
                                       (expr wId env rhs)))
      (ESetRef a1 (EId a2 x) (expr wId env rhs))
   ESetRef a e1 e2 -> ESetRef a (expr wId env e1) (expr wId env e2)

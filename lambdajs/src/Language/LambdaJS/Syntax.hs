@@ -1,5 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -w #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances  #-}
 module Language.LambdaJS.Syntax
   ( Ident
   , Label
@@ -11,19 +12,19 @@ module Language.LambdaJS.Syntax
   , label'
   , SourcePos
   , nopos
-  ) where 
+  ) where
 
 
-import Control.Applicative ( Alternative(..) )
-import Control.Arrow ( second , (***) )
-import Data.Maybe ( fromMaybe, fromJust )
-import Data.Map (Map,(!))
-import Data.Generics
+import           Control.Applicative               (Alternative (..))
+import           Control.Arrow                     (second, (***))
+import           Data.Generics
+import           Data.Map                          (Map, (!))
+import           Data.Maybe                        (fromJust, fromMaybe)
 
-import Language.LambdaJS.Prelude
+import           Language.LambdaJS.Prelude
 
-import Text.ParserCombinators.Parsec(SourcePos) -- used by data JavaScript
-import Text.ParserCombinators.Parsec.Pos(newPos) -- used by data JavaScript
+import           Text.ParserCombinators.Parsec     (SourcePos)
+import           Text.ParserCombinators.Parsec.Pos (newPos)
 
 type Ident = String
 type Label = String
@@ -109,10 +110,10 @@ label' = gmapQl (<|>) Nothing (Nothing `mkQ` (Just :: a -> Maybe a))
 -- Generic function to retrieve the value of type 'a' from a data structure of
 -- type 'c a'.
 --
--- Note that in order for this to be safe, each variant of the data type 'c a' 
+-- Note that in order for this to be safe, each variant of the data type 'c a'
 -- must include a value of type 'a' as an immediate child. In the ANF syntax,
 -- the 'Lit' variant of the 'Expr' data type violates this assumption.
--- 
+--
 label :: (Typeable a, Data (c a)) => c a -> a
 label = fromJust . label'
 

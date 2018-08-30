@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -w #-}
 {-# LANGUAGE Rank2Types #-}
 module Language.LambdaJS.Prelude
   ( collectExclude
@@ -7,9 +8,9 @@ module Language.LambdaJS.Prelude
   , Set
   ) where
 
-import Data.Generics
-import Data.Set (Set)
-import Text.ParserCombinators.Parsec.Pos (SourcePos, initialPos)
+import           Data.Generics
+import           Data.Set                          (Set)
+import           Text.ParserCombinators.Parsec.Pos (SourcePos, initialPos)
 
 collectExclude :: Data r
                => GenericQ Bool -- ^descend into a subtree?
@@ -17,10 +18,10 @@ collectExclude :: Data r
                -> GenericQ [r]
 collectExclude canDescend doReturn x = case canDescend x of
   False -> []
-  True -> 
+  True ->
     (mkQ [] f x) ++ (concat $ gmapQ (collectExclude canDescend doReturn) x)
       where f r = case doReturn r of
-                    True -> [r]
+                    True  -> [r]
                     False -> []
 
 -- | Similar to 'everything', but only applies the query to nodes that satisfy
@@ -35,8 +36,8 @@ everythingUpto :: GenericQ Bool -- ^descend into a subtree?
                -> GenericQ r
 everythingUpto canDescend combine query x = case canDescend x of
   False -> query x
-  True -> foldl combine 
-               (query x) 
+  True -> foldl combine
+               (query x)
                (gmapQ (everythingUpto canDescend combine query) x)
 
 
@@ -44,5 +45,5 @@ everythingUpto canDescend combine query x = case canDescend x of
 -- is applied to all nodes, including nodes at which descent stops.
 everywhereUpto :: GenericQ Bool -> GenericT -> GenericT
 everywhereUpto q f x = case q x of
-  True -> f x
+  True  -> f x
   False -> f (gmapT (everywhereUpto q f) x)

@@ -1,8 +1,9 @@
+{-# OPTIONS_GHC -w #-}
 module Language.LambdaJS.LocalVars
   ( localVars
   ) where
 
-import Language.ECMAScript3.Syntax
+import           Language.ECMAScript3.Syntax
 
 varDecl :: VarDecl a -> Id a
 varDecl (VarDecl a x _ ) = x
@@ -10,17 +11,17 @@ varDecl (VarDecl a x _ ) = x
 
 forInit :: ForInit a -> [Id a]
 forInit (VarInit decls) = map varDecl decls
-forInit _ = []
+forInit _               = []
 
 
 forInInit :: ForInInit a -> [Id a]
 forInInit (ForInVar x) = [x]
-forInInit _ = []
+forInInit _            = []
 
 
 caseClause :: CaseClause a -> [Id a]
 caseClause (CaseClause _ e ss) = concatMap stmt ss
-caseClause (CaseDefault _ ss) = concatMap stmt ss
+caseClause (CaseDefault _ ss)  = concatMap stmt ss
 
 
 catchClause :: CatchClause a -> [Id a]
@@ -43,7 +44,7 @@ stmt s = case s of
   BreakStmt _ _ -> []
   ContinueStmt _ _ -> []
   LabelledStmt _ _ s -> stmt s
-  TryStmt _ s catches finally -> 
+  TryStmt _ s catches finally ->
     stmt s ++ maybe [] catchClause catches ++ maybe [] stmt finally
   ThrowStmt _ _ -> []
   ReturnStmt _ _ -> []

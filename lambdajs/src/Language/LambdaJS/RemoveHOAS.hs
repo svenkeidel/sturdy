@@ -1,10 +1,11 @@
+{-# OPTIONS_GHC -w #-}
 module Language.LambdaJS.RemoveHOAS
   ( removeHOAS
   ) where
 
-import Control.Monad.State
-import Control.Monad
-import Language.LambdaJS.Syntax
+import           Control.Monad
+import           Control.Monad.State
+import           Language.LambdaJS.Syntax
 
 
 type M a = State Int a

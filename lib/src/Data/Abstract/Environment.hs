@@ -1,20 +1,13 @@
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-<<<<<<< HEAD
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE UndecidableInstances #-}
-module Data.Abstract.Environment(Env,empty,lookup,insert,insertWith,fromList,toList) where
-=======
 module Data.Abstract.Environment(Env,empty,lookup,insert,insertWith,fromList,toList,toMap) where
->>>>>>> master
 
-import           Prelude hiding (lookup)
+import           Prelude           hiding (lookup)
 
+import           Data.Hashable
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
-import           Data.Hashable
 import           Data.Identifiable
 import           Data.Order
 

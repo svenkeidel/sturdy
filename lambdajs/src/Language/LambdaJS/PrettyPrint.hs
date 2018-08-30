@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -w #-}
 module Language.LambdaJS.PrettyPrint
   ( pretty
   , op
@@ -6,9 +7,9 @@ module Language.LambdaJS.PrettyPrint
   ) where
 
 
-import Language.LambdaJS.Syntax
-import Text.PrettyPrint.HughesPJ
-import Control.Monad.State
+import           Control.Monad.State
+import           Language.LambdaJS.Syntax
+import           Text.PrettyPrint.HughesPJ
 
 opReps :: [(Op, String)]
 opReps =
@@ -60,11 +61,11 @@ opReps =
 
 op :: Op -> Doc
 op o = case lookup o opReps of
-  Just s -> text s
+  Just s  -> text s
   Nothing -> error "opReps is incomplete"
 
 showNumber :: Double -> String
-showNumber i 
+showNumber i
  | isNaN i = "+nan.0"
  | isInfinite i = if (i > 0) then "+inf.0" else "-inf.0"
  | otherwise = show i

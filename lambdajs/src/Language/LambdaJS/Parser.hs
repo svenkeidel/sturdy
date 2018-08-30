@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -w #-}
 module Language.LambdaJS.Parser
   ( parseBinds
   ) where
