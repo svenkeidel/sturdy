@@ -54,11 +54,12 @@ import           Control.Category
 
 newtype TypeArr x y = TypeArr
     (Fix Expr Type'
-        (Except
-            String
+        (Except String
             (Environment Ident Location Type'
                 (Contour
-                    (State Location (~>))))) x y)
+                    (State Location
+                        (LeastFix () ()
+                            (->)))))) x y)
 
 deriving instance ArrowFail String TypeArr
 deriving instance ArrowEnv Ident Type' (Env Ident Type') TypeArr
@@ -71,16 +72,16 @@ deriving instance ArrowState Location TypeArr
 deriving instance ArrowFix Expr Type' TypeArr
 
 runType :: TypeArr x y -> [(Ident, Type)] -> x -> Terminating (Location, Error String y)
-runType (TypeArr f) env x = runLeastFixPoint (runState (runEnvironment (runExcept f))) (Location 0, (env', x))
-        where env' = Prelude.map (\(a, b) -> (a, P.singleton b)) env
+runType (TypeArr f) env x =
+    runLeastFix
+        (runState
+            (runContour 0
+                (runEnvironment
+                    (runExcept f))))
+    (Location 0, (env', x))
+    where env' = Prelude.map (\(a, b) -> (a, P.singleton b)) env
 
---runAbstract :: [(Ident, Type)] -> [(Location, Type)] -> Expr -> (Store Location Type', Error String Type')
---runAbstract env st expr = case runType eval env st expr of
---    (_, (newSt, Fail e))            -> (newSt, Fail e)
---    (_, (newSt, Success res))       -> (newSt, Success res)
---    (_, (newSt, SuccessOrFail e _)) -> (newSt, Fail e)
-
-typeEvalBinOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type, Type) Type
+typeEvalBinOp_ :: (ArrowChoice c) => c (Op, Type, Type) Type
 typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) of
     -- number operators
     (ONumPlus, TNumber, TNumber)        -> TNumber
@@ -118,7 +119,7 @@ typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) 
     _                                   -> TTop) -< (op, v1, v2)
 --  x -> fail -< "Unimplemented op: " ++ (show op) ++ ", params: " ++ (show v1) ++ ", " ++ (show v2)
 
-typeEvalUnOp_ :: (ArrowFail String c, ArrowChoice c) => c (Op, Type) Type
+typeEvalUnOp_ :: (ArrowChoice c) => c (Op, Type) Type
 typeEvalUnOp_ = proc (op, vals) -> (arr $ \(op, vals) -> case (op, vals) of
     -- number operator
     (OToInteger, TNumber) -> TNumber
