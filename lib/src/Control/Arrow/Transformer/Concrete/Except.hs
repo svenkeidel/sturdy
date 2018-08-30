@@ -76,7 +76,7 @@ instance (ArrowChoice c, ArrowWrite x y c) => ArrowWrite x y (Except e c) where
 
 type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
-  fix f = Except (fix (runExcept . f . Except))
+  fix = liftFix' runExcept Except
 
 instance ArrowChoice c => ArrowExcept x y e (Except e c) where
   tryCatch (Except f) (Except g) = Except $ proc x -> do
@@ -86,10 +86,11 @@ instance ArrowChoice c => ArrowExcept x y e (Except e c) where
       Success y -> returnA -< Success y
 
   finally (Except f) (Except g) = Except $ proc x -> do
-    _ <- f -< x
+    e <- f -< x
     g -< x
+    returnA -< e
 
-instance (Identifiable e, ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Except e c) where
+instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Error e y) c) => ArrowDeduplicate x y (Except e c) where
   dedup (Except f) = Except (dedup f)
 
 instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (Except e c) where

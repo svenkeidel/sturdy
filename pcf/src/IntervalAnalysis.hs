@@ -16,9 +16,11 @@ import           Prelude hiding (Bounded,fail)
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Alloc
 import           Control.Arrow.Fail
 import           Control.Arrow.Const
 import           Control.Arrow.Fix
+import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
@@ -36,12 +38,11 @@ import           Data.Order
 import           Data.Text (Text)
 
 import           Data.Abstract.Bounded
-import           Data.Abstract.Environment(Env)
+import           Data.Abstract.FiniteMap(Map)
 import           Data.Abstract.PropagateError (Error)
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
-import           Data.Abstract.Store (Store)
 import           Data.Abstract.Widening
 import           Data.Abstract.Terminating
     
@@ -53,7 +54,7 @@ import           SharedSemantics
 -- | Abstract closures are expressions paired with an abstract
 -- environment, consisting of a mapping from variables to addresses
 -- and a mapping from addresses to stores.
-data Closure = Closure Expr (Env Text Addr,Store Addr Val) deriving (Eq,Generic)
+data Closure = Closure Expr (Map Text Addr Val) deriving (Eq,Generic)
 
 -- | Numeric values are approximated with bounded intervals, closure
 -- values are approximated with a set of abstract closures.
@@ -70,17 +71,18 @@ newtype Interp x y =
         (Environment Text Addr Val  -- threads the environment and store
           (Contour                  -- records the k-bounded call stack used for address allocation
             (Except String          -- allows to fail with an error message
-              (~>))))) x y)
+              (LeastFix () ()
+                (->)))))) x y)
 
 -- | Run an interpreter computation on inputs. The arguments are the
 -- maximum interval bound, the depth `k` of the longest call string,
 -- an environment, and the input of the computation.
 runInterp :: Interp x y -> IV -> Int -> [(Text,Val)] -> x -> Terminating (Error String y)
 runInterp (Interp f) b k env x = 
-  runLeastFixPoint
+  runLeastFix
     (runExcept
       (runContour k
-        (runEnvironment
+        (runEnvironment alloc
           (runConst b f))))
     (env,x)
 
@@ -100,15 +102,17 @@ instance IsVal Val Interp where
   zero = proc _ -> do
     b <- askConst -< ()
     returnA -< (NumVal (Bounded b 0))
-  ifZero f g = proc v -> case v of
-    (Top, _) -> returnA -< Top
+
+instance (Complete z, UpperBounded z) => ArrowCond Val x y z Interp where
+  if_ f g = proc v -> case v of
+    (Top, _) -> returnA -< top
     (NumVal (Bounded _ (I.Interval i1 i2)), (x, y))
       | (i1, i2) == (0, 0) -> f -< x      -- case the interval is exactly zero
       | i1 > 0 || i2 < 0 -> g -< y        -- case the interval does not contain zero
       | otherwise -> (f -< x) ⊔ (g -< y)  -- case the interval contains zero and other numbers.
     (ClosureVal _, _) -> fail -< "Expected a number as condition for 'ifZero'"
 
-instance IsClosure Val (Env Text Addr,Store Addr Val) Interp where
+instance IsClosure Val (Map Text Addr Val) Interp where
   closure = arr $ \(e, env) -> ClosureVal (S.singleton (Closure e env))
   applyClosure f = proc (fun, arg) -> case fun of
     Top -> returnA -< Top
@@ -122,7 +126,7 @@ deriving instance Arrow Interp
 deriving instance ArrowChoice Interp
 deriving instance ArrowFail String Interp
 deriving instance ArrowConst IV Interp
-deriving instance ArrowEnv Text Val (Env Text Addr, Store Addr Val) Interp
+deriving instance ArrowEnv Text Val (Map Text Addr Val) Interp
 deriving instance ArrowFix Expr Val Interp
 deriving instance PreOrd y => PreOrd (Interp x y)
 deriving instance Complete y => Complete (Interp x y)
@@ -146,8 +150,11 @@ instance Widening Val where
   NumVal x ▽ NumVal y = NumVal (x ▽ y)
   x ▽ y =  x ⊔ y
 
-instance HasLabel ((Env Text Addr,Store (Text, CallString) Val),Expr) where
-  label ((_,_),e) = label e
+instance UpperBounded Val where
+  top = Top
+
+instance HasLabel (Map Text Addr Val,Expr) where
+  label (_,e) = label e
 
 instance Hashable Closure
 instance Hashable Val

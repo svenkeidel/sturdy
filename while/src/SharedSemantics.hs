@@ -10,21 +10,24 @@ import Data.Label
 
 import Control.Arrow
 import Control.Arrow.Alloc
+import Control.Arrow.Conditional
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Environment
+import Control.Arrow.Random
 import Control.Arrow.Store
 import Control.Arrow.Utils
 
 import Data.Text (Text)
+import Data.String
 
 import Syntax
 
 type Prog = [Statement]
   
-eval :: (Show addr, ArrowChoice c,
+eval :: (Show addr, ArrowChoice c, ArrowRand v c,
          ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
-         ArrowFail String c, IsVal v c)
+         ArrowFail e c, IsString e, IsVal v c)
      => c Expr v
 eval = proc e -> case e of
   Var x l -> do
@@ -43,7 +46,7 @@ eval = proc e -> case e of
     v1 <- eval -< e1
     not -< (v1,l)
   NumLit n l -> numLit -< (n,l)
-  RandomNum l -> randomNum -< l
+  RandomNum _ -> random -< ()
   Add e1 e2 l -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
@@ -71,8 +74,9 @@ eval = proc e -> case e of
 
 run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
         ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
-        ArrowAlloc (Text,v,Label) addr c, ArrowFail String c,
-        Conditional v [Statement] [Statement] () c, IsVal v c)
+        ArrowAlloc (Text,v,Label) addr c, ArrowFail e c,
+        ArrowCond v [Statement] [Statement] () c, ArrowRand v c,
+        IsString e, IsVal v c)
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
   Assign x e l:ss -> do
@@ -98,14 +102,10 @@ class Arrow c => IsVal v c | c -> v where
   or :: c (v,v,Label) v
   not :: c (v,Label) v
   numLit :: c (Int,Label) v
-  randomNum :: c Label v
   add :: c (v,v,Label) v
   sub :: c (v,v,Label) v
   mul :: c (v,v,Label) v
   div :: c (v,v,Label) v
   eq :: c (v,v,Label) v
   lt :: c (v,v,Label) v
-
-class Arrow c => Conditional v x y z c | c -> v where
-  if_ :: c x z -> c y z -> c (v,(x,y)) z
  

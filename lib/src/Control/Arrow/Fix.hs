@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Arrows #-}
-module Control.Arrow.Fix(ArrowFix(..),Fix) where
+module Control.Arrow.Fix(ArrowFix(..),Fix,liftFix,liftFix') where
 
 import Control.Arrow
 
@@ -25,6 +25,23 @@ instance ArrowFix x y (->) where
 --
 -- For the abstract interpreter use 'Fix' with '~>' as last component of the arrow transformer stack:
 -- @
---   Fix Expr Val (State Store (~>)) x y = State Store (LeastFixPoint (Store,Expr) (Store,Val))
+--   Fix Expr Val (State Store (LeastFix () ())) x y = State Store (LeastFixPoint (Store,Expr) (Store,Val))
 -- @
 type family Fix x y (c :: * -> * -> *) :: * -> * -> *
+type instance Fix a b (->) = (->)
+
+-- | Generic lifting operation for the fixpoint operator 'fix'.
+-- Example usage: fix = liftFix State runState
+liftFix :: ArrowFix (f x) (g y) c
+        => (t c x y -> c (f x) (g y))
+        -> (c (f x) (g y) -> t c x y)
+        -> ((t c x y -> t c x y) -> t c x y)
+liftFix unwrap wrap f = wrap $ fix (unwrap . f . wrap)
+
+-- | Generic lifting operation for the fixpoint operator 'fix'.
+-- Example usage: fix = liftFix Except runExcept
+liftFix' :: ArrowFix x (g y) c
+        => (t c x y -> c x (g y))
+        -> (c x (g y) -> t c x y)
+        -> ((t c x y -> t c x y) -> t c x y)
+liftFix' unwrap wrap f = wrap $ fix (unwrap . f . wrap)

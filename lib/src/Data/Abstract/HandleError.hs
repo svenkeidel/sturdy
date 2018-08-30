@@ -8,6 +8,7 @@ import Control.Arrow
 import Control.Monad
 
 import Data.Abstract.FreeCompletion
+import Data.Abstract.Widening
 import Data.Bifunctor
 import Data.Hashable
 import Data.Order
@@ -47,6 +48,18 @@ instance (Complete e, Complete a) => Complete (Error e a) where
     (SuccessOrFail e x, Fail e') -> SuccessOrFail (e ⊔ e') x
     (Fail e, SuccessOrFail e' y) -> SuccessOrFail (e ⊔ e') y
     (SuccessOrFail e x, SuccessOrFail e' y) -> SuccessOrFail (e ⊔ e') (x ⊔ y)
+
+instance (Widening e, Widening a) => Widening (Error e a) where
+  m1 ▽ m2 = case (m1,m2) of
+    (Success x, Success y) -> Success (x ▽ y)
+    (Success x, Fail e) -> SuccessOrFail e x
+    (Fail e, Success y) -> SuccessOrFail e y
+    (Fail e, Fail e') -> Fail (e ▽ e')
+    (SuccessOrFail e x, Success y) -> SuccessOrFail e (x ▽ y)
+    (Success x, SuccessOrFail e y) -> SuccessOrFail e (x ▽ y)
+    (SuccessOrFail e x, Fail e') -> SuccessOrFail (e ▽ e') x
+    (Fail e, SuccessOrFail e' y) -> SuccessOrFail (e ▽ e') y
+    (SuccessOrFail e x, SuccessOrFail e' y) -> SuccessOrFail (e ▽ e') (x ▽ y)
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeCompletion a)) => Complete (FreeCompletion (Error e a)) where
   Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of
@@ -109,3 +122,8 @@ fromMaybe :: Maybe a -> Error () a
 fromMaybe m = case m of
   Just a -> Success a
   Nothing -> Fail ()
+
+toMaybe :: Error e a -> Maybe a
+toMaybe (Success x) = Just x
+toMaybe (Fail _) = Nothing
+toMaybe (SuccessOrFail _ x) = Just x

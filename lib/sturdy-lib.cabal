@@ -40,6 +40,7 @@ library
                        Data.Concrete.Powerset,
                        Data.Concrete.Store,
 
+                       Data.Abstract.Either,
                        Data.Abstract.Equality,
                        Data.Abstract.Ordering,
                        Data.Abstract.Boolean,
@@ -47,25 +48,30 @@ library
                        Data.Abstract.Environment,
                        Data.Abstract.PropagateError,
                        Data.Abstract.HandleError,
-                       Data.Abstract.Terminating,
                        Data.Abstract.InfiniteNumbers,
+                       Data.Abstract.FiniteMap,
                        Data.Abstract.FreeCompletion,
                        Data.Abstract.FreeCoCompletion,
                        Data.Abstract.Interval,
+                       Data.Abstract.Maybe,
                        Data.Abstract.Powerset,
                        Data.Abstract.DiscretePowerset,
                        Data.Abstract.Sign,
                        Data.Abstract.Store,
+                       Data.Abstract.PreciseStore,
+                       Data.Abstract.Terminating,
                        Data.Abstract.Widening,
 
                        Control.Arrow.Alloc,
                        Control.Arrow.Const,
+                       Control.Arrow.Conditional,
                        Control.Arrow.Deduplicate,
                        Control.Arrow.Environment,
                        Control.Arrow.Fail,
                        Control.Arrow.Except,
                        Control.Arrow.Fix,
                        Control.Arrow.Lift,
+                       Control.Arrow.Random,
                        Control.Arrow.Reader,
                        Control.Arrow.State,
                        Control.Arrow.Store,
@@ -77,6 +83,7 @@ library
                        Control.Arrow.Transformer.Reader,
                        Control.Arrow.Transformer.State,
                        Control.Arrow.Transformer.Writer,
+                       Control.Arrow.Transformer.Cont,
                        Control.Arrow.Transformer.Const,
                        Control.Arrow.Transformer.Static,
 
@@ -84,6 +91,8 @@ library
                        Control.Arrow.Transformer.Concrete.Except,
                        Control.Arrow.Transformer.Concrete.FixPoint,
                        Control.Arrow.Transformer.Concrete.Store,
+                       Control.Arrow.Transformer.Concrete.Random,
+                       Control.Arrow.Transformer.Concrete.Trace,
 
                        Control.Arrow.Transformer.Abstract.Completion,
                        Control.Arrow.Transformer.Abstract.Environment,
@@ -95,12 +104,14 @@ library
                        Control.Arrow.Transformer.Abstract.GreatestFixPoint,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
-                       Control.Arrow.Transformer.Abstract.ReachingDefinitions
+                       Control.Arrow.Transformer.Abstract.ReachingDefinitions,
+                       Control.Arrow.Transformer.Abstract.LiveVariables
 
   build-depends:       base,
                        containers,
                        hashable,
                        mtl,
+                       random,
                        text,
                        unordered-containers
   hs-source-dirs:      src/
@@ -118,5 +129,6 @@ test-suite specs
                      unordered-containers,
                      text
   other-modules:     BoundedEnvironmentSpec,
-                     FixSpec
+                     FixSpec,
+                     StoreSpec
   default-language:  Haskell2010

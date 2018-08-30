@@ -30,7 +30,7 @@ import           Text.Printf
 
 -- | Shared interpreter for Stratego
 eval' :: (ArrowChoice c, ArrowExcept t t () c, ArrowExcept (t,[t]) (t,[t]) () c,
-          ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate c, Eq t, Hashable t,
+          ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c)
       => (Strat -> c t t)
 eval' = fixA' $ \ev s0 -> dedup $ case s0 of

@@ -9,7 +9,7 @@ import           Data.Abstract.Bounded
 import           Data.Abstract.PropagateError hiding (toEither)
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.InfiniteNumbers
-import           Data.Abstract.Terminating
+import           Data.Abstract.Terminating hiding (toEither)
 import           IntervalAnalysis
 import           Syntax
 import           Test.Hspec

@@ -24,8 +24,8 @@ import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.PropagateError (Error(..))
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
-import           Data.Abstract.Store (Store)
-import qualified Data.Abstract.Store as S
+import           Data.Abstract.PreciseStore (Store)
+import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Terminating
 import           Data.Abstract.Widening
@@ -45,6 +45,9 @@ import           Control.Arrow.Alloc
 import           Control.Arrow.Const
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Conditional
+import           Control.Arrow.Random
+
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
@@ -57,10 +60,10 @@ data Val = BoolVal Bool | NumVal (Bounded IV) | Top deriving (Eq,Generic)
 run :: (?bound :: IV) => [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Store Addr Val))
 run env ss =
   fmap fst <$>
-    runLeastFixPoint
+    runLeastFix
       (runConst ?bound
         (runInterp
-          (Shared.run :: Fix [Statement] () (Interp Addr Val (Const IV (~>))) [Statement] ())))
+          (Shared.run :: Fix [Statement] () (Interp Addr Val (Const IV (LeastFix () () (->)))) [Statement] ())))
       (S.empty,(E.fromList env, generate <$> ss))
 
 instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp Addr Val c) where
@@ -87,9 +90,6 @@ instance (ArrowChoice c, ArrowConst IV c) => IsVal Val (Interp Addr Val c) where
   numLit = proc (x,_) -> do
     b <- askConst -< ()
     returnA -< NumVal (Bounded b (I.Interval x x))
-  randomNum = proc _ -> do
-    b <- askConst -< ()
-    returnA -< NumVal (Bounded b top)
   add = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
     (Top,_) -> returnA -< Top
@@ -125,13 +125,18 @@ instance (ArrowChoice c, ArrowConst IV c) => IsVal Val (Interp Addr Val c) where
     _ -> fail -< "Expected two numbers as arguments for 'lt'"
 
 instance (Complete (Interp Addr Val c (x,y) z), UpperBounded z, ArrowChoice c)
-  => Conditional Val x y z (Interp Addr Val c) where
+  => ArrowCond Val x y z (Interp Addr Val c) where
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True -> f1 -< x
     BoolVal B.False -> f2 -< y
     BoolVal B.Top -> joined f1 f2 -< (x,y)
     Top -> returnA -< top
     _ -> fail -< "Expected boolean as argument for 'if'"
+
+instance (ArrowConst IV (Interp addr val c), ArrowChoice c) => ArrowRand Val (Interp addr val c) where
+  random = proc _ -> do
+    b <- askConst -< ()
+    returnA -< NumVal (Bounded b top)
 
 instance PreOrd Val where
   _ ⊑ Top = P.True

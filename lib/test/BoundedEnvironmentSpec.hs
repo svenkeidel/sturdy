@@ -29,11 +29,11 @@ type Val = Interval Int
 type Addr = Int
 type Ar = Environment Text Addr Val (State Addr (Except String (->)))
 
-instance ArrowAlloc (Text,val,env,store) Addr (State Addr (Except String (->))) where
-  alloc = proc _ -> do
-    addr <- get -< ()
-    put -< (succ addr `mod` 5)
-    returnA -< addr
+alloc :: State Addr (Except String (->)) (Text,val,env) Addr 
+alloc = proc _ -> do
+  addr <- get -< ()
+  put -< (succ addr `mod` 5)
+  returnA -< addr
 
 spec :: Spec
 spec = do
@@ -88,4 +88,4 @@ spec = do
     it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Success (Interval 7 7)
 
   where
-    runTests s x = runExcept (evalState (runEnvironment s) ) (0,([],x))
+    runTests s x = runExcept (evalState (runEnvironment alloc s) ) (0,([],x))

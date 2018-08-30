@@ -72,7 +72,7 @@ instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) wh
   extendEnv = lift extendEnv
   localEnv (Powerset f) = Powerset $ localEnv f
 
-instance (ArrowChoice c, ArrowDeduplicate c) => ArrowDeduplicate (Powerset c) where
+instance (ArrowChoice c, ArrowDeduplicate x y c) => ArrowDeduplicate x y (Powerset c) where
   dedup (Powerset f) = Powerset $ A.dedup ^<< f
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Powerset c) where

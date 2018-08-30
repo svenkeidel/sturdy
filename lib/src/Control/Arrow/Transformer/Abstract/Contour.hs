@@ -40,16 +40,16 @@ runContour k (Contour (Reader f)) = (\a -> (empty k,a)) ^>> f
 type instance Fix x y (Contour c) = Contour (Fix x y c)
 instance (ArrowFix x y c, ArrowApply c, HasLabel x) => ArrowFix x y (Contour c) where
   -- Pushes the label of the last argument on the call string and truncate the call string in case it reached the maximum length
-  fix f = Contour $ Reader $ proc (c,x) -> fix (unlift c . f . lift) -<< x
+  fix f = Contour $ Reader $ proc (c,x) -> fix (unlift (push (label x) c) . f . lift) -<< x
     where
-      unlift :: (HasLabel x, ArrowApply c) => CallString -> Contour c x y -> c x y
+      unlift :: (HasLabel x, Arrow c) => CallString -> Contour c x y -> c x y
       unlift c (Contour (Reader f')) = proc x -> do
-        y <- f' -< (push (label x) c, x)
+        y <- f' -< (c,x)
         returnA -< y
 
-instance Arrow c => ArrowAlloc (var,val,env,store) (var,CallString) (Contour c) where
+instance Arrow c => ArrowAlloc (var,val,env) (var,CallString) (Contour c) where
   -- | Return the variable together with the current call string as address.
-  alloc = Contour $ Reader $ proc (l,(x,_,_,_)) -> returnA -< (x,l)
+  alloc = Contour $ Reader $ proc (l,(x,_,_)) -> returnA -< (x,l)
 
 instance ArrowApply c => ArrowApply (Contour c) where
   app = Contour $ (\(Contour f,x) -> (f,x)) ^>> app

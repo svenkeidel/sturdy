@@ -9,7 +9,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ValueSemantics.Unit where
 
-import           Prelude hiding (Bool(..),Bounded(..),read)
+import           Prelude hiding (Bool(..),Bounded(..))
 
 import           Syntax
 import           SharedSemantics
@@ -17,8 +17,8 @@ import qualified SharedSemantics as Shared
 import           ValueSemantics.Abstract
 
 import           Data.Abstract.PropagateError (Error(..))
-import           Data.Abstract.Store (Store)
-import qualified Data.Abstract.Store as S
+import           Data.Abstract.PreciseStore (Store)
+import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Abstract.Environment as E
 import           Data.Abstract.Terminating
 
@@ -29,6 +29,8 @@ import           Data.Text (Text)
 import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Fix
+import           Control.Arrow.Conditional
+import           Control.Arrow.Random
 import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 
 -- Value semantics for the while language that does not approximate values at all.
@@ -38,9 +40,9 @@ type Val = ()
 run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Store Addr Val))
 run env ss =
   fmap fst <$>
-    runLeastFixPoint
+    runLeastFix
       (runInterp
-        (Shared.run :: Fix [Statement] () (Interp Addr Val (~>)) [Statement] ()))
+        (Shared.run :: Fix [Statement] () (Interp Addr Val (LeastFix () () (->))) [Statement] ()))
       (S.empty,(E.fromList env,generate <$> ss))
 
 instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp addr val c) where
@@ -52,7 +54,6 @@ instance ArrowChoice c => IsVal Val (Interp addr val c) where
   or = arr (const ())
   not = arr (const ())
   numLit = arr (const ())
-  randomNum = arr (const ())
   add = arr (const ())
   sub = arr (const ())
   mul = arr (const ())
@@ -60,6 +61,9 @@ instance ArrowChoice c => IsVal Val (Interp addr val c) where
   eq = arr (const ())
   lt = arr (const ())
 
+instance ArrowChoice c => ArrowRand Val (Interp addr val c) where
+  random = arr (const ())
+
 instance (Complete (Interp addr val c (x,y) z), ArrowChoice c)
-  => Conditional Val x y z (Interp addr val c) where
+  => ArrowCond Val x y z (Interp addr val c) where
   if_ f1 f2 = proc (_,(x,y)) -> joined f1 f2 -< (x,y)

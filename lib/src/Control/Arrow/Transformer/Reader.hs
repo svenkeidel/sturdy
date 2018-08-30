@@ -12,6 +12,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
 import Control.Arrow.Const
+import Control.Arrow.Conditional
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -89,7 +90,7 @@ instance ArrowExcept (r,x) y e c => ArrowExcept x y e (Reader r c) where
   tryCatch (Reader f) (Reader g) = Reader $ tryCatch f (from assoc ^>> g)
   finally (Reader f) (Reader g) = Reader $ finally f g
 
-instance ArrowDeduplicate c => ArrowDeduplicate (Reader r c) where
+instance ArrowDeduplicate (r, x) y c => ArrowDeduplicate x y (Reader r c) where
   dedup (Reader f) = Reader (dedup f)
 
 instance ArrowJoin c => ArrowJoin (Reader r c) where
@@ -97,6 +98,9 @@ instance ArrowJoin c => ArrowJoin (Reader r c) where
 
 instance ArrowConst x c => ArrowConst x (Reader r c) where
   askConst = lift askConst
+
+instance ArrowCond v (r,x) (r,y) z c => ArrowCond v x y z (Reader r c) where
+  if_ (Reader f) (Reader g) = Reader $ (\(r,(v,(x,y))) -> (v,((r,x),(r,y)))) ^>> if_ f g
 
 deriving instance PreOrd (c (r,x) y) => PreOrd (Reader r c x y)
 deriving instance LowerBounded (c (r,x) y) => LowerBounded (Reader r c x y)

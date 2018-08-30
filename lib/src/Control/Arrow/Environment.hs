@@ -12,26 +12,27 @@ import Control.Arrow.Fail
 import Control.Arrow.Utils
 
 import Text.Printf
+import Data.String
 
 -- | Arrow-based interface for interacting with environments.
 class Arrow c => ArrowEnv var val env c | c -> var, c -> val, c -> env where
   -- | Lookup a variable in the current environment. The first
   -- continuation is called if the variable is in the enviroment, the
   -- second if it is not.
-  lookup :: c (val,a) y -> c a y -> c (var,a) y
+  lookup :: c (val,x) y -> c x y -> c (var,x) y
   -- | Retrieve the current environment.
   getEnv :: c () env
   -- | Extend an environment with a binding.
   extendEnv :: c (var,val,env) env
   -- | Run a computation with a modified environment.
-  localEnv :: c a b -> c (env,a) b
+  localEnv :: c x y -> c (env,x) y
 
 -- | Simpler version of environment lookup.
-lookup' :: (Show var, ArrowFail String c, ArrowEnv var val env c) => c var val
+lookup' :: (Show var, IsString e, ArrowFail e c, ArrowEnv var val env c) => c var val
 lookup' = proc var ->
   lookup
     (proc (val,_) -> returnA -< val)
-    (proc var     -> fail    -< printf "Variable %s not bound" (show var))
+    (proc var     -> fail    -< fromString $ printf "Variable %s not bound" (show var))
     -< (var,var)
 
 -- | Run a computation in an extended environment.

@@ -15,6 +15,14 @@ fromTerminating :: a -> Terminating a -> a
 fromTerminating _ (Terminating a) = a
 fromTerminating a NonTerminating = a
 
+toMaybe :: Terminating a -> Maybe a
+toMaybe (Terminating a) = Just a
+toMaybe NonTerminating = Nothing
+
+toEither :: Terminating a -> Either () a
+toEither (Terminating a) = Right a
+toEither NonTerminating = Left ()
+
 instance Show a => Show (Terminating a) where
   show NonTerminating = "⊥"
   show (Terminating a) = show a

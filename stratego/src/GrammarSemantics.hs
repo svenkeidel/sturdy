@@ -56,7 +56,7 @@ newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, Pr
 
 newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show, Eq, Hashable)
 newtype Interp a b = Interp (Reader (StratEnv, Int, Alphabet Constr) (State TermEnv (Except () (Completion (->)))) a b)
-  deriving (Arrow, ArrowApply, ArrowChoice, ArrowDeduplicate, Category, PreOrd)
+  deriving (Arrow, ArrowApply, ArrowChoice, Category, PreOrd)
 
 runInterp :: Interp a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> FreeCompletion (Error () (TermEnv, b))
 runInterp (Interp f) i alph senv tenv a = runCompletion (runExcept (runState (runReader f))) (tenv, ((senv, i, alph), a))
@@ -86,10 +86,6 @@ createGrammar (Signature (_, sorts) _) = grammar startSymbol prods
     builtins = [("String", [ Ctor (Constr "String") []]) ]
     prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
 
-sigToAlphabet :: Signature -> Alphabet Constr
-sigToAlphabet (Signature (_, sorts) _) = M.fromList alph where
-  alph = map (\(c,v) -> (Constr (sortToNonterm c),length v)) $ LM.toList sorts
-
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowReader (StratEnv, Int, Alphabet Constr) Interp
 deriving instance ArrowState TermEnv Interp
@@ -104,7 +100,10 @@ instance Hashable Constr where
   hashWithSalt s (NumLit n) = s `hashWithSalt` (2::Int) `hashWithSalt` n
 
 instance PreOrd (GrammarBuilder Constr) where
-  (⊑) = subsetOf
+  g1 ⊑ g2 = d1 `subsetOf` d2 where
+    -- TODO: fix this
+    d1 = {-if isDeterministic g1 then g1 else-} determinize g1
+    d2 = {-if isDeterministic g2 then g2 else-} determinize g2
 
 instance Complete (GrammarBuilder Constr) where
   (⊔) = union
@@ -130,6 +129,11 @@ instance ArrowFix (Strat,Term) Term Interp where
       else localFuel (f (fix f)) -< ((env,i-1,alph),x)
     where
       localFuel (Interp g) = Interp $ proc ((env,i,alph),a) -> local g -< ((env,i,alph),a)
+
+instance ArrowDeduplicate Term Term Interp where
+  -- We normalize and determinize here to reduce duplicated production
+  -- rules, which can save us up to X times the work.
+  dedup f = Term . determinize . normalize . fromTerm ^<< f
 
 instance HasStratEnv Interp where
   readStratEnv = Interp (const () ^>> ask >>^ (\(a,_,_) -> a))
@@ -165,8 +169,8 @@ instance IsTerm Term Interp where
 
   equal = proc (Term g1, Term g2) -> case intersection g1 g2 of
     g | isEmpty g -> fail -< ()
-      | isSingleton g1 && isSingleton g2 -> returnA -< Term (normalize g)
-      | otherwise -> returnA ⊔ fail' -< Term (normalize g)
+      | isSingleton g1 && isSingleton g2 -> returnA -< Term g
+      | otherwise -> returnA ⊔ fail' -< Term g
 
   convertFromList = undefined
 

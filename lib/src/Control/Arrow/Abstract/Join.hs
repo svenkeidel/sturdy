@@ -11,7 +11,7 @@ class Arrow c => ArrowJoin c where
   -- @
   --   joinWith (⊔) f g = joined f g
   -- @
-  joinWith :: (z -> z -> z) -> c x z -> c u z -> c (x,u) z
+  joinWith :: (z -> z -> z) -> c x z -> c y z -> c (x,y) z
 
 instance ArrowJoin (->) where
   joinWith lub f g = \(x,y) -> lub (f x) (g y)

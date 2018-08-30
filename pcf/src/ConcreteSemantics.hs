@@ -14,6 +14,7 @@ import Control.Arrow
 import Control.Arrow.Fail
 import Control.Arrow.Environment
 import Control.Arrow.Fix
+import Control.Arrow.Conditional
 import Control.Arrow.Transformer.Concrete.Environment
 import Control.Arrow.Transformer.Concrete.Except
 import Control.Arrow.Transformer.Concrete.FixPoint
@@ -55,10 +56,6 @@ instance IsVal Val Interp where
     NumVal n -> returnA -< NumVal (n - 1)
     _ -> fail -< "Expected a number as argument for 'pred'"
   zero = arr $ const (NumVal 0)
-  ifZero f g = proc (v1, (x, y)) -> case v1 of
-    NumVal 0 -> f -< x
-    NumVal _ -> g -< y
-    _ -> fail -< "Expected a number as condition for 'ifZero'"
 
 -- | Concrete instance of the interface for closure operations.
 instance IsClosure Val (Env Text Val) Interp where
@@ -66,6 +63,12 @@ instance IsClosure Val (Env Text Val) Interp where
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal (Closure e env) -> f -< ((e,env),arg)
     NumVal _ -> fail -< "Expected a closure"
+
+instance ArrowCond Val x y z Interp where
+  if_ f g = proc (v1, (x, y)) -> case v1 of
+    NumVal 0 -> f -< x
+    NumVal _ -> g -< y
+    _ -> fail -< "Expected a number as condition for 'ifZero'"
 
 -- All other instances for the concrete interpreter arrow can be
 -- derived from the instances of the underlying arrow transformers.
