@@ -34,8 +34,10 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category hiding ((.))
 
-import           Data.Abstract.FreeCompletion
-import           Data.Abstract.HandleError
+import           Data.Abstract.FreeCompletion (FreeCompletion(Lower,Top))
+import qualified Data.Abstract.FreeCompletion as F
+import           Data.Abstract.HandleError (Error)
+import qualified Data.Abstract.HandleError as E
 import           Data.Abstract.Maybe
 import           Data.Abstract.PreciseStore (Store)
 import qualified Data.Abstract.PreciseStore as S
@@ -76,12 +78,14 @@ newtype Interp s a b =
 runInterp :: Interp SW.Stack a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Error () (TermEnv, b)))
 runInterp (Interp f) i alph senv tenv a =
   -- Term (wildcard alph)
-  runFix' (SW.stack (SW.maxSize i SW.topOut)) W.finite
+  runFix' (SW.stack (SW.maxSize i SW.topOut)) grammarWidening
     (runCompletion
       (runExcept
         (runState
           (runReader f))))
     (tenv, (senv, a))
+  where
+    grammarWidening = (F.widening (E.widening (\_ _ -> ()) (S.widening widening W.** widening)))
 
 eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Error () (TermEnv, Term)))
 eval i s = runInterp (eval' s) i
@@ -256,6 +260,9 @@ instance Soundness (StratEnv, Alphabet Constr) (Interp SW.Stack) where
     in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 -- Helpers -------------------------------------------------------------------------------------------
+widening :: Widening Term
+widening (Term t1) (Term t2) = Term (widen t1 t2)
+
 mapSnd :: (a -> b) -> [(c, a)] -> [(c, b)]
 mapSnd _ [] = []
 mapSnd f ((x,y):s) = (x,f y) : mapSnd f s

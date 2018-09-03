@@ -6,6 +6,7 @@ module Data.Abstract.FreeCompletion where
 
 import Control.Applicative
 import Control.Monad
+import Data.Abstract.Widening
 import Data.Hashable
 import Data.Order
 
@@ -74,3 +75,7 @@ instance Fractional a => Fractional (FreeCompletion a) where
 instance Complete (FreeCompletion ()) where
   Lower _ ⊔ Lower _ = Lower ()
   _ ⊔ _ = Top
+
+widening :: Widening a -> Widening (FreeCompletion a)
+widening wa (Lower a) (Lower a') = Lower (a `wa` a')
+widening _ _ _ = Top
