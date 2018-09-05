@@ -176,8 +176,8 @@ instance IsTerm Term Interp where
   convertFromList = undefined
 
   mapSubterms f = proc (Term g) -> do
-    g' <- lubA (fromSubterms . return ^<< second (fromTerms ^<< f)) -< [ (c, toTerms gs) | (c, gs) <- toSubterms g ]
-    returnA -< Term g'
+    let subterms = mapSnd toTerms (toSubterms g)
+    Term ^<< lubA (fromSubterms . return ^<< second (fromTerms ^<< f)) -< subterms
 
   cons = proc (Constructor c,ts) -> returnA -< Term (addConstructor (Constr c) (fromTerms ts))
   numberLiteral = arr numberGrammar
@@ -237,6 +237,10 @@ dom = LM.keys
 
 thrd :: (a,b,c) -> c
 thrd (_,_,c) = c
+
+mapSnd :: (a -> b) -> [(c, a)] -> [(c, b)]
+mapSnd _ [] = []
+mapSnd f ((x,y):s) = (x,f y) : mapSnd f s
 
 toTerms :: [GrammarBuilder Constr] -> [Term]
 toTerms = map Term
