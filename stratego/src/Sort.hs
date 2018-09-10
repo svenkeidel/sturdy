@@ -9,7 +9,7 @@ import Data.Hashable(Hashable(..))
 import Data.List(intercalate)
 
 
-newtype SortId = SortId Text deriving (Show,Eq,Hashable,IsString)
+newtype SortId = SortId Text deriving (Show,Eq,Ord,Hashable,IsString)
 data Sort = Bottom | Top | Coproduct Sort Sort | List Sort | Option Sort | Tuple [Sort] | Sort SortId deriving (Eq)
 
 instance IsString Sort where

@@ -31,6 +31,7 @@ library
                        ConcreteSemantics,
                        WildcardSemantics,
                        GrammarSemantics,
+                       SortSemantics,
                        Soundness,
                        Paths_sturdy_stratego
   build-depends:       attoparsec,
