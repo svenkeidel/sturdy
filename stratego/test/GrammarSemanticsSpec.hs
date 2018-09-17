@@ -346,7 +346,7 @@ spec = do
     showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: Term)
 
     empty :: GrammarBuilder Constr
-    empty = grammar "empty" M.empty
+    empty = grammar "empty" $ M.fromList [ ("empty", []) ]
 
     pcf = grammar "S" $ M.fromList [
       ("S", [ Eps "Exp", Eps "Type" ])
