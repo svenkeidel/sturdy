@@ -41,6 +41,9 @@ instance Monoid (Unit a) where
 finite :: StackWidening Unit a
 finite a = return a
 
+finite' :: StackWidening s a
+finite' a = return a
+
 data Stack a = Stack Int [a]
 instance Monoid (Stack a) where
   mempty = Stack 0 []
