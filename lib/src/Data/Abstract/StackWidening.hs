@@ -109,5 +109,13 @@ data Product s1 s2 x where
   put $ Product s1' s2'
   return (a',b')
 
+(***) :: StackWidening Stack a -> StackWidening Stack b -> StackWidening Stack (a,b)
+(***) f g (a,b) = do
+  Stack i st <- get
+  let (a',Stack i' as') = runState (f a) (Stack i (map fst st))
+      (b',Stack i'' bs') = runState (g b) (Stack i' (map snd st))
+  put (Stack i'' (zip as' bs'))
+  return (a',b')
+
 topOut :: UpperBounded a => StackWidening s a
 topOut _ = return top
