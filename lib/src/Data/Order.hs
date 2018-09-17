@@ -79,9 +79,13 @@ instance (PreOrd e, PreOrd a) => PreOrd (Either e a) where
   _ ⊑ _ = False
 
 instance PreOrd a => PreOrd [a] where
-  []     ⊑ []     = True
-  (a:as) ⊑ (b:bs) = a ⊑ b && as ⊑ bs
-  _      ⊑ _      = False
+  []   ⊑ []   = True
+  a:as ⊑ b:bs = a ⊑ b && as ⊑ bs
+  _    ⊑ _    = False
+  
+  []   ≈ []   = True
+  a:as ≈ b:bs = a ≈ b && as ≈ bs
+  _    ≈ _    = False
 
 instance PreOrd a => PreOrd (Set a) where
   s1 ⊑ s2 = all (\x -> any (\y -> x ⊑ y) s2) s1

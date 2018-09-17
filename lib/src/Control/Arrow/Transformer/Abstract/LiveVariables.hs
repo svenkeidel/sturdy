@@ -31,7 +31,6 @@ import           Data.Hashable
 import           Data.Order
 import           Data.Semigroup
 
-import           Data.Abstract.Widening
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.DiscretePowerset as P
 
@@ -55,8 +54,6 @@ instance Identifiable v => PreOrd (LiveVars v) where
 
 instance Identifiable v => Complete (LiveVars v) where
   LiveVars f ⊔ LiveVars g = LiveVars (\lv -> f lv ⊔ g lv)
-
-instance Identifiable v => Widening (LiveVars v)
 
 live :: Identifiable v => v -> LiveVars v
 live x = LiveVars $ P.insert x

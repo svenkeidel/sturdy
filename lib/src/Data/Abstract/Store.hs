@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-module Data.Abstract.Store(Store(..),singleton,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map,mapValues,compose) where
+module Data.Abstract.Store(Store(..),singleton,subsetKeys,empty,lookup,insert,insertWith,adjust,(!),keys,toList,fromList,map,mapValues,compose,widening) where
 
 import           Prelude hiding (lookup,map)
 
@@ -36,9 +36,6 @@ instance (Identifiable a, Complete b) => Complete (Store a b) where
 
 instance (Identifiable a, CoComplete b) => CoComplete (Store a b) where
   Store m1 ⊓ Store m2 = Store (H.intersectionWith (⊓) m1 m2)
-
-instance (Identifiable a, Widening b) => Widening (Store a b) where
-  Store m1 ▽ Store m2 = Store (H.unionWith (▽) m1 m2)
 
 instance (Identifiable a, PreOrd b) => LowerBounded (Store a b) where
   bottom = empty
@@ -81,6 +78,9 @@ keys (Store m) = H.keys m
 
 compose :: (Identifiable a, Identifiable b, Complete c) => [(a,b)] -> Store b c -> Store a c
 compose f (Store g) = Store $ H.fromListWith (⊔) [ (a,c) | (a,b) <- f, Just c <- return $ H.lookup b g ]
+
+widening :: Identifiable a => Widening b -> Widening (Store a b)
+widening w (Store m1) (Store m2) = Store (H.unionWith w m1 m2)
 
 instance Identifiable a => IsList (Store a b) where
   type Item (Store a b) = (a,b)

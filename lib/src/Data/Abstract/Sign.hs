@@ -87,9 +87,10 @@ instance Complete Sign where
   Positive ⊔ Positive = Positive
   _ ⊔ _ = Top
 
-instance Widening Sign
-
 instance UpperBounded Sign where
   top = Top
 
 instance Hashable Sign
+
+widening :: Widening Sign
+widening = finite

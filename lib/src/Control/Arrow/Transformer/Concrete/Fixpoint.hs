@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Concrete.FixPoint(Fix,runFixPoint) where
+module Control.Arrow.Transformer.Concrete.Fixpoint(Fix,runFix) where
 
 import Prelude hiding ((.))
 
@@ -9,5 +9,5 @@ import Control.Arrow.Fix
 type instance Fix a b (->) = (->)
 
 -- | Excecutes a concrete fixpoint computation.
-runFixPoint :: Fix a b (->) x y -> x -> y
-runFixPoint f = f
+runFix :: Fix a b (->) x y -> x -> y
+runFix f = f

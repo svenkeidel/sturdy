@@ -3,7 +3,6 @@
 module Data.Abstract.DiscretePowerset where
 
 import           Data.Order
-import           Data.Abstract.Widening
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
 import           Data.Hashable
@@ -52,8 +51,6 @@ instance Identifiable x => PreOrd (Pow x) where
 
 instance Identifiable x => Complete (Pow x) where
   (⊔) = union
-
-instance Identifiable x => Widening (Pow x)
 
 instance Hashable x => Hashable (Pow x)
 
