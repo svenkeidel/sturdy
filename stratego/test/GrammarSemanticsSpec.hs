@@ -326,17 +326,17 @@ spec = do
 
   where
     geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> FreeCompletion (Error () (TermEnv, Term))
-    geval' i strat senv tenv g = fromTerminating Top $ eval i strat (alphabet (fromTerm g)) senv tenv g
+    geval' i strat senv tenv g = fromTerminating Top $ eval i strat senv tenv g
 
     geval :: Int -> Strat -> TermEnv -> Term -> FreeCompletion (Error () (TermEnv, Term))
     geval i strat tenv g = geval' i strat LM.empty tenv g
 
     sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
     sound' s xs = sound r pow f g where
-      r = (LM.empty, alphabet (alpha ((C.fromFoldable (fmap fst xs)::C.Pow C.Term))))
+      r = LM.empty
       pow = C.fromFoldable $ fmap (second termEnv') xs
       f = eval' s :: C.Interp C.Term C.Term
-      g = eval' s :: Interp SW.Stack Term Term
+      g = eval' s :: Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) Term Term
 
     termEnv = S.fromList
     termEnv' = C.TermEnv . LM.fromList

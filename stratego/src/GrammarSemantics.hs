@@ -51,8 +51,9 @@ import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as LM
 import           Data.Hashable
 import qualified Data.Map as M
+import           Data.Monoidal
 import           Data.Order
-import           Data.Term
+import           Data.Term hiding (wildcard)
 import           Data.Text (Text)
 
 import           TreeAutomata
@@ -67,7 +68,7 @@ type TermEnv = Store TermVar Term
 
 newtype Interp s a b =
   Interp (
-    Fix Strat Term
+    Fix (Strat,Term) Term
       (Reader StratEnv
         (State TermEnv
           (Except ()
@@ -75,19 +76,28 @@ newtype Interp s a b =
               (Fixpoint s () ()
                 (->)))))) a b)
 
-runInterp :: Interp SW.Stack a b -> Int -> Alphabet Constr -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Error () (TermEnv, b)))
-runInterp (Interp f) i alph senv tenv a =
-  -- Term (wildcard alph)
-  runFix' (SW.stack (SW.maxSize i SW.topOut)) grammarWidening
+runInterp :: Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Error () (TermEnv, b)))
+runInterp (Interp f) i senv tenv a =
+  runFix' stackWidening grammarWidening
     (runCompletion
       (runExcept
         (runState
           (runReader f))))
     (tenv, (senv, a))
   where
-    grammarWidening = (F.widening (E.widening (\_ _ -> ()) (S.widening widening W.** widening)))
+    stackWidening :: SW.StackWidening (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) (TermEnv, (StratEnv, (Strat, Term)))
+    stackWidening = SW.categorize (Iso (\(te,(se,(s,t))) -> ((s,se),(te,t))) (\((s,se),(te,t)) -> (te,(se,(s,t)))))
+      (SW.stack
+       (SW.maxSize i
+        (SW.reuse bestChoice
+         (SW.fromWidening (S.widening widening W.** widening)))))
+    grammarWidening = F.widening (E.widening (\_ _ -> ()) (S.widening widening W.** widening))
 
-eval :: Int -> Strat -> Alphabet Constr -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Error () (TermEnv, Term)))
+bestChoice :: (TermEnv, Term) -> [(TermEnv, Term)] -> (TermEnv, Term)
+bestChoice e [] = e
+bestChoice _ (x:_) = x
+
+eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Error () (TermEnv, Term)))
 eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
@@ -119,30 +129,11 @@ deriving instance ArrowChoice (Interp s)
 deriving instance ArrowReader StratEnv (Interp s)
 deriving instance ArrowState TermEnv (Interp s)
 deriving instance ArrowFail () (Interp s)
-deriving instance ArrowFix Strat Term (Interp s)
 deriving instance (Complete (FreeCompletion y), PreOrd y) => ArrowExcept x y () (Interp s)
 deriving instance PreOrd b => PreOrd (Interp s a b)
 deriving instance (Complete (FreeCompletion b), PreOrd b) => Complete (Interp s a b)
 deriving instance PreOrd b => LowerBounded (Interp s a b)
-
--- TODO: what requires these instances?
-instance Hashable Closure where
-  hashWithSalt _ _ = undefined
-
-instance UpperBounded TermEnv where
-  top = S.empty
-
-instance PreOrd StratEnv where
-  (⊑) = undefined
-
-instance UpperBounded StratEnv where
-  top = LM.empty
-
-instance PreOrd Strat where
-  (⊑) = undefined
-
-instance UpperBounded Strat where
-  top = undefined
+deriving instance ArrowFix (Strat,Term) Term (Interp s)
 
 instance Hashable Constr where
   hashWithSalt s (Constr c) = s `hashWithSalt` (0::Int) `hashWithSalt` c
@@ -161,10 +152,6 @@ instance Complete (GrammarBuilder Constr) where
 
 instance ArrowApply (Interp s) where
   app = Interp $ (\(Interp f, b) -> (f,b)) ^>> app
-
--- TODO: is this correct?
-instance ArrowFix (Strat,Term) Term (Interp s) where
-  fix f = f (fix f)
 
 instance ArrowDeduplicate Term Term (Interp s) where
   -- We normalize and determinize here to reduce duplicated production
@@ -250,13 +237,13 @@ instance Galois (C.Pow C.TermEnv) TermEnv where
   alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (LM.toList (fmap alphaSing e)))
   gamma = undefined
 
-instance Soundness (StratEnv, Alphabet Constr) (Interp SW.Stack) where
-  sound (senv,alph) xs f g = Q.forAll (Q.choose (2,3)) $ \i ->
+instance Soundness StratEnv (Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack)) where
+  sound senv xs f g = Q.forAll (Q.choose (2,3)) $ \i ->
     let con :: FreeCompletion (Error () (TermEnv,_))
         con = Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
         abst :: FreeCompletion (Error () (TermEnv,_))
         -- TODO: using fromTerminating is a bit of a hack...
-        abst = fromTerminating Top $ runInterp g i alph senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+        abst = fromTerminating Top $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 -- Helpers -------------------------------------------------------------------------------------------

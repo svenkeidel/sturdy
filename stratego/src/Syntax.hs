@@ -64,6 +64,10 @@ type Strategies = HashMap StratVar Strategy
 data Strategy = Strategy [StratVar] [TermVar] Strat deriving (Show,Eq)
 
 data Closure = Closure Strategy StratEnv deriving (Eq)
+
+instance Hashable Closure where
+  hashWithSalt s (Closure strat senv) = s `hashWithSalt` strat `hashWithSalt` senv
+
 type StratEnv = HashMap StratVar Closure
 newtype TermVar = TermVar Text deriving (Eq,Ord,Hashable)
 newtype StratVar = StratVar Text deriving (Eq,Ord,IsString,Hashable)
