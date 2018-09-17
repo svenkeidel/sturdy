@@ -86,14 +86,13 @@ categorize iso w a = do
   put $ Categories $ M.insert k s' m
   return (from iso (k,b'))
 
-fromWidening :: Complete a => Widening a -> StackWidening Maybe a
+fromWidening :: Complete a => Widening a -> StackWidening Stack a
 fromWidening w a = do
-  m <- get
-  case m of
-    Nothing -> do put (Just a); return a
-    Just x -> do
+  Stack _ s <- get
+  case s of
+    [] -> return a
+    x:_ -> do
       let x' = a `w` (x ⊔ a)
-      put (Just x')
       return x'
 
 data Product s1 s2 x where
