@@ -192,8 +192,8 @@ instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]
   _ ⊔ _ = Top
 
 instance IsTerm Term (Interp s) where
-  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ts,Term g) ->
-    lubA (reconstruct <<< second matchSubterms <<< checkConstructorAndLength c ts) -<< toSubterms g
+  matchTermAgainstConstructor matchSubterms = proc (c,ts,Term g) ->
+    lubA (cons <<< second matchSubterms <<< checkConstructorAndLength c ts) -<< toSubterms g
 
   matchTermAgainstExplode _ _ = undefined
 
@@ -276,12 +276,9 @@ fromTerms = map fromTerm
 fromTerm :: Term -> GrammarBuilder Constr
 fromTerm (Term g) = g
 
-reconstruct :: Interp s (Text, [Term]) Term
-reconstruct = proc (c, ts) -> returnA -< (Term (fromSubterms [(Constr c, fromTerms ts)]))
-
-checkConstructorAndLength :: Text -> [t'] -> Interp s (Constr, [GrammarBuilder Constr]) (Text, ([t'], [Term]))
-checkConstructorAndLength c ts = proc (c', gs) -> case c' of
-  Constr c'' | c == c'' && eqLength ts gs -> returnA -< (c, (ts, toTerms gs))
+checkConstructorAndLength :: Constructor -> [t'] -> Interp s (Constr, [GrammarBuilder Constr]) (Constructor, ([t'], [Term]))
+checkConstructorAndLength (Constructor c) ts = proc (c', gs) -> case c' of
+  Constr c'' | c == c'' && eqLength ts gs -> returnA -< (Constructor c, (ts, toTerms gs))
   _ -> fail -< ()
 
 matchLit :: Interp s (GrammarBuilder Constr, Constr) Term
