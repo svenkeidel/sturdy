@@ -101,9 +101,10 @@ instance Hashable Constr where
 
 instance PreOrd (GrammarBuilder Constr) where
   g1 ⊑ g2 = d1 `subsetOf` d2 where
-    -- TODO: fix this
-    d1 = {-if isDeterministic g1 then g1 else-} determinize g1
-    d2 = {-if isDeterministic g2 then g2 else-} determinize g2
+    g1' = normalize (epsilonClosure g1)
+    g2' = normalize (epsilonClosure g2)
+    d1 = if isDeterministic g1' then g1' else determinize g1'
+    d2 = if isDeterministic g2' then g2' else determinize g2'
 
 instance Complete (GrammarBuilder Constr) where
   (⊔) = union
@@ -169,7 +170,7 @@ instance IsTerm Term Interp where
 
   equal = proc (Term g1, Term g2) -> case intersection g1 g2 of
     g | isEmpty g -> fail -< ()
-      | isSingleton g1 && isSingleton g2 -> returnA -< Term g
+      | isSingleton (normalize (epsilonClosure g1)) && isSingleton (normalize (epsilonClosure g2)) -> returnA -< Term g
       | otherwise -> returnA ⊔ fail' -< Term g
 
   convertFromList = undefined
@@ -261,7 +262,7 @@ top' = proc () -> returnA ⊔ fail' <<< (Term . wildcard . thrd ^<< ask) -< ()
 matchLit :: Interp (Term, Constr) Term
 -- TODO: check if production to n has empty argument list? This should be the case by design.
 matchLit = proc (Term g,l) -> case g `produces` l of
-  True | isSingleton g -> returnA -< Term g
+  True | isSingleton (normalize (epsilonClosure g)) -> returnA -< Term g
        | otherwise -> returnA ⊔ fail' -< Term g
   False -> fail -< ()
 
