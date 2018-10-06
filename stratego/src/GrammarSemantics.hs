@@ -193,8 +193,8 @@ instance IsTerm Term (Interp s) where
 
   matchTermAgainstExplode _ _ = undefined
 
-  matchTermAgainstNumber = proc (n,g) -> matchLit -< (g, NumLit n)
-  matchTermAgainstString = proc (s,g) -> matchLit -< (g, StringLit s)
+  matchTermAgainstNumber = proc (n,Term g) -> matchLit -< (normalize (epsilonClosure g), NumLit n)
+  matchTermAgainstString = proc (s,Term g) -> matchLit -< (normalize (epsilonClosure g), StringLit s)
 
   equal = proc (Term g1, Term g2) -> case intersection g1 g2 of
     g | isEmpty g -> fail -< ()
@@ -207,7 +207,7 @@ instance IsTerm Term (Interp s) where
     let subterms = mapSnd toTerms (toSubterms g)
     Term ^<< lubA (fromSubterms . return ^<< second (fromTerms ^<< f)) -< subterms
 
-  cons = proc (Constructor c,ts) -> returnA -< Term (addConstructor (Constr c) (fromTerms ts))
+  cons = proc (Constructor c,ts) -> returnA -< Term (normalize (epsilonClosure (addConstructor (Constr c) (fromTerms ts))))
   numberLiteral = arr numberGrammar
   stringLiteral = arr stringGrammar
 
@@ -277,10 +277,10 @@ checkConstructorAndLength c ts = proc (c', gs) -> case c' of
   Constr c'' | c == c'' && eqLength ts gs -> returnA -< (c, (ts, toTerms gs))
   _ -> fail -< ()
 
-matchLit :: Interp s (Term, Constr) Term
+matchLit :: Interp s (GrammarBuilder Constr, Constr) Term
 -- TODO: check if production to n has empty argument list? This should be the case by design.
-matchLit = proc (Term g,l) -> case g `produces` l of
-  True | isSingleton (normalize (epsilonClosure g)) -> returnA -< Term g
+matchLit = proc (g,l) -> case g `produces` l of
+  True | isSingleton g -> returnA -< Term g
        | otherwise -> returnA ⊔ fail' -< Term g
   False -> fail -< ()
 
