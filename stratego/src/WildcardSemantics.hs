@@ -24,9 +24,9 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
+import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.HandleExcept
 import           Control.Arrow.Transformer.Abstract.Powerset
-import           Control.Arrow.Transformer.Abstract.GreatestFixPoint
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category
@@ -39,12 +39,16 @@ import           Data.Abstract.Maybe
 import qualified Data.Abstract.Powerset as A
 import           Data.Abstract.PreciseStore (Store)
 import qualified Data.Abstract.PreciseStore as S
+import qualified Data.Abstract.StackWidening as SW
+import           Data.Abstract.Terminating (Terminating,fromTerminating)
+import           Data.Abstract.Widening as W
 import qualified Data.Concrete.Powerset as CP
 import           Data.Constructor
 import           Data.Foldable (foldr')
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
+import           Data.Monoidal
 import           Data.Order
 import           Data.Term
 import           Data.Text (Text)
@@ -64,38 +68,60 @@ data Term
 type TermEnv = Store TermVar Term
 
 -- | 
-newtype Interp a b = Interp (Reader StratEnv (State TermEnv (Except () (Powerset GreatestFixPoint))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,PreOrd,Complete)
+newtype Interp s a b =
+  Interp (
+    Fix (Strat,Term) Term
+      (Reader StratEnv
+        (State TermEnv
+          (Except ()
+            (Powerset
+              (Fixpoint s () ()
+                (->)))))) a b)
 
-runInterp :: Interp a b -> Int -> StratEnv -> TermEnv -> a -> A.Pow (Error () (TermEnv,b))
+runInterp :: Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (A.Pow (Error () (TermEnv,b)))
 runInterp (Interp f) k senv tenv a =
-  runGreatestFixPoint k
+  runFix' stackWidening W.finite
     (runPowerset
       (runExcept
         (runState
           (runReader f))))
     (tenv, (senv, a))
+  where
+    stackWidening :: SW.StackWidening (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) (TermEnv, (StratEnv, (Strat, Term)))
+    stackWidening = SW.categorize (Iso from' to') (SW.stack (SW.maxSize k SW.topOut))
 
-eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> A.Pow (Error () (TermEnv,Term))
+from' :: (TermEnv, (StratEnv, (Strat, Term))) -> ((Strat, StratEnv), (TermEnv, Term))
+from' (tenv,(senv,(s,t))) = ((s,senv),(tenv,t))
+
+to' :: ((Strat, StratEnv), (TermEnv, Term)) -> (TermEnv, (StratEnv, (Strat, Term)))
+to' ((s,senv),(tenv,t)) = (tenv,(senv,(s,t)))
+
+eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (A.Pow (Error () (TermEnv,Term)))
 eval i s = runInterp (eval' s) i
 
 -- Instances -----------------------------------------------------------------------------------------
-deriving instance ArrowReader StratEnv Interp
-deriving instance ArrowState TermEnv Interp
-deriving instance ArrowFix (Strat,Term) Term Interp
-deriving instance PreOrd y => ArrowExcept x y () Interp
-deriving instance ArrowDeduplicate Term Term Interp
+deriving instance Category (Interp s)
+deriving instance Arrow (Interp s)
+deriving instance ArrowChoice (Interp s)
+deriving instance ArrowReader StratEnv (Interp s)
+deriving instance ArrowState TermEnv (Interp s)
+deriving instance ArrowFail () (Interp s)
+deriving instance ArrowFix (Strat,Term) Term (Interp s)
+deriving instance PreOrd y => ArrowExcept x y () (Interp s)
+deriving instance ArrowDeduplicate Term Term (Interp s)
+deriving instance PreOrd b => PreOrd (Interp s a b)
+deriving instance (Complete  b, PreOrd b) => Complete (Interp s a b)
 
-instance ArrowFail () Interp where
-  fail = Interp fail
+instance ArrowApply (Interp s) where
+  app = Interp $ (\(Interp f, b) -> (f,b)) ^>> app
 
-instance HasStratEnv Interp where
+instance HasStratEnv (Interp s) where
   readStratEnv = Interp (const () ^>> ask)
   localStratEnv senv f = proc a -> do
     r <- local f -< (senv,a)
     returnA -< r
 
-instance IsTermEnv TermEnv Term Interp where
+instance IsTermEnv TermEnv Term (Interp s) where
   getTermEnv = get
   putTermEnv = put
   lookupTermVar f g = proc (v,env) ->
@@ -107,7 +133,7 @@ instance IsTermEnv TermEnv Term Interp where
   deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
 
-instance IsTerm Term Interp where
+instance IsTerm Term (Interp s) where
   matchTermAgainstConstructor matchSubterms = proc (c,ts,t) -> case t of
     Cons c' ts' | c == c' && eqLength ts ts' -> do
       ts'' <- matchSubterms -< (ts,ts')
@@ -197,12 +223,12 @@ instance IsTerm Term Interp where
   numberLiteral = arr NumberLiteral
   stringLiteral = arr StringLiteral
 
-instance Soundness StratEnv Interp where
+instance Soundness StratEnv (Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack)) where
   sound senv xs f g = forAll (choose (0,3)) $ \i ->
     let con :: A.Pow (Error () (TermEnv,_))
         con = A.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
         abst :: A.Pow (Error () (TermEnv,_))
-        abst = A.dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+        abst = A.dedup $ fromTerminating (error "non-terminating wildcard semantics") $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 instance UpperBounded Term where

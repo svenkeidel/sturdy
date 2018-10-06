@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -78,6 +79,7 @@ instance (ArrowChoice c, ArrowDeduplicate x y c) => ArrowDeduplicate x y (Powers
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Powerset c) where
   joinWith _ (Powerset f) (Powerset g) = Powerset $ joinWith A.union f g
 
+type instance Fix x y (Powerset c) = Powerset (Fix x (A.Pow y) c)
 instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (Powerset c) where
   fix f = Powerset (fix (runPowerset . f . Powerset))
 

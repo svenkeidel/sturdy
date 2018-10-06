@@ -16,6 +16,8 @@ import           Control.Arrow
 import           Data.Abstract.HandleError
 import qualified Data.Abstract.Powerset as A
 import qualified Data.Abstract.PreciseStore as S
+import qualified Data.Abstract.StackWidening as SW
+import           Data.Abstract.Terminating (fromTerminating)
 import qualified Data.Concrete.Powerset as C
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as M
@@ -100,7 +102,7 @@ spec = do
 
   where
     sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
-    sound' s xs = sound M.empty (C.fromFoldable $ fmap (second termEnv) xs) (eval' s) (eval' s :: W.Interp W.Term W.Term)
+    sound' s xs = sound M.empty (C.fromFoldable $ fmap (second termEnv) xs) (eval' s) (eval' s :: W.Interp (SW.Categories (Strat,StratEnv) (W.TermEnv, W.Term) SW.Stack) W.Term W.Term)
 
     termEnv = C.TermEnv . M.fromList
 
@@ -124,4 +126,4 @@ spec = do
               (Build (Cons "Nil" []))))
 
     weval :: Int -> Strat -> W.Term -> A.Pow (Error () (W.TermEnv,W.Term))
-    weval i s = W.eval i s M.empty S.empty
+    weval i s = fromTerminating (error "non-terminating wildcard semantics") . W.eval i s M.empty S.empty
