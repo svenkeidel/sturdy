@@ -10,7 +10,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module SortSemantics where
 
-import           Prelude hiding ((.),fail)
+import           Prelude hiding ((.),fail,Just,Nothing)
 
 import           SharedSemantics
 import           Sort (SortId(..))
@@ -24,29 +24,40 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
+import           Control.Arrow.Transformer.Abstract.Completion
+import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.HandleExcept
-import           Control.Arrow.Transformer.Abstract.Powerset
-import           Control.Arrow.Transformer.Abstract.GreatestFixPoint
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category
+import           Control.Monad (zipWithM)
 
-import qualified Data.Abstract.Powerset as A
+import           Data.Abstract.FreeCompletion hiding (Top)
+import qualified Data.Abstract.FreeCompletion as F
 import           Data.Abstract.HandleError
+import           Data.Abstract.HandleError as E
+import           Data.Abstract.Maybe
+import           Data.Abstract.PreciseStore (Store)
+import qualified Data.Abstract.PreciseStore as S
+import qualified Data.Abstract.StackWidening as SW
+import           Data.Abstract.Terminating
+import           Data.Abstract.Widening as W
 import           Data.Constructor
 import           Data.Foldable (foldr')
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
-import           Data.List(intercalate)
+import           Data.Hashable
+import           Data.List (intercalate)
+import           Data.Monoidal
+import           Data.Order
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.Hashable
-import           Data.Order
 import           Data.Text (unpack)
 
 import           GHC.Generics (Generic)
 
-data Sort = Bottom | Top | Lexical | Numerical | Option Sort | List Sort | Tuple [Sort] | Sort SortId
+-- TODO: perhaps reuse the Sort module?
+data Sort = Bottom | Top | Lexical | Numerical | Option Sort | List Sort | Tuple [Sort] | Sort Sort.SortId
   deriving (Eq, Ord, Generic)
 
 data SortContext = SortContext {
@@ -55,7 +66,10 @@ data SortContext = SortContext {
 , injections :: Set (Sort, Sort)
 , injectionClosure :: HashMap Sort (Set Sort)
 , reverseInjectionClosure :: HashMap Sort (Set Sort)
-} deriving (Eq)
+} deriving (Eq,Show)
+
+instance Hashable SortContext where
+  hashWithSalt s ctx = s `hashWithSalt` ctx
 
 data Term = Term {
   sort :: Sort
@@ -70,42 +84,73 @@ isList :: Term -> Bool
 isList (Term (List _) _) = True
 isList _ = False
 
-newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
+type TermEnv = Store TermVar Term
+instance UpperBounded TermEnv where
+  top = S.empty
 
+-- TODO: perhaps use HasSignature?
+newtype Interp s a b =
+  Interp (
+   Fix (Strat,Term) Term
+    (Reader (StratEnv,SortContext)
+     (State TermEnv
+      (Except ()
+       (Completion
+        (Fixpoint s () ()
+         (->)))))) a b)
 
-
-
-
--- |
-newtype Interp a b = Interp (Reader (StratEnv,SortContext) (State TermEnv (Except () (Powerset GreatestFixPoint))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply,PreOrd,Complete)
-
-runInterp :: Interp a b -> Int -> StratEnv -> SortContext -> TermEnv -> a -> A.Pow (Error () (TermEnv,b))
+runInterp :: Interp (SW.Categories (Strat,(StratEnv,SortContext)) (TermEnv,Term) SW.Stack) a b -> Int -> StratEnv -> SortContext -> TermEnv -> a -> Terminating (FreeCompletion (Error () (TermEnv,b)))
 runInterp (Interp f) k senv sig tenv a =
-  runGreatestFixPoint k
-    (runPowerset
-      (runExcept
-        (runState
-          (runReader f))))
+  runFix' stackWidening sortWidening
+    (runCompletion
+     (runExcept
+      (runState
+       (runReader f))))
     (tenv, ((senv, sig), a))
+  where
+    stackWidening :: SW.StackWidening (SW.Categories (Strat,(StratEnv,SortContext)) (TermEnv, Term) SW.Stack) (TermEnv, ((StratEnv, SortContext), (Strat, Term)))
+    stackWidening = SW.categorize (Iso from' to') (SW.stack (SW.maxSize k SW.topOut))
+    sortWidening :: Widening (FreeCompletion (Error () (TermEnv,Term)))
+    sortWidening = F.widening (E.widening (\_ _ -> ()) (S.widening W.finite W.** W.finite))
 
-eval :: Int -> Strat -> StratEnv -> SortContext -> TermEnv -> Term -> A.Pow (Error () (TermEnv,Term))
+from' :: (TermEnv, ((StratEnv, SortContext), (Strat, Term))) -> ((Strat, (StratEnv, SortContext)), (TermEnv, Term))
+from' (tenv,((senv,sig),(s,t))) = ((s,(senv,sig)),(tenv,t))
+
+to' :: ((Strat, (StratEnv, SortContext)), (TermEnv, Term)) -> (TermEnv, ((StratEnv,SortContext), (Strat, Term)))
+to' ((s,(senv,sig)),(tenv,t)) = (tenv,((senv,sig),(s,t)))
+
+eval :: Int -> Strat -> StratEnv -> SortContext -> TermEnv -> Term -> Terminating (FreeCompletion (Error () (TermEnv,Term)))
 eval i s = runInterp (eval' s) i
 
-emptyEnv :: TermEnv
-emptyEnv = TermEnv M.empty
-
 -- Instances -----------------------------------------------------------------------------------------
-deriving instance ArrowReader (StratEnv, SortContext) Interp
-deriving instance ArrowState TermEnv Interp
-deriving instance ArrowFix (Strat,Term) Term Interp
-deriving instance PreOrd y => ArrowExcept x y () Interp
-deriving instance ArrowDeduplicate Term Term Interp
+deriving instance Category (Interp s)
+deriving instance Arrow (Interp s)
+deriving instance ArrowChoice (Interp s)
+deriving instance ArrowDeduplicate Term Term (Interp s)
+deriving instance (Complete (FreeCompletion y), PreOrd y) => ArrowExcept x y () (Interp s)
+deriving instance ArrowFail () (Interp s)
+deriving instance ArrowFix (Strat,Term) Term (Interp s)
+deriving instance ArrowReader (StratEnv, SortContext) (Interp s)
+deriving instance ArrowState TermEnv (Interp s)
+deriving instance PreOrd b => PreOrd (Interp s a b)
+deriving instance (Complete (FreeCompletion b), PreOrd b) => Complete (Interp s a b)
 
-instance ArrowFail () Interp where
-  fail = Interp fail
+instance Complete (FreeCompletion Term) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = F.Top
 
-instance HasStratEnv Interp where
+instance Complete (FreeCompletion TermEnv) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = F.Top
+
+instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]) where
+  Lower xs ⊔ Lower ys | eqLength xs ys = zipWithM (\x y -> Lower x ⊔ Lower y) xs ys
+  _ ⊔ _ = F.Top
+
+instance ArrowApply (Interp s) where
+  app = Interp $ (\(Interp f, b) -> (f,b)) ^>> app
+
+instance HasStratEnv (Interp s) where
   readStratEnv = proc _ -> do
     (env,_) <- ask -< ()
     returnA -< env
@@ -114,29 +159,19 @@ instance HasStratEnv Interp where
     r <- local f -< ((senv,ctx),a)
     returnA -< r
 
-withSortContext :: ArrowReader (StratEnv, SortContext) c => (a -> SortContext -> b) -> c a b
-withSortContext f = proc a -> do
-  (_,ctx) <- ask -< ()
-  returnA -< f a ctx
-
-instance IsTermEnv TermEnv Term Interp where
+instance IsTermEnv TermEnv Term (Interp s) where
   getTermEnv = get
   putTermEnv = put
-  lookupTermVar f g = proc (v,TermEnv env) ->
-    case M.lookup v env of
+  lookupTermVar f g = proc (v,env) ->
+    case S.lookup v env of
       Just t -> f -< t
-      Nothing ->
-        (proc () -> do
-          putTermEnv -< TermEnv (M.insert v top env)
-          f -< top)
-        ⊔ g
-        -<< ()
-  insertTerm = arr $ \(v,t,TermEnv env) -> TermEnv (M.insert v t env)
-  deleteTermVars = arr $ \(vars,TermEnv env) -> TermEnv (foldr' M.delete env vars)
-  unionTermEnvs = arr (\(vars,TermEnv e1,TermEnv e2) -> TermEnv (M.union e1 (foldr' M.delete e2 vars)))
+      JustNothing t -> joined f g -< (t,())
+      Nothing -> g -< ()
+  insertTerm = arr $ \(v,t,env) -> S.insert v t env
+  deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
+  unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
 
-
-instance IsTerm Term Interp where
+instance IsTerm Term (Interp s) where
   matchTermAgainstConstructor matchSubterms = proc (c,ts,Term termSort ctx) -> do
     let (patParams,patSort) = signatures ctx M.! c
     if eqLength patParams ts && Term patSort ctx ⊑ Term termSort ctx
@@ -216,8 +251,6 @@ instance Show Sort where
 
 instance Hashable Sort
 
-
-
 instance Show Term where
   show (Term s _) = show s
 
@@ -226,10 +259,6 @@ instance Hashable Term where
 
 instance UpperBounded Term where
   top = Term Top (SortContext M.empty Set.empty Set.empty M.empty M.empty)
-
-convertToList :: [Term] -> SortContext -> Term
-convertToList [] ctx = Term (List Bottom) ctx
-convertToList ts ctx = Term (List (sort $ lub ts)) ctx
 
 instance PreOrd Term where
   Term Bottom _ ⊑ Term _ _ = True
@@ -251,119 +280,6 @@ instance Complete Term where
           | t2 ⊑ t1 = t1
           | otherwise = Term Top (context t1)
 
-instance CoComplete Term where
-  t1 ⊓ t2 | t1 ⊑ t2 = t1
-          | t2 ⊑ t1 = t2
-          | otherwise = Term Bottom (context t1)
-
---instance Galois (CP.Pow C.Term) Term where
---  alpha = lub . fmap go
---    where
---      go (C.Cons c ts) = Cons c (fmap go ts)
---      go (C.StringLiteral s) = StringLiteral s
---      go (C.NumberLiteral s) = NumberLiteral s
---  gamma = error "Infinite"
---
---instance Show Term where
---  show (Cons c ts) = show c ++ if null ts then "" else show ts
---  show (StringLiteral s) = show s
---  show (NumberLiteral n) = show n
---  show Wildcard = "_"
---
---instance Num Term where
---  t1 + t2 = Cons "Add" [t1,t2]
---  t1 - t2 = Cons "Sub" [t1,t2]
---  t1 * t2 = Cons "Mul" [t1,t2]
---  abs t = Cons "Abs" [t]
---  signum t = Cons "Signum" [t]
---  fromInteger = NumberLiteral . fromIntegral
---
---instance Hashable Term where
---  hashWithSalt s (Cons c ts) = s `hashWithSalt` (0::Int) `hashWithSalt` c `hashWithSalt` ts
---  hashWithSalt s (StringLiteral t) = s `hashWithSalt` (1::Int) `hashWithSalt` t
---  hashWithSalt s (NumberLiteral n) = s `hashWithSalt` (2::Int) `hashWithSalt` n
---  hashWithSalt s Wildcard = s `hashWithSalt` (3::Int)
---
---instance NFData Term where
---  rnf t = case t of
---    Cons c ts -> rnf c `seq` rnf ts
---    StringLiteral s -> rnf s
---    NumberLiteral n -> rnf n
---    Wildcard -> ()
---
---instance Arbitrary Term where
---  arbitrary = do
---    he <- choose (0,7)
---    wi <- choose (0,4)
---    arbitraryTerm he wi
---
---arbitraryTerm :: Int -> Int -> Gen Term
---arbitraryTerm 0 _ =
---  oneof
---    [ Cons <$> arbitrary <*> pure []
---    , StringLiteral <$> arbitraryLetter
---    , NumberLiteral <$> choose (0,9)
---    , pure Wildcard
---    ]
---arbitraryTerm h w = do
---  w' <- choose (0,w)
---  c <- arbitrary
---  fmap (Cons c) $ vectorOf w' $ join $
---    arbitraryTerm <$> choose (0,h-1) <*> pure w
---
---internal :: Arrow c => c (HashMap TermVar Term) (HashMap TermVar Term) -> c TermEnv TermEnv
---internal f = arr TermEnv . f . arr (\(TermEnv e) -> e)
---
---map :: ArrowChoice c => c Term Term -> c TermEnv TermEnv
---map f = internal (arr M.fromList . mapA (second f) . arr M.toList)
-
-dom :: HashMap TermVar t -> [TermVar]
-dom = M.keys
-
-instance PreOrd TermEnv where
-  TermEnv env1 ⊑ TermEnv env2 =
-    Prelude.all (\v -> fromMaybe (M.lookup v env1) ⊑ fromMaybe (M.lookup v env2)) (dom env2)
-
-instance Complete TermEnv where
-  TermEnv env1' ⊔ TermEnv env2' = go (dom env1') env1' env2' M.empty
-    where
-      go vars env1 env2 env3 = case vars of
-        (v:vs) -> case (M.lookup v env1,M.lookup v env2) of
-          (Just t1,Just t2) -> go vs env1 env2 (M.insert v (t1⊔t2) env3)
-          _                 -> go vs env1 env2 env3
-        [] -> TermEnv env3
-
-instance UpperBounded TermEnv where
-  top = TermEnv M.empty
-
---instance Galois (CP.Pow C.TermEnv) TermEnv where
---  alpha = lub . fmap (\(C.TermEnv e) -> TermEnv (fmap alphaSing e))
---  gamma = undefined
-
--- prim :: (ArrowTry p, ArrowAppend p, IsTerm t p, IsTermEnv (AbstractTermEnv t) t p)
---      => StratVar -> [TermVar] -> p a t
--- prim f ps = undefined
-  -- proc _ -> case f of
-  --   "SSL_strcat" -> do
-  --     args <- lookupTermArgs -< ps
-  --     case args of
-  --       [T.StringLiteral t1, T.StringLiteral t2] -> stringLiteral -< t1 `append` t2
-  --       [T.Wildcard, _] -> wildcard -< ()
-  --       [_, T.Wildcard] -> wildcard -< ()
-  --       _ -> fail -< ()
-  --   "SSL_newname" -> do
-  --     args <- lookupTermArgs -< ps
-  --     case args of
-  --       [T.StringLiteral _] -> wildcard -< ()
-  --       [T.Wildcard] -> wildcard -< ()
-  --       _ -> fail -< ()
-  --   _ -> error ("unrecognized primitive function: " ++ show f) -< ()
-  -- where
-  --   lookupTermArgs = undefined
-      -- proc args -> do
-      -- tenv <- getTermEnv -< ()
-      -- case mapM (`M.lookup` tenv) args of
-      --   Just t -> mapA matchTerm -< t
-      --   Nothing -> fail <+> success -< [T.Wildcard | _ <- args]
--- {-# SPECIALISE prim :: StratVar -> [TermVar] -> Interp StratEnv TermEnv PowersetResult Term Term #-}
- 
+convertToList :: [Term] -> SortContext -> Term
+convertToList [] ctx = Term (List Bottom) ctx
+convertToList ts ctx = Term (List (sort $ lub ts)) ctx
