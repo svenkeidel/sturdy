@@ -90,6 +90,7 @@ test-suite specs
                        ConcreteSemanticsSpec,
                        GrammarSemanticsSpec,
                        OrderSpec,
+                       SortSemanticsSpec,
                        SubtypingSpec,
                        WildcardSemanticsSpec,
                        Paths_sturdy_stratego

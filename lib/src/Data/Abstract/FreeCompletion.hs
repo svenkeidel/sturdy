@@ -79,3 +79,7 @@ instance Complete (FreeCompletion ()) where
 widening :: Widening a -> Widening (FreeCompletion a)
 widening wa (Lower a) (Lower a') = Lower (a `wa` a')
 widening _ _ _ = Top
+
+fromCompletion :: a -> FreeCompletion a -> a
+fromCompletion a Top = a
+fromCompletion _ (Lower a) = a

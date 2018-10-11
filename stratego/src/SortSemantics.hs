@@ -10,7 +10,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module SortSemantics where
 
-import           Prelude hiding ((.),fail,Just,Nothing)
+import           Prelude hiding ((.),fail)
 
 import           SharedSemantics
 import           Sort (SortId(..))
@@ -38,7 +38,7 @@ import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as F
 import           Data.Abstract.HandleError
 import           Data.Abstract.HandleError as E
-import           Data.Abstract.Maybe
+import qualified Data.Abstract.Maybe as A
 import           Data.Abstract.PreciseStore (Store)
 import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Abstract.StackWidening as SW
@@ -54,20 +54,21 @@ import           Data.Monoidal
 import           Data.Order
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.Text (unpack)
+import           Data.String (IsString,fromString)
+import           Data.Text (pack,unpack)
 
 import           GHC.Generics (Generic)
 
 -- TODO: perhaps reuse the Sort module?
 data Sort = Bottom | Top | Lexical | Numerical | Option Sort | List Sort | Tuple [Sort] | Sort Sort.SortId
   deriving (Eq, Ord, Generic)
+instance IsString Sort where
+  fromString s = Sort (Sort.SortId (pack s))
 
 data SortContext = SortContext {
   signatures :: HashMap Constructor ([Sort], Sort)
 , lexicals :: Set Sort
-, injections :: Set (Sort, Sort)
 , injectionClosure :: HashMap Sort (Set Sort)
-, reverseInjectionClosure :: HashMap Sort (Set Sort)
 } deriving (Eq,Show)
 
 data Term = Term {
@@ -163,20 +164,20 @@ instance IsTermEnv TermEnv Term (Interp s) where
   putTermEnv = put
   lookupTermVar f g = proc (v,env) ->
     case S.lookup v env of
-      Just t -> f -< t
-      JustNothing t -> joined f g -< (t,())
-      Nothing -> g -< ()
+      A.Just t -> f -< t
+      A.JustNothing t -> joined f g -< (t,())
+      A.Nothing -> g -< ()
   insertTerm = arr $ \(v,t,env) -> S.insert v t env
   deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
 
 instance IsTerm Term (Interp s) where
   matchTermAgainstConstructor matchSubterms = proc (c,ts,Term termSort ctx) -> do
-    let (patParams,patSort) = signatures ctx M.! c
-    if eqLength patParams ts && Term patSort ctx ⊑ Term termSort ctx
-      then do matchSubterms -< (ts,map (\s -> Term s ctx) patParams)
-              returnA ⊔ fail' -< Term patSort ctx
-      else fail -< ()
+    case M.lookup c (signatures ctx) of
+      Just (patParams,patSort) | eqLength patParams ts && Term patSort ctx ⊑ Term termSort ctx -> do
+                                   matchSubterms -< (ts,map (\s -> Term s ctx) patParams)
+                                   returnA ⊔ fail' -< Term patSort ctx
+      _ -> fail -< ()
 
   matchTermAgainstString = proc (_,t) ->
     if isLexical t
@@ -215,10 +216,12 @@ instance IsTerm Term (Interp s) where
 
   cons = proc (c, ts) -> do
     ctx <- askConst -< ()
-    let (cParams,cSort) = signatures ctx M.! c
-    if eqLength cParams ts && (Term (Tuple $ map sort ts) ctx)  ⊑ (Term (Tuple cParams)) ctx
-      then returnA -< Term cSort ctx
-      else returnA -< Term Top ctx
+    case M.lookup c (signatures ctx) of
+      Just (cParams,cSort) ->
+        if eqLength cParams ts && (Term (Tuple $ map sort ts) ctx)  ⊑ (Term (Tuple cParams)) ctx
+          then returnA -< Term cSort ctx
+          else returnA -< Term Top ctx
+      Nothing -> fail -< ()
 
   numberLiteral = proc _ -> do
     ctx <- askConst -< ()
@@ -257,14 +260,11 @@ instance Hashable Term where
   hashWithSalt salt (Term s _) = salt `hashWithSalt` s
 
 instance UpperBounded Term where
-  top = Term Top (SortContext M.empty Set.empty Set.empty M.empty M.empty)
+  top = Term Top (SortContext M.empty Set.empty M.empty)
 
 instance PreOrd Term where
   Term Bottom _ ⊑ Term _ _ = True
   Term _ _ ⊑ Term Top _ = True
-
-  Term s1 _ ⊑ Term s2 _ | s1 == s2 = True
-  Term s1 ctx ⊑ Term s2 _ | Set.member s2 (injectionClosure ctx M.! s1) = True
 
   Term Lexical _ ⊑ t2 = isLexical t2
   Term (Option s1) ctx1 ⊑ Term (Option s2) ctx2 = Term s1 ctx1 ⊑ Term s2 ctx2
@@ -272,7 +272,10 @@ instance PreOrd Term where
   Term (Tuple ss1) ctx1 ⊑ Term (Tuple ss2) ctx2 = (length ss1 == length ss2) &&
     (foldl (&&) True $ map (\(s1,s2) -> Term s1 ctx1 ⊑ Term s2 ctx2) $ zip ss1 ss2)
 
-  _ ⊑ _ = False
+  Term s1 _ ⊑ Term s2 _ | s1 == s2 = True
+  Term s1 ctx ⊑ Term s2 _ = case M.lookup s1 (injectionClosure ctx) of
+    Just s -> Set.member s2 s
+    Nothing -> False
 
 instance Complete Term where
   t1 ⊔ t2 | t1 ⊑ t2 = t2
