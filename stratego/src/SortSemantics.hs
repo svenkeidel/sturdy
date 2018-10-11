@@ -18,6 +18,7 @@ import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
 
 import           Control.Arrow
+import           Control.Arrow.Const
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
@@ -27,6 +28,7 @@ import           Control.Arrow.State
 import           Control.Arrow.Transformer.Abstract.Completion
 import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.HandleExcept
+import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category
@@ -68,9 +70,6 @@ data SortContext = SortContext {
 , reverseInjectionClosure :: HashMap Sort (Set Sort)
 } deriving (Eq,Show)
 
-instance Hashable SortContext where
-  hashWithSalt s ctx = s `hashWithSalt` ctx
-
 data Term = Term {
   sort :: Sort
 , context :: SortContext
@@ -92,32 +91,34 @@ instance UpperBounded TermEnv where
 newtype Interp s a b =
   Interp (
    Fix (Strat,Term) Term
-    (Reader (StratEnv,SortContext)
-     (State TermEnv
-      (Except ()
-       (Completion
-        (Fixpoint s () ()
-         (->)))))) a b)
+    (Const SortContext
+     (Reader StratEnv
+      (State TermEnv
+       (Except ()
+        (Completion
+         (Fixpoint s () ()
+          (->))))))) a b)
 
-runInterp :: Interp (SW.Categories (Strat,(StratEnv,SortContext)) (TermEnv,Term) SW.Stack) a b -> Int -> StratEnv -> SortContext -> TermEnv -> a -> Terminating (FreeCompletion (Error () (TermEnv,b)))
+runInterp :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) a b -> Int -> StratEnv -> SortContext -> TermEnv -> a -> Terminating (FreeCompletion (Error () (TermEnv,b)))
 runInterp (Interp f) k senv sig tenv a =
   runFix' stackWidening sortWidening
     (runCompletion
      (runExcept
       (runState
-       (runReader f))))
-    (tenv, ((senv, sig), a))
+       (runReader
+        (runConst sig f)))))
+    (tenv, (senv, a))
   where
-    stackWidening :: SW.StackWidening (SW.Categories (Strat,(StratEnv,SortContext)) (TermEnv, Term) SW.Stack) (TermEnv, ((StratEnv, SortContext), (Strat, Term)))
+    stackWidening :: SW.StackWidening (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) (TermEnv, (StratEnv, (Strat, Term)))
     stackWidening = SW.categorize (Iso from' to') (SW.stack (SW.maxSize k SW.topOut))
     sortWidening :: Widening (FreeCompletion (Error () (TermEnv,Term)))
     sortWidening = F.widening (E.widening (\_ _ -> ()) (S.widening W.finite W.** W.finite))
 
-from' :: (TermEnv, ((StratEnv, SortContext), (Strat, Term))) -> ((Strat, (StratEnv, SortContext)), (TermEnv, Term))
-from' (tenv,((senv,sig),(s,t))) = ((s,(senv,sig)),(tenv,t))
+from' :: (TermEnv, (StratEnv, (Strat, Term))) -> ((Strat, StratEnv), (TermEnv, Term))
+from' (tenv,(senv,(s,t))) = ((s,senv),(tenv,t))
 
-to' :: ((Strat, (StratEnv, SortContext)), (TermEnv, Term)) -> (TermEnv, ((StratEnv,SortContext), (Strat, Term)))
-to' ((s,(senv,sig)),(tenv,t)) = (tenv,((senv,sig),(s,t)))
+to' :: ((Strat, StratEnv), (TermEnv, Term)) -> (TermEnv, (StratEnv, (Strat, Term)))
+to' ((s,senv),(tenv,t)) = (tenv,(senv,(s,t)))
 
 eval :: Int -> Strat -> StratEnv -> SortContext -> TermEnv -> Term -> Terminating (FreeCompletion (Error () (TermEnv,Term)))
 eval i s = runInterp (eval' s) i
@@ -126,11 +127,12 @@ eval i s = runInterp (eval' s) i
 deriving instance Category (Interp s)
 deriving instance Arrow (Interp s)
 deriving instance ArrowChoice (Interp s)
+deriving instance ArrowConst SortContext (Interp s)
 deriving instance ArrowDeduplicate Term Term (Interp s)
 deriving instance (Complete (FreeCompletion y), PreOrd y) => ArrowExcept x y () (Interp s)
 deriving instance ArrowFail () (Interp s)
 deriving instance ArrowFix (Strat,Term) Term (Interp s)
-deriving instance ArrowReader (StratEnv, SortContext) (Interp s)
+deriving instance ArrowReader StratEnv (Interp s)
 deriving instance ArrowState TermEnv (Interp s)
 deriving instance PreOrd b => PreOrd (Interp s a b)
 deriving instance (Complete (FreeCompletion b), PreOrd b) => Complete (Interp s a b)
@@ -152,12 +154,9 @@ instance ArrowApply (Interp s) where
 
 instance HasStratEnv (Interp s) where
   readStratEnv = proc _ -> do
-    (env,_) <- ask -< ()
-    returnA -< env
-  localStratEnv senv f = proc a -> do
-    (_,ctx) <- ask -< ()
-    r <- local f -< ((senv,ctx),a)
-    returnA -< r
+    ask -< ()
+  localStratEnv senv f = proc a ->
+    local f -< (senv,a)
 
 instance IsTermEnv TermEnv Term (Interp s) where
   getTermEnv = get
@@ -215,18 +214,18 @@ instance IsTerm Term (Interp s) where
   mapSubterms _ = returnA ⊔ fail'
 
   cons = proc (c, ts) -> do
-    (_,ctx) <- ask -< ()
+    ctx <- askConst -< ()
     let (cParams,cSort) = signatures ctx M.! c
     if eqLength cParams ts && (Term (Tuple $ map sort ts) ctx)  ⊑ (Term (Tuple cParams)) ctx
       then returnA -< Term cSort ctx
       else returnA -< Term Top ctx
 
   numberLiteral = proc _ -> do
-    (_,ctx) <- ask -< ()
+    ctx <- askConst -< ()
     returnA -< Term Numerical ctx
 
   stringLiteral = proc _ -> do
-    (_,ctx) <- ask -< ()
+    ctx <- askConst -< ()
     returnA -< Term Lexical ctx
 
 --instance Soundness StratEnv Interp where

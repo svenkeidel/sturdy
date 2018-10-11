@@ -12,6 +12,7 @@ import Prelude hiding (id,(.),lookup,read)
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Except
@@ -57,6 +58,7 @@ deriving instance ArrowRead var val x y c => ArrowRead var val x y (Const r c)
 deriving instance ArrowWrite var val c => ArrowWrite var val (Const r c)
 deriving instance ArrowFail e c => ArrowFail e (Const r c)
 deriving instance ArrowExcept x y e c => ArrowExcept x y e (Const r c)
+deriving instance ArrowDeduplicate x y c => ArrowDeduplicate x y (Const r c)
 
 deriving instance PreOrd (c x y) => PreOrd (Const r c x y)
 deriving instance Complete (c x y) => Complete (Const r c x y)
