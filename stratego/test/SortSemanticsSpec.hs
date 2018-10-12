@@ -2,32 +2,32 @@
 {-# LANGUAGE FlexibleContexts #-}
 module SortSemanticsSpec(main, spec) where
 
-import           Prelude hiding (map)
-    
--- import qualified ConcreteSemantics as C
--- import           SharedSemantics hiding (cons)
--- import           Soundness
+import qualified ConcreteSemantics as C
+import           SharedSemantics hiding (cons)
+import           Soundness
 import           Syntax hiding (Fail)
 import           SortSemantics
 
--- import           Control.Arrow
+import           Control.Arrow
 
 import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.HandleError
 import qualified Data.Abstract.PreciseStore as S
--- import qualified Data.Abstract.StackWidening as SW
+import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
--- import qualified Data.Concrete.Powerset as C
+import qualified Data.Concrete.Powerset as C
 import           Data.Constructor
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
+import           Data.GaloisConnection
 import qualified Data.Set as Set
+import qualified Data.Term as C
     
--- import           Text.Printf
+import           Text.Printf
 
 import           Test.Hspec hiding (context)
--- import           Test.Hspec.QuickCheck
--- import           Test.QuickCheck hiding (Success)
+import           Test.Hspec.QuickCheck
+import           Test.QuickCheck hiding (Success)
 
 main :: IO ()
 main = hspec spec
@@ -111,19 +111,19 @@ spec = do
           c = sortContext (M.singleton "Nil" [([],"Exp")])
       in seval 0 (Match (Explode "_" "x")) (term' Numerical c) `shouldBe` Success (tenv, term' Numerical c)
 
-    -- it "should handle inconsistent environments" $ do
-    --   let t1 = C.Cons "f" []
-    --       t2 = C.Cons "g" []
-    --   sound' (Match "x") [(t1, [("x", t1)]), (t2, [("y", t2)])]
+    it "should handle inconsistent environments" $ do
+      let t1 = C.Cons "f" []
+          t2 = C.Cons "g" []
+      sound' (Match "x") [(t1, [("x", t1)]), (t2, [("y", t2)])]
 
-    -- prop "should be sound" $ do
-    --   [t1,t2,t3] <- C.similarTerms 3 7 2 10
-    --   matchPattern <- C.similarTermPattern t1 3
-    --   return $ counterexample
-    --              (printf "pattern: %s\n %s ⊔ %s = %s"
-    --                 (show matchPattern) (show t2) (show t3)
-    --                 (showLub t2 t3))
-    --          $ sound' (Match matchPattern) [(t2,[]),(t3,[])]
+    prop "should be sound" $ do
+      [t1,t2,t3] <- C.similarTerms 3 7 2 10
+      matchPattern <- C.similarTermPattern t1 3
+      return $ counterexample
+                 (printf "pattern: %s\n %s ⊔ %s = %s"
+                    (show matchPattern) (show t2) (show t3)
+                    (showLub t2 t3))
+             $ sound' (Match matchPattern) [(t2,[]),(t3,[])]
 
   describe "Build" $ do
     it "should build a builtin string literal" $
@@ -199,16 +199,16 @@ spec = do
       in seval' 0 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv t `shouldBe`
         Success (tenv, term' "Exp" c)
 
-  --   prop "should be sound" $ do
-  --     [t1,t2,t3] <- C.similarTerms 3 7 2 10
-  --     matchPattern <- C.similarTermPattern t1 3
-  --     let vars = patternVars' matchPattern
-  --     buildPattern <- arbitraryTermPattern 5 2 (if not (null vars) then elements vars else arbitrary)
-  --     return $ counterexample
-  --              (printf "match pattern: %s\nbuild pattern: %s\nt2: %s\nt3: %s\nlub t2 t3 = %s"
-  --                (show matchPattern) (show buildPattern) (show t2) (show t3)
-  --                (showLub t2 t3))
-  --            $ sound' (Match matchPattern `Seq` Build buildPattern) [(t2,[]),(t3,[])]
+    prop "should be sound" $ do
+      [t1,t2,t3] <- C.similarTerms 3 7 2 10
+      matchPattern <- C.similarTermPattern t1 3
+      let vars = patternVars' matchPattern
+      buildPattern <- arbitraryTermPattern 5 2 (if not (null vars) then elements vars else arbitrary)
+      return $ counterexample
+               (printf "match pattern: %s\nbuild pattern: %s\nt2: %s\nt3: %s\nlub t2 t3 = %s"
+                 (show matchPattern) (show buildPattern) (show t2) (show t3)
+                 (showLub t2 t3))
+             $ sound'' (Match matchPattern `Seq` Build buildPattern) [(t2,[]),(t3,[])] buildPattern
 
   describe "Scope" $ do
     it "should hide declared variables" $ do
@@ -236,7 +236,7 @@ spec = do
                           , lexicals = Set.empty
                           , injectionClosure = M.singleton "Exp" (Set.singleton "Exp") }
           tenv = termEnv [("x",t)]
-      seval 1 (Let [("map", map)] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) t
+      seval 1 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) t
         `shouldBe` Success (tenv, term' "Exp" c)
 
   describe "Call" $ do
@@ -248,7 +248,7 @@ spec = do
       seval'' 1 (Match "x" `Seq` Call "swap" [] []) senv emptyEnv t `shouldBe` SuccessOrFail () (tenv, t)
 
     it "should support an empty list in recursive applications" $ do
-      let senv = M.singleton "map" (Closure map M.empty)
+      let senv = M.singleton "map" (Closure map' M.empty)
           c = SortContext { signatures = M.fromList [("Cons",[([Bottom,Bottom],"Exp")])
                                                     ,("Nil",[([],"Exp")])]
                           , lexicals = Set.empty
@@ -259,7 +259,7 @@ spec = do
         Success (tenv, term' "Exp" c)
 
     it "should support a singleton list in recursive applications" $ do
-      let senv = M.singleton "map" (Closure map M.empty)
+      let senv = M.singleton "map" (Closure map' M.empty)
           c = SortContext { signatures = M.fromList [("Cons",[([Bottom,Bottom],"Exp")])
                                                     ,("Nil",[([],"Exp")])]
                           , lexicals = Set.empty
@@ -270,7 +270,7 @@ spec = do
         Success (tenv, term' "Exp" c)
 
     it "should support recursion on a list of numbers" $ do
-      let senv = M.singleton "map" (Closure map M.empty)
+      let senv = M.singleton "map" (Closure map' M.empty)
           c = SortContext { signatures = M.fromList [("Cons",[([Bottom,Bottom],"Exp")])
                                                     ,("Nil",[([],"Exp")])]
                           , lexicals = Set.empty
@@ -280,35 +280,46 @@ spec = do
       seval'' 1 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
         Success (tenv, term' "Exp" c)
 
-  --   prop "should be sound" $ do
-  --     i <- choose (0,10)
-  --     j <- choose (0,10)
-  --     l <- C.similarTerms i 7 2 10
-  --     let (l1,l2) = splitAt j l
-  --     let t1 = convertToList l1
-  --     let t2 = convertToList l2
-  --     return $ counterexample (printf "t: %s\n" (showLub t1 t2))
-  --            $ sound' (Let [("map", map)] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
+    prop "should be sound" $ do
+      i <- choose (0,10)
+      j <- choose (0,10)
+      l <- C.similarTerms i 7 2 10
+      let (l1,l2) = splitAt j l
+      let t1 = C.convertToList l1
+      let t2 = C.convertToList l2
+      return $ counterexample (printf "t: %s\n" (showLub t1 t2))
+             $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
 
   where
-    -- sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
-    -- sound' s xs = sound M.empty (C.fromFoldable $ fmap (second termEnv) xs) (eval' s) (eval' s :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) Term Term)
+    sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
+    sound' s xs = sound (M.empty,ctx) (C.fromFoldable $ fmap (second termEnv') xs) (eval' s) (eval' s :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) Term Term) where
+      ctx = (alpha::C.Pow C.Term -> SortContext) (C.fromFoldable (map fst xs))
 
+    sound'' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> TermPattern -> Property
+    sound'' s xs pat = sound (M.empty,ctx) (C.fromFoldable $ fmap (second termEnv') xs) (eval' s) (eval' s :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) Term Term) where
+      ctx = (alpha::C.Pow C.Term -> SortContext) (C.fromFoldable (map fst xs)) `union` patContext pat
+
+    patContext :: TermPattern -> SortContext
+    patContext pat = case pat of
+      Cons c pats -> SortContext
+        { signatures = unionsWith (++) (M.singleton c [(replicate (length pats) "Exp", "Exp")]:map (signatures . patContext) pats)
+        , lexicals = Set.empty
+        , injectionClosure = M.empty -- Since we're taking the union, we can just leave this empty. It's Exp->Exp anyway.
+        }
+      _ -> SortContext { signatures = M.empty, lexicals = Set.empty, injectionClosure = M.empty }
+
+    termEnv' = C.TermEnv . M.fromList
     termEnv :: [(TermVar, Term)] -> TermEnv
     termEnv = S.fromList
     emptyEnv :: TermEnv
     emptyEnv = S.empty
 
-    -- showLub :: C.Term -> C.Term -> String
-    -- showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: Term)
-
-    -- shouldBe' :: A.Pow (Error () S.Term) -> A.Pow (Error () S.Term) -> Property
-    -- shouldBe' s1 s2 = counterexample (printf "%s < %s\n" (show s1) (show s2)) (s2 ⊑ s1 `shouldBe` True)
-    -- infix 1 `shouldBe'`
+    showLub :: C.Term -> C.Term -> String
+    showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: Term)
 
     swap = Strategy [] [] (Scope ["x","y"] (Match (Cons "Tuple" ["x","y"]) `Seq` Build (Cons "Tuple" ["y","x"])))
 
-    map = Strategy ["f"] ["l"] (Scope ["x","xs","x'","xs'"] (
+    map' = Strategy ["f"] ["l"] (Scope ["x","xs","x'","xs'"] (
             Build "l" `Seq`
             GuardedChoice
               (Match (Cons "Cons" ["x","xs"]))

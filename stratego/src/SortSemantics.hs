@@ -12,8 +12,11 @@ module SortSemantics where
 
 import           Prelude hiding ((.),fail)
 
+import qualified ConcreteSemantics as C
 import           SharedSemantics
-import           Sort (SortId(..))
+import           Signature hiding (Top,Sort,List,Tuple,Option,Bottom)
+import qualified Sort as Sort
+import           Soundness
 import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
 
@@ -39,6 +42,7 @@ import qualified Data.Abstract.FreeCompletion as F
 import           Data.Abstract.HandleError
 import           Data.Abstract.HandleError as E
 import qualified Data.Abstract.Maybe as A
+import qualified Data.Concrete.Powerset as C
 import           Data.Abstract.PreciseStore (Store)
 import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Abstract.StackWidening as SW
@@ -46,10 +50,11 @@ import           Data.Abstract.Terminating
 import           Data.Abstract.Widening as W
 import           Data.Constructor
 import           Data.Foldable (foldr')
+import           Data.GaloisConnection
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
-import           Data.List (intercalate)
+import           Data.List (intercalate,foldl',nub)
 import           Data.Monoidal
 import           Data.Order
 import           Data.Set (Set)
@@ -58,6 +63,9 @@ import           Data.String (IsString,fromString)
 import           Data.Text (pack,unpack)
 
 import           GHC.Generics (Generic)
+
+import           Test.QuickCheck hiding (Success)
+import           Text.Printf
 
 -- TODO: perhaps reuse the Sort module?
 data Sort = Bottom | Top | Lexical | Numerical | Option Sort | List Sort | Tuple [Sort] | Sort Sort.SortId
@@ -70,6 +78,18 @@ data SortContext = SortContext {
 , lexicals :: Set Sort
 , injectionClosure :: HashMap Sort (Set Sort)
 } deriving (Eq,Show)
+
+instance PreOrd SortContext where
+  (⊑) = undefined -- TODO
+instance Complete SortContext where
+  (⊔) = union
+
+union :: SortContext -> SortContext -> SortContext
+union s1 s2 = SortContext
+  { signatures = M.unionWith (\ss1 ss2 -> nub $ ss1 ++ ss2) (signatures s1) (signatures s2)
+  , lexicals = Set.union (lexicals s1) (lexicals s2)
+  , injectionClosure = M.unionWith Set.union (injectionClosure s1) (injectionClosure s2)
+  }
 
 data Term = Term {
   sort :: Sort
@@ -228,14 +248,25 @@ instance IsTerm Term (Interp s) where
     ctx <- askConst -< ()
     returnA -< Term Lexical ctx
 
---instance Soundness StratEnv Interp where
---  sound senv xs f g = forAll (choose (0,3)) $ \i ->
---    let con :: A.Pow (Error () (TermEnv,_))
---        con = A.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
---        abst :: A.Pow (Error () (TermEnv,_))
---        abst = A.dedup $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
---    in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
+instance Galois (C.Pow C.Term) SortContext where
+  alpha = lub . fmap sortContext
+  gamma = error "Infinite"
 
+instance Galois (C.Pow C.Term) Term where
+  alpha pow = lub $ fmap (\t -> Term { sort = termToSort t, context = alpha pow }) pow
+  gamma = error "Infinite"
+
+instance Galois (C.Pow C.TermEnv) TermEnv where
+  alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (M.toList (fmap alphaSing e)))
+  gamma = undefined
+
+instance Soundness (StratEnv,SortContext) (Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack)) where
+ sound (senv,ctx) xs f g = forAll (choose (0,3)) $ \i ->
+   let con :: Terminating (FreeCompletion (Error () (TermEnv,_)))
+       con = Terminating (Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)))
+       abst :: Terminating (FreeCompletion (Error () (TermEnv,_)))
+       abst = runInterp g i senv ctx (alpha (fmap snd xs)) (alpha (fmap fst xs))
+   in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 instance Show Sort where
   show x = case x of
@@ -294,3 +325,25 @@ buildTerm ctx ts = proc (cParams,cSort) -> do
 convertToList :: [Term] -> SortContext -> Term
 convertToList [] ctx = Term (List Bottom) ctx
 convertToList ts ctx = Term (List (sort $ lub ts)) ctx
+
+termToSort :: C.Term -> Sort
+termToSort (C.Cons _ _) = Sort "Exp"
+termToSort (C.StringLiteral _) = Lexical
+termToSort (C.NumberLiteral _) = Numerical
+
+sortContext :: C.Term -> SortContext
+sortContext term = SortContext
+  { signatures = case term of
+      C.Cons c ts -> unionsWith (++) tss where
+        tss = (M.singleton c [(map termToSort ts, termToSort term)]):(map (signatures . sortContext) ts)
+      _ -> M.empty
+  , lexicals = Set.empty
+  -- Top can be formed from any sort.
+  , injectionClosure = M.insertWith Set.union Top (Set.fromList [termToSort term,Numerical,Lexical]) $ case term of
+      C.Cons _ ts -> unionsWith Set.union $ M.singleton (termToSort term) (Set.fromList (map termToSort ts)) : map (injectionClosure . sortContext) ts
+      _ -> M.empty
+  }
+
+-- | The union of a list of maps, with a combining operation.
+unionsWith :: (Hashable k, Ord k) => (a->a->a) -> [HashMap k a] -> HashMap k a
+unionsWith f xs = foldl' (M.unionWith f) M.empty xs
