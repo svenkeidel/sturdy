@@ -153,15 +153,25 @@ instance (ArrowChoice c, ArrowApply c) => ArrowApply (Fixpoint s i o c) where
 
 instance (Identifiable i, Complete o, ArrowJoin c, ArrowChoice c) => ArrowJoin (Fixpoint s i o c) where
   joinWith lub (Fixpoint f) (Fixpoint g) = Fixpoint $ \w -> proc ((i,o),(x,y)) -> do
-    joinWith (\(o1,t1) (o2,t2) -> (o1 ⊔ o2, case (t1,t2) of
+    (o',t1) <- f w -< ((i,o),x)
+    (o'',t2) <- g w -< ((i,o'),y)
+    returnA -< (o'',case (t1,t2) of
       (Terminating y',Terminating v') -> Terminating (lub y' v')
       (Terminating y',NonTerminating) -> Terminating y'
       (NonTerminating,Terminating v') -> Terminating v'
-      (NonTerminating,NonTerminating) -> NonTerminating))
-      (f w) (g w) -< (((i,o),x),((i,o),y))
+      (NonTerminating,NonTerminating) -> NonTerminating)
 
 deriving instance (PreOrd (Underlying s a b c x y)) => PreOrd (Fixpoint s a b c x y)
-deriving instance (Complete (Underlying s a b c x y)) => Complete (Fixpoint s a b c x y)
+instance (Arrow c,PreOrd (Underlying s a b c x y),Complete y) => Complete (Fixpoint s a b c x y) where
+  Fixpoint f ⊔ Fixpoint g = Fixpoint $ \w -> proc ((i,o),x) -> do
+    (o',t1) <- f w -< ((i,o),x)
+    (o'',t2) <- g w -< ((i,o'),x)
+    returnA -< (o'',case (t1,t2) of
+      (Terminating y',Terminating v') -> Terminating (y' ⊔ v')
+      (Terminating y',NonTerminating) -> Terminating y'
+      (NonTerminating,Terminating v') -> Terminating v'
+      (NonTerminating,NonTerminating) -> NonTerminating)
+
 deriving instance (CoComplete (Underlying s a b c x y)) => CoComplete (Fixpoint s a b c x y)
 deriving instance (LowerBounded (Underlying s a b c x y)) => LowerBounded (Fixpoint s a b c x y)
 deriving instance (UpperBounded (Underlying s a b c x y)) => UpperBounded (Fixpoint s a b c x y)
