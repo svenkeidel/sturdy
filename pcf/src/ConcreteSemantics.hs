@@ -17,7 +17,7 @@ import Control.Arrow.Fix
 import Control.Arrow.Conditional
 import Control.Arrow.Transformer.Concrete.Environment
 import Control.Arrow.Transformer.Concrete.Except
-import Control.Arrow.Transformer.Concrete.FixPoint
+import Control.Arrow.Transformer.Concrete.Fixpoint
 import Control.Monad.State hiding (fail)
 
 import Data.Concrete.Error
@@ -39,7 +39,7 @@ newtype Interp x y = Interp (Fix Expr Val (Environment Text Val (Except String (
 
 -- | Takes an arrow computation and executes it.
 runInterp :: Interp x y -> [(Text,Val)] -> x -> Error String y
-runInterp (Interp f) env x = runFixPoint (runExcept (runEnvironment' f)) (env,x)
+runInterp (Interp f) env x = runFix (runExcept (runEnvironment' f)) (env,x)
 
 -- | The concrete interpreter function for PCF. The function is
 -- implemented by instantiating the shared semantics with the concrete

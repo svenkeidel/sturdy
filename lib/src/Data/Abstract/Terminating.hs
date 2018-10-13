@@ -50,11 +50,6 @@ instance Complete a => Complete (Terminating a) where
   x ⊔ NonTerminating = x
   NonTerminating ⊔ y = y
 
-instance Widening a => Widening (Terminating a) where
-  Terminating a ▽ Terminating b = Terminating (a ▽ b) 
-  x ▽ NonTerminating = x
-  NonTerminating ▽ y = y
-
 instance PreOrd a => CoComplete (Terminating a) where
   Terminating a ⊓ Terminating b
     | a ⊑ b = Terminating a
@@ -68,6 +63,12 @@ instance UpperBounded a => UpperBounded (Terminating a) where
 
 instance PreOrd a => LowerBounded (Terminating a) where
   bottom = NonTerminating
+
+widening :: Widening a -> Widening (Terminating a)
+widening _ NonTerminating NonTerminating = NonTerminating
+widening _ (Terminating a) NonTerminating = (Terminating a)
+widening _ NonTerminating (Terminating b) = (Terminating b)
+widening w (Terminating a) (Terminating b) = Terminating (w a b)
 
 instance Num a => Num (Terminating a) where
   (+) = liftA2 (+)

@@ -12,7 +12,7 @@ import           Prelude hiding (lookup,Bounded,Bool(..),fail)
 
 import           Control.Arrow
 import           Control.Arrow.Fix
-import           Control.Arrow.Transformer.Abstract.LeastFixPoint
+import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.PropagateExcept
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Fail
@@ -20,7 +20,6 @@ import           Control.Arrow.State
 
 import           Data.Boolean(Logic(..))
 import           Data.Abstract.Boolean(Bool)
-import           Data.Abstract.Bounded
 import           Data.Abstract.PropagateError
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
@@ -28,6 +27,8 @@ import qualified Data.Abstract.Interval as I
 import           Data.Abstract.Sign (Sign)
 import qualified Data.Abstract.Store as S
 import           Data.Abstract.Terminating
+import qualified Data.Abstract.Widening as W
+import qualified Data.Abstract.StackWidening as SW
 
 import           Data.Order
 import           Data.Hashable
@@ -39,109 +40,103 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Cache x y = Fix x y (LeastFix () () (->)) x y
-type ErrorFix x y = Fix x y (Except () (LeastFix () () (->))) x y
-type StateFix x y = Fix x y (State IV (LeastFix () () (->))) x y
-type IV = Bounded (Interval (InfiniteNumber Int))
+type Cache s x y = Fix x y (Fixpoint s () () (->)) x y
+type ErrorFix s x y = Fix x y (Except () (Fixpoint s () () (->))) x y
+type StateFix s x y = Fix x y (State IV (Fixpoint s () () (->))) x y
+type IV = Interval (InfiniteNumber Int)
 
 spec :: Spec
 spec = do
   describe "the analysis of the fibonacci numbers" $
-    let ?bound = I.Interval (-500) 500 in
-    let fib :: Cache IV IV -> Cache IV IV
-        fib f =
+    let fib :: Cache s IV IV
+        fib = fix $ \f ->
           ifLowerThan 0
-            (proc _ -> returnA -< bounded (I.Interval 0 0))
-            (ifLowerThan 1 (proc _ -> returnA -< bounded (I.Interval 1 1))
+            (proc _ -> returnA -< I.Interval 0 0)
+            (ifLowerThan 1 (proc _ -> returnA -< I.Interval 1 1)
                            (proc n -> do
-                              x <- f -< n - bounded (I.Interval 1 1)
-                              y <- f -< n - bounded (I.Interval 2 2)
+                              x <- f -< n - I.Interval 1 1
+                              y <- f -< n - I.Interval 2 2
                               returnA -< x + y))
 
     in it "should memoize numbers that have been computed before already" $ do
-         runLeastFix (fix fib :: Cache IV IV) (bounded (I.Interval 5 10)) `shouldBe` return (bounded (I.Interval 5 55))
-         runLeastFix (fix fib :: Cache IV IV) (bounded (I.Interval 0 Infinity)) `shouldBe` return (bounded top)
+         runFix' SW.finite W.finite fib (I.Interval 5 10) `shouldBe` return (I.Interval 5 55)
+         runFix' SW.finite I.widening fib (I.Interval 0 Infinity) `shouldBe` return (I.Interval 0 Infinity)
 
   describe "the analysis of the factorial function" $
-    let ?bound = top in
-    let fact f = proc n -> do
-          ifLowerThan 1 (proc _ -> returnA -< bounded (I.Interval 1 1))
-                        (proc n -> do {x <- f -< (n-bounded (I.Interval 1 1)); returnA -< n * x}) -< n
+    let fact :: Cache s IV IV
+        fact = fix $ \f -> proc n -> do
+          ifLowerThan 1 (proc _ -> returnA -< I.Interval 1 1)
+                        (proc n -> do {x <- f -< (n-I.Interval 1 1); returnA -< n * x}) -< n
     in it "fact [-inf,inf] should produce [1,inf]" $
-         runLeastFix (fix fact :: Cache IV IV) (bounded top)
-           `shouldBe` return (bounded (I.Interval 1 Infinity))
+         runFix' SW.finite I.widening fact top `shouldBe` return (I.Interval 1 Infinity)
 
   describe "the even and odd functions" $
-    let ?bound = top in
-    let evenOdd :: Cache (EvenOdd,IV) Bool -> Cache (EvenOdd,IV) Bool
-        evenOdd f = proc (e,x) -> case e of
+    let evenOdd :: Cache s (EvenOdd,IV) Bool
+        evenOdd = fix $ \f -> proc (e,x) -> case e of
           Even -> ifLowerThan 0 (proc _ -> returnA -< true)
                                 (ifLowerThan 1 (proc _ -> returnA -< false)
-                                               (proc x -> f -< (Odd,x-bounded (I.Interval 1 1)))) -< x
+                                               (proc x -> f -< (Odd,x-I.Interval 1 1))) -< x
           Odd -> ifLowerThan 0 (proc _ -> returnA -< false)
                                 (ifLowerThan 1 (proc _ -> returnA -< true)
-                                               (proc x -> f -< (Even,x-bounded (I.Interval 1 1)))) -< x
+                                               (proc x -> f -< (Even,x-I.Interval 1 1))) -< x
     in it "even([-inf,inf]) should produce top" $
-         runLeastFix (fix evenOdd) (Even,bounded (I.Interval 0 Infinity)) `shouldBe` top
+         runFix' SW.finite W.finite evenOdd (Even,I.Interval 0 Infinity) `shouldBe` top
 
   describe "the ackermann function" $
-    let ?bound = I.Interval (-50) 50 in
-    let ackermann :: Cache (IV,IV) IV -> Cache (IV,IV) IV
-        ackermann f = proc (m,n) ->
+    let ackermann :: Cache s (IV,IV) IV
+        ackermann = fix $ \f -> proc (m,n) ->
           ifLowerThan 0
-            (proc _ -> returnA -< n + bounded (I.Interval 1 1))
+            (proc _ -> returnA -< n + I.Interval 1 1)
             (proc m' -> ifLowerThan 0
-                          (proc _ -> f -< (m'- bounded (I.Interval 1 1), bounded (I.Interval 1 1)))
-                          (proc n' -> do x <- f -< (m,n'-bounded (I.Interval 1 1))
-                                         f -< (m'- bounded (I.Interval 1 1), x)) -<< n)
+                          (proc _ -> f -< (m'- I.Interval 1 1, I.Interval 1 1))
+                          (proc n' -> do x <- f -< (m,n'-I.Interval 1 1)
+                                         f -< (m'- I.Interval 1 1, x)) -<< n)
             -<< m
     in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runLeastFix (fix ackermann) (bounded (I.Interval 0 Infinity), bounded (I.Interval 0 Infinity))
-           `shouldBe` return (bounded top)
+         runFix' (SW.stack (SW.reuse (const head) SW.topOut)) W.finite ackermann (I.Interval 0 Infinity, I.Interval 0 Infinity)
+           `shouldBe` return (I.Interval 1 Infinity)
 
   describe "the analyis of a diverging program" $
-    let diverge :: Cache Int Sign -> Cache Int Sign
-        diverge f = proc n -> case n of
+    let diverge :: Cache s Int Sign
+        diverge = fix $ \f -> proc n -> case n of
           0 -> f -< 0
           _ -> f -< (n-1)
     in it "should terminate with bottom" $
-         runLeastFix (fix diverge) 5
-           `shouldBe` bottom
+         runFix diverge 5 `shouldBe` bottom
 
   describe "the analysis of a failing program" $
-    let recurseFail :: ErrorFix Int Sign -> ErrorFix Int Sign
-        recurseFail f = proc n -> case n of
+    let recurseFail :: ErrorFix s Int Sign
+        recurseFail = fix $ \f -> proc n -> case n of
           0 -> fail -< ()
           _ -> f -< (n-1)
     in it "should fail, but update the fixpoint cache" $
-         runLeastFix' (runExcept (fix recurseFail)) 5
+         runFix'' SW.finite SW.Unit W.finite (runExcept recurseFail) 5
             `shouldBe` (S.fromList [(n,Terminating (Fail ())) | n <- [0..5]], return (Fail ()))
 
   describe "the analysis of a stateful program" $
-    let ?bound = I.Interval (-50) 50 in
-    let timesTwo :: StateFix IV () -> StateFix IV ()
-        timesTwo f = proc n -> case n of
-          Bounded _ (I.Interval 0 0) -> returnA -< ()
+    let timesTwo :: StateFix s IV ()
+        timesTwo = fix $ \f -> proc n -> case n of
+          I.Interval 0 0 -> returnA -< ()
           _ -> do
             s <- get -< ()
-            put -< s + bounded (I.Interval 1 1)
-            f -< (n- bounded 1)
+            put -< s + I.Interval 1 1
+            f -< n-1
             s' <- get -< ()
-            put -< s'+ bounded (I.Interval 1 1)
+            put -< s'+ I.Interval 1 1
     in it "should cache the state of the program" $
-         runLeastFix' (runState (fix timesTwo)) (bounded 0, bounded 5) `shouldBe`
-           (S.fromList [((bounded (fromIntegral n),bounded 5-bounded (fromIntegral n)),
-                          return (bounded 10-bounded (fromIntegral n),())) | n <- [0..5::Int]],
-            return (bounded 10,()))
+         runFix'' SW.finite SW.Unit W.finite (runState timesTwo) (0,5) `shouldBe`
+           (S.fromList [((fromIntegral n,5-fromIntegral n),
+                          return (10-fromIntegral n,())) | n <- [0..5::Int]],
+            return (10,()))
   where
 
-    ifLowerThan :: (Num n, Ord n, ArrowChoice c, Complete (c (Bounded (Interval n), Bounded (Interval n)) x)) => n -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x -> c (Bounded (Interval n)) x
-    ifLowerThan l f g = proc b@(Bounded o x) -> case x of
+    ifLowerThan :: (Num n, Ord n, ArrowChoice c, Complete (c (Interval n, Interval n) x)) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
+    ifLowerThan l f g = proc x -> case x of
       I.Interval m n
-        | n <= l -> f -< b
-        | l < m -> g -< b
-        | m <= l && l+1 <= n -> joined f g -< (Bounded o (I.Interval m l), Bounded o (I.Interval (l+1) n))
-        | otherwise -> f -< Bounded o (I.Interval m l)
+        | n <= l -> f -< x
+        | l < m -> g -< x
+        | m <= l && l+1 <= n -> joined f g -< (I.Interval m l, I.Interval (l+1) n)
+        | otherwise -> f -< I.Interval m l
 
 data EvenOdd = Even | Odd deriving (Eq,Generic,Show)
 instance Hashable EvenOdd
