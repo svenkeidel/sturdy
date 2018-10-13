@@ -2,10 +2,10 @@
 module OrderSpec(main, spec) where
 
 import qualified Data.Abstract.Powerset as A
+import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Concrete.Powerset as P
-import qualified Data.HashMap.Lazy as M
 import           Data.Order
-import qualified WildcardSemantics as A
+import qualified WildcardSemantics as W
 
 import           Test.Hspec
 
@@ -16,25 +16,19 @@ spec :: Spec
 spec = do
   
   it "ordering on abstract powersets is correct" $
-    ( pow [Right (A.Cons "f" [A.Cons "g" [], A.Cons "h" []]), Left ()] ⊑ pow [Right A.Wildcard, Left ()] )
-         `shouldBe` True
-
-  it "ordering on environments" $
-    termEnv [("x",A.Cons "f" []), ("y",A.Cons "g" [])] ⊑ termEnv [("x",A.Wildcard)] 
+    pow [Right (W.Cons "f" [W.Cons "g" [], W.Cons "h" []]), Left ()] ⊑ pow [Right W.Wildcard, Left ()]
          `shouldBe` True
 
   it "ordering of abstract powersets of results is correct" $ do
-    pow [Left ()] ⊑ pow [Right (A.Wildcard,termEnv []), Left ()]
+    pow [Left ()::Either () (W.Term,W.TermEnv)] ⊑ pow [Right (W.Wildcard,S.empty), Left ()]
          `shouldBe` True
 
-    pow [Right (A.Cons "g" [], termEnv [])] ⊑ pow [Right (A.Wildcard,termEnv []), Left ()]
+    pow [Right (W.Cons "g" [],S.empty)::Either () (W.Term,W.TermEnv)] ⊑ pow [Right (W.Wildcard,S.empty), Left ()]
          `shouldBe` True
 
-    pow [Right (A.Wildcard, termEnv [])] ⊑ pow [Right (A.Cons "g" [],termEnv []), Left ()]
+    pow [Right (W.Wildcard,S.empty)::Either () (W.Term,W.TermEnv)] ⊑ pow [Right (W.Cons "g" [],S.empty), Left ()]
          `shouldBe` False
 
   where
-    termEnv = A.TermEnv . M.fromList
     pow :: Foldable f => f a -> A.Pow a
     pow = P.fromFoldable
-
