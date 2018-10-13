@@ -3,7 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TupleSections #-}
-module Data.Abstract.PreciseStore (Store,singleton,empty,lookup,insert,insertWith,adjust,toList,fromList,mapMaybe,map,compose,widening) where
+module Data.Abstract.PreciseStore (Store,singleton,empty,lookup,insert,insertWith,delete,union,adjust,toList,fromList,mapMaybe,map,compose,widening) where
 
 import           Prelude hiding (lookup,map,Either(..),(**))
 
@@ -36,7 +36,7 @@ instance (Show a,Show b) => Show (Store a b) where
     | otherwise = "[" ++ init (unwords [ printf "%s%s -> %s," (show k) (show t) (show v) | (k,(t,v)) <- H.toList h]) ++ "]"
 
 instance (Identifiable a, PreOrd b) => PreOrd (Store a b) where
-  Store m1 ⊑ m2 = all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2) (toList m1)
+  Store m1 ⊑ m2 = all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2) (H.toList m1)
 
 instance (Identifiable a, Complete b) => Complete (Store a b) where
   Store m1 ⊔ Store m2 = Store $ H.map join $ H.unionWith (⊔) (H.map Left m1) (H.map Right m2)
@@ -76,6 +76,15 @@ insertWith f a b (Store m) = Store (H.insertWith (\(_,new) (here,old) -> case he
     Must -> (Must,f new old)
     May -> (Must,new ⊔ f new old)
   ) a (Must,b) m)
+
+delete :: Identifiable a => a -> Store a b -> Store a b
+delete a (Store m) = Store (H.delete a m)
+
+union :: (Identifiable a, Complete b) => Store a b -> Store a b -> Store a b
+union (Store m1) (Store m2) = Store (H.unionWith (\(here,l) (_,r) -> case here of
+    Must -> (Must,l)
+    May -> (May,l ⊔ r)
+  ) m1 m2)
 
 adjust :: Identifiable a => (b -> b) -> a -> Store a b -> Store a b
 adjust f a (Store m) = Store (H.adjust (second f) a m)
