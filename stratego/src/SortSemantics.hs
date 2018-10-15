@@ -66,7 +66,7 @@ instance IsString Sort where
   fromString s = Sort (Sort.SortId (pack s))
 
 data SortContext = SortContext {
-  signatures :: HashMap Constructor ([Sort], Sort)
+  signatures :: HashMap Constructor [([Sort], Sort)]
 , lexicals :: Set Sort
 , injectionClosure :: HashMap Sort (Set Sort)
 } deriving (Eq,Show)
@@ -137,6 +137,7 @@ deriving instance ArrowReader StratEnv (Interp s)
 deriving instance ArrowState TermEnv (Interp s)
 deriving instance PreOrd b => PreOrd (Interp s a b)
 deriving instance (Complete (FreeCompletion b), PreOrd b) => Complete (Interp s a b)
+deriving instance PreOrd b => LowerBounded (Interp s a b)
 
 instance Complete (FreeCompletion Term) where
   Lower x ⊔ Lower y = Lower (x ⊔ y)
@@ -172,11 +173,10 @@ instance IsTermEnv TermEnv Term (Interp s) where
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
 
 instance IsTerm Term (Interp s) where
-  matchTermAgainstConstructor matchSubterms = proc (c,ts,Term termSort ctx) -> do
+  matchTermAgainstConstructor matchSubterms = proc (c,ts,t) -> do
+    ctx <- askConst -< ()
     case M.lookup c (signatures ctx) of
-      Just (patParams,patSort) | eqLength patParams ts && Term patSort ctx ⊑ Term termSort ctx -> do
-                                   matchSubterms -< (ts,map (\s -> Term s ctx) patParams)
-                                   returnA ⊔ fail' -< Term patSort ctx
+      Just sigs -> lubA (returnA ⊔ fail' <<< arr fst <<< second matchSubterms <<< matchTerm t ts) -<< sigs
       _ -> fail -< ()
 
   matchTermAgainstString = proc (_,t) ->
@@ -217,10 +217,7 @@ instance IsTerm Term (Interp s) where
   cons = proc (c, ts) -> do
     ctx <- askConst -< ()
     case M.lookup c (signatures ctx) of
-      Just (cParams,cSort) ->
-        if eqLength cParams ts && (Term (Tuple $ map sort ts) ctx)  ⊑ (Term (Tuple cParams)) ctx
-          then returnA -< Term cSort ctx
-          else returnA -< Term Top ctx
+      Just sigs -> lubA (buildTerm ctx ts) -<< sigs
       Nothing -> fail -< ()
 
   numberLiteral = proc _ -> do
@@ -281,6 +278,18 @@ instance Complete Term where
   t1 ⊔ t2 | t1 ⊑ t2 = t2
           | t2 ⊑ t1 = t1
           | otherwise = Term Top (context t1)
+
+matchTerm :: Term -> [t'] -> Interp s ([Sort],Sort) (Term, ([t'], [Term]))
+matchTerm (Term termSort ctx) ts = proc (patParams,patSort) -> do
+  if eqLength patParams ts && Term patSort ctx ⊑ Term termSort ctx
+    then returnA -< (Term patSort ctx, (ts,map (\s -> Term s ctx) patParams))
+    else fail -< ()
+
+buildTerm :: SortContext -> [Term] -> Interp s ([Sort],Sort) Term
+buildTerm ctx ts = proc (cParams,cSort) -> do
+  if eqLength cParams ts && (Term (Tuple $ map sort ts) ctx)  ⊑ (Term (Tuple cParams)) ctx
+    then returnA -< Term cSort ctx
+    else returnA -< Term Top ctx
 
 convertToList :: [Term] -> SortContext -> Term
 convertToList [] ctx = Term (List Bottom) ctx

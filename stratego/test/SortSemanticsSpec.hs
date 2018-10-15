@@ -69,46 +69,46 @@ spec = do
 
     it "should match a PCF expression" $
       let t = term' "Exp" c
-          c = sortContext (M.singleton "Zero" ([], "Exp"))
+          c = sortContext (M.singleton "Zero" [([], "Exp")])
       in seval 0 (Match (Cons "Zero" [])) t `shouldBe` SuccessOrFail () (emptyEnv, t)
 
     it "should match a nested PCF expression" $
       let t = term' "Exp" c
-          c = sortContext (M.fromList [("Succ",(["Exp"],"Exp")),("Zero",([], "Exp"))])
+          c = sortContext (M.fromList [("Succ",[(["Exp"],"Exp")]),("Zero",[([], "Exp")])])
       in seval 0 (Match (Cons "Succ" [Cons "Zero" []])) t `shouldBe` SuccessOrFail () (emptyEnv, t)
 
     it "should match a constructor with more than one argument" $
       let t = term' "Exp" c
-          c = sortContext (M.fromList [("Succ",(["Exp"],"Exp"))
-                                      ,("Zero",([],"Exp"))
-                                      ,("Ifz",(["Exp","Exp","Exp"],"Exp"))])
+          c = sortContext (M.fromList [("Succ",[(["Exp"],"Exp")])
+                                      ,("Zero",[([],"Exp")])
+                                      ,("Ifz",[(["Exp","Exp","Exp"],"Exp")])])
       in seval 0 (Match (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) t `shouldBe`
         SuccessOrFail () (emptyEnv, t)
 
     it "should introduce one variable" $
       let t = term' "Exp" c
-          c = sortContext (M.fromList [("Succ",(["Exp"],"Exp")),("Zero",([], "Exp"))])
+          c = sortContext (M.fromList [("Succ",[(["Exp"],"Exp")]),("Zero",[([], "Exp")])])
       in seval 0 (Match (Cons "Succ" ["x"])) t `shouldBe` SuccessOrFail () (termEnv [("x", t)], t)
 
     it "should introduce one variable 2" $
       let t = term' "Exp" c
-          c = sortContext (M.fromList [("Succ",(["Exp"],"Exp")),("Zero",([], "Exp"))])
+          c = sortContext (M.fromList [("Succ",[(["Exp"],"Exp")]),("Zero",[([], "Exp")])])
       in seval 0 (Match (Cons "Succ" ["x"])) t `shouldBe` SuccessOrFail () (termEnv [("x", t)], t)
 
     it "should introduce multiple variables and support linear pattern matching" $
       let t = term' "Exp" c
-          c = sortContext (M.fromList [("Succ",(["Exp"],"Exp")),("Zero",([], "Exp"))])
+          c = sortContext (M.fromList [("Succ",[(["Exp"],"Exp")]),("Zero",[([], "Exp")])])
       in seval 0 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Succ" ["y"])) t `shouldBe`
          SuccessOrFail () (termEnv [("x", t), ("y", t)], t)
 
     it "should support linear pattern matching" $
       let t = term' "Exp" c
-          c = sortContext (M.singleton "Succ" (["Exp"],"Exp"))
+          c = sortContext (M.singleton "Succ" [(["Exp"],"Exp")])
       in seval 0 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["x"])) t `shouldBe` Fail ()
 
     it "should succeed when exploding literals" $
       let tenv = termEnv [("x", convertToList [] c)]
-          c = sortContext (M.singleton "Nil" ([],"Exp"))
+          c = sortContext (M.singleton "Nil" [([],"Exp")])
       in seval 0 (Match (Explode "_" "x")) (term' Numerical c) `shouldBe` Success (tenv, term' Numerical c)
 
     -- it "should handle inconsistent environments" $ do
@@ -141,20 +141,20 @@ spec = do
     it "should build a simple constant PCF expression" $
       let t = term' Bottom c
           t' = term' "Zero" c
-          c = sortContext (M.singleton "Zero" ([], "Zero"))
+          c = sortContext (M.singleton "Zero" [([], "Zero")])
       in seval 0 (Build (Cons "Zero" [])) t `shouldBe` Success (emptyEnv, t')
 
     it "should build a nested PCF expression" $
       let t = term' Bottom c
           t' = term' "Exp" c
-          c = sortContext (M.fromList [("Zero",([],"Exp")),("Succ",(["Exp"],"Exp"))])
+          c = sortContext (M.fromList [("Zero",[([],"Exp")]),("Succ",[(["Exp"],"Exp")])])
       in seval 0 (Build (Cons "Succ" [Cons "Zero" []])) t `shouldBe` Success (emptyEnv, t')
 
     it "should build a constructor with more than one argument" $
       let t = term' "Exp" c
-          c = sortContext (M.fromList [("Succ",(["Exp"],"Exp"))
-                                      ,("Zero",([],"Exp"))
-                                      ,("Ifz",(["Exp","Exp","Exp"],"Exp"))])
+          c = sortContext (M.fromList [("Succ",[(["Exp"],"Exp")])
+                                      ,("Zero",[([],"Exp")])
+                                      ,("Ifz",[(["Exp","Exp","Exp"],"Exp")])])
       in seval 0 (Build (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) t `shouldBe`
         Success (emptyEnv, t)
 
@@ -164,8 +164,8 @@ spec = do
 
     it "build should be inverse to match with a more complicated term" $
       let pat = Cons "Cons" [Var "x", Var "xs"]
-          c = sortContext (M.fromList [("Cons",([Numerical,List Numerical],List Numerical))
-                                      ,("Nul",([],List Numerical))])
+          c = sortContext (M.fromList [("Cons",[([Numerical,List Numerical],List Numerical)])
+                                      ,("Nul",[([],List Numerical)])])
           t = convertToList [numerical] c
           tenv = termEnv [("x", term' Numerical c), ("xs", term' (List Numerical) c)]
       in seval' 0 (Match pat `Seq` Build pat) tenv t `shouldBe` SuccessOrFail () (tenv, t)
@@ -180,21 +180,21 @@ spec = do
 
     it "should merge two variables into one term" $
       let tenv = termEnv [("x", term' Numerical c), ("y", term' Lexical c)]
-          c = sortContext (M.singleton "Cons" ([Numerical,Lexical],"Exp"))
+          c = sortContext (M.singleton "Cons" [([Numerical,Lexical],"Exp")])
           t = term' Bottom c
       in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` Success (tenv, term' "Exp" c)
 
     it "should support linear pattern matching" $
       let tenv = termEnv [("x", term' Numerical c)]
           t = term' Bottom c
-          c = sortContext (M.singleton "Cons" ([Numerical,Numerical],"Exp"))
+          c = sortContext (M.singleton "Cons" [([Numerical,Numerical],"Exp")])
       in seval' 0 (Build (Cons "Cons" [Var "x", Var "x"])) tenv t `shouldBe` Success (tenv, term' "Exp" c)
 
     it "should merge a variable and the given subject term" $
       let tenv = termEnv [("x", term' "Exp" c)]
-          c = sortContext (M.fromList [("Succ",(["Exp"],"Exp"))
-                                      ,("Zero",([],"Exp"))
-                                      ,("Ifz",(["Exp","Exp","Exp"],"Exp"))])
+          c = sortContext (M.fromList [("Succ",[(["Exp"],"Exp")])
+                                      ,("Zero",[([],"Exp")])
+                                      ,("Ifz",[(["Exp","Exp","Exp"],"Exp")])])
           t = term' Bottom c
       in seval' 0 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv t `shouldBe`
         Success (tenv, term' "Exp" c)
@@ -225,14 +225,14 @@ spec = do
   describe "Let" $ do
     it "should apply a single function call" $ do
       let t = term' "Exp" c
-          c = sortContext (M.singleton "Tuple" ([Bottom,Bottom],"Exp"))
+          c = sortContext (M.singleton "Tuple" [([Bottom,Bottom],"Exp")])
           tenv = termEnv [("x",t)]
       seval 1 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] [])) t `shouldBe` SuccessOrFail () (tenv, t)
 
     it "should support recursion" $ do
       let t = convertToList [numerical, numerical, numerical] c
-          c = SortContext { signatures = M.fromList [("Cons",([Bottom,Bottom],"Exp"))
-                                                    ,("Nil",([],"Exp"))]
+          c = SortContext { signatures = M.fromList [("Cons",[([Bottom,Bottom],"Exp")])
+                                                    ,("Nil",[([],"Exp")])]
                           , lexicals = Set.empty
                           , injectionClosure = M.singleton "Exp" (Set.singleton "Exp") }
           tenv = termEnv [("x",t)]
@@ -243,14 +243,14 @@ spec = do
     it "should apply a single function call" $ do
       let senv = M.singleton "swap" (Closure swap M.empty)
           t = term' "Exp" c
-          c = sortContext (M.singleton "Tuple" ([Bottom,Bottom],"Exp"))
+          c = sortContext (M.singleton "Tuple" [([Bottom,Bottom],"Exp")])
           tenv = termEnv [("x",t)]
       seval'' 1 (Match "x" `Seq` Call "swap" [] []) senv emptyEnv t `shouldBe` SuccessOrFail () (tenv, t)
 
     it "should support an empty list in recursive applications" $ do
       let senv = M.singleton "map" (Closure map M.empty)
-          c = SortContext { signatures = M.fromList [("Cons",([Bottom,Bottom],"Exp"))
-                                                    ,("Nil",([],"Exp"))]
+          c = SortContext { signatures = M.fromList [("Cons",[([Bottom,Bottom],"Exp")])
+                                                    ,("Nil",[([],"Exp")])]
                           , lexicals = Set.empty
                           , injectionClosure = M.singleton "Exp" (Set.singleton "Exp") }
           t = convertToList [] c
@@ -260,8 +260,8 @@ spec = do
 
     it "should support a singleton list in recursive applications" $ do
       let senv = M.singleton "map" (Closure map M.empty)
-          c = SortContext { signatures = M.fromList [("Cons",([Bottom,Bottom],"Exp"))
-                                                    ,("Nil",([],"Exp"))]
+          c = SortContext { signatures = M.fromList [("Cons",[([Bottom,Bottom],"Exp")])
+                                                    ,("Nil",[([],"Exp")])]
                           , lexicals = Set.empty
                           , injectionClosure = M.singleton "Exp" (Set.singleton "Exp") }
           t = convertToList [term' Numerical c] c
@@ -271,8 +271,8 @@ spec = do
 
     it "should support recursion on a list of numbers" $ do
       let senv = M.singleton "map" (Closure map M.empty)
-          c = SortContext { signatures = M.fromList [("Cons",([Bottom,Bottom],"Exp"))
-                                                    ,("Nil",([],"Exp"))]
+          c = SortContext { signatures = M.fromList [("Cons",[([Bottom,Bottom],"Exp")])
+                                                    ,("Nil",[([],"Exp")])]
                           , lexicals = Set.empty
                           , injectionClosure = M.singleton "Exp" (Set.singleton "Exp") }
           t = convertToList [numerical, numerical, numerical] c
@@ -340,5 +340,5 @@ spec = do
     lexical = term Lexical
     numerical = term Numerical
 
-    sortContext :: HashMap Constructor ([Sort],Sort) -> SortContext
+    sortContext :: HashMap Constructor [([Sort],Sort)] -> SortContext
     sortContext sigs = SortContext { signatures = sigs, lexicals = Set.empty, injectionClosure = M.empty }
