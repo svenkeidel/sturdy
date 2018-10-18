@@ -193,7 +193,7 @@ build = proc p -> case p of
 -- Interface of the shared interpreter
 
 -- | Arrow-based interface for matching and constructing terms.
-class IsTerm t c | c -> t where
+class Arrow c => IsTerm t c | c -> t where
   -- | Match a term against a constructor and a list of subterms.
   matchTermAgainstConstructor :: c ([t'],[t]) [t] -> c (Constructor, [t'], t) t 
 
@@ -267,6 +267,10 @@ deleteTermVars' :: IsTermEnv env t c => c [TermVar] ()
 deleteTermVars' = proc vs -> do
   env <- getTermEnv -< ()
   putTermEnv <<< deleteTermVars -< (vs,env)
+
+class Arrow c => HasStratEnv c where
+  readStratEnv :: c a StratEnv
+  localStratEnv :: StratEnv -> c a b -> c a b
 
 -- | Fixpoint combinator used by Stratego.
 fixA' :: (ArrowFix (z,x) y c, ArrowApply c) => ((z -> c x y) -> (z -> c x y)) -> (z -> c x y)

@@ -20,9 +20,12 @@ import qualified Data.HashSet           as H
 import           Data.List              (intercalate)
 import           Data.Order
 <<<<<<< HEAD
+<<<<<<< HEAD
 import           Data.Sequence          (Seq, (<|))
 =======
 >>>>>>> upstream/widening
+=======
+>>>>>>> 09be9737a01730ed9c1882bf5d6795c570cf5dd1
 
 import           GHC.Generics           (Generic)
 

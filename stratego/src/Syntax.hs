@@ -7,7 +7,6 @@ import           Signature (Signature,Sort,Fun)
 import qualified Signature as I
 
 import           Control.Monad.Except
-import           Control.Arrow
 
 import           Data.ATerm
 import           Data.Constructor
@@ -65,13 +64,13 @@ type Strategies = HashMap StratVar Strategy
 data Strategy = Strategy [StratVar] [TermVar] Strat deriving (Show,Eq)
 
 data Closure = Closure Strategy StratEnv deriving (Eq)
+
+instance Hashable Closure where
+  hashWithSalt s (Closure strat senv) = s `hashWithSalt` strat `hashWithSalt` senv
+
 type StratEnv = HashMap StratVar Closure
 newtype TermVar = TermVar Text deriving (Eq,Ord,Hashable)
 newtype StratVar = StratVar Text deriving (Eq,Ord,IsString,Hashable)
-
-class Arrow c => HasStratEnv c where
-  readStratEnv :: c a StratEnv
-  localStratEnv :: StratEnv -> c a b -> c a b
 
 leftChoice :: Strat -> Strat -> Strat
 leftChoice f = GuardedChoice f Id

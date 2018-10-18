@@ -31,6 +31,7 @@ library
                        ConcreteSemantics,
                        WildcardSemantics,
                        GrammarSemantics,
+                       SortSemantics,
                        Soundness,
                        Paths_sturdy_stratego
   build-depends:       attoparsec,
@@ -90,5 +91,6 @@ test-suite specs
                        GrammarSemanticsSpec,
                        OrderSpec,
                        SubtypingSpec,
-                       WildcardSemanticsSpec
+                       WildcardSemanticsSpec,
+                       Paths_sturdy_stratego
   default-language:    Haskell2010

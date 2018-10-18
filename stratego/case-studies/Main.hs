@@ -20,6 +20,8 @@ import qualified Criterion.Types as CT
 
 import           Data.ATerm
 import           Data.Abstract.HandleError
+import qualified Data.Abstract.PreciseStore as S
+import           Data.Abstract.Terminating
 import           Data.Foldable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
@@ -55,14 +57,14 @@ measure analysisName action = do
 
 -- | Runs the given semantics on the given function within the given
 -- case study.
-caseStudy :: (Strat -> StratEnv -> W.TermEnv -> W.Term -> W.Pow (Error () (W.TermEnv,W.Term))) -> String -> String -> IO (HashSet W.Term)
+caseStudy :: (Strat -> StratEnv -> W.TermEnv -> W.Term -> Terminating (W.Pow (Error () (W.TermEnv,W.Term)))) -> String -> String -> IO (HashSet W.Term)
 caseStudy eval name function = do
   printf "------------------ case study: %s ----------------------\n" name
   file <- TIO.readFile =<< getDataFileName (printf "case-studies/%s/%s.aterm" name name)
   case parseModule =<< parseATerm file of
     Left e -> fail (show e)
     Right module_ -> do
-      let res = eval (Call (fromString function) [] []) (stratEnv module_) W.emptyEnv W.Wildcard
+      let res = fromTerminating (error "non-terminating wildcard semantics") $ eval (Call (fromString function) [] []) (stratEnv module_) S.empty W.Wildcard
       let terms = H.fromList $ toList $ filterResults (toList res)
 
       _ <- CM.measure (CT.nfIO (return terms)) 1

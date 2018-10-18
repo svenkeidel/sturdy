@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -99,6 +100,7 @@ instance (ArrowChoice c, Complete e, ArrowJoin c, Complete (c (y,(x,e)) (Error e
     g -< x
     returnA -< e
 
+type instance Fix x y (Except e c) = Except e (Fix x (Error e y) c)
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (Except e c) where
   fix f = Except (fix (runExcept . f . Except))
 
