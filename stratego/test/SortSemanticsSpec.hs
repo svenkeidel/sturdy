@@ -280,6 +280,19 @@ spec = do
       seval'' 1 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
         Success (tenv, term' "Exp" c)
 
+    it "should terminate and not produce infinite sorts" $ do
+      let senv = M.fromList [("map",Closure map' M.empty),
+                             ("foo",Closure (Strategy [] [] (Match "x" `Seq` Call "map" ["foo"] ["x"])) M.empty)]
+          c = SortContext { signatures = M.fromList [("Cons",[([Top,List Top],List Top)])
+                                                    ,("Nil",[([],List Top)])]
+                          , lexicals = Set.empty
+                          , injectionClosure = M.singleton (List Top) (Set.singleton (List Top)) }
+          t = Term Top c
+          tenv = termEnv [("x",t)]
+      seval'' 1 (Call "foo" [] []) senv emptyEnv t `shouldBe`
+        Success (tenv, Term (List Top) c)
+
+
     prop "should be sound" $ do
       i <- choose (0,10)
       j <- choose (0,10)

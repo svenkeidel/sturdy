@@ -11,6 +11,7 @@
 module SortSemantics where
 
 import           Prelude hiding ((.),fail)
+import qualified Prelude as P
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics
@@ -175,7 +176,7 @@ instance ArrowApply (Interp s) where
   app = Interp $ (\(Interp f, b) -> (f,b)) ^>> app
 
 instance HasStratEnv (Interp s) where
-  readStratEnv = proc _ -> do
+  readStratEnv = proc _ ->
     ask -< ()
   localStratEnv senv f = proc a ->
     local f -< (senv,a)
@@ -291,14 +292,14 @@ instance UpperBounded Term where
   top = Term Top (SortContext M.empty Set.empty M.empty)
 
 instance PreOrd Term where
-  Term Bottom _ ⊑ Term _ _ = True
-  Term _ _ ⊑ Term Top _ = True
+  Term Bottom _ ⊑ _ = True
+  _ ⊑ Term Top _ = True
 
   Term Lexical _ ⊑ t2 = isLexical t2
   Term (Option s1) ctx1 ⊑ Term (Option s2) ctx2 = Term s1 ctx1 ⊑ Term s2 ctx2
   Term (List s1) ctx1 ⊑ Term (List s2) ctx2 = Term s1 ctx1 ⊑ Term s2 ctx2
-  Term (Tuple ss1) ctx1 ⊑ Term (Tuple ss2) ctx2 = (length ss1 == length ss2) &&
-    (foldl (&&) True $ map (\(s1,s2) -> Term s1 ctx1 ⊑ Term s2 ctx2) $ zip ss1 ss2)
+  Term (Tuple ss1) ctx1 ⊑ Term (Tuple ss2) ctx2 = length ss1 == length ss2 &&
+    P.all (\(s1,s2) -> Term s1 ctx1 ⊑ Term s2 ctx2) (zip ss1 ss2)
 
   Term s1 _ ⊑ Term s2 _ | s1 == s2 = True
   Term s1 ctx ⊑ Term s2 _ = case M.lookup s1 (injectionClosure ctx) of
@@ -311,14 +312,14 @@ instance Complete Term where
           | otherwise = Term Top (context t1)
 
 matchTerm :: Term -> [t'] -> Interp s ([Sort],Sort) (Term, ([t'], [Term]))
-matchTerm (Term termSort ctx) ts = proc (patParams,patSort) -> do
+matchTerm (Term termSort ctx) ts = proc (patParams,patSort) ->
   if eqLength patParams ts && Term patSort ctx ⊑ Term termSort ctx
     then returnA -< (Term patSort ctx, (ts,map (\s -> Term s ctx) patParams))
     else fail -< ()
 
 buildTerm :: SortContext -> [Term] -> Interp s ([Sort],Sort) Term
-buildTerm ctx ts = proc (cParams,cSort) -> do
-  if eqLength cParams ts && (Term (Tuple $ map sort ts) ctx)  ⊑ (Term (Tuple cParams)) ctx
+buildTerm ctx ts = proc (cParams,cSort) ->
+  if eqLength cParams ts && Term (Tuple $ map sort ts) ctx  ⊑ Term (Tuple cParams) ctx
     then returnA -< Term cSort ctx
     else returnA -< Term Top ctx
 
@@ -335,12 +336,15 @@ sortContext :: C.Term -> SortContext
 sortContext term = SortContext
   { signatures = case term of
       C.Cons c ts -> unionsWith (++) tss where
-        tss = (M.singleton c [(map termToSort ts, termToSort term)]):(map (signatures . sortContext) ts)
+        tss = M.singleton c [(map termToSort ts, termToSort term)]
+            : map (signatures . sortContext) ts
       _ -> M.empty
   , lexicals = Set.empty
   -- Top can be formed from any sort.
   , injectionClosure = M.insertWith Set.union Top (Set.fromList [termToSort term,Numerical,Lexical]) $ case term of
-      C.Cons _ ts -> unionsWith Set.union $ M.singleton (termToSort term) (Set.fromList (map termToSort ts)) : map (injectionClosure . sortContext) ts
+      C.Cons _ ts ->
+        unionsWith Set.union $ M.singleton (termToSort term) (Set.fromList (map termToSort ts))
+                             : map (injectionClosure . sortContext) ts
       _ -> M.empty
   }
 
