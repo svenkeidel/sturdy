@@ -1,39 +1,41 @@
-{-# LANGUAGE Arrows #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE Arrows                     #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MonoLocalBinds #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE MonoLocalBinds             #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE UndecidableInstances       #-}
 module Control.Arrow.Transformer.Abstract.Fixpoint(Fixpoint,runFix,runFix',runFix'',liftFix) where
 
-import           Prelude hiding (id,(.),lookup)
-import qualified Data.Function as F
+import qualified Data.Function               as F
+import           Prelude                     hiding (id, lookup, (.))
 
 import           Control.Arrow
-import           Control.Arrow.Fix
 import           Control.Arrow.Abstract.Join
+import           Control.Arrow.Fail          as FA
+import           Control.Arrow.Fix
+import           Control.Arrow.Store
 import           Control.Category
-import           Control.Monad.State hiding (fix)
+import           Control.Monad.State         hiding (fix)
 
-import           Data.Abstract.Terminating hiding (widening)
-import qualified Data.Abstract.Terminating as T
-import           Data.Order hiding (lub)
+import           Data.Abstract.Terminating   hiding (widening)
+import qualified Data.Abstract.Terminating   as T
 import           Data.Identifiable
-import           Data.Monoidal
 import           Data.Maybe
+import           Data.Monoidal
+import           Data.Order                  hiding (lub)
 
-import           Data.Abstract.Store (Store)
-import qualified Data.Abstract.Store as S
-import           Data.Abstract.Widening (Widening)
-import qualified Data.Abstract.Widening as W
 import           Data.Abstract.StackWidening (StackWidening)
 import qualified Data.Abstract.StackWidening as SW
+import           Data.Abstract.Store         (Store)
+import qualified Data.Abstract.Store         as S
+import           Data.Abstract.Widening      (Widening)
+import qualified Data.Abstract.Widening      as W
 
 type instance Fix a b (Fixpoint stack () () c) = Fixpoint stack a b (Fix a b c)
 
@@ -112,7 +114,7 @@ memoize (Fixpoint f) = Fixpoint $ \(stackWidening,widening) -> proc (((stack,inC
     Nothing -> do
       let yOld = fromMaybe bottom (S.lookup x inCache)
           outCache' = S.insert x yOld outCache
-          (x',stack') = runState (stackWidening x) stack 
+          (x',stack') = runState (stackWidening x) stack
       (outCache'',y) <- f (stackWidening,widening) -< (((stack',inCache), outCache'),x')
       returnA -< (S.insertWith (flip (T.widening widening)) x y outCache'',y)
 
@@ -139,31 +141,23 @@ instance ArrowChoice c => Arrow (Fixpoint s i o c) where
 
 instance ArrowChoice c => ArrowChoice (Fixpoint s i o c) where
   left (Fixpoint f) = Fixpoint $ \w -> proc ((i,o),e) -> case e of
-    Left x -> second (arr (fmap Left)) . f w -< ((i,o),x)
+    Left x  -> second (arr (fmap Left)) . f w -< ((i,o),x)
     Right y -> returnA -< (o,return (Right y))
   right (Fixpoint f) = Fixpoint $ \w -> proc ((i,o),e) -> case e of
-    Left x -> returnA -< (o,return (Left x))
+    Left x  -> returnA -< (o,return (Left x))
     Right y -> second (arr (fmap Right)) . f w -< ((i,o),y)
   Fixpoint f ||| Fixpoint g = Fixpoint $ \w -> proc ((i,o),e) -> case e of
-    Left x -> f w -< ((i,o),x)
+    Left x  -> f w -< ((i,o),x)
     Right y -> g w -< ((i,o),y)
+
+instance (ArrowChoice c, ArrowFail String c) => ArrowFail String (Fixpoint s i o c) where
+  fail = liftLeastFix FA.fail
 
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (Fixpoint s i o c) where
   app = Fixpoint $ \w -> (\(io,(Fixpoint f,x)) -> (f w,(io,x))) ^>> app
 
 instance (Identifiable i, Complete o, ArrowJoin c, ArrowChoice c) => ArrowJoin (Fixpoint s i o c) where
   joinWith lub (Fixpoint f) (Fixpoint g) = Fixpoint $ \w -> proc ((i,o),(x,y)) -> do
-<<<<<<< HEAD
-    joinWith (\(o1,t1) (o2,t2) -> (o1 ⊔ o2, case (t1,t2) of
-      (Terminating y',Terminating v') -> Terminating (lub y' v')
-      (Terminating y',NonTerminating) -> Terminating y'
-      (NonTerminating,Terminating v') -> Terminating v'
-      (NonTerminating,NonTerminating) -> NonTerminating))
-      (f w) (g w) -< (((i,o),x),((i,o),y))
-
-deriving instance (PreOrd (Underlying s a b c x y)) => PreOrd (Fixpoint s a b c x y)
-deriving instance (Complete (Underlying s a b c x y)) => Complete (Fixpoint s a b c x y)
-=======
     (o',t1) <- f w -< ((i,o),x)
     (o'',t2) <- g w -< ((i,o'),y)
     returnA -< (o'',case (t1,t2) of
@@ -183,7 +177,6 @@ instance (Arrow c,PreOrd (Underlying s a b c x y),Complete y) => Complete (Fixpo
       (NonTerminating,Terminating v') -> Terminating v'
       (NonTerminating,NonTerminating) -> NonTerminating)
 
->>>>>>> 09be9737a01730ed9c1882bf5d6795c570cf5dd1
 deriving instance (CoComplete (Underlying s a b c x y)) => CoComplete (Fixpoint s a b c x y)
 deriving instance (LowerBounded (Underlying s a b c x y)) => LowerBounded (Fixpoint s a b c x y)
 deriving instance (UpperBounded (Underlying s a b c x y)) => UpperBounded (Fixpoint s a b c x y)

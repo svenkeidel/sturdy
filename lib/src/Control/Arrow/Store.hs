@@ -1,16 +1,16 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE Arrows                 #-}
+{-# LANGUAGE ConstraintKinds        #-}
+{-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE Arrows #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
 module Control.Arrow.Store where
 
-import Prelude hiding (lookup,id,read,fail)
+import           Prelude            hiding (fail, id, lookup, read)
 
-import Control.Arrow
-import Control.Arrow.Fail
-import Text.Printf
-import Data.String
+import           Control.Arrow
+import           Control.Arrow.Fail
+import           Data.String
+import           Text.Printf
 
 -- | Arrow-based interface to describe computations that read from a store.
 -- The parameter `y` needs to be exposed, because abstract instances

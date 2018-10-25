@@ -26,25 +26,31 @@ import           Syntax
 import           Data.Hashable                                         ()
 import           Data.Identifiable                                     ()
 
-import           Data.Abstract.Bounded
 import           Data.Abstract.Environment
+import qualified Data.Abstract.FiniteMap                               as M
 import           Data.Abstract.HandleError
 import qualified Data.Abstract.Powerset                                as P
+import           Data.Abstract.StackWidening                           as SW
 import           Data.Abstract.Store
 import           Data.Abstract.Terminating
+import           Data.Abstract.Widening
+import           Data.Abstract.Widening                                as W
 import           Data.List                                             (find)
+import           Data.Map                                              (fromList,
+                                                                        union)
 import           Data.Order
 import           Data.Set
 
-import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
+import           Control.Arrow.Transformer.Abstract.BoundedEnvironment as BE
 import           Control.Arrow.Transformer.Abstract.Contour
+import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.HandleExcept
-import           Control.Arrow.Transformer.Abstract.LeastFixPoint
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils                                   (map,
                                                                         pi1)
 
 import           Control.Arrow
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
@@ -52,32 +58,29 @@ import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Category
 
-newtype TypeArr x y = TypeArr
+newtype TypeArr s x y = TypeArr
     (Fix Expr Type'
         (Except String
-            (Environment Ident Location Type'
-                (Contour
-                    (State Location
-                        (LeastFix () ()
-                            (->)))))) x y)
+            (BE.Environment Ident Location Type'
+                (State Location
+                    (Fixpoint s () () (->))))) x y)
 
-deriving instance ArrowFail String TypeArr
-deriving instance ArrowEnv Ident Type' (Env Ident Type') TypeArr
-deriving instance Category TypeArr
-deriving instance Arrow TypeArr
-deriving instance ArrowChoice TypeArr
-deriving instance ArrowRead Location Type' x Type' TypeArr
-deriving instance ArrowWrite Location Type' TypeArr
-deriving instance ArrowState Location TypeArr
-deriving instance ArrowFix Expr Type' TypeArr
+deriving instance ArrowFail String (TypeArr s)
+deriving instance ArrowEnv Ident Type' (M.Map Ident Location Type') (TypeArr s)
+deriving instance Category (TypeArr s)
+deriving instance Arrow (TypeArr s)
+deriving instance ArrowChoice (TypeArr s)
+deriving instance ArrowRead Location Type' x Type' (TypeArr s)
+deriving instance ArrowWrite Location Type' (TypeArr s)
+deriving instance ArrowState Location (TypeArr s)
+deriving instance ArrowFix Expr Type' (TypeArr s)
 
-runType :: TypeArr x y -> [(Ident, Type)] -> x -> Terminating (Location, Error String y)
+runType :: TypeArr (SW.Unit) x y -> [(Ident, Type)] -> x -> Terminating (Location, Error String y)
 runType (TypeArr f) env x =
-    runLeastFix
+    runFix' SW.finite W.finite
         (runState
-            (runContour 0
-                (runEnvironment
-                    (runExcept f))))
+            (BE.runEnvironment fresh2
+                (runExcept f)))
     (Location 0, (env', x))
     where env' = Prelude.map (\(a, b) -> (a, P.singleton b)) env
 
@@ -148,6 +151,12 @@ typeEvalUnOp_ = proc (op, vals) -> (arr $ \(op, vals) -> case (op, vals) of
     (OMathAbs, TNumber)   -> TNumber
     _                     -> TTop) -< (op, vals)
 
+fresh2 :: ArrowState Location c => c (Ident, Type', (M.Map Ident Location Type')) Location
+fresh2 = proc _ -> do
+    Location s <- Control.Arrow.State.get -< ()
+    put -< Location $ s + 1
+    returnA -< Location s
+
 fresh :: ArrowState Location c => c () Location
 fresh = proc () -> do
     Location s <- Control.Arrow.State.get -< ()
@@ -162,9 +171,7 @@ getField_ = proc (t, s) -> do
             Nothing          -> returnA -< P.fromFoldable [TUndefined]
         _ -> returnA -< P.fromFoldable [TObject [("0", P.singleton TString), ("length", P.singleton TNumber), ("$isArgs", P.singleton TBool)]]
 
-
-
-instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
+instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
     -- values
     numVal = proc _ -> returnA -< P.singleton TNumber
     boolVal = proc _ -> returnA -< P.fromFoldable [TBool]
@@ -202,13 +209,14 @@ instance {-# OVERLAPS #-} AbstractValue Type' TypeArr where
         Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id_, P.singleton TUndefined)
     apply f1 = proc (lambdas, args) -> do
         ts <- Control.Arrow.Utils.map (proc (lambda, args) -> case lambda of
-            TLambda names body closureEnv
+            TLambda names body closure
                 | length names == length args -> do
-                    newBindings <- arr $ uncurry zip -< (names, args)
-                    bindingEnv <- bindings -< (newBindings, closureEnv)
-                    outsideEnv <- getEnv -< ()
-                    finalEnv <- bindings -< (Data.Abstract.Environment.toList bindingEnv, outsideEnv)
-                    localEnv f1 -< (finalEnv, body)
+                    --newBindings <- arr $ uncurry zip -< (names, args)
+                    --closureEnv <- arr $ Prelude.foldr -< (M.insert, closure, M.empty)
+                    --bindingEnv <- arr $ Prelude.foldr (\b m -> M.insert (first b, second b, m)) -< (closureEnv, newBindings)
+                    --outsideEnv <- getEnv -< ()
+                    --finalEnv <- bindings -< (bindingEnv, outsideEnv)
+                    localEnv f1 -< (closure, body)
                 | otherwise -> fail -< "Error: lambda must be applied with same amount of args as params"
             _ -> returnA -< P.fromFoldable [TObject [("0", P.singleton TString), ("length", P.singleton TNumber), ("$isArgs", P.singleton TBool)]]) -< zip (P.toList lambdas) (repeat args)
         returnA -< Prelude.foldr P.union (P.empty) ts

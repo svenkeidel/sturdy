@@ -6,6 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.HandleExcept(Except(..)) where
 
 import Prelude hiding (id,lookup,(.),read)

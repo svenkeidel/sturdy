@@ -35,7 +35,7 @@ import           Data.Concrete.Store
 
 import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Except
-import           Control.Arrow.Transformer.Concrete.FixPoint
+import           Control.Arrow.Transformer.Concrete.Fixpoint
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils                            (pi1)
@@ -95,7 +95,7 @@ deriving instance ArrowExcept (Expr, Expr) (Expr, Value) (Either String Exceptio
 deriving instance ArrowFix Expr Value ConcreteArr
 
 runLJS :: ConcreteArr x y -> [(Ident, Value)] -> [(Location, Value)] -> x -> (Location, (Store Location Value, Error (Either String Exceptional) y))
-runLJS (ConcreteArr f) env env2 x = runFixPoint (runState (runStore (runEnvironment (runExcept f)))) (Location 0, (Data.Concrete.Store.fromList env2, (Data.Concrete.Environment.fromList env, x)))
+runLJS (ConcreteArr f) env env2 x = runFix (runState (runStore (runEnvironment (runExcept f)))) (Location 0, (Data.Concrete.Store.fromList env2, (Data.Concrete.Environment.fromList env, x)))
 
 runConcrete :: [(Ident, Value)] -> [(Location, Value)] -> Expr -> (Store Location Value, Error String Value)
 runConcrete env st expr =

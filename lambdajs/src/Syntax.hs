@@ -6,6 +6,7 @@
 module Syntax where
 
 import           Data.Abstract.Environment
+import           Data.Abstract.FiniteMap   as M
 import           Data.Abstract.Powerset
 import           Data.Hashable
 import           Data.List                 (sort)
@@ -89,7 +90,7 @@ data Type
     | TBool
     | TUndefined
     | TNull
-    | TLambda [Ident] Expr (Env Ident Type')
+    | TLambda [Ident] Expr (M.Map Ident Location Type')
     | TObject [(Ident, Type')]
     | TTop
     | TBottom

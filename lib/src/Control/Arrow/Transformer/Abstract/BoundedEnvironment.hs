@@ -1,33 +1,35 @@
-{-# LANGUAGE Arrows #-}
+{-# LANGUAGE Arrows                     #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE ImplicitParams             #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 module Control.Arrow.Transformer.Abstract.BoundedEnvironment(Environment,runEnvironment) where
 
 import           Control.Arrow
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Environment
-import           Control.Arrow.Fail
 import           Control.Arrow.Except
+import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Lift
 import           Control.Arrow.Reader
 import           Control.Arrow.State
+import           Control.Arrow.Store
 import           Control.Arrow.Transformer.Const
-import           Control.Arrow.Transformer.Static
 import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.Static
 import           Control.Category
-import           Prelude hiding ((.),id)
+import           Prelude                          hiding (id, (.))
 
-import           Data.Order
+import           Data.Abstract.FiniteMap          (Map)
+import qualified Data.Abstract.FiniteMap          as M
 import           Data.Identifiable
-import           Data.Abstract.FiniteMap (Map)
-import qualified Data.Abstract.FiniteMap as M
+import           Data.Order
 
 -- | Abstract domain for environments in which concrete environments
 -- are approximated by a mapping from variables to addresses and a
@@ -79,6 +81,9 @@ deriving instance ArrowChoice c => ArrowChoice (Environment var addr val c)
 deriving instance ArrowState s c => ArrowState s (Environment var addr val c)
 deriving instance ArrowFail e c => ArrowFail e (Environment var addr val c)
 deriving instance ArrowExcept ((Map var addr val),x) y e c => ArrowExcept x y e (Environment var addr val c)
+deriving instance ArrowRead x y (Map var addr val,u) v c => ArrowRead x y u v (Environment var addr val c)
+deriving instance ArrowWrite x y c => ArrowWrite x y (Environment var addr val c)
+deriving instance ArrowJoin c => ArrowJoin (Environment var addr val c)
 
 deriving instance PreOrd (c ((Map var addr val),x) y) => PreOrd (Environment var addr val c x y)
 deriving instance Complete (c ((Map var addr val),x) y) => Complete (Environment var addr val c x y)
