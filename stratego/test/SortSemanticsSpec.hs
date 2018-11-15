@@ -179,16 +179,22 @@ spec = do
       in seval' 0 (Build (Var "x")) tenv bottom `shouldBe` Success (tenv, numerical)
 
     it "should merge two variables into one term" $
-      let tenv = termEnv [("x", term' Numerical c), ("y", term' Lexical c)]
-          c = sortContext (M.singleton "Cons" [([Numerical,Lexical],"Exp")])
+      let tenv = termEnv [("x", term' Numerical c), ("y", term' (List Lexical) c)]
+          c = sortContext (M.singleton "Cons" [([Numerical,List Lexical],"Exp")])
           t = term' Bottom c
-      in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` Success (tenv, term' "Exp" c)
+      in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` Success (tenv, term' Top c)
+
+    it "should properly construct a list of the same type" $
+      let tenv = termEnv [("x", term' Numerical c), ("y", term' (List Numerical) c)]
+          c = sortContext (M.singleton "Cons" [([Numerical,List Numerical],"Exp")])
+          t = term' Bottom c
+      in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` Success (tenv, term' (List Numerical) c)
 
     it "should support linear pattern matching" $
       let tenv = termEnv [("x", term' Numerical c)]
           t = term' Bottom c
-          c = sortContext (M.singleton "Cons" [([Numerical,Numerical],"Exp")])
-      in seval' 0 (Build (Cons "Cons" [Var "x", Var "x"])) tenv t `shouldBe` Success (tenv, term' "Exp" c)
+          c = sortContext (M.singleton "Cons" [([Numerical,List Numerical],"Exp")])
+      in seval' 0 (Build (Cons "Cons" [Var "x", Var "x"])) tenv t `shouldBe` Success (tenv, term' Top c)
 
     it "should merge a variable and the given subject term" $
       let tenv = termEnv [("x", term' "Exp" c)]
