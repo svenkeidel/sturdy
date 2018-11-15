@@ -6,7 +6,7 @@ import qualified ConcreteSemantics as C
 import           SharedSemantics hiding (cons)
 import           Soundness
 import           Syntax hiding (Fail)
-import           SortSemantics
+import           SortSemantics hiding (sortContext)
 
 import           Control.Arrow
 
@@ -70,7 +70,7 @@ spec = do
     it "should match a PCF expression" $
       let t = term' "Exp" c
           c = sortContext (M.singleton "Zero" [([], "Exp")])
-      in seval 0 (Match (Cons "Zero" [])) t `shouldBe` SuccessOrFail () (emptyEnv, t)
+      in seval 0 (Match (Cons "Zero" [])) t `shouldBe` Success (emptyEnv, t)
 
     it "should match a nested PCF expression" $
       let t = term' "Exp" c
@@ -227,7 +227,7 @@ spec = do
       let t = term' "Exp" c
           c = sortContext (M.singleton "Tuple" [([Bottom,Bottom],"Exp")])
           tenv = termEnv [("x",t)]
-      seval 1 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] [])) t `shouldBe` SuccessOrFail () (tenv, t)
+      seval 1 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] [])) t `shouldBe` Success (tenv, t)
 
     it "should support recursion" $ do
       let t = convertToList [numerical, numerical, numerical] c
@@ -245,7 +245,7 @@ spec = do
           t = term' "Exp" c
           c = sortContext (M.singleton "Tuple" [([Bottom,Bottom],"Exp")])
           tenv = termEnv [("x",t)]
-      seval'' 1 (Match "x" `Seq` Call "swap" [] []) senv emptyEnv t `shouldBe` SuccessOrFail () (tenv, t)
+      seval'' 1 (Match "x" `Seq` Call "swap" [] []) senv emptyEnv t `shouldBe` Success (tenv, t)
 
     it "should support an empty list in recursive applications" $ do
       let senv = M.singleton "map" (Closure map' M.empty)
@@ -291,7 +291,6 @@ spec = do
           tenv = termEnv [("x",t)]
       seval'' 1 (Call "foo" [] []) senv emptyEnv t `shouldBe`
         Success (tenv, Term (List Top) c)
-
 
     prop "should be sound" $ do
       i <- choose (0,10)

@@ -1,3 +1,4 @@
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -40,8 +41,8 @@ import           Control.Monad (zipWithM)
 
 import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as F
-import           Data.Abstract.HandleError
-import           Data.Abstract.HandleError as E
+import           Data.Abstract.HandleError hiding (fromMaybe)
+import           Data.Abstract.HandleError as E hiding (fromMaybe)
 import qualified Data.Abstract.Maybe as A
 import qualified Data.Concrete.Powerset as C
 import           Data.Abstract.PreciseStore (Store)
@@ -56,6 +57,7 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.List (intercalate,foldl',nub)
+import           Data.Maybe
 import           Data.Monoidal
 import           Data.Order
 import           Data.Set (Set)
@@ -92,10 +94,19 @@ union s1 s2 = SortContext
   , injectionClosure = M.unionWith Set.union (injectionClosure s1) (injectionClosure s2)
   }
 
+lookupCons :: Constructor -> SortContext -> [([Sort], Sort)]
+lookupCons c ctx = fromMaybe [] (M.lookup c (signatures ctx))
+
+lookupSort :: Sort -> SortContext -> [(Constructor, [Sort])]
+lookupSort s ctx = [ (c,ss') | (c,ss) <- M.toList (signatures ctx), (ss',s') <- ss, Term s' ctx ⊑ Term s ctx || s' == s ]
+
 data Term = Term {
   sort :: Sort
 , context :: SortContext
 } deriving (Eq)
+
+sortsToTerms :: [Sort] -> SortContext -> [Term]
+sortsToTerms ss ctx = map (\s -> Term s ctx) ss
 
 isLexical :: Term -> Bool
 isLexical (Term Lexical _) = True
@@ -104,6 +115,17 @@ isLexical (Term s ctx) = Set.member s (lexicals ctx)
 isList :: Term -> Bool
 isList (Term (List _) _) = True
 isList _ = False
+
+isSingleton :: Term -> Bool
+isSingleton (Term s ctx) = case s of
+  Bottom -> True
+  Lexical -> False
+  Numerical -> False
+  Sort (Sort.SortId c) -> length (maybeToList (M.lookup (Constructor c) (signatures ctx))) == 1
+  Option s' -> isSingleton (Term s' ctx)
+  List s' -> isSingleton (Term s' ctx)
+  Tuple ss -> Prelude.all (\s' -> isSingleton (Term s' ctx)) ss
+  Top -> False
 
 type TermEnv = Store TermVar Term
 instance UpperBounded TermEnv where
@@ -194,11 +216,13 @@ instance IsTermEnv TermEnv Term (Interp s) where
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
 
 instance IsTerm Term (Interp s) where
-  matchTermAgainstConstructor matchSubterms = proc (c,ts,t) -> do
+  matchTermAgainstConstructor matchSubterms = proc (c,ps,Term s _) -> do
     ctx <- askConst -< ()
-    case M.lookup c (signatures ctx) of
-      Just sigs -> lubA (returnA ⊔ fail' <<< arr fst <<< second matchSubterms <<< matchTerm t ts) -<< sigs
-      _ -> fail -< ()
+    lubA (proc (c',ss) -> if c == c' && eqLength ss ps
+           then do
+             ss' <- matchSubterms -< (ps,ss)
+             cons -< (c,ss')
+           else fail -< ()) -<< map (\(c',ss) -> (c',sortsToTerms ss ctx)) (lookupSort s ctx)
 
   matchTermAgainstString = proc (_,t) ->
     if isLexical t
@@ -221,25 +245,25 @@ instance IsTerm Term (Interp s) where
       matchSubterms -< Term (List Top) ctx
       returnA -< t
 
-  equal = proc (t1,t2) ->
-    if t1 ⊑ t2 || t2 ⊑ t1
-      then returnA ⊔ fail' -< t1
-      else fail -< ()
+  equal = proc (t1,t2) -> case t1 ⊓ t2 of
+    t | sort t == Bottom -> fail -< ()
+      | isSingleton t1 && isSingleton t2 -> returnA -< t
+      | otherwise -> returnA ⊔ fail' -< t
 
   convertFromList = proc (t,ts) ->
     if isLexical t && isList ts
       then returnA ⊔ fail' -< Term Top (context t) -- cannot deduct target sort from sort Lexical
       else fail -< ()
 
-  -- Sorts don't have "subterms", so we cannot map over those "subterms".
-  -- Since the constructor does not change, the output term has the same sort as the input term (if mapping succeeds)
-  mapSubterms _ = returnA ⊔ fail'
-
-  cons = proc (c, ts) -> do
+  mapSubterms f = proc s -> do
     ctx <- askConst -< ()
-    case M.lookup c (signatures ctx) of
-      Just sigs -> lubA (buildTerm ctx ts) -<< sigs
-      Nothing -> fail -< ()
+    lubA (proc (c,ts) -> do
+             ts' <- f -< ts
+             cons -< (c,ts')) -< map (\(c',ss) -> (c',sortsToTerms ss ctx)) (lookupSort (sort s) ctx)
+
+  cons = proc (c, ss) -> do
+    ctx <- askConst -< ()
+    returnA -< glb (Term Top ctx : [ Term s ctx | (ss', s) <- lookupCons c ctx, ss ⊑ sortsToTerms ss' ctx ])
 
   numberLiteral = proc _ -> do
     ctx <- askConst -< ()
@@ -310,6 +334,11 @@ instance Complete Term where
   t1 ⊔ t2 | t1 ⊑ t2 = t2
           | t2 ⊑ t1 = t1
           | otherwise = Term Top (context t1)
+
+instance CoComplete Term where
+  t1 ⊓ t2 | t1 ⊑ t2 = t1
+          | t2 ⊑ t1 = t2
+          | otherwise = Term Bottom (context t1)
 
 matchTerm :: Term -> [t'] -> Interp s ([Sort],Sort) (Term, ([t'], [Term]))
 matchTerm (Term termSort ctx) ts = proc (patParams,patSort) ->
