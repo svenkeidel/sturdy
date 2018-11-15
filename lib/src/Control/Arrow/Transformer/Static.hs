@@ -13,6 +13,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Deduplicate
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Except
@@ -83,6 +84,9 @@ instance (Applicative f, ArrowLoop c) => ArrowLoop (Static f c) where
 
 instance (Applicative f, ArrowJoin c) => ArrowJoin (Static f c) where
   joinWith lub (Static f) (Static g) = Static $ joinWith lub <$> f <*> g
+
+instance (Applicative f, ArrowDeduplicate x y c) => ArrowDeduplicate x y (Static f c) where
+  dedup (Static f) = Static (dedup <$> f)
 
 deriving instance PreOrd (f (c x y)) => PreOrd (Static f c x y)
 deriving instance Complete (f (c x y)) => Complete (Static f c x y)

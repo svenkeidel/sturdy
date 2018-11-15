@@ -1,1 +1,1 @@
-((haskell-mode . ((flycheck-ghc-search-path . ("/home/sven/documents/system-s/src/" "/home/sven/documents/system-s/dist/build/autogen/")))))
+((haskell-mode . ((flycheck-ghc-search-path . ("/home/sven/documents/sturdy/stratego/src/" "/home/sven/documents/sturdy/stratego/dist/build/autogen/")))))
