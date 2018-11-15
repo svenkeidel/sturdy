@@ -5,6 +5,7 @@ module SortSemanticsSpec(main, spec) where
 import qualified ConcreteSemantics as C
 import           SharedSemantics hiding (cons)
 import           Soundness
+import           Sort (SortId(..))
 import           Syntax hiding (Fail)
 import           SortSemantics hiding (sortContext)
 
@@ -12,6 +13,7 @@ import           Control.Arrow
 
 import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.HandleError
+import qualified Data.Abstract.Maybe as M
 import qualified Data.Abstract.PreciseStore as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
@@ -315,16 +317,28 @@ spec = do
 
     sound'' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> TermPattern -> Property
     sound'' s xs pat = sound (M.empty,ctx) (C.fromFoldable $ fmap (second termEnv') xs) (eval' s) (eval' s :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) Term Term) where
-      ctx = (alpha::C.Pow C.Term -> SortContext) (C.fromFoldable (map fst xs)) `union` patContext pat
+      ctx = (alpha::C.Pow C.Term -> SortContext) (C.fromFoldable (map fst xs)) `union` patContext tenv pat
+      tenv = (termEnv [ (v,(alpha::C.Pow C.Term -> Term) (C.singleton t)) | (_,xs') <- xs, (v,t) <- xs'])
 
-    patContext :: TermPattern -> SortContext
-    patContext pat = case pat of
+    patContext :: TermEnv -> TermPattern -> SortContext
+    patContext tenv pat = case pat of
       Cons c pats -> SortContext
-        { signatures = unionsWith (++) (M.singleton c [(replicate (length pats) "Exp", "Exp")]:map (signatures . patContext) pats)
+        { signatures = unionsWith (++) (M.singleton c [(map (patToSort tenv) pats, patToSort tenv pat)]:map (signatures . (patContext tenv)) pats)
         , lexicals = Set.empty
-        , injectionClosure = M.empty -- Since we're taking the union, we can just leave this empty. It's Exp->Exp anyway.
+        , injectionClosure = M.empty -- Since we're taking the union, we can just leave this empty.
         }
       _ -> SortContext { signatures = M.empty, lexicals = Set.empty, injectionClosure = M.empty }
+
+    patToSort :: TermEnv -> TermPattern -> Sort
+    patToSort _ (Cons (Constructor c) _) = Sort (SortId c)
+    patToSort _ (StringLiteral _) = Lexical
+    patToSort _ (NumberLiteral _) = Numerical
+    patToSort _ (As _ _) = error "no such sort: as"
+    patToSort _ (Explode _ _) = error "no such sort: explode"
+    patToSort tenv (Var x) = case S.lookup x tenv of
+      M.Just (Term s _) -> s
+      M.JustNothing (Term s _) -> s
+      M.Nothing -> Bottom
 
     termEnv' = C.TermEnv . M.fromList
     termEnv :: [(TermVar, Term)] -> TermEnv

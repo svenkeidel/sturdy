@@ -375,23 +375,18 @@ convertToList [] ctx = Term (List Bottom) ctx
 convertToList ts ctx = Term (List (sort $ lub ts)) ctx
 
 termToSort :: C.Term -> Sort
-termToSort (C.Cons _ _) = Sort "Exp"
+termToSort (C.Cons (Constructor c) _) = Sort (SortId c)
 termToSort (C.StringLiteral _) = Lexical
 termToSort (C.NumberLiteral _) = Numerical
 
 sortContext :: C.Term -> SortContext
 sortContext term = SortContext
   { signatures = case term of
-      C.Cons c ts -> unionsWith (++) tss where
-        tss = M.singleton c [(map termToSort ts, termToSort term)]
-            : map (signatures . sortContext) ts
+      C.Cons c ts -> unionsWith (\s1 s2 -> nub (s1 ++ s2)) (M.singleton c [(map termToSort ts, termToSort term)] : map (signatures . sortContext) ts)
       _ -> M.empty
   , lexicals = Set.empty
-  -- Top can be formed from any sort.
-  , injectionClosure = M.insertWith Set.union Top (Set.fromList [termToSort term,Numerical,Lexical]) $ case term of
-      C.Cons _ ts ->
-        unionsWith Set.union $ M.singleton (termToSort term) (Set.fromList (map termToSort ts))
-                             : map (injectionClosure . sortContext) ts
+  , injectionClosure = case term of
+      C.Cons _ ts -> unionsWith Set.union $ M.singleton (termToSort term) (Set.fromList (map termToSort ts)) : map (injectionClosure . sortContext) ts
       _ -> M.empty
   }
 
