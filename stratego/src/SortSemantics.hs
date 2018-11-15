@@ -218,11 +218,22 @@ instance IsTermEnv TermEnv Term (Interp s) where
 instance IsTerm Term (Interp s) where
   matchTermAgainstConstructor matchSubterms = proc (c,ps,Term s _) -> do
     ctx <- askConst -< ()
-    lubA (proc (c',ss) -> if c == c' && eqLength ss ps
-           then do
-             ss' <- matchSubterms -< (ps,ss)
-             cons -< (c,ss')
-           else fail -< ()) -<< map (\(c',ss) -> (c',sortsToTerms ss ctx)) (lookupSort s ctx)
+    case c of
+      "Cons" -> case (ps,s) of
+        ([_,_],List a) -> (do
+           ss <- matchSubterms -< (ps,[Term a ctx,Term (List a) ctx])
+           cons -< ("Cons",ss))
+           ⊔ (fail -< ())
+        _ -> fail -< ()
+      "Nil" -> if Term s ctx ⊑ Term (List Top) ctx
+        then (returnA -< Term s ctx) ⊔ (fail -< ())
+        else (returnA -< Term Top ctx) ⊔ (fail -< ())
+      _ ->
+        lubA (proc (c',ss) -> if c == c' && eqLength ss ps
+               then do
+                 ss' <- matchSubterms -< (ps,ss)
+                 cons -< (c,ss')
+               else fail -< ()) -<< map (\(c',ss) -> (c',sortsToTerms ss ctx)) (lookupSort s ctx)
 
   matchTermAgainstString = proc (_,t) ->
     if isLexical t
