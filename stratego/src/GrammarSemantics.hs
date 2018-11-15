@@ -179,8 +179,12 @@ instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]
   _ ⊔ _ = Top
 
 instance IsTerm Term (Interp s) where
-  matchTermAgainstConstructor matchSubterms = proc (c,ts,Term g) ->
-    lubA (cons <<< second matchSubterms <<< checkConstructorAndLength c ts) -<< toSubterms g
+  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ps,Term g) -> do
+    lubA (proc (c',ts) -> case c' of
+             Constr c'' | c'' == c && eqLength ps ts -> do
+               ts' <- matchSubterms -< (ps,ts)
+               cons -< (Constructor c,ts')
+             _ -> fail -< ()) -<< mapSnd (map Term) (toSubterms g)
 
   matchTermAgainstExplode _ _ = undefined
 
@@ -194,9 +198,12 @@ instance IsTerm Term (Interp s) where
 
   convertFromList = undefined
 
-  mapSubterms f = proc (Term g) -> do
-    let subterms = mapSnd toTerms (toSubterms g)
-    Term ^<< lubA (fromSubterms . return ^<< second (fromTerms ^<< f)) -< subterms
+  mapSubterms f = proc (Term g) ->
+    lubA (proc (c,ts) -> case c of
+             Constr c' -> do
+               ts' <- f -< ts
+               cons -< (Constructor c',ts')
+             _ -> fail -< ()) -< mapSnd toTerms (toSubterms g)
 
   cons = proc (Constructor c,ts) -> returnA -< Term (normalize (epsilonClosure (addConstructor (Constr c) (fromTerms ts))))
   numberLiteral = arr numberGrammar
