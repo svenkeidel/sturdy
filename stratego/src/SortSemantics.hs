@@ -263,7 +263,14 @@ instance IsTerm Term (Interp s) where
 
   cons = proc (c, ss) -> do
     ctx <- askConst -< ()
-    returnA -< glb (Term Top ctx : [ Term s ctx | (ss', s) <- lookupCons c ctx, ss ⊑ sortsToTerms ss' ctx ])
+    returnA -< case c of
+      "Cons" -> case ss of
+        [Term a _,Term (List b) _] -> Term (List a) ctx ⊔ Term (List b) ctx
+        _ -> Term Top ctx
+      "Nil" -> case ss of
+        [] -> Term (List Bottom) ctx
+        _ -> Term Top ctx
+      _ -> glb (Term Top ctx : [ Term s ctx | (ss', s) <- lookupCons c ctx, ss ⊑ sortsToTerms ss' ctx ])
 
   numberLiteral = proc _ -> do
     ctx <- askConst -< ()
