@@ -150,6 +150,9 @@ instance PreOrd (GrammarBuilder Constr) where
 instance Complete (GrammarBuilder Constr) where
   (⊔) = union
 
+instance CoComplete (GrammarBuilder Constr) where
+  (⊓) = intersection
+
 instance ArrowApply (Interp s) where
   app = Interp $ (\(Interp f, b) -> (f,b)) ^>> app
 
@@ -191,7 +194,7 @@ instance IsTerm Term (Interp s) where
   matchTermAgainstNumber = proc (n,Term g) -> matchLit -< (normalize (epsilonClosure g), NumLit n)
   matchTermAgainstString = proc (s,Term g) -> matchLit -< (normalize (epsilonClosure g), StringLit s)
 
-  equal = proc (Term g1, Term g2) -> case intersection g1 g2 of
+  equal = proc (Term g1, Term g2) -> case g1 ⊓ g2 of
     g | isEmpty g -> fail -< ()
       | isSingleton (normalize (epsilonClosure g1)) && isSingleton (normalize (epsilonClosure g2)) -> returnA -< Term g
       | otherwise -> returnA ⊔ fail' -< Term g
