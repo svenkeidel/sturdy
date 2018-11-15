@@ -245,7 +245,7 @@ spec = do
                           , injectionClosure = M.singleton "Exp" (Set.singleton "Exp") }
           tenv = termEnv [("x",t)]
       seval 1 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) t
-        `shouldBe` Success (tenv, term' "Exp" c)
+        `shouldBe` Success (tenv, term' (List Numerical) c)
 
   describe "Call" $ do
     it "should apply a single function call" $ do
@@ -264,7 +264,7 @@ spec = do
           t = convertToList [] c
           tenv = termEnv [("x",t)]
       seval'' 1 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
-        Success (tenv, term' "Exp" c)
+        Success (tenv, term' (List Numerical) c)
 
     it "should support a singleton list in recursive applications" $ do
       let senv = M.singleton "map" (Closure map' M.empty)
@@ -275,7 +275,7 @@ spec = do
           t = convertToList [term' Numerical c] c
           tenv = termEnv [("x",t)]
       seval'' 1 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
-        Success (tenv, term' "Exp" c)
+        Success (tenv, term' (List Numerical) c)
 
     it "should support recursion on a list of numbers" $ do
       let senv = M.singleton "map" (Closure map' M.empty)
@@ -286,7 +286,7 @@ spec = do
           t = convertToList [numerical, numerical, numerical] c
           tenv = termEnv [("x",t)]
       seval'' 1 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
-        Success (tenv, term' "Exp" c)
+        Success (tenv, term' (List Numerical) c)
 
     it "should terminate and not produce infinite sorts" $ do
       let senv = M.fromList [("map",Closure map' M.empty),
