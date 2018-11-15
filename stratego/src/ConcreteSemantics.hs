@@ -133,13 +133,10 @@ instance IsTerm Term Interp where
           | c == c' && eqLength ts ts' -> do
           ts'' <- zipWithA equal -< (ts,ts')
           cons -< (c,ts'')
-          | otherwise -> fail -< ()
       (StringLiteral s, StringLiteral s')
           | s == s' -> success -< t1
-          | otherwise -> fail -< ()
       (NumberLiteral n, NumberLiteral n')
           | n == n' -> success -< t1
-          | otherwise -> fail -< ()
       (_,_) -> fail -< ()
 
   convertFromList = proc (c,ts) -> case (c,go ts) of
