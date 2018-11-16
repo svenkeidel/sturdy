@@ -1,4 +1,4 @@
-module SubtypeRelation(SubtypeRelation,empty,insert,subtype,lower,lub) where
+module SubtypeRelation(SubtypeRelation,empty,insert,subtype,lower,lub,glb) where
 
 import           Sort
 import           Utils
@@ -38,8 +38,8 @@ subtype :: SubtypeRelation -> Sort -> Sort -> Bool
 subtype rel@(SubtypeRelation _ _ gr) s1 s2 = case (s1,s2) of
   (Bottom,_) -> True
   (_,Top) -> True
-  (x, Coproduct a b) -> subtype rel x a || subtype rel x b
-  (Coproduct a b, x) -> subtype rel a x && subtype rel b x
+  (Lexical,Lexical) -> True
+  (Numerical,Numerical) -> True
   (List x,List y) -> subtype rel x y
   (Option x,Option y) -> subtype rel x y
   (Tuple xs,Tuple ys)
@@ -54,16 +54,48 @@ subtype rel@(SubtypeRelation _ _ gr) s1 s2 = case (s1,s2) of
   (_,_) -> False
 
 lub :: SubtypeRelation -> Sort -> Sort -> Sort
-lub rel s1 s2
-  | subtype rel s1 s2 = s2
-  | subtype rel s2 s1 = s1
-  | otherwise         = Coproduct s1 s2
+lub rel s1 s2 = case (s1,s2) of
+  (Bottom,_) -> s2
+  (_,Bottom) -> s1
+  (Top,_) -> Top 
+  (List x,List y) -> List (lub rel x y)
+  (Option x,Option y) -> Option (lub rel x y)
+  (Tuple xs,Tuple ys) -> Tuple (zipWith (lub rel) xs ys)
+  (Lexical,Lexical) -> Lexical
+  (Numerical,Numerical) -> Numerical
+  (Sort _,_)
+    | subtype rel s1 s2 -> s2
+    | subtype rel s2 s1 -> s1
+  (_,Sort _)
+    | subtype rel s1 s2 -> s2
+    | subtype rel s2 s1 -> s1
+  _ -> Top
+
+glb :: SubtypeRelation -> Sort -> Sort -> Sort
+glb rel s1 s2 = case (s1,s2) of
+  (Bottom,_) -> Bottom
+  (_,Bottom) -> Bottom
+  (Top,_) -> s2
+  (_,Top) -> s1
+  (List x,List y) -> List (glb rel x y)
+  (Option x,Option y) -> Option (glb rel x y)
+  (Tuple xs,Tuple ys) -> Tuple (zipWith (glb rel) xs ys)
+  (Lexical,Lexical) -> Lexical
+  (Numerical,Numerical) -> Numerical
+  (Sort _,_)
+    | subtype rel s1 s2 -> s1
+    | subtype rel s2 s1 -> s2
+  (_,Sort _)
+    | subtype rel s1 s2 -> s1
+    | subtype rel s2 s1 -> s2
+  _ -> Bottom
 
 lower :: SubtypeRelation -> Sort -> [Sort]
 lower rel@(SubtypeRelation _ _ gr) s = case s of
   Bottom -> [Bottom]
   Top -> error "lower set of top is unsupported"
-  Coproduct x y -> [x,y]
+  Lexical -> return Lexical
+  Numerical -> return Numerical
   List x -> List <$> lower rel x
   Option x -> Option <$> lower rel x
   Tuple xs -> Tuple <$> permutations (lower rel <$> xs)

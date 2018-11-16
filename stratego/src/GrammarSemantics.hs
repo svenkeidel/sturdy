@@ -14,7 +14,7 @@ import           Prelude hiding (fail,Just,Nothing)
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics
-import           Signature hiding (Top)
+import           SortContext(Context,Signature(..),Sort(Sort),SortId(..),sorts)
 import           Soundness
 import           Syntax hiding (Fail)
 import           Utils
@@ -53,7 +53,7 @@ import           Data.Hashable
 import qualified Data.Map as M
 import           Data.Monoidal
 import           Data.Order
-import           Data.Term hiding (wildcard)
+import           Data.Term
 import           Data.Text (Text)
 
 import           TreeAutomata
@@ -107,20 +107,20 @@ sortToNonterm sort = case sort of
   Sort (SortId nt) -> nt
   _ -> error "Parametric polymorphism is not yet supported"
 
-toRhs :: (Constructor,Fun) -> Rhs Constr
-toRhs (Constructor constr, Fun sorts _) = Ctor (Constr constr) (map sortToNonterm sorts)
+toRhs :: (Constructor,Signature) -> Rhs Constr
+toRhs (Constructor constr, Signature ss _) = Ctor (Constr constr) (map sortToNonterm ss)
 
-toProd :: (Sort, [(Constructor,Fun)]) -> (Nonterm, [Rhs Constr])
+toProd :: (Sort, [(Constructor,Signature)]) -> (Nonterm, [Rhs Constr])
 toProd (sort, rhss) = (sortToNonterm sort, map toRhs rhss)
 
-createGrammar :: Signature -> GrammarBuilder Constr
-createGrammar (Signature (_, sorts) _) = grammar startSymbol prods
+createGrammar :: Context -> GrammarBuilder Constr
+createGrammar ctx = grammar startSymbol prods
   where
     startSymbol = "Start"
-    startProd = (startSymbol, map (Eps . sortToNonterm) (LM.keys sorts))
+    startProd = (startSymbol, map (Eps . sortToNonterm) (LM.keys (sorts ctx)))
     -- TODO: what to do with these builtins?
     builtins = [("String", [ Ctor (Constr "String") []]) ]
-    prods = M.fromList $ startProd : map toProd (LM.toList sorts) ++ builtins
+    prods = M.fromList $ startProd : map toProd (LM.toList (sorts ctx)) ++ builtins
 
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance Category (Interp s)
@@ -182,7 +182,7 @@ instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]
   _ ⊔ _ = Top
 
 instance IsTerm Term (Interp s) where
-  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ps,Term g) -> do
+  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ps,Term g) ->
     lubA (proc (c',ts) -> case c' of
              Constr c'' | c'' == c && eqLength ps ts -> do
                ts' <- matchSubterms -< (ps,ts)

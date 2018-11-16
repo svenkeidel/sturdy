@@ -3,8 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Syntax where
 
-import           Signature (Signature,Sort,Fun)
-import qualified Signature as I
+import           SortContext (Context,Sort,Signature)
+import qualified SortContext as I
 
 import           Control.Monad.Except
 
@@ -53,7 +53,7 @@ data TermPattern
 
 -- | Stratego source code is organized in modules consisting of a
 -- signature describing possible shapes of terms and named strategies.
-data Module = Module Signature Strategies deriving (Show,Eq)
+data Module = Module Context Strategies deriving (Show,Eq)
 
 type Strategies = HashMap StratVar Strategy
 
@@ -78,7 +78,7 @@ leftChoice f = GuardedChoice f Id
 stratEnv :: Module -> StratEnv
 stratEnv (Module _ senv) = fmap (`Closure` M.empty) senv
 
-signature :: Module -> Signature
+signature :: Module -> Context
 signature (Module sig _) = sig
 
 patternVars :: TermPattern -> Set TermVar
@@ -106,12 +106,12 @@ parseModule t = case t of
     Module <$> parseSignature sig <*> (M.fromList <$> traverse parseStrategy strats)
   _ -> throwError $ "unexpected input while parsing module from aterm: " ++ show t
 
-parseSignature :: MonadError String m => ATerm -> m Signature
+parseSignature :: MonadError String m => ATerm -> m Context
 parseSignature s = case s of
   ATerm "Signature" [List sig] -> parseConstructors sig I.empty
   _ -> throwError $ "unexpected input while parsing signature from aterm: " ++ show s
   where
-    parseConstructors :: MonadError String m => [ATerm] -> Signature -> m Signature
+    parseConstructors :: MonadError String m => [ATerm] -> Context -> m Context
     parseConstructors ts sig = case ts of
       ATerm "Constructors" [List constrs]:rest -> do
         sig' <- foldM parseDeclaration sig constrs
@@ -119,13 +119,13 @@ parseSignature s = case s of
       [] -> return sig
       _ -> throwError $ "unexpected input while parsing signature from aterm: " ++ show ts
 
-parseDeclaration :: MonadError String m => Signature -> ATerm -> m Signature
+parseDeclaration :: MonadError String m => Context -> ATerm -> m Context
 parseDeclaration sig t
   | containsSortVar t = return sig
   | otherwise = case t of
       ATerm "OpDecl" [String con, body] -> do
         typ <- parseFun body
-        return $ I.insertType (Constructor con) typ sig
+        return $ I.insertSignature (Constructor con) typ sig
       ATerm "OpDeclInj" [f@(ATerm "FunType" [_, ATerm "ConstType" [ATerm "SortTuple" _]])] ->
         parseDeclaration sig $ ATerm "OpDecl" [String "", f]
       ATerm "OpDeclInj" [ATerm "FunType" [List[ty1], ty2]] ->
@@ -140,10 +140,10 @@ parseDeclaration sig t
     containsSortVar (List ts) = any containsSortVar ts
     containsSortVar _ = False
 
-parseFun :: MonadError String m => ATerm -> m Fun
+parseFun :: MonadError String m => ATerm -> m Signature
 parseFun t = case t of
-  ATerm "ConstType" [res] -> I.Fun [] <$> parseSort res
-  ATerm "FunType" [List args,res] -> I.Fun <$> traverse parseSort args <*> parseSort res
+  ATerm "ConstType" [res] -> I.Signature [] <$> parseSort res
+  ATerm "FunType" [List args,res] -> I.Signature <$> traverse parseSort args <*> parseSort res
   _ -> throwError $ "unexpected input while parsing function type from aterm: " ++ show t
 
 parseSort :: MonadError String m => ATerm -> m Sort

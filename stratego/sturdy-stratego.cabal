@@ -23,7 +23,7 @@ library
                        Data.Constructor,
                        Data.Term,
                        Syntax,
-                       Signature,
+                       SortContext,
                        Utils,
                        SubtypeRelation,
                        Sort,
