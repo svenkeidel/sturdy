@@ -3,7 +3,7 @@ module Main where
 
 import           ConcreteSemantics
 import qualified Data.Abstract.HandleError         as AbstractError
-import qualified Data.Abstract.Store               as AbstractStore
+import qualified Data.Abstract.PreciseStore               as AbstractStore
 import qualified Data.Concrete.Error               as ConcreteError
 import qualified Data.Concrete.Store               as ConcreteStore
 import           Language.ECMAScript3.Lexer        (reservedOp, whiteSpace)
@@ -19,6 +19,8 @@ import qualified Syntax                            as S
 import           System.Environment
 import           Text.ParserCombinators.Parsec
 import           TypeSemantics
+import SharedInterpreter
+import Data.Abstract.Terminating
 
 convertOp :: Op -> S.Op
 convertOp o = case o of
@@ -96,7 +98,7 @@ convert expr = case expr of
   ECatch _ try_ catch -> S.ECatch (convert try_) (convert catch)
   EFinally _ try_ finally -> S.EFinally (convert try_) (convert finally)
   EEval _ -> S.EEval
-  e -> error ("Unsupported expression: " ++ (show e))
+  e -> Prelude.error ("Unsupported expression: " ++ (show e))
 
 parseEnvironment :: FilePath -> IO (ExprPos -> ExprPos)
 parseEnvironment fileName = do
@@ -108,8 +110,8 @@ parseEnvironment fileName = do
 interpConcrete :: S.Expr -> (ConcreteStore.Store S.Location Value, ConcreteError.Error String Value)
 interpConcrete ast = runConcrete [] [] ast
 
-interpType :: S.Expr -> (AbstractStore.Store S.Location S.Type', AbstractError.Error String S.Type')
-interpType ast = runAbstract [] [] ast
+interpType :: S.Expr -> Terminating (S.Location, (AbstractStore.Store S.Location S.Type', AbstractError.Error String S.Type'))
+interpType ast = runType eval [] ast
 
 testCase envTransformer ecmaEnv = do
   _ <- getPosition

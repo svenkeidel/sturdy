@@ -31,6 +31,7 @@ import qualified Data.Abstract.FiniteMap                               as M
 import           Data.Abstract.HandleError
 import qualified Data.Abstract.Powerset                                as P
 import           Data.Abstract.StackWidening                           as SW
+import           Data.Abstract.PreciseStore as PS
 import           Data.Abstract.Store
 import           Data.Abstract.Terminating
 import           Data.Abstract.Widening
@@ -42,6 +43,8 @@ import           Data.Order
 import           Data.Set
 
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment as BE
+import Control.Arrow.Transformer.Abstract.Store as S
+
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.HandleExcept
@@ -62,8 +65,9 @@ newtype TypeArr s x y = TypeArr
     (Fix Expr Type'
         (Except String
             (BE.Environment Ident Location Type'
-                (State Location
-                    (Fixpoint s () () (->))))) x y)
+                (StoreArrow Location Type'
+                    (State Location
+                        (Fixpoint s () () (->)))))) x y)
 
 deriving instance ArrowFail String (TypeArr s)
 deriving instance ArrowEnv Ident Type' (M.Map Ident Location Type') (TypeArr s)
@@ -75,14 +79,17 @@ deriving instance ArrowWrite Location Type' (TypeArr s)
 deriving instance ArrowState Location (TypeArr s)
 deriving instance ArrowFix Expr Type' (TypeArr s)
 
-runType :: TypeArr (SW.Unit) x y -> [(Ident, Type)] -> x -> Terminating (Location, Error String y)
+runType :: TypeArr (SW.Unit) x y -> [(Ident, Type)] -> x -> Terminating (Location, (PS.Store Location Type', Error String y))
 runType (TypeArr f) env x =
     runFix' SW.finite W.finite
         (runState
-            (BE.runEnvironment fresh2
-                (runExcept f)))
-    (Location 0, (env', x))
-    where env' = Prelude.map (\(a, b) -> (a, P.singleton b)) env
+            (runStore
+                (BE.runEnvironment fresh2
+                (runExcept f))))
+    (Location 0, (st', (env', x)))
+    where 
+        env' = Prelude.map (\(a, b) -> (a, P.singleton b)) env
+        st' = PS.empty
 
 typeEvalBinOp_ :: (ArrowChoice c) => c (Op, Type, Type) Type
 typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) of

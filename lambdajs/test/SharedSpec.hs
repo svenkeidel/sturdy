@@ -37,8 +37,6 @@ spec = do
       eval scope store ENull `shouldBe` Right (VNull)
     it "lambda literal" $ do
       eval scope store (ELambda [] (ENumber 1.0)) `shouldBe` Right ((VLambda [] (ENumber 1.0) (empty)))
-    it "infinite" $ do
-      eval scope store (EWhile (EBool True) (ENumber 1.0)) `shouldBe` Right ((VLambda [] (ENumber 1.0) (empty)))
 
   describe "objects" $ do
     it "object with numbers" $ do
