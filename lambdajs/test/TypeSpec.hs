@@ -22,7 +22,7 @@ eval :: [(Ident, Type)] -> Expr -> Either String Type'
 eval env e = case Interpreter.runType SI.eval env e of
     Terminating (loc, (st, Fail s))    -> Left s
     Terminating (loc, (st, Success s)) -> Right s
-    NonTerminating                     -> Left "..."
+    NonTerminating                     -> Left "nonterm"
 
 spec :: Spec
 spec = do
@@ -46,4 +46,8 @@ spec = do
         it "if" $ do
             let program = EIf (EBool True) (ENumber 1.0) (EString "a")
             eval store program `shouldBe` Right (P.insert TNumber (P.singleton TString))
+    describe "loop" $ do
+        it "while" $ do
+            let program = (ESeq (EWhile (EBool True) (ENull)) (ENumber 2.0))
+            eval store program `shouldBe` Left "nonterm"
     where store = []

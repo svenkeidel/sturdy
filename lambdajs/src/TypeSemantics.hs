@@ -224,7 +224,7 @@ instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
             [TRef l] -> do
                 Control.Arrow.Utils.map write -< zip (toList l) (repeat val)
                 returnA -< ()
-            _ -> fail -< "Error: EPRef lhs must be location"
+            _ -> fail -< "Error: ERef lhs must be location"
     new = proc (val) -> do
         loc <- fresh >>> (arr (:[])) >>> (arr fromList) -< ()
         set -< (P.singleton (TRef loc), val)
@@ -247,7 +247,7 @@ instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
         condT <- f1 -< cond
         case toList condT of
             [TBool] -> do
-                f2 -< body
+                f2 -< ESeq (body) (EWhile cond body)
             _ -> fail -< "Error: While conditional must be of type bool"
     label f1 = proc (l, e) -> do
         eT <- f1 -< e
