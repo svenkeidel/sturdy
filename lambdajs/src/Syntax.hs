@@ -5,15 +5,13 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 module Syntax where
 
-import           Data.Abstract.Environment
-import           Data.Abstract.FiniteMap   as M
-import           Data.Abstract.Powerset
+import           Data.Abstract.DiscretePowerset
+import           Data.Abstract.FiniteMap        as M
 import           Data.Hashable
-import           Data.List                 (sort)
+import           Data.List                      (sort)
 import           Data.Order
 import           Data.Set
-import           GHC.Generics              (Generic)
-
+import           GHC.Generics                   (Generic)
 
 type Ident = String
 data Label = Label String
@@ -106,6 +104,7 @@ instance PreOrd Type where
     TRef l1 ⊑ TRef l2 = Data.Set.isSubsetOf l1 l2
     TThrown t1 ⊑ TThrown t2 = t1 ⊑ t2
     TBreak l1 t1 ⊑ TBreak l2 t2 = t1 ⊑ t2 && l1 == l2
+    TNumber ⊑ TNumber = True
     a ⊑ b | a == b = True
     _ ⊑ _ = False
 
@@ -117,3 +116,7 @@ instance (Hashable v, Ord v) => Hashable (Set v) where
 type Location' = Set Location
 
 type Type' = Pow Type
+
+deriving instance Ord Type
+deriving instance Ord (Pow Type)
+deriving instance Ord (Map Ident Location Type')

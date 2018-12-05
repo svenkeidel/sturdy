@@ -26,34 +26,25 @@ import           Syntax
 import           Data.Hashable                                         ()
 import           Data.Identifiable                                     ()
 
-import           Data.Abstract.Environment
-import qualified Data.Abstract.FiniteMap                               as M
-import           Data.Abstract.HandleError
-import qualified Data.Abstract.Powerset                                as P
-import           Data.Abstract.StackWidening                           as SW
-import           Data.Abstract.PreciseStore as PS
-import           Data.Abstract.Store
-import           Data.Abstract.Terminating
-import           Data.Abstract.Widening
-import           Data.Abstract.Widening                                as W
-import           Data.List                                             (find)
-import           Data.Map                                              (fromList,
-                                                                        union)
-import           Data.Order
-import           Data.Set
-
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment as BE
-import Control.Arrow.Transformer.Abstract.Store as S
-
-import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.HandleExcept
+import           Control.Arrow.Transformer.Abstract.Store              as S
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils                                   (map,
                                                                         pi1)
+import           Data.Abstract.DiscretePowerset                        as P
+import qualified Data.Abstract.FiniteMap                               as M
+import           Data.Abstract.HandleError
+import           Data.Abstract.PreciseStore                            as PS
+import           Data.Abstract.StackWidening                           as SW
+import           Data.Abstract.Store
+import           Data.Abstract.Terminating
+import           Data.Abstract.Widening                                as W
+import           Data.List                                             (find)
+import           Data.Order
 
 import           Control.Arrow
-import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
@@ -87,7 +78,7 @@ runType (TypeArr f) env x =
                 (BE.runEnvironment fresh2
                 (runExcept f))))
     (Location 0, (st', (env', x)))
-    where 
+    where
         env' = Prelude.map (\(a, b) -> (a, P.singleton b)) env
         st' = PS.empty
 
@@ -175,24 +166,24 @@ getField_ = proc (t, s) -> do
     case t of
         TObject fs -> case find (\(n, _) -> n == s) fs of
             Just (_, fieldT) -> returnA -< fieldT
-            Nothing          -> returnA -< P.fromFoldable [TUndefined]
-        _ -> returnA -< P.fromFoldable [TObject [("0", P.singleton TString), ("length", P.singleton TNumber), ("$isArgs", P.singleton TBool)]]
+            Nothing          -> returnA -< P.singleton (TUndefined)
+        _ -> returnA -< fromList [TObject [("0", P.singleton TString), ("length", P.singleton TNumber), ("$isArgs", P.singleton TBool)]]
 
 instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
     -- values
     numVal = proc _ -> returnA -< P.singleton TNumber
-    boolVal = proc _ -> returnA -< P.fromFoldable [TBool]
-    stringVal = proc _ -> returnA -< P.fromFoldable [TString]
-    undefVal = proc () -> returnA -< P.fromFoldable [TUndefined]
-    nullVal = proc () -> returnA -< P.fromFoldable [TNull]
+    boolVal = proc _ -> returnA -< P.singleton TBool
+    stringVal = proc _ -> returnA -< P.singleton TString
+    undefVal = proc () -> returnA -< P.singleton TUndefined
+    nullVal = proc () -> returnA -< P.singleton TNull
     lambdaVal = proc (ids, body) -> do
         closure <- getEnv -< ()
-        returnA -< P.fromFoldable [TLambda ids body closure]
+        returnA -< P.singleton (TLambda ids body closure)
     objectVal = proc (fields) -> do
-        returnA -< P.fromFoldable [TObject fields]
+        returnA -< P.singleton (TObject fields)
     getField _ = proc (subject, field) -> do
         case field of
-            EString name -> returnA -< Prelude.foldr P.union (P.empty) (Prelude.map getField_ (zip (P.toList subject) (repeat name)))
+            EString name -> returnA -< Prelude.foldr P.union (P.empty) (Prelude.map getField_ (zip (toList subject) (repeat name)))
             _            -> returnA -< P.singleton TTop
     updateField _ = proc (_, _, _) -> returnA -< P.singleton TTop
     deleteField _ = proc (_, _) -> returnA -< P.singleton TTop
@@ -200,16 +191,16 @@ instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
     evalOp = proc (op, vals) -> do
         case vals of
             [_] -> do
-                t <- Control.Arrow.Utils.map typeEvalUnOp_ -< zip (repeat op) (P.toList $ head vals)
-                returnA -< P.fromFoldable t
+                t <- Control.Arrow.Utils.map typeEvalUnOp_ -< zip (repeat op) (toList $ head vals)
+                returnA -< fromList t
             _ -> do
                 let
-                    v1 = P.toList (head vals)
-                    v2 = P.toList (head $ tail vals)
+                    v1 = toList (head vals)
+                    v2 = toList (head $ tail vals)
                 case length v1 == 1 && length v2 == 1 of
                     True -> do
                         t <- typeEvalBinOp_ -< (op, head v1, head v2)
-                        returnA -< P.fromFoldable [t]
+                        returnA -< P.singleton t
                     False -> fail -< "Error: Binary op with set of type params not supported"
     -- environment ops
     lookup = proc id_ -> do
@@ -225,28 +216,28 @@ instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
                     --finalEnv <- bindings -< (bindingEnv, outsideEnv)
                     localEnv f1 -< (closure, body)
                 | otherwise -> fail -< "Error: lambda must be applied with same amount of args as params"
-            _ -> returnA -< P.fromFoldable [TObject [("0", P.singleton TString), ("length", P.singleton TNumber), ("$isArgs", P.singleton TBool)]]) -< zip (P.toList lambdas) (repeat args)
+            _ -> returnA -< fromList [TObject [("0", P.singleton TString), ("length", P.singleton TNumber), ("$isArgs", P.singleton TBool)]]) -< zip (toList lambdas) (repeat args)
         returnA -< Prelude.foldr P.union (P.empty) ts
     -- store ops
     set = proc (loc, val) -> do
-        case P.toList loc of
+        case toList loc of
             [TRef l] -> do
-                Control.Arrow.Utils.map write -< zip (Data.Set.toList l) (repeat val)
+                Control.Arrow.Utils.map write -< zip (toList l) (repeat val)
                 returnA -< ()
-            _ -> fail -< "Error: ESetRef lhs must be location"
+            _ -> fail -< "Error: EPRef lhs must be location"
     new = proc (val) -> do
-        loc <- fresh >>> (arr (:[])) >>> (arr Data.Set.fromList) -< ()
-        set -< (P.fromFoldable [TRef loc], val)
+        loc <- fresh >>> (arr (:[])) >>> (arr fromList) -< ()
+        set -< (P.singleton (TRef loc), val)
         returnA -< P.singleton $ TRef loc
     get = proc (loc) -> do
-        case P.toList loc of
+        case toList loc of
             [TRef l] -> do
-                vals <- Control.Arrow.Utils.map (read pi1 Control.Category.id) -< zip (Data.Set.toList l) (repeat (P.singleton TUndefined))
+                vals <- Control.Arrow.Utils.map (read pi1 Control.Category.id) -< zip (toList l) (repeat (P.singleton TUndefined))
                 returnA -< foldr1 (\x y -> x ⊔ y) vals
-            _ -> returnA -< (P.fromFoldable [TThrown (P.fromFoldable [TObject []])])
+            _ -> returnA -< (P.singleton (TThrown (P.singleton (TObject []))))
     -- control flow
     if_ f1 f2 = proc (cond, thenBranch, elseBranch) -> do
-        case P.toList cond of
+        case toList cond of
             [TBool] -> do
                 thenT <- f1 -< thenBranch
                 elseT <- f2 -< elseBranch
@@ -254,13 +245,13 @@ instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
             _ -> fail -< "Error: If conditional must be of type bool"
     while_ f1 f2 = proc (cond, body) -> do
         condT <- f1 -< cond
-        case P.toList condT of
+        case toList condT of
             [TBool] -> do
                 f2 -< body
             _ -> fail -< "Error: While conditional must be of type bool"
     label f1 = proc (l, e) -> do
         eT <- f1 -< e
-        case P.toList eT of
+        case toList eT of
             [TBreak l1 t]
                 | l == l1 -> returnA -< t
                 | otherwise -> fail -< "Error: Expression within label must be of type break to that label"
@@ -271,7 +262,7 @@ instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
         returnA -< P.singleton (TThrown t)
     catch f1 = proc (try, _) -> do
         tryT <- f1 -< try
-        case P.toList tryT of
+        case toList tryT of
             [TThrown t] -> returnA -< t
             _ -> fail -< "Error: Expression within try must be of type thrown"
     error = proc s -> fail -< "Error: aborted with message: " ++ s
