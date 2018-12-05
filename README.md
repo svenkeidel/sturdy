@@ -7,3 +7,12 @@ The sturdy project currently contains concrete and abstract interpreters for thr
 * _PCF_, a higher-order functional language with numbers
 * _While_, an imperative language with conditionals and while loops
 * _Stratego_, a language for program transformations
+
+## Acknowledgments
+
+I want to thank all people that have contributed to this project (in alphabetical order):
+
+Matthijs Bijman
+Sebastian Erdweg
+Jente Hidskes
+Wouter Raateland
