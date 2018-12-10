@@ -12,7 +12,4 @@ The sturdy project currently contains concrete and abstract interpreters for thr
 
 I want to thank all people that have contributed to this project (in alphabetical order):
 
-Matthijs Bijman
-Sebastian Erdweg
-Jente Hidskes
-Wouter Raateland
+Matthijs Bijman, Sebastian Erdweg, Jente Hidskes, Wouter Raateland
