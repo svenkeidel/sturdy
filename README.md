@@ -7,6 +7,8 @@ The sturdy project currently contains concrete and abstract interpreters for thr
 * _PCF_, a higher-order functional language with numbers
 * _While_, an imperative language with conditionals and while loops
 * _Stratego_, a language for program transformations
+* _Jimple_, a Java Bytecode suitable for static analysis
+* _LambdaJS_, an intermediate representation for JavaScript
 
 ## Acknowledgments
 
