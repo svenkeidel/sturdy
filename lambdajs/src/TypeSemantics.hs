@@ -52,11 +52,21 @@ import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Category
 
+-- TODO
+-- There are still some issues with this arrow transformer stack.
+-- Most importantly, it is not in sync with the arrow transformer stack of the concrete semantics.
+-- This is an issue for proving soundness
+-- Furthermore, there might be some arrow transformers necessary for bounding recursion
+
 newtype TypeArr s x y = TypeArr
     (Fix Expr Type'
+        -- Used for terminating with an error (e.g. type error)
         (Except String
+            -- Environment for mapping identifiers to types (including locations)
             (BE.Environment Ident Location Type'
+                -- Store for mapping locations to types
                 (StoreArrow Location Type'
+                    -- State used for generating new locations (i.e. last location + 1)
                     (State Location
                         (Fixpoint s () () (->)))))) x y)
 
@@ -70,6 +80,10 @@ deriving instance ArrowWrite Location Type' (TypeArr s)
 deriving instance ArrowState Location (TypeArr s)
 deriving instance ArrowFix Expr Type' (TypeArr s)
 
+-- TODO
+-- The type parameters used for the Fixpoint are not correct. There is no stack widening because SW.finite and W.finite is used.
+-- This means recursion is unbounded. The SW.Unit type parameter is not clear to me, so there should also be another look at that.
+
 runType :: TypeArr (SW.Unit) x y -> [(Ident, Type)] -> x -> Terminating (Location, (PS.Store Location Type', Error String y))
 runType (TypeArr f) env x =
     runFix' SW.finite W.finite
@@ -82,6 +96,7 @@ runType (TypeArr f) env x =
         env' = Prelude.map (\(a, b) -> (a, P.singleton b)) env
         st' = PS.empty
 
+-- Basic operators with no side effects. For more detail look at https://github.com/brownplt/LambdaJS.
 typeEvalBinOp_ :: (ArrowChoice c) => c (Op, Type, Type) Type
 typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) of
     -- number operators
@@ -118,8 +133,8 @@ typeEvalBinOp_ = proc (op, v1, v2) -> (arr $ \(op, v1, v2) -> case (op, v1, v2) 
     (_, TTop, _)                        -> TTop
     (_, _, TTop)                        -> TTop
     _                                   -> TTop) -< (op, v1, v2)
---  x -> fail -< "Unimplemented op: " ++ (show op) ++ ", params: " ++ (show v1) ++ ", " ++ (show v2)
 
+-- Basic operators with no side effects. For more detail look at https://github.com/brownplt/LambdaJS.
 typeEvalUnOp_ :: (ArrowChoice c) => c (Op, Type) Type
 typeEvalUnOp_ = proc (op, vals) -> (arr $ \(op, vals) -> case (op, vals) of
     -- number operator
@@ -149,6 +164,10 @@ typeEvalUnOp_ = proc (op, vals) -> (arr $ \(op, vals) -> case (op, vals) of
     (OMathAbs, TNumber)   -> TNumber
     _                     -> TTop) -< (op, vals)
 
+-- There are two `fresh` arrows here
+-- This is because of some issues with type constraints
+-- The `fresh2` has more (unnecessary) constraints so it can probably be removed
+
 fresh2 :: ArrowState Location c => c (Ident, Type', (M.Map Ident Location Type')) Location
 fresh2 = proc _ -> do
     Location s <- Control.Arrow.State.get -< ()
@@ -161,6 +180,7 @@ fresh = proc () -> do
     put -< Location $ s + 1
     returnA -< Location s
 
+-- Helper arrow to return a field from an TObject or an error object
 getField_ :: ArrowChoice c => c (Type, String) Type'
 getField_ = proc (t, s) -> do
     case t of
@@ -190,9 +210,11 @@ instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
     -- operator/delta function
     evalOp = proc (op, vals) -> do
         case vals of
+            -- Single element -> unary op
             [_] -> do
                 t <- Control.Arrow.Utils.map typeEvalUnOp_ -< zip (repeat op) (toList $ head vals)
                 returnA -< fromList t
+            -- Else binary op
             _ -> do
                 let
                     v1 = toList (head vals)
@@ -205,15 +227,16 @@ instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
     -- environment ops
     lookup = proc id_ -> do
         Control.Arrow.Environment.lookup pi1 Control.Category.id -< (id_, P.singleton TUndefined)
+
+    -- TODO
+    -- The implementation of apply here is not correct, since it does not add the bindings (arguments) and the caller env to the environment
+    -- of the callee. The concrete semantics does this properly but there were issues with merging environments because the abstract domain
+    -- was not fully worked out.
+
     apply f1 = proc (lambdas, args) -> do
         ts <- Control.Arrow.Utils.map (proc (lambda, args) -> case lambda of
             TLambda names body closure
                 | length names == length args -> do
-                    --newBindings <- arr $ uncurry zip -< (names, args)
-                    --closureEnv <- arr $ Prelude.foldr -< (M.insert, closure, M.empty)
-                    --bindingEnv <- arr $ Prelude.foldr (\b m -> M.insert (first b, second b, m)) -< (closureEnv, newBindings)
-                    --outsideEnv <- getEnv -< ()
-                    --finalEnv <- bindings -< (bindingEnv, outsideEnv)
                     localEnv f1 -< (closure, body)
                 | otherwise -> fail -< "Error: lambda must be applied with same amount of args as params"
             _ -> returnA -< fromList [TObject [("0", P.singleton TString), ("length", P.singleton TNumber), ("$isArgs", P.singleton TBool)]]) -< zip (toList lambdas) (repeat args)
@@ -226,10 +249,12 @@ instance {-# OVERLAPS #-} AbstractValue Type' (TypeArr s) where
                 returnA -< ()
             _ -> fail -< "Error: ERef lhs must be location"
     new = proc (val) -> do
+        -- Generate fresh location
         loc <- fresh >>> (arr (:[])) >>> (arr fromList) -< ()
         set -< (P.singleton (TRef loc), val)
         returnA -< P.singleton $ TRef loc
     get = proc (loc) -> do
+        -- Return the lub of the values in each possible location
         case toList loc of
             [TRef l] -> do
                 vals <- Control.Arrow.Utils.map (read pi1 Control.Category.id) -< zip (toList l) (repeat (P.singleton TUndefined))

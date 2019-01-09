@@ -16,6 +16,10 @@ import           Prelude             hiding (break, error, lookup, map, read)
 import qualified Prelude
 import           Syntax
 
+-- TODO
+-- This typeclass can be split up into multiple to partially reuse implementations across interpreters
+-- But this might not save effort if the implementation is completely different.
+
 class Arrow c => AbstractValue v c | c -> v where
     -- values
     numVal :: c Double v

@@ -22,6 +22,9 @@ data Location = Location Int
   deriving (Ord, Eq, Show, Generic)
 deriving instance Hashable Location
 
+-- TODO
+-- There are still a few operations left unimplemented, mostly related to regexes. These are not very important.
+
 data Op
     = ONumPlus
     | OStrPlus
@@ -82,6 +85,12 @@ data Expr
     deriving (Show, Eq, Generic, Ord)
 instance Hashable Expr
 
+-- TODO
+-- The abstract domain of types is not finite yet. This is because a TLambda contains an environment which can contain a type ad infinitum.
+-- Similarly, TObject, TThrown, and TBreak are all recursive. To fix this another layer of indirection must be added. By allocating all types
+-- in a finite map/array we can bound the domain.
+-- TRef can currently also contain an infinite number of locations. The number of possible locations should be limited to bound this.
+
 data Type
     = TNumber
     | TString
@@ -108,12 +117,15 @@ instance PreOrd Type where
     a ⊑ b | a == b = True
     _ ⊑ _ = False
 
-
 instance (Hashable v, Ord v) => Hashable (Set v) where
   hashWithSalt salt set =
     Prelude.foldr (\x s -> s + (hash x)) salt (sort $ Data.Set.toList set)
 
 type Location' = Set Location
+
+-- TODO
+-- Type' is currently a DiscretePowerset. This might be an issue with regards to performance, because the number of types can grow very large
+-- when many slightly different TObjects are in the set. Some widening might be necessary to keep the number of elements in check.
 
 type Type' = Pow Type
 
