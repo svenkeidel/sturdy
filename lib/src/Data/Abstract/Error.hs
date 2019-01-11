@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Arrows #-}
-module Data.Abstract.HandleError where
+module Data.Abstract.Error where
 
 import Control.Arrow
 import Control.Monad

@@ -12,7 +12,7 @@ import           Data.Numeric
 
 import           Data.Abstract.Equality
 import           Data.Abstract.Widening
-import           Data.Abstract.PropagateError
+import           Data.Abstract.Failure
 import qualified Data.Abstract.Boolean as B
 
 import           GHC.Generics

@@ -22,7 +22,7 @@ import           Data.Order
 
 import           GHC.Generics (Generic)
 
-newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, MonadPlus, Monoid, Foldable, Traversable, Generic)
+newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, MonadPlus, Semigroup, Monoid, Foldable, Traversable, Generic)
 
 instance PreOrd a => PreOrd (Pow a) where
   as ⊑ bs = all (\x -> any (x ⊑) bs) as

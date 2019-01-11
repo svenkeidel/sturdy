@@ -33,6 +33,7 @@ import           Data.Abstract.Widening(Widening)
 type StackWidening s a = a -> State (s a) a
 
 data Unit a = Unit
+instance Semigroup (Unit a) where (<>) = mappend
 instance Monoid (Unit a) where
   mempty = Unit
   mappend _ _ = Unit
@@ -45,6 +46,7 @@ finite' :: StackWidening s a
 finite' a = return a
 
 data Stack a = Stack Int [a]
+instance Semigroup (Stack a) where (<>) = mappend
 instance Monoid (Stack a) where
   mempty = Stack 0 []
   mappend (Stack n st) (Stack n' st') = Stack (n+n') (st ++ st')
@@ -76,6 +78,7 @@ reuse bestChoice fallback x = do
      | otherwise             -> fallback x
 
 data Categories k b s a = Categories (HashMap k (s b))
+instance (Identifiable k, Monoid (s b)) => Semigroup (Categories k b s a) where (<>) = mappend
 instance (Identifiable k, Monoid (s b)) => Monoid (Categories k b s a) where
   mempty = Categories M.empty
   mappend (Categories m) (Categories m') = Categories (m `mappend` m')

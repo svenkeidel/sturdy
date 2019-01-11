@@ -25,7 +25,7 @@ import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
-import           Control.Arrow.Transformer.Abstract.PropagateExcept
+import           Control.Arrow.Transformer.Abstract.Failure
 import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Const
 import           Control.Monad.State hiding (lift,fail)
@@ -37,11 +37,13 @@ import           Data.Order
 import           Data.Text (Text)
 
 import           Data.Abstract.Powerset(Pow)
-import           Data.Abstract.FiniteMap(Map)
-import           Data.Abstract.PropagateError (Error)
+import           Data.Abstract.PreciseStore(Store)
+import qualified Data.Abstract.PreciseStore as S
+import qualified Data.Abstract.FiniteMap as F
+import           Data.Abstract.Failure (Error)
+import qualified Data.Abstract.Failure as E
 import           Data.Abstract.Environment (Env)
 import qualified Data.Abstract.Environment as M
-import qualified Data.Abstract.PropagateError as E
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
@@ -57,29 +59,29 @@ import           SharedSemantics
 -- | Abstract closures are expressions paired with an abstract
 -- environment, consisting of a mapping from variables to addresses
 -- and a mapping from addresses to stores.
-data Closure = Closure Expr (Map Text Addr Val) deriving (Eq,Generic)
+newtype Closure = Closure (Store Expr (F.Map Text Addr Val)) deriving (Eq,Generic,PreOrd,Show)
 
 -- | Numeric values are approximated with bounded intervals, closure
 -- values are approximated with a set of abstract closures.
-data Val = NumVal IV | ClosureVal (Pow Closure) | Top deriving (Eq, Generic)
+data Val = NumVal IV | ClosureVal Closure | Top deriving (Eq, Generic)
 
 -- | Addresses for this analysis are variables paired with the k-bounded call string.
-type Addr = (Text,CallString)
+type Addr = (Text,CallString Label)
 
 -- | Interpreter arrow for the k-CFA / interval analysis.
 newtype Interp s x y =
   Interp (
-    Fix Expr Val                    -- type of the fixpoint cache
-      (Environment Text Addr Val  -- threads the environment and store
-        (Contour                  -- records the k-bounded call stack used for address allocation
-          (Except String          -- allows to fail with an error message
-            (Fixpoint s () ()
+    Fix Expr Val                  -- type of the fixpoint cache
+      (EnvT Text Addr Val         -- threads the environment and store
+        (ContourT Label           -- records the k-bounded call stack used for address allocation
+          (FailureT String        -- allows to fail with an error message
+            (FixT s () ()
               (->))))) x y)
 
 widening :: W.Widening IV -> W.Widening Val
 widening w _ Top = Top
 widening w (NumVal x) (NumVal y) = NumVal (x `w` y)
-widening w (ClosureVal cs) (ClosureVal cs') = _
+widening w (ClosureVal (Closure cs)) (ClosureVal (Closure cs')) = ClosureVal $ Closure $ S.widening _ cs cs'
 
 
 -- | Run an interpreter computation on inputs. The arguments are the
@@ -87,10 +89,10 @@ widening w (ClosureVal cs) (ClosureVal cs') = _
 -- an environment, and the input of the computation.
 runInterp :: Interp SW.Unit x y -> IV -> Int -> [(Text,Val)] -> x -> Terminating (Error String y)
 runInterp (Interp f) b k env x = 
-  runFix' _ (E.widening (widening _))
-    (runExcept
-      (runContour k
-        (runEnvironment alloc
+  runFixT' _ (E.widening (widening _))
+    (runFailureT
+      (runContourT k
+        (runEnvT alloc
           f)))
     (env,x)
 
@@ -118,7 +120,7 @@ instance (Complete z, UpperBounded z) => ArrowCond Val x y z (Interp s) where
       | otherwise -> (f -< x) ⊔ (g -< y)  -- case the interval contains zero and other numbers.
     (ClosureVal _, _) -> fail -< "Expected a number as condition for 'ifZero'"
 
-instance IsClosure Val (Map Text Addr Val) (Interp s) where
+instance IsClosure Val (F.Map Text Addr Val) (Interp s) where
   closure = arr $ \(e, env) -> ClosureVal (return (Closure e env))
   applyClosure f = proc (fun, arg) -> case fun of
     Top -> returnA -< Top
@@ -131,19 +133,16 @@ deriving instance Category (Interp s)
 deriving instance Arrow (Interp s)
 deriving instance ArrowChoice (Interp s)
 deriving instance ArrowFail String (Interp s)
-deriving instance ArrowEnv Text Val (Map Text Addr Val) (Interp s)
+deriving instance ArrowEnv Text Val (F.Map Text Addr Val) (Interp s)
 deriving instance ArrowFix Expr Val (Interp s)
 deriving instance PreOrd y => PreOrd (Interp s x y)
 deriving instance Complete y => Complete (Interp s x y)
 deriving instance PreOrd y => LowerBounded (Interp s x y)
 
-perExpression :: Pow Closure -> Env Expr (Pow (Map Text Addr Val))
-perExpression = foldr (\(Closure e,_)_) M.empty
-
 instance PreOrd Val where
   _ ⊑ Top = True
   NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
-  ClosureVal c1 ⊑ ClosureVal c2 = perExpression c1 ⊑ perExpression c2
+  ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
   _ ⊑ _ = False
 
 instance Complete Val where
@@ -161,10 +160,7 @@ instance Complete Val where
 instance UpperBounded Val where
   top = Top
 
-instance PreOrd Closure where
-  Closure e1 env1 ⊑ Closure e2 env2 = e1 == e2 && env1 ⊑ env2
-
-instance HasLabel (Map Text Addr Val,Expr) where
+instance HasLabel (F.Map Text Addr Val,Expr) Label where
   label (_,e) = label e
 
 instance Hashable Closure
@@ -173,8 +169,5 @@ instance Show Val where
   show (NumVal iv) = show iv
   show (ClosureVal cls) = show cls
   show Top = "⊤"
-
-instance Show Closure where
-  show (Closure e _) = show e
 
 type IV = Interval (InfiniteNumber Int)

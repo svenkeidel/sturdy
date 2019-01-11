@@ -16,7 +16,7 @@ import Control.Arrow.Environment
 import Control.Arrow.Fix
 import Control.Arrow.Conditional
 import Control.Arrow.Transformer.Concrete.Environment
-import Control.Arrow.Transformer.Concrete.Except
+import Control.Arrow.Transformer.Concrete.Failure
 import Control.Arrow.Transformer.Concrete.Fixpoint
 import Control.Monad.State hiding (fail)
 
@@ -35,11 +35,11 @@ data Closure = Closure Expr (Env Text Val) deriving (Eq,Generic)
 data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
 
 -- | The interpreter arrow for the concrete semantics that encapsulates the passing of the enviornment and the propagation of failure.
-newtype Interp x y = Interp (Fix Expr Val (Environment Text Val (Except String (->))) x y)
+newtype Interp x y = Interp (Fix Expr Val (EnvT Text Val (FailureT String (->))) x y)
 
 -- | Takes an arrow computation and executes it.
 runInterp :: Interp x y -> [(Text,Val)] -> x -> Error String y
-runInterp (Interp f) env x = runFix (runExcept (runEnvironment' f)) (env,x)
+runInterp (Interp f) env x = runFix (runFailureT (runEnvT' f)) (env,x)
 
 -- | The concrete interpreter function for PCF. The function is
 -- implemented by instantiating the shared semantics with the concrete

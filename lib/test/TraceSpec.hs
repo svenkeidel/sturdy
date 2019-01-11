@@ -49,7 +49,7 @@ spec = do
               Return 16,
             Return 28
           ]
-    in runTrace sum x1 `shouldBe` (trace,28)
+    in runTraceT sum x1 `shouldBe` (trace,28)
 
   -- it "Cont Trace" $ do
   --    runTrace (runCont sum) x1 `shouldBe` (trace,28)

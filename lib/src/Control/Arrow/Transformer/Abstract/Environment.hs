@@ -8,12 +8,13 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.Environment where
 
-import Prelude hiding ((.),read)
+import Prelude hiding ((.),read,Maybe(..))
 
 import Data.Order
 import Data.Identifiable
-import Data.Abstract.Environment (Env)
-import qualified Data.Abstract.Environment as E
+import Data.Abstract.Maybe
+import Data.Abstract.Map (Map)
+import qualified Data.Abstract.Map as M
 
 import Control.Category
 import Control.Arrow
@@ -30,48 +31,49 @@ import Control.Arrow.Fix
 
 import Control.Arrow.Abstract.Join
 
-newtype Environment var val c x y = Environment (Reader (Env var val) c x y)
+newtype EnvT var val c x y = EnvT (ReaderT (Map var val) c x y)
 
-runEnvironment :: (Arrow c) => Environment var val c x y -> c (Env var val,x) y
-runEnvironment (Environment (Reader f)) = f
+runEnvT :: (Arrow c) => EnvT var val c x y -> c (Map var val,x) y
+runEnvT (EnvT (ReaderT f)) = f
 
-runEnvironment' :: (Arrow c, Identifiable var) => Environment var val c x y -> c ([(var,val)],x) y
-runEnvironment' f = first E.fromList ^>> runEnvironment f
+runEnvT' :: (Arrow c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
+runEnvT' f = first M.fromList ^>> runEnvT f
 
-instance (Show var, Identifiable var, ArrowChoice c) => ArrowEnv var val (Env var val) (Environment var val c) where
-  lookup (Environment f) (Environment g) = Environment $ proc (var,x) -> do
+instance (Show var, Identifiable var, ArrowChoice c) => ArrowEnv var val (Map var val) (EnvT var val c) where
+  type Join (EnvT var val c) x y = (Complete (c (Map var val,x) y))
+  lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- ask -< ()
-    case E.lookup var env of
-      Just val -> f -< (val,x)
-      Nothing -> g -< x
-  getEnv = Environment ask
-  extendEnv = arr $ \(x,y,env) -> E.insert x y env
-  localEnv (Environment f) = Environment (local f)
+    case M.lookup var env of
+      Just val        -> f          -< (val,x)
+      JustNothing val -> joined f g -< ((val,x),x)
+      Nothing         -> g          -< x
+  getEnv = EnvT ask
+  extendEnv = arr $ \(x,y,env) -> M.insert x y env
+  localEnv (EnvT f) = EnvT (local f)
 
-instance ArrowApply c => ArrowApply (Environment var val c) where
-  app = Environment $ (\(Environment f,x) -> (f,x)) ^>> app
+instance ArrowApply c => ArrowApply (EnvT var val c) where
+  app = EnvT $ (\(EnvT f,x) -> (f,x)) ^>> app
 
-instance ArrowReader r c => ArrowReader r (Environment var val c) where
+instance ArrowReader r c => ArrowReader r (EnvT var val c) where
   ask = lift ask
-  local (Environment (Reader f)) = Environment (Reader ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
+  local (EnvT (ReaderT f)) = EnvT (ReaderT ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
 
-type instance Fix x y (Environment var val c) = Environment var val (Fix (Env var val,x) y c)
+type instance Fix x y (EnvT var val c) = EnvT var val (Fix (Map var val,x) y c)
 
-deriving instance ArrowJoin c => ArrowJoin (Environment var val c)
-deriving instance ArrowFix (Env var val,x) y c => ArrowFix x y (Environment var val c)
-deriving instance Arrow c => Category (Environment var val c)
-deriving instance Arrow c => Arrow (Environment var val c)
-deriving instance ArrowLift (Environment var val)
-deriving instance ArrowChoice c => ArrowChoice (Environment var val c)
-deriving instance ArrowState s c => ArrowState s (Environment var val c)
-deriving instance ArrowFail e c => ArrowFail e (Environment var val c)
-deriving instance ArrowExcept (Env var val,x) y e c => ArrowExcept x y e (Environment var val c)
-deriving instance ArrowRead x y (Env var val,u) v c => ArrowRead x y u v (Environment var val c)
-deriving instance ArrowWrite x y c => ArrowWrite x y (Environment var val c)
-deriving instance ArrowConst x c => ArrowConst x (Environment var val c)
+deriving instance ArrowJoin c => ArrowJoin (EnvT var val c)
+deriving instance ArrowFix (Map var val,x) y c => ArrowFix x y (EnvT var val c)
+deriving instance Arrow c => Category (EnvT var val c)
+deriving instance Arrow c => Arrow (EnvT var val c)
+deriving instance ArrowLift (EnvT var val)
+deriving instance ArrowChoice c => ArrowChoice (EnvT var val c)
+deriving instance ArrowState s c => ArrowState s (EnvT var val c)
+deriving instance ArrowFail e c => ArrowFail e (EnvT var val c)
+deriving instance ArrowExcept e c => ArrowExcept e (EnvT var val c)
+deriving instance ArrowStore var val c => ArrowStore var val (EnvT var val c)
+deriving instance ArrowConst x c => ArrowConst x (EnvT var val c)
 
-deriving instance PreOrd (c (Env var val,x) y) => PreOrd (Environment var val c x y)
-deriving instance Complete (c (Env var val,x) y) => Complete (Environment var val c x y)
-deriving instance CoComplete (c (Env var val,x) y) => CoComplete (Environment var val c x y)
-deriving instance LowerBounded (c (Env var val,x) y) => LowerBounded (Environment var val c x y)
-deriving instance UpperBounded (c (Env var val,x) y) => UpperBounded (Environment var val c x y)
+deriving instance PreOrd (c (Map var val,x) y) => PreOrd (EnvT var val c x y)
+deriving instance Complete (c (Map var val,x) y) => Complete (EnvT var val c x y)
+deriving instance CoComplete (c (Map var val,x) y) => CoComplete (EnvT var val c x y)
+deriving instance LowerBounded (c (Map var val,x) y) => LowerBounded (EnvT var val c x y)
+deriving instance UpperBounded (c (Map var val,x) y) => UpperBounded (EnvT var val c x y)

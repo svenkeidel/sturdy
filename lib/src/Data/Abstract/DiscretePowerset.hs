@@ -40,6 +40,11 @@ map :: Identifiable y => (x -> y) -> Pow x -> Pow y
 map f (Pow xs) = Pow (H.map f xs)
 map _ Top = Top
 
+fromMaybe :: Identifiable x => Maybe x -> Pow x
+fromMaybe m = case m of
+  Just x  -> singleton x
+  Nothing -> empty
+
 instance Show a => Show (Pow a) where
   show (Pow a) = "{" ++ intercalate ", " (show <$> H.toList a) ++ "}"
   show Top = "⊤"

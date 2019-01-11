@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Syntax where
 
 import Data.Text(Text,unpack)
@@ -75,7 +76,7 @@ instance Show Expr where
       app_prec = 10
       lam_prec = 9
 
-instance HasLabel Expr where
+instance HasLabel Expr Label where
   label e = case e of
     Var _ l -> l
     Lam _ _ l -> l

@@ -12,7 +12,7 @@ import Data.Numeric
 import Data.Abstract.Boolean
 import Data.Abstract.Equality
 import Data.Abstract.Ordering
-import Data.Abstract.PropagateError
+import Data.Abstract.Failure
 import Data.Abstract.InfiniteNumbers
 import Data.Abstract.Widening
 

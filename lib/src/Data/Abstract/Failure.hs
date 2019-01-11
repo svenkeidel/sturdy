@@ -3,7 +3,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Data.Abstract.PropagateError where
+module Data.Abstract.Failure where
 
 import Control.Monad
 import Control.Monad.Except
@@ -13,7 +13,7 @@ import Data.Order
 
 import Data.Monoidal
 
--- | Error is an Either-like type with the special ordering Error ⊑ Success.
+-- | Failure is an Either-like type with the special ordering Failure ⊑ Success.
 -- Left and Right of the regular Either type, on the other hand are incomparable.
 data Error e a = Fail e | Success a
   deriving (Eq, Functor)

@@ -3,6 +3,8 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Environment where
 
 import Prelude hiding (lookup,fail)
@@ -11,15 +13,21 @@ import Control.Arrow
 import Control.Arrow.Fail
 import Control.Arrow.Utils
 
-import Text.Printf
 import Data.String
+
+import Text.Printf
+
+import GHC.Exts (Constraint)
+
 
 -- | Arrow-based interface for interacting with environments.
 class Arrow c => ArrowEnv var val env c | c -> var, c -> val, c -> env where
+  type family Join (c :: * -> * -> *) x y :: Constraint
+
   -- | Lookup a variable in the current environment. The first
   -- continuation is called if the variable is in the enviroment, the
   -- second if it is not.
-  lookup :: c (val,x) y -> c x y -> c (var,x) y
+  lookup :: (Join c ((val,x),x) y) => c (val,x) y -> c x y -> c (var,x) y
   -- | Retrieve the current environment.
   getEnv :: c () env
   -- | Extend an environment with a binding.
@@ -28,7 +36,7 @@ class Arrow c => ArrowEnv var val env c | c -> var, c -> val, c -> env where
   localEnv :: c x y -> c (env,x) y
 
 -- | Simpler version of environment lookup.
-lookup' :: (Show var, IsString e, ArrowFail e c, ArrowEnv var val env c) => c var val
+lookup' :: (Join c ((val,var),var) val, Show var, IsString e, ArrowFail e c, ArrowEnv var val env c) => c var val
 lookup' = proc var ->
   lookup
     (proc (val,_) -> returnA -< val)

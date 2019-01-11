@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedLists #-}
-module StoreSpec where
+module MapSpec where
 
 import Prelude hiding (lookup,Maybe(..))
 
 import Data.Order
 import Data.Abstract.Maybe
-import Data.Abstract.PreciseStore
+import Data.Abstract.Map
 import Data.Abstract.Sign
 
 import Test.Hspec
@@ -13,7 +13,7 @@ import Text.Printf
 
 spec :: Spec
 spec =
-  let m1,m2,m3,m4 :: Store String Sign
+  let m1,m2,m3,m4 :: Map String Sign
       m1 = [("x",Negative), ("y",Positive)]
       m2 = [("x",Positive), ("z",Zero)]
       m3 = [("x",Top),("y",Positive),("z",Zero)]

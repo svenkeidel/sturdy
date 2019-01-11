@@ -1,12 +1,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Data.Label where
 
 import Data.Hashable
 import Control.Monad.State
 
 -- Retrieves label from expression.
-class HasLabel x where
-  label :: x -> Label
+class HasLabel x lab where
+  label :: x -> lab
 
 newtype Label = Label { labelVal :: Int }
   deriving (Ord,Eq,Hashable,Num)

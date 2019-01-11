@@ -28,7 +28,7 @@ import           Data.Identifiable
 import GHC.Generics (Generic)
 import GHC.Exts
 
-newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, MonadPlus, Monoid, Foldable, Traversable, Generic)
+newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, MonadPlus, Semigroup, Monoid, Foldable, Traversable, Generic)
 
 instance Identifiable a => PreOrd (Pow a) where
   as ⊑ bs = all (`H.member` toHashSet as) (toHashSet bs)

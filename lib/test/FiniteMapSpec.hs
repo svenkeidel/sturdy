@@ -5,31 +5,32 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module BoundedEnvironmentSpec where
+module FiniteMapSpec where
 
-import           Prelude hiding (lookup)
+import Prelude hiding (lookup)
 
-import           Control.Arrow
-import           Control.Arrow.Environment
-import           Control.Arrow.State
-import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
-import           Control.Arrow.Transformer.Abstract.PropagateExcept
-import           Control.Arrow.Transformer.State
+import Control.Arrow
+import Control.Arrow.Environment
+import Control.Arrow.State
+import Control.Arrow.Transformer.Abstract.BoundedEnvironment
+import Control.Arrow.Transformer.Abstract.Failure
+import Control.Arrow.Transformer.State
 
-import           Data.Abstract.Interval
-import           Data.Abstract.PropagateError
-import           Data.Text (Text)
+import Data.Abstract.Interval
+import Data.Abstract.Failure
+import Data.Order
+import Data.Text (Text)
 
-import           Test.Hspec
+import Test.Hspec
 
 main :: IO ()
 main = hspec spec
 
 type Val = Interval Int
 type Addr = Int
-type Ar = Environment Text Addr Val (State Addr (Except String (->)))
+type Ar = EnvT Text Addr Val (StateT Addr (FailureT String (->)))
 
-alloc :: State Addr (Except String (->)) (Text,val,env) Addr 
+alloc :: StateT Addr (FailureT String (->)) (Text,val,env) Addr 
 alloc = proc _ -> do
   addr <- get -< ()
   put -< (succ addr `mod` 5)
@@ -88,4 +89,6 @@ spec = do
     it "env(g) = [2,7]" $ runTests setup "g" `shouldBe` Success (Interval 7 7)
 
   where
-    runTests s x = runExcept (evalState (runEnvironment alloc s) ) (0,([],x))
+    runTests s x = runFailureT (evalStateT (runEnvT alloc s) ) (0,([],x))
+
+instance Complete Int where (⊔) = undefined

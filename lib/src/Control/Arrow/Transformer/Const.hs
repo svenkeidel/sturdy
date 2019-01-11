@@ -5,6 +5,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ConstraintKinds #-}
 module Control.Arrow.Transformer.Const where
 
 import Prelude hiding (id,(.),lookup,read)
@@ -29,39 +30,38 @@ import Control.Arrow.Abstract.Join
 import Data.Order
 
 -- | Passes along constant data.
-newtype Const r c x y = Const (Static ((->) r) c x y)
+newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
 
-runConst :: r -> Const r c x y -> c x y
-runConst r (Const (Static f)) = f r
+runConstT :: r -> ConstT r c x y -> c x y
+runConstT r (ConstT (StaticT f)) = f r
 
-type instance Fix x y (Const r c) = Const r (Fix x y c)
-instance ArrowFix x y c => ArrowFix x y (Const r c) where
-  fix f = Const $ Static $ \r -> fix (runConst r . f . lift)
+type instance Fix x y (ConstT r c) = ConstT r (Fix x y c)
+instance ArrowFix x y c => ArrowFix x y (ConstT r c) where
+  fix f = ConstT $ StaticT $ \r -> fix (runConstT r . f . lift)
 
-instance Arrow c => ArrowConst r (Const r c) where
-  askConst = Const $ Static $ \r -> arr (const r)
+instance Arrow c => ArrowConst r (ConstT r c) where
+  askConst = ConstT $ StaticT $ \r -> arr (const r)
 
-instance ArrowApply c => ArrowApply (Const r c) where
-  app = Const $ Static $ \r -> (\(Const (Static f),x) -> (f r,x)) ^>> app
+instance ArrowApply c => ArrowApply (ConstT r c) where
+  app = ConstT $ StaticT $ \r -> (\(ConstT (StaticT f),x) -> (f r,x)) ^>> app
 
-deriving instance ArrowJoin c => ArrowJoin (Const r c)
-deriving instance ArrowLift (Const r)
-deriving instance Arrow c => Category (Const r c)
-deriving instance Arrow c => Arrow (Const r c)
-deriving instance ArrowChoice c => ArrowChoice (Const r c)
-deriving instance ArrowLoop c => ArrowLoop (Const r c)
-deriving instance ArrowState s c => ArrowState s (Const r c)
-deriving instance ArrowReader r c => ArrowReader r (Const r' c)
-deriving instance ArrowWriter w c => ArrowWriter w (Const r c)
-deriving instance ArrowEnv x y env c => ArrowEnv x y env (Const r c)
-deriving instance ArrowRead var val x y c => ArrowRead var val x y (Const r c)
-deriving instance ArrowWrite var val c => ArrowWrite var val (Const r c)
-deriving instance ArrowFail e c => ArrowFail e (Const r c)
-deriving instance ArrowExcept x y e c => ArrowExcept x y e (Const r c)
-deriving instance ArrowDeduplicate x y c => ArrowDeduplicate x y (Const r c)
+deriving instance ArrowJoin c => ArrowJoin (ConstT r c)
+deriving instance ArrowLift (ConstT r)
+deriving instance Arrow c => Category (ConstT r c)
+deriving instance Arrow c => Arrow (ConstT r c)
+deriving instance ArrowChoice c => ArrowChoice (ConstT r c)
+deriving instance ArrowLoop c => ArrowLoop (ConstT r c)
+deriving instance ArrowState s c => ArrowState s (ConstT r c)
+deriving instance ArrowReader r c => ArrowReader r (ConstT r' c)
+deriving instance ArrowWriter w c => ArrowWriter w (ConstT r c)
+deriving instance ArrowEnv var val env c => ArrowEnv var val env (ConstT r c)
+deriving instance ArrowStore var val c => ArrowStore var val (ConstT r c)
+deriving instance ArrowFail e c => ArrowFail e (ConstT r c)
+deriving instance ArrowExcept e c => ArrowExcept e (ConstT r c)
+deriving instance ArrowDeduplicate x y c => ArrowDeduplicate x y (ConstT r c)
 
-deriving instance PreOrd (c x y) => PreOrd (Const r c x y)
-deriving instance Complete (c x y) => Complete (Const r c x y)
-deriving instance CoComplete (c x y) => CoComplete (Const r c x y)
-deriving instance UpperBounded (c x y) => UpperBounded (Const r c x y)
-deriving instance LowerBounded (c x y) => LowerBounded (Const r c x y)
+deriving instance PreOrd (c x y) => PreOrd (ConstT r c x y)
+deriving instance Complete (c x y) => Complete (ConstT r c x y)
+deriving instance CoComplete (c x y) => CoComplete (ConstT r c x y)
+deriving instance UpperBounded (c x y) => UpperBounded (ConstT r c x y)
+deriving instance LowerBounded (c x y) => LowerBounded (ConstT r c x y)

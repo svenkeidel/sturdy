@@ -5,3 +5,5 @@
 /.idea
 .DS_Store
 cabal.config
+cabal.project.local
+.ghc.environment.*

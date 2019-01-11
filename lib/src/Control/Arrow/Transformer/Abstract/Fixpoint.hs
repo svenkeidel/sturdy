@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Abstract.Fixpoint(Fixpoint,runFix,runFix',runFix'',liftFix) where
+module Control.Arrow.Transformer.Abstract.Fixpoint(FixT,runFixT,runFixT',runFixT'',liftFixT) where
 
 import           Prelude hiding (id,(.),lookup)
 import qualified Data.Function as F
@@ -23,19 +23,17 @@ import           Control.Monad.State hiding (fix)
 
 import           Data.Abstract.Terminating hiding (widening)
 import qualified Data.Abstract.Terminating as T
+import           Data.Abstract.Map (Map)
+import qualified Data.Abstract.Map as M
 import           Data.Order hiding (lub)
 import           Data.Identifiable
 import           Data.Monoidal
 import           Data.Maybe
 
-import           Data.Abstract.Store (Store)
-import qualified Data.Abstract.Store as S
 import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.StackWidening (StackWidening)
 import qualified Data.Abstract.StackWidening as SW
-
-type instance Fix a b (Fixpoint stack () () c) = Fixpoint stack a b (Fix a b c)
 
 -- | Fixpoint algorithm that computes the least fixpoint of an arrow computation.
 -- This fixpoint caching algorithm is due to /Abstract Definitional
@@ -61,22 +59,23 @@ type instance Fix a b (Fixpoint stack () () c) = Fixpoint stack a b (Fix a b c)
 -- evaluates to
 -- 'Reader Env (State Store (LeastFix Stack (Store,(Env,Expr)) (Store)))'
 
-type Underlying s a b c x y = (StackWidening s a, Widening b) -> c (((s a,Store a (Terminating b)), Store a (Terminating b)),x) (Store a (Terminating b), Terminating y)
-newtype Fixpoint s a b c x y = Fixpoint (Underlying s a b c x y)
+type Underlying s a b c x y = (StackWidening s a, Widening b) -> c (((s a,Map a (Terminating b)), Map a (Terminating b)),x) (Map a (Terminating b), Terminating y)
+newtype FixT s a b c x y = FixT (Underlying s a b c x y)
+type instance Fix a b (FixT stack () () c) = FixT stack a b (Fix a b c)
 
-runFix :: (Arrow c, Complete b) => Fixpoint SW.Unit a b c x y -> c x (Terminating y)
-runFix f = runFix' SW.finite W.finite f
+runFixT :: (Arrow c, Complete b) => FixT SW.Unit a b c x y -> c x (Terminating y)
+runFixT f = runFixT' SW.finite W.finite f
 
-runFix' :: (Monoid (s a),Arrow c) => StackWidening s a -> Widening b -> Fixpoint s a b c x y -> c x (Terminating y)
-runFix' sw w f = runFix'' sw mempty w f >>^ snd
+runFixT' :: (Monoid (s a),Arrow c) => StackWidening s a -> Widening b -> FixT s a b c x y -> c x (Terminating y)
+runFixT' sw w f = runFixT'' sw mempty w f >>^ snd
 
-runFix'' :: Arrow c => StackWidening s a -> s a -> Widening b -> Fixpoint s a b c x y -> c x (Store a (Terminating b), Terminating y)
-runFix'' sw s0 w (Fixpoint f) = (\x -> (((s0,S.empty),S.empty),x)) ^>> f (sw,w)
+runFixT'' :: Arrow c => StackWidening s a -> s a -> Widening b -> FixT s a b c x y -> c x (Map a (Terminating b), Terminating y)
+runFixT'' sw s0 w (FixT f) = (\x -> (((s0,M.empty),M.empty),x)) ^>> f (sw,w)
 
-liftLeastFix :: Arrow c => c x y -> Fixpoint s a b c x y
-liftLeastFix f = Fixpoint $ \_ -> ((\((_,o),x) -> (o,x)) ^>> second (f >>^ Terminating))
+liftFixT :: Arrow c => c x y -> FixT s a b c x y
+liftFixT f = FixT $ \_ -> ((\((_,o),x) -> (o,x)) ^>> second (f >>^ Terminating))
 
-instance (Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (Fixpoint s x y c) where
+instance (Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (FixT s x y c) where
   fix f = proc x -> do
     old <- getOutCache -< ()
     -- reset the current fixpoint cache
@@ -99,9 +98,9 @@ instance (Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (Fixpoint s x
 -- | Memoizes the results of the interpreter function. In case a value
 -- has been computed before, the cached value is returned and will not
 -- be recomputed.
-memoize :: (Identifiable x, PreOrd y, ArrowChoice c) => Fixpoint s x y c x y -> Fixpoint s x y c x y
-memoize (Fixpoint f) = Fixpoint $ \(stackWidening,widening) -> proc (((stack,inCache), outCache),x) -> do
-  case S.lookup x outCache of
+memoize :: (Identifiable x, PreOrd y, ArrowChoice c) => FixT s x y c x y -> FixT s x y c x y
+memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,inCache), outCache),x) -> do
+  case M.unsafeLookup x outCache of
     -- In case the input was in the fixpoint cache, short-cut
     -- recursion and return the cached value.
     Just y -> returnA -< (outCache,y)
@@ -110,49 +109,49 @@ memoize (Fixpoint f) = Fixpoint $ \(stackWidening,widening) -> proc (((stack,inC
     -- cache with previous knowledge about the result or ⊥, compute
     -- the result of the function and update the fixpoint cache.
     Nothing -> do
-      let yOld = fromMaybe bottom (S.lookup x inCache)
-          outCache' = S.insert x yOld outCache
+      let yOld = fromMaybe bottom (M.unsafeLookup x inCache)
+          outCache' = M.insert x yOld outCache
           (x',stack') = runState (stackWidening x) stack 
       (outCache'',y) <- f (stackWidening,widening) -< (((stack',inCache), outCache'),x')
-      returnA -< (S.insertWith (flip (T.widening widening)) x y outCache'',y)
+      returnA -< (M.unsafeInsertWith (flip (T.widening widening)) x y outCache'',y)
 
-getOutCache :: Arrow c => Fixpoint s x y c () (Store x (Terminating y))
-getOutCache = Fixpoint $ \_ -> arr $ \((_,o),()) -> (o,return o)
+getOutCache :: Arrow c => FixT s x y c () (Map x (Terminating y))
+getOutCache = FixT $ \_ -> arr $ \((_,o),()) -> (o,return o)
 
-setOutCache :: Arrow c => Fixpoint s x y c (Store x (Terminating y)) ()
-setOutCache = Fixpoint $ \_ -> arr $ \((_,_),o) -> (o,return ())
+setOutCache :: Arrow c => FixT s x y c (Map x (Terminating y)) ()
+setOutCache = FixT $ \_ -> arr $ \((_,_),o) -> (o,return ())
 
-localInCache :: Arrow c => Fixpoint s x y c x y -> Fixpoint s x y c (Store x (Terminating y),x) y
-localInCache (Fixpoint f) = Fixpoint $ \w -> proc (((s,_),o),(i,x)) -> f w -< (((s,i),o),x)
+localInCache :: Arrow c => FixT s x y c x y -> FixT s x y c (Map x (Terminating y),x) y
+localInCache (FixT f) = FixT $ \w -> proc (((s,_),o),(i,x)) -> f w -< (((s,i),o),x)
 
-instance ArrowChoice c => Category (Fixpoint s i o c) where
-  id = liftLeastFix id
-  Fixpoint f . Fixpoint g = Fixpoint $ \w -> proc ((i,o),x) -> do
+instance ArrowChoice c => Category (FixT s i o c) where
+  id = liftFixT id
+  FixT f . FixT g = FixT $ \w -> proc ((i,o),x) -> do
     (o',y) <- g w -< ((i,o),x)
     case y of
       NonTerminating -> returnA -< (o',NonTerminating)
       Terminating y' -> f w -< ((i,o'),y')
 
-instance ArrowChoice c => Arrow (Fixpoint s i o c) where
-  arr f = liftLeastFix (arr f)
-  first (Fixpoint f) = Fixpoint $ \w -> to assoc ^>> first (f w) >>^ (\((o,x'),y) -> (o,strength1 (x',y)))
+instance ArrowChoice c => Arrow (FixT s i o c) where
+  arr f = liftFixT (arr f)
+  first (FixT f) = FixT $ \w -> to assoc ^>> first (f w) >>^ (\((o,x'),y) -> (o,strength1 (x',y)))
 
-instance ArrowChoice c => ArrowChoice (Fixpoint s i o c) where
-  left (Fixpoint f) = Fixpoint $ \w -> proc ((i,o),e) -> case e of
+instance ArrowChoice c => ArrowChoice (FixT s i o c) where
+  left (FixT f) = FixT $ \w -> proc ((i,o),e) -> case e of
     Left x -> second (arr (fmap Left)) . f w -< ((i,o),x)
     Right y -> returnA -< (o,return (Right y))
-  right (Fixpoint f) = Fixpoint $ \w -> proc ((i,o),e) -> case e of
+  right (FixT f) = FixT $ \w -> proc ((i,o),e) -> case e of
     Left x -> returnA -< (o,return (Left x))
     Right y -> second (arr (fmap Right)) . f w -< ((i,o),y)
-  Fixpoint f ||| Fixpoint g = Fixpoint $ \w -> proc ((i,o),e) -> case e of
+  FixT f ||| FixT g = FixT $ \w -> proc ((i,o),e) -> case e of
     Left x -> f w -< ((i,o),x)
     Right y -> g w -< ((i,o),y)
 
-instance (ArrowChoice c, ArrowApply c) => ArrowApply (Fixpoint s i o c) where
-  app = Fixpoint $ \w -> (\(io,(Fixpoint f,x)) -> (f w,(io,x))) ^>> app
+instance (ArrowChoice c, ArrowApply c) => ArrowApply (FixT s i o c) where
+  app = FixT $ \w -> (\(io,(FixT f,x)) -> (f w,(io,x))) ^>> app
 
-instance (Identifiable i, Complete o, ArrowJoin c, ArrowChoice c) => ArrowJoin (Fixpoint s i o c) where
-  joinWith lub (Fixpoint f) (Fixpoint g) = Fixpoint $ \w -> proc ((i,o),(x,y)) -> do
+instance (Identifiable i, Complete o, ArrowJoin c, ArrowChoice c) => ArrowJoin (FixT s i o c) where
+  joinWith lub (FixT f) (FixT g) = FixT $ \w -> proc ((i,o),(x,y)) -> do
     (o',t1) <- f w -< ((i,o),x)
     (o'',t2) <- g w -< ((i,o'),y)
     returnA -< (o'',case (t1,t2) of
@@ -161,9 +160,9 @@ instance (Identifiable i, Complete o, ArrowJoin c, ArrowChoice c) => ArrowJoin (
       (NonTerminating,Terminating v') -> Terminating v'
       (NonTerminating,NonTerminating) -> NonTerminating)
 
-deriving instance (PreOrd (Underlying s a b c x y)) => PreOrd (Fixpoint s a b c x y)
-instance (Arrow c,PreOrd (Underlying s a b c x y),Complete y) => Complete (Fixpoint s a b c x y) where
-  Fixpoint f ⊔ Fixpoint g = Fixpoint $ \w -> proc ((i,o),x) -> do
+deriving instance (PreOrd (Underlying s a b c x y)) => PreOrd (FixT s a b c x y)
+instance (Arrow c,PreOrd (Underlying s a b c x y),Complete y) => Complete (FixT s a b c x y) where
+  FixT f ⊔ FixT g = FixT $ \w -> proc ((i,o),x) -> do
     (o',t1) <- f w -< ((i,o),x)
     (o'',t2) <- g w -< ((i,o'),x)
     returnA -< (o'',case (t1,t2) of
@@ -172,6 +171,6 @@ instance (Arrow c,PreOrd (Underlying s a b c x y),Complete y) => Complete (Fixpo
       (NonTerminating,Terminating v') -> Terminating v'
       (NonTerminating,NonTerminating) -> NonTerminating)
 
-deriving instance (CoComplete (Underlying s a b c x y)) => CoComplete (Fixpoint s a b c x y)
-deriving instance (LowerBounded (Underlying s a b c x y)) => LowerBounded (Fixpoint s a b c x y)
-deriving instance (UpperBounded (Underlying s a b c x y)) => UpperBounded (Fixpoint s a b c x y)
+deriving instance (CoComplete (Underlying s a b c x y)) => CoComplete (FixT s a b c x y)
+deriving instance (LowerBounded (Underlying s a b c x y)) => LowerBounded (FixT s a b c x y)
+deriving instance (UpperBounded (Underlying s a b c x y)) => UpperBounded (FixT s a b c x y)

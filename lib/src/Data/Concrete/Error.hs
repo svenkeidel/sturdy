@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 module Data.Concrete.Error where
 
 import Data.Hashable
 import Data.Monoidal
+
 import Control.Monad
 
 data Error e x = Fail e | Success x

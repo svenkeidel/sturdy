@@ -4,24 +4,25 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.State(State(..),evalState,execState) where
+{-# LANGUAGE ConstraintKinds #-}
+module Control.Arrow.Transformer.State(StateT(..),evalStateT,execStateT) where
 
 import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
 import Control.Arrow.Alloc
 import Control.Arrow.Const
-import Control.Arrow.Conditional
+import Control.Arrow.Conditional as Cond
 import Control.Arrow.Deduplicate
-import Control.Arrow.Environment
+import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Lift
 import Control.Arrow.Random
 import Control.Arrow.Reader
 import Control.Arrow.State
-import Control.Arrow.Store
-import Control.Arrow.Except
+import Control.Arrow.Store as Store
+import Control.Arrow.Except as Exc
 import Control.Arrow.Writer
 import Control.Arrow.Utils
 
@@ -34,95 +35,98 @@ import Data.Order hiding (lub)
 import Data.Monoidal
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
-newtype State s c x y = State { runState :: c (s,x) (s,y) }
+newtype StateT s c x y = StateT { runStateT :: c (s,x) (s,y) }
 
-evalState :: Arrow c => State s c x y -> c (s,x) y
-evalState f = runState f >>> pi2
+evalStateT :: Arrow c => StateT s c x y -> c (s,x) y
+evalStateT f = runStateT f >>> pi2
 
-execState :: Arrow c => State s c x y -> c (s,x) s
-execState f = runState f >>> pi1
+execStateT :: Arrow c => StateT s c x y -> c (s,x) s
+execStateT f = runStateT f >>> pi1
 
-instance Category c => Category (State s c) where
-  id = State id
-  State f . State g = State (f . g)
+instance Category c => Category (StateT s c) where
+  id = StateT id
+  StateT f . StateT g = StateT (f . g)
 
-instance ArrowLift (State r) where
-  lift f = State (second f)
+instance ArrowLift (StateT r) where
+  lift f = StateT (second f)
 
-instance Arrow c => Arrow (State s c) where
+instance Arrow c => Arrow (StateT s c) where
   arr f = lift (arr f)
-  first (State f) = State $ (\(s,(b,c)) -> ((s,b),c)) ^>> first f >>^ (\((s,d),c) -> (s,(d,c)))
-  second (State f) = State $ (\(s,(a,b)) -> (a,(s,b))) ^>> second f >>^ (\(a,(s,c)) -> (s,(a,c)))
-  State f &&& State g = State $ (\(s,x) -> ((s,x),x)) ^>> first f >>> (\((s,y),x) -> ((s,x),y)) ^>> first g >>^ (\((s,z),y) -> (s,(y,z)))
-  State f *** State g = State $ (\(s,(x,y)) -> ((s,x),y)) ^>> first f >>> (\((s,y),x) -> ((s,x),y)) ^>> first g >>^ (\((s,z),y) -> (s,(y,z)))
+  first (StateT f) = StateT $ (\(s,(b,c)) -> ((s,b),c)) ^>> first f >>^ (\((s,d),c) -> (s,(d,c)))
+  second (StateT f) = StateT $ (\(s,(a,b)) -> (a,(s,b))) ^>> second f >>^ (\(a,(s,c)) -> (s,(a,c)))
+  StateT f &&& StateT g = StateT $ (\(s,x) -> ((s,x),x)) ^>> first f >>> (\((s,y),x) -> ((s,x),y)) ^>> first g >>^ (\((s,z),y) -> (s,(y,z)))
+  StateT f *** StateT g = StateT $ (\(s,(x,y)) -> ((s,x),y)) ^>> first f >>> (\((s,y),x) -> ((s,x),y)) ^>> first g >>^ (\((s,z),y) -> (s,(y,z)))
 
-instance ArrowChoice c => ArrowChoice (State s c) where
-  left (State f) = State (to distribute ^>> left f >>^ from distribute)
-  right (State f) = State (to distribute ^>> right f >>^ from distribute)
-  State f +++ State g = State $ to distribute ^>> f +++ g >>^ from distribute
-  State f ||| State g = State $ to distribute ^>> f ||| g
+instance ArrowChoice c => ArrowChoice (StateT s c) where
+  left (StateT f) = StateT (to distribute ^>> left f >>^ from distribute)
+  right (StateT f) = StateT (to distribute ^>> right f >>^ from distribute)
+  StateT f +++ StateT g = StateT $ to distribute ^>> f +++ g >>^ from distribute
+  StateT f ||| StateT g = StateT $ to distribute ^>> f ||| g
 
-instance ArrowApply c => ArrowApply (State s c) where
-  app = State $ (\(s,(State f,b)) -> (f,(s,b))) ^>> app
+instance ArrowApply c => ArrowApply (StateT s c) where
+  app = StateT $ (\(s,(StateT f,b)) -> (f,(s,b))) ^>> app
 
-instance Arrow c => ArrowState s (State s c) where
-  get = State (arr (\(a,()) -> (a,a)))
-  put = State (arr (\(_,s) -> (s,())))
+instance Arrow c => ArrowState s (StateT s c) where
+  get = StateT (arr (\(a,()) -> (a,a)))
+  put = StateT (arr (\(_,s) -> (s,())))
 
-instance ArrowFail e c => ArrowFail e (State s c) where
+instance ArrowFail e c => ArrowFail e (StateT s c) where
   fail = lift fail
 
-instance ArrowReader r c => ArrowReader r (State s c) where
+instance ArrowReader r c => ArrowReader r (StateT s c) where
   ask = lift ask
-  local (State f) = State $ (\(s,(r,x)) -> (r,(s,x))) ^>> local f
+  local (StateT f) = StateT $ (\(s,(r,x)) -> (r,(s,x))) ^>> local f
 
-instance ArrowWriter w c => ArrowWriter w (State s c) where
+instance ArrowWriter w c => ArrowWriter w (StateT s c) where
   tell = lift tell
 
-instance ArrowEnv x y env c => ArrowEnv x y env (State s c) where
-  lookup (State f) (State g) = State $ (\(s,(v,a)) -> (v,(s,a))) ^>> lookup ((\(v,(s,a)) -> (s,(v,a))) ^>> f) g
+instance (ArrowEnv var val env c) => ArrowEnv var val env (StateT s c) where
+  type instance Join (StateT s c) ((val,x),x) y = Env.Join c ((val,(s,x)),(s,x)) (s,y)
+  lookup (StateT f) (StateT g) = StateT $ (\(s,(v,a)) -> (v,(s,a))) ^>> lookup ((\(v,(s,a)) -> (s,(v,a))) ^>> f) g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
-  localEnv (State f) = State ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
+  localEnv (StateT f) = StateT ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
 
-instance ArrowRead var val (s,x) (s,y) c => ArrowRead var val x y (State s c) where
-  read (State f) (State g) = State $ (\(s,(v,a)) -> (v,(s,a))) ^>> read ((\(v,(s,a)) -> (s,(v,a))) ^>> f) g
-
-instance ArrowWrite var val c => ArrowWrite var val (State s c) where
+instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
+  type instance Join (StateT s c) ((val,x),x) y = Store.Join c ((val,(s,x)),(s,x)) (s,y)
+  read (StateT f) (StateT g) = StateT $ (\(s,(v,a)) -> (v,(s,a))) ^>> read ((\(v,(s,a)) -> (s,(v,a))) ^>> f) g
   write = lift write
 
-type instance Fix x y (State s c) = State s (Fix (s,x) (s,y) c)
-instance ArrowFix (s,x) (s,y) c => ArrowFix x y (State s c) where
-  fix f = State (fix (runState . f . State))
+type instance Fix x y (StateT s c) = StateT s (Fix (s,x) (s,y) c)
+instance ArrowFix (s,x) (s,y) c => ArrowFix x y (StateT s c) where
+  fix f = StateT (fix (runStateT . f . StateT))
 
-instance ArrowExcept (s,x) (s,y) e c => ArrowExcept x y e (State s c) where
-  tryCatch (State f) (State g) = State $ tryCatch f (from assoc ^>> g)
-  finally (State f) (State g) = State $ finally f g
+instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
+  type instance Join (StateT s c) (x,(x,e)) y = Exc.Join c ((s,x),((s,x),e)) (s,y)
+  throw = lift throw
+  catch (StateT f) (StateT g) = StateT $ catch f (from assoc ^>> g)
+  finally (StateT f) (StateT g) = StateT $ finally f g
 
-instance (Eq s, Hashable s, ArrowDeduplicate (s, x) (s, y) c) => ArrowDeduplicate x y (State s c) where
-  dedup (State f) = State (dedup f)
+instance (Eq s, Hashable s, ArrowDeduplicate (s, x) (s, y) c) => ArrowDeduplicate x y (StateT s c) where
+  dedup (StateT f) = StateT (dedup f)
 
-instance ArrowLoop c => ArrowLoop (State s c) where
-  loop (State f) = State $ loop ((\((s,b),d) -> (s,(b,d))) ^>> f >>^ (\(s,(b,d)) -> ((s,b),d)))
+instance ArrowLoop c => ArrowLoop (StateT s c) where
+  loop (StateT f) = StateT $ loop ((\((s,b),d) -> (s,(b,d))) ^>> f >>^ (\(s,(b,d)) -> ((s,b),d)))
 
-instance (ArrowJoin c, Complete s) => ArrowJoin (State s c) where
-  joinWith lub (State f) (State g) =
-    State $ (\(s,(x,y)) -> ((s,x),(s,y))) ^>> joinWith (\(s1,z1) (s2,z2) -> (s1⊔s2,lub z1 z2)) f g
+instance (ArrowJoin c, Complete s) => ArrowJoin (StateT s c) where
+  joinWith lub (StateT f) (StateT g) =
+    StateT $ (\(s,(x,y)) -> ((s,x),(s,y))) ^>> joinWith (\(s1,z1) (s2,z2) -> (s1⊔s2,lub z1 z2)) f g
 
-instance ArrowConst x c => ArrowConst x (State s c) where
+instance ArrowConst x c => ArrowConst x (StateT s c) where
   askConst = lift askConst
 
-instance ArrowAlloc x y c => ArrowAlloc x y (State s c) where
+instance ArrowAlloc x y c => ArrowAlloc x y (StateT s c) where
   alloc = lift alloc
 
-instance ArrowCond v (s,x) (s,y) (s,z) c => ArrowCond v x y z (State s c) where
-  if_ (State f) (State g) = State $ (\(s,(v,(x,y))) -> (v,((s,x),(s,y)))) ^>> if_ f g
+instance (ArrowCond v c) => ArrowCond v (StateT s c) where
+  type instance Join (StateT s c) (x,y) z = Cond.Join c ((s,x),(s,y)) (s,z)
+  if_ (StateT f) (StateT g) = StateT $ (\(s,(v,(x,y))) -> (v,((s,x),(s,y)))) ^>> if_ f g
 
-instance ArrowRand v c => ArrowRand v (State s c) where
+instance ArrowRand v c => ArrowRand v (StateT s c) where
   random = lift random
 
-deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (State s c x y)
-deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (State s c x y)
-deriving instance Complete (c (s,x) (s,y)) => Complete (State s c x y)
-deriving instance CoComplete (c (s,x) (s,y)) => CoComplete (State s c x y)
-deriving instance UpperBounded (c (s,x) (s,y)) => UpperBounded (State s c x y)
+deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (StateT s c x y)
+deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (StateT s c x y)
+deriving instance Complete (c (s,x) (s,y)) => Complete (StateT s c x y)
+deriving instance CoComplete (c (s,x) (s,y)) => CoComplete (StateT s c x y)
+deriving instance UpperBounded (c (s,x) (s,y)) => UpperBounded (StateT s c x y)

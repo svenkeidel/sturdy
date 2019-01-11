@@ -44,9 +44,8 @@ library
                        Data.Abstract.Equality,
                        Data.Abstract.Ordering,
                        Data.Abstract.Boolean,
-                       Data.Abstract.Environment,
-                       Data.Abstract.PropagateError,
-                       Data.Abstract.HandleError,
+                       Data.Abstract.Failure,
+                       Data.Abstract.Error,
                        Data.Abstract.InfiniteNumbers,
                        Data.Abstract.FiniteMap,
                        Data.Abstract.FreeCompletion,
@@ -55,9 +54,9 @@ library
                        Data.Abstract.Powerset,
                        Data.Abstract.DiscretePowerset,
                        Data.Abstract.Sign,
-                       Data.Abstract.Store,
-                       Data.Abstract.PreciseStore,
+                       Data.Abstract.Map,
                        Data.Abstract.Terminating,
+                       Data.Abstract.There,
                        Data.Abstract.Widening,
                        Data.Abstract.StackWidening,
 
@@ -88,6 +87,7 @@ library
 
                        Control.Arrow.Transformer.Concrete.Environment,
                        Control.Arrow.Transformer.Concrete.Except,
+                       Control.Arrow.Transformer.Concrete.Failure,
                        Control.Arrow.Transformer.Concrete.Fixpoint,
                        Control.Arrow.Transformer.Concrete.Store,
                        Control.Arrow.Transformer.Concrete.Random,
@@ -97,14 +97,14 @@ library
                        Control.Arrow.Transformer.Abstract.Environment,
                        Control.Arrow.Transformer.Abstract.Contour,
                        Control.Arrow.Transformer.Abstract.BoundedEnvironment,
-                       Control.Arrow.Transformer.Abstract.PropagateExcept,
-                       Control.Arrow.Transformer.Abstract.HandleExcept,
-                       Control.Arrow.Transformer.Abstract.GreatestFixPoint,
+                       Control.Arrow.Transformer.Abstract.Failure,
+                       Control.Arrow.Transformer.Abstract.Except,
+                       -- Control.Arrow.Transformer.Abstract.GreatestFixPoint,
                        Control.Arrow.Transformer.Abstract.Fixpoint,
                        Control.Arrow.Transformer.Abstract.Powerset,
                        Control.Arrow.Transformer.Abstract.Store,
-                       Control.Arrow.Transformer.Abstract.ReachingDefinitions,
-                       Control.Arrow.Transformer.Abstract.LiveVariables
+                       Control.Arrow.Transformer.Abstract.ReachingDefinitions
+                       -- Control.Arrow.Transformer.Abstract.LiveVariables
 
   build-depends:       base,
                        containers,
@@ -127,8 +127,8 @@ test-suite specs
                      hashable,
                      unordered-containers,
                      text
-  other-modules:     BoundedEnvironmentSpec,
+  other-modules:     FiniteMapSpec,
                      FixSpec,
-                     StoreSpec,
+                     MapSpec,
                      TraceSpec
   default-language:  Haskell2010
