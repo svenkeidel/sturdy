@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
-module SharedSemantics where
+module GenericInterpreter where
 
 import Prelude hiding (succ, pred, fail)
 import Syntax (Expr(..))
@@ -10,14 +10,14 @@ import Syntax (Expr(..))
 import Control.Arrow
 import Control.Arrow.Fix
 import Control.Arrow.Fail
-import Control.Arrow.Environment
-import Control.Arrow.Conditional
+import Control.Arrow.Environment as Env
+import Control.Arrow.Conditional as Cond
 
 import Data.Text (Text)
 
 -- | Shared interpreter for PCF.
 eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c,
-         ArrowCond v Expr Expr v c, IsVal v c, IsClosure v env c)
+         ArrowCond v c, IsVal v c, IsClosure v env c, Env.Join c ((v,Text),Text) v, Cond.Join c (Expr,Expr) v)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> lookup' -< x

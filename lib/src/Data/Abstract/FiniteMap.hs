@@ -2,9 +2,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
 module Data.Abstract.FiniteMap where
 
-import           Prelude hiding (lookup)
+import           Prelude hiding (lookup,Either(..),id,(.))
 
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
@@ -12,15 +14,17 @@ import qualified Data.HashMap.Lazy as H
 import           Data.Identifiable
 import           Data.Order
 import           Data.Hashable
+import           Data.Maybe (maybeToList)
 
 import           Data.Abstract.There
 import qualified Data.Abstract.Maybe as M
+import           Data.Abstract.Widening
+import qualified Data.Abstract.Widening as W
 
 import           Control.Arrow
 import           Control.Arrow.Alloc
 
 import           Text.Printf
-
 
 newtype Map x addr y = Map (HashMap x addr, HashMap addr (There,y)) deriving (Eq,Hashable)
 
@@ -33,8 +37,22 @@ instance (Show x,Show addr,Show y) => Show (Map x addr y) where
 
 
 instance (Identifiable x, Identifiable addr, PreOrd y) => PreOrd (Map x addr y) where
-  m1 ⊑ m2 = keys m1 == keys m2 && all (\k -> lookup k m1 ⊑ lookup k m2) (keys m1)
-  m1 ≈ m2 = keys m1 == keys m2 && all (\k -> lookup k m1 ≈ lookup k m2) (keys m1)
+  Map (e,s) ⊑ m2 = all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2)
+    [ (a,b) | (a,addr) <- H.toList e, b <- maybeToList (H.lookup addr s) ]
+
+instance (Identifiable x, Identifiable addr, Complete y) => Complete (Map x addr y) where
+  (⊔) = widening (⊔)
+
+widening :: (Identifiable x,Identifiable addr) => Widening y -> Widening (Map x addr y)
+widening w (Map (e1,s1)) (Map (e2,s2)) = Map (e,s)
+  where
+    e = H.union e1 e2
+    s = H.fromList $ flip map (H.keys e) $ \x -> case (H.lookup x e1,H.lookup x e2) of
+          (Just a1, Just a2) -> (a1, (W.finite W.** w) (s1 H.! a1) (s2 H.! a2))
+          (Just a1, Nothing) -> (a1, s1 H.! a1) 
+          (Nothing, Just a2) -> (a2, s2 H.! a2)
+          (Nothing, Nothing) -> error "cannot happen"
+
 
 empty :: Map x addr y
 empty = (Map (H.empty,H.empty))
@@ -68,3 +86,5 @@ insert :: (Identifiable x, Identifiable addr, Complete y, ArrowChoice c, ArrowAl
 insert = insertBy alloc
 
 
+toList :: (Identifiable x, Identifiable addr) => Map x addr y -> [(x,y)]
+toList (Map (e,s)) = [ (a,b)| (a,addr) <- H.toList e, (_,b) <- maybeToList (H.lookup addr s) ]

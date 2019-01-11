@@ -4,8 +4,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 -- | Concrete semantics of PCF.
-module ConcreteSemantics where
+module ConcreteInterpreter where
 
 import Prelude hiding (fail)
 
@@ -29,13 +31,13 @@ import Data.Label
 import GHC.Generics
 
 import Syntax (Expr(..))
-import SharedSemantics
+import GenericInterpreter
 
 data Closure = Closure Expr (Env Text Val) deriving (Eq,Generic)
 data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
 
 -- | The interpreter arrow for the concrete semantics that encapsulates the passing of the enviornment and the propagation of failure.
-newtype Interp x y = Interp (Fix Expr Val (EnvT Text Val (FailureT String (->))) x y)
+newtype Interp x y = Interp (EnvT Text Val (FailureT String (->)) x y)
 
 -- | Takes an arrow computation and executes it.
 runInterp :: Interp x y -> [(Text,Val)] -> x -> Error String y
@@ -64,7 +66,8 @@ instance IsClosure Val (Env Text Val) Interp where
     ClosureVal (Closure e env) -> f -< ((e,env),arg)
     NumVal _ -> fail -< "Expected a closure"
 
-instance ArrowCond Val x y z Interp where
+instance ArrowCond Val Interp where
+  type Join Interp x y = ()
   if_ f g = proc (v1, (x, y)) -> case v1 of
     NumVal 0 -> f -< x
     NumVal _ -> g -< y
