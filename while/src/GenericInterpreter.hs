@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module SharedSemantics where
+module GenericInterpreter where
 
 import Prelude hiding (lookup, and, or, not, div, read)
 
@@ -10,12 +10,12 @@ import Data.Label
 
 import Control.Arrow
 import Control.Arrow.Alloc
-import Control.Arrow.Conditional
+import Control.Arrow.Conditional as Cond
 import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Arrow.Environment
+import Control.Arrow.Environment as Env
 import Control.Arrow.Random
-import Control.Arrow.Store
+import Control.Arrow.Store as Store
 import Control.Arrow.Utils
 
 import Data.Text (Text)
@@ -26,13 +26,14 @@ import Syntax
 type Prog = [Statement]
   
 eval :: (Show addr, ArrowChoice c, ArrowRand v c,
-         ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
-         ArrowFail e c, IsString e, IsVal v c)
+         ArrowEnv Text addr env c, ArrowStore addr v c,
+         ArrowFail e c, IsString e, IsVal v c,
+         Env.Join c ((addr, Text),Text) v,
+         Store.Join c ((v, addr),addr) v
+        )
      => c Expr v
 eval = proc e -> case e of
-  Var x l -> do
-    addr <- lookup' -< x
-    read' -< (addr,l)
+  Var x _ -> lookup'' read' -< x
   BoolLit b l -> boolLit -< (b,l)
   And e1 e2 l -> do
     v1 <- eval -< e1
@@ -73,17 +74,21 @@ eval = proc e -> case e of
     lt -< (v1,v2,l)
 
 run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
-        ArrowEnv Text addr env c, ArrowStore (addr,Label) v c,
+        ArrowEnv Text addr env c, ArrowStore addr v c,
         ArrowAlloc (Text,v,Label) addr c, ArrowFail e c,
-        ArrowCond v [Statement] [Statement] () c, ArrowRand v c,
-        IsString e, IsVal v c)
+        ArrowCond v c, ArrowRand v c, IsString e, IsVal v c,
+        Env.Join c ((addr, Text),Text) v,
+        Env.Join c ((addr, (Text,v,Label)), (Text,v,Label)) addr,
+        Store.Join c ((v, addr),addr) v,
+        Cond.Join c ([Statement],[Statement]) ()
+       )
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
   Assign x e l:ss -> do
     v <- eval -< e
     addr <- lookup pi1 alloc -< (x,(x,v,l))
-    write -< ((addr,l),v)
-    extendEnv' run' -< (x, addr, ss)
+    write -< (addr,v)
+    extendEnv' run' -< (x,addr,ss)
   If cond s1 s2 _:ss -> do
     b <- eval -< cond
     if_ run' run' -< (b,([s1],[s2]))

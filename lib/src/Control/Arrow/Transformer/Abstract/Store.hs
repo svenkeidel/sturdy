@@ -34,14 +34,14 @@ import Data.Hashable
 
 newtype StoreT var val c x y = StoreT (StateT (Map var val) c x y)
 
-runStore :: StoreT var val c x y -> c (Map var val, x) (Map var val, y)
-runStore (StoreT (StateT f)) = f
+runStoreT :: StoreT var val c x y -> c (Map var val, x) (Map var val, y)
+runStoreT (StoreT (StateT f)) = f
 
-evalStore :: Arrow c => StoreT var val c x y -> c (Map var val, x) y
-evalStore f = runStore f >>> pi2
+evalStoreT :: Arrow c => StoreT var val c x y -> c (Map var val, x) y
+evalStoreT f = runStoreT f >>> pi2
 
-execStore :: Arrow c => StoreT var val c x y -> c (Map var val, x) (Map var val)
-execStore f = runStore f >>> pi1
+execStoreT :: Arrow c => StoreT var val c x y -> c (Map var val, x) (Map var val)
+execStoreT f = runStoreT f >>> pi1
 
 instance (Identifiable var, ArrowChoice c) => ArrowStore var val (StoreT var val c) where
   type Join (StoreT var val c) ((val,x),x) y = Complete (c (Map var val, ((val, x), x)) (Map var val, y))

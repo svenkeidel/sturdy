@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Syntax where
 
 import Control.Monad.State
@@ -101,7 +102,7 @@ instance Num (State Label Expr) where
 -- (==) :: State Label Expr -> State Label Expr -> State Label Expr
 -- (==) e1 e2 = Eq <$> e1 <*> e2 <*> fresh
 
-instance HasLabel Expr where
+instance HasLabel Expr Label where
   label e = case e of 
     Var _ l -> l
     BoolLit _ l -> l
@@ -154,7 +155,7 @@ begin ss = Begin <$> sequence ss <*> fresh
 x =: e = Assign x <$> e <*> fresh
 infix 0 =:
 
-instance HasLabel Statement where
+instance HasLabel Statement Label where
   label s = case s of 
     While _ _ l -> l
     If _ _ _ l -> l

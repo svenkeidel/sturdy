@@ -11,8 +11,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Transformer.Abstract.ReachingDefinitions(
   ReachingDefsT(..),
-  reachingDefs,
-  runReachingDefs,
+  reachingDefsT,
+  runReachingDefsT,
+  runReachingDefsT',
 ) where
 
 import           Prelude hiding ((.),read,id)
@@ -40,16 +41,19 @@ import qualified Data.Abstract.DiscretePowerset as P
 
 newtype ReachingDefsT lab c x y = ReachingDefsT (ReaderT (Maybe lab) c x y)
 
-reachingDefs :: Arrow c => c (Maybe lab,x) y -> ReachingDefsT lab c x y
-reachingDefs = ReachingDefsT . ReaderT
+reachingDefsT :: Arrow c => c (Maybe lab,x) y -> ReachingDefsT lab c x y
+reachingDefsT = ReachingDefsT . ReaderT
 
-runReachingDefs :: Arrow c => ReachingDefsT lab c x y -> c (Maybe lab,x) y
-runReachingDefs (ReachingDefsT (ReaderT f)) = f
+runReachingDefsT :: Arrow c => ReachingDefsT lab c x y -> c (Maybe lab,x) y
+runReachingDefsT (ReachingDefsT (ReaderT f)) = f
+
+runReachingDefsT' :: Arrow c => ReachingDefsT lab c x y -> c x y
+runReachingDefsT' f = (\x -> (Nothing,x)) ^>> runReachingDefsT f
 
 instance (Identifiable var, Identifiable lab, ArrowStore var (val,Pow lab) c) => ArrowStore var val (ReachingDefsT lab c) where
   type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Pow lab),(Maybe lab,x)), (Maybe lab,x)) y
   read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read ((\((v,_::Pow lab),x) -> (v,x)) ^>> f) g
-  write = reachingDefs $ proc (lab,(var,val)) ->
+  write = reachingDefsT $ proc (lab,(var,val)) ->
     write -< (var,(val,P.fromMaybe lab))
 
 type instance Fix x y (ReachingDefsT lab c) = ReachingDefsT lab (Fix x y c)
@@ -60,13 +64,13 @@ instance (HasLabel x lab, Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefs
       wrap = lift
 
       unwrap :: HasLabel x lab => ReachingDefsT lab c x y -> c x y
-      unwrap f' = (Just . label &&& id) ^>> runReachingDefs f'
+      unwrap f' = (Just . label &&& id) ^>> runReachingDefsT f'
 
 instance ArrowApply c => ArrowApply (ReachingDefsT lab c) where
   app = ReachingDefsT ((\(ReachingDefsT f,x) -> (f,x)) ^>> app)
 
 instance ArrowLift (ReachingDefsT lab) where
-  lift f = reachingDefs (snd ^>> f)
+  lift f = reachingDefsT (snd ^>> f)
 
 instance ArrowReader r c => ArrowReader r (ReachingDefsT lab c) where
   ask = lift ask

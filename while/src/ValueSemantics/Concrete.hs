@@ -13,15 +13,13 @@ import           Prelude hiding (read,fail,(.))
 import qualified Prelude as P
 
 import           Syntax
-import           SharedSemantics
-import qualified SharedSemantics as Shared
+import           GenericInterpreter
+import qualified GenericInterpreter as Generic
 
 import           Data.Concrete.Error
-import           Data.Concrete.Environment (Env)
-import qualified Data.Concrete.Environment as E
-import qualified Data.Concrete.Store as S
-import           Data.Concrete.Store (Store)
 import           Data.Hashable
+import           Data.HashMap.Lazy(HashMap)
+import qualified Data.HashMap.Lazy as M
 import           Data.Text (Text)
 import           Data.Label
 
@@ -32,40 +30,42 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
 import           Control.Arrow.Alloc
-import           Control.Arrow.Conditional
+import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Random
-import           Control.Arrow.Transformer.State
-import           Control.Arrow.Transformer.Concrete.Except
+import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Random
 import           Control.Arrow.Transformer.Concrete.Store
-import           Control.Arrow.Transformer.Concrete.FixPoint(runFixPoint)
+import           Control.Arrow.Transformer.Concrete.Fixpoint(runFix)
 
-import           System.Random (StdGen)
 import qualified System.Random as R
 
 import           GHC.Generics (Generic)
 
 data Val = BoolVal Bool | NumVal Int deriving (Eq, Show, Generic)
 type Addr = Label
-newtype Interp c x y = Interp (Random (Environment Text Addr (StoreArrow Addr Val (Except String c))) x y)
-type instance Fix x y (Interp c) = Interp (Fix (Store Text Val,(StdGen,x)) (Error String (Store Text Val,(StdGen,y))) c)
 
-runInterp :: ArrowChoice c => Interp c x y -> c (Store Addr Val, (Env Text Addr, (StdGen,x))) (Error String (Store Addr Val, (StdGen,y)))
-runInterp (Interp f) = runExcept (runStore (runEnvironment (runRandom f)))
-
-run :: [LStatement] -> Error String (Store Addr Val)
+run :: [LStatement] -> Error String (HashMap Addr Val)
 run ss =
   fst <$>
-    runFixPoint
-      (runInterp
-        (Shared.run :: Fix [Statement] () (Interp (->)) [Statement] ()))
-      (S.empty,(E.empty,(R.mkStdGen 0, generate <$> ss)))
+    runFix
+      (runFailureT
+        (runStoreT
+          (runEnvT
+            (runRandomT
+               (runConcreteT
+                 Generic.run)))))
+      (M.empty,(M.empty,(R.mkStdGen 0, generate <$> ss)))
 
-instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (Interp c) where
+newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
+  deriving (Category, Arrow, ArrowChoice, ArrowFail e, ArrowEnv var addr env, ArrowStore addr val)
+deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
+deriving instance ArrowRand v c => ArrowRand v (ConcreteT c)
+
+instance (ArrowChoice c) => ArrowAlloc (Text,Val,Label) Addr (ConcreteT c) where
   alloc = arr $ \(_,_,l) -> l
 
-instance ArrowChoice c => IsVal Val (Interp c) where
+instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
   boolLit = arr (\(b,_) -> BoolVal b)
   and = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 && b2)
@@ -97,25 +97,12 @@ instance ArrowChoice c => IsVal Val (Interp c) where
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.< n2)
     _ -> fail -< "Expected two numbers as arguments for 'lt'"
 
-instance ArrowChoice c => ArrowCond Val x y z (Interp c) where
+instance (ArrowChoice c, ArrowFail String c) => ArrowCond Val (ConcreteT c) where
+  type Join (ConcreteT c) x y = ()
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
     _ -> fail -< "Expected boolean as argument for 'if'"
-
-instance ArrowChoice c => ArrowRead (Addr,Label) Val x y (Interp c) where
-  read (Interp f) (Interp g) = Interp $ proc ((addr,_),x) -> read f g -< (addr,x)
-                               
-instance ArrowChoice c => ArrowWrite (Addr,Label) Val (Interp c) where
-  write = Interp $ proc ((addr,_),val) -> write -< (addr,val)
-
-deriving instance ArrowChoice c => Category (Interp c)
-deriving instance ArrowChoice c => Arrow (Interp c)
-deriving instance ArrowChoice c => ArrowChoice (Interp c)
-deriving instance ArrowChoice c => ArrowFail String (Interp c)
-deriving instance (ArrowFix (Store Addr Val,(Env Text Addr,(StdGen,x))) (Error String (Store Addr Val,(StdGen,y))) c, ArrowChoice c) => ArrowFix x y (Interp c)
-deriving instance ArrowChoice c => ArrowEnv Text Addr (Env Text Addr) (Interp c)
-deriving instance (R.Random v, ArrowChoice c) => ArrowRand v (Interp c)
 
 instance R.Random Val where
   randomR (NumVal x,NumVal y) = first NumVal . R.randomR (x,y)

@@ -23,7 +23,7 @@ import Control.Arrow.Transformer.Concrete.Fixpoint
 import Control.Monad.State hiding (fail)
 
 import Data.Concrete.Error
-import Data.Concrete.Environment (Env)
+import Data.HashMap.Lazy (HashMap)
 import Data.Hashable
 import Data.Text (Text)
 import Data.Label
@@ -33,24 +33,29 @@ import GHC.Generics
 import Syntax (Expr(..))
 import GenericInterpreter
 
-data Closure = Closure Expr (Env Text Val) deriving (Eq,Generic)
+data Closure = Closure Expr (HashMap Text Val) deriving (Eq,Generic)
 data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
-
--- | The interpreter arrow for the concrete semantics that encapsulates the passing of the enviornment and the propagation of failure.
-newtype Interp x y = Interp (EnvT Text Val (FailureT String (->)) x y)
-
--- | Takes an arrow computation and executes it.
-runInterp :: Interp x y -> [(Text,Val)] -> x -> Error String y
-runInterp (Interp f) env x = runFix (runFailureT (runEnvT' f)) (env,x)
 
 -- | The concrete interpreter function for PCF. The function is
 -- implemented by instantiating the shared semantics with the concrete
 -- interpreter arrow `Interp`.
 evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
-evalConcrete env e = runInterp eval env (generate e)
+evalConcrete env e =
+  runFix
+    (runFailureT
+      (runEnvT'
+        (runConcreteT
+          eval)))
+    (env,generate e)
+
+-- | Arrow transformer that implements the concrete value semantics
+newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
+  deriving (Category,Arrow,ArrowChoice,ArrowFail e)
+deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
+deriving instance ArrowEnv var Val env c => ArrowEnv var Val env (ConcreteT c)
 
 -- | Concrete instance of the interface for value operations.
-instance IsVal Val Interp where
+instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal (n + 1)
     _ -> fail -< "Expected a number as argument for 'succ'"
@@ -60,27 +65,18 @@ instance IsVal Val Interp where
   zero = arr $ const (NumVal 0)
 
 -- | Concrete instance of the interface for closure operations.
-instance IsClosure Val (Env Text Val) Interp where
+instance (ArrowChoice c, ArrowFail String c) => IsClosure Val (HashMap Text Val) (ConcreteT c) where
   closure = arr $ \(e, env) -> ClosureVal $ Closure e env
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal (Closure e env) -> f -< ((e,env),arg)
     NumVal _ -> fail -< "Expected a closure"
 
-instance ArrowCond Val Interp where
-  type Join Interp x y = ()
+instance (ArrowChoice c, ArrowFail String c) => ArrowCond Val (ConcreteT c) where
+  type Join (ConcreteT c) x y = ()
   if_ f g = proc (v1, (x, y)) -> case v1 of
     NumVal 0 -> f -< x
     NumVal _ -> g -< y
     _ -> fail -< "Expected a number as condition for 'ifZero'"
-
--- All other instances for the concrete interpreter arrow can be
--- derived from the instances of the underlying arrow transformers.
-deriving instance Category Interp
-deriving instance Arrow Interp
-deriving instance ArrowChoice Interp
-deriving instance ArrowFail String Interp
-deriving instance ArrowEnv Text Val (Env Text Val) Interp
-deriving instance ArrowFix Expr Val Interp
 
 instance Hashable Closure
 instance Hashable Val

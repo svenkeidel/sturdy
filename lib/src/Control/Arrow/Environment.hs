@@ -7,8 +7,9 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Environment where
 
-import Prelude hiding (lookup,fail)
+import Prelude hiding (lookup,fail,id)
 
+import Control.Category
 import Control.Arrow
 import Control.Arrow.Fail
 import Control.Arrow.Utils
@@ -37,11 +38,15 @@ class Arrow c => ArrowEnv var val env c | c -> var, c -> val, c -> env where
 
 -- | Simpler version of environment lookup.
 lookup' :: (Join c ((val,var),var) val, Show var, IsString e, ArrowFail e c, ArrowEnv var val env c) => c var val
-lookup' = proc var ->
+lookup' = lookup'' id
+
+lookup'' :: (Join c ((val,var),var) y, Show var, IsString e, ArrowFail e c, ArrowEnv var val env c) => c val y -> c var y
+lookup'' f = proc var ->
   lookup
-    (proc (val,_) -> returnA -< val)
-    (proc var     -> fail    -< fromString $ printf "Variable %s not bound" (show var))
+    (proc (val,_) -> f     -< val)
+    (proc var     -> fail  -< fromString $ printf "Variable %s not bound" (show var))
     -< (var,var)
+
 
 -- | Run a computation in an extended environment.
 extendEnv' :: ArrowEnv var val env c => c a b -> c (var,val,a) b

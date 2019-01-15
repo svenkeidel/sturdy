@@ -110,7 +110,7 @@ spec = do
           0 -> fail -< ()
           _ -> f -< (n-1)
     in it "should fail, but update the fixpoint cache" $
-         runFixT'' SW.finite SW.Unit W.finite (runFailureT recurseFail) 5
+         runFixT'' SW.finite W.finite (runFailureT recurseFail) 5
             `shouldBe` (S.fromList [(n,Terminating (Fail ())) | n <- [0..5]], return (Fail ()))
 
   describe "the analysis of a stateful program" $
@@ -124,7 +124,7 @@ spec = do
             s' <- get -< ()
             put -< s'+ I.Interval 1 1
     in it "should cache the state of the program" $
-         runFixT'' SW.finite SW.Unit W.finite (runStateT timesTwo) (0,5) `shouldBe`
+         runFixT'' SW.finite W.finite (runStateT timesTwo) (0,5) `shouldBe`
            (S.fromList [((fromIntegral n,5-fromIntegral n),
                           return (10-fromIntegral n,())) | n <- [0..5::Int]],
             return (10,()))

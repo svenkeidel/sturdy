@@ -11,19 +11,18 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Syntax,
-                       SharedSemantics,
+                       GenericInterpreter,
 
                        ValueSemantics.Concrete
-                       ValueSemantics.Abstract
                        ValueSemantics.Interval
-                       -- ValueSemantics.Symbolic
                        ValueSemantics.Unit
+                       -- ValueSemantics.Symbolic
 
                        -- Vals.Symbolic.Val
                        -- Vals.Symbolic.Semantics
 
                        -- PropertySemantics.FailedReads
-                       PropertySemantics.LiveVariables
+                       -- PropertySemantics.LiveVariables
                        PropertySemantics.ReachingDefinitions
 
                        -- Props.FailedReads.Prop
@@ -82,8 +81,8 @@ test-suite specs
                        QuickCheck
   default-language:    Haskell2010
   other-modules:       IntervalAnalysisSpec,
-                       ReachingDefinitionsSpec,
-                       LiveVariablesSpec
+                       ReachingDefinitionsSpec
+                       -- LiveVariablesSpec
   --                      Soundness
   --                      WhileLanguageSoundness
 

@@ -1,8 +1,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Data.Label where
 
 import Data.Hashable
+import Data.Order
+import Data.Abstract.FreeCompletion
 import Control.Monad.State
 
 -- Retrieves label from expression.
@@ -14,6 +17,13 @@ newtype Label = Label { labelVal :: Int }
 
 instance Show Label where
   show (Label l) = show l
+
+instance PreOrd Label where
+  (⊑) = (==)
+
+instance Complete (FreeCompletion Label) where
+  Lower l1 ⊔ Lower l2 | l1 == l2 = Lower l1
+  _ ⊔ _ = Top
 
 fresh :: State Label Label
 fresh = state (\l -> (l,l+1))

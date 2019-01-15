@@ -35,10 +35,8 @@ library
                        Data.CallString,
 
                        Data.Concrete.Boolean,
-                       Data.Concrete.Environment,
                        Data.Concrete.Error,
                        Data.Concrete.Powerset,
-                       Data.Concrete.Store,
 
                        Data.Abstract.Either,
                        Data.Abstract.Equality,

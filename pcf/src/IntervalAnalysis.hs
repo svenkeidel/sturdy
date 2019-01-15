@@ -13,7 +13,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module IntervalAnalysis where
 
@@ -68,43 +68,39 @@ data Val = NumVal IV | ClosureVal Closure | Top deriving (Eq, Generic)
 -- | Addresses for this analysis are variables paired with the k-bounded call string.
 type Addr = (Text,CallString Label)
 
--- | Interpreter arrow for the k-CFA / interval analysis.
-newtype Interp s x y =
-  Interp (
-    Fix Expr Val                  -- type of the fixpoint cache
-      (EnvT Text Addr Val         -- threads the environment and store
-        (ContourT Label           -- records the k-bounded call stack used for address allocation
-          (FailureT String        -- allows to fail with an error message
-            (FixT s () ()
-              (->))))) x y)
-
-
--- | Run an interpreter computation on inputs. The arguments are the
+-- | Run the abstract interpreter for the k-CFA / Interval analysis. The arguments are the
 -- maximum interval bound, the depth `k` of the longest call string,
 -- an environment, and the input of the computation.
-runInterp :: Interp _ x y -> IV -> Int -> [(Text,Val)] -> x -> Terminating (Error String y)
-runInterp (Interp f) b k env x = 
+evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error String Val)
+evalInterval k env e = -- runInterp eval ?bound k env (generate e)
   runFixT' stackWiden (E.widening widenVal)
     (runFailureT
       (runContourT k
         (runEnvT alloc
-          f)))
-    (env,x)
-
+          (runIntervalT
+            (eval ::
+              Fix Expr Val
+                (IntervalT
+                  (EnvT Text Addr Val
+                    (ContourT Label
+                      (FailureT String
+                        (FixT s () ()
+                          (->)))))) Expr Val)))))
+    (env,generate e)
   where
-    widenVal = widening (W.bounded b top)
-    stackWiden = SW.categorize categorizeExpression
+    widenVal = widening (W.bounded ?bound top)
+    stackWiden = SW.categorize (Iso (\(ev,ex) -> (ex,ev)) (\(ex,ev) -> (ev,ex)))
                $ SW.stack
                $ SW.maxSize 3
                $ SW.reuse (\_ l -> head l)
                $ SW.fromWidening (F.widening widenVal)
-    categorizeExpression = Iso (\(ev,ex) -> (ex,ev)) (\(ex,ev) -> (ev,ex))
 
--- | The top-level interpreter functions that executes the analysis.
-evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error String Val)
-evalInterval k env e = runInterp eval ?bound k env (generate e)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Category,Arrow,ArrowChoice,ArrowFail e, PreOrd, Complete, LowerBounded)
+type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
+deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
+deriving instance ArrowEnv var val env c => ArrowEnv var val env (IntervalT c)
 
-instance IsVal Val (Interp s) where
+instance (ArrowChoice c, ArrowFail String c) => IsVal Val (IntervalT c) where
   succ = proc x -> case x of
     Top -> returnA -< Top
     NumVal n -> returnA -< NumVal $ n + 1 -- uses the `Num` instance of intervals
@@ -115,8 +111,8 @@ instance IsVal Val (Interp s) where
     ClosureVal _ -> fail -< "Expected a number as argument for 'pred'"
   zero = proc _ -> returnA -< (NumVal 0)
 
-instance ArrowCond Val (Interp s) where
-  type Join (Interp s) x y = Complete (Interp s x y)
+instance (ArrowChoice c, ArrowFail String c) => ArrowCond Val (IntervalT c) where
+  type Join (IntervalT c) x y = Complete (IntervalT c x y)
   if_ f g = proc v -> case v of
     (Top, (x,y)) -> joined f g -< (x,y)
     (NumVal (I.Interval i1 i2), (x, y))
@@ -125,7 +121,8 @@ instance ArrowCond Val (Interp s) where
       | otherwise          -> joined f g -< (x,y) -- case the interval contains zero and other numbers.
     (ClosureVal _, _) -> fail -< "Expected a number as condition for 'ifZero'"
 
-instance IsClosure Val (F.Map Text Addr Val) (Interp s) where
+instance (ArrowChoice c, ArrowFail String c, LowerBounded (IntervalT c () Val), Complete (IntervalT c (((Expr, F.Map Text Addr Val),Val),[((Expr, F.Map Text Addr Val), Val)]) Val))
+    => IsClosure Val (F.Map Text Addr Val) (IntervalT c) where
   closure = arr $ \(e, env) -> ClosureVal (Closure [(e,env)])
   applyClosure f = proc (fun, arg) -> case fun of
     Top -> returnA -< Top
@@ -133,16 +130,6 @@ instance IsClosure Val (F.Map Text Addr Val) (Interp s) where
       -- Apply the interpreter function `f` on all closures and join their results.
       lubA (proc ((e,env),arg) -> f -< ((e,env),arg)) -< [ (c,arg) | c <- toList cls]
     NumVal _ -> fail -< "Expected a closure"
-
-deriving instance Category (Interp s)
-deriving instance Arrow (Interp s)
-deriving instance ArrowChoice (Interp s)
-deriving instance ArrowFail String (Interp s)
-deriving instance ArrowEnv Text Val (F.Map Text Addr Val) (Interp s)
-deriving instance ArrowFix Expr Val (Interp s)
-deriving instance PreOrd y => PreOrd (Interp s x y)
-deriving instance Complete y => Complete (Interp s x y)
-deriving instance PreOrd y => LowerBounded (Interp s x y)
 
 instance PreOrd Val where
   _ ⊑ Top = True

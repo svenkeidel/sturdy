@@ -67,10 +67,10 @@ runFixT :: (Arrow c, Complete b) => FixT SW.Unit a b c x y -> c x (Terminating y
 runFixT f = runFixT' SW.finite W.finite f
 
 runFixT' :: (Monoid (s a),Arrow c) => StackWidening s a -> Widening b -> FixT s a b c x y -> c x (Terminating y)
-runFixT' sw w f = runFixT'' sw mempty w f >>^ snd
+runFixT' sw w f = runFixT'' sw w f >>^ snd
 
-runFixT'' :: Arrow c => StackWidening s a -> s a -> Widening b -> FixT s a b c x y -> c x (Map a (Terminating b), Terminating y)
-runFixT'' sw s0 w (FixT f) = (\x -> (((s0,M.empty),M.empty),x)) ^>> f (sw,w)
+runFixT'' :: (Monoid (s a),Arrow c) => StackWidening s a -> Widening b -> FixT s a b c x y -> c x (Map a (Terminating b), Terminating y)
+runFixT'' sw w (FixT f) = (\x -> (((mempty,M.empty),M.empty),x)) ^>> f (sw,w)
 
 liftFixT :: Arrow c => c x y -> FixT s a b c x y
 liftFixT f = FixT $ \_ -> ((\((_,o),x) -> (o,x)) ^>> second (f >>^ Terminating))
