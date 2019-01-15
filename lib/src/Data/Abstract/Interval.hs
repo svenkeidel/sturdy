@@ -32,7 +32,7 @@ instance Ord x => Complete (Interval x) where
   Interval i1 i2 ⊔  Interval j1 j2 = Interval (min i1 j1) (max i2 j2)
 
 instance (Num n, Ord n) => Num (Interval n) where
-  Interval i1 i2 + Interval j1 j2 = Interval (i1 + j1) (i2+ j2)
+  Interval i1 i2 + Interval j1 j2 = Interval (i1 + j1) (i2 + j2)
   (*) = withBounds2 (*)
   negate (Interval i1 i2) = Interval (negate i2) (negate i1)
   abs (Interval i j)
@@ -41,13 +41,13 @@ instance (Num n, Ord n) => Num (Interval n) where
   signum = withBounds1 signum
   fromInteger = constant . fromInteger
 
-instance Numeric (Interval Int) (Error String) where
+instance (Integral n, Num n, Ord n) => Numeric (Interval (InfiniteNumber n)) (Error String) where
   Interval i1 i2 / Interval j1 j2
     | j1 P.== 0 && j2 P.== 0 = Fail "divided by 0 error"
     | j1 P.== 0 && 0  P.< j2 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval (j1+1) j2
     | j1 P.<  0 && j2 P.== 0 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval j1 (j2-1)
-    | j1 P.<  0 && 0  P.< j2 = Fail "divided by 0 error" ⊔ Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
-    | otherwise = Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
+    | j1 P.<  0 && 0  P.< j2 = Fail "divided by 0 error" ⊔ Success (withBounds2 divInf (Interval i1 i2) (Interval j1 j2))
+    | otherwise = Success (withBounds2 divInf (Interval i1 i2) (Interval j1 j2))
 
 instance Ord n => Equality (Interval n) where
   Interval i1 i2 == Interval j1 j2

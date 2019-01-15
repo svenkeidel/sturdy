@@ -33,6 +33,7 @@ import qualified Data.Abstract.Map as M
 import           Data.Abstract.Terminating hiding(widening)
 import           Data.Abstract.Widening (Widening)
 import           Data.Abstract.FreeCompletion(FreeCompletion)
+import           Data.Abstract.InfiniteNumbers
 import           Data.Monoidal (Iso(..))
 import qualified Data.Abstract.Widening as W
 import qualified Data.Abstract.StackWidening as S
@@ -64,7 +65,7 @@ import           Control.Arrow.Transformer.Abstract.Failure
 import           GHC.Generics
 
 type Addr = FreeCompletion Label
-type IV = Interval Int
+type IV = Interval (InfiniteNumber Int)
 data Val = BoolVal Bool | NumVal IV | Top deriving (Eq,Generic)
 
 run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Map Addr Val))
@@ -116,7 +117,7 @@ instance (ArrowChoice c, ArrowFail String c, Complete (c (Val,String) Val)) => I
     BoolVal b -> returnA -< BoolVal (B.not b)
     Top -> joined returnA fail -< (BoolVal top, "Expected a boolean as argument for 'not'")
     NumVal _ -> fail -< "Expected a boolean as argument for 'not'"
-  numLit = proc (x,_) -> returnA -< NumVal (I.Interval x x)
+  numLit = proc (x,_) -> returnA -< NumVal (I.Interval (Number x) (Number x))
   add = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)      -> returnA -< NumVal (n1 + n2)
     _ | v1 == Top || v2 == Top -> joined returnA fail -< (NumVal top, "Expected two numbers as arguments for 'add'")

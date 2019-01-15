@@ -57,6 +57,18 @@ instance (Num a, Ord a) => Num (InfiniteNumber a) where
   negate NegInfinity = Infinity
   negate (Number n) = Number (negate n)
 
+divInf :: Integral n => InfiniteNumber n -> InfiniteNumber n -> InfiniteNumber n
+divInf n m = case (n,m) of
+  (Number _,Infinity)    -> Number 0
+  (Number _,NegInfinity) -> Number 0
+  (Infinity,Number _)    -> signum n * Infinity
+  (NegInfinity,Number _) -> signum n * NegInfinity
+  (Number x,Number y) -> Number (x `div` y)
+  (Infinity,Infinity) -> Infinity
+  (NegInfinity,Infinity) -> NegInfinity
+  (Infinity,NegInfinity) -> NegInfinity
+  (NegInfinity,NegInfinity) -> Infinity
+
 instance Ord a => PreOrd (InfiniteNumber a) where
   NegInfinity ⊑ _ = True
   _ ⊑ NegInfinity = False
