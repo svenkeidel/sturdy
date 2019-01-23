@@ -30,14 +30,14 @@ import           Data.Text(Text)
 import           Text.Printf
 
 -- | Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowFail () c, ArrowExcept () c,
+eval' :: (ArrowChoice c, ArrowFail String c, ArrowExcept () c,
           ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c,
           Exc.Join c (t,(t,())) t, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t]))
       => (Strat -> c t t)
 eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Id -> id
-    S.Fail -> fail'
+    S.Fail -> proc _ -> throw -< ()
     Seq s1 s2 -> sequence (ev s1) (ev s2)
     GuardedChoice s1 s2 s3 -> guardedChoice (ev s1) (ev s2) (ev s3)
     One s -> mapSubterms (one (ev s))
@@ -61,16 +61,16 @@ sequence :: Category c => c x y -> c y z -> c x z
 sequence f g = f >>> g
 
 -- | Apply a strategy non-determenistically to one of the subterms.
-one :: (ArrowChoice c, ArrowFail () c, ArrowExcept () c, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t])) => c t t -> c [t] [t]
+one :: (ArrowChoice c, ArrowExcept () c, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t])) => c t t -> c [t] [t]
 one f = proc l -> case l of
   (t:ts) -> do
     (t',ts') <- first f <+> second (one f) -< (t,ts)
     returnA -< (t':ts')
-  [] -> fail -< ()
+  [] -> throw -< ()
 
 -- | Apply a strategy to as many subterms as possible (as long as the
 -- strategy does not fail).
-some :: (ArrowChoice c, ArrowFail () c, ArrowExcept () c, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t])) => c t t -> c [t] [t]
+some :: (ArrowChoice c, ArrowExcept () c, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t])) => c t t -> c [t] [t]
 some f = go
   where
     go = proc l -> case l of
@@ -78,7 +78,7 @@ some f = go
         (t',ts') <- try (first f) (second go') (second go) -< (t,ts)
         returnA -< t':ts'
       -- the strategy did not succeed for any of the subterms, i.e. some(s) fails
-      [] -> fail -< ()
+      [] -> throw -< ()
     go' = proc l -> case l of
       (t:ts) -> do
         (t',ts') <- try (first f) (second go') (second go') -< (t,ts)
@@ -108,7 +108,7 @@ let_ ss body interp = proc a -> do
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a
 
 -- | Strategy calls bind strategy variables and term variables.
-call :: (ArrowChoice c, ArrowFail () c, ArrowApply c, IsTermEnv env t c, HasStratEnv c)
+call :: (ArrowChoice c, ArrowFail String c, ArrowApply c, IsTermEnv env t c, HasStratEnv c)
      => StratVar
      -> [Strat]
      -> [TermVar]
@@ -129,7 +129,7 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
     Nothing -> error (printf "strategy %s not in scope" (show f)) -< ()
   where
     bindTermArg = proc (actual,formal) ->
-      lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t) fail -<< actual
+      lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t) fail -<< (actual, "unbound term variable " ++ show actual ++ " in strategy call " ++ show (Call f actualStratArgs actualTermArgs))
     {-# INLINE bindTermArg #-}
 
     bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
@@ -159,8 +159,8 @@ match = proc (p,t) -> case p of
       (proc t' -> do t'' <- equal -< (t,t')
                      insertTerm' -< (x,t'')
                      returnA -< t'')
-      (proc () -> do insertTerm' -< (x,t)
-                     returnA -< t) -<< x
+      (proc _ -> do insertTerm' -< (x,t)
+                    returnA -< t) -<< (x,undefined)
   S.Cons c ts ->
     matchTermAgainstConstructor (zipWithA match) -< (c,ts,t)
   S.Explode c ts ->
@@ -174,12 +174,12 @@ match = proc (p,t) -> case p of
 
 -- | Build a new term from a pattern. Variables are pattern are
 -- replaced by terms in the current term environment.
-build :: (ArrowChoice c, ArrowFail () c, IsTerm t c, IsTermEnv env t c)
+build :: (ArrowChoice c, ArrowFail String c, IsTerm t c, IsTermEnv env t c)
       => c TermPattern t
 build = proc p -> case p of
   S.As _ _ -> error "As-pattern in build is disallowed" -< ()
   S.Var x ->
-    lookupTermVar' returnA fail -< x
+    lookupTermVar' returnA fail -< (x,"unbound term variable " ++ show x ++ " in build statement " ++ show (Build p))
   S.Cons c ts -> do
     ts' <- mapA build -< ts
     cons -< (c,ts')
@@ -242,7 +242,7 @@ class Arrow c => IsTermEnv env t c | c -> env, env -> t where
   -- | Lookup a term in the given environment, the first continuation
   -- is called in case the term is in the environment and the second
   -- continuation otherwise.
-  lookupTermVar :: c t t -> c () t -> c (TermVar,env) t
+  lookupTermVar :: c t t -> c exc t -> c (TermVar,env,exc) t
 
   -- | Insert a term into the given environment.
   insertTerm :: c (TermVar,t,env) env
@@ -255,10 +255,10 @@ class Arrow c => IsTermEnv env t c | c -> env, env -> t where
   -- variables are removed from the second environment.
   unionTermEnvs :: c ([TermVar],env,env) env
 
-lookupTermVar' :: IsTermEnv env t c => c t t -> c () t -> c TermVar t
-lookupTermVar' f g = proc v -> do
+lookupTermVar' :: IsTermEnv env t c => c t t -> c exc t -> c (TermVar,exc) t
+lookupTermVar' f g = proc (v,exc) -> do
   env <- getTermEnv -< ()
-  lookupTermVar f g -< (v,env)
+  lookupTermVar f g -< (v,env,exc)
 
 insertTerm' :: IsTermEnv env t c => c (TermVar,t) ()
 insertTerm' = proc (v,t) -> do

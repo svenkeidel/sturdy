@@ -24,7 +24,7 @@ import qualified GenericInterpreter as Generic
 
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
-import           Data.Abstract.Failure (Error(..))
+import           Data.Abstract.Failure (Failure(..))
 import qualified Data.Abstract.Failure as F
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
@@ -68,7 +68,7 @@ type Addr = FreeCompletion Label
 type IV = Interval (InfiniteNumber Int)
 data Val = BoolVal Bool | NumVal IV | Top deriving (Eq,Generic)
 
-run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Map Addr Val))
+run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Failure String (Map Addr Val))
 run k env ss =
   fmap fst <$>
     runFixT' stackWiden widenTerm

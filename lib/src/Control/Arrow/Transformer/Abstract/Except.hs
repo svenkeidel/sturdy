@@ -73,7 +73,7 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowStore var val c) => Arrow
   read (ExceptT f) (ExceptT g) = ExceptT $ read f g
   write = lift write
 
-instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFail e c) => ArrowFail e (ExceptT e c) where
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFail f c) => ArrowFail f (ExceptT e c) where
   fail = lift fail
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowReader r c) => ArrowReader r (ExceptT e c) where

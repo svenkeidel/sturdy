@@ -56,7 +56,7 @@ instance Num Sign where
     | n < 0 = Negative
     | otherwise = Positive
 
-instance Numeric Sign (Error String) where
+instance Numeric Sign (Failure String) where
   Negative / Negative = Success Positive
   Positive / Negative = Success Negative
   Negative / Positive = Success Negative

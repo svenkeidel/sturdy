@@ -16,7 +16,7 @@ import           Syntax
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
-import           Data.Concrete.Error
+import           Data.Concrete.Failure (Failure)
 import           Data.Hashable
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
@@ -45,7 +45,7 @@ import           GHC.Generics (Generic)
 data Val = BoolVal Bool | NumVal Int deriving (Eq, Show, Generic)
 type Addr = Label
 
-run :: [LStatement] -> Error String (HashMap Addr Val)
+run :: [LStatement] -> Failure String (HashMap Addr Val)
 run ss =
   fst <$>
     runFix

@@ -20,6 +20,7 @@ import Control.Arrow.Lift
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Except as Exc
+import Control.Arrow.Abstract.Join
 import Control.Category
 
 import Data.Abstract.Failure
@@ -28,7 +29,7 @@ import Data.Monoidal
 import Data.Identifiable
 
 -- | Describes computations that can fail.
-newtype FailureT e c x y = FailureT { runFailureT :: c x (Error e y) }
+newtype FailureT e c x y = FailureT { runFailureT :: c x (Failure e y) }
 
 instance ArrowLift (FailureT e) where
   lift f = FailureT (f >>> arr Success)
@@ -70,30 +71,38 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (FailureT e c) where
   local (FailureT f) = FailureT (local f)
 
 instance (ArrowChoice c, ArrowEnv var val env c) => ArrowEnv var val env (FailureT e c) where
-  type Join (FailureT e c) x y = Env.Join c x (Error e y)
+  type Join (FailureT e c) x y = Env.Join c x (Failure e y)
   lookup (FailureT f) (FailureT g) = FailureT $ lookup f g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (FailureT f) = FailureT (localEnv f)
 
-type instance Fix x y (FailureT e c) = FailureT e (Fix x (Error e y) c)
-instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (FailureT e c) where
+type instance Fix x y (FailureT e c) = FailureT e (Fix x (Failure e y) c)
+instance (ArrowChoice c, ArrowFix x (Failure e y) c) => ArrowFix x y (FailureT e c) where
   fix = liftFix' runFailureT FailureT
 
 instance (ArrowExcept e c, ArrowChoice c) => ArrowExcept e (FailureT e' c) where
-  type Join (FailureT e' c) x y = Exc.Join c x (Error e' y)
+  type Join (FailureT e' c) x y = Exc.Join c x (Failure e' y)
   throw = lift throw
   catch (FailureT f) (FailureT g) = FailureT (catch f g)
   finally (FailureT f) (FailureT g) = FailureT (finally f g)
 
-instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Error e y) c) => ArrowDeduplicate x y (FailureT e c) where
+instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Failure e y) c) => ArrowDeduplicate x y (FailureT e c) where
   dedup (FailureT f) = FailureT (dedup f)
 
 instance (ArrowChoice c, ArrowConst x c) => ArrowConst x (FailureT e c) where
   askConst = lift askConst
 
-deriving instance PreOrd (c x (Error e y)) => PreOrd (FailureT e c x y)
-deriving instance LowerBounded (c x (Error e y)) => LowerBounded (FailureT e c x y)
-deriving instance Complete (c x (Error e y)) => Complete (FailureT e c x y)
-deriving instance CoComplete (c x (Error e y)) => CoComplete (FailureT e c x y)
-deriving instance UpperBounded (c x (Error e y)) => UpperBounded (FailureT e c x y)
+instance (ArrowJoin c, ArrowChoice c) => ArrowJoin (FailureT e c) where
+  joinWith lub' (FailureT f) (FailureT g) = FailureT $ joinWith (\r1 r2 -> case (r1, r2) of
+    (Success y1,          Success y2)          -> Success (y1 `lub'` y2)
+    (Success y,           Fail _)              -> Success y
+    (Fail _,              Success y)           -> Success y
+    (Fail e1,             Fail _)             -> Fail e1
+    ) f g
+
+deriving instance PreOrd (c x (Failure e y)) => PreOrd (FailureT e c x y)
+deriving instance LowerBounded (c x (Failure e y)) => LowerBounded (FailureT e c x y)
+deriving instance Complete (c x (Failure e y)) => Complete (FailureT e c x y)
+deriving instance CoComplete (c x (Failure e y)) => CoComplete (FailureT e c x y)
+deriving instance UpperBounded (c x (Failure e y)) => UpperBounded (FailureT e c x y)

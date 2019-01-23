@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module ConcreteSemantics where
 
@@ -28,6 +29,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Transformer.Concrete.Except
+import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category
@@ -35,6 +37,7 @@ import           Control.Monad (join)
 import           Control.Monad.Reader (replicateM)
 
 import           Data.Concrete.Error
+import           Data.Concrete.Failure (Failure)
 import           Data.Constructor
 import           Data.Foldable (foldr')
 import           Data.HashMap.Lazy (HashMap)
@@ -57,25 +60,24 @@ newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 
 -- | Concrete interpreter arrow give access to the strategy
 -- environment, term environment, and handles anonymous exceptions.
-newtype Interp a b = Interp (ReaderT StratEnv (StateT TermEnv (ExceptT () (->))) a b)
+newtype Interp a b = Interp (ReaderT StratEnv (StateT TermEnv (ExceptT () (FailureT String (->)))) a b)
   deriving (Category,Arrow,ArrowChoice,ArrowApply)
 
 -- | Executes a concrete interpreter computation.
-runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error () (TermEnv,b)
-runInterp (Interp f) senv tenv t = runExceptT (runStateT (runReaderT f)) (tenv, (senv, t))
+runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Failure String (Error () (TermEnv,b))
+runInterp (Interp f) senv tenv t = runFailureT (runExceptT (runStateT (runReaderT f))) (tenv, (senv, t))
 
 -- | Concrete interpreter function.
-eval :: Strat -> StratEnv -> TermEnv -> Term -> Error () (TermEnv,Term)
+eval :: Strat -> StratEnv -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
 eval s = runInterp (eval' s)
 
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowReader StratEnv Interp
+deriving instance ArrowExcept () Interp
 deriving instance ArrowFix (Strat,Term) Term Interp
 deriving instance ArrowDeduplicate Term Term Interp
-
-instance ArrowFail () Interp where
-  fail = Interp fail
+deriving instance ArrowFail String Interp
 
 instance HasStratEnv Interp where
   readStratEnv = Interp (const () ^>> ask)
@@ -84,10 +86,10 @@ instance HasStratEnv Interp where
 instance IsTermEnv TermEnv Term Interp where
   getTermEnv = get
   putTermEnv = put
-  lookupTermVar f g = proc (v,TermEnv env) ->
+  lookupTermVar f g = proc (v,TermEnv env,exc) ->
     case M.lookup v env of
       Just t -> f -< t
-      Nothing -> g -< ()
+      Nothing -> g -< exc
   insertTerm = arr $ \(v,t,TermEnv env) ->
     TermEnv (M.insert v t env)
   deleteTermVars = arr $ \(vars,TermEnv env) ->
@@ -100,19 +102,19 @@ instance IsTerm Term Interp where
     Cons c' ts' | c == c' && eqLength ts ts' -> do
       ts'' <- matchSubterms -< (ts,ts')
       returnA -< Cons c ts''
-    _ -> fail -< ()
+    _ -> throw -< ()
 
   matchTermAgainstString = proc (s,t) -> case t of
     StringLiteral s'
       | s == s' -> returnA -< t
-      | otherwise -> fail -< ()
-    _ -> fail -< ()
+      | otherwise -> throw -< ()
+    _ -> throw -< ()
 
   matchTermAgainstNumber = proc (n,t) -> case t of
     NumberLiteral n'
       | n == n' -> returnA -< t
-      | otherwise -> fail -< ()
-    _ -> fail -< ()
+      | otherwise -> throw -< ()
+    _ -> throw -< ()
 
   matchTermAgainstExplode matchCons matchSubterms = proc t -> case t of
       Cons (Constructor c) ts -> do
@@ -136,11 +138,11 @@ instance IsTerm Term Interp where
           | s == s' -> success -< t1
       (NumberLiteral n, NumberLiteral n')
           | n == n' -> success -< t1
-      (_,_) -> fail -< ()
+      (_,_) -> throw -< ()
 
   convertFromList = proc (c,ts) -> case (c,go ts) of
     (StringLiteral c', Just ts') -> returnA -< Cons (Constructor c') ts'
-    _                            -> fail -< ()
+    _                            -> throw -< ()
     where
       go t = case t of
         Cons "Cons" [x,tl] -> (x:) <$> go tl
@@ -202,7 +204,7 @@ instance Arbitrary Term where
 
 similar :: Gen (Term,Term)
 similar = do
-  [t1,t2] <- similarTerms 2 5 2 7
+  ~[t1,t2] <- similarTerms 2 5 2 7
   return (t1,t2)
 
 similarTerms :: Int -> Int -> Int -> Int -> Gen [Term]

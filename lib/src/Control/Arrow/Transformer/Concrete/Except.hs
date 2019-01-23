@@ -54,7 +54,7 @@ instance (ArrowChoice c, ArrowState s c) => ArrowState s (ExceptT e c) where
   get = lift get
   put = lift put
 
-instance (ArrowChoice c, ArrowFail e c) => ArrowFail e (ExceptT e c) where
+instance (ArrowChoice c, ArrowFail f c) => ArrowFail f (ExceptT e c) where
   fail = lift fail
 
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (ExceptT e c) where

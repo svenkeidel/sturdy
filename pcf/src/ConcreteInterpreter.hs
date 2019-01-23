@@ -22,7 +22,7 @@ import Control.Arrow.Transformer.Concrete.Failure
 import Control.Arrow.Transformer.Concrete.Fixpoint
 import Control.Monad.State hiding (fail)
 
-import Data.Concrete.Error
+import Data.Concrete.Failure
 import Data.HashMap.Lazy (HashMap)
 import Data.Hashable
 import Data.Text (Text)
@@ -39,7 +39,7 @@ data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
 -- | The concrete interpreter function for PCF. The function is
 -- implemented by instantiating the shared semantics with the concrete
 -- interpreter arrow `Interp`.
-evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
+evalConcrete :: [(Text,Val)] -> State Label Expr -> Failure String Val
 evalConcrete env e =
   runFix
     (runFailureT

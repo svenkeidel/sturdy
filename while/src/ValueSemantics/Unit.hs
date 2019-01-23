@@ -18,7 +18,7 @@ import           Syntax
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
-import           Data.Abstract.Failure (Error(..))
+import           Data.Abstract.Failure (Failure(..))
 import           Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as M
 import           Data.Abstract.Terminating
@@ -47,7 +47,7 @@ import           Control.Arrow.Transformer.Abstract.Failure
 type Addr = FreeCompletion Label
 type Val = ()
 
-run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error String (Map Addr Val))
+run :: [(Text,Addr)] -> [LStatement] -> Terminating (Failure String (Map Addr Val))
 run env ss =
   fmap fst <$>
     runFixT

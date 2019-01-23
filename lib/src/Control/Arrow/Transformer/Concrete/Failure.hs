@@ -22,12 +22,12 @@ import Control.Arrow.State
 import Control.Arrow.Except as Exc
 import Control.Category
 
-import Data.Concrete.Error
+import Data.Concrete.Failure
 import Data.Monoidal
 import Data.Identifiable
 
 -- | Arrow transformer that adds failure to the result of a computation
-newtype FailureT e c x y = FailureT { runFailureT :: c x (Error e y) }
+newtype FailureT e c x y = FailureT { runFailureT :: c x (Failure e y) }
 
 instance ArrowLift (FailureT e) where
   lift f = FailureT (f >>> arr Success)
@@ -59,31 +59,31 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (FailureT e c) where
   local (FailureT f) = FailureT (local f)
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (FailureT e c) where
-  type Join (FailureT e c) x y = Env.Join c x (Error e y)
+  type Join (FailureT e c) x y = Env.Join c x (Failure e y)
   lookup (FailureT f) (FailureT g) = FailureT $ lookup f g
   getEnv = lift getEnv
   extendEnv = lift extendEnv
   localEnv (FailureT f) = FailureT (localEnv f)
 
 instance (ArrowChoice c, ArrowStore var val c) => ArrowStore var val (FailureT e c) where
-  type Join (FailureT e c) x y = Store.Join c x (Error e y)
+  type Join (FailureT e c) x y = Store.Join c x (Failure e y)
   read (FailureT f) (FailureT g) = FailureT $ read f g
   write = lift write
 
-type instance Fix x y (FailureT e c) = FailureT e (Fix x (Error e y) c)
-instance (ArrowChoice c, ArrowFix x (Error e y) c) => ArrowFix x y (FailureT e c) where
+type instance Fix x y (FailureT e c) = FailureT e (Fix x (Failure e y) c)
+instance (ArrowChoice c, ArrowFix x (Failure e y) c) => ArrowFix x y (FailureT e c) where
   fix = liftFix' runFailureT FailureT
 
 instance ArrowChoice c => ArrowFail e (FailureT e c) where
   fail = FailureT $ arr Fail
 
 instance (ArrowChoice c, ArrowExcept e c) => ArrowExcept e (FailureT e' c) where
-  type Join (FailureT e' c) x y = Exc.Join c x (Error e' y)
+  type Join (FailureT e' c) x y = Exc.Join c x (Failure e' y)
   throw = lift throw
   catch (FailureT f) (FailureT g) = FailureT $ catch f g
   finally (FailureT f) (FailureT g) = FailureT $ finally f g
 
-instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Error e y) c) => ArrowDeduplicate x y (FailureT e c) where
+instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Failure e y) c) => ArrowDeduplicate x y (FailureT e c) where
   dedup (FailureT f) = FailureT (dedup f)
 
 instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (FailureT e c) where

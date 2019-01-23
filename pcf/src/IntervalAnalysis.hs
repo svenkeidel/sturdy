@@ -41,7 +41,7 @@ import           Data.Text (Text)
 import           Data.Abstract.Map(Map)
 import qualified Data.Abstract.Map as M
 import qualified Data.Abstract.FiniteMap as F
-import           Data.Abstract.Failure (Error)
+import           Data.Abstract.Failure (Failure)
 import qualified Data.Abstract.Failure as E
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
@@ -71,7 +71,7 @@ type Addr = (Text,CallString Label)
 -- | Run the abstract interpreter for the k-CFA / Interval analysis. The arguments are the
 -- maximum interval bound, the depth `k` of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error String Val)
+evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Failure String Val)
 evalInterval k env e = -- runInterp eval ?bound k env (generate e)
   runFixT' stackWiden (E.widening widenVal)
     (runFailureT

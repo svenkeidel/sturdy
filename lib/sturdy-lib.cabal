@@ -36,6 +36,7 @@ library
 
                        Data.Concrete.Boolean,
                        Data.Concrete.Error,
+                       Data.Concrete.Failure,
                        Data.Concrete.Powerset,
 
                        Data.Abstract.Either,

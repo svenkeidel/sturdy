@@ -7,7 +7,9 @@ module Data.Abstract.Failure where
 
 import Control.Monad
 import Control.Monad.Except
+import Data.Abstract.FreeCompletion
 import Data.Abstract.Widening
+import Data.Bifunctor
 import Data.Hashable
 import Data.Order
 
@@ -15,18 +17,18 @@ import Data.Monoidal
 
 -- | Failure is an Either-like type with the special ordering Failure ⊑ Success.
 -- Left and Right of the regular Either type, on the other hand are incomparable.
-data Error e a = Fail e | Success a
+data Failure e a = Fail e | Success a
   deriving (Eq, Functor)
 
-instance (Show e,Show a) => Show (Error e a) where
-  show (Fail e) = "Error " ++ show e
+instance (Show e,Show a) => Show (Failure e a) where
+  show (Fail e) = "Failure " ++ show e
   show (Success a) = show a
 
-instance (Hashable e, Hashable a) => Hashable (Error e a) where
+instance (Hashable e, Hashable a) => Hashable (Failure e a) where
   hashWithSalt s (Fail e)  = s `hashWithSalt` (0::Int) `hashWithSalt` e
   hashWithSalt s (Success a) = s `hashWithSalt` (1::Int) `hashWithSalt`  a
 
-instance PreOrd a => PreOrd (Error e a) where
+instance PreOrd a => PreOrd (Failure e a) where
   Fail _ ⊑ Success _ = True
   Fail _ ⊑ Fail _ = True
   Success x ⊑ Success y = x ⊑ y
@@ -36,111 +38,123 @@ instance PreOrd a => PreOrd (Error e a) where
   Success x ≈ Success y = x ≈ y
   _ ≈ _ = False
 
-instance Complete a => Complete (Error e a) where
+instance Complete a => Complete (Failure e a) where
   Fail _ ⊔ b = b
   a ⊔ Fail _ = a
   Success x ⊔ Success y = Success (x ⊔ y)
 
-instance UpperBounded a => UpperBounded (Error e a) where
+instance UpperBounded a => UpperBounded (Failure e a) where
   top = Success top
 
-widening :: Widening a -> Widening (Error e a)
+widening :: Widening a -> Widening (Failure e a)
 widening _ (Fail _) b = b
 widening _ a (Fail _) = a
 widening w (Success x) (Success y) = Success (x `w` y)
 
-instance MonadError e (Error e) where
+instance (PreOrd e, PreOrd a, Complete (FreeCompletion a)) => Complete (FreeCompletion (Failure e a)) where
+  Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of
+    Fail (Lower e) -> Lower (Fail e)
+    Success (Lower a) -> Lower (Success a)
+    _ -> Top
+  _ ⊔ _ = Top
+
+instance Bifunctor Failure where
+  bimap f g x = case x of
+    Fail e -> Fail (f e)
+    Success a -> Success (g a)
+
+instance MonadError e (Failure e) where
   throwError = Fail
   catchError (Fail e) f = f e
   catchError (Success a) _ = Success a
 
-instance Applicative (Error e) where
+instance Applicative (Failure e) where
   pure = return
   (<*>) = ap
 
-instance Monad (Error e) where
+instance Monad (Failure e) where
   return = Success
   Fail e >>= _ = Fail e
   Success a >>= k = k a
 
-fromError :: a -> Error e a -> a
-fromError _ (Success a) = a
-fromError a (Fail _) = a
+fromFailure :: a -> Failure e a -> a
+fromFailure _ (Success a) = a
+fromFailure a (Fail _) = a
 
-fromEither :: Either e a -> Error e a
+fromEither :: Either e a -> Failure e a
 fromEither (Left e) = Fail e
 fromEither (Right a) = Success a
 
-toEither :: Error e a -> Either e a
+toEither :: Failure e a -> Either e a
 toEither (Fail e) = Left e
 toEither (Success a) = Right a
 
-fromMaybe :: Maybe a -> Error () a
+fromMaybe :: Maybe a -> Failure () a
 fromMaybe Nothing = Fail ()
 fromMaybe (Just a) = Success a
 
-toMaybe :: Error e a -> Maybe a
+toMaybe :: Failure e a -> Maybe a
 toMaybe (Fail _) = Nothing
 toMaybe (Success a) = Just a
 
-instance Monoidal Error where
+instance Monoidal Failure where
   mmap f _ (Fail x) = Fail (f x)
   mmap _ g (Success y) = Success (g y)
 
   assoc = Iso assocTo assocFrom
     where
-      assocTo :: Error a (Error b c) -> Error (Error a b) c
+      assocTo :: Failure a (Failure b c) -> Failure (Failure a b) c
       assocTo (Fail a) = Fail (Fail a)
       assocTo (Success (Fail b)) = Fail (Success b)
       assocTo (Success (Success c)) = Success c
 
-      assocFrom :: Error (Error a b) c -> Error a (Error b c)
+      assocFrom :: Failure (Failure a b) c -> Failure a (Failure b c)
       assocFrom (Fail (Fail a)) = Fail a
       assocFrom (Fail (Success b)) = Success (Fail b)
       assocFrom (Success c) = Success (Success c)
 
-instance Symmetric Error where
+instance Symmetric Failure where
   commute (Fail a) = Success a
   commute (Success a) = Fail a
 
-instance Strong Error where
+instance Strong Failure where
   strength (Success a) = pure $ Success a
   strength (Fail a) = Fail <$> a
 
-instance Distributive (,) Error where
+instance Distributive (,) Failure where
   distribute = Iso distTo distFrom
     where
-      distTo :: (a,Error b c) -> Error (a,b) (a,c)
+      distTo :: (a,Failure b c) -> Failure (a,b) (a,c)
       distTo (a,Fail b) = Fail (a,b)
       distTo (a,Success c) = Success (a,c)
 
-      distFrom :: Error (a,b) (a,c) -> (a,Error b c)
+      distFrom :: Failure (a,b) (a,c) -> (a,Failure b c)
       distFrom (Fail (a,b)) = (a,Fail b)
       distFrom (Success (a,c)) = (a,Success c)
 
-instance Distributive Either Error where
+instance Distributive Either Failure where
   distribute = Iso distTo distFrom
     where
-      distTo :: Either a (Error b c) -> Error (Either a b) (Either a c)
+      distTo :: Either a (Failure b c) -> Failure (Either a b) (Either a c)
       distTo (Left a) = Fail (Left a)
       distTo (Right (Fail b)) = Fail (Right b)
       distTo (Right (Success c)) = Success (Right c)
   
-      distFrom :: Error (Either a b) (Either a c) -> Either a (Error b c)
+      distFrom :: Failure (Either a b) (Either a c) -> Either a (Failure b c)
       distFrom (Fail (Left a)) = Left a
       distFrom (Fail (Right b)) = Right (Fail b)
       distFrom (Success (Left a)) = Left a
       distFrom (Success (Right c)) = Right (Success c)
 
-instance Distributive Error Either where
+instance Distributive Failure Either where
   distribute = Iso distTo distFrom
     where
-      distTo :: Error a (Either b c) -> Either (Error a b) (Error a c)
+      distTo :: Failure a (Either b c) -> Either (Failure a b) (Failure a c)
       distTo (Fail a) = Right (Fail a)
       distTo (Success (Left b)) = Left (Success b)
       distTo (Success (Right c)) = Right (Success c)
   
-      distFrom :: Either (Error a b) (Error a c) -> Error a (Either b c)
+      distFrom :: Either (Failure a b) (Failure a c) -> Failure a (Either b c)
       distFrom (Left (Fail a)) = Fail a
       distFrom (Left (Success b)) = Success (Left b)
       distFrom (Right (Fail a)) = Fail a

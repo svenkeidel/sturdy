@@ -7,6 +7,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
 module SortSemantics where
 
@@ -32,7 +33,8 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Transformer.Abstract.Completion
 import           Control.Arrow.Transformer.Abstract.Fixpoint
-import           Control.Arrow.Transformer.Abstract.HandleExcept
+import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.Failure
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
@@ -40,13 +42,15 @@ import           Control.Category
 import           Control.Monad (zipWithM)
 
 import           Data.Abstract.FreeCompletion hiding (Top)
-import qualified Data.Abstract.FreeCompletion as F
-import           Data.Abstract.HandleError as E
+import qualified Data.Abstract.FreeCompletion as Free
+import           Data.Abstract.Error as E
+import           Data.Abstract.Failure as F
 import qualified Data.Abstract.Maybe as A
 import qualified Data.Concrete.Powerset as C
-import qualified Data.Concrete.Error as C
-import           Data.Abstract.PreciseStore (Store)
-import qualified Data.Abstract.PreciseStore as S
+import qualified Data.Concrete.Error as CE
+import qualified Data.Concrete.Failure as CF
+import           Data.Abstract.Map (Map)
+import qualified Data.Abstract.Map as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating
 import           Data.Abstract.Widening as W
@@ -62,35 +66,38 @@ import           Text.Printf
 
 data Term = Term {sort :: Sort , context :: Context}
 
-type TermEnv = Store TermVar Term
+type TermEnv = Map TermVar Term
 
 newtype Interp s a b =
   Interp (
    Fix (Strat,Term) Term
-    (Const Context
-     (Reader StratEnv
-      (State TermEnv
-       (Except ()
-        (Completion
-         (Fixpoint s () ()
-          (->))))))) a b)
+    (ConstT Context
+     (ReaderT StratEnv
+      (StateT TermEnv
+       (ExceptT ()
+        (FailureT String
+         (CompletionT
+          (FixT s () ()
+           (->)))))))) a b)
+
 
 runInterp :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) a b
-          -> Int -> Int -> StratEnv -> Context -> TermEnv -> a -> Terminating (FreeCompletion (Error () (TermEnv,b)))
+          -> Int -> Int -> StratEnv -> Context -> TermEnv -> a -> Terminating (FreeCompletion (Failure String (Error () (TermEnv,b))))
 runInterp (Interp f) k l senv ctx tenv a =
-  runFix' stackWidening resultWidening
-    (runCompletion
-     (runExcept
-      (runState
-       (runReader
-        (runConst ctx f)))))
+  runFixT' stackWidening resultWidening
+    (runCompletionT
+     (runFailureT
+      (runExceptT
+       (runStateT
+        (runReaderT
+         (runConstT ctx f))))))
     (tenv, (senv, a))
   where
     stackWidening :: SW.StackWidening (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) (TermEnv, (StratEnv, (Strat, Term)))
     stackWidening = SW.categorize (Iso from' to') (SW.stack (SW.maxSize k topWidening))
 
-    resultWidening :: Widening (FreeCompletion (Error () (TermEnv,Term)))
-    resultWidening = F.widening (E.widening (\_ _ -> ()) (S.widening sortWidening W.** sortWidening))
+    resultWidening :: Widening (FreeCompletion (Failure String (Error () (TermEnv,Term))))
+    resultWidening = Free.widening (F.widening (E.widening (\_ _ -> ()) (S.widening sortWidening W.** sortWidening)))
 
     topWidening :: SW.StackWidening a (TermEnv,Term)
     topWidening (env,_) = return (S.map (const (Term Top ctx)) env,Term Top ctx)
@@ -104,7 +111,7 @@ from' (tenv,(senv,(s,t))) = ((s,senv),(tenv,t))
 to' :: ((Strat, StratEnv), (TermEnv, Term)) -> (TermEnv, (StratEnv, (Strat, Term)))
 to' ((s,senv),(tenv,t)) = (tenv,(senv,(s,t)))
 
-eval :: Int -> Int -> Strat -> StratEnv -> Context -> TermEnv -> Term -> Terminating (FreeCompletion (Error () (TermEnv,Term)))
+eval :: Int -> Int -> Strat -> StratEnv -> Context -> TermEnv -> Term -> Terminating (FreeCompletion (Failure String (Error () (TermEnv,Term))))
 eval i j s = runInterp (eval' s) i j
 
 -- Instances -----------------------------------------------------------------------------------------
@@ -113,8 +120,8 @@ deriving instance Arrow (Interp s)
 deriving instance ArrowChoice (Interp s)
 deriving instance ArrowConst Context (Interp s)
 deriving instance ArrowDeduplicate Term Term (Interp s)
-deriving instance (Complete (FreeCompletion y), PreOrd y) => ArrowExcept x y () (Interp s)
-deriving instance ArrowFail () (Interp s)
+deriving instance ArrowExcept () (Interp s)
+deriving instance ArrowFail String (Interp s)
 deriving instance ArrowFix (Strat,Term) Term (Interp s)
 deriving instance ArrowReader StratEnv (Interp s)
 deriving instance ArrowState TermEnv (Interp s)
@@ -124,15 +131,15 @@ deriving instance PreOrd b => LowerBounded (Interp s a b)
 
 instance Complete (FreeCompletion Term) where
   Lower x ⊔ Lower y = Lower (x ⊔ y)
-  _ ⊔ _ = F.Top
+  _ ⊔ _ = Free.Top
 
 instance Complete (FreeCompletion TermEnv) where
   Lower x ⊔ Lower y = Lower (x ⊔ y)
-  _ ⊔ _ = F.Top
+  _ ⊔ _ = Free.Top
 
 instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]) where
   Lower xs ⊔ Lower ys | eqLength xs ys = zipWithM (\x y -> Lower x ⊔ Lower y) xs ys
-  _ ⊔ _ = F.Top
+  _ ⊔ _ = Free.Top
 
 instance ArrowApply (Interp s) where
   app = Interp $ (\(Interp f, b) -> (f,b)) ^>> app
@@ -146,11 +153,11 @@ instance HasStratEnv (Interp s) where
 instance IsTermEnv TermEnv Term (Interp s) where
   getTermEnv = get
   putTermEnv = put
-  lookupTermVar f g = proc (v,env) ->
+  lookupTermVar f g = proc (v,env,ex) ->
     case S.lookup v env of
       A.Just t -> f -< t
-      A.JustNothing t -> joined f g -< (t,())
-      A.Nothing -> g -< ()
+      A.JustNothing t -> joined f g -< (t,ex)
+      A.Nothing -> g -< ex
   insertTerm = arr $ \(v,t,env) -> S.insert v t env
   deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
@@ -161,35 +168,35 @@ instance IsTerm Term (Interp s) where
       ("Cons",[_,_],List a) -> (do
            ss <- matchSubterms -< (ps,[Term a ctx,Term (List a) ctx])
            cons -< ("Cons",ss))
-           ⊔ (fail -< ())
+           ⊔ (throw -< ())
       ("Cons",[_,_],_) | isList t -> (do
            ss <- matchSubterms -< (ps,[Term Top ctx,Term (List Top) ctx])
            cons -< ("Cons",ss))
-           ⊔ (fail -< ())
-      ("Cons",_,_) -> fail -< ()
-      ("Nil",[],_) -> (returnA -< Term (List Bottom) ctx) ⊔ (fail -< ())
-      ("Nil",_,_) -> fail -< ()
+           ⊔ (throw -< ())
+      ("Cons",_,_) -> throw -< ()
+      ("Nil",[],_) -> (returnA -< Term (List Bottom) ctx) ⊔ (throw -< ())
+      ("Nil",_,_) -> throw -< ()
       (_,_,Top) -> (lubA (proc (Signature ss _) -> if eqLength ss ps
                then do
                  ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
                  cons -< (c,ss')
-               else fail -< ()) -<< Ctx.lookupCons ctx c)
-        ⊔ (fail -< ())
+               else throw -< ()) -<< Ctx.lookupCons ctx c)
+        ⊔ (throw -< ())
       _ ->
         lubA (proc (c',Signature ss _) -> if c == c' && eqLength ss ps
                then do
                  ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
                  cons -< (c',ss')
-               else fail -< ()) -<< Ctx.lookupSort ctx s
+               else throw -< ()) -<< Ctx.lookupSort ctx s
 
   matchTermAgainstString = proc (_,t) ->
     if isLexical t
-      then returnA ⊔ fail' -< t
-      else fail -< ()
+      then (returnA -< t) ⊔ (throw -< ())
+      else throw -< ()
 
   matchTermAgainstNumber = proc (_,t@(Term termSort _)) -> case termSort of
-    Numerical -> returnA ⊔ fail' -< t
-    _ -> fail -< ()
+    Numerical -> (returnA -< t) ⊔ (throw -< ())
+    _ -> throw -< ()
 
   matchTermAgainstExplode matchCons matchSubterms = proc t -> case t of
     _ | isLexical t -> do
@@ -204,14 +211,14 @@ instance IsTerm Term (Interp s) where
       returnA -< t
 
   equal = proc (t1,t2) -> case t1 ⊓ t2 of
-    t | sort t == Bottom -> fail -< ()
+    t | sort t == Bottom -> throw -< ()
       | isSingleton t1 && isSingleton t2 -> returnA -< t
-      | otherwise -> returnA ⊔ fail' -< t
+      | otherwise -> (returnA -< t) ⊔ (throw -< ())
 
   convertFromList = proc (t,ts) ->
     if isLexical t && isList ts
-      then returnA ⊔ fail' -< Term Top (context t) -- cannot deduct target sort from sort Lexical
-      else fail -< ()
+      then (returnA -< Term Top (context t)) ⊔ (throw -< ()) -- cannot deduct target sort from sort Lexical
+      else throw -< ()
 
   mapSubterms f = proc s -> do
     ctx <- askConst -< ()
@@ -245,16 +252,18 @@ alphaTerm ctx = lub . fmap (toSort ctx)
 alphaEnv :: Context -> C.Pow C.TermEnv -> TermEnv
 alphaEnv ctx = lub . fmap (\(C.TermEnv e) -> S.fromList (M.toList (fmap (toSort ctx) e)))
 
-alphaErr :: (Complete e', Complete x') => (e -> e') -> (x -> x') -> C.Pow (C.Error e x) -> Error e' x'
+alphaErr :: (Complete e', Complete x') => (e -> e') -> (x -> x') -> C.Pow (CF.Failure String (CE.Error e x)) -> Failure String (Error e' x')
 alphaErr f g = lub . fmap (\er -> case er of
-  C.Fail e -> Fail (f e)
-  C.Success x -> Success (g x))
+  CF.Fail msg -> F.Fail msg
+  CF.Success (CE.Fail x) -> F.Success (E.Fail (f x))
+  CF.Success (CE.Success x) -> F.Success (E.Success (g x)))
 
 instance Soundness (StratEnv,Context) (Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack)) where
  sound (senv,ctx) xs f g = forAll (choose (0,3)) $ \i -> forAll (choose (3,5)) $ \j -> 
-   let con :: Terminating (FreeCompletion (Error () (TermEnv,_)))
-       con = Terminating (Lower (alphaErr P.id ((alphaEnv ctx . return) *** alphaSing) (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)))
-       abst :: Terminating (FreeCompletion (Error () (TermEnv,_)))
+   let con :: Terminating (FreeCompletion (Failure String (Error () (TermEnv,_))))
+       con = Terminating (Lower (
+                 alphaErr P.id ((alphaEnv ctx . return) *** alphaSing) (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)))
+       abst :: Terminating (FreeCompletion (Failure String (Error () (TermEnv,_))))
        abst = runInterp g i j senv ctx (alphaEnv ctx (fmap snd xs)) (alpha (fmap fst xs))
    in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
@@ -277,7 +286,7 @@ matchTerm :: Term -> [t'] -> Interp s ([Sort],Sort) (Term, ([t'], [Term]))
 matchTerm (Term termSort ctx) ts = proc (patParams,patSort) ->
   if eqLength patParams ts && Term patSort ctx ⊑ Term termSort ctx
     then returnA -< (Term patSort ctx, (ts,map (\s -> Term s ctx) patParams))
-    else fail -< ()
+    else throw -< ()
 
 buildTerm :: Context -> [Term] -> Interp s ([Sort],Sort) Term
 buildTerm ctx ts = proc (cParams,cSort) ->
