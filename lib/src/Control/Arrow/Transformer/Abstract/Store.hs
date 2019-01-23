@@ -13,7 +13,7 @@ import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Arrow.Lift
+import Control.Arrow.Trans
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
@@ -54,24 +54,22 @@ instance (Identifiable var, ArrowChoice c) => ArrowStore var val (StoreT var val
   write = StoreT $ modify $ arr $ \((var,val),st) -> M.insert var val st
 
 instance ArrowState s c => ArrowState s (StoreT var val c) where
-  get = lift get
-  put = lift put
+  get = lift' get
+  put = lift' put
 
 deriving instance (Eq var,Hashable var,Complete val,ArrowJoin c) => ArrowJoin (StoreT var val c)
-deriving instance Category c => Category (StoreT var val c)
+deriving instance Arrow c => Category (StoreT var val c)
 deriving instance Arrow c => Arrow (StoreT var val c)
 deriving instance ArrowChoice c => ArrowChoice (StoreT var val c)
 deriving instance ArrowLift (StoreT var val)
 deriving instance ArrowReader r c => ArrowReader r (StoreT var val c)
 deriving instance ArrowFail e c => ArrowFail e (StoreT var val c)
 deriving instance ArrowExcept e c => ArrowExcept e (StoreT var val c)
-deriving instance ArrowLoop c => ArrowLoop (StoreT var val c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (StoreT var val c)
 deriving instance ArrowConst x c => ArrowConst x (StoreT var val c)
 instance ArrowApply c => ArrowApply (StoreT var val c) where app = StoreT $ (\(StoreT f,x) -> (f,x)) ^>> app
-type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Map var val,x) (Map var val,y) c)
-
 deriving instance ArrowFix (Map var val, x) (Map var val, y) c => ArrowFix x y (StoreT var val c)
+
 deriving instance PreOrd (c (Map var val,x) (Map var val,y)) => PreOrd (StoreT var val c x y)
 deriving instance Complete (c (Map var val,x) (Map var val,y)) => Complete (StoreT var val c x y)
 deriving instance CoComplete (c (Map var val,x) (Map var val,y)) => CoComplete (StoreT var val c x y)

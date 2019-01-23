@@ -13,7 +13,7 @@ import Control.Arrow
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
-import Control.Arrow.Lift
+import Control.Arrow.Trans
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Except as Exc
@@ -29,11 +29,17 @@ import Data.Order hiding (lub)
 -- E.g. allows to join a computation of type 'c x [y]'.
 newtype CompletionT c x y = CompletionT { runCompletionT :: c x (FreeCompletion y) }
 
+instance ArrowTrans CompletionT where
+  type Dom1 CompletionT x y = x
+  type Cod1 CompletionT x y = FreeCompletion y
+  lift = CompletionT
+  unlift = runCompletionT
+
 instance ArrowLift CompletionT where
-  lift f = CompletionT (f >>> arr Lower)
+  lift' f = CompletionT (f >>> arr Lower)
 
 instance ArrowChoice c => Category (CompletionT c) where
-  id = lift id
+  id = lift' id
   CompletionT f . CompletionT g = CompletionT $ proc x -> do
     g' <- g -< x
     case g' of
@@ -41,9 +47,9 @@ instance ArrowChoice c => Category (CompletionT c) where
       Top -> returnA -< Top
 
 instance ArrowChoice c => Arrow (CompletionT c) where
-  arr = lift . arr
-  first (CompletionT f) = CompletionT $ first f >>^ strength1
-  second (CompletionT f) = CompletionT $ second f >>^ strength2
+  arr = lift' . arr
+  first f = lift $ first (unlift f) >>^ strength1
+  second f = lift $ second (unlift f) >>^ strength2
 
 instance ArrowChoice c => ArrowChoice (CompletionT c) where
   left (CompletionT f) = CompletionT $ left f >>^ strength1
@@ -53,38 +59,37 @@ instance (ArrowApply c, ArrowChoice c) => ArrowApply (CompletionT c) where
   app = CompletionT $ first runCompletionT ^>> app
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (CompletionT c) where
-  get = lift get
-  put = lift put
+  get = lift' get
+  put = lift' put
 
 instance (ArrowChoice c, ArrowFail e c) => ArrowFail e (CompletionT c) where
-  fail = lift fail
+  fail = lift' fail
 
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (CompletionT c) where
-  ask = lift ask
-  local (CompletionT f) = CompletionT (local f)
+  ask = lift' ask
+  local f = lift (local (unlift f))
 
 instance (ArrowChoice c, ArrowEnv var val env c) => ArrowEnv var val env (CompletionT c) where
-  type Join (CompletionT c) x y = Env.Join c x (FreeCompletion y)
-  lookup (CompletionT f) (CompletionT g) = CompletionT (lookup f g)
-  getEnv = lift getEnv
-  extendEnv = lift extendEnv
-  localEnv (CompletionT f) = CompletionT (localEnv f)
+  type Join (CompletionT c) x y = Env.Join c (Dom1 CompletionT x y) (Cod1 CompletionT x y)
+  lookup f g = lift (lookup (unlift f) (unlift g))
+  getEnv = lift' getEnv
+  extendEnv = lift' extendEnv
+  localEnv f = lift (localEnv (unlift f))
 
 instance (ArrowChoice c, ArrowExcept e c) => ArrowExcept e (CompletionT c) where
-  type Join (CompletionT c) x y = Exc.Join c x (FreeCompletion y)
-  throw = lift throw
-  catch (CompletionT f) (CompletionT g) = CompletionT $ catch f g
-  finally (CompletionT f) (CompletionT g) = CompletionT $ finally f g
+  type Join (CompletionT c) x y = Exc.Join c (Dom1 CompletionT x y) (Cod1 CompletionT x y)
+  throw = lift' throw
+  catch f g = lift $ catch (unlift f) (unlift g)
+  finally f g = lift $ finally (unlift f) (unlift g)
 
 instance ArrowChoice c => ArrowDeduplicate x y (CompletionT c) where
   dedup = returnA
 
-type instance Fix x y (CompletionT c) = CompletionT (Fix x (FreeCompletion y) c)
 instance (ArrowChoice c, ArrowFix x (FreeCompletion y) c) => ArrowFix x y (CompletionT c) where
-  fix = liftFix' runCompletionT CompletionT
+  fix = liftFix
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where
-  joinWith lub (CompletionT f) (CompletionT g) = CompletionT $ joinWith join f g
+  joinWith lub f g = lift $ joinWith join (unlift f) (unlift g)
     where join (Lower x) (Lower y) = Lower (lub x y)
           join Top _ = Top
           join _ Top = Top

@@ -1,13 +1,18 @@
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Concrete.Fixpoint(Fix,runFix) where
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+module Control.Arrow.Transformer.Concrete.Fixpoint(FixT,runFixT) where
 
 import Prelude hiding ((.))
 
 import Control.Arrow.Fix
 
--- | Arrow transformer that computes the fixpoint in the concrete interpreter.
-type instance Fix a b (->) = (->)
+import Control.Category
+import Control.Arrow
 
--- | Excecutes a concrete fixpoint computation.
-runFix :: Fix a b (->) x y -> x -> y
-runFix f = f
+-- | Arrow transformer that computes the fixpoint in the concrete interpreter.
+newtype FixT a b c x y = FixT {runFixT :: c x y} deriving (Category,Arrow,ArrowChoice)
+
+instance Arrow c => ArrowFix x y (FixT x y c) where
+  fix f = FixT $ runFixT (f (fix f))

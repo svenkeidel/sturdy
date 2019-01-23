@@ -69,7 +69,7 @@ data Val = NumVal IV | ClosureVal Closure | Top deriving (Eq, Generic)
 type Addr = (Text,CallString Label)
 
 -- | Run the abstract interpreter for the k-CFA / Interval analysis. The arguments are the
--- maximum interval bound, the depth `k` of the longest call string,
+-- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
 evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Failure String Val)
 evalInterval k env e = -- runInterp eval ?bound k env (generate e)

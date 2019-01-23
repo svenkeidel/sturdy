@@ -21,7 +21,7 @@ import Control.Arrow.Store as Store
 import Control.Arrow.State
 import Control.Arrow.Deduplicate
 import Control.Arrow.Except as Exc
-import Control.Arrow.Lift
+import Control.Arrow.Trans
 import Control.Arrow.Writer
 import Control.Arrow.Utils
 import Control.Arrow.Abstract.Join
@@ -29,66 +29,77 @@ import Control.Category
 
 import Data.Order hiding (lub)
 import Data.Monoidal
+import Data.Soundness
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype ReaderT r c x y = ReaderT { runReaderT :: c (r,x) y }
+type instance Dom (ReaderT r c) x y = Dom c (r,x) y
+type instance Cod (ReaderT r c) x y = Cod c (r,x) y
+
+instance Sound c c' => Sound (ReaderT r c) (ReaderT r' c') where
+  sound (ReaderT f) (ReaderT g) = sound f g
+
+instance ArrowTrans (ReaderT r) where
+  type Dom1 (ReaderT r) x y = (r,x)
+  type Cod1 (ReaderT r) x y = y
+  lift = ReaderT
+  unlift = runReaderT
 
 instance ArrowLift (ReaderT r) where
-  lift f = ReaderT (pi2 >>> f)
+  lift' f = ReaderT (pi2 >>> f)
 
 instance Arrow c => Category (ReaderT r c) where
-  id = lift id
-  ReaderT f . ReaderT g = ReaderT $ (\(r,x) -> (r,(r,x))) ^>> f . second g
+  id    = lift' id
+  f . g = lift $ (\(r,x) -> (r,(r,x))) ^>> unlift f . second (unlift g)
 
 instance Arrow c => Arrow (ReaderT r c) where
-  arr f = lift (arr f)
-  first (ReaderT f) = ReaderT $ (\(r,(b,d)) -> ((r,b),d)) ^>> first f
-  second (ReaderT f) = ReaderT $ (\(r,(b,d)) -> (b,(r,d))) ^>> second f
-  ReaderT f &&& ReaderT g = ReaderT $ f &&& g
-  ReaderT f *** ReaderT g = ReaderT $ (\(r,(b,d)) -> ((r,b),(r,d))) ^>> f *** g
+  arr f    = lift' (arr f)
+  first f  = lift $ (\(r,(b,d)) -> ((r,b),d)) ^>> first (unlift f)
+  second f = lift $ (\(r,(b,d)) -> (b,(r,d))) ^>> second (unlift f)
+  f &&& g  = lift $ unlift f &&& unlift g
+  f *** g  = lift $ (\(r,(b,d)) -> ((r,b),(r,d))) ^>> unlift f *** unlift g
 
 instance ArrowChoice c => ArrowChoice (ReaderT r c) where
-  left (ReaderT f) = ReaderT $ to distribute ^>> mmap id pi2  ^>> left f
-  right (ReaderT f) = ReaderT $ to distribute ^>> mmap pi2 id ^>> right f
-  ReaderT f +++ ReaderT g = ReaderT (to distribute ^>> f +++ g)
-  ReaderT f ||| ReaderT g = ReaderT (to distribute ^>> f ||| g)
+  left f  = lift $ to distribute ^>> mmap id pi2  ^>> left (unlift f)
+  right f = lift $ to distribute ^>> mmap pi2 id ^>> right (unlift f)
+  f +++ g = lift $ to distribute ^>> unlift f +++ unlift g
+  f ||| g = lift $ to distribute ^>> unlift f ||| unlift g
 
 instance ArrowApply c => ArrowApply (ReaderT r c) where
-  app = ReaderT $ (\(r,(ReaderT f,b)) -> (f,(r,b))) ^>> app
+  app = lift $ (\(r,(f,b)) -> (unlift f,(r,b))) ^>> app
 
 instance Arrow c => ArrowReader r (ReaderT r c) where
-  ask = ReaderT pi1
-  local (ReaderT f) = ReaderT $ (\(_,(r,x)) -> (r,x)) ^>> f
+  ask = lift pi1
+  local f = lift $ (\(_,(r,x)) -> (r,x)) ^>> unlift f
 
 instance ArrowState s c => ArrowState s (ReaderT r c) where
-  get = lift get
-  put = lift put
+  get = lift' get
+  put = lift' put
 
 instance ArrowWriter w c => ArrowWriter w (ReaderT r c) where
-  tell = lift tell
+  tell = lift' tell
 
 instance ArrowFail e c => ArrowFail e (ReaderT r c) where
-  fail = lift fail
+  fail = lift' fail
 
 instance ArrowEnv var val env c => ArrowEnv var val env (ReaderT r c) where
-  type instance Join (ReaderT r c) ((val,x),x) y = Env.Join c ((val,(r,x)),(r,x)) y
-  lookup (ReaderT f) (ReaderT g) = ReaderT $ (\(r,(v,a)) -> (v,(r,a))) ^>> lookup ((\(v,(r,a)) -> (r,(v,a))) ^>> f) g
-  getEnv = lift getEnv
-  extendEnv = lift extendEnv
-  localEnv (ReaderT f) = ReaderT ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
+  type instance Join (ReaderT r c) ((val,x),x) y = Env.Join c ((val,Dom1 (ReaderT r) x y),Dom1 (ReaderT r) x y) (Cod1 (ReaderT r) x y)
+  lookup f g = lift $ (\(r,(v,a)) -> (v,(r,a))) ^>> lookup ((\(v,(r,a)) -> (r,(v,a))) ^>> unlift f) (unlift g)
+  getEnv     = lift' getEnv
+  extendEnv  = lift' extendEnv
+  localEnv f = lift ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv (unlift f))
 
 instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
-  type instance Join (ReaderT r c) ((val,x),x) y = Store.Join c ((val,(r,x)),(r,x)) y
-  read (ReaderT f) (ReaderT g) = ReaderT $ (\(r,(v,a)) -> (v,(r,a))) ^>> read ((\(v,(r,a)) -> (r,(v,a))) ^>> f) g
-  write = lift write
+  type instance Join (ReaderT r c) ((val,x),x) y = Store.Join c ((val,Dom1 (ReaderT r) x y),Dom1 (ReaderT r) x y) (Cod1 (ReaderT r) x y)
+  read f g = lift $ (\(r,(v,a)) -> (v,(r,a))) ^>> read ((\(v,(r,a)) -> (r,(v,a))) ^>> unlift f) (unlift g)
+  write = lift' write
 
-type instance Fix x y (ReaderT r c) = ReaderT r (Fix (r,x) y c)
-instance ArrowFix (r,x) y c => ArrowFix x y (ReaderT r c) where
-  fix f = ReaderT (fix (runReaderT . f . ReaderT))
+instance ArrowFix (Dom1 (ReaderT r) x y) (Cod1 (ReaderT r) x y) c => ArrowFix x y (ReaderT r c) where
+  fix = liftFix
 
 instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
   type instance Join (ReaderT r c) (x,(x,e)) y = Exc.Join c ((r,x),((r,x),e)) y
-  throw = lift throw
+  throw = lift' throw
   catch (ReaderT f) (ReaderT g) = ReaderT $ catch f (from assoc ^>> g)
   finally (ReaderT f) (ReaderT g) = ReaderT $ finally f g
 
@@ -99,7 +110,7 @@ instance ArrowJoin c => ArrowJoin (ReaderT r c) where
   joinWith lub (ReaderT f) (ReaderT g) = ReaderT $ (\(r,(x,y)) -> ((r,x),(r,y))) ^>> joinWith lub f g
 
 instance ArrowConst x c => ArrowConst x (ReaderT r c) where
-  askConst = lift askConst
+  askConst = lift' askConst
 
 instance ArrowCond v c => ArrowCond v (ReaderT r c) where
   type instance Join (ReaderT r c) (x,y) z = Cond.Join c ((r,x),(r,y)) z

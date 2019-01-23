@@ -117,7 +117,7 @@ instance Symmetric Failure where
   commute (Fail a) = Success a
   commute (Success a) = Fail a
 
-instance Strong Failure where
+instance Applicative f => Strong f Failure where
   strength (Success a) = pure $ Success a
   strength (Fail a) = Fail <$> a
 

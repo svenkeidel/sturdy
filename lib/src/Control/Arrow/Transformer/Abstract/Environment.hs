@@ -25,7 +25,7 @@ import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Fail
 import Control.Arrow.Except
-import Control.Arrow.Lift
+import Control.Arrow.Trans
 import Control.Arrow.Environment
 import Control.Arrow.Fix
 
@@ -33,8 +33,8 @@ import Control.Arrow.Abstract.Join
 
 newtype EnvT var val c x y = EnvT (ReaderT (Map var val) c x y)
 
-runEnvT :: (Arrow c) => EnvT var val c x y -> c (Map var val,x) y
-runEnvT (EnvT (ReaderT f)) = f
+runEnvT :: Arrow c => EnvT var val c x y -> c (Map var val,x) y
+runEnvT = unlift
 
 runEnvT' :: (Arrow c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
 runEnvT' f = first M.fromList ^>> runEnvT f
@@ -55,15 +55,14 @@ instance ArrowApply c => ArrowApply (EnvT var val c) where
   app = EnvT $ (\(EnvT f,x) -> (f,x)) ^>> app
 
 instance ArrowReader r c => ArrowReader r (EnvT var val c) where
-  ask = lift ask
-  local (EnvT (ReaderT f)) = EnvT (ReaderT ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
-
-type instance Fix x y (EnvT var val c) = EnvT var val (Fix (Map var val,x) y c)
+  ask = lift' ask
+  local f = lift $ (\(env,(r,x)) -> (r,(env,x))) ^>> local (unlift f)
 
 deriving instance ArrowJoin c => ArrowJoin (EnvT var val c)
 deriving instance ArrowFix (Map var val,x) y c => ArrowFix x y (EnvT var val c)
 deriving instance Arrow c => Category (EnvT var val c)
 deriving instance Arrow c => Arrow (EnvT var val c)
+deriving instance ArrowTrans (EnvT var val)
 deriving instance ArrowLift (EnvT var val)
 deriving instance ArrowChoice c => ArrowChoice (EnvT var val c)
 deriving instance ArrowState s c => ArrowState s (EnvT var val c)

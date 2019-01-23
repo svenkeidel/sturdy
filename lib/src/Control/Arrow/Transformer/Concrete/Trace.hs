@@ -5,6 +5,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Trace where
 
 import           Prelude hiding ((.))
@@ -13,6 +14,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Writer
+import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Writer
 
 import           Data.Sequence (Seq)
@@ -26,6 +28,7 @@ newtype TraceT a b c x y = TraceT (WriterT (Log a b) c x y)
 runTraceT :: TraceT a b c x y -> c x (Log a b,y)
 runTraceT (TraceT (WriterT f)) = f
 
+deriving instance ArrowTrans (TraceT a b)
 deriving instance Arrow c => Category (TraceT a b c)
 deriving instance Arrow c => Arrow (TraceT a b c)
 deriving instance ArrowChoice c => ArrowChoice (TraceT a b c)

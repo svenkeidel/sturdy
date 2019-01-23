@@ -18,7 +18,7 @@ import Control.Arrow.Deduplicate
 import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
 import Control.Arrow.Except as Exc
-import Control.Arrow.Lift
+import Control.Arrow.Trans
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store as Store
@@ -31,14 +31,14 @@ import Data.Order hiding (lub)
 newtype StaticT f c x y = StaticT { runStaticT :: f (c x y)}
 
 instance Applicative f => ArrowLift (StaticT f) where
-  lift = StaticT . pure
+  lift' = StaticT . pure
 
 instance (Applicative f, Arrow c) => Category (StaticT f c) where
-  id = lift id
+  id = lift' id
   StaticT f . StaticT g = StaticT $ (.) <$> f <*> g
 
 instance (Applicative f, Arrow c) => Arrow (StaticT f c) where
-  arr = lift . arr
+  arr = lift' . arr
   first (StaticT f) = StaticT $ first <$> f
   second (StaticT f) = StaticT $ second <$> f
   StaticT f *** StaticT g = StaticT $ (***) <$> f <*> g
@@ -51,36 +51,36 @@ instance (Applicative f, ArrowChoice c) => ArrowChoice (StaticT f c) where
   StaticT f ||| StaticT g = StaticT $ (|||) <$> f <*> g
 
 instance (Applicative f, ArrowState s c) => ArrowState s (StaticT f c) where
-  get = lift get
-  put = lift put
+  get = lift' get
+  put = lift' put
 
 instance (Applicative f, ArrowReader r c) => ArrowReader r (StaticT f c) where
-  ask = lift ask
+  ask = lift' ask
   local (StaticT f) = StaticT $ local <$> f
 
 instance (Applicative f, ArrowWriter w c) => ArrowWriter w (StaticT f c) where
-  tell = lift tell
+  tell = lift' tell
 
 instance (Applicative f, ArrowFail e c) => ArrowFail e (StaticT f c) where
-  fail = lift fail
+  fail = lift' fail
 
 instance (Applicative f, ArrowExcept e c) => ArrowExcept e (StaticT f c) where
   type Join (StaticT f c) x y = Exc.Join c x y
-  throw = lift throw
+  throw = lift' throw
   catch (StaticT f) (StaticT g) = StaticT $ catch <$> f <*> g
   finally (StaticT f) (StaticT g) = StaticT $ finally <$> f <*> g
 
 instance (Applicative f, ArrowEnv var val env c) => ArrowEnv var val env (StaticT f c) where
   type Join (StaticT f c) x y = Env.Join c x y
   lookup (StaticT f) (StaticT g) = StaticT $ lookup <$> f <*> g
-  getEnv = lift getEnv
-  extendEnv = lift extendEnv
+  getEnv = lift' getEnv
+  extendEnv = lift' extendEnv
   localEnv (StaticT f) = StaticT $ localEnv <$> f
 
 instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f c) where
   type Join (StaticT f c) x y = Store.Join c x y
   read (StaticT f) (StaticT g) = StaticT $ read <$> f <*> g
-  write = lift write
+  write = lift' write
 
 instance (Applicative f, ArrowLoop c) => ArrowLoop (StaticT f c) where
   loop (StaticT f) = StaticT (loop <$> f)

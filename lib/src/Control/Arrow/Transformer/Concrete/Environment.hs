@@ -23,7 +23,7 @@ import           Control.Arrow.Reader
 import           Control.Arrow.Store
 import           Control.Arrow.State
 import           Control.Arrow.Fail
-import           Control.Arrow.Lift
+import           Control.Arrow.Trans
 import           Control.Arrow.Except
 import           Control.Arrow.Environment
 import           Control.Arrow.Fix
@@ -52,18 +52,17 @@ instance ArrowApply c => ArrowApply (EnvT var val c) where
   app = EnvT $ (\(EnvT f,x) -> (f,x)) ^>> app
 
 instance ArrowReader r c => ArrowReader r (EnvT var val c) where
-  ask = lift ask
+  ask = lift' ask
   local (EnvT (ReaderT f)) = EnvT (ReaderT ((\(env,(r,x)) -> (r,(env,x))) ^>> local f))
 
 deriving instance Arrow c => Category (EnvT var val c)
 deriving instance Arrow c => Arrow (EnvT var val c)
 deriving instance ArrowLift (EnvT var val)
+deriving instance ArrowTrans (EnvT var val)
 deriving instance ArrowChoice c => ArrowChoice (EnvT var val c)
 deriving instance ArrowState s c => ArrowState s (EnvT var val c)
 deriving instance ArrowFail e c => ArrowFail e (EnvT var val c)
 deriving instance ArrowExcept e c => ArrowExcept e (EnvT var val c)
 deriving instance ArrowConst r c => ArrowConst r (EnvT var val c)
 deriving instance ArrowStore var val c => ArrowStore var val (EnvT var' val' c)
-
-type instance Fix x y (EnvT var val c) = EnvT var val (Fix (HashMap var val,x) y c)
 deriving instance ArrowFix (HashMap var val,x) y c => ArrowFix x y (EnvT var val c)

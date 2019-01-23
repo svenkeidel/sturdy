@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Data.Monoidal where
 
 data Iso a b = Iso { to :: a -> b, from :: b -> a}
@@ -28,22 +29,21 @@ instance Monoidal Either where
       assocFrom (Left (Right b)) = Right (Left b)
       assocFrom (Right c) = Right (Right c)
 
+class Strong f m where
+  strength :: f a `m` b -> f (a `m` b)
 
-class Strong m where
-  strength :: Applicative f => f a `m` b -> f (a `m` b)
-
-strength1 :: (Strong m, Applicative f) => f a `m` b -> f (a `m` b)
+strength1 :: (Strong f m) => f a `m` b -> f (a `m` b)
 strength1 = strength
 {-# INLINE strength1 #-}
 
-strength2 :: (Symmetric m, Strong m, Applicative f) => a `m` f b -> f (a `m` b)
+strength2 :: (Symmetric m, Strong f m, Functor f) => a `m` f b -> f (a `m` b)
 strength2 = fmap commute . strength . commute
 {-# INLINE strength2 #-}
 
-instance Strong (,) where
+instance Functor f => Strong f (,) where
   strength (f,b) = fmap (\a -> (a,b)) f
 
-instance Strong Either where
+instance Applicative f => Strong f Either where
   strength (Left f) = fmap Left f
   strength (Right b) = pure (Right b)
 

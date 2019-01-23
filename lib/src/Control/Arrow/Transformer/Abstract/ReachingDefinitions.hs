@@ -24,7 +24,7 @@ import           Control.Arrow.Alloc
 import           Control.Arrow.Conditional
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
-import           Control.Arrow.Lift
+import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Fail
@@ -42,45 +42,42 @@ import qualified Data.Abstract.DiscretePowerset as P
 newtype ReachingDefsT lab c x y = ReachingDefsT (ReaderT (Maybe lab) c x y)
 
 reachingDefsT :: Arrow c => c (Maybe lab,x) y -> ReachingDefsT lab c x y
-reachingDefsT = ReachingDefsT . ReaderT
+reachingDefsT = lift
 
 runReachingDefsT :: Arrow c => ReachingDefsT lab c x y -> c (Maybe lab,x) y
-runReachingDefsT (ReachingDefsT (ReaderT f)) = f
+runReachingDefsT = unlift
 
 runReachingDefsT' :: Arrow c => ReachingDefsT lab c x y -> c x y
 runReachingDefsT' f = (\x -> (Nothing,x)) ^>> runReachingDefsT f
 
 instance (Identifiable var, Identifiable lab, ArrowStore var (val,Pow lab) c) => ArrowStore var val (ReachingDefsT lab c) where
-  type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Pow lab),(Maybe lab,x)), (Maybe lab,x)) y
+  type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Pow lab),Dom1 (ReachingDefsT lab) x y), Dom1 (ReachingDefsT lab) x y) (Cod1 (ReachingDefsT lab) x y)
   read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read ((\((v,_::Pow lab),x) -> (v,x)) ^>> f) g
   write = reachingDefsT $ proc (lab,(var,val)) ->
     write -< (var,(val,P.fromMaybe lab))
 
-type instance Fix x y (ReachingDefsT lab c) = ReachingDefsT lab (Fix x y c)
 instance (HasLabel x lab, Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefsT lab c) where
-  fix f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix (unwrap . f . wrap) -< x
+  fix f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix (unwrap . f . lift') -< x
     where
-      wrap :: c x y -> ReachingDefsT lab c x y
-      wrap = lift
-
       unwrap :: HasLabel x lab => ReachingDefsT lab c x y -> c x y
       unwrap f' = (Just . label &&& id) ^>> runReachingDefsT f'
 
 instance ArrowApply c => ArrowApply (ReachingDefsT lab c) where
   app = ReachingDefsT ((\(ReachingDefsT f,x) -> (f,x)) ^>> app)
 
+deriving instance ArrowTrans (ReachingDefsT lab)
 instance ArrowLift (ReachingDefsT lab) where
-  lift f = reachingDefsT (snd ^>> f)
+  lift' f = reachingDefsT (snd ^>> f)
 
 instance ArrowReader r c => ArrowReader r (ReachingDefsT lab c) where
-  ask = lift ask
-  local (ReachingDefsT (ReaderT f)) = ReachingDefsT $ ReaderT $ (\(m,(r,a)) -> (r,(m,a))) ^>> local f
+  ask = lift' ask
+  local f = lift $ (\(m,(r,a)) -> (r,(m,a))) ^>> local (unlift f)
 
 instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefsT lab c) where
-  alloc = lift alloc
+  alloc = lift' alloc
 
 instance ArrowRand v c => ArrowRand v (ReachingDefsT lab c) where
-  random = lift random
+  random = lift' random
 
 deriving instance Arrow c => Category (ReachingDefsT lab c)
 deriving instance Arrow c => Arrow (ReachingDefsT lab c)

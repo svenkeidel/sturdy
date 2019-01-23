@@ -15,7 +15,7 @@ import           Control.Arrow.Const
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
-import           Control.Arrow.Lift
+import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
@@ -42,9 +42,6 @@ evalStoreT f = runStoreT f >>> pi2
 execStoreT :: Arrow c => StoreT var val c x y -> c (HashMap var val, x) (HashMap var val)
 execStoreT f = runStoreT f >>> pi1
 
-instance ArrowLift (StoreT var val) where
-  lift f = StoreT (lift f)
-
 instance (Identifiable var, ArrowChoice c) => ArrowStore var val (StoreT var val c) where
   type Join (StoreT var val c) x y = ()
   read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
@@ -55,16 +52,17 @@ instance (Identifiable var, ArrowChoice c) => ArrowStore var val (StoreT var val
   write = StoreT $ modify $ arr (\((x,v),s) -> S.insert x v s)
 
 instance ArrowState s c => ArrowState s (StoreT var val c) where
-  get = lift get
-  put = lift put
+  get = lift' get
+  put = lift' put
 
-deriving instance ArrowConst r c => ArrowConst r (StoreT var val c)
-deriving instance Category c => Category (StoreT var val c)
+deriving instance ArrowTrans (StoreT var val)
+deriving instance ArrowLift (StoreT var val)
+deriving instance Arrow c => Category (StoreT var val c)
 deriving instance Arrow c => Arrow (StoreT var val c)
 deriving instance ArrowChoice c => ArrowChoice (StoreT var val c)
+instance ArrowApply c => ArrowApply (StoreT var val c) where app = StoreT ((\(StoreT f,x) -> (f,x)) ^>> app)
+deriving instance ArrowConst r c => ArrowConst r (StoreT var val c)
 deriving instance ArrowReader r c => ArrowReader r (StoreT var val c)
 deriving instance ArrowFail e c => ArrowFail e (StoreT var val c)
 deriving instance ArrowExcept e c => ArrowExcept e (StoreT var val c)
-
-type instance Fix x y (StoreT var val c) = StoreT var val (Fix (HashMap var val,x) (HashMap var val,y) c)
 deriving instance ArrowFix (HashMap var val, x) (HashMap var val, y) c => ArrowFix x y (StoreT var val c)

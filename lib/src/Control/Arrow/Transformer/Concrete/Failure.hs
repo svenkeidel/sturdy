@@ -15,7 +15,7 @@ import Control.Arrow.Deduplicate
 import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Arrow.Lift
+import Control.Arrow.Trans
 import Control.Arrow.Reader
 import Control.Arrow.Store as Store
 import Control.Arrow.State
@@ -29,62 +29,67 @@ import Data.Identifiable
 -- | Arrow transformer that adds failure to the result of a computation
 newtype FailureT e c x y = FailureT { runFailureT :: c x (Failure e y) }
 
+instance ArrowChoice c => ArrowFail e (FailureT e c) where
+  fail = lift $ arr Fail
+
+instance ArrowTrans (FailureT e) where
+  type Dom1 (FailureT e) x y = x
+  type Cod1 (FailureT e) x y = Failure e y
+  lift = FailureT
+  unlift = runFailureT
+
 instance ArrowLift (FailureT e) where
-  lift f = FailureT (f >>> arr Success)
+  lift' f = lift (f >>> arr Success)
 
 instance ArrowChoice c => Category (FailureT r c) where
-  id = lift id
-  FailureT f . FailureT g = FailureT $ g >>> toEither ^>> arr Fail ||| f
+  id = lift' id
+  f . g = lift $ unlift g >>> toEither ^>> arr Fail ||| unlift f
 
 instance ArrowChoice c => Arrow (FailureT r c) where
-  arr f = lift (arr f)
-  first (FailureT f) = FailureT $ first f >>^ strength1
-  second (FailureT f) = FailureT $ second f >>^ strength2
+  arr f = lift' (arr f)
+  first f = lift $ first (unlift f) >>^ strength1
+  second f = lift $ second (unlift f) >>^ strength2
 
 instance ArrowChoice c => ArrowChoice (FailureT r c) where
-  left (FailureT f) = FailureT $ left f >>^ strength1
-  right (FailureT f) = FailureT $ right f >>^ strength2
-  FailureT f ||| FailureT g = FailureT (f ||| g)
-  FailureT f +++ FailureT g = FailureT $ f +++ g >>^ from distribute
+  left f = lift $ left (unlift f) >>^ strength1
+  right f = lift $ right (unlift f) >>^ strength2
+  f ||| g = lift (unlift f ||| unlift g)
+  f +++ g = lift $ unlift f +++ unlift g >>^ from distribute
 
 instance (ArrowChoice c, ArrowApply c) => ArrowApply (FailureT e c) where
   app = FailureT $ first runFailureT ^>> app
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (FailureT e c) where
-  get = lift get
-  put = lift put
+  get = lift' get
+  put = lift' put
 
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (FailureT e c) where
-  ask = lift ask
-  local (FailureT f) = FailureT (local f)
+  ask = lift' ask
+  local f = lift (local (unlift f))
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (FailureT e c) where
-  type Join (FailureT e c) x y = Env.Join c x (Failure e y)
-  lookup (FailureT f) (FailureT g) = FailureT $ lookup f g
-  getEnv = lift getEnv
-  extendEnv = lift extendEnv
-  localEnv (FailureT f) = FailureT (localEnv f)
+  type Join (FailureT e c) x y = Env.Join c (Dom1 (FailureT e) x y) (Cod1 (FailureT e) x y)
+  lookup f g = lift $ lookup (unlift f) (unlift g)
+  getEnv = lift' getEnv
+  extendEnv = lift' extendEnv
+  localEnv f = lift (localEnv (unlift f))
 
 instance (ArrowChoice c, ArrowStore var val c) => ArrowStore var val (FailureT e c) where
-  type Join (FailureT e c) x y = Store.Join c x (Failure e y)
-  read (FailureT f) (FailureT g) = FailureT $ read f g
-  write = lift write
+  type Join (FailureT e c) x y = Store.Join c (Dom1 (FailureT e) x y) (Cod1 (FailureT e) x y)
+  read f g = lift $ read (unlift f) (unlift g)
+  write = lift' $ write
 
-type instance Fix x y (FailureT e c) = FailureT e (Fix x (Failure e y) c)
-instance (ArrowChoice c, ArrowFix x (Failure e y) c) => ArrowFix x y (FailureT e c) where
-  fix = liftFix' runFailureT FailureT
-
-instance ArrowChoice c => ArrowFail e (FailureT e c) where
-  fail = FailureT $ arr Fail
+instance (ArrowChoice c, ArrowFix (Dom1 (FailureT e) x y) (Cod1 (FailureT e) x y) c) => ArrowFix x y (FailureT e c) where
+  fix = liftFix
 
 instance (ArrowChoice c, ArrowExcept e c) => ArrowExcept e (FailureT e' c) where
-  type Join (FailureT e' c) x y = Exc.Join c x (Failure e' y)
-  throw = lift throw
-  catch (FailureT f) (FailureT g) = FailureT $ catch f g
-  finally (FailureT f) (FailureT g) = FailureT $ finally f g
+  type Join (FailureT e' c) x y = Exc.Join c (Dom1 (FailureT e') x y) (Cod1 (FailureT e') x y)
+  throw = lift' throw
+  catch f g = lift $ catch (unlift f) (unlift g)
+  finally f g = lift $ finally (unlift f) (unlift g)
 
-instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Failure e y) c) => ArrowDeduplicate x y (FailureT e c) where
-  dedup (FailureT f) = FailureT (dedup f)
+instance (Identifiable e, ArrowChoice c, ArrowDeduplicate (Dom1 (FailureT e) x y) (Cod1 (FailureT e) x y) c) => ArrowDeduplicate x y (FailureT e c) where
+  dedup f = lift (dedup (unlift f))
 
 instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (FailureT e c) where
-  askConst = lift askConst
+  askConst = lift' askConst

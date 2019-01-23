@@ -23,16 +23,20 @@ import GHC.Exts (Constraint)
 
 -- | Arrow-based interface for interacting with environments.
 class Arrow c => ArrowEnv var val env c | c -> var, c -> val, c -> env where
+  -- | Type class constraint used by the abstract instances to join arrow computations.
   type family Join (c :: * -> * -> *) x y :: Constraint
 
-  -- | Lookup a variable in the current environment. The first
-  -- continuation is called if the variable is in the enviroment, the
-  -- second if it is not.
+  -- | Lookup a variable in the current environment. If the
+  -- environment contains a binding of the variable, the first
+  -- continuation is called and the second computation otherwise.
   lookup :: (Join c ((val,x),x) y) => c (val,x) y -> c x y -> c (var,x) y
+
   -- | Retrieve the current environment.
   getEnv :: c () env
+
   -- | Extend an environment with a binding.
   extendEnv :: c (var,val,env) env
+
   -- | Run a computation with a modified environment.
   localEnv :: c x y -> c (env,x) y
 

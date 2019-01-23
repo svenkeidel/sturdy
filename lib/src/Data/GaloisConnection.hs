@@ -15,6 +15,7 @@ import qualified Data.Abstract.Error as Abs
 import qualified Data.Concrete.Boolean as Con
 import qualified Data.Abstract.Boolean as Abs
 import qualified Data.Abstract.Interval as Abs
+import           Data.Identifiable
 import           Control.Arrow
 
 -- | A galois connection consisting of an abstraction function alpha
@@ -28,7 +29,7 @@ instance (Galois x x', Galois y y') => Galois (x,y) (x',y') where
   alpha (x,y) = (alpha x, alpha y)
   gamma (x',y') = (gamma x', gamma y')
 
-instance (Eq (x,y), Hashable (x,y), Galois (Con.Pow x) x', Galois (Con.Pow y) y')
+instance (Identifiable (x,y), Galois (Con.Pow x) x', Galois (Con.Pow y) y')
   => Galois (Con.Pow (x,y)) (x',y') where
   alpha m = (alpha (fst <$> m),alpha (snd <$> m))
   gamma m = Con.cartesian (gamma (fst m),gamma (snd m))

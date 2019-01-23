@@ -13,7 +13,7 @@ import           Control.Arrow.Alloc
 import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
-import           Control.Arrow.Lift
+import           Control.Arrow.Trans
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
@@ -38,9 +38,10 @@ instance (Random v, Arrow c) => ArrowRand v (RandomT c) where
     put -< gen'
     returnA -< v
 
-deriving instance Category c => Category (RandomT c)
+deriving instance Arrow c => Category (RandomT c)
 deriving instance Arrow c => Arrow (RandomT c)
 deriving instance ArrowChoice c => ArrowChoice (RandomT c)
+deriving instance ArrowTrans RandomT
 deriving instance ArrowLift RandomT
 deriving instance ArrowReader r c => ArrowReader r (RandomT c)
 deriving instance ArrowFail e c => ArrowFail e (RandomT c)
@@ -49,10 +50,8 @@ deriving instance ArrowEnv var val env c => ArrowEnv var val env (RandomT c)
 deriving instance ArrowAlloc x y c => ArrowAlloc x y (RandomT c)
 deriving instance ArrowCond val c => ArrowCond val (RandomT c)
 deriving instance ArrowStore var val c => ArrowStore var val (RandomT c)
-
-type instance Fix x y (RandomT c) = RandomT (Fix (StdGen,x) (StdGen,y) c)
 deriving instance (Arrow c, ArrowFix (StdGen,x) (StdGen,y) c) => ArrowFix x y (RandomT c)
 
 instance ArrowState s c => ArrowState s (RandomT c) where
-  get = lift get
-  put = lift put
+  get = lift' get
+  put = lift' put

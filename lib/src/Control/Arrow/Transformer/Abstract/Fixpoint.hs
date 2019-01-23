@@ -10,13 +10,14 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Abstract.Fixpoint(FixT,runFixT,runFixT',runFixT'',liftFixT) where
+module Control.Arrow.Transformer.Abstract.Fixpoint(Fix,FixT,runFixT,runFixT',runFixT'',liftFixT) where
 
 import           Prelude hiding (id,(.),lookup)
 import qualified Data.Function as F
 
 import           Control.Arrow
 import           Control.Arrow.Fix
+import           Control.Arrow.Trans
 import           Control.Arrow.Abstract.Join
 import           Control.Category
 import           Control.Monad.State hiding (fix)
@@ -61,7 +62,7 @@ import qualified Data.Abstract.StackWidening as SW
 
 type Underlying s a b c x y = (StackWidening s a, Widening b) -> c (((s a,Map a (Terminating b)), Map a (Terminating b)),x) (Map a (Terminating b), Terminating y)
 newtype FixT s a b c x y = FixT (Underlying s a b c x y)
-type instance Fix a b (FixT stack () () c) = FixT stack a b (Fix a b c)
+type Fix stack a b t c = t (FixT stack (Dom1 t a b) (Cod1 t a b) c)
 
 runFixT :: (Arrow c, Complete b) => FixT SW.Unit a b c x y -> c x (Terminating y)
 runFixT f = runFixT' SW.finite W.finite f

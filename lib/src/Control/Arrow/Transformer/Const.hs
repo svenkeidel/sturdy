@@ -18,7 +18,7 @@ import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Except
 import Control.Arrow.Fix
-import Control.Arrow.Lift
+import Control.Arrow.Trans
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
@@ -35,9 +35,8 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
 runConstT :: r -> ConstT r c x y -> c x y
 runConstT r (ConstT (StaticT f)) = f r
 
-type instance Fix x y (ConstT r c) = ConstT r (Fix x y c)
 instance ArrowFix x y c => ArrowFix x y (ConstT r c) where
-  fix f = ConstT $ StaticT $ \r -> fix (runConstT r . f . lift)
+  fix f = ConstT $ StaticT $ \r -> fix (runConstT r . f . lift')
 
 instance Arrow c => ArrowConst r (ConstT r c) where
   askConst = ConstT $ StaticT $ \r -> arr (const r)

@@ -15,6 +15,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.Failure
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Compose
 import           Control.Arrow.Fail
 import           Control.Arrow.State
 
@@ -40,9 +41,9 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Cache s x y = Fix x y (FixT s () () (->)) x y
-type ErrorFix s x y = Fix x y (FailureT () (FixT s () () (->))) x y
-type StateFix s x y = Fix x y (StateT IV (FixT s () () (->))) x y
+type Cache s x y    = Fix s x y IdentityT (->) x y
+type ErrorFix s x y = Fix s x y (FailureT ()) (->) x y
+type StateFix s x y = Fix s x y (StateT IV) (->) x y
 type IV = Interval (InfiniteNumber Int)
 
 spec :: Spec
@@ -59,8 +60,8 @@ spec = do
                               returnA -< x + y))
 
     in it "should memoize numbers that have been computed before already" $ do
-         runFixT' SW.finite W.finite fib (I.Interval 5 10) `shouldBe` return (I.Interval 5 55)
-         runFixT' SW.finite I.widening fib (I.Interval 0 Infinity) `shouldBe` return (I.Interval 0 Infinity)
+         runFixT' SW.finite W.finite (runIdentityT fib) (I.Interval 5 10) `shouldBe` return (I.Interval 5 55)
+         runFixT' SW.finite I.widening (runIdentityT fib) (I.Interval 0 Infinity) `shouldBe` return (I.Interval 0 Infinity)
 
   describe "the analysis of the factorial function" $
     let fact :: Cache s IV IV
@@ -68,7 +69,7 @@ spec = do
           ifLowerThan 1 (proc _ -> returnA -< I.Interval 1 1)
                         (proc n -> do {x <- f -< (n-I.Interval 1 1); returnA -< n * x}) -< n
     in it "fact [-inf,inf] should produce [1,inf]" $
-         runFixT' SW.finite I.widening fact top `shouldBe` return (I.Interval 1 Infinity)
+         runFixT' SW.finite I.widening (runIdentityT fact) top `shouldBe` return (I.Interval 1 Infinity)
 
   describe "the even and odd functions" $
     let evenOdd :: Cache s (EvenOdd,IV) Bool
@@ -80,7 +81,7 @@ spec = do
                                 (ifLowerThan 1 (proc _ -> returnA -< true)
                                                (proc x -> f -< (Even,x-I.Interval 1 1))) -< x
     in it "even([-inf,inf]) should produce top" $
-         runFixT' SW.finite W.finite evenOdd (Even,I.Interval 0 Infinity) `shouldBe` top
+         runFixT' SW.finite W.finite (runIdentityT evenOdd) (Even,I.Interval 0 Infinity) `shouldBe` top
 
   describe "the ackermann function" $
     let ackermann :: Cache s (IV,IV) IV
@@ -93,7 +94,7 @@ spec = do
                                          f -< (m'- I.Interval 1 1, x)) -<< n)
             -<< m
     in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runFixT' (SW.stack (SW.reuse (const head) SW.topOut)) W.finite ackermann (I.Interval 0 Infinity, I.Interval 0 Infinity)
+         runFixT' (SW.stack (SW.reuse (const head) SW.topOut)) W.finite (runIdentityT ackermann) (I.Interval 0 Infinity, I.Interval 0 Infinity)
            `shouldBe` return (I.Interval 1 Infinity)
 
   describe "the analyis of a diverging program" $
@@ -102,7 +103,7 @@ spec = do
           0 -> f -< 0
           _ -> f -< (n-1)
     in it "should terminate with bottom" $
-         runFixT diverge 5 `shouldBe` bottom
+         runFixT (runIdentityT diverge) 5 `shouldBe` bottom
 
   describe "the analysis of a failing program" $
     let recurseFail :: ErrorFix s Int Sign

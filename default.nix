@@ -1,7 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 
 let
-  hsEnv = pkgs.haskellPackages.ghcWithPackages(p: with p; [
+  hsEnv = pkgs.haskell.packages.ghc863.ghcWithPackages(p: with p; [
     stack
   ]);
 

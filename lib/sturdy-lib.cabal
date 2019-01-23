@@ -27,6 +27,7 @@ library
                        Data.Boolean,
                        Data.Monoidal,
                        Data.GaloisConnection,
+                       Data.Soundness,
                        Data.Identifiable,
                        Data.Label,
                        Data.Numeric,
@@ -67,11 +68,11 @@ library
                        Control.Arrow.Fail,
                        Control.Arrow.Except,
                        Control.Arrow.Fix,
-                       Control.Arrow.Lift,
                        Control.Arrow.Random,
                        Control.Arrow.Reader,
                        Control.Arrow.State,
                        Control.Arrow.Store,
+                       Control.Arrow.Trans,
                        Control.Arrow.Writer,
                        Control.Arrow.Utils,
 
@@ -83,6 +84,7 @@ library
                        Control.Arrow.Transformer.Cont,
                        Control.Arrow.Transformer.Const,
                        Control.Arrow.Transformer.Static,
+                       Control.Arrow.Transformer.Compose,
 
                        Control.Arrow.Transformer.Concrete.Environment,
                        Control.Arrow.Transformer.Concrete.Except,

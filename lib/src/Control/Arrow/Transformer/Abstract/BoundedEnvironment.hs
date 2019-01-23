@@ -17,7 +17,7 @@ import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
-import           Control.Arrow.Lift
+import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Transformer.Const
@@ -52,7 +52,7 @@ runEnvT alloc f =
   in (const (M.empty) &&& id) ^>> runReaderT (runConstT alloc f')
 
 instance ArrowLift (EnvT var addr val) where
-  lift f = EnvT (lift (lift f))
+  lift' f = EnvT (lift' (lift' f))
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c) =>
   ArrowEnv var val (Map var addr val) (EnvT var addr val c) where
@@ -64,18 +64,17 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c) =>
       JustNothing val -> joined f g -< ((val,x),x)
       Nothing         -> g          -< x
   getEnv = EnvT ask
-  extendEnv = EnvT $ ConstT $ StaticT $ \alloc -> lift $ M.insertBy alloc
+  extendEnv = EnvT $ ConstT $ StaticT $ \alloc -> lift' $ M.insertBy alloc
   localEnv (EnvT f) = EnvT $ local f
 
 instance ArrowReader r c => ArrowReader r (EnvT var addr val c) where
-  ask = lift ask
+  ask = lift' ask
   local (EnvT (ConstT (StaticT f))) =
     EnvT $ ConstT $ StaticT $ \alloc -> ReaderT $ (\(env,(r,x)) -> (r,(env,x))) ^>> local (runReaderT (f alloc))
 
 instance ArrowApply c => ArrowApply (EnvT var addr val c) where
   app = EnvT $ (\(EnvT f,x) -> (f,x)) ^>> app
 
-type instance Fix x y (EnvT var addr val c) = EnvT var addr val (Fix ((Map var addr val),x) y c)
 deriving instance ArrowFix ((Map var addr val),x) y c => ArrowFix x y (EnvT var addr val c)
 deriving instance Arrow c => Category (EnvT var addr val c)
 deriving instance Arrow c => Arrow (EnvT var addr val c)
