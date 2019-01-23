@@ -19,8 +19,9 @@ import qualified Criterion.Measurement as CM
 import qualified Criterion.Types as CT
 
 import           Data.ATerm
-import           Data.Abstract.HandleError
-import qualified Data.Abstract.PreciseStore as S
+import           Data.Abstract.Error
+import qualified Data.Abstract.Failure as F
+import qualified Data.Abstract.Map as S
 import           Data.Abstract.Terminating
 import           Data.Foldable
 import           Data.HashSet (HashSet)
@@ -57,7 +58,7 @@ measure analysisName action = do
 
 -- | Runs the given semantics on the given function within the given
 -- case study.
-caseStudy :: (Strat -> StratEnv -> W.TermEnv -> W.Term -> Terminating (W.Pow (Error () (W.TermEnv,W.Term)))) -> String -> String -> IO (HashSet W.Term)
+caseStudy :: (Strat -> StratEnv -> W.TermEnv -> W.Term -> Terminating (W.Pow (F.Failure String (Error () (W.TermEnv,W.Term))))) -> String -> String -> IO (HashSet W.Term)
 caseStudy eval name function = do
   printf "------------------ case study: %s ----------------------\n" name
   file <- TIO.readFile =<< getDataFileName (printf "case-studies/%s/%s.aterm" name name)
@@ -72,3 +73,4 @@ caseStudy eval name function = do
  where
    filterResults = fmap (\r -> case r of Success (_,t) -> t; SuccessOrFail _ (_,t) -> t; Fail _ -> error "")
                  . filter (\r -> case r of Success _ -> True; SuccessOrFail _ _ -> True; Fail _ -> False)
+                 . fmap (\r -> case r of F.Success t -> t; F.Fail msg -> error msg)

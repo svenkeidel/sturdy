@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Pretty.PCF where
 
+import Prelude hiding ((<>))
+
 import WildcardSemantics
 import Text.PrettyPrint
 

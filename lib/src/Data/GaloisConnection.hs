@@ -12,6 +12,8 @@ import qualified Data.Abstract.Powerset as Abs
 import qualified Data.Concrete.Powerset as Con
 import qualified Data.Concrete.Error as Con
 import qualified Data.Abstract.Error as Abs
+import qualified Data.Concrete.Failure as ConF
+import qualified Data.Abstract.Failure as AbsF
 import qualified Data.Concrete.Boolean as Con
 import qualified Data.Abstract.Boolean as Abs
 import qualified Data.Abstract.Interval as Abs
@@ -55,6 +57,13 @@ instance (Complete a', Eq a, Hashable a, Galois (Con.Pow a) a', Eq b, Hashable b
   alpha = lifted $ \e -> case e of
     Con.Fail x -> Abs.Fail (alphaSing x)
     Con.Success y -> Abs.Success (alphaSing y)
+  gamma = error "noncomputable"
+
+instance (Eq e, Hashable e, Eq b, Hashable b, Complete b', Galois (Con.Pow b) b')
+    => Galois (Con.Pow (ConF.Failure e b)) (AbsF.Failure e b') where
+  alpha = lifted $ \e -> case e of
+    ConF.Fail x -> AbsF.Fail x
+    ConF.Success y -> AbsF.Success (alphaSing y)
   gamma = error "noncomputable"
 
 instance (Hashable a, Eq a, Complete a', Galois (Con.Pow a) a')
