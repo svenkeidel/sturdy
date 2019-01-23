@@ -13,9 +13,10 @@ import qualified WildcardSemantics as W
 
 import           Control.Arrow
 
-import           Data.Abstract.HandleError
+import           Data.Abstract.Error as E
+import           Data.Abstract.Failure as F
 import qualified Data.Abstract.Powerset as A
-import qualified Data.Abstract.PreciseStore as S
+import qualified Data.Abstract.Map as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
 import qualified Data.Concrete.Powerset as C
@@ -33,6 +34,15 @@ import           Test.QuickCheck hiding (Success)
 main :: IO ()
 main = hspec spec
 
+success :: a -> Failure String (Error () a)
+success a = F.Success $ E.Success a
+
+successOrFail :: () -> a -> Failure String (Error () a)
+successOrFail () a = F.Success $ E.SuccessOrFail () a
+
+uncaught :: () -> Failure String (Error () a)
+uncaught = F.Success . E.Fail
+
 spec :: Spec
 spec = do
 
@@ -40,17 +50,17 @@ spec = do
     it "should work for the abstract case" $ do
       let cons x xs = W.Cons "Cons" [x,xs]
       let t = cons 2 W.Wildcard
-      fmap snd <$> weval 2 (Let [("map", map)]
+      fmap (fmap snd) <$> weval 2 (Let [("map", map)]
                   (Match "x" `Seq`
                    Call "map" [Build 1] ["x"])) t
         `shouldBe'`
            C.fromFoldable
-             [ Success $ convertToList [1]
-             , Success $ convertToList [1,1]
-             , Success $ convertToList [1,1,1]
-             , Fail ()
-             , Fail ()
-             , Success (cons 1 (cons 1 (cons 1 (cons W.Wildcard W.Wildcard))))]
+             [ success $ convertToList [1]
+             , success $ convertToList [1,1]
+             , success $ convertToList [1,1,1]
+             , uncaught ()
+             , uncaught ()
+             , success (cons 1 (cons 1 (cons 1 (cons W.Wildcard W.Wildcard))))]
 
   describe "call" $
     prop "should be sound" $ do
@@ -109,7 +119,7 @@ spec = do
     showLub :: C.Term -> C.Term -> String
     showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: W.Term) 
 
-    shouldBe' :: A.Pow (Error () W.Term) -> A.Pow (Error () W.Term) -> Property
+    shouldBe' :: A.Pow (Failure String (Error () W.Term)) -> A.Pow (Failure String (Error () W.Term)) -> Property
     shouldBe' s1 s2 = counterexample (printf "%s < %s\n" (show s1) (show s2)) (s2 ⊑ s1 `shouldBe` True)
     infix 1 `shouldBe'`
 
@@ -125,5 +135,5 @@ spec = do
                Build (Cons "Cons" ["x'", "xs'"]))
               (Build (Cons "Nil" []))))
 
-    weval :: Int -> Strat -> W.Term -> A.Pow (Error () (W.TermEnv,W.Term))
+    weval :: Int -> Strat -> W.Term -> A.Pow (Failure String (Error () (W.TermEnv,W.Term)))
     weval i s = fromTerminating (error "non-terminating wildcard semantics") . W.eval i s M.empty S.empty

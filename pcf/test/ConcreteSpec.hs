@@ -4,7 +4,7 @@ module ConcreteSpec where
 import Prelude hiding (succ,pred)
 import SharedSpecs
 import ConcreteInterpreter
-import Data.Concrete.Error
+import Data.Concrete.Failure
 import Syntax
 import Test.Hspec
 

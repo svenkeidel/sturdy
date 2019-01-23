@@ -54,7 +54,7 @@ spec = do
 
     num i j = NumVal $ I.Interval i j
 
-    toEither :: Terminating (Error String a) -> Either String a
+    toEither :: Terminating (Failure String a) -> Either String a
     toEither (Terminating (Fail e)) = Left e
     toEither (Terminating (Success x)) = Right x
     toEither NonTerminating = Left "NonTerminating"

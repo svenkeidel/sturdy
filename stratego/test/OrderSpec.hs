@@ -2,7 +2,7 @@
 module OrderSpec(main, spec) where
 
 import qualified Data.Abstract.Powerset as A
-import qualified Data.Abstract.PreciseStore as S
+import qualified Data.Abstract.Map as S
 import qualified Data.Concrete.Powerset as P
 import           Data.Order
 import qualified WildcardSemantics as W
