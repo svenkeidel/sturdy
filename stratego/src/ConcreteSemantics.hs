@@ -57,12 +57,12 @@ newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 
 -- | Concrete interpreter arrow give access to the strategy
 -- environment, term environment, and handles anonymous exceptions.
-newtype Interp a b = Interp (Reader StratEnv (State TermEnv (Except () (->))) a b)
+newtype Interp a b = Interp (ReaderT StratEnv (StateT TermEnv (ExceptT () (->))) a b)
   deriving (Category,Arrow,ArrowChoice,ArrowApply)
 
 -- | Executes a concrete interpreter computation.
 runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error () (TermEnv,b)
-runInterp (Interp f) senv tenv t = runExcept (runState (runReader f)) (tenv, (senv, t))
+runInterp (Interp f) senv tenv t = runExceptT (runStateT (runReaderT f)) (tenv, (senv, t))
 
 -- | Concrete interpreter function.
 eval :: Strat -> StratEnv -> TermEnv -> Term -> Error () (TermEnv,Term)
@@ -71,7 +71,6 @@ eval s = runInterp (eval' s)
 -- Instances -----------------------------------------------------------------------------------------
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowReader StratEnv Interp
-deriving instance ArrowExcept x y () Interp
 deriving instance ArrowFix (Strat,Term) Term Interp
 deriving instance ArrowDeduplicate Term Term Interp
 

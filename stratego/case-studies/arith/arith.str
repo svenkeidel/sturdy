@@ -24,7 +24,7 @@ rules
 
   eval: Add(Zero(), n) -> <eval> n
   eval: Add(Succ(m),n) -> <eval> Succ(Add(m, n))
-  eval: Add(e1,e2)     -> <eval> Add(e1, e2)
+  eval: Add(e1,e2)     -> Add(<eval> e1, <eval> e2)
 
 
 /* rules */

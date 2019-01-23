@@ -19,6 +19,7 @@ import           Control.Arrow.Deduplicate
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Except
+import           Control.Arrow.Except as Exc
 import           Control.Category
 
 import qualified Data.HashMap.Lazy as M
@@ -29,9 +30,10 @@ import           Data.Text(Text)
 import           Text.Printf
 
 -- | Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowExcept t t () c, ArrowExcept (t,[t]) (t,[t]) () c,
+eval' :: (ArrowChoice c, ArrowFail () c, ArrowExcept () c,
           ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Eq t, Hashable t,
-          HasStratEnv c, IsTerm t c, IsTermEnv env t c)
+          HasStratEnv c, IsTerm t c, IsTermEnv env t c,
+          Exc.Join c (t,(t,())) t, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t]))
       => (Strat -> c t t)
 eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Id -> id
@@ -51,15 +53,15 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
 -- | Guarded choice executes the first strategy, if it succeeds the
 -- result is passed to the second strategy, if it fails the original
 -- input is passed to the third strategy.
-guardedChoice :: ArrowExcept x z () c => c x y -> c y z -> c x z -> c x z
-guardedChoice = tryA
+guardedChoice :: (ArrowExcept () c, Exc.Join c (x,(x,())) z) => c x y -> c y z -> c x z -> c x z
+guardedChoice = try
 
 -- | Sequencing of strategies is implemented with categorical composition.
 sequence :: Category c => c x y -> c y z -> c x z
 sequence f g = f >>> g
 
 -- | Apply a strategy non-determenistically to one of the subterms.
-one :: (ArrowChoice c, ArrowFail () c, ArrowExcept (t,[t]) (t,[t]) () c) => c t t -> c [t] [t]
+one :: (ArrowChoice c, ArrowFail () c, ArrowExcept () c, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t])) => c t t -> c [t] [t]
 one f = proc l -> case l of
   (t:ts) -> do
     (t',ts') <- first f <+> second (one f) -< (t,ts)
@@ -68,18 +70,18 @@ one f = proc l -> case l of
 
 -- | Apply a strategy to as many subterms as possible (as long as the
 -- strategy does not fail).
-some :: (ArrowChoice c, ArrowFail () c, ArrowExcept (t,[t]) (t,[t]) () c) => c t t -> c [t] [t]
+some :: (ArrowChoice c, ArrowFail () c, ArrowExcept () c, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t])) => c t t -> c [t] [t]
 some f = go
   where
     go = proc l -> case l of
       (t:ts) -> do
-        (t',ts') <- tryA (first f) (second go') (second go) -< (t,ts)
+        (t',ts') <- try (first f) (second go') (second go) -< (t,ts)
         returnA -< t':ts'
       -- the strategy did not succeed for any of the subterms, i.e. some(s) fails
       [] -> fail -< ()
     go' = proc l -> case l of
       (t:ts) -> do
-        (t',ts') <- tryA (first f) (second go') (second go') -< (t,ts)
+        (t',ts') <- try (first f) (second go') (second go') -< (t,ts)
         returnA -< t':ts'
       [] -> returnA -< []
 
@@ -103,7 +105,7 @@ let_ :: (ArrowApply c, HasStratEnv c) => [(StratVar,Strategy)] -> Strat -> (Stra
 let_ ss body interp = proc a -> do
   let ss' = [ (v,Closure s' M.empty) | (v,s') <- ss ]
   senv <- readStratEnv -< ()
-  localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a 
+  localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a
 
 -- | Strategy calls bind strategy variables and term variables.
 call :: (ArrowChoice c, ArrowFail () c, ArrowApply c, IsTermEnv env t c, HasStratEnv c)
@@ -141,7 +143,7 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
 
 -- | Matches a pattern against the current term. Pattern variables are
 -- bound in the term environment.
-match :: (ArrowChoice c, ArrowApply c, ArrowExcept t t () c, IsTerm t c, IsTermEnv env t c)
+match :: (ArrowChoice c, ArrowApply c, ArrowExcept () c, IsTerm t c, IsTermEnv env t c)
       => c (TermPattern,t) t
 match = proc (p,t) -> case p of
   S.As v p2 -> do

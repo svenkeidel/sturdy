@@ -1,6 +1,6 @@
 flags: {}
 extra-package-dbs: []
-resolver: lts-11.10
+resolver: lts-13.4
 packages:
 - 'lib'
 - 'rtg'
@@ -8,5 +8,5 @@ packages:
 - 'while'
 - 'stratego'
 # - 'lambda-adt'
-- 'jimple'
+# - 'jimple'
 # - 'tutorial'
