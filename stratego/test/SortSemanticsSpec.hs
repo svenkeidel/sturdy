@@ -248,7 +248,7 @@ spec = do
       let ?ctx = Ctx.empty in
       let t = term "Exp"
           tenv = termEnv [("x",t)]
-      in seval 2 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] [])) t `shouldBe` success (tenv, t)
+      in seval 2 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] ["x"])) t `shouldBe` success (tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in

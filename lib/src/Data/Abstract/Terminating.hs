@@ -24,7 +24,7 @@ toEither (Terminating a) = Right a
 toEither NonTerminating = Left ()
 
 instance Show a => Show (Terminating a) where
-  show NonTerminating = "⊥"
+  show NonTerminating = "NonTerminating"
   show (Terminating a) = show a
 
 instance Applicative Terminating where
