@@ -3,49 +3,39 @@
 {-# LANGUAGE ImplicitParams #-}
 module SortSemanticsSpec(main, spec) where
 
-import qualified ConcreteSemantics as C
-import           SharedSemantics hiding (cons)
-import           Soundness
-import           Sort (SortId(..))
+-- import qualified ConcreteSemantics as C
+-- import           Soundness
+-- import           Sort (SortId(..))
 import           Syntax hiding (Fail)
-import           SortSemantics hiding (sortContext)
+import           SortSemantics -- hiding (sortContext)
 import           SortContext(Context,Sort(..))
 import qualified SortContext as Ctx
 
-import           Control.Arrow
+-- import           Control.Arrow
 
 import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.Error as E
 import           Data.Abstract.Failure as F
-import qualified Data.Abstract.Maybe as M
+-- import qualified Data.Abstract.Maybe as M
 import qualified Data.Abstract.Map as S
-import qualified Data.Abstract.StackWidening as SW
+-- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
-import qualified Data.Concrete.Powerset as C
-import           Data.Constructor
-import           Data.HashMap.Lazy (HashMap)
+-- import qualified Data.Concrete.Powerset as C
+-- import           Data.Constructor
+-- import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
-import           Data.GaloisConnection
-import qualified Data.Set as Set
-import qualified Data.Term as C
+-- import           Data.GaloisConnection
+-- import qualified Data.Set as Set
+-- import qualified Data.Term as C
     
-import           Text.Printf
+-- import           Text.Printf
 
 import           Test.Hspec hiding (context)
-import           Test.Hspec.QuickCheck
-import           Test.QuickCheck hiding (Success)
+-- import           Test.Hspec.QuickCheck
+-- import           Test.QuickCheck hiding (Success)
 
 main :: IO ()
 main = hspec spec
-
-success :: a -> Failure String (Error () a)
-success a = F.Success $ E.Success a
-
-successOrFail :: () -> a -> Failure String (Error () a)
-successOrFail () a = F.Success $ E.SuccessOrFail () a
-
-uncaught :: () -> Failure String (Error () a)
-uncaught = F.Success . E.Fail
 
 spec :: Spec
 spec = do
@@ -242,7 +232,7 @@ spec = do
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", numerical)]
       in do
-         seval' 0 (Scope ["x"] (Build "x")) tenv numerical `shouldBe` uncaught ()
+         seval' 0 (Scope ["x"] (Build "x")) tenv numerical `shouldBe` failure "unbound term variable x in build statement !x"
          seval' 0 (Scope ["x"] (Match "x")) tenv numerical `shouldBe` success (tenv, numerical)
 
     it "should make non-declared variables available" $
@@ -258,7 +248,7 @@ spec = do
       let ?ctx = Ctx.empty in
       let t = term "Exp"
           tenv = termEnv [("x",t)]
-      in seval 1 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] [])) t `shouldBe` success (tenv, t)
+      in seval 2 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] [])) t `shouldBe` success (tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
@@ -349,7 +339,7 @@ spec = do
     --   M.JustNothing (Term s _) -> s
     --   M.Nothing -> Bottom
 
-    termEnv' = C.TermEnv . M.fromList
+    -- termEnv' = C.TermEnv . M.fromList
     termEnv :: [(TermVar, Term)] -> TermEnv
     termEnv = S.fromList
     emptyEnv :: TermEnv
@@ -373,14 +363,14 @@ spec = do
               (Build (Cons "Nil" []))))
 
     seval :: Int -> Strat -> Term -> Failure String (Error () (TermEnv,Term))
-    seval i s t = seval'' i 10 s M.empty emptyEnv t
+    seval i s = seval'' i 10 s M.empty emptyEnv
 
     seval' :: Int -> Strat -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
-    seval' i s tenv t = seval'' i 10 s M.empty tenv t
+    seval' i s = seval'' i 10 s M.empty
 
     seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
     seval'' i j s senv tenv t = fromCompletion (error "top element")
-                               (fromTerminating (error "non-terminating sort semantics")
+                               (fromTerminating (error "sort semantics does not terminate")
                                 (eval i j s senv (context t) tenv t))
 
     term :: (?ctx :: Context) => Sort -> Term
@@ -398,3 +388,15 @@ spec = do
 
     top :: (?ctx :: Context) => Term
     top = term Top
+
+    success :: a -> Failure String (Error () a)
+    success a = F.Success $ E.Success a
+    
+    successOrFail :: () -> a -> Failure String (Error () a)
+    successOrFail () a = F.Success $ E.SuccessOrFail () a
+    
+    uncaught :: () -> Failure String (Error () a)
+    uncaught = F.Success . E.Fail
+    
+    failure :: String -> Failure String (Error () a)
+    failure = F.Fail

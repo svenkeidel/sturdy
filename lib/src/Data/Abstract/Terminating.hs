@@ -81,3 +81,8 @@ instance Num a => Num (Terminating a) where
 instance Fractional a => Fractional (Terminating a) where
   (/) = liftA2 (/)
   fromRational = pure . fromRational
+
+distributeEither :: Either (Terminating a) (Terminating b) -> Terminating (Either a b)
+distributeEither (Left (Terminating a)) = Terminating (Left a)
+distributeEither (Right (Terminating a)) = Terminating (Right a)
+distributeEither _ = NonTerminating

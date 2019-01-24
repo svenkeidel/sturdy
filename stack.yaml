@@ -1,6 +1,6 @@
 flags: {}
 extra-package-dbs: []
-resolver: lts-12.10
+resolver: lts-12.26
 packages:
 - 'lib'
 - 'rtg'

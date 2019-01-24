@@ -105,11 +105,11 @@ runInterp (Interp f) k l senv ctx tenv a =
     sortWidening :: Widening Term
     sortWidening (Term s _) (Term s' _)= Term (Sort.widening l s s') ctx
 
-from' :: (TermEnv, (StratEnv, (Strat, Term))) -> ((Strat, StratEnv), (TermEnv, Term))
-from' (tenv,(senv,(s,t))) = ((s,senv),(tenv,t))
-
-to' :: ((Strat, StratEnv), (TermEnv, Term)) -> (TermEnv, (StratEnv, (Strat, Term)))
-to' ((s,senv),(tenv,t)) = (tenv,(senv,(s,t)))
+    from' :: (TermEnv, (StratEnv, (Strat, Term))) -> ((Strat, StratEnv), (TermEnv, Term))
+    from' (tenv',(senv',(s,t))) = ((s,senv'),(tenv',t))
+                                  
+    to' :: ((Strat, StratEnv), (TermEnv, Term)) -> (TermEnv, (StratEnv, (Strat, Term)))
+    to' ((s,senv'),(tenv',t)) = (tenv',(senv',(s,t)))
 
 eval :: Int -> Int -> Strat -> StratEnv -> Context -> TermEnv -> Term -> Terminating (FreeCompletion (Failure String (Error () (TermEnv,Term))))
 eval i j s = runInterp (eval' s) i j
