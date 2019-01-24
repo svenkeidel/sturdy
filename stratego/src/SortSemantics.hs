@@ -176,14 +176,29 @@ instance IsTerm Term (Interp s) where
       ("Cons",_,_) -> throw -< ()
       ("Nil",[],_) -> (returnA -< Term (List Bottom) ctx) ⊔ (throw -< ())
       ("Nil",_,_) -> throw -< ()
-      (_,_,Top) -> (lubA (proc (Signature ss _) -> if eqLength ss ps
-               then do
-                 ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
-                 cons -< (c,ss')
-               else throw -< ()) -<< Ctx.lookupCons ctx c)
+      ("",_,Tuple ss)
+        | eqLength ss ps -> do
+          ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
+          cons -< (c,ss')
+        | otherwise -> throw -< ()
+      (_,_,Top) ->
+        (let sorts = Ctx.lookupCons ctx c
+         in if null sorts
+            then fail -< printf "Constructor %s is not in context" (show c)
+            else
+              (lubA (proc (Signature ss _) ->
+                if eqLength ss ps
+                then do
+                  ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
+                  cons -< (c,ss')
+                else throw -< ()) -<< Ctx.lookupCons ctx c))
         ⊔ (throw -< ())
-      _ ->
-        lubA (proc (c',Signature ss _) -> if c == c' && eqLength ss ps
+      _ -> do
+        let sorts = Ctx.lookupSort ctx s
+        if null sorts
+        then fail -< printf "Sort %s is not in context" (show s)
+        else lubA (proc (c',Signature ss _) ->
+               if c == c' && eqLength ss ps
                then do
                  ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
                  cons -< (c',ss')
@@ -235,7 +250,7 @@ instance IsTerm Term (Interp s) where
       "Nil" -> case ss of
         [] -> Term (List Bottom) ctx
         _ -> Term Top ctx
-      "Tuple" -> Term (Tuple (map sort ss)) ctx
+      "" -> Term (Tuple (map sort ss)) ctx
       _ -> glb (Term Top ctx : [ Term s ctx | Signature ss' s <- Ctx.lookupCons ctx c, ss ⊑ sortsToTerms ss' ctx ])
 
   numberLiteral = proc _ -> do

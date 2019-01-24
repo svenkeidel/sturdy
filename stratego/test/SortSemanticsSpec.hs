@@ -246,7 +246,7 @@ spec = do
   describe "Let" $ do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
-      let t = term "Exp"
+      let t = term (Tuple ["Exp","Exp"])
           tenv = termEnv [("x",t)]
       in seval 2 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] ["x"])) t `shouldBe` success (tenv, t)
 
@@ -261,7 +261,7 @@ spec = do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "swap" (Closure swap M.empty)
-          t = term "Exp"
+          t = term (Tuple ["Exp","Exp"])
           tenv = termEnv [("x",t)]
       in seval'' 1 10 (Match "x" `Seq` Call "swap" [] []) senv emptyEnv t `shouldBe` success (tenv, t)
 
@@ -348,7 +348,7 @@ spec = do
     -- showLub :: C.Term -> C.Term -> String
     -- showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: Term)
 
-    swap = Strategy [] [] (Scope ["x","y"] (Match (Cons "Tuple" ["x","y"]) `Seq` Build (Cons "Tuple" ["y","x"])))
+    swap = Strategy [] [] (Scope ["x","y"] (Match (Cons "" ["x","y"]) `Seq` Build (Cons "" ["y","x"])))
 
     map' = Strategy ["f"] ["l"] (Scope ["x","xs","x'","xs'"] (
             Build "l" `Seq`
