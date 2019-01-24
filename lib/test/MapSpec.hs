@@ -20,25 +20,25 @@ spec =
       m4 = []
   in do
 
-    it "lookup x ([x -> -, y -> +] ⊔ [x -> +, z -> 0]) = Just T" $ do
+    it "lookup x ([x -> -, y -> +] U [x -> +, z -> 0]) = Just T" $ do
       lookup "x" (m1 ⊔ m2) `shouldBe` Just Top
 
-    it "lookup y ([x -> -, y -> +] ⊔ [x -> +, z -> 0]) = JustNothing +" $ do
+    it "lookup y ([x -> -, y -> +] U [x -> +, z -> 0]) = JustNothing +" $ do
       lookup "y" (m1 ⊔ m2) `shouldBe` JustNothing Positive
 
-    it "lookup z ([x -> -, y -> +] ⊔ [x -> +, z -> 0]) = JustNothing 0" $ do
+    it "lookup z ([x -> -, y -> +] U [x -> +, z -> 0]) = JustNothing 0" $ do
       lookup "z" (m1 ⊔ m2) `shouldBe` JustNothing Zero
 
-    it "[x -> -, y -> +] ⊑ [x -> -, y -> +] ⊔ [x -> +, z -> 0]" $ do
+    it "[x -> -, y -> +] <= [x -> -, y -> +] U [x -> +, z -> 0]" $ do
       m1 `shouldBeLessThan` (m1 ⊔ m2)
 
-    it "[x -> +, z -> 0] ⊑ [x -> -, y -> +] ⊔ [x -> +, z -> 0]" $ do
+    it "[x -> +, z -> 0] <= [x -> -, y -> +] U [x -> +, z -> 0]" $ do
       m2 `shouldBeLessThan` (m1 ⊔ m2)
 
-    it "[x -> T, y -> +, z -> 0] ⊑ [x -> -, y -> +] ⊔ [x -> +, z -> 0]" $ do
+    it "[x -> T, y -> +, z -> 0] <= [x -> -, y -> +] U [x -> +, z -> 0]" $ do
       m3 `shouldBeLessThan` (m1 ⊔ m2)
 
-    it "Map.⊑ is reflexive" $ do
+    it "Map.<= is reflexive" $ do
       m4 `shouldBeLessThan` m4
       m1 `shouldBeLessThan` m1
       m2 `shouldBeLessThan` m2
@@ -49,4 +49,4 @@ spec =
     shouldBeLessThan :: (Show a, PreOrd a) => a -> a -> Expectation
     shouldBeLessThan a b
       | a ⊑ b     = return ()
-      | otherwise = expectationFailure $ printf "%s ⊑/ %s" (show a) (show b)
+      | otherwise = expectationFailure $ printf "%s </= %s" (show a) (show b)

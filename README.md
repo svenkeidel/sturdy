@@ -8,6 +8,11 @@ The sturdy project currently contains concrete and abstract interpreters for thr
 * _While_, an imperative language with conditionals and while loops
 * _Stratego_, a language for program transformations
 
+To run the tests of a particular language use `stack test lang`, e.g.,
+```
+stack test sturdy-stratego --test-arguments "-m SortSemantics"
+```
+
 ## Acknowledgments
 
 I want to thank all people that have contributed to this project (in alphabetical order):
