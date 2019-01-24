@@ -51,6 +51,12 @@ runEnvT alloc f =
        localEnv f -< (env',x)
   in (const (M.empty) &&& id) ^>> runReaderT (runConstT alloc f')
 
+instance ArrowTrans (EnvT var addr val) where
+  type Dom (EnvT var addr val) x y = Dom (ReaderT (Map var addr val)) x y
+  type Cod (EnvT var addr val) x y = Cod (ReaderT (Map var addr val)) x y
+  lift = undefined
+  unlift = undefined
+      
 instance ArrowLift (EnvT var addr val) where
   lift' f = EnvT (lift' (lift' f))
 
@@ -75,7 +81,8 @@ instance ArrowReader r c => ArrowReader r (EnvT var addr val c) where
 instance ArrowApply c => ArrowApply (EnvT var addr val c) where
   app = EnvT $ (\(EnvT f,x) -> (f,x)) ^>> app
 
-deriving instance ArrowFix ((Map var addr val),x) y c => ArrowFix x y (EnvT var addr val c)
+type instance Fix x y (EnvT var addr val c) = EnvT var addr val (Fix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c)
+deriving instance ArrowFix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c => ArrowFix x y (EnvT var addr val c)
 deriving instance Arrow c => Category (EnvT var addr val c)
 deriving instance Arrow c => Arrow (EnvT var addr val c)
 deriving instance ArrowChoice c => ArrowChoice (EnvT var addr val c)

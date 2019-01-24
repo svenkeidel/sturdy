@@ -37,6 +37,7 @@ newtype ContourT lab c a b = ContourT (ReaderT (CallString lab) c a b)
 runContourT :: Arrow c => Int -> ContourT lab c a b -> c a b
 runContourT k (ContourT (ReaderT f)) = (\a -> (empty k,a)) ^>> f
 
+type instance Fix x y (ContourT lab c) = ContourT lab (Fix x y c)
 instance (ArrowFix x y c, ArrowApply c, HasLabel x lab) => ArrowFix x y (ContourT lab c) where
   -- Pushes the label of the last argument on the call string and truncate the call string in case it reached the maximum length
   fix f = ContourT $ ReaderT $ proc (c,x) -> fix (unwrap c . f . wrap) -<< x
@@ -58,9 +59,8 @@ instance ArrowApply c => ArrowApply (ContourT lab c) where
 
 instance ArrowReader r c => ArrowReader r (ContourT lab c) where
   ask = lift' ask
-  local f = lift ((\(c,(r,x)) -> (r,(c,x))) ^>> local (unlift f))
-
-deriving instance ArrowTrans (ContourT lab)
+  local (ContourT (ReaderT f)) = ContourT $ ReaderT $ ((\(c,(r,x)) -> (r,(c,x))) ^>> local f)
+  
 deriving instance Arrow c => Category (ContourT lab c)
 deriving instance Arrow c => Arrow (ContourT lab c)
 deriving instance ArrowLift (ContourT lab)

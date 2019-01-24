@@ -36,7 +36,6 @@ import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Random
 import           Control.Arrow.Transformer.Concrete.Store
-import           Control.Arrow.Transformer.Concrete.Fixpoint(runFix)
 
 import qualified System.Random as R
 
@@ -48,13 +47,12 @@ type Addr = Label
 run :: [LStatement] -> Failure String (HashMap Addr Val)
 run ss =
   fst <$>
-    runFix
-      (runFailureT
-        (runStoreT
-          (runEnvT
-            (runRandomT
-               (runConcreteT
-                 Generic.run)))))
+    runFailureT
+      (runStoreT
+        (runEnvT
+          (runRandomT
+             (runConcreteT
+               Generic.run))))
       (M.empty,(M.empty,(R.mkStdGen 0, generate <$> ss)))
 
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }

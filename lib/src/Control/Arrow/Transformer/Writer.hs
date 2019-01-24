@@ -31,8 +31,8 @@ import Data.Order hiding (lub)
 newtype WriterT w c x y = WriterT { runWriterT :: c x (w,y) }
 
 instance ArrowTrans (WriterT w) where
-  type Dom1 (WriterT w) x y = x
-  type Cod1 (WriterT w) x y = (w,y)
+  type Dom (WriterT w) x y = x
+  type Cod (WriterT w) x y = (w,y)
   lift = WriterT
   unlift = runWriterT
 
@@ -74,7 +74,7 @@ instance (Monoid w, ArrowFail e c) => ArrowFail e (WriterT w c) where
   fail = lift' fail
 
 instance (Monoid w, ArrowExcept e c) => ArrowExcept e (WriterT w c) where
-  type Join (WriterT w c) x y = Exc.Join c (Dom1 (WriterT w) x y) (Cod1 (WriterT w) x y)
+  type Join (WriterT w c) x y = Exc.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
   throw = lift' throw
   catch f g = lift $ catch (unlift f) (unlift g)
   finally f g = lift $ finally (unlift f) (unlift g)
@@ -84,17 +84,18 @@ instance (Monoid w, ArrowReader r c) => ArrowReader r (WriterT w c) where
   local f = lift (local (unlift f))
 
 instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (WriterT w c) where
-  type Join (WriterT w c) x y = Env.Join c (Dom1 (WriterT w) x y) (Cod1 (WriterT w) x y)
+  type Join (WriterT w c) x y = Env.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
   lookup f g = lift $ lookup (unlift f) (unlift g)
   getEnv = lift' getEnv
   extendEnv = lift' extendEnv
   localEnv f = lift (localEnv (unlift f))
 
 instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) where
-  type Join (WriterT w c) x y = Store.Join c (Dom1 (WriterT w) x y) (Cod1 (WriterT w) x y)
+  type Join (WriterT w c) x y = Store.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
   read f g = lift $ read (unlift f) (unlift g)
   write = lift' write
 
+type instance Fix x y (WriterT w c) = WriterT w (Fix (Dom (WriterT w) x y) (Cod (WriterT w) x y) c)
 instance (Monoid w, ArrowFix x (w,y) c) => ArrowFix x y (WriterT w c) where
   fix = liftFix
 
@@ -105,7 +106,7 @@ instance (Monoid w, ArrowAlloc x y c) => ArrowAlloc x y (WriterT w c) where
   alloc = lift' alloc
 
 instance (Monoid w, ArrowCond v c) => ArrowCond v (WriterT w c) where
-  type Join (WriterT w c) x y = Cond.Join c (Dom1 (WriterT w) x y) (Cod1 (WriterT w) x y)
+  type Join (WriterT w c) x y = Cond.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
   if_ f g = lift $ if_ (unlift f) (unlift g)
 
 instance (Monoid w, ArrowRand v c) => ArrowRand v (WriterT w c) where

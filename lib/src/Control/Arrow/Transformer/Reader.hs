@@ -29,19 +29,13 @@ import Control.Category
 
 import Data.Order hiding (lub)
 import Data.Monoidal
-import Data.Soundness
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype ReaderT r c x y = ReaderT { runReaderT :: c (r,x) y }
-type instance Dom (ReaderT r c) x y = Dom c (r,x) y
-type instance Cod (ReaderT r c) x y = Cod c (r,x) y
-
-instance Sound c c' => Sound (ReaderT r c) (ReaderT r' c') where
-  sound (ReaderT f) (ReaderT g) = sound f g
 
 instance ArrowTrans (ReaderT r) where
-  type Dom1 (ReaderT r) x y = (r,x)
-  type Cod1 (ReaderT r) x y = y
+  type Dom (ReaderT r) x y = (r,x)
+  type Cod (ReaderT r) x y = y
   lift = ReaderT
   unlift = runReaderT
 
@@ -83,18 +77,19 @@ instance ArrowFail e c => ArrowFail e (ReaderT r c) where
   fail = lift' fail
 
 instance ArrowEnv var val env c => ArrowEnv var val env (ReaderT r c) where
-  type instance Join (ReaderT r c) ((val,x),x) y = Env.Join c ((val,Dom1 (ReaderT r) x y),Dom1 (ReaderT r) x y) (Cod1 (ReaderT r) x y)
+  type instance Join (ReaderT r c) ((val,x),x) y = Env.Join c ((val,Dom (ReaderT r) x y),Dom (ReaderT r) x y) (Cod (ReaderT r) x y)
   lookup f g = lift $ (\(r,(v,a)) -> (v,(r,a))) ^>> lookup ((\(v,(r,a)) -> (r,(v,a))) ^>> unlift f) (unlift g)
   getEnv     = lift' getEnv
   extendEnv  = lift' extendEnv
   localEnv f = lift ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv (unlift f))
 
 instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
-  type instance Join (ReaderT r c) ((val,x),x) y = Store.Join c ((val,Dom1 (ReaderT r) x y),Dom1 (ReaderT r) x y) (Cod1 (ReaderT r) x y)
+  type instance Join (ReaderT r c) ((val,x),x) y = Store.Join c ((val,Dom (ReaderT r) x y),Dom (ReaderT r) x y) (Cod (ReaderT r) x y)
   read f g = lift $ (\(r,(v,a)) -> (v,(r,a))) ^>> read ((\(v,(r,a)) -> (r,(v,a))) ^>> unlift f) (unlift g)
   write = lift' write
 
-instance ArrowFix (Dom1 (ReaderT r) x y) (Cod1 (ReaderT r) x y) c => ArrowFix x y (ReaderT r c) where
+type instance Fix x y (ReaderT r c) = ReaderT r (Fix (Dom (ReaderT r) x y) (Cod (ReaderT r) x y) c)
+instance ArrowFix (Dom (ReaderT r) x y) (Cod (ReaderT r) x y) c => ArrowFix x y (ReaderT r c) where
   fix = liftFix
 
 instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where

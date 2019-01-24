@@ -31,8 +31,8 @@ import           Data.Sequence hiding (lookup)
 newtype PowT c x y = PowT { runPowT :: c x (A.Pow y)}
 
 instance ArrowTrans PowT where
-  type Dom1 PowT x y = x
-  type Cod1 PowT x y = A.Pow y
+  type Dom PowT x y = x
+  type Cod PowT x y = A.Pow y
   lift = PowT
   unlift = runPowT
 
@@ -87,6 +87,7 @@ instance (ArrowChoice c, ArrowDeduplicate x y c, Identifiable y) => ArrowDedupli
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
   joinWith _ (PowT f) (PowT g) = PowT $ joinWith A.union f g
 
+type instance Fix x y (PowT c) = PowT (Fix (Dom PowT x y) (Cod PowT x y) c)
 instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (PowT c) where
   fix f = PowT (fix (runPowT . f . PowT))
 

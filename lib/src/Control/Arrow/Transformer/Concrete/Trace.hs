@@ -35,7 +35,8 @@ deriving instance ArrowChoice c => ArrowChoice (TraceT a b c)
 instance ArrowApply c => ArrowApply (TraceT a b c) where
   app = TraceT $ (\(TraceT f,x) -> (f,x)) ^>> app
 
-instance ArrowFix x (Log x y,y) c => ArrowFix x y (TraceT x y c) where
+type instance Fix x y (TraceT x y c) = TraceT x y (Fix (Dom (TraceT x y) x y) (Cod (TraceT x y) x y) c)
+instance ArrowFix (Dom (TraceT x y) x y) (Cod (TraceT x y) x y) c => ArrowFix x y (TraceT x y c) where
   fix f = TraceT $ fix (unwrap . f . TraceT)
     where
       unwrap :: Arrow c => TraceT x y c x y -> WriterT (Log x y) c x y

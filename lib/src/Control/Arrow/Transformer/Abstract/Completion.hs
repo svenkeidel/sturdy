@@ -30,8 +30,8 @@ import Data.Order hiding (lub)
 newtype CompletionT c x y = CompletionT { runCompletionT :: c x (FreeCompletion y) }
 
 instance ArrowTrans CompletionT where
-  type Dom1 CompletionT x y = x
-  type Cod1 CompletionT x y = FreeCompletion y
+  type Dom CompletionT x y = x
+  type Cod CompletionT x y = FreeCompletion y
   lift = CompletionT
   unlift = runCompletionT
 
@@ -70,14 +70,14 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (CompletionT c) where
   local f = lift (local (unlift f))
 
 instance (ArrowChoice c, ArrowEnv var val env c) => ArrowEnv var val env (CompletionT c) where
-  type Join (CompletionT c) x y = Env.Join c (Dom1 CompletionT x y) (Cod1 CompletionT x y)
+  type Join (CompletionT c) x y = Env.Join c (Dom CompletionT x y) (Cod CompletionT x y)
   lookup f g = lift (lookup (unlift f) (unlift g))
   getEnv = lift' getEnv
   extendEnv = lift' extendEnv
   localEnv f = lift (localEnv (unlift f))
 
 instance (ArrowChoice c, ArrowExcept e c) => ArrowExcept e (CompletionT c) where
-  type Join (CompletionT c) x y = Exc.Join c (Dom1 CompletionT x y) (Cod1 CompletionT x y)
+  type Join (CompletionT c) x y = Exc.Join c (Dom CompletionT x y) (Cod CompletionT x y)
   throw = lift' throw
   catch f g = lift $ catch (unlift f) (unlift g)
   finally f g = lift $ finally (unlift f) (unlift g)
@@ -85,7 +85,8 @@ instance (ArrowChoice c, ArrowExcept e c) => ArrowExcept e (CompletionT c) where
 instance ArrowChoice c => ArrowDeduplicate x y (CompletionT c) where
   dedup = returnA
 
-instance (ArrowChoice c, ArrowFix x (FreeCompletion y) c) => ArrowFix x y (CompletionT c) where
+type instance Fix x y (CompletionT c) = CompletionT (Fix (Dom CompletionT x y) (Cod CompletionT x y) c)
+instance (ArrowChoice c, ArrowFix (Dom CompletionT x y) (Cod CompletionT x y) c) => ArrowFix x y (CompletionT c) where
   fix = liftFix
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where

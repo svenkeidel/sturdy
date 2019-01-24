@@ -46,8 +46,8 @@ instance ArrowChoice c => ArrowExcept e (ExceptT e c) where
     returnA -< e
 
 instance ArrowTrans (ExceptT e) where
-  type Dom1 (ExceptT e) x y = x
-  type Cod1 (ExceptT e) x y = Error e y
+  type Dom (ExceptT e) x y = x
+  type Cod (ExceptT e) x y = Error e y
   lift = ExceptT
   unlift = runExceptT
 
@@ -84,18 +84,19 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (ExceptT e c) where
   local f = lift (local (unlift f))
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (ExceptT e c) where
-  type Join (ExceptT e c) x y = Env.Join c (Dom1 (ExceptT e) x y) (Cod1 (ExceptT e) x y)
+  type Join (ExceptT e c) x y = Env.Join c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)
   lookup f g = lift $ lookup (unlift f) (unlift g)
   getEnv = lift' getEnv
   extendEnv = lift' extendEnv
   localEnv f = lift (localEnv (unlift f))
 
 instance (ArrowChoice c, ArrowStore var val c) => ArrowStore var val (ExceptT e c) where
-  type Join (ExceptT e c) x y = Store.Join c (Dom1 (ExceptT e) x y) (Cod1 (ExceptT e) x y)
+  type Join (ExceptT e c) x y = Store.Join c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)
   read f g = lift $ read (unlift f) (unlift g)
   write = lift' write
 
-instance (ArrowChoice c, ArrowFix (Dom1 (ExceptT e) x y) (Cod1 (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c) where
+type instance Fix x y (ExceptT e c) = ExceptT e (Fix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c)
+instance (ArrowChoice c, ArrowFix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c) where
   fix = liftFix
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Error e y) c) => ArrowDeduplicate x y (ExceptT e c) where

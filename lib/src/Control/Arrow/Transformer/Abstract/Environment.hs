@@ -58,8 +58,9 @@ instance ArrowReader r c => ArrowReader r (EnvT var val c) where
   ask = lift' ask
   local f = lift $ (\(env,(r,x)) -> (r,(env,x))) ^>> local (unlift f)
 
-deriving instance ArrowJoin c => ArrowJoin (EnvT var val c)
+type instance Fix x y (EnvT var val c) = EnvT var val (Fix (Dom (EnvT var val) x y) (Cod (EnvT var val) x y) c)
 deriving instance ArrowFix (Map var val,x) y c => ArrowFix x y (EnvT var val c)
+deriving instance ArrowJoin c => ArrowJoin (EnvT var val c)
 deriving instance Arrow c => Category (EnvT var val c)
 deriving instance Arrow c => Arrow (EnvT var val c)
 deriving instance ArrowTrans (EnvT var val)

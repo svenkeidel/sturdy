@@ -19,7 +19,6 @@ import Control.Arrow.Fix
 import Control.Arrow.Conditional
 import Control.Arrow.Transformer.Concrete.Environment
 import Control.Arrow.Transformer.Concrete.Failure
-import Control.Arrow.Transformer.Concrete.Fixpoint
 import Control.Monad.State hiding (fail)
 
 import Data.Concrete.Failure
@@ -41,11 +40,10 @@ data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
 -- interpreter arrow `Interp`.
 evalConcrete :: [(Text,Val)] -> State Label Expr -> Failure String Val
 evalConcrete env e =
-  runFix
-    (runFailureT
-      (runEnvT'
-        (runConcreteT
-          eval)))
+  runFailureT
+    (runEnvT'
+      (runConcreteT
+        eval))
     (env,generate e)
 
 -- | Arrow transformer that implements the concrete value semantics

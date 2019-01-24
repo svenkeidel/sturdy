@@ -1,5 +1,7 @@
 module Pretty.Results where
 
+import Prelude hiding ((<>))
+
 import WildcardSemantics
 
 import Data.Foldable

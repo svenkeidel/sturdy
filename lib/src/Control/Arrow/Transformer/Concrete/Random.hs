@@ -50,7 +50,9 @@ deriving instance ArrowEnv var val env c => ArrowEnv var val env (RandomT c)
 deriving instance ArrowAlloc x y c => ArrowAlloc x y (RandomT c)
 deriving instance ArrowCond val c => ArrowCond val (RandomT c)
 deriving instance ArrowStore var val c => ArrowStore var val (RandomT c)
-deriving instance (Arrow c, ArrowFix (StdGen,x) (StdGen,y) c) => ArrowFix x y (RandomT c)
+
+type instance Fix x y (RandomT c) = RandomT (Fix (Dom RandomT x y) (Cod RandomT x y) c)
+deriving instance (Arrow c, ArrowFix (Dom RandomT x y) (Cod RandomT x y) c) => ArrowFix x y (RandomT c)
 
 instance ArrowState s c => ArrowState s (RandomT c) where
   get = lift' get

@@ -35,6 +35,7 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
 runConstT :: r -> ConstT r c x y -> c x y
 runConstT r (ConstT (StaticT f)) = f r
 
+type instance Fix x y (ConstT r c) = ConstT r (Fix x y c)
 instance ArrowFix x y c => ArrowFix x y (ConstT r c) where
   fix f = ConstT $ StaticT $ \r -> fix (runConstT r . f . lift')
 

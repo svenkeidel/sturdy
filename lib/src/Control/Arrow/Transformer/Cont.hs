@@ -37,13 +37,14 @@ instance (ArrowApply c, ArrowChoice c) => ArrowChoice (ContT c) where
   ContT f ||| ContT g = ContT $ \k -> f k ||| g k
   ContT f +++ ContT g = ContT $ \k -> f (k . arr Left) ||| g (k . arr Right)
 
+type instance Fix x y (ContT c) = ContT (Fix (Dom ContT x y) (Cod ContT x y) c)
 instance (ArrowApply c, ArrowFix x y c) => ArrowFix x y (ContT c) where
   fix = liftFix
 
 -- | Lift and unlift proof the yoneda lemma.
 instance ArrowTrans ContT where
-  type Dom1 ContT x y = x
-  type Cod1 ContT x y = y
+  type Dom ContT x y = x
+  type Cod ContT x y = y
   lift f = ContT $ \k -> k . f
   unlift (ContT f) = f id
 

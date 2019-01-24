@@ -31,8 +31,8 @@ import Data.Order
 newtype ExceptT e c x y = ExceptT { runExceptT :: c x (Error e y)}
 
 instance ArrowTrans (ExceptT e) where
-  type Dom1 (ExceptT e) x y = x
-  type Cod1 (ExceptT e) x y = Error e y
+  type Dom (ExceptT e) x y = x
+  type Cod (ExceptT e) x y = Error e y
   lift = ExceptT
   unlift = runExceptT
 
@@ -75,7 +75,7 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowState s c) => ArrowState 
   put = lift' put
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowStore var val c) => ArrowStore var val (ExceptT e c) where
-  type Join (ExceptT e c) x y = Store.Join c (Dom1 (ExceptT e) x y) (Cod1 (ExceptT e) x y)
+  type Join (ExceptT e c) x y = Store.Join c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)
   read (ExceptT f) (ExceptT g) = ExceptT $ read f g
   write = lift' write
 
@@ -88,7 +88,7 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowReader r c) => ArrowReade
   local f = lift (local (unlift f))
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (ExceptT e c) where
-  type Join (ExceptT e c) x y = Env.Join c (Dom1 (ExceptT e) x y) (Cod1 (ExceptT e) x y)
+  type Join (ExceptT e c) x y = Env.Join c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)
   lookup f g = lift $ lookup (unlift f) (unlift g)
   getEnv = lift' getEnv
   extendEnv = lift' extendEnv
@@ -108,7 +108,8 @@ instance (ArrowChoice c, Complete e, ArrowJoin c) => ArrowExcept e (ExceptT e c)
     unlift g -< x
     returnA -< e
 
-instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix (Dom1 (ExceptT e) x y) (Cod1 (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c) where
+type instance Fix x y (ExceptT e c) = ExceptT e (Fix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c)
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c) where
   fix = liftFix
 
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowDeduplicate x y (ExceptT e c) where

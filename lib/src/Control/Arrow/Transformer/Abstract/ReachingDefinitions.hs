@@ -51,11 +51,12 @@ runReachingDefsT' :: Arrow c => ReachingDefsT lab c x y -> c x y
 runReachingDefsT' f = (\x -> (Nothing,x)) ^>> runReachingDefsT f
 
 instance (Identifiable var, Identifiable lab, ArrowStore var (val,Pow lab) c) => ArrowStore var val (ReachingDefsT lab c) where
-  type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Pow lab),Dom1 (ReachingDefsT lab) x y), Dom1 (ReachingDefsT lab) x y) (Cod1 (ReachingDefsT lab) x y)
+  type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Pow lab),Dom (ReachingDefsT lab) x y), Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)
   read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read ((\((v,_::Pow lab),x) -> (v,x)) ^>> f) g
   write = reachingDefsT $ proc (lab,(var,val)) ->
     write -< (var,(val,P.fromMaybe lab))
 
+type instance Fix x y (ReachingDefsT lab c) = ReachingDefsT lab (Fix x y c)
 instance (HasLabel x lab, Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefsT lab c) where
   fix f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix (unwrap . f . lift') -< x
     where
@@ -88,8 +89,8 @@ deriving instance ArrowState s c => ArrowState s (ReachingDefsT lab c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (ReachingDefsT lab c)
 deriving instance ArrowCond val c => ArrowCond val (ReachingDefsT lab c)
 
-deriving instance PreOrd (c (Maybe lab,x) y) => PreOrd (ReachingDefsT lab c x y)
-deriving instance LowerBounded (c (Maybe lab,x) y) => LowerBounded (ReachingDefsT lab c x y)
-deriving instance Complete (c (Maybe lab,x) y) => Complete (ReachingDefsT lab c x y)
-deriving instance CoComplete (c (Maybe lab,x) y) => CoComplete (ReachingDefsT lab c x y)
-deriving instance UpperBounded (c (Maybe lab,x) y) => UpperBounded (ReachingDefsT lab c x y)
+deriving instance PreOrd (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => PreOrd (ReachingDefsT lab c x y)
+deriving instance LowerBounded (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => LowerBounded (ReachingDefsT lab c x y)
+deriving instance Complete (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => Complete (ReachingDefsT lab c x y)
+deriving instance CoComplete (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => CoComplete (ReachingDefsT lab c x y)
+deriving instance UpperBounded (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => UpperBounded (ReachingDefsT lab c x y)

@@ -65,4 +65,6 @@ deriving instance ArrowConst r c => ArrowConst r (StoreT var val c)
 deriving instance ArrowReader r c => ArrowReader r (StoreT var val c)
 deriving instance ArrowFail e c => ArrowFail e (StoreT var val c)
 deriving instance ArrowExcept e c => ArrowExcept e (StoreT var val c)
-deriving instance ArrowFix (HashMap var val, x) (HashMap var val, y) c => ArrowFix x y (StoreT var val c)
+
+type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c)
+deriving instance ArrowFix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c => ArrowFix x y (StoreT var val c)

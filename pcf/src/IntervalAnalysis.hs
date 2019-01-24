@@ -4,15 +4,16 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE LiberalTypeSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module IntervalAnalysis where
@@ -24,6 +25,7 @@ import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Trans
 import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Environment
 import           Control.Arrow.Transformer.Abstract.Contour
@@ -50,7 +52,7 @@ import qualified Data.Abstract.Widening as W
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating(Terminating)
     
-import           GHC.Generics
+import           GHC.Generics(Generic)
 import           GHC.Exts(toList)
 
 import           Syntax (Expr)
@@ -84,8 +86,7 @@ evalInterval k env e = -- runInterp eval ?bound k env (generate e)
                   (EnvT Text Addr Val
                     (ContourT Label
                       (FailureT String
-                        (FixT s () ()
-                          (->)))))) Expr Val)))))
+                        (FixT _ () () (->)))))) Expr Val)))))
     (env,generate e)
   where
     widenVal = widening (W.bounded ?bound top)
@@ -99,6 +100,12 @@ newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Category
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
 deriving instance ArrowEnv var val env c => ArrowEnv var val env (IntervalT c)
+
+instance ArrowTrans IntervalT where
+  type Dom IntervalT x y = x
+  type Cod IntervalT x y = y
+  lift = IntervalT
+  unlift = runIntervalT
 
 instance (ArrowChoice c, ArrowFail String c) => IsVal Val (IntervalT c) where
   succ = proc x -> case x of

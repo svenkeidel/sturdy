@@ -5,6 +5,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE LiberalTypeSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Compose where
 
 import Control.Category
@@ -28,11 +31,19 @@ instance ArrowApply c => ArrowApply (IdentityT c) where
 instance ArrowFix x y c => ArrowFix x y (IdentityT c) where
   fix = liftFix
 
-type Compose (s :: (* -> * -> *) -> (* -> * -> *))
-             (t :: (* -> * -> *) -> (* -> * -> *))
-             (c :: * -> * -> *)
-             (x :: *)
-             (y :: *)
-  = s (t c) x y
+newtype ComposeT
+  (s :: (* -> * -> *) -> (* -> * -> *))
+  (t :: (* -> * -> *) -> (* -> * -> *))
+  (c :: * -> * -> *) (x :: *) (y :: *)
+  = ComposeT { runComposeT :: (s (t c)) x y }
 
-type (:*:) s t c x y = Compose s t c x y
+type (:*:) = ComposeT
+
+instance (ArrowTrans s,ArrowTrans t) => ArrowTrans (ComposeT s t) where
+  type Dom1 (ComposeT s t) x y = Dom1 t (Dom1 s x y) (Cod1 s x y)
+  type Cod1 (ComposeT s t) x y = Cod1 t (Dom1 s x y) (Cod1 s x y)
+  lift = undefined
+  unlift = undefined
+
+(*:) :: ComposeT s t c x y -> s (t c) x y
+(*:) = runComposeT

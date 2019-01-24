@@ -2,6 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Pretty.JavaScript where
 
+import Prelude hiding ((<>))
+
 import WildcardSemantics
 import Text.PrettyPrint hiding (sep)
 -- import Control.Exception

@@ -15,9 +15,10 @@ import qualified SortContext as Ctx
 import           Control.Arrow
 
 import           Data.Abstract.FreeCompletion (fromCompletion)
-import           Data.Abstract.HandleError
+import           Data.Abstract.Error as E
+import           Data.Abstract.Failure as F
 import qualified Data.Abstract.Maybe as M
-import qualified Data.Abstract.PreciseStore as S
+import qualified Data.Abstract.Map as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
 import qualified Data.Concrete.Powerset as C
@@ -36,6 +37,15 @@ import           Test.QuickCheck hiding (Success)
 
 main :: IO ()
 main = hspec spec
+
+success :: a -> Failure String (Error () a)
+success a = F.Success $ E.Success a
+
+successOrFail :: () -> a -> Failure String (Error () a)
+successOrFail () a = F.Success $ E.SuccessOrFail () a
+
+uncaught :: () -> Failure String (Error () a)
+uncaught = F.Success . E.Fail
 
 spec :: Spec
 spec = do
@@ -56,69 +66,69 @@ spec = do
   describe "Match" $ do
     it "should match an identical builtin string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (StringLiteral "x")) lexical `shouldBe` SuccessOrFail () (emptyEnv, lexical)
+      seval 0 (Match (StringLiteral "x")) lexical `shouldBe` successOrFail () (emptyEnv, lexical)
 
     it "should match another builtin string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (StringLiteral "y")) lexical `shouldBe` SuccessOrFail () (emptyEnv, lexical)
+      seval 0 (Match (StringLiteral "y")) lexical `shouldBe` successOrFail () (emptyEnv, lexical)
 
     it "should match an equal builtin number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (NumberLiteral 42)) numerical `shouldBe` SuccessOrFail () (emptyEnv, numerical)
+      seval 0 (Match (NumberLiteral 42)) numerical `shouldBe` successOrFail () (emptyEnv, numerical)
 
     it "should match another builtin number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (NumberLiteral 1)) numerical `shouldBe`  SuccessOrFail () (emptyEnv, numerical)
+      seval 0 (Match (NumberLiteral 1)) numerical `shouldBe`  successOrFail () (emptyEnv, numerical)
 
     it "a string literal should not match a number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (NumberLiteral 1)) lexical `shouldBe` Fail ()
+      seval 0 (Match (NumberLiteral 1)) lexical `shouldBe` uncaught ()
 
     it "a number literal should not match a string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (StringLiteral "x")) numerical `shouldBe` Fail ()
+      seval 0 (Match (StringLiteral "x")) numerical `shouldBe` uncaught ()
 
     it "should match a PCF expression" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp")] in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Zero" [])) t `shouldBe` Success (emptyEnv, t)
+      in seval 0 (Match (Cons "Zero" [])) t `shouldBe` success (emptyEnv, t)
 
     it "should match a nested PCF expression" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Succ" [Cons "Zero" []])) t `shouldBe` SuccessOrFail () (emptyEnv, t)
+      in seval 0 (Match (Cons "Succ" [Cons "Zero" []])) t `shouldBe` successOrFail () (emptyEnv, t)
 
     it "should match a constructor with more than one argument" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp") ,("Zero",[],"Exp") ,("Ifz",["Exp","Exp","Exp"],"Exp")] in
       let t = term "Exp"
       in seval 0 (Match (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) t `shouldBe`
-        SuccessOrFail () (emptyEnv, t)
+        successOrFail () (emptyEnv, t)
 
     it "should introduce one variable" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Succ" ["x"])) t `shouldBe` SuccessOrFail () (termEnv [("x", t)], t)
+      in seval 0 (Match (Cons "Succ" ["x"])) t `shouldBe` successOrFail () (termEnv [("x", t)], t)
 
     it "should introduce one variable 2" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Succ" ["x"])) t `shouldBe` SuccessOrFail () (termEnv [("x", t)], t)
+      in seval 0 (Match (Cons "Succ" ["x"])) t `shouldBe` successOrFail () (termEnv [("x", t)], t)
 
     it "should introduce multiple variables and support linear pattern matching" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
       let t = term "Exp"
       in seval 0 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Succ" ["y"])) t `shouldBe`
-         SuccessOrFail () (termEnv [("x", t), ("y", t)], t)
+         successOrFail () (termEnv [("x", t), ("y", t)], t)
 
     it "should support linear pattern matching" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp")] in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["x"])) t `shouldBe` Fail ()
+      in seval 0 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["x"])) t `shouldBe` uncaught ()
 
     it "should succeed when exploding literals" $
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", convertToList [] ?ctx)]
-      in seval 0 (Match (Explode "_" "x")) numerical `shouldBe` Success (tenv, numerical)
+      in seval 0 (Match (Explode "_" "x")) numerical `shouldBe` success (tenv, numerical)
 
     -- it "should handle inconsistent environments" $ do
     --   let t1 = C.Cons "f" []
@@ -137,84 +147,84 @@ spec = do
   describe "Build" $ do
     it "should build a builtin string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Build (StringLiteral "foo")) bottom `shouldBe` Success (emptyEnv, lexical)
+      seval 0 (Build (StringLiteral "foo")) bottom `shouldBe` success (emptyEnv, lexical)
 
     it "should build a builtin number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Build (NumberLiteral 1)) bottom `shouldBe` Success (emptyEnv, numerical)
+      seval 0 (Build (NumberLiteral 1)) bottom `shouldBe` success (emptyEnv, numerical)
 
     it "a string grammar should not be build on a number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Build (NumberLiteral 1)) bottom `shouldNotBe` Success (emptyEnv, lexical)
+      seval 0 (Build (NumberLiteral 1)) bottom `shouldNotBe` success (emptyEnv, lexical)
 
     it "a number grammar should not be build on a string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (StringLiteral "x")) bottom `shouldNotBe` Success (emptyEnv, numerical)
+      seval 0 (Match (StringLiteral "x")) bottom `shouldNotBe` success (emptyEnv, numerical)
 
     it "should build a simple constant PCF expression" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp")] in
       let t = bottom
           t' = term "Exp"
-      in seval 0 (Build (Cons "Zero" [])) t `shouldBe` Success (emptyEnv, t')
+      in seval 0 (Build (Cons "Zero" [])) t `shouldBe` success (emptyEnv, t')
 
     it "should build a nested PCF expression" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
       let t = bottom
           t' = term "Exp"
-      in seval 0 (Build (Cons "Succ" [Cons "Zero" []])) t `shouldBe` Success (emptyEnv, t')
+      in seval 0 (Build (Cons "Succ" [Cons "Zero" []])) t `shouldBe` success (emptyEnv, t')
 
     it "should build a constructor with more than one argument" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp") ,("Zero",[],"Exp") ,("Ifz",["Exp","Exp","Exp"],"Exp")] in
       let t = term "Exp"
       in seval 0 (Build (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) t `shouldBe`
-        Success (emptyEnv, t)
+        success (emptyEnv, t)
 
     it "build should be inverse to match" $
       let ?ctx = Ctx.empty in
       let pat = NumberLiteral 1
-      in seval 0 (Match pat `Seq` Build pat) numerical `shouldBe` SuccessOrFail () (emptyEnv, numerical)
+      in seval 0 (Match pat `Seq` Build pat) numerical `shouldBe` successOrFail () (emptyEnv, numerical)
 
     it "build should be inverse to match with a more complicated term" $
       let ?ctx = Ctx.empty in
       let pat = Cons "Cons" [Var "x", Var "xs"]
           t = convertToList [numerical] ?ctx
           tenv = termEnv [("x", numerical), ("xs", term (List Numerical))]
-      in seval' 0 (Match pat `Seq` Build pat) tenv t `shouldBe` SuccessOrFail () (tenv, t)
+      in seval' 0 (Match pat `Seq` Build pat) tenv t `shouldBe` successOrFail () (tenv, t)
 
     it "should throw away the current subject term if needed" $
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", numerical)]
-      in seval' 0 (Build (Var "x")) tenv lexical `shouldBe` Success (tenv, numerical)
+      in seval' 0 (Build (Var "x")) tenv lexical `shouldBe` success (tenv, numerical)
 
     it "should lookup variables" $
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", numerical)]
-      in seval' 0 (Build (Var "x")) tenv bottom `shouldBe` Success (tenv, numerical)
+      in seval' 0 (Build (Var "x")) tenv bottom `shouldBe` success (tenv, numerical)
 
     it "should merge two variables into one term" $
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", numerical), ("y", term (List Lexical))]
           t = bottom
-      in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` Success (tenv, term (List Top))
+      in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` success (tenv, term (List Top))
 
     it "should properly construct a list of the same type" $
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", numerical), ("y", term (List Numerical))]
           t = bottom
-      in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` Success (tenv, term (List Numerical))
+      in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` success (tenv, term (List Numerical))
 
     it "should support linear pattern matching" $
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", numerical)]
           t = bottom
-      in seval' 0 (Build (Cons "Cons" [Var "x", Var "x"])) tenv t `shouldBe` Success (tenv, top)
+      in seval' 0 (Build (Cons "Cons" [Var "x", Var "x"])) tenv t `shouldBe` success (tenv, top)
 
     it "should merge a variable and the given subject term" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp") ,("Zero",[],"Exp") ,("Ifz",["Exp","Exp","Exp"],"Exp")] in
       let t = bottom
           tenv = termEnv [("x", term "Exp")]
       in seval' 0 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv t `shouldBe`
-        Success (tenv, term "Exp")
+        success (tenv, term "Exp")
 
     -- prop "should be sound" $ do
     --   [t1,t2,t3] <- C.similarTerms 3 7 2 10
@@ -232,30 +242,30 @@ spec = do
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", numerical)]
       in do
-         seval' 0 (Scope ["x"] (Build "x")) tenv numerical `shouldBe` Fail ()
-         seval' 0 (Scope ["x"] (Match "x")) tenv numerical `shouldBe` Success (tenv, numerical)
+         seval' 0 (Scope ["x"] (Build "x")) tenv numerical `shouldBe` uncaught ()
+         seval' 0 (Scope ["x"] (Match "x")) tenv numerical `shouldBe` success (tenv, numerical)
 
     it "should make non-declared variables available" $
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", numerical)]
       in do
-         seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe` Success (tenv, numerical)
+         seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe` success (tenv, numerical)
          seval' 0 (Scope ["y"] (Match "z")) tenv numerical `shouldBe`
-           Success (termEnv [("x", numerical), ("z", numerical)], numerical)
+           success (termEnv [("x", numerical), ("z", numerical)], numerical)
 
   describe "Let" $ do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
       let t = term "Exp"
           tenv = termEnv [("x",t)]
-      in seval 1 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] [])) t `shouldBe` Success (tenv, t)
+      in seval 1 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] [])) t `shouldBe` success (tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
           tenv = termEnv [("x",t)]
       in seval 1 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) t
-        `shouldBe` Success (tenv, term (List Numerical))
+        `shouldBe` success (tenv, term (List Numerical))
 
   describe "Call" $ do
     it "should apply a single function call" $
@@ -263,7 +273,7 @@ spec = do
       let senv = M.singleton "swap" (Closure swap M.empty)
           t = term "Exp"
           tenv = termEnv [("x",t)]
-      in seval'' 1 10 (Match "x" `Seq` Call "swap" [] []) senv emptyEnv t `shouldBe` Success (tenv, t)
+      in seval'' 1 10 (Match "x" `Seq` Call "swap" [] []) senv emptyEnv t `shouldBe` success (tenv, t)
 
     it "should support an empty list in recursive applications" $
       let ?ctx = Ctx.empty in
@@ -271,7 +281,7 @@ spec = do
           t = convertToList [] ?ctx
           tenv = termEnv [("x",t)]
       in seval'' 1 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
-           Success (tenv, term (List Numerical))
+           success (tenv, term (List Numerical))
 
     it "should support a singleton list in recursive applications" $
       let ?ctx = Ctx.empty in
@@ -279,7 +289,7 @@ spec = do
           t = convertToList [numerical] ?ctx
           tenv = termEnv [("x",t)]
       in seval'' 1 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
-           Success (tenv, term (List Numerical))
+           success (tenv, term (List Numerical))
 
     it "should support recursion on a list of numbers" $
       let ?ctx = Ctx.empty in
@@ -288,7 +298,7 @@ spec = do
           t = convertToList [numerical, numerical, numerical] c
           tenv = termEnv [("x",t)]
       in seval'' 1 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
-           Success (tenv, term (List Numerical))
+           success (tenv, term (List Numerical))
 
     it "should terminate and not produce infinite sorts" $ do
       let senv = M.fromList [("map",Closure map' M.empty),
@@ -297,7 +307,7 @@ spec = do
           t = Term Top c
           tenv = termEnv [("x",t)]
       seval'' 1 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
-        Success (tenv, Term (List (List (List Top))) c)
+        success (tenv, Term (List (List (List Top))) c)
 
     -- prop "should be sound" $ do
     --   i <- choose (0,10)
@@ -362,13 +372,13 @@ spec = do
                Build (Cons "Cons" ["x'", "xs'"]))
               (Build (Cons "Nil" []))))
 
-    seval :: Int -> Strat -> Term -> Error () (TermEnv,Term)
+    seval :: Int -> Strat -> Term -> Failure String (Error () (TermEnv,Term))
     seval i s t = seval'' i 10 s M.empty emptyEnv t
 
-    seval' :: Int -> Strat -> TermEnv -> Term -> Error () (TermEnv,Term)
+    seval' :: Int -> Strat -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
     seval' i s tenv t = seval'' i 10 s M.empty tenv t
 
-    seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Error () (TermEnv,Term)
+    seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
     seval'' i j s senv tenv t = fromCompletion (error "top element")
                                (fromTerminating (error "non-terminating sort semantics")
                                 (eval i j s senv (context t) tenv t))

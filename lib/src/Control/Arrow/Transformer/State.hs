@@ -44,8 +44,8 @@ execStateT :: Arrow c => StateT s c x y -> c (s,x) s
 execStateT f = runStateT f >>> pi1
 
 instance ArrowTrans (StateT s) where
-  type Dom1 (StateT s) x y = (s,x)
-  type Cod1 (StateT s) x y = (s,y)
+  type Dom (StateT s) x y = (s,x)
+  type Cod (StateT s) x y = (s,y)
   lift = StateT
   unlift = runStateT
 
@@ -87,14 +87,14 @@ instance ArrowWriter w c => ArrowWriter w (StateT s c) where
   tell = lift' tell
 
 instance (ArrowEnv var val env c) => ArrowEnv var val env (StateT s c) where
-  type instance Join (StateT s c) ((val,x),x) y = Env.Join c ((val,Dom1 (StateT s) x y),Dom1 (StateT s) x y) (Cod1 (StateT s) x y)
+  type instance Join (StateT s c) ((val,x),x) y = Env.Join c ((val,Dom (StateT s) x y),Dom (StateT s) x y) (Cod (StateT s) x y)
   lookup f g = lift $ (\(s,(v,a)) -> (v,(s,a))) ^>> lookup ((\(v,(s,a)) -> (s,(v,a))) ^>> unlift f) (unlift g)
   getEnv = lift' getEnv
   extendEnv = lift' extendEnv
   localEnv f = lift ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv (unlift f))
 
 instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
-  type instance Join (StateT s c) ((val,x),x) y = Store.Join c ((val,Dom1 (StateT s) x y),Dom1 (StateT s) x y) (Cod1 (StateT s) x y)
+  type instance Join (StateT s c) ((val,x),x) y = Store.Join c ((val,Dom (StateT s) x y),Dom (StateT s) x y) (Cod (StateT s) x y)
   read f g = lift $ (\(s,(v,a)) -> (v,(s,a))) ^>> read ((\(v,(s,a)) -> (s,(v,a))) ^>> unlift f) (unlift g)
   write = lift' write
 
@@ -102,12 +102,13 @@ instance ArrowFix (s,x) (s,y) c => ArrowFix x y (StateT s c) where
   fix = liftFix
 
 instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
-  type instance Join (StateT s c) (x,(x,e)) y = Exc.Join c (Dom1 (StateT s) x y,(Dom1 (StateT s) x y,e)) (Cod1 (StateT s) x y)
+  type instance Join (StateT s c) (x,(x,e)) y = Exc.Join c (Dom (StateT s) x y,(Dom (StateT s) x y,e)) (Cod (StateT s) x y)
   throw = lift' throw
   catch f g = lift $ catch (unlift f) (from assoc ^>> unlift g)
   finally f g = lift $ finally (unlift f) (unlift g)
 
-instance (Eq s, Hashable s, ArrowDeduplicate (Dom1 (StateT s) x y) (Cod1 (StateT s) x y) c) => ArrowDeduplicate x y (StateT s c) where
+type instance Fix x y (StateT s c) = StateT s (Fix (Dom (StateT s) x y) (Cod (StateT s) x y) c)
+instance (Eq s, Hashable s, ArrowDeduplicate (Dom (StateT s) x y) (Cod (StateT s) x y) c) => ArrowDeduplicate x y (StateT s c) where
   dedup f = lift (dedup (unlift f))
 
 instance (ArrowJoin c, Complete s) => ArrowJoin (StateT s c) where
