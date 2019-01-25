@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -23,9 +24,10 @@ import           Data.Abstract.Widening
 import           GHC.Exts
 
 import           Text.Printf
+import           Control.DeepSeq
 
 -- | Abstract hashmap
-newtype Map a b = Map (HashMap a (There,b)) deriving (Eq,Functor,Foldable,Traversable,Hashable)
+newtype Map a b = Map (HashMap a (There,b)) deriving (Eq,Functor,Foldable,Traversable,Hashable,NFData)
 
 instance (Show a,Show b) => Show (Map a b) where
   show (Map h)

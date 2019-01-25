@@ -40,6 +40,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Category
 import           Control.Monad (zipWithM)
+import           Control.DeepSeq
 
 import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as Free
@@ -64,7 +65,9 @@ import           Data.Order
 import           Test.QuickCheck hiding (Success)
 import           Text.Printf
 
-data Term = Term {sort :: Sort , context :: Context}
+data Term = Term { sort :: Sort, context :: Context }
+instance NFData Term where
+  rnf = rnf . sort
 
 type TermEnv = Map TermVar Term
 

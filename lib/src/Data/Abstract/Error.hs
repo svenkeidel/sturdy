@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -6,6 +8,7 @@ module Data.Abstract.Error where
 
 import Control.Arrow
 import Control.Monad
+import Control.DeepSeq
 
 import Data.Abstract.FreeCompletion
 import Data.Abstract.Widening
@@ -14,6 +17,8 @@ import Data.Hashable
 import Data.Order
 import Data.Traversable
 
+import GHC.Generics (Generic, Generic1)
+
 -- | Abstrat domain for exceptions. This abstract domain approximates
 -- error more precisely because 'Success ⋢ Fail'. Use this type for
 -- analysis in languages that can handle exceptions.
@@ -21,7 +26,7 @@ data Error e x
   = Success x
   | Fail e
   | SuccessOrFail e x
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic, Generic1, NFData, NFData1)
 
 instance (Hashable e, Hashable x) => Hashable (Error e x) where
   hashWithSalt s (Success x) = s `hashWithSalt` (0::Int) `hashWithSalt` x

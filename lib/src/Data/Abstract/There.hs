@@ -1,10 +1,15 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Data.Abstract.There where
 
 import Data.Order
 import Data.Hashable
 
+import Control.DeepSeq
+import GHC.Generics (Generic)
+
 -- | Datatype that indicates if a value in the map must be there or may not be there.
-data There = Must | May deriving (Eq)
+data There = Must | May deriving (Eq, Generic, NFData)
 
 instance Show There where
   show Must = ""

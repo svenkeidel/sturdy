@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -15,10 +17,13 @@ import Data.Order
 
 import Data.Monoidal
 
+import GHC.Generics (Generic, Generic1)
+import Control.DeepSeq
+
 -- | Failure is an Either-like type with the special ordering Failure ⊑ Success.
 -- Left and Right of the regular Either type, on the other hand are incomparable.
 data Failure e a = Fail e | Success a
-  deriving (Eq, Functor)
+  deriving (Eq, Functor, Generic, Generic1, NFData, NFData1)
 
 instance (Show e,Show a) => Show (Failure e a) where
   show (Fail e) = "Failure " ++ show e

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -7,6 +8,7 @@ import           SortContext (Context,Sort,Signature)
 import qualified SortContext as I
 
 import           Control.Monad.Except
+import           Control.DeepSeq
 
 import           Data.ATerm
 import           Data.Constructor
@@ -19,6 +21,8 @@ import qualified Data.Set as S
 import           Data.String (IsString(..))
 import           Data.Text (Text,pack,unpack)
 import qualified Data.Text as T
+
+import           GHC.Generics(Generic)
 
 import           Text.Read (readMaybe)
 import           Test.QuickCheck (Arbitrary(..),Gen)
@@ -39,7 +43,8 @@ data Strat
   | Let [(StratVar,Strategy)] Strat
   | Call StratVar [Strat] [TermVar]
   | Prim StratVar [Strat] [TermVar]
-  deriving (Eq)
+  deriving (Eq,Generic)
+instance NFData Strat
 
 -- | Pattern to match and build terms.
 data TermPattern
@@ -49,7 +54,8 @@ data TermPattern
   | Var TermVar
   | StringLiteral Text
   | NumberLiteral Int
-  deriving (Eq)
+  deriving (Eq,Generic)
+instance NFData TermPattern
 
 -- | Stratego source code is organized in modules consisting of a
 -- signature describing possible shapes of terms and named strategies.
@@ -61,16 +67,18 @@ type Strategies = HashMap StratVar Strategy
 -- refer to other named strategies and arguments that refer to terms.
 -- Additionally, a strategy takes and input term and eventually
 -- produces an output term.
-data Strategy = Strategy [StratVar] [TermVar] Strat deriving (Show,Eq)
+data Strategy = Strategy [StratVar] [TermVar] Strat deriving (Show,Eq,Generic)
+instance NFData Strategy
 
-data Closure = Closure Strategy StratEnv deriving (Eq)
+data Closure = Closure Strategy StratEnv deriving (Eq,Generic)
+instance NFData Closure
 
 instance Hashable Closure where
   hashWithSalt s (Closure strat senv) = s `hashWithSalt` strat `hashWithSalt` senv
 
 type StratEnv = HashMap StratVar Closure
-newtype TermVar = TermVar Text deriving (Eq,Ord,Hashable)
-newtype StratVar = StratVar Text deriving (Eq,Ord,IsString,Hashable)
+newtype TermVar = TermVar Text deriving (Eq,Ord,Hashable,NFData)
+newtype StratVar = StratVar Text deriving (Eq,Ord,IsString,Hashable,NFData)
 
 leftChoice :: Strat -> Strat -> Strat
 leftChoice f = GuardedChoice f Id

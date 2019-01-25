@@ -35,6 +35,16 @@ executables:
       - vector
       - criterion
 
+benchmarks:
+  sort-semantics:
+    source-dirs:
+      - bench
+    main: SortSemanticsBench.hs
+    dependencies:
+      - sturdy-stratego
+      - criterion
+
+
 tests:
   spec:
     main: Spec.hs

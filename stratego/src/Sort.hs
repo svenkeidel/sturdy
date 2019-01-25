@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Sort where
 
 import Utils
+
+import Control.DeepSeq
 
 import Data.Text(Text, unpack)
 import Data.String(IsString(..))
@@ -9,9 +12,13 @@ import Data.Hashable(Hashable(..))
 import Data.List(intercalate)
 import Data.Abstract.Widening(Widening)
 
+import GHC.Generics(Generic)
 
-newtype SortId = SortId Text deriving (Show,Eq,Ord,Hashable,IsString)
-data Sort = Bottom | Top | Numerical | Lexical | List Sort | Option Sort | Tuple [Sort] | Sort SortId deriving (Eq)
+newtype SortId = SortId Text deriving (Show,Eq,Ord,Hashable,IsString,Generic)
+instance NFData SortId
+
+data Sort = Bottom | Top | Numerical | Lexical | List Sort | Option Sort | Tuple [Sort] | Sort SortId deriving (Eq,Generic)
+instance NFData Sort
 
 instance IsString Sort where
   fromString = Sort . fromString

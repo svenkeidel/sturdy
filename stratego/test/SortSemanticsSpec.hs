@@ -432,7 +432,6 @@ spec = do
     term :: (?ctx :: Context) => Sort -> Term
     term s = Term s ?ctx
 
-        
     bottom :: (?ctx :: Context) => Term
     bottom = term Bottom
 
