@@ -4,7 +4,7 @@ module ReachingDefinitionsSpec(main,spec) where
 
 import Prelude hiding ((<))
 import Syntax
-import PropertySemantics.ReachingDefinitions
+import ReachingDefinitionsAnalysis
 import Data.Label
 
 import Test.Hspec

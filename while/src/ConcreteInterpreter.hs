@@ -7,7 +7,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-module ValueSemantics.Concrete where
+module ConcreteInterpreter where
 
 import           Prelude hiding (read,fail,(.))
 import qualified Prelude as P

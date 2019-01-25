@@ -36,8 +36,6 @@ import qualified Data.Abstract.Widening as W
 import           Data.Abstract.StackWidening (StackWidening)
 import qualified Data.Abstract.StackWidening as SW
 
-#define TRACE
-
 #ifdef TRACE
 import           Debug.Trace
 import           Text.Printf
@@ -124,7 +122,7 @@ memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,inCache), o
           (x',stack') = runState (stackWidening x) stack 
       (outCache'',y) <- f (stackWidening,widening) -< (((stack',inCache), outCache'),x')
       let outCache''' = M.unsafeInsertWith (flip (T.widening widening)) x' y outCache''
-      let y' = outCache''' M.! x'
+          y' = fromJust (M.unsafeLookup x' outCache''')
       returnA -< (outCache''',y')
 
 #else
@@ -150,7 +148,7 @@ memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,inCache), o
           (x',stack') = runState (stackWidening x) stack 
       (outCache'',y) <- f (stackWidening,widening) -< trace (printf "CALL: %s" (show x')) (((stack',inCache), outCache'),x')
       let outCache''' = M.unsafeInsertWith (flip (T.widening widening)) x' y outCache''
-          y' = fromMaybe (error "x not in cache") (M.unsafeLookup x outCache''')
+          y' = fromJust (M.unsafeLookup x' outCache''')
       returnA -< trace (printf "CACHE: %s := (%s -> %s)\n" (show x) (show y) (show y') ++
                         printf "RET:  %s -> %s" (show x') (show y'))
                   (M.unsafeInsertWith (flip (T.widening widening)) x y outCache'',y')

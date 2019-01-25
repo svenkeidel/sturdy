@@ -12,7 +12,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
-module ValueSemantics.Interval where
+module IntervalAnalysis where
 
 import           Prelude hiding (Bool(..),Bounded(..),(/),fail)
 import qualified Prelude as P
@@ -20,7 +20,6 @@ import qualified Prelude as P
 import           Syntax
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
--- import           ValueSemantics.Abstract
 
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B

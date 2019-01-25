@@ -10,7 +10,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
-module ValueSemantics.Unit where
+module UnitSemantics where
 
 import           Prelude hiding (Bool(..),Bounded(..))
 

@@ -1,0 +1,45 @@
+name:                sturdy-stratego
+version:             0.1.0.0
+license:             BSD3
+maintainer:          Sven Keidel <svenkeidel@gmail.com>
+category:            Language
+
+dependencies:
+  - base
+  - attoparsec
+  - containers
+  - deepseq
+  - fgl
+  - hashable
+  - mtl
+  - sturdy-lib
+  - text
+  - transformers
+  - tree-automata
+  - unordered-containers
+  - QuickCheck
+
+library:
+  source-dirs:
+    - src
+  ghc-options: -Wall -O2 -fprof-auto
+
+executables:
+  case-studies:
+    source-dirs:
+      - case-studies
+    main: Main.hs
+    dependencies:
+      - sturdy-stratego
+      - pretty
+      - vector
+      - criterion
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    dependencies:
+      - hspec
+      - sturdy-stratego

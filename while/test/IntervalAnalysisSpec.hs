@@ -5,7 +5,7 @@ module IntervalAnalysisSpec where
 
 import Prelude hiding ((<),Bool(..))
 import Syntax
-import ValueSemantics.Interval
+import IntervalAnalysis
 
 import Data.Abstract.Interval as I
 import Data.Abstract.Terminating

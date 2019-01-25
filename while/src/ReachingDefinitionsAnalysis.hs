@@ -3,11 +3,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
-module PropertySemantics.ReachingDefinitions where
+module ReachingDefinitionsAnalysis where
 
 import           Syntax
 import qualified GenericInterpreter as Generic
-import           ValueSemantics.Unit
+import           UnitSemantics
 
 import           Data.Text (Text)
 import           Data.Label
@@ -19,7 +19,7 @@ import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Widening as W
 
-import           Control.Arrow.Fix 
+import           Control.Arrow.Fix
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Store
@@ -38,7 +38,7 @@ run stmts =
   M.mapMaybe (\((store,(env,st)),_) -> case st of
      stmt:_ | stmt `elem` blocks stmts -> Just (stmt, M.compose (M.toList env) (M.map snd store))
      _ -> Nothing) $
-  
+
   -- get the fixpoint cache
   fst $
 
