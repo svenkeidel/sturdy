@@ -3,7 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TupleSections #-}
-module Data.Abstract.Map (Map,singleton,empty,lookup,unsafeLookup,insert,insertWith,unsafeInsertWith,delete,union,adjust,toList,fromList,mapMaybe,map,compose,widening) where
+module Data.Abstract.Map (Map,singleton,empty,lookup,unsafeLookup,insert,insertWith,unsafeInsertWith,delete,union,adjust,toList,fromList,mapMaybe,map,compose,widening,fromThereList) where
 
 import           Prelude hiding (lookup,map,Either(..),(**))
 
@@ -110,3 +110,6 @@ instance Identifiable a => IsList (Map a b) where
   type Item (Map a b) = (a,b)
   toList (Map m) = H.toList (H.map snd m)
   fromList l = Map (H.fromList (fmap (second (Must,)) l))
+
+fromThereList :: Identifiable a => [(a,(There,b))] -> Map a b
+fromThereList = Map . H.fromList

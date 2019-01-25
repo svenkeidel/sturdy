@@ -3,6 +3,8 @@
 {-# LANGUAGE ImplicitParams #-}
 module SortSemanticsSpec(main, spec) where
 
+import Prelude hiding (exp)
+
 -- import qualified ConcreteSemantics as C
 -- import           Soundness
 -- import           Sort (SortId(..))
@@ -18,6 +20,7 @@ import           Data.Abstract.Error as E
 import           Data.Abstract.Failure as F
 -- import qualified Data.Abstract.Maybe as M
 import qualified Data.Abstract.Map as S
+import           Data.Abstract.There
 -- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
 -- import qualified Data.Concrete.Powerset as C
@@ -299,6 +302,33 @@ spec = do
       seval'' 1 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
         success (tenv, Term (List (List (List Top))) c)
 
+
+  describe "simplify arithmetics" $ do
+    it "reduce Add(Zero,y)" $
+      let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let exp = term "Exp" in
+      let reduceAddZero = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
+      seval 0 (reduceAddZero) exp `shouldBe` successOrFail () (termEnv [("y", exp)], exp)
+
+    it "reduce Add(x,Zero)" $
+      let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let exp = term "Exp" in
+      let reduceAddZero = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
+      seval 0 (reduceAddZero) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+
+    it "reduce Add(Zero,y) < id + Add(x,Zero)" $
+      let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let exp = term "Exp" in
+      let reduceAddZero1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
+      let reduceAddZero2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
+      seval 0 (reduceAddZero1 `leftChoice` reduceAddZero2) exp `shouldBe` successOrFail () (termEnv' [("x", may exp),("y", may exp)], exp)
+
+    it "reduce Add(x,y); !x; ?Zero()" $
+      let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let exp = term "Exp" in
+      let reduceAddZero = Match (Cons "Add" ["x", "y"]) `Seq` Build "x" `Seq` Match (Cons "Zero" []) `Seq` Build "y" in
+      seval 0 (reduceAddZero) exp `shouldBe` successOrFail () (termEnv' [("x", must exp),("y", must exp)], exp)
+
     -- prop "should be sound" $ do
     --   i <- choose (0,10)
     --   j <- choose (0,10)
@@ -342,6 +372,10 @@ spec = do
     -- termEnv' = C.TermEnv . M.fromList
     termEnv :: [(TermVar, Term)] -> TermEnv
     termEnv = S.fromList
+
+    termEnv' :: [(TermVar, (There,Term))] -> TermEnv
+    termEnv' = S.fromThereList
+
     emptyEnv :: TermEnv
     emptyEnv = S.empty
 

@@ -23,3 +23,9 @@ instance Complete There where
 instance Hashable There where
   hashWithSalt s Must = s `hashWithSalt` (1::Int)
   hashWithSalt s May = s `hashWithSalt` (2::Int)
+
+may :: a -> (There,a)
+may a = (May,a)
+
+must :: a -> (There,a)
+must a = (Must,a)
