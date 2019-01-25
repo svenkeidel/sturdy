@@ -27,7 +27,6 @@ library
                        Data.Boolean,
                        Data.Monoidal,
                        Data.GaloisConnection,
-                       Data.Soundness,
                        Data.Identifiable,
                        Data.Label,
                        Data.Numeric,
