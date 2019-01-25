@@ -138,6 +138,70 @@ spec = do
           `shouldBe`
              success (tenv, convertToList [var "b", var "c", var "a"])
 
+  describe "simplify arithmetics" $ do
+    it "reduce Add(Zero,y)" $
+      let input  = Cons "Add" [Cons "Zero" [], Cons "Add" [Cons "One" [], Cons "One" []]] in
+      let output = Cons "Add" [Cons "One" [], Cons "One" []] in
+      let reduce = Match (T.Cons "Add" [T.Cons "Zero" [], "y"]) `Seq` Build "y" in
+      eval (reduce) M.empty (termEnv []) input `shouldBe` success (termEnv [("y", output)], output)
+
+    it "reduce Add(x,Zero)" $
+      let input  = Cons "Add" [Cons "Add" [Cons "One" [], Cons "One" []], Cons "Zero" []] in
+      let output = Cons "Add" [Cons "One" [], Cons "One" []] in
+      let reduce = Match (T.Cons "Add" ["x", T.Cons "Zero" []]) `Seq` Build "x" in
+      eval (reduce) M.empty (termEnv []) input `shouldBe` success (termEnv [("x", output)], output)
+
+
+    it "reduce Add(Zero,y) < id + Add(x,Zero) 1" $
+      let input  = Cons "Add" [Cons "Zero" [], Cons "Add" [Cons "One" [], Cons "One" []]] in
+      let output = Cons "Add" [Cons "One" [], Cons "One" []] in
+      let reduce1 = Match (T.Cons "Add" [T.Cons "Zero" [], "y"]) `Seq` Build "y" in
+      let reduce2 = Match (T.Cons "Add" ["x", T.Cons "Zero" []]) `Seq` Build "x" in
+      eval (reduce1 `leftChoice` reduce2) M.empty (termEnv []) input `shouldBe` success (termEnv [("y", output)], output)
+
+    it "reduce Add(Zero,y) < id + Add(x,Zero) 2" $
+      let input  = Cons "Add" [Cons "Add" [Cons "One" [], Cons "One" []], Cons "Zero" []] in
+      let output = Cons "Add" [Cons "One" [], Cons "One" []] in
+      let reduce1 = Match (T.Cons "Add" [T.Cons "Zero" [], "y"]) `Seq` Build "y" in
+      let reduce2 = Match (T.Cons "Add" ["x", T.Cons "Zero" []]) `Seq` Build "x" in
+      eval (reduce1 `leftChoice` reduce2) M.empty (termEnv []) input `shouldBe` success (termEnv [("x", output)], output)
+
+    it "reduce Add(x,y); !x; ?Zero()" $
+      let input  = Cons "Add" [Cons "Zero" [], Cons "Add" [Cons "One" [], Cons "One" []]] in
+      let output = Cons "Add" [Cons "One" [], Cons "One" []] in
+      let reduce = Match (T.Cons "Add" ["x", "y"]) `Seq` Build "x" `Seq` Match (T.Cons "Zero" []) `Seq` Build "y" in
+      eval (reduce) M.empty (termEnv []) input `shouldBe` success (termEnv [("x", Cons "Zero" []),("y", output)], output)
+
+    it "reduce Double(x)" $
+      let input  = Cons "Double" [Cons "Add" [Cons "One" [], Cons "One" []]] in
+      let output = Cons "Add" [Cons "Add" [Cons "One" [], Cons "One" []], Cons "Add" [Cons "One" [], Cons "One" []]] in
+      let reduce = Match (T.Cons "Double" ["x"]) `Seq` Build (T.Cons "Add" ["x", "x"]) in
+      eval (reduce) M.empty (termEnv []) input `shouldBe` success (termEnv [("x", Cons "Add" [Cons "One" [], Cons "One" []])], output)
+
+    it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x) 1" $
+      let input  = Cons "Add" [Cons "Zero" [], Cons "Add" [Cons "One" [], Cons "One" []]] in
+      let output = Cons "Add" [Cons "One" [], Cons "One" []] in
+      let reduce1 = Match (T.Cons "Add" [T.Cons "Zero" [], "y"]) `Seq` Build "y" in
+      let reduce2 = Match (T.Cons "Add" ["x", T.Cons "Zero" []]) `Seq` Build "x" in
+      let reduce3 = Match (T.Cons "Double" ["x"]) `Seq` Build (T.Cons "Add" ["x", "x"]) in
+      eval (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) M.empty (termEnv []) input `shouldBe` success (termEnv [("y", output)], output)
+
+    it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x) 2" $
+      let input  = Cons "Add" [Cons "Add" [Cons "One" [], Cons "One" []], Cons "Zero" []] in
+      let output = Cons "Add" [Cons "One" [], Cons "One" []] in
+      let reduce1 = Match (T.Cons "Add" [T.Cons "Zero" [], "y"]) `Seq` Build "y" in
+      let reduce2 = Match (T.Cons "Add" ["x", T.Cons "Zero" []]) `Seq` Build "x" in
+      let reduce3 = Match (T.Cons "Double" ["x"]) `Seq` Build (T.Cons "Add" ["x", "x"]) in
+      eval (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) M.empty (termEnv []) input `shouldBe` success (termEnv [("x", output)], output)
+
+    it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x) 3" $
+      let input  = Cons "Double" [Cons "Add" [Cons "One" [], Cons "One" []]] in
+      let output = Cons "Add" [Cons "Add" [Cons "One" [], Cons "One" []], Cons "Add" [Cons "One" [], Cons "One" []]] in
+      let reduce1 = Match (T.Cons "Add" [T.Cons "Zero" [], "y"]) `Seq` Build "y" in
+      let reduce2 = Match (T.Cons "Add" ["x", T.Cons "Zero" []]) `Seq` Build "x" in
+      let reduce3 = Match (T.Cons "Double" ["x"]) `Seq` Build (T.Cons "Add" ["x", "x"]) in
+      eval (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) M.empty (termEnv []) input `shouldBe` success (termEnv [("x", Cons "Add" [Cons "One" [], Cons "One" []])], output)
+
   where
 
     map = Strategy ["f"] ["l"] (Scope ["x","xs","x'","xs'"] (
