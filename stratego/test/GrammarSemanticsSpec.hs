@@ -7,6 +7,7 @@ import           GrammarSemantics
 import           SharedSemantics
 import           Soundness
 import           Syntax hiding (Fail)
+import           Syntax as T
 
 import           Control.Arrow
 
@@ -265,6 +266,12 @@ spec = do
       geval 2 (Scope ["y"] (Match "z")) tenv (numberGrammar 42) `shouldBe`
         Lower (success (termEnv [("x", numberGrammar 42), ("z", numberGrammar 42)], numberGrammar 42))
 
+    it "should hide variables bound in a choice's test from the else branch" $
+      let or1 = Build (T.Cons "Zero" []) `Seq` Match "x" `Seq` T.Fail in
+      let or2 = Match "x" in
+      geval 0 (or1 `leftChoice` or2) (termEnv []) (Term zeroOne) `shouldBe`
+        Lower (success (termEnv [("x", Term zeroOne)], Term zeroOne))
+
   describe "Let" $ do
     it "should apply a single function call" $ do
       let t = grammar "S" (M.fromList [("S", [ Ctor (Constr "Tuple") ["F", "G"] ])
@@ -369,6 +376,10 @@ spec = do
       , ("Type", [ Ctor (Constr "Fun") ["Type", "Type"]
                  , Ctor (Constr "Num") [] ])
       , ("String", [ Ctor (Constr "String") [] ])
+      ]
+
+    zeroOne = grammar "S" $ M.fromList [
+        ("S", [ Ctor (Constr "Zero") [], Ctor (Constr "One") []])
       ]
 
     swap' = Strategy [] [] (Scope ["x","y"] (

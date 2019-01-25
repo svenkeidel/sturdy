@@ -9,6 +9,7 @@ import Prelude hiding (exp)
 -- import           Soundness
 -- import           Sort (SortId(..))
 import           Syntax hiding (Fail)
+import           Syntax as T
 import           SortSemantics -- hiding (sortContext)
 import           SortContext(Context,Sort(..))
 import qualified SortContext as Ctx
@@ -245,6 +246,13 @@ spec = do
          seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe` success (tenv, numerical)
          seval' 0 (Scope ["y"] (Match "z")) tenv numerical `shouldBe`
            success (termEnv [("x", numerical), ("z", numerical)], numerical)
+
+    it "should hide variables bound in a choice's test from the else branch" $
+      let ?ctx = Ctx.fromList [("Zero",[],"Exp"), ("One",[],"Exp")] in
+      let exp = term "Exp" in
+      let or1 = Build (T.Cons "Zero" []) `Seq` Match "x" `Seq` T.Fail in
+      let or2 = Match "x" in
+      seval 0 (or1 `leftChoice` or2) exp `shouldBe` success (termEnv' [("x", must exp)], exp)
 
   describe "Let" $ do
     it "should apply a single function call" $

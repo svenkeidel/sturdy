@@ -53,6 +53,11 @@ spec = do
       eval (Scope ["y"] (Match "z")) M.empty tenv term2 `shouldBe`
         success (termEnv [("x", term1), ("z", term2)],term2)
 
+    it "should hide variables bound in a choice's test from the else branch" $
+      let or1 = Build (T.Cons "Zero" []) `Seq` Match "x" `Seq` T.Fail in
+      let or2 = Match "x" in
+      eval (or1 `leftChoice` or2) M.empty (termEnv []) term1 `shouldBe` success (termEnv [("x", term1)], term1)
+
   describe "let" $
     it "should support recursion" $ do
       let t = convertToList (NumberLiteral <$> [2, 3, 4])
