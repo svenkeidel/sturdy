@@ -315,27 +315,41 @@ spec = do
     it "reduce Add(Zero,y)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
       let exp = term "Exp" in
-      let reduceAddZero = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
-      seval 0 (reduceAddZero) exp `shouldBe` successOrFail () (termEnv [("y", exp)], exp)
+      let reduce = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
+      seval 0 (reduce) exp `shouldBe` successOrFail () (termEnv [("y", exp)], exp)
 
     it "reduce Add(x,Zero)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
       let exp = term "Exp" in
-      let reduceAddZero = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
-      seval 0 (reduceAddZero) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+      let reduce = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
+      seval 0 (reduce) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
 
     it "reduce Add(Zero,y) < id + Add(x,Zero)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
       let exp = term "Exp" in
-      let reduceAddZero1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
-      let reduceAddZero2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
-      seval 0 (reduceAddZero1 `leftChoice` reduceAddZero2) exp `shouldBe` successOrFail () (termEnv' [("x", may exp),("y", may exp)], exp)
+      let reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
+      let reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
+      seval 0 (reduce1 `leftChoice` reduce2) exp `shouldBe` successOrFail () (termEnv' [("x", may exp),("y", may exp)], exp)
 
     it "reduce Add(x,y); !x; ?Zero()" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
       let exp = term "Exp" in
-      let reduceAddZero = Match (Cons "Add" ["x", "y"]) `Seq` Build "x" `Seq` Match (Cons "Zero" []) `Seq` Build "y" in
-      seval 0 (reduceAddZero) exp `shouldBe` successOrFail () (termEnv' [("x", must exp),("y", must exp)], exp)
+      let reduce = Match (Cons "Add" ["x", "y"]) `Seq` Build "x" `Seq` Match (Cons "Zero" []) `Seq` Build "y" in
+      seval 0 (reduce) exp `shouldBe` successOrFail () (termEnv' [("x", must exp),("y", must exp)], exp)
+
+    it "reduce Double(x)" $
+      let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp"),("Double",["Exp"],"Exp")] in
+      let exp = term "Exp" in
+      let reduce = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"]) in
+      seval 0 (reduce) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+
+    it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x)" $
+      let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let exp = term "Exp" in
+      let reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
+      let reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
+      let reduce3 = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"]) in
+      seval 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) exp `shouldBe` successOrFail () (termEnv' [("x", may exp),("y", may exp)], exp)
 
     -- prop "should be sound" $ do
     --   i <- choose (0,10)
