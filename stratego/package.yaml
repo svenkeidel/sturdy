@@ -22,7 +22,7 @@ dependencies:
 library:
   source-dirs:
     - src
-  ghc-options: -Wall -O2 -fprof-auto
+  ghc-options: -Wall -O2
 
 executables:
   case-studies:

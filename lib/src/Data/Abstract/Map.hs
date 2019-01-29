@@ -10,8 +10,8 @@ import           Prelude hiding (lookup,map,Either(..),(**))
 
 import           Control.Arrow
 
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as H
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as H
 import           Data.Hashable
 import           Data.Order
 import           Data.Identifiable
@@ -35,16 +35,19 @@ instance (Show a,Show b) => Show (Map a b) where
     | otherwise = "[" ++ init (unwords [ printf "%s%s -> %s," (show k) (show t) (show v) | (k,(t,v)) <- H.toList h]) ++ "]"
 
 instance (Identifiable a, PreOrd b) => PreOrd (Map a b) where
-  Map m1 ⊑ m2 = all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2) (H.toList m1)
+  Map m1 ⊑ m2 = {-# SCC "Data.Abstract.Map.lt" #-} all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2) (H.toList m1)
 
 instance (Identifiable a, Complete b) => Complete (Map a b) where
-  Map m1 ⊔ Map m2 = Map $ H.map join $ H.unionWith (⊔) (H.map Left m1) (H.map Right m2)
+  m1 ⊔ m2 = {-# SCC "Data.Abstract.Map.join" #-} widening (⊔) m1 m2
+
+widening :: Identifiable a => Widening b -> Widening (Map a b)
+widening w (Map m1) (Map m2) = Map $ H.map join $ H.unionWith (E.widening (finite ** w) (finite ** w)) (H.map Left m1) (H.map Right m2)
     where
-      join :: Complete a => Either (There,a) (There,a) -> (There,a)
       join e = case e of
         Left (_,a) -> (May,a)
         Right (_,b) -> (May,b)
-        LeftRight (t1,a) (t2,b) -> (t1 ⊔ t2,a ⊔ b)
+        LeftRight (t1,a) (t2,b) -> (t1 ⊔ t2,a `w` b)
+{-# SCC widening #-}
 
 instance (Identifiable a, PreOrd b) => LowerBounded (Map a b) where
   bottom = empty
@@ -99,14 +102,6 @@ adjust f a (Map m) = Map (H.adjust (second f) a m)
 
 compose :: (Identifiable a, Identifiable b, Complete c) => [(a,b)] -> Map b c -> Map a c
 compose f (Map g) = Map $ H.fromListWith (⊔) [ (a,c) | (a,b) <- f, Just c <- return $ H.lookup b g ]
-
-widening :: Identifiable a => Widening b -> Widening (Map a b)
-widening w (Map m1) (Map m2) = Map $ H.map join $ H.unionWith (E.widening (finite ** w) (finite ** w)) (H.map Left m1) (H.map Right m2)
-    where
-      join e = case e of
-        Left (_,a) -> (May,a)
-        Right (_,b) -> (May,b)
-        LeftRight (t1,a) (t2,b) -> (t1 ⊔ t2,a `w` b)
 
 instance Identifiable a => IsList (Map a b) where
   type Item (Map a b) = (a,b)

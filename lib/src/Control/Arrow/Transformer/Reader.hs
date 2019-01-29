@@ -93,23 +93,23 @@ instance ArrowFix (Dom (ReaderT r) x y) (Cod (ReaderT r) x y) c => ArrowFix x y 
   fix = liftFix
 
 instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
-  type instance Join (ReaderT r c) (x,(x,e)) y = Exc.Join c ((r,x),((r,x),e)) y
+  type instance Join (ReaderT r c) (x,(x,e)) y = Exc.Join c (Dom (ReaderT r) x y,(Dom (ReaderT r) x y,e)) (Cod (ReaderT r) x y)
   throw = lift' throw
-  catch (ReaderT f) (ReaderT g) = ReaderT $ catch f (from assoc ^>> g)
-  finally (ReaderT f) (ReaderT g) = ReaderT $ finally f g
+  catch f g = lift $ catch (unlift f) (from assoc ^>> unlift g)
+  finally f g = lift $ finally (unlift f) (unlift g)
 
 instance ArrowDeduplicate (r, x) y c => ArrowDeduplicate x y (ReaderT r c) where
-  dedup (ReaderT f) = ReaderT (dedup f)
+  dedup f = lift (dedup (unlift f))
 
 instance ArrowJoin c => ArrowJoin (ReaderT r c) where
-  joinWith lub (ReaderT f) (ReaderT g) = ReaderT $ (\(r,(x,y)) -> ((r,x),(r,y))) ^>> joinWith lub f g
+  joinWith lub f g = lift $ joinWith lub (unlift f) (unlift g)
 
 instance ArrowConst x c => ArrowConst x (ReaderT r c) where
   askConst = lift' askConst
 
 instance ArrowCond v c => ArrowCond v (ReaderT r c) where
-  type instance Join (ReaderT r c) (x,y) z = Cond.Join c ((r,x),(r,y)) z
-  if_ (ReaderT f) (ReaderT g) = ReaderT $ (\(r,(v,(x,y))) -> (v,((r,x),(r,y)))) ^>> if_ f g
+  type instance Join (ReaderT r c) (x,y) z = Cond.Join c (Dom (ReaderT r) x z,Dom (ReaderT r) y z) (Cod (ReaderT r) (x,y) z)
+  if_ f g = lift $ (\(r,(v,(x,y))) -> (v,((r,x),(r,y)))) ^>> if_ (unlift f) (unlift g)
 
 deriving instance PreOrd (c (r,x) y) => PreOrd (ReaderT r c x y)
 deriving instance LowerBounded (c (r,x) y) => LowerBounded (ReaderT r c x y)

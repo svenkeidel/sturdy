@@ -8,6 +8,7 @@ import           SharedSpecs
 import           Data.Abstract.Failure hiding (toEither)
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.Terminating hiding (toEither)
+import           Data.Order
 import           IntervalAnalysis
 import           Syntax
 import           Test.Hspec
@@ -37,7 +38,8 @@ spec = do
       in do
         evalInterval 10 [] (app (app add zero) two) `shouldBe` Terminating (Success (num 2 2))
         evalInterval 10 [] (app (app add one) two) `shouldBe` Terminating (Success (num 3 3))
-        evalInterval 10 [("x", num 0 1)] (app (app add "x") two) `shouldBe` Terminating (Success (num 2 7))
+        -- evalInterval 10 [("x", num 0 1)] (app (app add "x") two) `shouldBe` Terminating (Success (num 2 7))
+        evalInterval 10 [("x", num 0 1)] (app (app add "x") two) `shouldBe` Terminating (Success (NumVal top))
 
     it "should terminate for the non-terminating program" $
       let ?bound = I.Interval 0 5

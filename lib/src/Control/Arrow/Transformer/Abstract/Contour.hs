@@ -19,6 +19,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Reader
 
 import           Control.Category
@@ -69,6 +70,7 @@ deriving instance ArrowState s c => ArrowState s (ContourT lab c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (ContourT lab c)
 deriving instance ArrowFail e c => ArrowFail e (ContourT lab c)
 deriving instance ArrowExcept e c => ArrowExcept e (ContourT lab c)
+deriving instance ArrowJoin c => ArrowJoin (ContourT lab c)
 
 deriving instance PreOrd (c (CallString lab,x) y) => PreOrd (ContourT lab c x y)
 deriving instance LowerBounded (c (CallString lab,x) y) => LowerBounded (ContourT lab c x y)

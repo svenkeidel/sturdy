@@ -85,21 +85,21 @@ liftFixT f = FixT $ \_ -> ((\((_,o),x) -> (o,x)) ^>> second (f >>^ Terminating))
 #ifndef TRACE
 instance (Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (FixT s x y c) where
   fix f = proc x -> do
-    old <- getOutCache -< ()
+    old <- getCache -< ()
     -- reset the current fixpoint cache
-    setOutCache -< bottom
+    setCache -< bottom
 
     -- recompute the fixpoint cache by calling 'f' and memoize its results.
-    y <- localInCache (F.fix (memoize . f)) -< (old,x)
+    y <- localOldCache (F.fix (memoize . f)) -< (old,x)
 
-    new <- getOutCache -< ()
+    new <- getCache -< ()
 
     -- In case the new fixpoint cache contains less information than
     -- the old cache, we are in the reductive set of `f` and have
     -- overshot the fixpoint and stop recursion.  Otherwise, we have
     -- not reached the fixpoint yet and need to continue improving the
     -- fixpoint cache.
-    if (new ⊑ old)
+    if {-# SCC "Fix.Cache.comparison" #-}(new ⊑ old)
     then returnA -< y
     else fix f -< x
 
@@ -107,29 +107,29 @@ instance (Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (FixT s x y c
 -- has been computed before, the cached value is returned and will not
 -- be recomputed.
 memoize :: (Identifiable x, PreOrd y, ArrowChoice c) => FixT s x y c x y -> FixT s x y c x y
-memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,inCache), outCache),x) -> do
-  case M.unsafeLookup x outCache of
+memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,oldCache), newCache),x) -> do
+  case M.unsafeLookup x newCache of
     -- In case the input was in the fixpoint cache, short-cut
     -- recursion and return the cached value.
-    Just y -> returnA -< (outCache,y)
+    Just y -> returnA -< (newCache,y)
 
     -- In case the input was not in the fixpoint cache, initialize the
     -- cache with previous knowledge about the result or ⊥, compute
     -- the result of the function and update the fixpoint cache.
     Nothing -> do
-      let yOld = fromMaybe bottom (M.unsafeLookup x inCache)
-          outCache' = M.insert x yOld outCache
+      let yOld = fromMaybe bottom (M.unsafeLookup x oldCache)
+          newCache' = M.insert x yOld newCache
           (x',stack') = runState (stackWidening x) stack 
-      (outCache'',y) <- f (stackWidening,widening) -< (((stack',inCache), outCache'),x')
-      let outCache''' = M.unsafeInsertWith (flip (T.widening widening)) x' y outCache''
-          y' = fromJust (M.unsafeLookup x' outCache''')
-      returnA -< (outCache''',y')
+      (newCache'',y) <- f (stackWidening,widening) -< (((stack',oldCache), newCache'),x')
+      let newCache''' = M.unsafeInsertWith (flip (T.widening widening)) x' y newCache''
+          y' = fromJust (M.unsafeLookup x' newCache''')
+      returnA -< (newCache''',y')
 
 #else
               
 instance (Show x, Show y, Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (FixT s x y c) where
   fix f =  proc x -> do
-    old <- getOutCache -< ()
+    old <- getCache -< ()
     setOutCache -< bottom
     y <- localInCache (F.fix (memoize . f)) -< trace "----- ITERATION -----" $ (old,x)
     new <- getOutCache -< ()
@@ -155,14 +155,14 @@ memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,inCache), o
               
 #endif
 
-getOutCache :: Arrow c => FixT s x y c () (Map x (Terminating y))
-getOutCache = FixT $ \_ -> arr $ \((_,o),()) -> (o,return o)
+getCache :: Arrow c => FixT s x y c () (Map x (Terminating y))
+getCache = FixT $ \_ -> arr $ \((_,o),()) -> (o,return o)
 
-setOutCache :: Arrow c => FixT s x y c (Map x (Terminating y)) ()
-setOutCache = FixT $ \_ -> arr $ \((_,_),o) -> (o,return ())
+setCache :: Arrow c => FixT s x y c (Map x (Terminating y)) ()
+setCache = FixT $ \_ -> arr $ \((_,_),o) -> (o,return ())
 
-localInCache :: Arrow c => FixT s x y c x y -> FixT s x y c (Map x (Terminating y),x) y
-localInCache (FixT f) = FixT $ \w -> proc (((s,_),o),(i,x)) -> f w -< (((s,i),o),x)
+localOldCache :: Arrow c => FixT s x y c x y -> FixT s x y c (Map x (Terminating y),x) y
+localOldCache (FixT f) = FixT $ \w -> proc (((s,_),o),(i,x)) -> f w -< (((s,i),o),x)
 
 instance ArrowChoice c => Category (FixT s i o c) where
   id = liftFixT id
@@ -191,9 +191,9 @@ instance (ArrowChoice c, ArrowApply c) => ArrowApply (FixT s i o c) where
   app = FixT $ \w -> (\(io,(FixT f,x)) -> (f w,(io,x))) ^>> app
 
 instance (Identifiable i, Complete o, ArrowJoin c, ArrowChoice c) => ArrowJoin (FixT s i o c) where
-  joinWith lub (FixT f) (FixT g) = FixT $ \w -> proc ((i,o),(x,y)) -> do
+  joinWith lub (FixT f) (FixT g) = FixT $ \w -> proc ((i,o),x) -> do
     (o',t1) <- f w -< ((i,o),x)
-    (o'',t2) <- g w -< ((i,o'),y)
+    (o'',t2) <- g w -< ((i,o'),x)
     returnA -< (o'',case (t1,t2) of
       (Terminating y',Terminating v') -> Terminating (lub y' v')
       (Terminating y',NonTerminating) -> Terminating y'

@@ -26,6 +26,7 @@ class Arrow c => ArrowEnv var val env c | c -> var, c -> val, c -> env where
   -- | Type class constraint used by the abstract instances to join arrow computations.
   type family Join (c :: * -> * -> *) x y :: Constraint
 
+  -- TODO: Change type to lookup (Join c x y) => c (e,(val,s)) y -> c (e,s) y -> c (e,(var,s)) y
   -- | Lookup a variable in the current environment. If the
   -- environment contains a binding of the variable, the first
   -- continuation is called and the second computation otherwise.

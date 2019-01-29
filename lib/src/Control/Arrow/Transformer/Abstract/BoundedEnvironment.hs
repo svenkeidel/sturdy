@@ -20,6 +20,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Static
 import           Control.Arrow.Transformer.Reader
@@ -89,6 +90,7 @@ deriving instance ArrowChoice c => ArrowChoice (EnvT var addr val c)
 deriving instance ArrowState s c => ArrowState s (EnvT var addr val c)
 deriving instance ArrowFail e c => ArrowFail e (EnvT var addr val c)
 deriving instance ArrowExcept e c => ArrowExcept e (EnvT var addr val c)
+deriving instance ArrowJoin c => ArrowJoin (EnvT var addr val c)
 
 deriving instance PreOrd (c ((Map var addr val),x) y) => PreOrd (EnvT var addr val c x y)
 deriving instance Complete (c ((Map var addr val),x) y) => Complete (EnvT var addr val c x y)

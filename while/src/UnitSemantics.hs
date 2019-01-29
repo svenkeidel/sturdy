@@ -37,6 +37,7 @@ import           Control.Arrow.Environment
 import           Control.Arrow.Store
 import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Random
+import           Control.Arrow.Abstract.Join
 
 import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.Environment
@@ -65,7 +66,7 @@ run env ss =
       (M.empty,(M.fromList env,generate <$> ss))
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
-  deriving (Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,PreOrd,Complete)
+  deriving (Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
 type instance Fix x y (UnitT c) = UnitT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (UnitT c)
 
@@ -88,6 +89,6 @@ instance ArrowChoice c => IsVal Val (UnitT c) where
 instance ArrowChoice c => ArrowRand Val (UnitT c) where
   random = arr (const ())
 
-instance ArrowChoice c => ArrowCond Val (UnitT c) where
-  type Join (UnitT c) x y = Complete (c x y)
-  if_ f1 f2 = proc (_,(x,y)) -> joined f1 f2 -< (x,y)
+instance (ArrowChoice c, ArrowJoin c) => ArrowCond Val (UnitT c) where
+  type Join (UnitT c) x y = Complete y
+  if_ f1 f2 = proc (_,(x,y)) -> (f1 -< x) <⊔> (f2 -< y)

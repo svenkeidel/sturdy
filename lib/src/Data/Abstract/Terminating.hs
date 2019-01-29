@@ -1,15 +1,20 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 module Data.Abstract.Terminating where
 
 import Control.Monad
 import Control.Applicative
+import Control.DeepSeq
 
 import Data.Order
 import Data.Abstract.Widening
 
+import GHC.Generics
+
 -- Free cocompletion of a type
-data Terminating a = NonTerminating | Terminating a deriving (Eq,Functor,Traversable,Foldable)
+data Terminating a = NonTerminating | Terminating a deriving (Eq,Functor,Traversable,Foldable,Generic)
+instance NFData a => NFData (Terminating a)
 
 fromTerminating :: a -> Terminating a -> a
 fromTerminating _ (Terminating a) = a

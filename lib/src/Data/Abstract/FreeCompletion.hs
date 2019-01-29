@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -7,15 +8,19 @@ module Data.Abstract.FreeCompletion where
 
 import Control.Applicative
 import Control.Monad
+import Control.DeepSeq
 import Data.Abstract.Widening
 import Data.Hashable
 import Data.Order
+import GHC.Generics(Generic)
 
-data FreeCompletion a = Lower a | Top deriving (Eq,Functor,Traversable,Foldable)
+data FreeCompletion a = Lower a | Top deriving (Eq,Functor,Traversable,Foldable,Generic)
 
 instance Show a => Show (FreeCompletion a) where
   show Top = "⊤"
   show (Lower a) = show a
+
+instance NFData a => NFData (FreeCompletion a)
 
 instance Hashable a => Hashable (FreeCompletion a) where
   hashWithSalt s (Lower a) = s `hashWithSalt` a
@@ -51,6 +56,15 @@ instance (PreOrd a, UpperBounded (FreeCompletion a),
   top = case (top,top) of
     (Lower a, Lower b) -> Lower (a,b)
     (_,_) -> Top
+
+instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]) where
+  Lower xs ⊔ Lower ys | eqLength xs ys = zipWithM (\x y -> Lower x ⊔ Lower y) xs ys
+    where
+      eqLength :: [a] -> [b] -> Bool
+      eqLength [] [] = True
+      eqLength (_:as) (_:bs) = eqLength as bs
+      eqLength _ _ = False
+  _ ⊔ _ = Top
 
 
 instance CoComplete a => CoComplete (FreeCompletion a) where

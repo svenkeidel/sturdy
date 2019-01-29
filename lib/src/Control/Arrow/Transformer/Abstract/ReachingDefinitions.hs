@@ -31,6 +31,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Random
 import           Control.Arrow.Store as Store
 import           Control.Arrow.Environment
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Reader
 
 import           Data.Identifiable
@@ -88,6 +89,7 @@ deriving instance ArrowExcept e c => ArrowExcept e (ReachingDefsT lab c)
 deriving instance ArrowState s c => ArrowState s (ReachingDefsT lab c)
 deriving instance ArrowEnv x y env c => ArrowEnv x y env (ReachingDefsT lab c)
 deriving instance ArrowCond val c => ArrowCond val (ReachingDefsT lab c)
+deriving instance ArrowJoin c => ArrowJoin (ReachingDefsT lab c)
 
 deriving instance PreOrd (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => PreOrd (ReachingDefsT lab c x y)
 deriving instance LowerBounded (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => LowerBounded (ReachingDefsT lab c x y)

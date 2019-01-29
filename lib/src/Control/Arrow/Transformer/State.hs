@@ -113,7 +113,7 @@ instance (Eq s, Hashable s, ArrowDeduplicate (Dom (StateT s) x y) (Cod (StateT s
 
 instance (ArrowJoin c, Complete s) => ArrowJoin (StateT s c) where
   joinWith lub f g =
-    lift $ (\(s,(x,y)) -> ((s,x),(s,y))) ^>> joinWith (\(s1,z1) (s2,z2) -> (s1⊔s2,lub z1 z2)) (unlift f) (unlift g)
+    lift $ joinWith (\(s1,z1) (s2,z2) -> (s1⊔s2,lub z1 z2)) (unlift f) (unlift g)
 
 instance ArrowConst x c => ArrowConst x (StateT s c) where
   askConst = lift' askConst

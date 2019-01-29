@@ -28,6 +28,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Environment
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
 import           Control.Arrow.Transformer.Abstract.Failure
@@ -96,7 +97,7 @@ evalInterval k env e = -- runInterp eval ?bound k env (generate e)
                $ SW.reuse (\_ l -> head l)
                $ SW.fromWidening (F.widening widenVal)
 
-newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Category,Arrow,ArrowChoice,ArrowFail e, PreOrd, Complete, LowerBounded)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Category,Arrow,ArrowChoice,ArrowFail e,ArrowJoin)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
 deriving instance ArrowEnv var val env c => ArrowEnv var val env (IntervalT c)
@@ -107,35 +108,36 @@ instance ArrowTrans IntervalT where
   lift = IntervalT
   unlift = runIntervalT
 
-instance (ArrowChoice c, ArrowFail String c) => IsVal Val (IntervalT c) where
+instance (ArrowChoice c, ArrowFail String c, ArrowJoin c) => IsVal Val (IntervalT c) where
   succ = proc x -> case x of
-    Top -> returnA -< Top
+    Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected a number as argument for 'succ'")
     NumVal n -> returnA -< NumVal $ n + 1 -- uses the `Num` instance of intervals
     ClosureVal _ -> fail -< "Expected a number as argument for 'succ'"
   pred = proc x -> case x of
-    Top -> returnA -< Top
+    Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected a number as argument for 'pred'")
     NumVal n -> returnA -< NumVal $ n - 1
     ClosureVal _ -> fail -< "Expected a number as argument for 'pred'"
   zero = proc _ -> returnA -< (NumVal 0)
 
-instance (ArrowChoice c, ArrowFail String c) => ArrowCond Val (IntervalT c) where
-  type Join (IntervalT c) x y = Complete (IntervalT c x y)
+instance (ArrowChoice c, ArrowJoin c, ArrowFail String c) => ArrowCond Val (IntervalT c) where
+  type Join (IntervalT c) x y = Complete y
   if_ f g = proc v -> case v of
-    (Top, (x,y)) -> joined f g -< (x,y)
+    (Top, (x,y)) -> (f -< x) <⊔> (g -< y) <⊔> (fail -< "Expected a number as condition for 'ifZero'")
     (NumVal (I.Interval i1 i2), (x, y))
-      | (i1, i2) == (0, 0) -> f -< x              -- case the interval is exactly zero
-      | i1 > 0 || i2 < 0   -> g -< y              -- case the interval does not contain zero
-      | otherwise          -> joined f g -< (x,y) -- case the interval contains zero and other numbers.
-    (ClosureVal _, _) -> fail -< "Expected a number as condition for 'ifZero'"
+      | (i1, i2) == (0, 0) -> f -< x                -- case the interval is exactly zero
+      | i1 > 0 || i2 < 0   -> g -< y                -- case the interval does not contain zero
+      | otherwise          -> (f -< x) <⊔> (g -< y) -- case the interval contains zero and other numbers.
+    (ClosureVal _, _)      -> fail -< "Expected a number as condition for 'ifZero'"
 
-instance (ArrowChoice c, ArrowFail String c, LowerBounded (IntervalT c () Val), Complete (IntervalT c (((Expr, F.Map Text Addr Val),Val),[((Expr, F.Map Text Addr Val), Val)]) Val))
+instance (ArrowChoice c, ArrowFail String c, ArrowJoin c)
     => IsClosure Val (F.Map Text Addr Val) (IntervalT c) where
   closure = arr $ \(e, env) -> ClosureVal (Closure [(e,env)])
   applyClosure f = proc (fun, arg) -> case fun of
     Top -> returnA -< Top
     ClosureVal (Closure cls) ->
       -- Apply the interpreter function `f` on all closures and join their results.
-      lubA (proc ((e,env),arg) -> f -< ((e,env),arg)) -< [ (c,arg) | c <- toList cls]
+      (| joinList (returnA -< Top) (\(e,env) -> f -< ((e,env),arg)) |)
+         (toList cls)
     NumVal _ -> fail -< "Expected a closure"
 
 instance PreOrd Val where

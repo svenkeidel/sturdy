@@ -24,3 +24,4 @@ instance ArrowFix x y (->) where
 
 liftFix :: (ArrowFix (Dom t x y) (Cod t x y) c,ArrowTrans t) => (t c x y -> t c x y) -> t c x y
 liftFix f = lift $ fix (unlift . f . lift)
+{-# INLINE liftFix #-}

@@ -49,22 +49,22 @@ instance (ArrowChoice c, ArrowJoin c, Complete e) => Category (ExceptT e c) wher
       SuccessOrFail e y' -> do
         -- Ideally we would like to write '(returnA -< Fail e) ⊔ (f -< y)',
         -- however this is not possible, because the result type of
-        -- 'f', 'UncertainError e z', is not 'Complete' because 'z' is not
+        -- 'f', 'Error e z', is not 'Complete' because 'z' is not
         -- 'Complete'. However, in '(returnA -< Fail e) ⊔ (f -< y)' we
         -- actually never join to values of type 'z'.
-        joinWith (\(Fail e) er -> case er of
+        joinWith' (\(Fail e) er -> case er of
             Success z          -> SuccessOrFail e z
             Fail e'            -> Fail (e ⊔ e')
             SuccessOrFail e' z -> SuccessOrFail (e ⊔ e') z)
           id (unlift f) -< (Fail e,y')
 
 instance (ArrowChoice c, ArrowJoin c, Complete e) => Arrow (ExceptT e c) where
-  arr f = lift' (arr f)
-  first f = lift $ first (unlift f) >>^ strength1
+  arr f    = lift' (arr f)
+  first f  = lift $ first (unlift f) >>^ strength1
   second f = lift $ second (unlift f) >>^ strength2
 
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowChoice (ExceptT e c) where
-  left f = lift $ left (unlift f) >>^ strength1
+  left f  = lift $ left (unlift f) >>^ strength1
   right f = lift $ right (unlift f) >>^ strength2
 
 instance (Complete e, ArrowJoin c, ArrowApply c, ArrowChoice c) => ArrowApply (ExceptT e c) where

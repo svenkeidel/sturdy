@@ -55,6 +55,7 @@ import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
 import           Control.Arrow.Random
+import           Control.Arrow.Abstract.Join
 
 import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.Environment
@@ -93,66 +94,66 @@ run k env ss =
                $ S.reuse (\_ l -> head l)
                $ S.fromWidening (M.widening widenVal)
 
-newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,PreOrd,Complete)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
 
 instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (IntervalT c) where
   alloc = arr $ \(_,_,l) -> return l
 
-instance (ArrowChoice c, ArrowFail String c, Complete (c (Val,String) Val)) => IsVal Val (IntervalT c) where
+instance (ArrowChoice c, ArrowFail String c, ArrowJoin c) => IsVal Val (IntervalT c) where
   boolLit = arr $ \(b,_) -> case b of
     P.True -> BoolVal B.True
     P.False -> BoolVal B.False
   and = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2)    -> returnA -< BoolVal (b1 `B.and` b2)
-    _ | v1 == Top || v2 == Top -> joined returnA fail -< (BoolVal top, "Expected two booleans as arguments for 'and'")
+    _ | v1 == Top || v2 == Top -> (returnA -< BoolVal top) <⊔> (fail -< "Expected two booleans as arguments for 'and'")
     _                          -> fail -< "Expected two booleans as arguments for 'and'"
   or = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2)    -> returnA -< BoolVal (b1 `B.or` b2)
-    _ | v1 == Top || v2 == Top -> joined returnA fail -< (BoolVal top, "Expected two booleans as arguments for 'or'")
+    _ | v1 == Top || v2 == Top -> (returnA -< BoolVal top) <⊔> (fail -< "Expected two booleans as arguments for 'or'")
     _                          -> fail -< "Expected two booleans as arguments for 'or'"
   not = proc (v,_) -> case v of
-    BoolVal b -> returnA -< BoolVal (B.not b)
-    Top -> joined returnA fail -< (BoolVal top, "Expected a boolean as argument for 'not'")
-    NumVal _ -> fail -< "Expected a boolean as argument for 'not'"
+    BoolVal b                  -> returnA -< BoolVal (B.not b)
+    Top                        -> (returnA -< BoolVal top) <⊔> (fail -< "Expected a boolean as argument for 'not'")
+    NumVal _                   -> fail -< "Expected a boolean as argument for 'not'"
   numLit = proc (x,_) -> returnA -< NumVal (I.Interval (Number x) (Number x))
   add = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)      -> returnA -< NumVal (n1 + n2)
-    _ | v1 == Top || v2 == Top -> joined returnA fail -< (NumVal top, "Expected two numbers as arguments for 'add'")
+    _ | v1 == Top || v2 == Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected two numbers as arguments for 'add'")
     _                          -> fail -< "Expected two numbers as arguments for 'add'"
   sub = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)      -> returnA -< NumVal (n1 - n2)
-    _ | v1 == Top || v2 == Top -> joined returnA fail -< (NumVal top, "Expected two numbers as arguments for 'sub'")
+    _ | v1 == Top || v2 == Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected two numbers as arguments for 'sub'")
     _                          -> fail -< "Expected two numbers as arguments for 'sub'"
   mul = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)      -> returnA -< NumVal (n1 * n2)
-    _ | v1 == Top || v2 == Top -> joined returnA fail -< (NumVal top, "Expected two numbers as arguments for 'mul'")
+    _ | v1 == Top || v2 == Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected two numbers as arguments for 'mul'")
     _                          -> fail -< "Expected two numbers as arguments for 'mul'"
   div = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> case n1 / n2 of
       Fail e     -> fail -< e
       Success n3 -> returnA -< NumVal n3
-    _ | v1 == Top || v2 == Top -> joined returnA fail -< (NumVal top, "Expected two numbers as arguments for 'mul'")
+    _ | v1 == Top || v2 == Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected two numbers as arguments for 'mul'")
     _                          -> fail -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal x,NumVal y)        -> returnA -< BoolVal (x E.== y)
     (BoolVal b1,BoolVal b2)    -> returnA -< BoolVal (b1 E.== b2)
-    _ | v1 == Top || v2 == Top -> joined returnA fail -< (BoolVal top, "Expected two values of the same type as arguments for 'eq'")
+    _ | v1 == Top || v2 == Top -> (returnA -< BoolVal top) <⊔> (fail -< "Expected two values of the same type as arguments for 'eq'")
     _                          -> fail -< "Expected two values of the same type as arguments for 'eq'"
   lt = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)      -> returnA -< BoolVal (n1 O.< n2)
-    _ | v1 == Top || v2 == Top -> joined returnA fail -< (BoolVal top, "Expected two numbers as arguments for 'lt'")
+    _ | v1 == Top || v2 == Top -> (returnA -< BoolVal top) <⊔> (fail -< "Expected two numbers as arguments for 'lt'")
     _                          -> fail -< "Expected two numbers as arguments for 'lt'"
 
-instance (ArrowChoice c,ArrowFail String c) => ArrowCond Val (IntervalT c) where
-  type Join (IntervalT c) x y = (Complete (c x y), Complete (c (x,String) y))
+instance (ArrowChoice c,ArrowFail String c, ArrowJoin c) => ArrowCond Val (IntervalT c) where
+  type Join (IntervalT c) (x,y) z = Complete z
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True  -> f1 -< x
     BoolVal B.False -> f2 -< y
-    BoolVal B.Top   -> joined f1 f2 -< (x,y)
+    BoolVal B.Top   -> (f1 -< x) <⊔> (f2 -< y)
     NumVal _        -> fail -< "Expected boolean as argument for 'if'"
-    Top             -> joined (joined f1 f2) fail -< ((x,y),"Expected boolean as argument for 'if'")
+    Top             -> (f1 -< x) <⊔> (f2 -< y) <⊔> (fail -< "Expected boolean as argument for 'if'")
 
 instance (ArrowChoice c) => ArrowRand Val (IntervalT c) where
   random = proc _ -> returnA -< NumVal top

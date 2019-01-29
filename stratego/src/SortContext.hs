@@ -7,7 +7,7 @@
 module SortContext(
   Context, HasContext(..), Sort(..), Signature(..), SortId(..), empty, signatures, sorts,
   fromList, insertSignature, insertSubtype, subtype, lookupSort, lookupCons,
-  lub, glb, isLexical, isList, isSingleton
+  lub, glb, isLexical, isList, isSingleton, isNumerical
 ) where
 
 import           Sort
@@ -72,6 +72,9 @@ lookupSort Context {..} s0 = do
               
 isLexical :: Context -> Sort -> Bool
 isLexical ctx = subtype ctx Lexical
+
+isNumerical :: Context -> Sort -> Bool
+isNumerical ctx = subtype ctx Numerical
 
 isList :: Context -> Sort -> Bool
 isList ctx = subtype ctx (List Bottom)

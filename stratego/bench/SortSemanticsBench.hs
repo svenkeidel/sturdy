@@ -2,6 +2,8 @@
 {-# LANGUAGE ImplicitParams #-}
 module Main where
 
+import           Prelude hiding (exp)
+
 import           SortSemantics -- hiding (sortContext)
 import           Syntax hiding (Fail)
 
@@ -10,21 +12,28 @@ import qualified SortContext as Ctx
 
 import qualified Data.Abstract.Map as S
 import qualified Data.HashMap.Lazy as M
-import           Data.Abstract.Failure(Failure)
-import           Data.Abstract.Error(Error)
-import           Data.Abstract.FreeCompletion(fromCompletion)
-import           Data.Abstract.Terminating(fromTerminating)
 
 import           Criterion
 import           Criterion.Main
 
 main :: IO ()
 main = defaultMain [
-     bench "build" $
-      let ?ctx = Ctx.empty
-      in nf (seval 0 (Build (StringLiteral "foo"))) bottom
-  ]
+    bgroup "Least Fixpoint" [
+      bench "reduce Add(Zero,y)" $
+        let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+        let exp = term "Exp"
+            reduce = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
+        in nf (eval 0 10 reduce M.empty ?ctx emptyEnv) exp
+    ],
 
+    bgroup "Greatest Fixpoint" [
+      bench "reduce Add(Zero,y)" $
+        let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+        let exp = term "Exp"
+            reduce = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
+        in nf (eval' 10 reduce M.empty ?ctx emptyEnv) exp
+    ]
+  ]
   where
     term :: (?ctx :: Context) => Sort -> Term
     term s = Term s ?ctx
@@ -34,18 +43,3 @@ main = defaultMain [
 
     emptyEnv :: TermEnv
     emptyEnv = S.empty
-
-
-    seval :: Int -> Strat -> Term -> Failure String (Error () (TermEnv,Term))
-    seval i s = seval'' i 10 s M.empty emptyEnv
-
-    seval' :: Int -> Strat -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
-    seval' i s = seval'' i 10 s M.empty
-
-    seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
-    seval'' i j s senv tenv t = fromCompletion (error "top element")
-                               (fromTerminating (error "sort semantics does not terminate")
-                                (eval i j s senv (context t) tenv t))
-
-    bottom :: (?ctx :: Context) => Term
-    bottom = term Bottom

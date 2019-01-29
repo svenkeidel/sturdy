@@ -182,10 +182,6 @@ instance Complete (FreeCompletion (GrammarBuilder Constr)) where
   Lower x ⊔ Lower y = Lower (x ⊔ y)
   _ ⊔ _ = Top
 
-instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]) where
-  Lower xs ⊔ Lower ys | eqLength xs ys = zipWithM (\x y -> Lower x ⊔ Lower y) xs ys
-  _ ⊔ _ = Top
-
 instance IsTerm Term (Interp s) where
   matchTermAgainstConstructor matchSubterms = proc (Constructor c,ps,Term g) ->
     lubA (proc (c',ts) -> case c' of

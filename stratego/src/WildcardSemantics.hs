@@ -264,13 +264,10 @@ instance PreOrd Term where
     (NumberLiteral n, NumberLiteral n') -> n == n'
     (_, _) -> False
 
-instance PreOrd a => Complete (FreeCompletion a) where
-  Lower a ⊔ Lower b
-    | a ⊑ b = Lower b
-    | b ⊑ a = Lower a
-    | otherwise = Top
-  Top ⊔ _ = Top
-  _ ⊔ Top = Top
+instance Complete (FreeCompletion Term) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = Top
+
 
 instance Complete Term where
   t1 ⊔ t2 = case (t1,t2) of
