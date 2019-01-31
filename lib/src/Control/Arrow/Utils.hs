@@ -36,12 +36,9 @@ pi2 = arr snd
 -- | Zips two lists together.
 zipWith :: ArrowChoice c => c (x,y) z -> c ([x],[y]) [z]
 zipWith f = proc (l1,l2) -> case (l1,l2) of
-  ([],_) -> returnA -< []
-  (_,[]) -> returnA -< []
-  (a:as,b:bs) -> do
-    c <- f -< (a,b)
-    cs <- zipWith f -< (as,bs)
-    returnA -< c:cs
+  ([],_)      -> returnA -< []
+  (_,[])      -> returnA -< []
+  (a:as,b:bs) -> uncurry (:) ^<< f *** zipWith f -< ((a,b),(as,bs)) 
 
 -- | Folds a computation over a list from left to right.
 fold :: ArrowChoice c => c (a,x) a -> c ([x],a) a

@@ -117,9 +117,9 @@ memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,oldCache), 
     -- cache with previous knowledge about the result or ⊥, compute
     -- the result of the function and update the fixpoint cache.
     Nothing -> do
-      let yOld = fromMaybe bottom (M.unsafeLookup x oldCache)
-          newCache' = M.insert x yOld newCache
-          (x',stack') = runState (stackWidening x) stack 
+      let (x',stack') = runState (stackWidening x) stack 
+          yOld = fromMaybe bottom (M.unsafeLookup x' oldCache)
+          newCache' = M.insert x' yOld newCache
       (newCache'',y) <- f (stackWidening,widening) -< (((stack',oldCache), newCache'),x')
       let newCache''' = M.unsafeInsertWith (flip (T.widening widening)) x' y newCache''
           y' = fromJust (M.unsafeLookup x' newCache''')
