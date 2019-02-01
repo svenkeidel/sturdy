@@ -14,6 +14,7 @@ import Control.Arrow.Const
 import Control.Arrow.Trans
 import Control.Arrow.State
 import Control.Arrow.Reader
+import Control.Arrow.Fix
 import Control.Arrow.Abstract.Terminating
 import Control.Category
 
@@ -73,6 +74,10 @@ instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (TerminatingT c) wher
 
 instance (ArrowChoice c, ArrowConst x c) => ArrowConst x (TerminatingT c) where
   askConst = lift' askConst
+
+type instance Fix x y (TerminatingT c) = TerminatingT (Fix (Dom TerminatingT x y) (Cod TerminatingT x y) c)
+instance (ArrowChoice c, ArrowFix (Dom TerminatingT x y) (Cod TerminatingT x y) c) => ArrowFix x y (TerminatingT c) where
+  fix = liftFix
 
 deriving instance PreOrd (c x (Terminating y)) => PreOrd (TerminatingT c x y)
 deriving instance LowerBounded (c x (Terminating y)) => LowerBounded (TerminatingT c x y)

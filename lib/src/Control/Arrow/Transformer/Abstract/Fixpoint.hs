@@ -20,6 +20,7 @@ import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
+import           Control.Arrow.Const
 import           Control.Arrow.Trans
 import           Control.Arrow.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Stack
@@ -75,7 +76,7 @@ import           Text.Printf
 -- evaluates to
 -- 'Reader Env (State Store (LeastFix Stack (Store,(Env,Expr)) (Store)))'
 type Cache a b = Map a (Terminating b)
-newtype FixT s a b c x y = FixT (ConstT (Widening b) (StackT s a (ReaderT (Cache a b) (TerminatingT (StateT (Cache a b) c)))) x y)
+newtype FixT s a b c x y = FixT { unFixT :: ConstT (Widening b) (StackT s a (ReaderT (Cache a b) (TerminatingT (StateT (Cache a b) c)))) x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTerminating)
 
 type instance Fix x y (FixT s () () c) = FixT s x y c
@@ -101,17 +102,16 @@ liftFixT = lift'
 instance ArrowLift (FixT s a b) where
   lift' f = FixT (ConstT (StaticT (const (StackT (ConstT (StaticT (const (ReaderT (TerminatingT (StateT (lmap snd (second (rmap Terminating f)))))))))))))
 
-
 #ifndef TRACE
-instance (Identifiable x, PreOrd y, ArrowChoice c, Profunctor c) => ArrowFix x y (FixT s x y c) where
+instance (Identifiable x, PreOrd y, ArrowChoice c, ArrowApply c, Profunctor c, ArrowFix (Cache x y, (Cache x y, x)) (Cache x y, Terminating y) c)
+  => ArrowFix x y (FixT s x y c) where
   fix f = proc x -> do
     old <- getCache -< ()
     -- reset the current fixpoint cache
     setCache -< bottom
 
     -- recompute the fixpoint cache by calling 'f' and memoize its results.
-    -- y <- localOldCache (F.fix (memoize . f)) -< (old,x)
-    y <- localOldCache (F.fix f) -< (old,x)
+    y <- localOldCache (FixT (fix (unFixT . memoize . f . FixT))) -< (old,x)
 
     new <- getCache -< ()
 
@@ -120,62 +120,102 @@ instance (Identifiable x, PreOrd y, ArrowChoice c, Profunctor c) => ArrowFix x y
     -- overshot the fixpoint and stop recursion.  Otherwise, we have
     -- not reached the fixpoint yet and need to continue improving the
     -- fixpoint cache.
-    if {-# SCC "Fix.Cache.comparison" #-}(new ⊑ old)
+    if {-# SCC "Fix.Cache.comparison" #-} (new ⊑ old)
     then returnA -< y
     else fix f -< x
 
 -- | Memoizes the results of the interpreter function. In case a value
 -- has been computed before, the cached value is returned and will not
 -- be recomputed.
--- memoize :: (Identifiable x, PreOrd y, ArrowChoice c) => FixT s x y c x y -> FixT s x y c x y
--- memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,oldCache), newCache),x) -> do
---   case M.unsafeLookup x newCache of
---     -- In case the input was in the fixpoint cache, short-cut
---     -- recursion and return the cached value.
---     Just y -> returnA -< (newCache,y)
+memoize :: (Identifiable x, PreOrd y, ArrowChoice c, Profunctor c) => FixT s x y c x y -> FixT s x y c x y
+memoize f = proc x -> do
+  newCache <- getCache -< ()
+  case M.unsafeLookup x newCache of
+    -- In case the input was in the fixpoint cache, short-cut
+    -- recursion and return the cached value.
+    Just y -> throwTerminating -< y
 
---     -- In case the input was not in the fixpoint cache, initialize the
---     -- cache with previous knowledge about the result or ⊥, compute
---     -- the result of the function and update the fixpoint cache.
---     Nothing -> do
---       let (x',stack') = runState (stackWidening x) stack 
---           yOld        = fromMaybe bottom (M.unsafeLookup x' oldCache)
---           newCache'   = M.insert x' yOld newCache
---       (newCache'',y) <- f (stackWidening,widening) -< (((stack',oldCache), newCache'),x')
---           -- TODO: use insertLookup
---       let newCache''' = M.unsafeInsertWith (flip (T.widening widening)) x' y newCache''
---           y' = fromJust (M.unsafeLookup x' newCache''')
---       returnA -< (newCache''',y')
+    -- In case the input was not in the fixpoint cache, initialize the
+    -- cache with previous knowledge about the result or ⊥, compute
+    -- the result of the function and update the fixpoint cache.
+    Nothing -> do
+      oldCache <- getOldCache -< ()
+      setCache -< M.insert x (fromMaybe bottom (M.unsafeLookup x oldCache)) newCache
+      
+      y <- catchTerminating f -< x
 
+      (widening, newCache') <- (getWidening &&& getCache) -< ()
+
+          -- TODO: use insertLookup
+      let newCache'' = M.unsafeInsertWith (flip (T.widening widening)) x y newCache'
+          y' = fromJust (M.unsafeLookup x newCache'')
+      setCache -< newCache''
+
+      throwTerminating -< y'
 #else
-              
-instance (Show x, Show y, Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (FixT s x y c) where
-  fix f =  proc x -> do
+
+instance (Show x, Show y, Identifiable x, PreOrd y, ArrowChoice c, ArrowApply c, Profunctor c, ArrowFix (Cache x y, (Cache x y, x)) (Cache x y, Terminating y) c)
+  => ArrowFix x y (FixT s x y c) where
+  fix f = proc x -> do
     old <- getCache -< ()
-    setOutCache -< bottom
-    y <- localInCache (F.fix (memoize . f)) -< trace "----- ITERATION -----" $ (old,x)
-    new <- getOutCache -< ()
-    if (new ⊑ old)
+    setCache -< bottom
+    y <- localOldCache (FixT (fix (unFixT . memoize . f . FixT))) -< trace "----- ITERATION -----" (old,x)
+    new <- getCache -< ()
+    if {-# SCC "Fix.Cache.comparison" #-} (new ⊑ old)
     then returnA -< y
     else fix f -< x
 
-memoize :: (Show x, Show y, Identifiable x, PreOrd y, ArrowChoice c) => FixT s x y c x y -> FixT s x y c x y
-memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,inCache), outCache),x) -> do
-  case M.unsafeLookup x outCache of
-    Just y -> returnA -< trace (printf "HIT:  %s -> %s" (show x) (show y))
-              (outCache,y)
+-- | Memoizes the results of the interpreter function. In case a value
+-- has been computed before, the cached value is returned and will not
+-- be recomputed.
+memoize :: (Show x, Show y,Identifiable x, PreOrd y, ArrowChoice c, Profunctor c) => FixT s x y c x y -> FixT s x y c x y
+memoize f = proc x -> do
+  newCache <- getCache -< ()
+  case M.unsafeLookup x newCache of
+    Just y -> throwTerminating -< trace (printf "HIT:  %s -> %s" (show x) (show y)) y
     Nothing -> do
-      let yOld = fromMaybe bottom (M.unsafeLookup x inCache)
-          outCache' = M.insert x yOld outCache
-          (x',stack') = runState (stackWidening x) stack 
-      (outCache'',y) <- f (stackWidening,widening) -< trace (printf "CALL: %s" (show x')) (((stack',inCache), outCache'),x')
-      let outCache''' = M.unsafeInsertWith (flip (T.widening widening)) x' y outCache''
-          y' = fromJust (M.unsafeLookup x' outCache''')
-      returnA -< trace (printf "CACHE: %s := (%s -> %s)\n" (show x) (show y) (show y') ++
-                        printf "RET:  %s -> %s" (show x') (show y'))
-                  (M.unsafeInsertWith (flip (T.widening widening)) x y outCache'',y')
+      oldCache <- getOldCache -< ()
+      setCache -< M.insert x (fromMaybe bottom (M.unsafeLookup x oldCache)) newCache
+      y <- catchTerminating f -< x
+      (widening, newCache') <- (getWidening &&& getCache) -< ()
+      let newCache'' = M.unsafeInsertWith (flip (T.widening widening)) x y newCache'
+          y' = fromJust (M.unsafeLookup x newCache'')
+      setCache -< newCache''
+      throwTerminating -< trace (printf "RET:  %s -> %s" (show x) (show y')) y'
+
+-- instance (Show x, Show y, Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (FixT s x y c) where
+--   fix f =  proc x -> do
+--     old <- getCache -< ()
+--     setOutCache -< bottom
+--     y <- localInCache (F.fix (memoize . f)) -< trace "----- ITERATION -----" $ (old,x)
+--     new <- getOutCache -< ()
+--     if (new ⊑ old)
+--     then returnA -< y
+--     else fix f -< x
+
+-- memoize :: (Show x, Show y, Identifiable x, PreOrd y, ArrowChoice c) => FixT s x y c x y -> FixT s x y c x y
+-- memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,inCache), outCache),x) -> do
+--   case M.unsafeLookup x outCache of
+--     Just y -> returnA -< trace (printf "HIT:  %s -> %s" (show x) (show y))
+--               (outCache,y)
+--     Nothing -> do
+--       let yOld = fromMaybe bottom (M.unsafeLookup x inCache)
+--           outCache' = M.insert x yOld outCache
+--           (x',stack') = runState (stackWidening x) stack 
+--       (outCache'',y) <- f (stackWidening,widening) -< trace (printf "CALL: %s" (show x')) (((stack',inCache), outCache'),x')
+--       let outCache''' = M.unsafeInsertWith (flip (T.widening widening)) x' y outCache''
+--           y' = fromJust (M.unsafeLookup x' outCache''')
+--       returnA -< trace (printf "CACHE: %s := (%s -> %s)\n" (show x) (show y) (show y') ++
+--                         printf "RET:  %s -> %s" (show x') (show y'))
+--                   (M.unsafeInsertWith (flip (T.widening widening)) x y outCache'',y')
               
 #endif
+
+getWidening :: (ArrowChoice c, Profunctor c) => FixT s x y c () (Widening y)
+getWidening = FixT askConst
+
+getOldCache :: (ArrowChoice c, Profunctor c) => FixT s x y c () (Cache x y)
+getOldCache = FixT ask
 
 getCache :: (ArrowChoice c, Profunctor c) => FixT s x y c () (Cache x y)
 getCache = FixT get

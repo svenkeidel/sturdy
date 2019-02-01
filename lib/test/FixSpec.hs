@@ -93,7 +93,7 @@ spec = do
                                          f -< (m'- I.Interval 1 1, x)) -<< n)
             -<< m
     in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runFixT' (SW.stack (SW.reuse (const head) SW.topOut)) W.finite ackermann (I.Interval 0 Infinity, I.Interval 0 Infinity)
+         runFixT' (SW.stack (SW.reuse (const head) SW.topOut)) I.widening ackermann (I.Interval 0 Infinity, I.Interval 0 Infinity)
            `shouldBe` return (I.Interval 1 Infinity)
 
   describe "the analyis of a diverging program" $
