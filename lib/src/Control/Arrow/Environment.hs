@@ -45,7 +45,6 @@ class (Arrow c, Profunctor c) => ArrowEnv var val env c | c -> var, c -> val, c 
 -- | Simpler version of environment lookup.
 lookup' :: (Join c ((val,var),var) val, Show var, IsString e, ArrowFail e c, ArrowEnv var val env c) => c var val
 lookup' = lookup'' id
-{-# INLINE lookup' #-}
 
 lookup'' :: (Join c ((val,var),var) y, Show var, IsString e, ArrowFail e c, ArrowEnv var val env c) => c val y -> c var y
 lookup'' f = proc var ->
@@ -53,7 +52,6 @@ lookup'' f = proc var ->
     (proc (val,_) -> f     -< val)
     (proc var     -> fail  -< fromString $ printf "Variable %s not bound" (show var))
     -< (var,var)
-{-# INLINE lookup'' #-}
 
 -- | Run a computation in an extended environment.
 extendEnv' :: ArrowEnv var val env c => c a b -> c (var,val,a) b
@@ -61,9 +59,7 @@ extendEnv' f = proc (x,y,a) -> do
   env <- getEnv -< ()
   env' <- extendEnv -< (x,y,env)
   localEnv f -< (env',a)
-{-# INLINE extendEnv' #-}
 
 -- | Add a list of bindings to the given environment.
 bindings :: (ArrowChoice c, ArrowEnv var val env c) => c ([(var,val)],env) env
 bindings = fold ((\(env,(x,y)) -> (x,y,env)) ^>> extendEnv)
-{-# INLINE bindings #-}

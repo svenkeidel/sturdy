@@ -179,30 +179,24 @@ memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,inCache), o
 
 getCache :: (ArrowChoice c, Profunctor c) => FixT s x y c () (Cache x y)
 getCache = FixT get
-{-# INLINE getCache #-}
 
 setCache :: (ArrowChoice c, Profunctor c) => FixT s x y c (Map x (Terminating y)) ()
 setCache = FixT put
-{-# INLINE setCache #-}
 
 localOldCache :: (ArrowChoice c, Profunctor c) => FixT s x y c x y -> FixT s x y c (Map x (Terminating y),x) y
 localOldCache (FixT f) = FixT (local f)
-{-# INLINE localOldCache #-}
 
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FixT s i o c) where
   app = FixT $ lmap (\(FixT f,x) -> (f,x)) app
-  {-# INLINE app #-}
 
 instance (Identifiable a, ArrowJoin c, ArrowChoice c) => ArrowJoin (FixT s a b c) where
   joinWith lub f g = proc x -> do
     y <- catchTerminating f -< x
     y' <- catchTerminating g -< x
     throwTerminating -< T.widening lub y y'
-  {-# INLINE joinWith #-}
 
 instance (Identifiable a,Complete y,ArrowJoin c, ArrowChoice c, PreOrd (Underlying a b c x y)) => Complete (FixT s a b c x y) where
   f ⊔ g = joinWith (⊔) f g
-  {-# INLINE (⊔) #-}
 
 type Underlying a b c x y = (c (Map a (Terminating b), (Map a (Terminating b), x)) (Map a (Terminating b), Terminating y))
 deriving instance PreOrd (Underlying a b c x y) => PreOrd (FixT s a b c x y)

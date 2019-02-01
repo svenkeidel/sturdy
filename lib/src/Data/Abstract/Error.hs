@@ -127,7 +127,6 @@ instance Complete e => StrongMonad (Error e) (,) where
   mstrength (Success x,SuccessOrFail e y) = SuccessOrFail e (x,y)
   mstrength (Fail e,SuccessOrFail e' _) = Fail (e ⊔ e')
   mstrength (SuccessOrFail e x,SuccessOrFail e' y) = SuccessOrFail (e ⊔ e') (x,y)
-  {-# INLINE mstrength #-}
 
 
 fromMaybe :: Maybe a -> Error () a

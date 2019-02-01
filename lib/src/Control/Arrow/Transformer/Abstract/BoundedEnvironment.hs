@@ -57,7 +57,6 @@ runEnvT alloc f =
        env' <- bindings -< (bs,env)
        localEnv f -< (env',x)
   in (const (M.empty) &&& id) ^>> runReaderT (runConstT alloc f')
-{-# INLINE runEnvT #-}
 
 instance ArrowTrans (EnvT var addr val) where
   type Dom (EnvT var addr val) x y = Dom (ReaderT (Map var addr val)) x y
@@ -67,7 +66,6 @@ instance ArrowTrans (EnvT var addr val) where
       
 instance ArrowLift (EnvT var addr val) where
   lift' f = EnvT (lift' (lift' f))
-  {-# INLINE lift' #-}
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c) =>
   ArrowEnv var val (Map var addr val) (EnvT var addr val c) where
@@ -78,24 +76,17 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Prof
       Just val        -> f          -< (val,x)
       JustNothing val -> joined f g -< ((val,x),x)
       Nothing         -> g          -< x
-  {-# INLINE lookup #-}
   getEnv = EnvT ask
-  {-# INLINE getEnv #-}
   extendEnv = EnvT $ ConstT $ StaticT $ \alloc -> lift' $ M.insertBy alloc
-  {-# INLINE extendEnv #-}
   localEnv (EnvT f) = EnvT $ local f
-  {-# INLINE localEnv #-}
 
 instance ArrowReader r c => ArrowReader r (EnvT var addr val c) where
   ask = lift' ask
-  {-# INLINE ask #-}
   local (EnvT (ConstT (StaticT f))) =
     EnvT $ ConstT $ StaticT $ \alloc -> ReaderT $ (\(env,(r,x)) -> (r,(env,x))) ^>> local (runReaderT (f alloc))
-  {-# INLINE local #-}
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var addr val c) where
   app = EnvT $ lmap (\(EnvT f,x) -> (f,x)) app
-  {-# INLINE app #-}
 
 type instance Fix x y (EnvT var addr val c) = EnvT var addr val (Fix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c)
 deriving instance ArrowFix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c => ArrowFix x y (EnvT var addr val c)

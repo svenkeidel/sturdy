@@ -38,11 +38,9 @@ newtype EnvT var val c x y = EnvT (ReaderT (Map var val) c x y)
 
 runEnvT :: (Arrow c, Profunctor c) => EnvT var val c x y -> c (Map var val,x) y
 runEnvT = unlift
-{-# INLINE runEnvT #-}
 
 runEnvT' :: (Arrow c, Profunctor c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
 runEnvT' f = first M.fromList ^>> runEnvT f
-{-# INLINE runEnvT' #-}
 
 instance (Show var, Identifiable var, ArrowChoice c,Profunctor c) => ArrowEnv var val (Map var val) (EnvT var val c) where
   type Join (EnvT var val c) x y = (Complete (c (Map var val,x) y))
@@ -52,23 +50,16 @@ instance (Show var, Identifiable var, ArrowChoice c,Profunctor c) => ArrowEnv va
       Just val        -> f          -< (val,x)
       JustNothing val -> joined f g -< ((val,x),x)
       Nothing         -> g          -< x
-  {-# INLINE lookup #-}
   getEnv = EnvT ask
-  {-# INLINE getEnv #-}
   extendEnv = arr $ \(x,y,env) -> M.insert x y env
-  {-# INLINE extendEnv #-}
   localEnv (EnvT f) = EnvT (local f)
-  {-# INLINE localEnv #-}
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var val c) where
   app = EnvT $ lmap (\(EnvT f,x) -> (f,x)) app
-  {-# INLINE app #-}
 
 instance ArrowReader r c => ArrowReader r (EnvT var val c) where
   ask = lift' ask
-  {-# INLINE ask #-}
   local f = lift $ lmap (\(env,(r,x)) -> (r,(env,x))) (local (unlift f))
-  {-# INLINE local #-}
 
 type instance Fix x y (EnvT var val c) = EnvT var val (Fix (Dom (EnvT var val) x y) (Cod (EnvT var val) x y) c)
 deriving instance ArrowFix (Map var val,x) y c => ArrowFix x y (EnvT var val c)

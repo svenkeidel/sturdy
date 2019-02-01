@@ -30,24 +30,19 @@ newtype StackT s a c x y = StackT (ConstT (StackWidening s a,s a) c x y)
             PreOrd,Complete,CoComplete,LowerBounded,UpperBounded)
 instance (ArrowApply c,Profunctor c) => ArrowApply (StackT s a c) where
   app = StackT (lmap (\(StackT f,x) -> (f,x)) app)
-  {-# INLINE app #-}
 
 runStackT :: Arrow c => (StackWidening s a,s a) -> StackT s a c x y -> c x y
 runStackT s (StackT f) = runConstT s f
-{-# INLINE runStackT #-}
 
 runStackT' :: (Arrow c, Monoid (s a)) => StackWidening s a -> StackT s a c x y -> c x y
 runStackT' s = runStackT (s,mempty)
-{-# INLINE runStackT' #-}
 
 stackT :: ((StackWidening s a,s a) -> c x y) -> StackT s a c x y
 stackT f = StackT $ ConstT $ StaticT $ f
-{-# INLINE stackT #-}
 
 type instance Fix x y (StackT s () c) = StackT s x (Fix x y c)
 instance (ArrowApply c, ArrowFix x y c) => ArrowFix x y (StackT s x c) where
   fix f = stackT $ \(stackWidening,stack) -> proc x -> do
     let (x',stack') = M.runState (stackWidening x) stack
     fix (runStackT (stackWidening,stack') . f . lift') -<< x'
-  {-# INLINE fix #-}
 

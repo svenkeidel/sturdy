@@ -85,32 +85,26 @@ instance Monad (Failure e) where
 fromFailure :: a -> Failure e a -> a
 fromFailure _ (Success a) = a
 fromFailure a (Fail _) = a
-{-# INLINE fromFailure #-}
 
 fromEither :: Either e a -> Failure e a
 fromEither (Left e) = Fail e
 fromEither (Right a) = Success a
-{-# INLINE fromEither #-}
 
 toEither :: Failure e a -> Either e a
 toEither (Fail e) = Left e
 toEither (Success a) = Right a
-{-# INLINE toEither #-}
 
 fromMaybe :: Maybe a -> Failure () a
 fromMaybe Nothing = Fail ()
 fromMaybe (Just a) = Success a
-{-# INLINE fromMaybe #-}
 
 toMaybe :: Failure e a -> Maybe a
 toMaybe (Fail _) = Nothing
 toMaybe (Success a) = Just a
-{-# INLINE toMaybe #-}
 
 instance Monoidal Failure where
   mmap f _ (Fail x) = Fail (f x)
   mmap _ g (Success y) = Success (g y)
-  {-# INLINE mmap #-}
 
   assoc = Iso assocTo assocFrom
     where
@@ -118,38 +112,30 @@ instance Monoidal Failure where
       assocTo (Fail a) = Fail (Fail a)
       assocTo (Success (Fail b)) = Fail (Success b)
       assocTo (Success (Success c)) = Success c
-      {-# INLINE assocTo #-}
 
       assocFrom :: Failure (Failure a b) c -> Failure a (Failure b c)
       assocFrom (Fail (Fail a)) = Fail a
       assocFrom (Fail (Success b)) = Success (Fail b)
       assocFrom (Success c) = Success (Success c)
-      {-# INLINE assocFrom #-}
-  {-# INLINE assoc #-}
 
 instance Symmetric Failure where
   commute (Fail a) = Success a
   commute (Success a) = Fail a
-  {-# INLINE commute #-}
 
 instance Applicative f => Strong f Failure where
   strength1 (Success a) = pure $ Success a
   strength1 (Fail a) = Fail <$> a
-  {-# INLINE strength1 #-}
   strength2 (Success a) = Success <$> a
   strength2 (Fail a) = pure $ Fail a
-  {-# INLINE strength2 #-}
 
 instance Applicative f => StrongMonad f Failure where
   mstrength (Success a) = fmap Success a
   mstrength (Fail a) = fmap Fail a
-  {-# INLINE mstrength #-}
 
 instance StrongMonad (Failure e) (,) where
   mstrength (Success a,Success b) = Success (a,b)
   mstrength (Fail e,_) = Fail e
   mstrength (_,Fail e) = Fail e
-  {-# INLINE mstrength #-}
 
 -- instance Distributive (,) Failure where
 --   distribute = Iso distTo distFrom
@@ -157,13 +143,10 @@ instance StrongMonad (Failure e) (,) where
 --       distTo :: (a,Failure b c) -> Failure (a,b) (a,c)
 --       distTo (a,Fail b) = Fail (a,b)
 --       distTo (a,Success c) = Success (a,c)
---       {-# INLINE distTo #-}
 
 --       distFrom :: Failure (a,b) (a,c) -> (a,Failure b c)
 --       distFrom (Fail (a,b)) = (a,Fail b)
 --       distFrom (Success (a,c)) = (a,Success c)
---       {-# INLINE distFrom #-}
---   {-# INLINE distribute #-}
 
 -- instance Distributive Either Failure where
 --   distribute = Iso distTo distFrom
@@ -172,15 +155,12 @@ instance StrongMonad (Failure e) (,) where
 --       distTo (Left a) = Fail (Left a)
 --       distTo (Right (Fail b)) = Fail (Right b)
 --       distTo (Right (Success c)) = Success (Right c)
---       {-# INLINE distTo #-}
   
 --       distFrom :: Failure (Either a b) (Either a c) -> Either a (Failure b c)
 --       distFrom (Fail (Left a)) = Left a
 --       distFrom (Fail (Right b)) = Right (Fail b)
 --       distFrom (Success (Left a)) = Left a
 --       distFrom (Success (Right c)) = Right (Success c)
---       {-# INLINE distFrom #-}
---   {-# INLINE distribute #-}
 
 -- instance Distributive Failure Either where
 --   distribute = Iso distTo distFrom
@@ -189,12 +169,9 @@ instance StrongMonad (Failure e) (,) where
 --       distTo (Fail a) = Right (Fail a)
 --       distTo (Success (Left b)) = Left (Success b)
 --       distTo (Success (Right c)) = Right (Success c)
---       {-# INLINE distTo #-}
   
 --       distFrom :: Either (Failure a b) (Failure a c) -> Failure a (Either b c)
 --       distFrom (Left (Fail a)) = Fail a
 --       distFrom (Left (Success b)) = Success (Left b)
 --       distFrom (Right (Fail a)) = Fail a
 --       distFrom (Right (Success c)) = Success (Right c)
---       {-# INLINE distFrom #-}
---   {-# INLINE distribute #-}

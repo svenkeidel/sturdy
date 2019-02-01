@@ -40,15 +40,12 @@ newtype StoreT var val c x y = StoreT (StateT (Map var val) c x y)
 
 runStoreT :: StoreT var val c x y -> c (Map var val, x) (Map var val, y)
 runStoreT (StoreT (StateT f)) = f
-{-# INLINE runStoreT #-}
 
 evalStoreT :: Arrow c => StoreT var val c x y -> c (Map var val, x) y
 evalStoreT f = runStoreT f >>> pi2
-{-# INLINE evalStoreT #-}
 
 execStoreT :: Arrow c => StoreT var val c x y -> c (Map var val, x) (Map var val)
 execStoreT f = runStoreT f >>> pi1
-{-# INLINE execStoreT #-}
 
 instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT var val c) where
   type Join (StoreT var val c) ((val,x),x) y = Complete (c (Map var val, ((val, x), x)) (Map var val, y))
@@ -58,15 +55,11 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (
       Just val        -> f          -< (val,x)
       JustNothing val -> joined f g -< ((val,x),x)
       Nothing         -> g          -< x
-  {-# INLINE read #-}
   write = StoreT $ modify $ arr $ \((var,val),st) -> M.insert var val st
-  {-# INLINE write #-}
 
 instance ArrowState s c => ArrowState s (StoreT var val c) where
   get = lift' get
-  {-# INLINE get #-}
   put = lift' put
-  {-# INLINE put #-}
 
 deriving instance (Eq var,Hashable var,Complete val,ArrowJoin c) => ArrowJoin (StoreT var val c)
 instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT var val c) where app = StoreT $ lmap (\(StoreT f,x) -> (f,x)) app

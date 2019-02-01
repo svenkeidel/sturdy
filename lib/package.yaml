@@ -24,7 +24,7 @@ flags:
     manual:      True
 
 library:
-  ghc-options: -Wall -O2
+  ghc-options: -Wall
   source-dirs:
     - src
   when:

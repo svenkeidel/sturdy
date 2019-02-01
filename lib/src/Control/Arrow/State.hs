@@ -24,12 +24,10 @@ class (Arrow c, Profunctor c) => ArrowState s c | c -> s where
 -- | run computation that modifies the current state.
 modify :: ArrowState s c => c (x,s) s -> c x ()
 modify f = put <<< f <<< (id &&& const get)
-{-# INLINE modify #-}
 
 -- | run computation that modifies the current state.
 modify' :: ArrowState s c => c (s,x) s -> c x ()
 modify' f = put <<< f <<< (const get &&& id)
-{-# INLINE modify' #-}
 
 instance MonadState s m => ArrowState s (Kleisli m) where
   get = Kleisli (P.const M.get)

@@ -33,4 +33,3 @@ read' = proc var ->
   read (proc (val,_) -> returnA -< val)
        (proc var     -> fail    -< fromString $ printf "variable %s not bound" (show var))
     -< (var,var)
-{-# INLINE read' #-}

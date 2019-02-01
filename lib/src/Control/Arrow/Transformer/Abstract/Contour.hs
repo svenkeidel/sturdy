@@ -40,7 +40,6 @@ newtype ContourT lab c a b = ContourT (ReaderT (CallString lab) c a b)
 -- strings are truncated to at most 'k' elements.
 runContourT :: (Arrow c, Profunctor c) => Int -> ContourT lab c a b -> c a b
 runContourT k (ContourT (ReaderT f)) = lmap (\a -> (empty k,a)) f
-{-# INLINE runContourT #-}
 
 type instance Fix x y (ContourT lab c) = ContourT lab (Fix x y c)
 instance (ArrowFix x y c, ArrowApply c, HasLabel x lab,Profunctor c) => ArrowFix x y (ContourT lab c) where
@@ -54,22 +53,17 @@ instance (ArrowFix x y c, ArrowApply c, HasLabel x lab,Profunctor c) => ArrowFix
       unwrap c (ContourT (ReaderT f')) = proc x -> do
         y <- f' -< (push (label x) c,x)
         returnA -< y
-  {-# INLINE fix #-}
 
 instance (Arrow c, Profunctor c) => ArrowAlloc (var,val,env) (var,CallString lab) (ContourT lab c) where
   -- | Return the variable together with the current call string as address.
   alloc = ContourT $ ReaderT $ arr $ \(l,(x,_,_)) -> (x,l)
-  {-# INLINE alloc #-}
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ContourT lab c) where
   app = ContourT $ lmap (\(ContourT f,x) -> (f,x)) app
-  {-# INLINE app #-}
 
 instance ArrowReader r c => ArrowReader r (ContourT lab c) where
   ask = lift' ask
-  {-# INLINE ask #-}
   local (ContourT (ReaderT f)) = ContourT $ ReaderT $ ((\(c,(r,x)) -> (r,(c,x))) ^>> local f)
-  {-# INLINE local #-}
 
 deriving instance PreOrd (c (CallString lab,x) y) => PreOrd (ContourT lab c x y)
 deriving instance LowerBounded (c (CallString lab,x) y) => LowerBounded (ContourT lab c x y)

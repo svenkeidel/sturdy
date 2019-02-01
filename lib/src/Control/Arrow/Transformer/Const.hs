@@ -45,15 +45,12 @@ runConstT r (ConstT (StaticT f)) = f r
 
 instance (Arrow c, Profunctor c) => ArrowConst r (ConstT r c) where
   askConst = ConstT $ StaticT $ \r -> arr (const r)
-  {-# INLINE askConst #-}
 
 type instance Fix x y (ConstT r c) = ConstT r (Fix x y c)
 instance ArrowFix x y c => ArrowFix x y (ConstT r c) where
   fix f = ConstT $ StaticT $ \r -> fix (runConstT r . f . lift')
-  {-# INLINE fix #-}
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ConstT r c) where
   app = ConstT $ StaticT $ \r -> lmap (\(ConstT (StaticT f),x) -> (f r,x)) app
-  {-# INLINE app #-}
 
 deriving instance ArrowDeduplicate x y c => ArrowDeduplicate x y (ConstT r c)

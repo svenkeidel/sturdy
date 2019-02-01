@@ -25,4 +25,3 @@ instance MonadError e m => ArrowFail e (Kleisli m) where
 -- | Simpler version of 'fail'.
 fail' :: ArrowFail () c => c a b
 fail' = arr (const ()) >>> fail
-{-# INLINE fail' #-}

@@ -33,23 +33,17 @@ newtype PowT c x y = PowT { runPowT :: c x (A.Pow y)}
 
 instance (Profunctor c, Arrow c) => Profunctor (PowT c) where
   dimap f g h = lift $ dimap f (fmap g) (unlift h)
-  {-# INLINE dimap #-}
   lmap f h = lift $ lmap f (unlift h)
-  {-# INLINE lmap #-}
   rmap g h = lift $ rmap (fmap g) (unlift h)
-  {-# INLINE rmap #-}
 
 instance ArrowTrans PowT where
   type Dom PowT x y = x
   type Cod PowT x y = A.Pow y
   lift = PowT
-  {-# INLINE lift #-}
   unlift = runPowT
-  {-# INLINE unlift #-}
 
 instance ArrowLift PowT where
   lift' f = lift $ rmap A.singleton f
-  {-# INLINE lift' #-}
 
 mapPow :: ArrowChoice c => c x y -> c (A.Pow x) (A.Pow y)
 mapPow f = proc (A.Pow s) -> case viewl s of
@@ -61,27 +55,18 @@ mapPow f = proc (A.Pow s) -> case viewl s of
 
 instance (ArrowChoice c, Profunctor c) => Category (PowT c) where
   id = lift' id
-  {-# INLINE id #-}
   f . g = lift $ rmap join (unlift g >>> mapPow (unlift f))
-  {-# INLINE (.) #-}
 
 instance (ArrowChoice c, Profunctor c) => Arrow (PowT c) where
   arr f = lift' (arr f)
-  {-# INLINE arr #-}
   first f = lift $ rmap (\(pow,n) -> A.cartesian (pow, A.singleton n)) (first (unlift f))
-  {-# INLINE first #-}
   second f = lift $ rmap (\(n,pow) -> A.cartesian (A.singleton n, pow)) (second (unlift f))
-  {-# INLINE second #-}
   f &&& g = lift $ rmap A.cartesian (unlift f &&& unlift g)
-  {-# INLINE (&&&) #-}
   f *** g = lift $ rmap A.cartesian (unlift f *** unlift g)
-  {-# INLINE (***) #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowChoice (PowT c) where
   left f = lift $ rmap strength1 $ left (unlift f)
-  {-# INLINE left #-}
   right f = lift $ rmap strength2 $ right (unlift f)
-  {-# INLINE right #-}
   f ||| g = lift $ unlift f ||| unlift g
   f +++ g = lift $ rmap merge $ unlift f +++ unlift g
     where

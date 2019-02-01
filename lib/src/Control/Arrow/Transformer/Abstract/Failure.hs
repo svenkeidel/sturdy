@@ -36,116 +36,80 @@ newtype FailureT e c x y = FailureT { runFailureT :: c x (Failure e y) }
 
 instance (ArrowChoice c, Profunctor c) => ArrowFail e (FailureT e c) where
   fail = lift $ arr Fail
-  {-# INLINE fail #-}
 
 instance (Profunctor c, Arrow c) => Profunctor (FailureT e c) where
   dimap f g h = lift $ dimap f (fmap g) (unlift h)
-  {-# INLINE dimap #-}
   lmap f h = lift $ lmap f (unlift h)
-  {-# INLINE lmap #-}
   rmap g h = lift $ rmap (fmap g) (unlift h)
-  {-# INLINE rmap #-}
 
 
 instance ArrowTrans (FailureT e) where
   type Dom (FailureT e) x y = x
   type Cod (FailureT e) x y = Failure e y
   lift = FailureT
-  {-# INLINE lift #-}
   unlift = runFailureT
-  {-# INLINE unlift #-}
 
 instance ArrowLift (FailureT e) where
   lift' f = lift (f >>> arr Success)
-  {-# INLINE lift' #-}
 
 instance (ArrowChoice c,Profunctor c) => Category (FailureT r c) where
   id = lift' id
-  {-# INLINE id #-}
   f . g = lift $ unlift g >>> lmap toEither (arr Fail ||| unlift f)
-  {-# INLINE (.) #-}
 
 instance (ArrowChoice c,Profunctor c) => Arrow (FailureT r c) where
   arr f    = lift' (arr f)
-  {-# INLINE arr #-}
   first f  = lift $ rmap strength1 (first (unlift f))
-  {-# INLINE first #-}
   second f = lift $ rmap strength2 (second (unlift f))
-  {-# INLINE second #-}
   f &&& g = lift $ rmap mstrength (unlift f &&& unlift g)
-  {-# INLINE (&&&) #-}
   f *** g = lift $ rmap mstrength (unlift f *** unlift g)
-  {-# INLINE (***) #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowChoice (FailureT r c) where
   left f  = lift $ rmap strength1 $ left (unlift f)
-  {-# INLINE left #-}
   right f = lift $ rmap strength2 $ right (unlift f)
-  {-# INLINE right #-}
   f ||| g = lift $ unlift f ||| unlift g
-  {-# INLINE (|||) #-}
   f +++ g = lift $ rmap mstrength (unlift f +++ unlift g)
-  {-# INLINE (+++) #-}
 
 instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (FailureT e c) where
   app = lift $ lmap (first unlift) app
-  {-# INLINE app #-}
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (FailureT e c) where
   get = lift' get
-  {-# INLINE get #-}
   put = lift' put
-  {-# INLINE put #-}
 
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (FailureT e c) where
   ask = lift' ask
-  {-# INLINE ask #-}
   local f = lift (local (unlift f))
-  {-# INLINE local #-}
 
 instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (FailureT e c) where
   type Join (FailureT e c) x y = Env.Join c (Dom (FailureT e) x y) (Cod (FailureT e) x y)
   lookup f g = lift $ lookup (unlift f) (unlift g)
-  {-# INLINE lookup #-}
   getEnv = lift' getEnv
-  {-# INLINE getEnv #-}
   extendEnv = lift' extendEnv
-  {-# INLINE extendEnv #-}
   localEnv f = lift (localEnv (unlift f))
-  {-# INLINE localEnv #-}
 
 instance (ArrowChoice c, ArrowStore var val c) => ArrowStore var val (FailureT e c) where
   type Join (FailureT e c) x y = Store.Join c (Dom (FailureT e) x y) (Cod (FailureT e) x y)
   read f g = lift $ read (unlift f) (unlift g)
-  {-# INLINE read #-}
   write = lift' $ write
-  {-# INLINE write #-}
 
 type instance Fix x y (FailureT e c) = FailureT e (Fix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c)
 instance (ArrowChoice c, ArrowFix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c) => ArrowFix x y (FailureT e c) where
   fix = liftFix
-  {-# INLINE fix #-}
 
 instance (ArrowChoice c, ArrowExcept e c) => ArrowExcept e (FailureT e' c) where
   type Join (FailureT e' c) x y = Exc.Join c (Dom (FailureT e') x y) (Cod (FailureT e') x y)
   throw = lift' throw
-  {-# INLINE throw #-}
   catch f g = lift $ catch (unlift f) (unlift g)
-  {-# INLINE catch #-}
   finally f g = lift $ finally (unlift f) (unlift g)
-  {-# INLINE finally #-}
 
 instance (Identifiable e, ArrowChoice c, ArrowDeduplicate (Dom (FailureT e) x y) (Cod (FailureT e) x y) c) => ArrowDeduplicate x y (FailureT e c) where
   dedup f = lift (dedup (unlift f))
-  {-# INLINE dedup #-}
 
 instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (FailureT e c) where
   askConst = lift' askConst
-  {-# INLINE askConst #-}
 
 instance (ArrowJoin c, ArrowChoice c) => ArrowJoin (FailureT e c) where
   joinWith lub' (FailureT f) (FailureT g) = FailureT $ joinWith (widening lub') f g
-  {-# INLINE joinWith #-}
 
 deriving instance PreOrd (c x (Failure e y)) => PreOrd (FailureT e c x y)
 deriving instance LowerBounded (c x (Failure e y)) => LowerBounded (FailureT e c x y)

@@ -19,11 +19,9 @@ class (Arrow c, Profunctor c) => ArrowJoin c where
 
 joinWith' :: ArrowJoin c => (y -> y -> y) -> c x y -> c x' y -> c (x,x') y
 joinWith' lub f g = joinWith lub (f <<< pi1) (g <<< pi2)
-{-# INLINE joinWith' #-}
 
 (<⊔>) :: (ArrowJoin c, Complete y) => c x y -> c x y -> c x y
 (<⊔>) = joinWith (⊔)
-{-# INLINE (<⊔>) #-}
 
 -- | Joins a list of arguments. Use it with idiom brackets:
 -- @

@@ -34,23 +34,19 @@ class (Arrow c, Profunctor c) => ArrowExcept e c | c -> e where
 -- | Simpler version of 'throw'.
 throw' :: ArrowExcept () c => c a b
 throw' = proc _ -> throw -< ()
-{-# INLINE throw' #-}
 
 -- | Simpler version of 'catch'.
 catch' :: (Join c (x,(x,e)) y, ArrowExcept e c) => c x y -> c e y -> c x y
 catch' f g = catch f (pi2 >>> g)
-{-# INLINE catch' #-}
 
 -- | @'try' f g h@ executes @f@, if it succeeds the result is passed to
 -- @g@, if it fails the original input is passed to @h@.
 try :: (Join c (x,(x,e)) z, ArrowExcept e c) => c x y -> c y z -> c x z -> c x z
 try f g h = catch (f >>> g) (pi1 >>> h)
-{-# INLINE try #-}
 
 -- | Picks the first computation that does not throw an exception.
 (<+>) :: (Join c (x,(x,e)) y, ArrowExcept e c) => c x y -> c x y -> c x y
 f <+> g = catch f (pi1 >>> g)
-{-# INLINE (<+>) #-}
 
 -- | @'tryFirst' f g -< l@ executes @f@ on elements of @l@ until one of them does not throw an exception.
 -- In case @f@ throws an exception for all elements of @l@, @g@ is executed.
@@ -58,9 +54,7 @@ tryFirst :: (Join c ((x,[x]),((x,[x]),e)) y, ArrowChoice c, ArrowExcept e c) => 
 tryFirst f g = proc l -> case l of
   [] -> g -< ()
   a:as -> try (f . pi1) id (tryFirst f g . pi2) -< (a,as)
-{-# INLINE tryFirst #-}
 
 -- | A computation that always succeeds
 success :: ArrowExcept e c => c a a
 success = id
-{-# INLINE success #-}

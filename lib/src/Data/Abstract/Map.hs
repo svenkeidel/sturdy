@@ -47,7 +47,6 @@ widening w (Map m1) (Map m2) = Map $ H.map join $ H.unionWith (E.widening (finit
         Left (_,a) -> (May,a)
         Right (_,b) -> (May,b)
         LeftRight (t1,a) (t2,b) -> (t1 ⊔ t2,a `w` b)
-{-# INLINE widening #-}
 {-# SCC widening #-}
 
 instance (Identifiable a, PreOrd b) => LowerBounded (Map a b) where
