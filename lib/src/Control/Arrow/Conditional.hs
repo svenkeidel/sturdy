@@ -6,9 +6,10 @@ module Control.Arrow.Conditional where
 
 import Control.Arrow
 import GHC.Exts(Constraint)
+import Data.Profunctor
 
 -- | Arrow based interface to implement conditionals.
-class Arrow c => ArrowCond v c | c -> v where
+class (Arrow c, Profunctor c) => ArrowCond v c | c -> v where
 
   -- | Type class constraint used by the abstract instances to join arrow computations.
   type family Join (c :: * -> * -> *) x y :: Constraint

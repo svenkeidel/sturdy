@@ -12,9 +12,10 @@ import           Control.Arrow
 import           Control.Arrow.Utils
 import           Control.Monad.State (MonadState)
 import qualified Control.Monad.State as M
+import           Data.Profunctor
 
 -- | Arrow-based interface to describe stateful computations.
-class Arrow c => ArrowState s c | c -> s where
+class (Arrow c, Profunctor c) => ArrowState s c | c -> s where
   -- | Retrieves the current state.
   get :: c () s
   -- | Sets the current state.
@@ -23,10 +24,12 @@ class Arrow c => ArrowState s c | c -> s where
 -- | run computation that modifies the current state.
 modify :: ArrowState s c => c (x,s) s -> c x ()
 modify f = put <<< f <<< (id &&& const get)
+{-# INLINE modify #-}
 
 -- | run computation that modifies the current state.
 modify' :: ArrowState s c => c (s,x) s -> c x ()
 modify' f = put <<< f <<< (const get &&& id)
+{-# INLINE modify' #-}
 
 instance MonadState s m => ArrowState s (Kleisli m) where
   get = Kleisli (P.const M.get)

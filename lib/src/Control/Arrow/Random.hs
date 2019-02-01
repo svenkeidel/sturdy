@@ -2,6 +2,7 @@
 module Control.Arrow.Random where
 
 import Control.Arrow
+import Data.Profunctor
 
-class Arrow c => ArrowRand v c where
+class (Arrow c, Profunctor c) => ArrowRand v c where
   random :: c () v

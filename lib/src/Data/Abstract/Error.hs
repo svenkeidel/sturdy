@@ -10,12 +10,13 @@ import Control.Arrow
 import Control.Monad
 import Control.DeepSeq
 
-import Data.Abstract.FreeCompletion
+import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
 import Data.Bifunctor
 import Data.Hashable
 import Data.Order
 import Data.Traversable
+import Data.Monoidal
 
 import GHC.Generics (Generic, Generic1)
 
@@ -43,16 +44,7 @@ instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
     (_, _) -> False
 
 instance (Complete e, Complete a) => Complete (Error e a) where
-  m1 ⊔ m2 = case (m1,m2) of
-    (Success x, Success y) -> Success (x ⊔ y)
-    (Success x, Fail e) -> SuccessOrFail e x
-    (Fail e, Success y) -> SuccessOrFail e y
-    (Fail e, Fail e') -> Fail (e ⊔ e')
-    (SuccessOrFail e x, Success y) -> SuccessOrFail e (x ⊔ y)
-    (Success x, SuccessOrFail e y) -> SuccessOrFail e (x ⊔ y)
-    (SuccessOrFail e x, Fail e') -> SuccessOrFail (e ⊔ e') x
-    (Fail e, SuccessOrFail e' y) -> SuccessOrFail (e ⊔ e') y
-    (SuccessOrFail e x, SuccessOrFail e' y) -> SuccessOrFail (e ⊔ e') (x ⊔ y)
+  (⊔) = widening (⊔) (⊔)
 
 widening :: Widening e -> Widening a -> Widening (Error e a)
 widening we wa m1 m2 = case (m1,m2) of
@@ -122,6 +114,21 @@ instance Traversable (Error e) where
   traverse f (Success x) = Success <$> f x
   traverse _ (Fail e) = pure (Fail e)
   traverse f (SuccessOrFail e x) = SuccessOrFail e <$> f x
+
+instance Complete e => StrongMonad (Error e) (,) where
+  mstrength (Success _,Fail e) = Fail e
+  mstrength (Fail e,Fail e') = Fail (e ⊔ e')
+  mstrength (SuccessOrFail e _,Fail e') = Fail (e ⊔ e')
+
+  mstrength (Success x,Success y) = Success (x,y)
+  mstrength (Fail e,Success _) = Fail e
+  mstrength (SuccessOrFail e x,Success y) = SuccessOrFail e (x,y)
+
+  mstrength (Success x,SuccessOrFail e y) = SuccessOrFail e (x,y)
+  mstrength (Fail e,SuccessOrFail e' _) = Fail (e ⊔ e')
+  mstrength (SuccessOrFail e x,SuccessOrFail e' y) = SuccessOrFail (e ⊔ e') (x,y)
+  {-# INLINE mstrength #-}
+
 
 fromMaybe :: Maybe a -> Error () a
 fromMaybe m = case m of

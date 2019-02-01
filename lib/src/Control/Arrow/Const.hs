@@ -3,9 +3,10 @@
 module Control.Arrow.Const where
 
 import Control.Arrow
+import Data.Profunctor
 
 -- | Arrow-based interface that gives access to a constant value.
-class Arrow c => ArrowConst r c | c -> r where
+class (Arrow c, Profunctor c) => ArrowConst r c | c -> r where
 
   -- | Retrieve the constant value.
   askConst :: c () r

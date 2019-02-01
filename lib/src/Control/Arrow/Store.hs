@@ -12,12 +12,13 @@ import Control.Arrow
 import Control.Arrow.Fail
 import Text.Printf
 import Data.String
+import Data.Profunctor
 import GHC.Exts(Constraint)
 
 -- | Arrow-based interface to describe computations that read from a store.
 -- The parameter `y` needs to be exposed, because abstract instances
 -- may need to join on `y`.
-class Arrow c => ArrowStore var val c | c -> var, c -> val where
+class (Arrow c, Profunctor c) => ArrowStore var val c | c -> var, c -> val where
   type family Join (c :: * -> * -> *) x y :: Constraint
 
   -- | Reads a value from the store. Fails if the binding is not in the current store.
@@ -32,3 +33,4 @@ read' = proc var ->
   read (proc (val,_) -> returnA -< val)
        (proc var     -> fail    -< fromString $ printf "variable %s not bound" (show var))
     -< (var,var)
+{-# INLINE read' #-}

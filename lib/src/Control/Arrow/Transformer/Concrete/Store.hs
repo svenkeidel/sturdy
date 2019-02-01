@@ -23,12 +23,15 @@ import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils
 import           Control.Category
 
+import           Data.Profunctor
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as S
 import           Data.Identifiable
 
 -- | Arrow transformer that adds a store to a computation.
 newtype StoreT var val c x y = StoreT (StateT (HashMap var val) c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
+            ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e)
 
 -- | Execute a computation and only return the result value and store.
 runStoreT :: StoreT var val c x y -> c (HashMap var val, x) (HashMap var val, y)
@@ -42,7 +45,7 @@ evalStoreT f = runStoreT f >>> pi2
 execStoreT :: Arrow c => StoreT var val c x y -> c (HashMap var val, x) (HashMap var val)
 execStoreT f = runStoreT f >>> pi1
 
-instance (Identifiable var, ArrowChoice c) => ArrowStore var val (StoreT var val c) where
+instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT var val c) where
   type Join (StoreT var val c) x y = ()
   read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
     s <- get -< ()
@@ -55,16 +58,7 @@ instance ArrowState s c => ArrowState s (StoreT var val c) where
   get = lift' get
   put = lift' put
 
-deriving instance ArrowTrans (StoreT var val)
-deriving instance ArrowLift (StoreT var val)
-deriving instance Arrow c => Category (StoreT var val c)
-deriving instance Arrow c => Arrow (StoreT var val c)
-deriving instance ArrowChoice c => ArrowChoice (StoreT var val c)
-instance ArrowApply c => ArrowApply (StoreT var val c) where app = StoreT ((\(StoreT f,x) -> (f,x)) ^>> app)
-deriving instance ArrowConst r c => ArrowConst r (StoreT var val c)
-deriving instance ArrowReader r c => ArrowReader r (StoreT var val c)
-deriving instance ArrowFail e c => ArrowFail e (StoreT var val c)
-deriving instance ArrowExcept e c => ArrowExcept e (StoreT var val c)
+instance (ArrowApply c,Profunctor c) => ArrowApply (StoreT var val c) where app = StoreT ((\(StoreT f,x) -> (f,x)) ^>> app)
 
 type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c)
 deriving instance ArrowFix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c => ArrowFix x y (StoreT var val c)

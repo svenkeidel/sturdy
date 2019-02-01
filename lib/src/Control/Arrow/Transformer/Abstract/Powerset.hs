@@ -26,18 +26,30 @@ import           Data.Monoidal
 import           Data.Order
 import           Data.Identifiable
 import           Data.Sequence hiding (lookup)
+import           Data.Profunctor
 
 -- | Computation that produces a set of results.
 newtype PowT c x y = PowT { runPowT :: c x (A.Pow y)}
+
+instance (Profunctor c, Arrow c) => Profunctor (PowT c) where
+  dimap f g h = lift $ dimap f (fmap g) (unlift h)
+  {-# INLINE dimap #-}
+  lmap f h = lift $ lmap f (unlift h)
+  {-# INLINE lmap #-}
+  rmap g h = lift $ rmap (fmap g) (unlift h)
+  {-# INLINE rmap #-}
 
 instance ArrowTrans PowT where
   type Dom PowT x y = x
   type Cod PowT x y = A.Pow y
   lift = PowT
+  {-# INLINE lift #-}
   unlift = runPowT
+  {-# INLINE unlift #-}
 
 instance ArrowLift PowT where
-  lift' f = PowT $ f >>^ A.singleton
+  lift' f = lift $ rmap A.singleton f
+  {-# INLINE lift' #-}
 
 mapPow :: ArrowChoice c => c x y -> c (A.Pow x) (A.Pow y)
 mapPow f = proc (A.Pow s) -> case viewl s of
@@ -47,21 +59,38 @@ mapPow f = proc (A.Pow s) -> case viewl s of
     A.Pow ps <- mapPow f -< A.Pow xs
     returnA -< A.Pow (p <| ps)
 
-instance ArrowChoice c => Category (PowT c) where
+instance (ArrowChoice c, Profunctor c) => Category (PowT c) where
   id = lift' id
-  PowT f . PowT g = PowT $ g >>> mapPow f >>^ join
+  {-# INLINE id #-}
+  f . g = lift $ rmap join (unlift g >>> mapPow (unlift f))
+  {-# INLINE (.) #-}
 
-instance ArrowChoice c => Arrow (PowT c) where
+instance (ArrowChoice c, Profunctor c) => Arrow (PowT c) where
   arr f = lift' (arr f)
-  first (PowT f) = PowT $ first f >>^ \(pow,n) -> A.cartesian (pow, A.singleton n)
-  second (PowT f) = PowT $ second f >>^ \(n,pow) -> A.cartesian (A.singleton n, pow)
+  {-# INLINE arr #-}
+  first f = lift $ rmap (\(pow,n) -> A.cartesian (pow, A.singleton n)) (first (unlift f))
+  {-# INLINE first #-}
+  second f = lift $ rmap (\(n,pow) -> A.cartesian (A.singleton n, pow)) (second (unlift f))
+  {-# INLINE second #-}
+  f &&& g = lift $ rmap A.cartesian (unlift f &&& unlift g)
+  {-# INLINE (&&&) #-}
+  f *** g = lift $ rmap A.cartesian (unlift f *** unlift g)
+  {-# INLINE (***) #-}
 
-instance ArrowChoice c => ArrowChoice (PowT c) where
-  left (PowT f) = PowT $ left f >>^ strength1
-  right (PowT f) = PowT $ right f >>^ strength2
+instance (ArrowChoice c, Profunctor c) => ArrowChoice (PowT c) where
+  left f = lift $ rmap strength1 $ left (unlift f)
+  {-# INLINE left #-}
+  right f = lift $ rmap strength2 $ right (unlift f)
+  {-# INLINE right #-}
+  f ||| g = lift $ unlift f ||| unlift g
+  f +++ g = lift $ rmap merge $ unlift f +++ unlift g
+    where
+      merge :: Either (A.Pow a) (A.Pow b) -> A.Pow (Either a b)
+      merge (Left e) = fmap Left e
+      merge (Right e) = fmap Right e
 
-instance (ArrowChoice c, ArrowApply c) => ArrowApply (PowT c) where
-  app = PowT $ first runPowT ^>> app
+instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (PowT c) where
+  app = PowT $ lmap (first unlift) app
 
 instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (PowT c) where
   ask = lift' ask

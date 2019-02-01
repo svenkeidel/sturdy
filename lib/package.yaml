@@ -15,6 +15,7 @@ dependencies:
   - text
   - unordered-containers
   - deepseq
+  - profunctors
 
 flags:
   trace:
@@ -23,7 +24,7 @@ flags:
     manual:      True
 
 library:
-  ghc-options: -Wall
+  ghc-options: -Wall -O2
   source-dirs:
     - src
   when:

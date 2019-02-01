@@ -6,8 +6,9 @@ import Prelude hiding ((.))
 import Control.Arrow
 import Control.Arrow.Utils
 import Data.Order(Complete(..))
+import Data.Profunctor
 
-class Arrow c => ArrowJoin c where
+class (Arrow c, Profunctor c) => ArrowJoin c where
   -- | Join two arrow computation with the provided upper bound operator.
   --
   -- Laws:
@@ -18,10 +19,11 @@ class Arrow c => ArrowJoin c where
 
 joinWith' :: ArrowJoin c => (y -> y -> y) -> c x y -> c x' y -> c (x,x') y
 joinWith' lub f g = joinWith lub (f <<< pi1) (g <<< pi2)
-
+{-# INLINE joinWith' #-}
 
 (<⊔>) :: (ArrowJoin c, Complete y) => c x y -> c x y -> c x y
 (<⊔>) = joinWith (⊔)
+{-# INLINE (<⊔>) #-}
 
 -- | Joins a list of arguments. Use it with idiom brackets:
 -- @

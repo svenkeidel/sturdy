@@ -9,9 +9,10 @@ module Control.Arrow.Fix(ArrowFix(..),Fix,liftFix) where
 
 import Control.Arrow
 import Control.Arrow.Trans
+import Data.Profunctor
 
 -- | Arrow-based interface for describing fixpoint computations.
-class Arrow c => ArrowFix x y c where
+class (Arrow c, Profunctor c) => ArrowFix x y c where
 
   -- | Computes the fixpoint of an arrow computation.
   fix :: (c x y -> c x y) -> c x y

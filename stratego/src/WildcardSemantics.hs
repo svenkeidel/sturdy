@@ -56,6 +56,7 @@ import           Data.Monoidal
 import           Data.Order
 import           Data.Term
 import           Data.Text (Text)
+import           Data.Profunctor
 
 import           Test.QuickCheck hiding (Success)
 import           Text.Printf
@@ -106,6 +107,7 @@ eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (A.Pow (Failu
 eval i s = runInterp (eval' s) i
 
 -- Instances -----------------------------------------------------------------------------------------
+deriving instance Profunctor (Interp s)
 deriving instance Category (Interp s)
 deriving instance Arrow (Interp s)
 deriving instance ArrowChoice (Interp s)

@@ -23,36 +23,30 @@ import           Control.Arrow.Store
 
 import           Control.Arrow.Transformer.State
 
+import           Data.Profunctor
+
 import           System.Random(StdGen,Random)
 import qualified System.Random as R
 
 newtype RandomT c x y = RandomT (StateT StdGen c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
+            ArrowReader r, ArrowFail e, ArrowExcept e,
+            ArrowEnv var val env, ArrowStore var val, ArrowCond val)
 
 runRandomT :: RandomT c x y -> c (StdGen,x) (StdGen,y)
 runRandomT (RandomT (StateT f)) = f
 
-instance (Random v, Arrow c) => ArrowRand v (RandomT c) where
+instance (Random v, Arrow c, Profunctor c) => ArrowRand v (RandomT c) where
   random = RandomT $ proc () -> do
     gen <- get -< ()
     let (v,gen') = R.random gen
     put -< gen'
     returnA -< v
 
-deriving instance Arrow c => Category (RandomT c)
-deriving instance Arrow c => Arrow (RandomT c)
-deriving instance ArrowChoice c => ArrowChoice (RandomT c)
-deriving instance ArrowTrans RandomT
-deriving instance ArrowLift RandomT
-deriving instance ArrowReader r c => ArrowReader r (RandomT c)
-deriving instance ArrowFail e c => ArrowFail e (RandomT c)
-deriving instance ArrowExcept e c => ArrowExcept e (RandomT c)
-deriving instance ArrowEnv var val env c => ArrowEnv var val env (RandomT c)
-deriving instance ArrowAlloc x y c => ArrowAlloc x y (RandomT c)
-deriving instance ArrowCond val c => ArrowCond val (RandomT c)
-deriving instance ArrowStore var val c => ArrowStore var val (RandomT c)
-
 type instance Fix x y (RandomT c) = RandomT (Fix (Dom RandomT x y) (Cod RandomT x y) c)
 deriving instance (Arrow c, ArrowFix (Dom RandomT x y) (Cod RandomT x y) c) => ArrowFix x y (RandomT c)
+
+deriving instance ArrowAlloc x y c => ArrowAlloc x y (RandomT c)
 
 instance ArrowState s c => ArrowState s (RandomT c) where
   get = lift' get

@@ -22,6 +22,7 @@ import Control.Arrow.State
 import Control.Arrow.Except as Exc
 import Control.Category
 
+import Data.Profunctor
 import Data.Concrete.Failure
 import Data.Monoidal
 import Data.Identifiable
@@ -29,8 +30,13 @@ import Data.Identifiable
 -- | Arrow transformer that adds failure to the result of a computation
 newtype FailureT e c x y = FailureT { runFailureT :: c x (Failure e y) }
 
-instance ArrowChoice c => ArrowFail e (FailureT e c) where
+instance (ArrowChoice c, Profunctor c) => ArrowFail e (FailureT e c) where
   fail = lift $ arr Fail
+
+instance (Profunctor c, Arrow c) => Profunctor (FailureT e c) where
+  dimap f g h = lift $ dimap f (fmap g) (unlift h)
+  lmap f h = lift $ lmap f (unlift h)
+  rmap g h = lift $ rmap (fmap g) (unlift h)
 
 instance ArrowTrans (FailureT e) where
   type Dom (FailureT e) x y = x
@@ -41,22 +47,22 @@ instance ArrowTrans (FailureT e) where
 instance ArrowLift (FailureT e) where
   lift' f = lift (f >>> arr Success)
 
-instance ArrowChoice c => Category (FailureT r c) where
+instance (ArrowChoice c, Profunctor c) => Category (FailureT r c) where
   id = lift' id
   f . g = lift $ unlift g >>> toEither ^>> arr Fail ||| unlift f
 
-instance ArrowChoice c => Arrow (FailureT r c) where
+instance (ArrowChoice c, Profunctor c) => Arrow (FailureT r c) where
   arr f = lift' (arr f)
   first f = lift $ first (unlift f) >>^ strength1
   second f = lift $ second (unlift f) >>^ strength2
 
-instance ArrowChoice c => ArrowChoice (FailureT r c) where
+instance (ArrowChoice c, Profunctor c) => ArrowChoice (FailureT r c) where
   left f = lift $ left (unlift f) >>^ strength1
   right f = lift $ right (unlift f) >>^ strength2
   f ||| g = lift (unlift f ||| unlift g)
   f +++ g = lift $ unlift f +++ unlift g >>^ from distribute
 
-instance (ArrowChoice c, ArrowApply c) => ArrowApply (FailureT e c) where
+instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FailureT e c) where
   app = FailureT $ first runFailureT ^>> app
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (FailureT e c) where

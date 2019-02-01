@@ -30,22 +30,25 @@ instance Monoidal Either where
       assocFrom (Right c) = Right (Right c)
 
 class Strong f m where
-  strength :: f a `m` b -> f (a `m` b)
-
-strength1 :: (Strong f m) => f a `m` b -> f (a `m` b)
-strength1 = strength
-{-# INLINE strength1 #-}
-
-strength2 :: (Symmetric m, Strong f m, Functor f) => a `m` f b -> f (a `m` b)
-strength2 = fmap commute . strength . commute
-{-# INLINE strength2 #-}
+  strength1 :: f a `m` b -> f (a `m` b)
+  strength2 :: a `m` f b -> f (a `m` b)
 
 instance Functor f => Strong f (,) where
-  strength (f,b) = fmap (\a -> (a,b)) f
+  strength1 (f,b) = fmap (\a -> (a,b)) f
+  strength2 (a,f) = fmap (\b -> (a,b)) f
 
 instance Applicative f => Strong f Either where
-  strength (Left f) = fmap Left f
-  strength (Right b) = pure (Right b)
+  strength1 (Left f) = fmap Left f
+  strength1 (Right b) = pure (Right b)
+  strength2 (Left a) = pure (Left a)
+  strength2 (Right f) = fmap Right f
+
+class Strong f m => StrongMonad f m where
+  mstrength :: f a `m` f b -> f (a `m` b)
+
+instance Applicative f => StrongMonad f Either where 
+  mstrength (Left a) = fmap Left a
+  mstrength (Right b) = fmap Right b
 
 class Monoidal m => Symmetric m where
   commute :: a `m` b -> b `m` a

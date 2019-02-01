@@ -20,18 +20,22 @@ void :: Arrow c => c x y -> c x ()
 void f = proc x -> do
   _ <- f -< x
   returnA -< ()
+{-# INLINE void #-}
 
 infixr 1 &&>
 (&&>) :: Arrow c => c a () -> c a b -> c a b
 f &&> g = f &&& g >>> arr snd
+{-# INLINE (&&>) #-}
 
 -- | Projects the first component of a product.
 pi1 :: Arrow c => c (x,y) x
 pi1 = arr fst
+{-# INLINE pi1 #-}
 
 -- | Projects the second component of a product.
 pi2 :: Arrow c => c (x,y) y
 pi2 = arr snd
+{-# INLINE pi2 #-}
 
 -- | Zips two lists together.
 zipWith :: ArrowChoice c => c (x,y) z -> c ([x],[y]) [z]
@@ -51,7 +55,9 @@ fold f = proc (l,a) -> case l of
 -- | Duplicates the current value.
 duplicate :: Arrow c => c x (x,x)
 duplicate = arr (\x -> (x,x))
+{-# INLINE duplicate #-}
 
 -- | creates a computation that always returns the same value.
 const :: Arrow c => c () x -> c y x
 const f = arr (\_ -> ()) >>> f
+{-# INLINE const #-}

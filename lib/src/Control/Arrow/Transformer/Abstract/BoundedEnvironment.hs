@@ -31,6 +31,12 @@ import           Data.Identifiable
 import           Data.Abstract.FiniteMap (Map)
 import qualified Data.Abstract.FiniteMap as M
 import           Data.Abstract.Maybe(Maybe(..))
+import           Data.Profunctor
+
+-- | Abstract domain for environments in which concrete environments
+-- are approximated by a mapping from variables to addresses and a
+-- mapping from addresses to values. The number of allocated addresses
+-- allows to tune the precision and performance of the analysis.
 
 -- | Abstract domain for environments in which concrete environments
 -- are approximated by a mapping from variables to addresses and a
@@ -40,10 +46,10 @@ import           Data.Abstract.Maybe(Maybe(..))
 -- Furthermore, closures and environments are defined mutually
 -- recursively. By only allowing a finite number of addresses, the
 -- abstract domain of closures and environments becomes finite.
-newtype EnvT var addr val c x y =
-  EnvT ( ConstT (c (var,val,Map var addr val) addr) (ReaderT (Map var addr val) c) x y )
+newtype EnvT var addr val c x y = EnvT ( ConstT (c (var,val,Map var addr val) addr) (ReaderT (Map var addr val) c) x y )
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowState s, ArrowFail e, ArrowExcept e, ArrowJoin)
 
-runEnvT :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c)
+runEnvT :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c)
                => c (var,val,Map var addr val) addr -> EnvT var addr val c x y -> c ([(var,val)],x) y
 runEnvT alloc f =
   let EnvT f' = proc (bs,x) -> do
@@ -51,6 +57,7 @@ runEnvT alloc f =
        env' <- bindings -< (bs,env)
        localEnv f -< (env',x)
   in (const (M.empty) &&& id) ^>> runReaderT (runConstT alloc f')
+{-# INLINE runEnvT #-}
 
 instance ArrowTrans (EnvT var addr val) where
   type Dom (EnvT var addr val) x y = Dom (ReaderT (Map var addr val)) x y
@@ -60,8 +67,9 @@ instance ArrowTrans (EnvT var addr val) where
       
 instance ArrowLift (EnvT var addr val) where
   lift' f = EnvT (lift' (lift' f))
+  {-# INLINE lift' #-}
 
-instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c) =>
+instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c) =>
   ArrowEnv var val (Map var addr val) (EnvT var addr val c) where
   type Join (EnvT var addr val c) x y = Complete (c (Map var addr val,x) y)
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
@@ -70,27 +78,27 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c) =>
       Just val        -> f          -< (val,x)
       JustNothing val -> joined f g -< ((val,x),x)
       Nothing         -> g          -< x
+  {-# INLINE lookup #-}
   getEnv = EnvT ask
+  {-# INLINE getEnv #-}
   extendEnv = EnvT $ ConstT $ StaticT $ \alloc -> lift' $ M.insertBy alloc
+  {-# INLINE extendEnv #-}
   localEnv (EnvT f) = EnvT $ local f
+  {-# INLINE localEnv #-}
 
 instance ArrowReader r c => ArrowReader r (EnvT var addr val c) where
   ask = lift' ask
+  {-# INLINE ask #-}
   local (EnvT (ConstT (StaticT f))) =
     EnvT $ ConstT $ StaticT $ \alloc -> ReaderT $ (\(env,(r,x)) -> (r,(env,x))) ^>> local (runReaderT (f alloc))
+  {-# INLINE local #-}
 
-instance ArrowApply c => ArrowApply (EnvT var addr val c) where
-  app = EnvT $ (\(EnvT f,x) -> (f,x)) ^>> app
+instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var addr val c) where
+  app = EnvT $ lmap (\(EnvT f,x) -> (f,x)) app
+  {-# INLINE app #-}
 
 type instance Fix x y (EnvT var addr val c) = EnvT var addr val (Fix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c)
 deriving instance ArrowFix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c => ArrowFix x y (EnvT var addr val c)
-deriving instance Arrow c => Category (EnvT var addr val c)
-deriving instance Arrow c => Arrow (EnvT var addr val c)
-deriving instance ArrowChoice c => ArrowChoice (EnvT var addr val c)
-deriving instance ArrowState s c => ArrowState s (EnvT var addr val c)
-deriving instance ArrowFail e c => ArrowFail e (EnvT var addr val c)
-deriving instance ArrowExcept e c => ArrowExcept e (EnvT var addr val c)
-deriving instance ArrowJoin c => ArrowJoin (EnvT var addr val c)
 
 deriving instance PreOrd (c ((Map var addr val),x) y) => PreOrd (EnvT var addr val c x y)
 deriving instance Complete (c ((Map var addr val),x) y) => Complete (EnvT var addr val c x y)

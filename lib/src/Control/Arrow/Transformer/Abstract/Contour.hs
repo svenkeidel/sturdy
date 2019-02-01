@@ -27,50 +27,49 @@ import           Control.Category
 import           Data.Label
 import           Data.Order
 import           Data.CallString
+import           Data.Profunctor
 
 -- | Records the k-bounded call string. Meant to be used in
 -- conjunction with 'Abstract.BoundedEnvironment'.
 newtype ContourT lab c a b = ContourT (ReaderT (CallString lab) c a b)
+  deriving (Profunctor,Category,Arrow,ArrowLift,ArrowChoice, ArrowState s,
+            ArrowEnv x y env, ArrowFail e, ArrowExcept e, ArrowJoin)
 
 -- | Runs a computation that records a call string. The argument 'k'
 -- specifies the maximum length of a call string. All larger call
 -- strings are truncated to at most 'k' elements.
-runContourT :: Arrow c => Int -> ContourT lab c a b -> c a b
-runContourT k (ContourT (ReaderT f)) = (\a -> (empty k,a)) ^>> f
+runContourT :: (Arrow c, Profunctor c) => Int -> ContourT lab c a b -> c a b
+runContourT k (ContourT (ReaderT f)) = lmap (\a -> (empty k,a)) f
+{-# INLINE runContourT #-}
 
 type instance Fix x y (ContourT lab c) = ContourT lab (Fix x y c)
-instance (ArrowFix x y c, ArrowApply c, HasLabel x lab) => ArrowFix x y (ContourT lab c) where
+instance (ArrowFix x y c, ArrowApply c, HasLabel x lab,Profunctor c) => ArrowFix x y (ContourT lab c) where
   -- Pushes the label of the last argument on the call string and truncate the call string in case it reached the maximum length
   fix f = ContourT $ ReaderT $ proc (c,x) -> fix (unwrap c . f . wrap) -<< x
     where
-      wrap :: Arrow c => c x y -> ContourT lab c x y
+      wrap :: (Arrow c, Profunctor c) => c x y -> ContourT lab c x y
       wrap = lift'
 
-      unwrap :: (HasLabel x lab, Arrow c) => CallString lab -> ContourT lab c x y -> c x y
+      unwrap :: (HasLabel x lab, Arrow c, Profunctor c) => CallString lab -> ContourT lab c x y -> c x y
       unwrap c (ContourT (ReaderT f')) = proc x -> do
         y <- f' -< (push (label x) c,x)
         returnA -< y
+  {-# INLINE fix #-}
 
-instance Arrow c => ArrowAlloc (var,val,env) (var,CallString lab) (ContourT lab c) where
+instance (Arrow c, Profunctor c) => ArrowAlloc (var,val,env) (var,CallString lab) (ContourT lab c) where
   -- | Return the variable together with the current call string as address.
-  alloc = ContourT $ ReaderT $ proc (l,(x,_,_)) -> returnA -< (x,l)
+  alloc = ContourT $ ReaderT $ arr $ \(l,(x,_,_)) -> (x,l)
+  {-# INLINE alloc #-}
 
-instance ArrowApply c => ArrowApply (ContourT lab c) where
-  app = ContourT $ (\(ContourT f,x) -> (f,x)) ^>> app
+instance (ArrowApply c, Profunctor c) => ArrowApply (ContourT lab c) where
+  app = ContourT $ lmap (\(ContourT f,x) -> (f,x)) app
+  {-# INLINE app #-}
 
 instance ArrowReader r c => ArrowReader r (ContourT lab c) where
   ask = lift' ask
+  {-# INLINE ask #-}
   local (ContourT (ReaderT f)) = ContourT $ ReaderT $ ((\(c,(r,x)) -> (r,(c,x))) ^>> local f)
-  
-deriving instance Arrow c => Category (ContourT lab c)
-deriving instance Arrow c => Arrow (ContourT lab c)
-deriving instance ArrowLift (ContourT lab)
-deriving instance ArrowChoice c => ArrowChoice (ContourT lab c)
-deriving instance ArrowState s c => ArrowState s (ContourT lab c)
-deriving instance ArrowEnv x y env c => ArrowEnv x y env (ContourT lab c)
-deriving instance ArrowFail e c => ArrowFail e (ContourT lab c)
-deriving instance ArrowExcept e c => ArrowExcept e (ContourT lab c)
-deriving instance ArrowJoin c => ArrowJoin (ContourT lab c)
+  {-# INLINE local #-}
 
 deriving instance PreOrd (c (CallString lab,x) y) => PreOrd (ContourT lab c x y)
 deriving instance LowerBounded (c (CallString lab,x) y) => LowerBounded (ContourT lab c x y)

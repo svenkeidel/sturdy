@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Data.Abstract.Terminating where
 
 import Control.Monad
@@ -9,6 +10,7 @@ import Control.DeepSeq
 
 import Data.Order
 import Data.Abstract.Widening
+import Data.Monoidal
 
 import GHC.Generics
 
@@ -75,6 +77,11 @@ widening _ (Terminating a) NonTerminating = (Terminating a)
 widening _ NonTerminating (Terminating b) = (Terminating b)
 widening w (Terminating a) (Terminating b) = Terminating (w a b)
 
+instance StrongMonad Terminating (,) where
+  mstrength (NonTerminating,_) = NonTerminating
+  mstrength (_,NonTerminating) = NonTerminating
+  mstrength (Terminating a,Terminating b) = Terminating (a,b)
+
 instance Num a => Num (Terminating a) where
   (+) = liftA2 (+)
   (*) = liftA2 (*)
@@ -87,7 +94,3 @@ instance Fractional a => Fractional (Terminating a) where
   (/) = liftA2 (/)
   fromRational = pure . fromRational
 
-distributeEither :: Either (Terminating a) (Terminating b) -> Terminating (Either a b)
-distributeEither (Left (Terminating a)) = Terminating (Left a)
-distributeEither (Right (Terminating a)) = Terminating (Right a)
-distributeEither _ = NonTerminating

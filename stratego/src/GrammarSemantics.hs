@@ -58,6 +58,7 @@ import           Data.Monoidal
 import           Data.Order
 import           Data.Term
 import           Data.Text (Text)
+import           Data.Profunctor
 
 import           TreeAutomata
 
@@ -128,6 +129,7 @@ createGrammar ctx = grammar startSymbol prods
     prods = M.fromList $ startProd : map toProd (LM.toList (sorts ctx)) ++ builtins
 
 -- Instances -----------------------------------------------------------------------------------------
+deriving instance Profunctor (Interp s)
 deriving instance Category (Interp s)
 deriving instance Arrow (Interp s)
 deriving instance ArrowChoice (Interp s)

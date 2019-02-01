@@ -31,19 +31,26 @@ import qualified Data.Abstract.Map as M
 import Data.Order
 import Data.Identifiable
 import Data.Hashable
+import Data.Profunctor
 
 newtype StoreT var val c x y = StoreT (StateT (Map var val) c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
+            ArrowReader r, ArrowFail e, ArrowExcept e, ArrowEnv var val env,
+            ArrowConst r)
 
 runStoreT :: StoreT var val c x y -> c (Map var val, x) (Map var val, y)
 runStoreT (StoreT (StateT f)) = f
+{-# INLINE runStoreT #-}
 
 evalStoreT :: Arrow c => StoreT var val c x y -> c (Map var val, x) y
 evalStoreT f = runStoreT f >>> pi2
+{-# INLINE evalStoreT #-}
 
 execStoreT :: Arrow c => StoreT var val c x y -> c (Map var val, x) (Map var val)
 execStoreT f = runStoreT f >>> pi1
+{-# INLINE execStoreT #-}
 
-instance (Identifiable var, ArrowChoice c) => ArrowStore var val (StoreT var val c) where
+instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT var val c) where
   type Join (StoreT var val c) ((val,x),x) y = Complete (c (Map var val, ((val, x), x)) (Map var val, y))
   read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
     s <- get -< ()
@@ -51,24 +58,18 @@ instance (Identifiable var, ArrowChoice c) => ArrowStore var val (StoreT var val
       Just val        -> f          -< (val,x)
       JustNothing val -> joined f g -< ((val,x),x)
       Nothing         -> g          -< x
+  {-# INLINE read #-}
   write = StoreT $ modify $ arr $ \((var,val),st) -> M.insert var val st
+  {-# INLINE write #-}
 
 instance ArrowState s c => ArrowState s (StoreT var val c) where
   get = lift' get
+  {-# INLINE get #-}
   put = lift' put
+  {-# INLINE put #-}
 
 deriving instance (Eq var,Hashable var,Complete val,ArrowJoin c) => ArrowJoin (StoreT var val c)
-deriving instance Arrow c => Category (StoreT var val c)
-deriving instance Arrow c => Arrow (StoreT var val c)
-deriving instance ArrowChoice c => ArrowChoice (StoreT var val c)
-deriving instance ArrowTrans (StoreT var val)
-deriving instance ArrowLift (StoreT var val)
-deriving instance ArrowReader r c => ArrowReader r (StoreT var val c)
-deriving instance ArrowFail e c => ArrowFail e (StoreT var val c)
-deriving instance ArrowExcept e c => ArrowExcept e (StoreT var val c)
-deriving instance ArrowEnv x y env c => ArrowEnv x y env (StoreT var val c)
-deriving instance ArrowConst x c => ArrowConst x (StoreT var val c)
-instance ArrowApply c => ArrowApply (StoreT var val c) where app = StoreT $ (\(StoreT f,x) -> (f,x)) ^>> app
+instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT var val c) where app = StoreT $ lmap (\(StoreT f,x) -> (f,x)) app
 
 type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c)
 deriving instance ArrowFix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c => ArrowFix x y (StoreT var val c)

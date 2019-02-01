@@ -17,6 +17,7 @@ import           Control.Arrow.Writer
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Writer
 
+import           Data.Profunctor
 import           Data.Sequence (Seq)
 import qualified Data.Sequence as S
 
@@ -24,22 +25,19 @@ data Entry a b = Call a | Return b deriving (Show,Eq)
 type Log a b = Seq (Entry a b)
 
 newtype TraceT a b c x y = TraceT (WriterT (Log a b) c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans)
 
 runTraceT :: TraceT a b c x y -> c x (Log a b,y)
 runTraceT (TraceT (WriterT f)) = f
 
-deriving instance ArrowTrans (TraceT a b)
-deriving instance Arrow c => Category (TraceT a b c)
-deriving instance Arrow c => Arrow (TraceT a b c)
-deriving instance ArrowChoice c => ArrowChoice (TraceT a b c)
-instance ArrowApply c => ArrowApply (TraceT a b c) where
+instance (ArrowApply c,Profunctor c) => ArrowApply (TraceT a b c) where
   app = TraceT $ (\(TraceT f,x) -> (f,x)) ^>> app
 
 type instance Fix x y (TraceT x y c) = TraceT x y (Fix (Dom (TraceT x y) x y) (Cod (TraceT x y) x y) c)
 instance ArrowFix (Dom (TraceT x y) x y) (Cod (TraceT x y) x y) c => ArrowFix x y (TraceT x y c) where
   fix f = TraceT $ fix (unwrap . f . TraceT)
     where
-      unwrap :: Arrow c => TraceT x y c x y -> WriterT (Log x y) c x y
+      unwrap :: (Arrow c,Profunctor c) => TraceT x y c x y -> WriterT (Log x y) c x y
       unwrap (TraceT g) = proc x -> do
         tell -< S.singleton (Call x)
         y <- g -< x

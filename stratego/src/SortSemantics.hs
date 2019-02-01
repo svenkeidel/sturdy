@@ -66,6 +66,7 @@ import           Data.Foldable (foldr')
 import           Data.Hashable
 import           Data.Monoidal
 import           Data.Order
+import           Data.Profunctor
 
 -- import           Test.QuickCheck hiding (Success)
 import           Text.Printf
@@ -164,13 +165,14 @@ eval' i s = runInterp' (Shared.eval' s) i
 -- Instances -----------------------------------------------------------------------------------------
 type instance Fix x y (SortT c) = SortT (Fix x y c)
 newtype SortT c x y = SortT { runSortT :: c x y }
-  deriving (Category,Arrow,ArrowChoice,ArrowExcept e,ArrowReader r,ArrowState s,ArrowFail e,ArrowJoin,ArrowConst ctx)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowExcept e,ArrowReader r,ArrowState s,ArrowFail e,ArrowJoin,ArrowConst ctx)
 
 instance ArrowReader StratEnv c => HasStratEnv (SortT c) where
-  readStratEnv = proc _ ->
-    ask -< ()
+  readStratEnv = proc _ -> ask -< ()
+  {-# INLINE readStratEnv #-}
   localStratEnv senv f = proc a ->
     local f -< (senv,a)
+  {-# INLINE localStratEnv #-}
 
 instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowExcept () c)
     => IsTerm Term (SortT c) where
@@ -281,9 +283,18 @@ instance ArrowTrans SortT where
   type Dom SortT x y = x
   type Cod SortT x y = y
   lift = SortT
+  {-# INLINE lift #-}
   unlift = runSortT
-instance ArrowApply c => ArrowApply (SortT c) where app = SortT (first unlift ^>> app)
-instance ArrowFix x y c => ArrowFix x y (SortT c) where fix = liftFix
+  {-# INLINE unlift #-}
+
+instance (ArrowApply c,Profunctor c) => ArrowApply (SortT c) where
+  app = SortT (lmap (first unlift) app)
+  {-# INLINE app #-}
+
+instance ArrowFix x y c => ArrowFix x y (SortT c) where
+  fix = liftFix
+  {-# INLINE fix #-}
+
 deriving instance ArrowDeduplicate x y c => ArrowDeduplicate x y (SortT c)
 
 instance Complete (FreeCompletion Term) where
@@ -296,15 +307,21 @@ instance Complete (FreeCompletion TermEnv) where
 
 instance (ArrowChoice c, ArrowJoin c, ArrowState TermEnv c) => IsTermEnv TermEnv Term (SortT c) where
   getTermEnv = get
+  {-# INLINE getTermEnv #-}
   putTermEnv = put
+  {-# INLINE putTermEnv #-}
   lookupTermVar f g = proc (v,env,ex) ->
     case S.lookup v env of
       A.Just t        -> f -< t
       A.Nothing       -> g -< ex
       A.JustNothing t -> (f -< t) <⊔> (g -< ex)
+  {-# INLINE lookupTermVar #-}
   insertTerm = arr $ \(v,t,env) -> S.insert v t env
+  {-# INLINE insertTerm #-}
   deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
+  {-# INLINE deleteTermVars #-}
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
+  {-# INLINE unionTermEnvs #-}
 
 
 -- alphaTerm :: Context -> C.Pow C.Term -> Term

@@ -4,6 +4,12 @@ license:             BSD3
 maintainer:          Sven Keidel <svenkeidel@gmail.com>
 category:            Language
 
+flags:
+  case-studies:
+    description: Enable case studies for stratego
+    default:     False
+    manual:      True
+
 dependencies:
   - base
   - attoparsec
@@ -11,6 +17,7 @@ dependencies:
   - deepseq
   - fgl
   - hashable
+  - profunctors
   - mtl
   - sturdy-lib
   - text
@@ -34,6 +41,12 @@ executables:
       - pretty
       - vector
       - criterion
+    when:
+      condition: flag(case-studies)
+      then:
+        buildable: true
+      else:
+        buildable: false
 
 benchmarks:
   sort-semantics:

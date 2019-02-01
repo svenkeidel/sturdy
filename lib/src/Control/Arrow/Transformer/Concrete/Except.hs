@@ -25,11 +25,12 @@ import Control.Category
 import Data.Concrete.Error
 import Data.Monoidal
 import Data.Identifiable
+import Data.Profunctor
 
 -- | Arrow transformer that adds exceptions to the result of a computation
 newtype ExceptT e c x y = ExceptT { runExceptT :: c x (Error e y) }
 
-instance ArrowChoice c => ArrowExcept e (ExceptT e c) where
+instance (ArrowChoice c, Profunctor c) => ArrowExcept e (ExceptT e c) where
   type Join (ExceptT e c) x y = ()
 
   throw = lift $ arr Fail
@@ -45,6 +46,11 @@ instance ArrowChoice c => ArrowExcept e (ExceptT e c) where
     unlift g -< x
     returnA -< e
 
+instance (Profunctor c, Arrow c) => Profunctor (ExceptT e c) where
+  dimap f g h = lift $ dimap f (fmap g) (unlift h)
+  lmap f h = lift $ lmap f (unlift h)
+  rmap g h = lift $ rmap (fmap g) (unlift h)
+
 instance ArrowTrans (ExceptT e) where
   type Dom (ExceptT e) x y = x
   type Cod (ExceptT e) x y = Error e y
@@ -54,22 +60,22 @@ instance ArrowTrans (ExceptT e) where
 instance ArrowLift (ExceptT e) where
   lift' f = ExceptT (f >>> arr Success)
 
-instance ArrowChoice c => Category (ExceptT r c) where
+instance (ArrowChoice c, Profunctor c) => Category (ExceptT r c) where
   id = lift' id
   f . g = lift $ unlift g >>> toEither ^>> arr Fail ||| unlift f
 
-instance ArrowChoice c => Arrow (ExceptT r c) where
+instance (ArrowChoice c, Profunctor c) => Arrow (ExceptT r c) where
   arr f = lift' (arr f)
   first f = lift $ first (unlift f) >>^ strength1
   second f = lift $ second (unlift f) >>^ strength2
 
-instance ArrowChoice c => ArrowChoice (ExceptT r c) where
+instance (ArrowChoice c, Profunctor c) => ArrowChoice (ExceptT r c) where
   left f = lift $ left (unlift f) >>^ strength1
   right f = lift $ right (unlift f) >>^ strength2
   f ||| g = lift (unlift f ||| unlift g)
   f +++ g = lift $ unlift f +++ unlift g >>^ from distribute
 
-instance (ArrowChoice c, ArrowApply c) => ArrowApply (ExceptT e c) where
+instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where
   app = lift $ first unlift ^>> app
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (ExceptT e c) where

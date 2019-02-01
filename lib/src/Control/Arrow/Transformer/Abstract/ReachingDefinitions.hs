@@ -37,25 +37,33 @@ import           Control.Arrow.Transformer.Reader
 import           Data.Identifiable
 import           Data.Order
 import           Data.Label
+import           Data.Profunctor
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.DiscretePowerset as P
 
 newtype ReachingDefsT lab c x y = ReachingDefsT (ReaderT (Maybe lab) c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
+            ArrowFail e,ArrowExcept e,ArrowState s,ArrowEnv var val env,
+            ArrowCond val,ArrowJoin)
 
-reachingDefsT :: Arrow c => c (Maybe lab,x) y -> ReachingDefsT lab c x y
+reachingDefsT :: (Arrow c,Profunctor c) => c (Maybe lab,x) y -> ReachingDefsT lab c x y
 reachingDefsT = lift
+{-# INLINE reachingDefsT #-}
 
-runReachingDefsT :: Arrow c => ReachingDefsT lab c x y -> c (Maybe lab,x) y
+runReachingDefsT :: (Arrow c,Profunctor c) => ReachingDefsT lab c x y -> c (Maybe lab,x) y
 runReachingDefsT = unlift
+{-# INLINE runReachingDefsT #-}
 
-runReachingDefsT' :: Arrow c => ReachingDefsT lab c x y -> c x y
-runReachingDefsT' f = (\x -> (Nothing,x)) ^>> runReachingDefsT f
+runReachingDefsT' :: (Arrow c,Profunctor c) => ReachingDefsT lab c x y -> c x y
+runReachingDefsT' f = lmap (\x -> (Nothing,x)) (runReachingDefsT f)
+{-# INLINE runReachingDefsT' #-}
 
 instance (Identifiable var, Identifiable lab, ArrowStore var (val,Pow lab) c) => ArrowStore var val (ReachingDefsT lab c) where
   type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Pow lab),Dom (ReachingDefsT lab) x y), Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)
-  read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read ((\((v,_::Pow lab),x) -> (v,x)) ^>> f) g
-  write = reachingDefsT $ proc (lab,(var,val)) ->
-    write -< (var,(val,P.fromMaybe lab))
+  read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read (lmap (\((v,_::Pow lab),x) -> (v,x)) f) g
+  {-# INLINE read #-}
+  write = reachingDefsT $ lmap (\(lab,(var,val)) -> (var,(val,P.fromMaybe lab))) write
+  {-# INLINE write #-}
 
 type instance Fix x y (ReachingDefsT lab c) = ReachingDefsT lab (Fix x y c)
 instance (HasLabel x lab, Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefsT lab c) where
@@ -63,33 +71,22 @@ instance (HasLabel x lab, Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefs
     where
       unwrap :: HasLabel x lab => ReachingDefsT lab c x y -> c x y
       unwrap f' = (Just . label &&& id) ^>> runReachingDefsT f'
+      {-# INLINE unwrap #-}
+  {-# INLINE fix #-}
 
-instance ArrowApply c => ArrowApply (ReachingDefsT lab c) where
-  app = ReachingDefsT ((\(ReachingDefsT f,x) -> (f,x)) ^>> app)
-
-deriving instance ArrowTrans (ReachingDefsT lab)
-instance ArrowLift (ReachingDefsT lab) where
-  lift' f = reachingDefsT (snd ^>> f)
+instance (ArrowApply c,Profunctor c) => ArrowApply (ReachingDefsT lab c) where
+  app = ReachingDefsT (lmap (\(ReachingDefsT f,x) -> (f,x)) app)
+  {-# INLINE app #-}
 
 instance ArrowReader r c => ArrowReader r (ReachingDefsT lab c) where
   ask = lift' ask
+  {-# INLINE ask #-}
   local f = lift $ (\(m,(r,a)) -> (r,(m,a))) ^>> local (unlift f)
+  {-# INLINE local #-}
 
 instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefsT lab c) where
   alloc = lift' alloc
-
-instance ArrowRand v c => ArrowRand v (ReachingDefsT lab c) where
-  random = lift' random
-
-deriving instance Arrow c => Category (ReachingDefsT lab c)
-deriving instance Arrow c => Arrow (ReachingDefsT lab c)
-deriving instance ArrowChoice c => ArrowChoice (ReachingDefsT lab c)
-deriving instance ArrowFail e c => ArrowFail e (ReachingDefsT lab c)
-deriving instance ArrowExcept e c => ArrowExcept e (ReachingDefsT lab c)
-deriving instance ArrowState s c => ArrowState s (ReachingDefsT lab c)
-deriving instance ArrowEnv x y env c => ArrowEnv x y env (ReachingDefsT lab c)
-deriving instance ArrowCond val c => ArrowCond val (ReachingDefsT lab c)
-deriving instance ArrowJoin c => ArrowJoin (ReachingDefsT lab c)
+  {-# INLINE alloc #-}
 
 deriving instance PreOrd (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => PreOrd (ReachingDefsT lab c x y)
 deriving instance LowerBounded (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => LowerBounded (ReachingDefsT lab c x y)

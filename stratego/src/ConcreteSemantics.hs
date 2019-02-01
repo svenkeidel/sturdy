@@ -46,6 +46,7 @@ import           Data.Hashable
 import           Data.String (IsString(..))
 import           Data.Term (TermUtils(..))
 import           Data.Text (Text)
+import           Data.Profunctor
 
 import           Test.QuickCheck
 
@@ -61,7 +62,7 @@ newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 -- | Concrete interpreter arrow give access to the strategy
 -- environment, term environment, and handles anonymous exceptions.
 newtype Interp a b = Interp (ReaderT StratEnv (StateT TermEnv (ExceptT () (FailureT String (->)))) a b)
-  deriving (Category,Arrow,ArrowChoice,ArrowApply)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowApply)
 
 -- | Executes a concrete interpreter computation.
 runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Failure String (Error () (TermEnv,b))
