@@ -22,6 +22,7 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store as Store
 import Control.Arrow.Except as Exc
+import Control.Arrow.Utils(duplicate)
 import Control.Arrow.Abstract.Join
 import Control.Category
 
@@ -60,14 +61,14 @@ instance (ArrowChoice c,Profunctor c) => Arrow (FailureT r c) where
   arr f    = lift' (arr f)
   first f  = lift $ rmap strength1 (first (unlift f))
   second f = lift $ rmap strength2 (second (unlift f))
-  f &&& g = lift $ rmap mstrength (unlift f &&& unlift g)
-  f *** g = lift $ rmap mstrength (unlift f *** unlift g)
+  f &&& g = lmap duplicate (f *** g)
+  f *** g = first f >>> second g
 
 instance (ArrowChoice c, Profunctor c) => ArrowChoice (FailureT r c) where
   left f  = lift $ rmap strength1 $ left (unlift f)
   right f = lift $ rmap strength2 $ right (unlift f)
   f ||| g = lift $ unlift f ||| unlift g
-  f +++ g = lift $ rmap mstrength (unlift f +++ unlift g)
+  f +++ g = left f >>> right g
 
 instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (FailureT e c) where
   app = lift $ lmap (first unlift) app

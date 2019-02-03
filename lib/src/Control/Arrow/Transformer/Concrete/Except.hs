@@ -20,6 +20,7 @@ import Control.Arrow.Reader
 import Control.Arrow.Store as Store
 import Control.Arrow.State
 import Control.Arrow.Except
+import Control.Arrow.Utils
 import Control.Category
 
 import Data.Concrete.Error
@@ -58,25 +59,27 @@ instance ArrowTrans (ExceptT e) where
   unlift = runExceptT
 
 instance ArrowLift (ExceptT e) where
-  lift' f = ExceptT (f >>> arr Success)
+  lift' f = lift (rmap Success f)
 
 instance (ArrowChoice c, Profunctor c) => Category (ExceptT r c) where
   id = lift' id
-  f . g = lift $ unlift g >>> toEither ^>> arr Fail ||| unlift f
+  f . g = lift $ unlift g >>> lmap toEither (arr Fail ||| unlift f)
 
 instance (ArrowChoice c, Profunctor c) => Arrow (ExceptT r c) where
   arr f = lift' (arr f)
-  first f = lift $ first (unlift f) >>^ strength1
-  second f = lift $ second (unlift f) >>^ strength2
+  first f = lift $ rmap strength1 (first (unlift f))
+  second f = lift $ rmap strength2 (second (unlift f))
+  f *** g = first f >>> second g
+  f &&& g = lmap duplicate (f *** g)
 
 instance (ArrowChoice c, Profunctor c) => ArrowChoice (ExceptT r c) where
   left f = lift $ left (unlift f) >>^ strength1
   right f = lift $ right (unlift f) >>^ strength2
-  f ||| g = lift (unlift f ||| unlift g)
-  f +++ g = lift $ unlift f +++ unlift g >>^ from distribute
+  f ||| g = lift $ unlift f ||| unlift g
+  f +++ g = lift $ rmap distribute2 (unlift f +++ unlift g)
 
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where
-  app = lift $ first unlift ^>> app
+  app = lift $ lmap (first unlift) app
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (ExceptT e c) where
   get = lift' get

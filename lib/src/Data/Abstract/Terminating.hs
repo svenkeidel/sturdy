@@ -10,7 +10,7 @@ import Control.DeepSeq
 
 import Data.Order
 import Data.Abstract.Widening
-import Data.Monoidal
+-- import Data.Monoidal
 
 import GHC.Generics
 
@@ -57,11 +57,8 @@ instance Complete a => Complete (Terminating a) where
   x ⊔ NonTerminating = x
   NonTerminating ⊔ y = y
 
-instance PreOrd a => CoComplete (Terminating a) where
-  Terminating a ⊓ Terminating b
-    | a ⊑ b = Terminating a
-    | b ⊑ a = Terminating b
-    | otherwise = NonTerminating
+instance CoComplete a => CoComplete (Terminating a) where
+  Terminating a ⊓ Terminating b = Terminating (a ⊓ b) 
   NonTerminating ⊓ _ = NonTerminating
   _ ⊓ NonTerminating = NonTerminating
 
@@ -77,10 +74,10 @@ widening _ (Terminating a) NonTerminating = (Terminating a)
 widening _ NonTerminating (Terminating b) = (Terminating b)
 widening w (Terminating a) (Terminating b) = Terminating (w a b)
 
-instance StrongMonad Terminating (,) where
-  mstrength (NonTerminating,_) = NonTerminating
-  mstrength (_,NonTerminating) = NonTerminating
-  mstrength (Terminating a,Terminating b) = Terminating (a,b)
+-- instance StrongMonad Terminating (,) where
+--   mstrength (NonTerminating,_) = NonTerminating
+--   mstrength (_,NonTerminating) = NonTerminating
+--   mstrength (Terminating a,Terminating b) = Terminating (a,b)
 
 instance Num a => Num (Terminating a) where
   (+) = liftA2 (+)

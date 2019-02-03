@@ -38,11 +38,11 @@ import Data.Profunctor
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype StateT s c x y = StateT { runStateT :: c (s,x) (s,y) }
 
-evalStateT :: Arrow c => StateT s c x y -> c (s,x) y
-evalStateT f = runStateT f >>> pi2
+evalStateT :: (Arrow c, Profunctor c) => StateT s c x y -> c (s,x) y
+evalStateT f = rmap snd $ runStateT f
 
-execStateT :: Arrow c => StateT s c x y -> c (s,x) s
-execStateT f = runStateT f >>> pi1
+execStateT :: (Arrow c, Profunctor c) => StateT s c x y -> c (s,x) s
+execStateT f = rmap fst $ runStateT f
 
 instance (Profunctor c, Arrow c) => Profunctor (StateT s c) where
   dimap f g h = lift $ dimap (second f) (second g) (unlift h)
@@ -66,23 +66,21 @@ instance (Arrow c, Profunctor c) => Arrow (StateT s c) where
   arr f = lift' (arr f)
   first f = lift $ dimap (\(s,(b,c)) -> ((s,b),c)) strength1 (first (unlift f))
   second f = lift $ dimap (\(s,(a,b)) -> (a,(s,b))) strength2 (second (unlift f))
-  f &&& g = lift $ dimap (\(s,x) -> ((s,x),x)) (\((s,y),x) -> ((s,x),y)) (first (unlift f)) 
-               >>> rmap (\((s,z),y) -> (s,(y,z))) (first (unlift g))
-  f *** g = lift $ dimap (\(s,(x,y)) -> ((s,x),y)) (\((s,y),x) -> ((s,x),y)) (first (unlift f))
-               >>> rmap (\((s,z),y) -> (s,(y,z))) (first (unlift g)) 
+  f &&& g = lmap duplicate (f *** g)
+  f *** g = first f >>> second g
 
 instance (ArrowChoice c, Profunctor c) => ArrowChoice (StateT s c) where
-  left f = lift $ dimap (to distribute) (from distribute) (left (unlift f)) 
-  right f = lift $ dimap (to distribute) (from distribute) (right (unlift f))
-  f +++ g = lift $ dimap (to distribute) (from distribute) (unlift f +++ unlift g)
-  f ||| g = lift $ lmap (to distribute) (unlift f ||| unlift g)
+  left f = lift $ dimap distribute1 distribute2 (left (unlift f)) 
+  right f = lift $ dimap distribute1 distribute2 (right (unlift f))
+  f +++ g = lift $ dimap distribute1 distribute2 (unlift f +++ unlift g)
+  f ||| g = lift $ lmap distribute1 (unlift f ||| unlift g)
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (StateT s c) where
-  app = StateT $ lmap (\(s,(StateT f,b)) -> (f,(s,b))) app
+  app = lift $ lmap (\(s,(f,b)) -> (unlift f,(s,b))) app
 
 instance (Arrow c, Profunctor c) => ArrowState s (StateT s c) where
-  get = StateT (arr (\(a,()) -> (a,a)))
-  put = StateT (arr (\(_,s) -> (s,())))
+  get = lift (arr (\(a,()) -> (a,a)))
+  put = lift (arr (\(_,s) -> (s,())))
 
 
 instance (ArrowFail e c, Profunctor c) => ArrowFail e (StateT s c) where
@@ -118,7 +116,7 @@ instance ArrowFix (s,x) (s,y) c => ArrowFix x y (StateT s c) where
 instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
   type instance Join (StateT s c) (x,(x,e)) y = Exc.Join c (Dom (StateT s) x y,(Dom (StateT s) x y,e)) (Cod (StateT s) x y)
   throw = lift' throw
-  catch f g = lift $ catch (unlift f) (lmap (from assoc) (unlift g))
+  catch f g = lift $ catch (unlift f) (lmap assoc2 (unlift g))
   finally f g = lift $ finally (unlift f) (unlift g)
 
 instance (Eq s, Hashable s, ArrowDeduplicate (Dom (StateT s) x y) (Cod (StateT s) x y) c) => ArrowDeduplicate x y (StateT s c) where

@@ -36,57 +36,41 @@ instance Monoidal Error where
   mmap f _ (Fail x) = Fail (f x)
   mmap _ g (Success y) = Success (g y)
 
-  assoc = Iso assocTo assocFrom
-    where
-      assocTo :: Error a (Error b c) -> Error (Error a b) c
-      assocTo (Fail a) = Fail (Fail a)
-      assocTo (Success (Fail b)) = Fail (Success b)
-      assocTo (Success (Success c)) = Success c
+  assoc1 (Fail a) = Fail (Fail a)
+  assoc1 (Success (Fail b)) = Fail (Success b)
+  assoc1 (Success (Success c)) = Success c
 
-      assocFrom :: Error (Error a b) c -> Error a (Error b c)
-      assocFrom (Fail (Fail a)) = Fail a
-      assocFrom (Fail (Success b)) = Success (Fail b)
-      assocFrom (Success c) = Success (Success c)
+  assoc2 (Fail (Fail a)) = Fail a
+  assoc2 (Fail (Success b)) = Success (Fail b)
+  assoc2 (Success c) = Success (Success c)
 
 instance Symmetric Error where
   commute (Fail a) = Success a
   commute (Success a) = Fail a
 
 instance Distributive (,) Error where
-  distribute = Iso distTo distFrom
-    where
-    distTo :: (a,Error b c) -> Error (a,b) (a,c)
-    distTo (a,Fail b) = Fail (a,b)
-    distTo (a,Success c) = Success (a,c)
+  distribute1 (a,Fail b) = Fail (a,b)
+  distribute1 (a,Success c) = Success (a,c)
 
-    distFrom :: Error (a,b) (a,c) -> (a,Error b c)
-    distFrom (Fail (a,b)) = (a,Fail b)
-    distFrom (Success (a,c)) = (a,Success c)
+  distribute2 (Fail (a,b)) = (a,Fail b)
+  distribute2 (Success (a,c)) = (a,Success c)
 
 instance Distributive Either Error where
-  distribute = Iso distTo distFrom
-    where
-      distTo :: Either a (Error b c) -> Error (Either a b) (Either a c)
-      distTo (Left a) = Fail (Left a)
-      distTo (Right (Fail b)) = Fail (Right b)
-      distTo (Right (Success c)) = Success (Right c)
+  distribute1 (Left a) = Fail (Left a)
+  distribute1 (Right (Fail b)) = Fail (Right b)
+  distribute1 (Right (Success c)) = Success (Right c)
 
-      distFrom :: Error (Either a b) (Either a c) -> Either a (Error b c)
-      distFrom (Fail (Left a)) = Left a
-      distFrom (Fail (Right b)) = Right (Fail b)
-      distFrom (Success (Left a)) = Left a
-      distFrom (Success (Right c)) = Right (Success c)
+  distribute2 (Fail (Left a)) = Left a
+  distribute2 (Fail (Right b)) = Right (Fail b)
+  distribute2 (Success (Left a)) = Left a
+  distribute2 (Success (Right c)) = Right (Success c)
 
 instance Distributive Error Either where
-  distribute = Iso distTo distFrom
-    where
-      distTo :: Error a (Either b c) -> Either (Error a b) (Error a c)
-      distTo (Fail a) = Right (Fail a)
-      distTo (Success (Left b)) = Left (Success b)
-      distTo (Success (Right c)) = Right (Success c)
+  distribute1 (Fail a) = Right (Fail a)
+  distribute1 (Success (Left b)) = Left (Success b)
+  distribute1 (Success (Right c)) = Right (Success c)
 
-      distFrom :: Either (Error a b) (Error a c) -> Error a (Either b c)
-      distFrom (Left (Fail a)) = Fail a
-      distFrom (Left (Success b)) = Success (Left b)
-      distFrom (Right (Fail a)) = Fail a
-      distFrom (Right (Success c)) = Success (Right c)
+  distribute2 (Left (Fail a)) = Fail a
+  distribute2 (Left (Success b)) = Success (Left b)
+  distribute2 (Right (Fail a)) = Fail a
+  distribute2 (Right (Success c)) = Success (Right c)

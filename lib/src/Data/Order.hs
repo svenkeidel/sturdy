@@ -11,6 +11,7 @@ import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import           Data.Text (Text)
+import           Data.Profunctor
 
 import           Control.Arrow
 
@@ -35,11 +36,10 @@ class PreOrd x => LowerBounded x where
 lub :: (Foldable f, Complete x) => f x -> x
 lub = foldr1 (⊔)
 
-joined :: (Arrow c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
-joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
-{-# DEPRECATED joined "Use Control.Arrow.Abstract.ArrowJoin.<⊔>" #-}
+joined :: (Arrow c, Profunctor c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
+joined f1 f2 = (lmap fst f1) ⊔ (lmap snd f2)
 
-lubA :: (ArrowChoice c, Complete (c (x,[x]) y), LowerBounded (c () y)) => c x y -> c [x] y
+lubA :: (ArrowChoice c, Profunctor c, Complete (c (x,[x]) y), LowerBounded (c () y)) => c x y -> c [x] y
 lubA f = proc l -> case l of
   [] -> bottom -< ()
   -- (x:xs) -> (f -< x) ⊔ (lubA f -< xs) causes an type error.

@@ -20,6 +20,7 @@ import Control.Arrow.Reader
 import Control.Arrow.Store as Store
 import Control.Arrow.State
 import Control.Arrow.Except as Exc
+import Control.Arrow.Utils
 import Control.Category
 
 import Data.Profunctor
@@ -53,17 +54,19 @@ instance (ArrowChoice c, Profunctor c) => Category (FailureT r c) where
 
 instance (ArrowChoice c, Profunctor c) => Arrow (FailureT r c) where
   arr f = lift' (arr f)
-  first f = lift $ first (unlift f) >>^ strength1
-  second f = lift $ second (unlift f) >>^ strength2
+  first f = lift $ rmap strength1 (first (unlift f))
+  second f = lift $ rmap strength2 (second (unlift f))
+  f *** g = first f >>> second g
+  f &&& g = lmap duplicate (f *** g)
 
 instance (ArrowChoice c, Profunctor c) => ArrowChoice (FailureT r c) where
   left f = lift $ left (unlift f) >>^ strength1
   right f = lift $ right (unlift f) >>^ strength2
   f ||| g = lift (unlift f ||| unlift g)
-  f +++ g = lift $ unlift f +++ unlift g >>^ from distribute
+  f +++ g = lift $ unlift f +++ unlift g >>^ distribute2
 
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FailureT e c) where
-  app = FailureT $ first runFailureT ^>> app
+  app = FailureT $ lmap (first runFailureT) app
 
 instance (ArrowChoice c, ArrowState s c) => ArrowState s (FailureT e c) where
   get = lift' get

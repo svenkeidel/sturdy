@@ -6,6 +6,7 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 module Control.Arrow.Transformer.Reader(ReaderT(..)) where
 
 import Prelude hiding (id,(.),lookup,read,fail)
@@ -47,7 +48,7 @@ instance ArrowTrans (ReaderT r) where
   unlift = runReaderT
 
 instance ArrowLift (ReaderT r) where
-  lift' f = ReaderT (pi2 >>> f)
+  lift' f = lift $ lmap snd f
 
 instance (Arrow c, Profunctor c) => Category (ReaderT r c) where
   id    = lift' id
@@ -61,10 +62,10 @@ instance (Arrow c, Profunctor c) => Arrow (ReaderT r c) where
   f *** g  = lift $ lmap (\(r,(b,d)) -> ((r,b),(r,d))) $ unlift f *** unlift g
 
 instance (ArrowChoice c, Profunctor c) => ArrowChoice (ReaderT r c) where
-  left f  = lift $ lmap (to distribute >>> mmap id pi2) $ left (unlift f)
-  right f = lift $ lmap (to distribute >>> mmap pi2 id) $ right (unlift f)
-  f +++ g = lift $ lmap (to distribute) $ unlift f +++ unlift g
-  f ||| g = lift $ lmap (to distribute) $ unlift f ||| unlift g
+  left f  = lift $ lmap (\(r,e) -> left (r,) e) $ left (unlift f)
+  right f = lift $ lmap (\(r,e) -> right (r,) e) $ right (unlift f)
+  f +++ g = lift $ lmap distribute1 $ unlift f +++ unlift g
+  f ||| g = lift $ lmap distribute1 $ unlift f ||| unlift g
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ReaderT r c) where
   app = lift $ lmap (\(r,(f,b)) -> (unlift f,(r,b))) app
@@ -108,7 +109,7 @@ instance ArrowFix (Dom (ReaderT r) x y) (Cod (ReaderT r) x y) c => ArrowFix x y 
 instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
   type instance Join (ReaderT r c) (x,(x,e)) y = Exc.Join c (Dom (ReaderT r) x y,(Dom (ReaderT r) x y,e)) (Cod (ReaderT r) x y)
   throw = lift' throw
-  catch f g = lift $ catch (unlift f) (lmap (from assoc) (unlift g))
+  catch f g = lift $ catch (unlift f) (lmap assoc2 (unlift g))
   finally f g = lift $ finally (unlift f) (unlift g)
 
 instance ArrowDeduplicate (r, x) y c => ArrowDeduplicate x y (ReaderT r c) where
@@ -124,7 +125,6 @@ instance ArrowCond v c => ArrowCond v (ReaderT r c) where
   type instance Join (ReaderT r c) (x,y) z = Cond.Join c (Dom (ReaderT r) x z,Dom (ReaderT r) y z) (Cod (ReaderT r) (x,y) z)
   if_ f g = lift $ lmap (\(r,(v,(x,y))) -> (v,((r,x),(r,y))))
                  $ if_ (unlift f) (unlift g)
-
 
 deriving instance PreOrd (c (r,x) y) => PreOrd (ReaderT r c x y)
 deriving instance LowerBounded (c (r,x) y) => LowerBounded (ReaderT r c x y)

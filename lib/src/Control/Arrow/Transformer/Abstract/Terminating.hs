@@ -15,6 +15,7 @@ import Control.Arrow.Trans
 import Control.Arrow.State
 import Control.Arrow.Reader
 import Control.Arrow.Fix
+import Control.Arrow.Utils(duplicate)
 import Control.Arrow.Abstract.Terminating
 import Control.Category
 
@@ -52,14 +53,14 @@ instance (ArrowChoice c, Profunctor c) => Arrow (TerminatingT c) where
   arr f = lift' (arr f)
   first f = lift $ rmap strength1 (first (unlift f))
   second f = lift $ rmap strength2 (second (unlift f))
-  f &&& g = lift $ rmap mstrength (unlift f &&& unlift g)
-  f *** g = lift $ rmap mstrength (unlift f *** unlift g)
+  f &&& g = lmap duplicate (f *** g)
+  f *** g = first f >>> second g
 
 instance (ArrowChoice c, Profunctor c) => ArrowChoice (TerminatingT c) where
   left f = lift $ rmap strength1 $ left (unlift f)
   right f = lift $ rmap strength2 $ right (unlift f)
   f ||| g = lift $ unlift f ||| unlift g
-  f +++ g = lift $ rmap mstrength (unlift f +++ unlift g)
+  f +++ g = left f >>> right g
 
 instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (TerminatingT c) where
   app = lift $ lmap (first unlift) app

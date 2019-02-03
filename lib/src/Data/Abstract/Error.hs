@@ -115,18 +115,18 @@ instance Traversable (Error e) where
   traverse _ (Fail e) = pure (Fail e)
   traverse f (SuccessOrFail e x) = SuccessOrFail e <$> f x
 
-instance Complete e => StrongMonad (Error e) (,) where
-  mstrength (Success _,Fail e) = Fail e
-  mstrength (Fail e,Fail e') = Fail (e ⊔ e')
-  mstrength (SuccessOrFail e _,Fail e') = Fail (e ⊔ e')
+-- instance Complete e => StrongMonad (Error e) (,) where
+--   mstrength (Success _,Fail e) = Fail e
+--   mstrength (Fail e,Fail e') = Fail (e ⊔ e')
+--   mstrength (SuccessOrFail e _,Fail e') = Fail (e ⊔ e')
 
-  mstrength (Success x,Success y) = Success (x,y)
-  mstrength (Fail e,Success _) = Fail e
-  mstrength (SuccessOrFail e x,Success y) = SuccessOrFail e (x,y)
+--   mstrength (Success x,Success y) = Success (x,y)
+--   mstrength (Fail e,Success _) = Fail e
+--   mstrength (SuccessOrFail e x,Success y) = SuccessOrFail e (x,y)
 
-  mstrength (Success x,SuccessOrFail e y) = SuccessOrFail e (x,y)
-  mstrength (Fail e,SuccessOrFail e' _) = Fail (e ⊔ e')
-  mstrength (SuccessOrFail e x,SuccessOrFail e' y) = SuccessOrFail (e ⊔ e') (x,y)
+--   mstrength (Success x,SuccessOrFail e y) = SuccessOrFail e (x,y)
+--   mstrength (Fail e,SuccessOrFail e' _) = Fail (e ⊔ e')
+--   mstrength (SuccessOrFail e x,SuccessOrFail e' y) = SuccessOrFail (e ⊔ e') (x,y)
 
 
 fromMaybe :: Maybe a -> Error () a

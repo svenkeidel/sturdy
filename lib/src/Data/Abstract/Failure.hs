@@ -106,17 +106,13 @@ instance Monoidal Failure where
   mmap f _ (Fail x) = Fail (f x)
   mmap _ g (Success y) = Success (g y)
 
-  assoc = Iso assocTo assocFrom
-    where
-      assocTo :: Failure a (Failure b c) -> Failure (Failure a b) c
-      assocTo (Fail a) = Fail (Fail a)
-      assocTo (Success (Fail b)) = Fail (Success b)
-      assocTo (Success (Success c)) = Success c
+  assoc1 (Fail a) = Fail (Fail a)
+  assoc1 (Success (Fail b)) = Fail (Success b)
+  assoc1 (Success (Success c)) = Success c
 
-      assocFrom :: Failure (Failure a b) c -> Failure a (Failure b c)
-      assocFrom (Fail (Fail a)) = Fail a
-      assocFrom (Fail (Success b)) = Success (Fail b)
-      assocFrom (Success c) = Success (Success c)
+  assoc2 (Fail (Fail a)) = Fail a
+  assoc2 (Fail (Success b)) = Success (Fail b)
+  assoc2 (Success c) = Success (Success c)
 
 instance Symmetric Failure where
   commute (Fail a) = Success a
@@ -125,17 +121,18 @@ instance Symmetric Failure where
 instance Applicative f => Strong f Failure where
   strength1 (Success a) = pure $ Success a
   strength1 (Fail a) = Fail <$> a
+
   strength2 (Success a) = Success <$> a
   strength2 (Fail a) = pure $ Fail a
 
-instance Applicative f => StrongMonad f Failure where
-  mstrength (Success a) = fmap Success a
-  mstrength (Fail a) = fmap Fail a
+-- instance Applicative f => StrongMonad f Failure where
+--   mstrength (Success a) = fmap Success a
+--   mstrength (Fail a) = fmap Fail a
 
-instance StrongMonad (Failure e) (,) where
-  mstrength (Success a,Success b) = Success (a,b)
-  mstrength (Fail e,_) = Fail e
-  mstrength (_,Fail e) = Fail e
+-- instance StrongMonad (Failure e) (,) where
+--   mstrength (Success a,Success b) = Success (a,b)
+--   mstrength (Fail e,_) = Fail e
+--   mstrength (_,Fail e) = Fail e
 
 -- instance Distributive (,) Failure where
 --   distribute = Iso distTo distFrom

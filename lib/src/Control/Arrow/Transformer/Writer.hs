@@ -43,10 +43,10 @@ instance ArrowTrans (WriterT w) where
   unlift = runWriterT
 
 instance Monoid w => ArrowLift (WriterT w) where
-  lift' f = lift (arr (const mempty) &&& f)
+  lift' f = lift (rmap (\y -> (mempty,y)) f)
 
 instance (Monoid w, Arrow c, Profunctor c) => Category (WriterT w c) where
-  id = lift (arr mempty &&& id)
+  id = lift' id
   g . f = lift $ rmap (\(w1,(w2,z)) -> (w1 <> w2,z)) (unlift f >>> second (unlift g)) 
   -- proc x -> do
   --   (w1,y) <- f -< x
@@ -54,7 +54,7 @@ instance (Monoid w, Arrow c, Profunctor c) => Category (WriterT w c) where
   --   returnA -< (w1 <> w2,z)
 
 instance (Monoid w, Arrow c, Profunctor c) => Arrow (WriterT w c) where
-  arr f = lift (arr mempty &&& arr f)
+  arr f = lift' (arr f)
   first f = lift $ rmap (\((w,b),d) -> (w,(b,d))) (first (unlift f)) 
   second g = lift $ rmap (\(d,(w,b)) -> (w,(d,b))) (second (unlift g)) 
   f *** g = lift $ rmap (\((w1,b),(w2,d)) -> (w1 <> w2,(b,d))) (unlift f *** unlift g) 
@@ -64,10 +64,10 @@ instance (Monoid w, ArrowChoice c, Profunctor c) => ArrowChoice (WriterT w c) wh
   left f = lift $ rmap (\e -> case e of Left (w,x) -> (w,Left x); Right y -> (mempty,Right y)) (left (unlift f)) 
   right f = lift $ rmap (\e -> case e of Left x -> (mempty,Left x); Right (w,y) -> (w,Right y)) (right (unlift f))
   f ||| g = lift $ unlift f ||| unlift g
-  f +++ g = lift $ rmap (from distribute) (unlift f +++ unlift g) 
+  f +++ g = lift $ rmap distribute2 (unlift f +++ unlift g) 
 
 instance (Monoid w, ArrowApply c, Profunctor c) => ArrowApply (WriterT w c) where
-  app = lift $ lmap (\(f,x) -> (unlift f,x)) app
+  app = lift $ lmap (first runWriterT) app
 
 instance (Monoid w, ArrowState s c) => ArrowState s (WriterT w c) where
   get = lift' get
