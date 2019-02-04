@@ -21,6 +21,7 @@ import Control.Arrow.Transformer.Concrete.Environment
 import Control.Arrow.Transformer.Concrete.Failure
 import Control.Monad.State hiding (fail)
 
+import Data.Profunctor
 import Data.Concrete.Failure
 import Data.HashMap.Lazy (HashMap)
 import Data.Hashable
@@ -48,7 +49,7 @@ evalConcrete env e =
 
 -- | Arrow transformer that implements the concrete value semantics
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
-  deriving (Category,Arrow,ArrowChoice,ArrowFail e)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e)
 deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
 deriving instance ArrowEnv var Val env c => ArrowEnv var Val env (ConcreteT c)
 

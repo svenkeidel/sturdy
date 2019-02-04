@@ -40,6 +40,7 @@ import           Data.Label
 import           Data.Order
 import           Data.Monoidal(Iso(..))
 import           Data.Text (Text)
+import           Data.Profunctor
 
 import           Data.Abstract.Map(Map)
 import qualified Data.Abstract.Map as M
@@ -97,7 +98,7 @@ evalInterval k env e = -- runInterp eval ?bound k env (generate e)
                $ SW.reuse (\_ l -> head l)
                $ SW.fromWidening (F.widening widenVal)
 
-newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Category,Arrow,ArrowChoice,ArrowFail e,ArrowJoin)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowJoin)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
 deriving instance ArrowEnv var val env c => ArrowEnv var val env (IntervalT c)

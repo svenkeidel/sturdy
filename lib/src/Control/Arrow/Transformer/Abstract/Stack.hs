@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Abstract.Stack(StackT(..),runStackT,runStackT') where
+module Control.Arrow.Transformer.Abstract.Stack(StackT(..),runStackT,runStackT',stackT) where
 
 import           Prelude hiding ((.))
 
