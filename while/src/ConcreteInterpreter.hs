@@ -22,6 +22,7 @@ import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Text (Text)
 import           Data.Label
+import           Data.Profunctor
 
 import           Control.Category
 import           Control.Arrow
@@ -52,15 +53,21 @@ run ss =
         (runEnvT
           (runRandomT
              (runConcreteT
-               Generic.run))))
+               (Generic.run ::
+                 ConcreteT
+                   (RandomT
+                     (EnvT Text Addr
+                       (StoreT Addr Val
+                         (FailureT String
+                          (->))))) [Statement] ())))))
       (M.empty,(M.empty,(R.mkStdGen 0, generate <$> ss)))
 
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
-  deriving (Category, Arrow, ArrowChoice, ArrowFail e, ArrowEnv var addr env, ArrowStore addr val)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowEnv var addr env, ArrowStore addr val)
 deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
 deriving instance ArrowRand v c => ArrowRand v (ConcreteT c)
 
-instance (ArrowChoice c) => ArrowAlloc (Text,Val,Label) Addr (ConcreteT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (ConcreteT c) where
   alloc = arr $ \(_,_,l) -> l
 
 instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where

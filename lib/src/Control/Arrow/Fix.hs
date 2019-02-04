@@ -23,5 +23,5 @@ type instance Fix x y (->) = (->)
 instance ArrowFix x y (->) where
   fix f = f (fix f)
 
-liftFix :: (ArrowFix (Dom t x y) (Cod t x y) c,ArrowTrans t) => (t c x y -> t c x y) -> t c x y
+liftFix :: (Arrow c, Profunctor c, ArrowFix (Dom t x y) (Cod t x y) c,ArrowTrans t) => (t c x y -> t c x y) -> t c x y
 liftFix f = lift $ fix (unlift . f . lift)

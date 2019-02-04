@@ -14,7 +14,6 @@
 module Control.Arrow.Transformer.Abstract.Fixpoint(Fix,FixT,runFixT,runFixT',runFixT'',liftFixT) where
 
 import           Prelude hiding (id,(.),lookup)
-import qualified Data.Function as F
 
 import           Control.Arrow
 import           Control.Arrow.Fix
@@ -75,9 +74,11 @@ import           Text.Printf
 -- 'Reader Env (State Store (LeastFix Stack (Store,(Env,Expr)) (Store)))'
 type Cache a b = Map a (Terminating b)
 newtype FixT s a b c x y = FixT (StackT s a (MemoizeT a b c) x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTerminating,ArrowFix a b,ArrowJoin)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTerminating,ArrowJoin)
 
 type instance Fix x y (FixT s () () c) = FixT s x y c
+
+deriving instance (Identifiable x,PreOrd y,ArrowApply c,ArrowChoice c,Profunctor c, ArrowFix (Cache x y, (Cache x y, (s x,x))) (Cache x y,Terminating y) c) => ArrowFix x y (FixT s x y c)
 
 runFixT :: (Complete b, ArrowChoice c, Profunctor c) => FixT SW.Unit a b c x y -> c x (Terminating y)
 runFixT f = runFixT' SW.finite W.finite f
@@ -87,16 +88,12 @@ runFixT' sw w f = rmap snd (runFixT'' sw w f)
 
 runFixT'' :: (Monoid (s a),ArrowChoice c, Profunctor c) => StackWidening s a -> Widening b -> FixT s a b c x y -> c x (Map a (Terminating b), Terminating y)
 runFixT'' sw w (FixT f) =
-  runMemoizeT w
-    (runStackT (sw,mempty) f)
+  runMemoizeT w (runStackT (sw,mempty) f)
 
-instance ArrowLift (FixT s a b) where
-  lift' f = FixT (stackT (const (lift' f)))
+liftFixT :: (ArrowChoice c, Profunctor c) => c x y -> FixT s a b c x y
+liftFixT = FixT . lift' . MemoizeT . lift' . lift' . lift' . lift'
 
-liftFixT :: (Arrow c, Profunctor c) => c x y -> FixT s a b c x y
-liftFixT = lift'
-
-newtype MemoizeT a b c x y = MemoizeT (ConstT (Widening b) (ReaderT (Cache a b) (TerminatingT (StateT (Cache a b) c))) x y)
+newtype MemoizeT a b c x y = MemoizeT { unMemoizeT :: ConstT (Widening b) (ReaderT (Cache a b) (TerminatingT (StateT (Cache a b) c))) x y}
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTerminating)
 
 runMemoizeT :: (ArrowChoice c, Profunctor c) => Widening b -> MemoizeT a b c x y -> c x (Map a (Terminating b), Terminating y)
@@ -107,19 +104,15 @@ runMemoizeT w (MemoizeT f) =
         (runReaderT
           (runConstT w f)))
 
-
-instance ArrowLift (MemoizeT a b) where
-  lift' f = MemoizeT (ConstT (StaticT (const (ReaderT (TerminatingT (StateT (lmap snd (second (rmap Terminating f)))))))))
-
 #ifndef TRACE
-instance (Identifiable x, PreOrd y, ArrowChoice c, ArrowApply c, Profunctor c) => ArrowFix x y (MemoizeT x y c) where
+instance (Identifiable x, PreOrd y, ArrowChoice c, ArrowApply c, Profunctor c, ArrowFix (Cache x y, (Cache x y, (s,x))) (Cache x y,Terminating y) c) => ArrowFix (s,x) y (MemoizeT x y c) where
   fix f = proc x -> do
     old <- getCache -< ()
     -- reset the current fixpoint cache
     setCache -< bottom
 
     -- recompute the fixpoint cache by calling 'f' and memoize its results.
-    y <- localOldCache (F.fix (memoize . f)) -< (old,x)
+    y <- localOldCache (MemoizeT (fix (unMemoizeT . memoize . f . MemoizeT))) -< (old,x)
 
     new <- getCache -< ()
 
@@ -135,8 +128,8 @@ instance (Identifiable x, PreOrd y, ArrowChoice c, ArrowApply c, Profunctor c) =
 -- | Memoizes the results of the interpreter function. In case a value
 -- has been computed before, the cached value is returned and will not
 -- be recomputed.
-memoize :: (Identifiable x, PreOrd y, ArrowChoice c, Profunctor c) => MemoizeT x y c x y -> MemoizeT x y c x y
-memoize f = proc x -> do
+memoize :: (Identifiable x, PreOrd y, ArrowChoice c, Profunctor c) => MemoizeT x y c (s,x) y -> MemoizeT x y c (s,x) y
+memoize f = proc (s,x) -> do
   newCache <- getCache -< ()
   case M.unsafeLookup x newCache of
     -- In case the input was in the fixpoint cache, short-cut
@@ -150,7 +143,7 @@ memoize f = proc x -> do
       oldCache <- getOldCache -< ()
       setCache -< M.insert x (fromMaybe bottom (M.unsafeLookup x oldCache)) newCache
       
-      y <- catchTerminating f -< x
+      y <- catchTerminating f -< (s,x)
 
       (widening, newCache') <- (getWidening &&& getCache) -< ()
 
@@ -190,33 +183,6 @@ memoize f = proc x -> do
           y' = fromJust (M.unsafeLookup x newCache'')
       setCache -< newCache''
       throwTerminating -< trace (printf "RET:  %s -> %s" (show x) (show y')) y'
-
--- instance (Show x, Show y, Identifiable x, PreOrd y, ArrowChoice c) => ArrowFix x y (FixT s x y c) where
---   fix f =  proc x -> do
---     old <- getCache -< ()
---     setOutCache -< bottom
---     y <- localInCache (F.fix (memoize . f)) -< trace "----- ITERATION -----" $ (old,x)
---     new <- getOutCache -< ()
---     if (new ⊑ old)
---     then returnA -< y
---     else fix f -< x
-
--- memoize :: (Show x, Show y, Identifiable x, PreOrd y, ArrowChoice c) => FixT s x y c x y -> FixT s x y c x y
--- memoize (FixT f) = FixT $ \(stackWidening,widening) -> proc (((stack,inCache), outCache),x) -> do
---   case M.unsafeLookup x outCache of
---     Just y -> returnA -< trace (printf "HIT:  %s -> %s" (show x) (show y))
---               (outCache,y)
---     Nothing -> do
---       let yOld = fromMaybe bottom (M.unsafeLookup x inCache)
---           outCache' = M.insert x yOld outCache
---           (x',stack') = runState (stackWidening x) stack 
---       (outCache'',y) <- f (stackWidening,widening) -< trace (printf "CALL: %s" (show x')) (((stack',inCache), outCache'),x')
---       let outCache''' = M.unsafeInsertWith (flip (T.widening widening)) x' y outCache''
---           y' = fromJust (M.unsafeLookup x' outCache''')
---       returnA -< trace (printf "CACHE: %s := (%s -> %s)\n" (show x) (show y) (show y') ++
---                         printf "RET:  %s -> %s" (show x') (show y'))
---                   (M.unsafeInsertWith (flip (T.widening widening)) x y outCache'',y')
-              
 #endif
 
 getWidening :: (ArrowChoice c, Profunctor c) => MemoizeT x y c () (Widening y)
@@ -231,7 +197,7 @@ getCache = MemoizeT get
 setCache :: (ArrowChoice c, Profunctor c) => MemoizeT x y c (Map x (Terminating y)) ()
 setCache = MemoizeT put
 
-localOldCache :: (ArrowChoice c, Profunctor c) => MemoizeT x y c x y -> MemoizeT x y c (Map x (Terminating y),x) y
+localOldCache :: (ArrowChoice c, Profunctor c) => MemoizeT a b c x y -> MemoizeT a b c (Map a (Terminating b),x) y
 localOldCache (MemoizeT f) = MemoizeT (local f)
 
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FixT s a b c)   where app = FixT $ lmap (\(FixT f,x) -> (f,x)) app
@@ -243,16 +209,17 @@ instance (Identifiable a, ArrowJoin c, ArrowChoice c) => ArrowJoin (MemoizeT a b
     y' <- catchTerminating g -< x
     throwTerminating -< T.widening lub y y'
 
-instance (Identifiable a,Complete y,ArrowJoin c, ArrowChoice c, PreOrd (Underlying a b c x y)) => Complete (MemoizeT a b c x y) where
+type Underlying1 a b c x y = (c ((Map a (Terminating b), (Map a (Terminating b), x))) (Map a (Terminating b), Terminating y))
+instance (Identifiable a,Complete y,ArrowJoin c, ArrowChoice c, PreOrd (Underlying1 a b c x y)) => Complete (MemoizeT a b c x y) where
   f ⊔ g = joinWith (⊔) f g
+deriving instance PreOrd (Underlying1 a b c x y) => PreOrd (MemoizeT a b c x y)
+deriving instance CoComplete (Underlying1 a b c x y) => CoComplete (MemoizeT a b c x y)
+deriving instance LowerBounded (Underlying1 a b c x y) => LowerBounded (MemoizeT a b c x y)
+deriving instance UpperBounded (Underlying1 a b c x y) => UpperBounded (MemoizeT a b c x y)
 
-type Underlying a b c x y = (c (Map a (Terminating b), (Map a (Terminating b), x)) (Map a (Terminating b), Terminating y))
-deriving instance PreOrd (Underlying a b c x y) => PreOrd (FixT s a b c x y)
-deriving instance (Identifiable a, Complete y, ArrowJoin c, ArrowChoice c, PreOrd (Underlying a b c x y)) => Complete (FixT s a b c x y)
-deriving instance CoComplete (Underlying a b c x y) => CoComplete (FixT s a b c x y)
-deriving instance LowerBounded (Underlying a b c x y) => LowerBounded (FixT s a b c x y)
-deriving instance UpperBounded (Underlying a b c x y) => UpperBounded (FixT s a b c x y)
-deriving instance PreOrd (Underlying a b c x y) => PreOrd (MemoizeT a b c x y)
-deriving instance CoComplete (Underlying a b c x y) => CoComplete (MemoizeT a b c x y)
-deriving instance LowerBounded (Underlying a b c x y) => LowerBounded (MemoizeT a b c x y)
-deriving instance UpperBounded (Underlying a b c x y) => UpperBounded (MemoizeT a b c x y)
+type Underlying2 s a b c x y = (c ((Map a (Terminating b), (Map a (Terminating b), (s a,x)))) (Map a (Terminating b), Terminating y))
+deriving instance PreOrd (Underlying2 s a b c x y) => PreOrd (FixT s a b c x y)
+deriving instance (Identifiable a, Complete y, ArrowJoin c, ArrowChoice c, PreOrd (Underlying2 s a b c x y)) => Complete (FixT s a b c x y)
+deriving instance CoComplete (Underlying2 s a b c x y) => CoComplete (FixT s a b c x y)
+deriving instance LowerBounded (Underlying2 s a b c x y) => LowerBounded (FixT s a b c x y)
+deriving instance UpperBounded (Underlying2 s a b c x y) => UpperBounded (FixT s a b c x y)

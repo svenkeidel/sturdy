@@ -14,5 +14,3 @@ class ArrowTrans t where
 
   lift :: (Arrow c, Profunctor c) => c (Dom t x y) (Cod t x y) -> t c x y
   unlift :: (Arrow c, Profunctor c) => t c x y -> c (Dom t x y) (Cod t x y)
-
-type family Rep c x y

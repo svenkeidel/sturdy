@@ -14,6 +14,7 @@ import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.Failure
+import           Control.Arrow.Transformer.Abstract.Stack
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Fail
 import           Control.Arrow.State
@@ -32,6 +33,7 @@ import qualified Data.Abstract.StackWidening as SW
 
 import           Data.Order
 import           Data.Hashable
+import           Data.Profunctor
 
 import           GHC.Generics
 
@@ -40,7 +42,7 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Cache s x y    = FixT s x y (->) x y
+type PureFix s x y    = FixT s x y (->) x y
 type ErrorFix s x y = Fix x y (FailureT () (FixT s () () (->)))  x y
 type StateFix s x y = Fix x y (StateT IV (FixT s () () (->))) x y
 type IV = Interval (InfiniteNumber Int)
@@ -48,7 +50,7 @@ type IV = Interval (InfiniteNumber Int)
 spec :: Spec
 spec = do
   describe "the analysis of the fibonacci numbers" $
-    let fib :: Cache s IV IV
+    let fib :: PureFix s IV IV
         fib = fix $ \f ->
           ifLowerThan 0
             (proc _ -> returnA -< I.Interval 0 0)
@@ -63,7 +65,7 @@ spec = do
          runFixT' SW.finite I.widening fib (I.Interval 0 Infinity) `shouldBe` return (I.Interval 0 Infinity)
 
   describe "the analysis of the factorial function" $
-    let fact :: Cache s IV IV
+    let fact :: PureFix s IV IV
         fact = fix $ \f -> proc n -> do
           ifLowerThan 1 (proc _ -> returnA -< I.Interval 1 1)
                         (proc n -> do {x <- f -< (n-I.Interval 1 1); returnA -< n * x}) -< n
@@ -71,7 +73,7 @@ spec = do
          runFixT' SW.finite I.widening fact top `shouldBe` return (I.Interval 1 Infinity)
 
   describe "the even and odd functions" $
-    let evenOdd :: Cache s (EvenOdd,IV) Bool
+    let evenOdd :: PureFix s (EvenOdd,IV) Bool
         evenOdd = fix $ \f -> proc (e,x) -> case e of
           Even -> ifLowerThan 0 (proc _ -> returnA -< true)
                                 (ifLowerThan 1 (proc _ -> returnA -< false)
@@ -83,7 +85,7 @@ spec = do
          runFixT' SW.finite W.finite evenOdd (Even,I.Interval 0 Infinity) `shouldBe` top
 
   describe "the ackermann function" $
-    let ackermann :: Cache s (IV,IV) IV
+    let ackermann :: PureFix s (IV,IV) IV
         ackermann = fix $ \f -> proc (m,n) ->
           ifLowerThan 0
             (proc _ -> returnA -< n + I.Interval 1 1)
@@ -97,7 +99,7 @@ spec = do
            `shouldBe` return (I.Interval 1 Infinity)
 
   describe "the analyis of a diverging program" $
-    let diverge :: Cache s Int Sign
+    let diverge :: PureFix s Int Sign
         diverge = fix $ \f -> proc n -> case n of
           0 -> f -< 0
           _ -> f -< (n-1)
@@ -116,21 +118,31 @@ spec = do
   describe "the analysis of a stateful program" $
     let timesTwo :: StateFix s IV ()
         timesTwo = fix $ \f -> proc n -> case n of
-          I.Interval 0 0 -> returnA -< ()
+          0 -> returnA -< ()
           _ -> do
             s <- get -< ()
-            put -< s + I.Interval 1 1
+            put -< s + 1
             f -< n-1
             s' <- get -< ()
-            put -< s'+ I.Interval 1 1
+            put -< s'+ 1
     in it "should cache the state of the program" $
          runFixT'' SW.finite W.finite (runStateT timesTwo) (0,5) `shouldBe`
            (S.fromList [((fromIntegral n,5-fromIntegral n),
                           return (10-fromIntegral n,())) | n <- [0..5::Int]],
             return (10,()))
+
+  describe "stack (maxSize 5 top)" $
+    let loop10 :: PureFix s IV IV
+        loop10 = fix $ \f -> proc x ->
+                    if 10 ⊑ x
+                    then returnA -< 10
+                    else f -< (x+1)
+    in it "should terminate after 5 iterations" $
+         fst (runFixT'' (SW.stack (SW.maxSize 5 SW.topOut)) I.widening loop10 0)
+           `shouldBe` (S.fromList [ (fromIntegral n,Terminating 10) | n <- [0..6::Int]])
   where
 
-    ifLowerThan :: (Num n, Ord n, ArrowChoice c, Complete (c (Interval n, Interval n) x)) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
+    ifLowerThan :: (Num n, Ord n, ArrowChoice c, Profunctor c, Complete (c (Interval n, Interval n) x)) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
     ifLowerThan l f g = proc x -> case x of
       I.Interval m n
         | n <= l -> f -< x

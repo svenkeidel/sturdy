@@ -33,7 +33,7 @@ import           Control.Arrow.Fix
 newtype EnvT var val c x y = EnvT (ReaderT (HashMap var val) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,
             ArrowFail e,ArrowExcept e,ArrowState s,ArrowConst r,
-            ArrowStore var val)
+            ArrowStore var' val')
 
 runEnvT :: (Arrow c) => EnvT var val c x y -> c (HashMap var val,x) y
 runEnvT (EnvT (ReaderT f)) = f

@@ -39,6 +39,7 @@ import qualified Data.Abstract.StackWidening as S
 import qualified Data.Abstract.Ordering as O
 import qualified Data.Abstract.Equality as E
 
+import           Data.Profunctor
 import qualified Data.Boolean as B
 import           Data.Hashable
 import           Data.Numeric
@@ -94,11 +95,11 @@ run k env ss =
                $ S.reuse (\_ l -> head l)
                $ S.fromWidening (M.widening widenVal)
 
-newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
 
-instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (IntervalT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (IntervalT c) where
   alloc = arr $ \(_,_,l) -> return l
 
 instance (ArrowChoice c, ArrowFail String c, ArrowJoin c) => IsVal Val (IntervalT c) where
@@ -155,7 +156,7 @@ instance (ArrowChoice c,ArrowFail String c, ArrowJoin c) => ArrowCond Val (Inter
     NumVal _        -> fail -< "Expected boolean as argument for 'if'"
     Top             -> (f1 -< x) <⊔> (f2 -< y) <⊔> (fail -< "Expected boolean as argument for 'if'")
 
-instance (ArrowChoice c) => ArrowRand Val (IntervalT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowRand Val (IntervalT c) where
   random = proc _ -> returnA -< NumVal top
 
 instance PreOrd Val where

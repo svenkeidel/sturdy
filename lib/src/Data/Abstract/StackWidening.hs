@@ -17,6 +17,7 @@ import           Data.Identifiable
 import           Data.Monoidal
 import           Data.Maybe
 import           Data.Abstract.Widening(Widening)
+import           Debug.Trace
 
 -- | A stack widening operator (▽ :: s -> a -> (s,a)) follows the same
 -- idea as a regular widening operator, but does not have the
@@ -55,6 +56,9 @@ instance Monoid (Stack a) where
 -- the given widening.
 stack :: StackWidening Stack a -> StackWidening Stack a
 stack f x = state $ \s@(Stack n st) -> let x' = evalState (f x) s in (x',Stack (n+1) (x':st))
+
+traceStack :: Show a => StackWidening Stack a -> StackWidening Stack a
+traceStack f x = state $ \s@(Stack n st) -> let x' = evalState (f x) s in traceShow x' (x',Stack (n+1) (x':st))
 
 -- | Return the same elements until the specified maximum stack size
 -- is reached, then call the fallback widening.

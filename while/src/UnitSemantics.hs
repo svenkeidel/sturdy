@@ -27,6 +27,7 @@ import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Order
 import           Data.Label
 import           Data.Text (Text)
+import           Data.Profunctor
 
 import           Control.Category
 import           Control.Arrow
@@ -66,11 +67,11 @@ run env ss =
       (M.empty,(M.fromList env,generate <$> ss))
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
-  deriving (Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
 type instance Fix x y (UnitT c) = UnitT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (UnitT c)
 
-instance ArrowChoice c => ArrowAlloc (Text,Val,Label) Addr (UnitT c) where
+instance (ArrowChoice c,Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (UnitT c) where
   alloc = arr $ \(_,_,l) -> return l
 
 instance ArrowChoice c => IsVal Val (UnitT c) where
@@ -86,7 +87,7 @@ instance ArrowChoice c => IsVal Val (UnitT c) where
   eq = arr (const ())
   lt = arr (const ())
 
-instance ArrowChoice c => ArrowRand Val (UnitT c) where
+instance (ArrowChoice c,Profunctor c) => ArrowRand Val (UnitT c) where
   random = arr (const ())
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowCond Val (UnitT c) where

@@ -43,6 +43,9 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
 runConstT :: r -> ConstT r c x y -> c x y
 runConstT r (ConstT (StaticT f)) = f r
 
+constT :: (r -> c x y) -> ConstT r c x y
+constT f = ConstT (StaticT f)
+
 instance (Arrow c, Profunctor c) => ArrowConst r (ConstT r c) where
   askConst = ConstT $ StaticT $ \r -> arr (const r)
 
