@@ -16,7 +16,7 @@ import Control.Arrow.State
 import Control.Arrow.Reader
 import Control.Arrow.Fix
 import Control.Arrow.Utils(duplicate)
-import Control.Arrow.Abstract.Terminating
+import Control.Arrow.Abstract.Join
 import Control.Category
 
 import Data.Abstract.Terminating
@@ -26,10 +26,6 @@ import Data.Profunctor
 
 -- | Arrow that propagates non-terminating computations.
 newtype TerminatingT c x y = TerminatingT { runTerminatingT :: c x (Terminating y) }
-
-instance (ArrowChoice c,Profunctor c) => ArrowTerminating (TerminatingT c) where
-  throwTerminating = lift id
-  catchTerminating f = lift $ rmap Terminating (unlift f) 
 
 instance ArrowTrans TerminatingT where
   type Dom TerminatingT x y = x
@@ -79,6 +75,9 @@ instance (ArrowChoice c, ArrowConst x c) => ArrowConst x (TerminatingT c) where
 type instance Fix x y (TerminatingT c) = TerminatingT (Fix (Dom TerminatingT x y) (Cod TerminatingT x y) c)
 instance (ArrowChoice c, ArrowFix (Dom TerminatingT x y) (Cod TerminatingT x y) c) => ArrowFix x y (TerminatingT c) where
   fix = liftFix
+
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (TerminatingT c) where
+  joinWith lub' f g = lift $ joinWith (widening lub') (unlift f) (unlift g)
 
 deriving instance PreOrd (c x (Terminating y)) => PreOrd (TerminatingT c x y)
 deriving instance LowerBounded (c x (Terminating y)) => LowerBounded (TerminatingT c x y)

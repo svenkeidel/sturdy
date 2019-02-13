@@ -25,7 +25,6 @@ import Control.Arrow.Store
 import Control.Arrow.Const
 import Control.Arrow.Writer
 import Control.Arrow.Abstract.Join
-import Control.Arrow.Abstract.Terminating
 
 import Control.Arrow.Transformer.Static
 
@@ -37,7 +36,7 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowLift,
             ArrowState s,ArrowReader r',ArrowWriter w,
             ArrowEnv var val env, ArrowStore var val,
-            ArrowFail e, ArrowExcept e, ArrowTerminating,
+            ArrowFail e, ArrowExcept e,
             PreOrd, Complete, CoComplete, UpperBounded, LowerBounded)
 
 runConstT :: r -> ConstT r c x y -> c x y

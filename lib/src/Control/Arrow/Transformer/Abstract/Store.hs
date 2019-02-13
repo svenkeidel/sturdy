@@ -55,7 +55,7 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (
       Just val        -> f          -< (val,x)
       JustNothing val -> joined f g -< ((val,x),x)
       Nothing         -> g          -< x
-  write = StoreT $ modify $ arr $ \((var,val),st) -> M.insert var val st
+  write = StoreT $ modify $ arr $ \((var,val),st) -> ((),M.insert var val st)
 
 instance ArrowState s c => ArrowState s (StoreT var val c) where
   get = lift' get

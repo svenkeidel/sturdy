@@ -29,7 +29,8 @@ import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as M
-import           Data.Abstract.Terminating hiding(widening)
+import           Data.Abstract.Terminating (Terminating)
+import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening (Widening)
 import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Abstract.InfiniteNumbers
@@ -50,18 +51,19 @@ import           Data.Text (Text)
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Alloc
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
 import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
-import           Control.Arrow.Store
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
 import           Control.Arrow.Random
+import           Control.Arrow.Store
 import           Control.Arrow.Abstract.Join
 
-import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.Environment
-import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Failure
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Store
+import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           GHC.Generics
 
@@ -72,23 +74,25 @@ data Val = BoolVal Bool | NumVal IV | Top deriving (Eq,Generic)
 run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Failure String (Map Addr Val))
 run k env ss =
   fmap fst <$>
-    runFixT' stackWiden widenTerm
-      (runFailureT
-         (runStoreT
-           (runEnvT
-             (runIntervalT
-               (Generic.run ::
-                 Fix [Statement] ()
-                   (IntervalT
-                     (EnvT Text Addr
-                       (StoreT Addr Val
-                         (FailureT String
-                          (FixT _ () () (->)))))) [Statement] ())))))
+    runFixT stackWiden widenTerm
+      (runTerminatingT
+        (runFailureT
+           (runStoreT
+             (runEnvT
+               (runIntervalT
+                 (Generic.run ::
+                   Fix [Statement] ()
+                     (IntervalT
+                       (EnvT Text Addr
+                         (StoreT Addr Val
+                           (FailureT String
+                             (TerminatingT
+                               (FixT _ () () (->))))))) [Statement] ()))))))
       (M.empty,(M.fromList env, generate <$> ss))
 
   where
     widenVal = widening (W.bounded ?bound top)
-    widenTerm = F.widening (M.widening widenVal W.** W.finite)
+    widenTerm = T.widening $ F.widening (M.widening widenVal W.** W.finite)
     stackWiden = S.categorize (Iso (\(store,(ev,stmts)) -> ((ev,stmts),store)) (\((ev,stmts),store) -> (store,(ev,stmts))))
                $ S.stack
                $ S.maxSize k

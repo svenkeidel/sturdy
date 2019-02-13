@@ -26,7 +26,6 @@ import Control.Arrow.Trans
 import Control.Arrow.Writer
 import Control.Arrow.Utils
 import Control.Arrow.Abstract.Join
-import Control.Arrow.Abstract.Terminating
 import Control.Category
 
 import Data.Profunctor
@@ -77,16 +76,13 @@ instance (Arrow c, Profunctor c) => ArrowReader r (ReaderT r c) where
 instance ArrowState s c => ArrowState s (ReaderT r c) where
   get = lift' get
   put = lift' put
+  modify f = lift (modify (lmap assoc2 (unlift f)))
 
 instance ArrowWriter w c => ArrowWriter w (ReaderT r c) where
   tell = lift' tell
 
 instance ArrowFail e c => ArrowFail e (ReaderT r c) where
   fail = lift' fail
-
-instance ArrowTerminating c => ArrowTerminating (ReaderT r c) where
-  throwTerminating = lift' throwTerminating
-  catchTerminating f = lift $ catchTerminating (unlift f)
 
 instance ArrowEnv var val env c => ArrowEnv var val env (ReaderT r c) where
   type instance Join (ReaderT r c) ((val,x),x) y = Env.Join c ((val,Dom (ReaderT r) x y),Dom (ReaderT r) x y) (Cod (ReaderT r) x y)

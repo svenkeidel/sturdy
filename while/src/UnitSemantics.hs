@@ -23,6 +23,8 @@ import           Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as M
 import           Data.Abstract.Terminating
 import           Data.Abstract.FreeCompletion(FreeCompletion)
+import qualified Data.Abstract.StackWidening as SW
+import qualified Data.Abstract.Widening as W
 
 import           Data.Order
 import           Data.Label
@@ -40,10 +42,11 @@ import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Random
 import           Control.Arrow.Abstract.Join
 
-import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.Environment
-import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Failure
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Store
+import           Control.Arrow.Transformer.Abstract.Terminating
 
 -- Value semantics for the while language that does not approximate values at all.
 type Addr = FreeCompletion Label
@@ -52,18 +55,20 @@ type Val = ()
 run :: [(Text,Addr)] -> [LStatement] -> Terminating (Failure String (Map Addr Val))
 run env ss =
   fmap fst <$>
-    runFixT
-      (runFailureT
-         (runStoreT
-           (runEnvT
-             (runUnitT
-               (Generic.run ::
-                 Fix [Statement] ()
-                   (UnitT
-                     (EnvT Text Addr
-                       (StoreT Addr Val
-                         (FailureT String
-                          (FixT _ () () (->)))))) [Statement] ())))))
+    runFixT SW.finite W.finite
+      (runTerminatingT
+         (runFailureT
+           (runStoreT
+             (runEnvT
+               (runUnitT
+                 (Generic.run ::
+                   Fix [Statement] ()
+                     (UnitT
+                       (EnvT Text Addr
+                         (StoreT Addr Val
+                           (FailureT String
+                             (TerminatingT
+                               (FixT _ () () (->))))))) [Statement] ()))))))
       (M.empty,(M.fromList env,generate <$> ss))
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }

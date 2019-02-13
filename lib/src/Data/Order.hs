@@ -24,6 +24,8 @@ class PreOrd x where
   x ≈ y = x ⊑ y && y ⊑ x
   infix 4 ≈
 
+
+
 -- | Order with all least upper bounds
 class PreOrd x => Complete x where
   (⊔) :: x -> x -> x
@@ -156,11 +158,11 @@ instance PreOrd Text where
   (≈) = (==)
 
 instance PreOrd Int where
-  (⊑) = (<=)
+  (⊑) = (==)
   (≈) = (==)
 
 instance PreOrd Double where
-  (⊑) = (<=)
+  (⊑) = (==)
   (≈) = (==)
 
 instance PreOrd a => PreOrd (Maybe a) where

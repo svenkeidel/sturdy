@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TupleSections #-}
-module Data.Abstract.Map (Map,singleton,empty,lookup,unsafeLookup,insert,insertWith,unsafeInsertWith,delete,union,adjust,toList,fromList,mapMaybe,map,compose,widening,fromThereList) where
+module Data.Abstract.Map (Map,singleton,empty,lookup,unsafeLookup,insert,insertWith,unsafeInsertWith,unsafeInsertWithLookup,delete,union,adjust,toList,fromList,mapMaybe,map,compose,widening,fromThereList) where
 
 import           Prelude hiding (lookup,map,Either(..),(**))
 
@@ -15,6 +15,7 @@ import qualified Data.HashMap.Lazy as H
 import           Data.Hashable
 import           Data.Order
 import           Data.Identifiable
+import           Data.Maybe (fromJust)
 import qualified Data.Abstract.Maybe as M
 import qualified Data.Abstract.Either as E
 import           Data.Abstract.Either(Either(..))
@@ -87,6 +88,10 @@ insertWith f a b (Map m) = Map (H.insertWith (\(_,new) (here,old) -> case here o
 unsafeInsertWith :: (Identifiable a) => (b -> b -> b) -> a -> b -> Map a b -> Map a b
 unsafeInsertWith f a b (Map m) = Map (H.insertWith (\(_,new) (_,old) -> (Must,f new old)) a (Must,b) m)
 
+unsafeInsertWithLookup :: (Identifiable a) => (b -> b -> b) -> a -> b -> Map a b -> (b,Map a b)
+unsafeInsertWithLookup f a b m =
+  let m' = unsafeInsertWith f a b m
+  in (fromJust (unsafeLookup a m'),m')
 
 delete :: Identifiable a => a -> Map a b -> Map a b
 delete a (Map m) = Map (H.delete a m)

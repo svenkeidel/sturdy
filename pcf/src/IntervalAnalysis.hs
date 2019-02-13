@@ -32,7 +32,8 @@ import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
 import           Control.Arrow.Transformer.Abstract.Failure
-import           Control.Arrow.Transformer.Abstract.Fixpoint
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Monad.State hiding (lift,fail)
 
 import           Data.Hashable
@@ -53,6 +54,7 @@ import qualified Data.Abstract.Interval as I
 import qualified Data.Abstract.Widening as W
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating(Terminating)
+import qualified Data.Abstract.Terminating as T
     
 import           GHC.Generics(Generic)
 import           GHC.Exts(toList)
@@ -77,18 +79,20 @@ type Addr = (Text,CallString Label)
 -- an environment, and the input of the computation.
 evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Failure String Val)
 evalInterval k env e = -- runInterp eval ?bound k env (generate e)
-  runFixT' stackWiden (E.widening widenVal)
-    (runFailureT
-      (runContourT k
-        (runEnvT alloc
-          (runIntervalT
-            (eval ::
-              Fix Expr Val
-                (IntervalT
-                  (EnvT Text Addr Val
-                    (ContourT Label
-                      (FailureT String
-                        (FixT _ () () (->)))))) Expr Val)))))
+  runFixT stackWiden (T.widening (E.widening widenVal))
+    (runTerminatingT
+      (runFailureT
+        (runContourT k
+          (runEnvT alloc
+            (runIntervalT
+              (eval ::
+                Fix Expr Val
+                  (IntervalT
+                    (EnvT Text Addr Val
+                      (ContourT Label
+                        (FailureT String
+                          (TerminatingT
+                            (FixT _ () () (->))))))) Expr Val))))))
     (env,generate e)
   where
     widenVal = widening (W.bounded ?bound top)

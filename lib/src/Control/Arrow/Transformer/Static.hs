@@ -24,7 +24,6 @@ import Control.Arrow.State
 import Control.Arrow.Store as Store
 import Control.Arrow.Writer
 import Control.Arrow.Abstract.Join
-import Control.Arrow.Abstract.Terminating
 
 import Data.Profunctor
 import Data.Order hiding (lub)
@@ -61,6 +60,7 @@ instance (Applicative f, ArrowChoice c, Profunctor c) => ArrowChoice (StaticT f 
 instance (Applicative f, ArrowState s c) => ArrowState s (StaticT f c) where
   get = lift' get
   put = lift' put
+  modify (StaticT f) = StaticT $ modify <$> f
 
 instance (Applicative f, ArrowReader r c) => ArrowReader r (StaticT f c) where
   ask = lift' ask
@@ -71,10 +71,6 @@ instance (Applicative f, ArrowWriter w c) => ArrowWriter w (StaticT f c) where
 
 instance (Applicative f, ArrowFail e c) => ArrowFail e (StaticT f c) where
   fail = lift' fail
-
-instance (Applicative f, ArrowTerminating c) => ArrowTerminating (StaticT f c) where
-  throwTerminating = lift' throwTerminating
-  catchTerminating (StaticT f) = StaticT $ catchTerminating <$> f
 
 instance (Applicative f, ArrowExcept e c) => ArrowExcept e (StaticT f c) where
   type Join (StaticT f c) x y = Exc.Join c x y

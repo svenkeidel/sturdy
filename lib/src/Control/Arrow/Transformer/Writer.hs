@@ -72,6 +72,7 @@ instance (Monoid w, ArrowApply c, Profunctor c) => ArrowApply (WriterT w c) wher
 instance (Monoid w, ArrowState s c) => ArrowState s (WriterT w c) where
   get = lift' get
   put = lift' put
+  modify f = lift $ modify (rmap assoc1 (unlift f))
 
 instance (Monoid w, Arrow c, Profunctor c) => ArrowWriter w (WriterT w c) where
   tell = lift (arr (\w -> (w,())))

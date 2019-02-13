@@ -28,7 +28,6 @@ import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Fail
-import           Control.Arrow.Random
 import           Control.Arrow.Store as Store
 import           Control.Arrow.Environment
 import           Control.Arrow.Abstract.Join

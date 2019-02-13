@@ -81,7 +81,7 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (StateT s c) where
 instance (Arrow c, Profunctor c) => ArrowState s (StateT s c) where
   get = lift (arr (\(a,()) -> (a,a)))
   put = lift (arr (\(_,s) -> (s,())))
-
+  modify f = lift (dimap (\(s,x) -> (s,(x,s))) (\(_,(y,s)) -> (s,y)) (unlift f))
 
 instance (ArrowFail e c, Profunctor c) => ArrowFail e (StateT s c) where
   fail = lift' fail
