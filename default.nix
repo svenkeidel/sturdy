@@ -1,7 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 
 let
-  hsEnv = pkgs.haskell.packages.ghc844.ghcWithPackages(p: with p; [
+  hsEnv = pkgs.haskellPackages.ghcWithPackages (p: with p; [
     stack
   ]);
 
@@ -10,6 +10,6 @@ in pkgs.stdenv.mkDerivation {
   version = "0.0.1";
   src = ./.;
   buildInputs = [
-    hsEnv pkgs.pandoc
+    hsEnv pkgs.jdk
   ];
 }

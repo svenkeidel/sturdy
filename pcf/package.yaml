@@ -8,8 +8,8 @@ dependencies:
   - base
   - hashable
   - mtl
-  - sturdy-lib
   - profunctors
+  - sturdy-lib
   - text
   - transformers
   - unordered-containers

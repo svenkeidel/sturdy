@@ -62,7 +62,7 @@ lookupSort Context {..} s0 = do
   s <- R.lower subtypes s0
   case s of
     Bottom -> []
-    Top -> error "Calculating inhabitants from sort top is not allowed"
+    Top -> error "Calculating inhabitants of sort top is not allowed"
     List a -> [("Cons", Signature [a, List a] (List a)), ("Nil", Signature [] (List a))]
     Option a -> [("Some", Signature [a] (Option a)), ("None", Signature [] (Option a))]
     Tuple as -> [("", Signature as (Tuple as))]

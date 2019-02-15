@@ -1,14 +1,18 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Data.Monoidal where
 
-data Iso a b = Iso { to :: a -> b, from :: b -> a}
+import Data.Lens
 
 class Monoidal m where
   mmap :: (a -> a') -> (b -> b') -> a `m` b -> a' `m` b'
   assoc1 :: (a `m` (b `m` c)) -> ((a `m` b) `m` c)
   assoc2 :: ((a `m` b) `m` c) -> (a `m` (b `m` c))
+
+assoc :: Monoidal m => Iso' (a `m` (b `m` c)) ((a `m` b) `m` c)
+assoc = iso assoc1 assoc2
 
 instance Monoidal (,) where
   mmap f g ~(x,y) = (f x,g y)
@@ -48,6 +52,9 @@ instance Applicative f => Strong f Either where
 --   mstrength (Left a) = fmap Left a
 --   mstrength (Right b) = fmap Right b
 
+commute' :: Symmetric m => Iso' (a `m` b) (b `m` a)
+commute' = iso commute commute
+
 class Monoidal m => Symmetric m where
   commute :: a `m` b -> b `m` a
 
@@ -61,6 +68,9 @@ instance Symmetric Either where
 class Distributive m n where
   distribute1 :: a `m` (b `n` c) -> (a `m` b) `n` (a `m` c)
   distribute2 :: (a `m` b) `n` (a `m` c) -> a `m` (b `n` c)
+
+distribute :: Distributive m n => Iso' (a `m` (b `n` c)) ((a `m` b) `n` (a `m` c))
+distribute = iso distribute1 distribute2
 
 instance Distributive (,) Either where
   distribute1 (a,Left b) = Left (a,b)

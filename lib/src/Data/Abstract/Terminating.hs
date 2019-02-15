@@ -7,6 +7,7 @@ module Data.Abstract.Terminating where
 import Control.Monad
 import Control.Applicative
 import Control.DeepSeq
+import Control.Arrow(second)
 
 import Data.Order
 import Data.Abstract.Widening
@@ -69,10 +70,10 @@ instance PreOrd a => LowerBounded (Terminating a) where
   bottom = NonTerminating
 
 widening :: Widening a -> Widening (Terminating a)
-widening _ NonTerminating NonTerminating = NonTerminating
-widening _ (Terminating a) NonTerminating = (Terminating a)
-widening _ NonTerminating (Terminating b) = (Terminating b)
-widening w (Terminating a) (Terminating b) = Terminating (w a b)
+widening _ NonTerminating NonTerminating = (Stable,NonTerminating)
+widening _ NonTerminating (Terminating b) = (Instable,Terminating b)
+widening _ (Terminating a) NonTerminating = (Instable,Terminating a)
+widening w (Terminating a) (Terminating b) = second Terminating (w a b)
 
 -- instance StrongMonad Terminating (,) where
 --   mstrength (NonTerminating,_) = NonTerminating

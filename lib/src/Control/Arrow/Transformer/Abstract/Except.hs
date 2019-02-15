@@ -25,15 +25,16 @@ import Control.Arrow.Utils (duplicate)
 import Control.Arrow.Abstract.Join
 import Control.Category
 
-import Data.Abstract.Error
 import Data.Monoidal
 import Data.Order
 import Data.Profunctor
+import Data.Abstract.Except
+import Data.Abstract.Widening (toJoin2)
 
-newtype ExceptT e c x y = ExceptT { runExceptT :: c x (Error e y)}
+newtype ExceptT e c x y = ExceptT { runExceptT :: c x (Except e y)}
 
 instance (ArrowChoice c, Complete e, ArrowJoin c) => ArrowExcept e (ExceptT e c) where
-  type Join (ExceptT e c) (x,(x,e)) y = Complete (c (y,(x,e)) (Error e y))
+  type Join (ExceptT e c) (x,(x,e)) y = Complete (c (y,(x,e)) (Except e y))
   throw = lift $ arr Fail
   catch f g = lift $ proc x -> do
     e <- unlift f -< x
@@ -56,11 +57,12 @@ instance (ArrowChoice c, ArrowJoin c, Complete e) => Category (ExceptT e c) wher
       SuccessOrFail e y' -> do
         -- Ideally we would like to write '(returnA -< Fail e) ⊔ (f -< y)',
         -- however this is not possible, because the result type of
-        -- 'f', 'Error e z', is not 'Complete' because 'z' is not
+        -- 'f', 'Except e z', is not 'Complete' because 'z' is not
         -- 'Complete'. However, in '(returnA -< Fail e) ⊔ (f -< y)' we
         -- actually never join to values of type 'z'.
         joinWith' (\(Fail e) er -> case er of
             Success z          -> SuccessOrFail e z
+                                  
             Fail e'            -> Fail (e ⊔ e')
             SuccessOrFail e' z -> SuccessOrFail (e ⊔ e') z)
           id (unlift f) -< (Fail e,y')
@@ -75,7 +77,7 @@ instance ArrowLift (ExceptT e) where
 
 instance ArrowTrans (ExceptT e) where
   type Dom (ExceptT e) x y = x
-  type Cod (ExceptT e) x y = Error e y
+  type Cod (ExceptT e) x y = Except e y
   lift = ExceptT
   unlift = runExceptT
 
@@ -129,10 +131,10 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowConst r c) => ArrowConst 
   askConst = lift' askConst
 
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowJoin (ExceptT e c) where
-  joinWith lub' f g = ExceptT $ joinWith (widening (⊔) lub') (unlift f) (unlift g)
+  joinWith lub' f g = ExceptT $ joinWith (toJoin2 widening (⊔) lub') (unlift f) (unlift g)
 
-deriving instance PreOrd (c x (Error e y)) => PreOrd (ExceptT e c x y)
-deriving instance LowerBounded (c x (Error e y)) => LowerBounded (ExceptT e c x y)
-deriving instance Complete (c x (Error e y)) => Complete (ExceptT e c x y)
-deriving instance CoComplete (c x (Error e y)) => CoComplete (ExceptT e c x y)
-deriving instance UpperBounded (c x (Error e y)) => UpperBounded (ExceptT e c x y)
+deriving instance PreOrd (c x (Except e y)) => PreOrd (ExceptT e c x y)
+deriving instance LowerBounded (c x (Except e y)) => LowerBounded (ExceptT e c x y)
+deriving instance Complete (c x (Except e y)) => Complete (ExceptT e c x y)
+deriving instance CoComplete (c x (Except e y)) => CoComplete (ExceptT e c x y)
+deriving instance UpperBounded (c x (Except e y)) => UpperBounded (ExceptT e c x y)

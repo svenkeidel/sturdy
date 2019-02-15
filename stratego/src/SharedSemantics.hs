@@ -28,11 +28,12 @@ import           Data.Constructor
 import           Data.Text(Text)
 
 import           Text.Printf
+import           GHC.Exts(IsString(..))
 
 -- | Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowFail String c, ArrowExcept () c,
+eval' :: (ArrowChoice c, ArrowFail e c, ArrowExcept () c,
           ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Eq t, Hashable t,
-          HasStratEnv c, IsTerm t c, IsTermEnv env t c,
+          HasStratEnv c, IsTerm t c, IsTermEnv env t c, IsString e,
           Exc.Join c (t,(t,())) t, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t]))
       => (Strat -> c t t)
 eval' = fixA' $ \ev s0 -> dedup $ case s0 of
@@ -108,7 +109,7 @@ let_ ss body interp = proc a -> do
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a
 
 -- | Strategy calls bind strategy variables and term variables.
-call :: (ArrowChoice c, ArrowFail String c, ArrowApply c, IsTermEnv env t c, HasStratEnv c)
+call :: (ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c)
      => StratVar
      -> [Strat]
      -> [TermVar]
@@ -126,10 +127,11 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
       tenv' <- getTermEnv -< ()
       putTermEnv <<< unionTermEnvs -< (formalTermArgs,tenv,tenv')
       returnA -< b
-    Nothing -> error (printf "strategy %s not in scope" (show f)) -< ()
+    Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
   where
     bindTermArg = proc (actual,formal) ->
-      lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t) fail -<< (actual, "unbound term variable " ++ show actual ++ " in strategy call " ++ show (Call f actualStratArgs actualTermArgs))
+      lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t) fail -<<
+        (actual, fromString $ "unbound term variable " ++ show actual ++ " in strategy call " ++ show (Call f actualStratArgs actualTermArgs))
     {-# INLINE bindTermArg #-}
 
     bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
@@ -174,12 +176,12 @@ match = proc (p,t) -> case p of
 
 -- | Build a new term from a pattern. Variables are pattern are
 -- replaced by terms in the current term environment.
-build :: (ArrowChoice c, ArrowFail String c, IsTerm t c, IsTermEnv env t c)
+build :: (ArrowChoice c, ArrowFail e c, IsString e, IsTerm t c, IsTermEnv env t c)
       => c TermPattern t
 build = proc p -> case p of
-  S.As _ _ -> error "As-pattern in build is disallowed" -< ()
+  S.As _ _ -> fail -< "As-pattern in build is disallowed"
   S.Var x ->
-    lookupTermVar' returnA fail -< (x,"unbound term variable " ++ show x ++ " in build statement " ++ show (Build p))
+    lookupTermVar' returnA fail -< (x,fromString ("unbound term variable " ++ show x ++ " in build statement " ++ show (Build p)))
   S.Cons c ts -> do
     ts' <- mapA build -< ts
     cons -< (c,ts')

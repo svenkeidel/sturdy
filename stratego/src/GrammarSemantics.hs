@@ -20,6 +20,7 @@ import           Syntax hiding (Fail)
 import           Utils
 
 import           Control.Monad (zipWithM)
+import           Control.Category hiding ((.))
 import           Control.Arrow
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Except
@@ -27,18 +28,18 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
-import           Control.Arrow.Transformer.Abstract.Completion
-import           Control.Arrow.Transformer.Abstract.Fixpoint
-import           Control.Arrow.Transformer.Abstract.Except
-import           Control.Arrow.Transformer.Abstract.Failure
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
-import           Control.Category hiding ((.))
+import           Control.Arrow.Transformer.Abstract.Completion
+import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.Failure
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Data.Abstract.FreeCompletion (FreeCompletion(Lower,Top))
 import qualified Data.Abstract.FreeCompletion as Free
-import           Data.Abstract.Error (Error)
-import qualified Data.Abstract.Error as E
+import           Data.Abstract.Except (Except)
+import qualified Data.Abstract.Except as E
 import           Data.Abstract.Failure (Failure)
 import qualified Data.Abstract.Failure as F
 import           Data.Abstract.Maybe
@@ -46,6 +47,7 @@ import           Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (Terminating,fromTerminating)
+import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening as W
 import qualified Data.Concrete.Powerset as C
 import           Data.Constructor
@@ -70,6 +72,8 @@ newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, Pr
 
 type TermEnv = Map TermVar Term
 
+type Stack = SW.Groups (Strat,StratEnv) SW.Stack
+
 newtype Interp s a b =
   Interp (
     Fix (Strat,Term) Term
@@ -78,32 +82,36 @@ newtype Interp s a b =
           (ExceptT ()
             (FailureT String
               (CompletionT
-                (FixT s () ()
-                  (->))))))) a b)
+                (TerminatingT
+                  (FixT s () ()
+                    (->)))))))) a b)
 
-runInterp :: Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Failure String (Error () (TermEnv, b))))
+runInterp :: Interp _ a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Failure String (Except () (TermEnv, b))))
 runInterp (Interp f) i senv tenv a =
-  runFixT' stackWidening grammarWidening
-    (runCompletionT
-      (runFailureT
-        (runExceptT
-          (runStateT
-            (runReaderT f)))))
+  runFixT stackWidening (T.widening grammarWidening)
+    (runTerminatingT
+      (runCompletionT
+        (runFailureT
+          (runExceptT
+            (runStateT
+              (runReaderT f))))))
     (tenv, (senv, a))
   where
-    stackWidening :: SW.StackWidening (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) (TermEnv, (StratEnv, (Strat, Term)))
-    stackWidening = SW.categorize (Iso (\(te,(se,(s,t))) -> ((s,se),(te,t))) (\((s,se),(te,t)) -> (te,(se,(s,t)))))
-      (SW.stack
-       (SW.maxSize i
-        (SW.reuse bestChoice
-         (SW.fromWidening (S.widening widening W.** widening)))))
-    grammarWidening = Free.widening (F.widening (E.widening (\_ _ -> ()) (S.widening widening W.** widening)))
+    stackWidening :: SW.StackWidening Stack (TermEnv, (StratEnv, (Strat, Term)))
+    stackWidening = undefined
+      -- SW.groupBy (iso (\(te,(se,(s,t))) -> ((s,se),(te,t))) (\((s,se),(te,t)) -> (te,(se,(s,t)))))
+      -- (SW.stack
+      --  (SW.maxSize i
+      --   (SW.reuse bestChoice
+      --    (SW.fromWidening (S.widening widening W.** widening)))))
+    grammarWidening = undefined
+      -- Free.widening (F.widening (E.widening (\_ _ -> ()) (S.widening widening W.** widening)))
 
 bestChoice :: (TermEnv, Term) -> [(TermEnv, Term)] -> (TermEnv, Term)
 bestChoice e [] = e
 bestChoice _ (x:_) = x
 
-eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Failure String (Error () (TermEnv, Term))))
+eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Failure String (Except () (TermEnv, Term))))
 eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
@@ -140,7 +148,7 @@ deriving instance ArrowExcept () (Interp s)
 deriving instance PreOrd b => PreOrd (Interp s a b)
 deriving instance (Complete (FreeCompletion b), PreOrd b) => Complete (Interp s a b)
 deriving instance PreOrd b => LowerBounded (Interp s a b)
-deriving instance ArrowFix (Strat,Term) Term (Interp s)
+deriving instance ArrowFix (Strat,Term) Term (Interp Stack)
 
 instance Hashable Constr where
   hashWithSalt s (Constr c) = s `hashWithSalt` (0::Int) `hashWithSalt` c
@@ -250,18 +258,19 @@ instance Galois (C.Pow C.TermEnv) TermEnv where
   alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (LM.toList (fmap alphaSing e)))
   gamma = undefined
 
-instance Soundness StratEnv (Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack)) where
+instance Soundness StratEnv (Interp (SW.Groups (Strat,StratEnv) SW.Stack)) where
   sound senv xs f g = Q.forAll (Q.choose (2,3)) $ \i ->
-    let con :: FreeCompletion (Failure String (Error () (TermEnv,_)))
+    let con :: FreeCompletion (Failure String (Except () (TermEnv,_)))
         con = Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
-        abst :: FreeCompletion (Failure String (Error () (TermEnv,_)))
+        abst :: FreeCompletion (Failure String (Except () (TermEnv,_)))
         -- TODO: using fromTerminating is a bit of a hack...
         abst = fromTerminating Top $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 -- Helpers -------------------------------------------------------------------------------------------
 widening :: Widening Term
-widening (Term t1) (Term t2) = Term (widen t1 t2)
+widening = undefined
+-- widening (Term t1) (Term t2) = Term (widen t1 t2)
 
 mapSnd :: (a -> b) -> [(c, a)] -> [(c, b)]
 mapSnd _ [] = []

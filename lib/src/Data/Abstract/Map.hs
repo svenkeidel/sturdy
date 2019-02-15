@@ -17,9 +17,9 @@ import           Data.Order
 import           Data.Identifiable
 import           Data.Maybe (fromJust)
 import qualified Data.Abstract.Maybe as M
-import qualified Data.Abstract.Either as E
-import           Data.Abstract.Either(Either(..))
-import           Data.Abstract.There
+import           Data.Abstract.There (There(..))
+import qualified Data.Abstract.There as T
+
 import           Data.Abstract.Widening
 
 import           GHC.Exts
@@ -36,19 +36,27 @@ instance (Show a,Show b) => Show (Map a b) where
     | otherwise = "[" ++ init (unwords [ printf "%s%s -> %s," (show k) (show t) (show v) | (k,(t,v)) <- H.toList h]) ++ "]"
 
 instance (Identifiable a, PreOrd b) => PreOrd (Map a b) where
-  Map m1 ⊑ m2 = {-# SCC "Data.Abstract.Map.lt" #-} all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2) (H.toList m1)
+  Map m1 ⊑ m2 = all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2) (H.toList m1)
 
 instance (Identifiable a, Complete b) => Complete (Map a b) where
-  m1 ⊔ m2 = {-# SCC "Data.Abstract.Map.join" #-} widening (⊔) m1 m2
+  (Map m1) ⊔ (Map m2) = Map $ foldl (\m a -> H.insert a (join a) m) H.empty keys
+    where
+      keys = H.keys (H.union m1 m2)
+      join k = case (H.lookup k m1,H.lookup k m2) of
+        (Just (t1,b1),Just (t2,b2)) -> (t1,b1) ⊔ (t2,b2)
+        (Nothing,Just (_,b2)) -> (May,b2)
+        (Just (_,b1),Nothing) -> (May,b1)
+        (Nothing,Nothing) -> error "cannot happen"
 
 widening :: Identifiable a => Widening b -> Widening (Map a b)
-widening w (Map m1) (Map m2) = Map $ H.map join $ H.unionWith (E.widening (finite ** w) (finite ** w)) (H.map Left m1) (H.map Right m2)
-    where
-      join e = case e of
-        Left (_,a) -> (May,a)
-        Right (_,b) -> (May,b)
-        LeftRight (t1,a) (t2,b) -> (t1 ⊔ t2,a `w` b)
-{-# SCC widening #-}
+widening w (Map m1) (Map m2) = second Map $ foldl (\(s,m) a -> let (s',b) = join a in (s ⊔ s',H.insert a b m)) (Stable,H.empty) keys
+  where
+     keys = H.keys (H.union m1 m2)
+     join k = case (H.lookup k m1,H.lookup k m2) of
+       (Just (t1,b1),Just (t2,b2)) -> (T.widening ** w) (t1,b1) (t2,b2)
+       (Nothing,Just (_,b2)) -> (Instable,(May,b2))
+       (Just (_,b1),Nothing) -> (Instable,(May,b1))
+       (Nothing,Nothing) -> error "cannot happen"
 
 instance (Identifiable a, PreOrd b) => LowerBounded (Map a b) where
   bottom = empty

@@ -19,6 +19,7 @@ import           Soundness
 import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Except
@@ -26,18 +27,18 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
-import           Control.Arrow.Transformer.Abstract.Fixpoint
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Failure
+import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Powerset
+import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
-import           Control.Category
 import           Control.DeepSeq
 import           Control.Monad hiding (fail)
 
 import           Data.Abstract.FreeCompletion
-import           Data.Abstract.Error
+import           Data.Abstract.Except
 import           Data.Abstract.Failure
 import           Data.Abstract.Maybe
 import qualified Data.Abstract.Powerset as A
@@ -52,7 +53,6 @@ import           Data.Foldable (foldr')
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
-import           Data.Monoidal
 import           Data.Order
 import           Data.Term
 import           Data.Text (Text)
@@ -81,21 +81,25 @@ newtype Interp s a b =
           (ExceptT ()
             (FailureT String
               (PowT
-                (FixT s () ()
-                  (->))))))) a b)
+                (TerminatingT
+                  (FixT s () ()
+                    (->)))))))) a b)
 
-runInterp :: Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (A.Pow (Failure String (Error () (TermEnv,b))))
+type Stack = SW.Groups (Strat,StratEnv) SW.Stack
+
+runInterp :: Interp _ a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (A.Pow (Failure String (Except () (TermEnv,b))))
 runInterp (Interp f) k senv tenv a =
-  runFixT' stackWidening W.finite
-    (runPowT
-      (runFailureT
-        (runExceptT
-          (runStateT
-            (runReaderT f)))))
+  runFixT stackWidening W.finite
+    (runTerminatingT
+      (runPowT
+        (runFailureT
+          (runExceptT
+            (runStateT
+              (runReaderT f))))))
     (tenv, (senv, a))
   where
-    stackWidening :: SW.StackWidening (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) (TermEnv, (StratEnv, (Strat, Term)))
-    stackWidening = SW.categorize (Iso from' to') (SW.stack (SW.maxSize k SW.topOut))
+    stackWidening :: SW.StackWidening Stack (TermEnv, (StratEnv, (Strat, Term)))
+    stackWidening = undefined -- SW.groupBy (iso from' to') (SW.stack (SW.maxSize k SW.topOut))
 
 from' :: (TermEnv, (StratEnv, (Strat, Term))) -> ((Strat, StratEnv), (TermEnv, Term))
 from' (tenv,(senv,(s,t))) = ((s,senv),(tenv,t))
@@ -103,7 +107,7 @@ from' (tenv,(senv,(s,t))) = ((s,senv),(tenv,t))
 to' :: ((Strat, StratEnv), (TermEnv, Term)) -> (TermEnv, (StratEnv, (Strat, Term)))
 to' ((s,senv),(tenv,t)) = (tenv,(senv,(s,t)))
 
-eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (A.Pow (Failure String (Error () (TermEnv,Term))))
+eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (A.Pow (Failure String (Except () (TermEnv,Term))))
 eval i s = runInterp (eval' s) i
 
 -- Instances -----------------------------------------------------------------------------------------
@@ -114,7 +118,7 @@ deriving instance ArrowChoice (Interp s)
 deriving instance ArrowReader StratEnv (Interp s)
 deriving instance ArrowState TermEnv (Interp s)
 deriving instance ArrowFail String (Interp s)
-deriving instance ArrowFix (Strat,Term) Term (Interp s)
+deriving instance ArrowFix (Strat,Term) Term (Interp Stack)
 deriving instance ArrowExcept () (Interp s)
 deriving instance ArrowDeduplicate Term Term (Interp s)
 deriving instance PreOrd b => PreOrd (Interp s a b)
@@ -231,11 +235,11 @@ instance IsTerm Term (Interp s) where
   numberLiteral = arr NumberLiteral
   stringLiteral = arr StringLiteral
 
-instance Soundness StratEnv (Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack)) where
+instance Soundness StratEnv (Interp (SW.Groups (Strat,StratEnv) SW.Stack)) where
   sound senv xs f g = forAll (choose (0,3)) $ \i ->
-    let con :: A.Pow (Failure String (Error () (TermEnv,_)))
+    let con :: A.Pow (Failure String (Except () (TermEnv,_)))
         con = A.dedup $ alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)
-        abst :: A.Pow (Failure String (Error () (TermEnv,_)))
+        abst :: A.Pow (Failure String (Except () (TermEnv,_)))
         abst = A.dedup $ fromTerminating (error "non-terminating wildcard semantics") $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
     in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 

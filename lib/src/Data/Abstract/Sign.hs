@@ -93,4 +93,8 @@ instance UpperBounded Sign where
 instance Hashable Sign
 
 widening :: Widening Sign
-widening = finite
+widening Negative Negative = (Stable,Negative)
+widening Zero Zero = (Stable,Zero)
+widening Positive Positive = (Stable,Positive)
+widening Top Top = (Stable,Positive)
+widening _ _ = (Instable,Top)

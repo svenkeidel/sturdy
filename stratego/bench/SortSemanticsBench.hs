@@ -18,7 +18,7 @@ import           Criterion.Main
 
 main :: IO ()
 main = defaultMain [
-    bgroup "Least Fixpoint" [
+    bgroup "Sort Semantics" [
       bench "reduce Add(Zero,y)" $
         let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
         let exp = term "Exp"
@@ -30,15 +30,7 @@ main = defaultMain [
         let t = convertToList [numerical, numerical, numerical] ?ctx
             tenv = termEnv [("x",t)]
             prog = Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])
-        in nf (eval 1 3 prog M.empty ?ctx emptyEnv) t
-    ],
-
-    bgroup "Greatest Fixpoint" [
-      bench "reduce Add(Zero,y)" $
-        let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
-        let exp = term "Exp"
-            reduce = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
-        in nf (eval' 10 reduce M.empty ?ctx emptyEnv) exp
+        in nf (eval 2 3 prog M.empty ?ctx emptyEnv) t
     ]
   ]
   where

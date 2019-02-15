@@ -5,12 +5,13 @@ module Sort where
 import Utils
 
 import Control.DeepSeq
+import Control.Arrow(second)
 
 import Data.Text(Text, unpack)
 import Data.String(IsString(..))
 import Data.Hashable(Hashable(..))
 import Data.List(intercalate)
-import Data.Abstract.Widening(Widening)
+import Data.Abstract.Widening(Widening,Stable(..))
 
 import GHC.Generics(Generic)
 
@@ -69,9 +70,10 @@ getSortId s = case s of
 widening :: Int -> Widening Sort
 widening n0 _ = go n0
   where
-    go 0 _ = Top
+    go 0 Top = (Stable,Top)
+    go 0 _ = (Instable,Top)
     go n s = case s of 
-      List s' -> List (go (n-1) s')
-      Option s' -> Option (go (n-1) s')
-      Tuple ss -> Tuple (map (go (n-1)) ss)
-      _ -> s
+      List s' -> second List (go (n-1) s')
+      Option s' -> second Option (go (n-1) s')
+      Tuple ss -> second Tuple (traverse (go (n-1)) ss)
+      _ -> (Stable,s)

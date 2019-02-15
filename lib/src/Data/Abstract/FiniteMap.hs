@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Data.Abstract.FiniteMap where
 
-import           Prelude hiding (lookup,Either(..),id,(.))
+import           Prelude hiding (lookup,Either(..),id,(.),(**))
 
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
@@ -16,10 +16,10 @@ import           Data.Order
 import           Data.Hashable
 import           Data.Maybe (maybeToList)
 
-import           Data.Abstract.There
+import           Data.Abstract.There (There(..))
+import qualified Data.Abstract.There as T
 import qualified Data.Abstract.Maybe as M
 import           Data.Abstract.Widening
-import qualified Data.Abstract.Widening as W
 
 import           Control.Arrow
 import           Control.Arrow.Alloc
@@ -41,17 +41,26 @@ instance (Identifiable x, Identifiable addr, PreOrd y) => PreOrd (Map x addr y) 
     [ (a,b) | (a,addr) <- H.toList e, b <- maybeToList (H.lookup addr s) ]
 
 instance (Identifiable x, Identifiable addr, Complete y) => Complete (Map x addr y) where
-  (⊔) = widening (⊔)
+  (Map (e1,s1)) ⊔ (Map (e2,s2)) = Map (e,foldl (\m a -> let (a',b) = join a in H.insert a' b m) H.empty (H.keys e))
+    where
+      e = H.union e1 e2
+      join k = case (H.lookup k e1,H.lookup k e2) of
+        (Just a1,Just a2) -> (a1, (s1 H.! a1) ⊔ (s2 H.! a2))
+        (Just a1,Nothing) -> (a1, (s1 H.! a1))
+        (Nothing,Just a2) -> (a2, (s2 H.! a2))
+        (Nothing,Nothing) -> error "cannot happen"
 
 widening :: (Identifiable x,Identifiable addr) => Widening y -> Widening (Map x addr y)
-widening w (Map (e1,s1)) (Map (e2,s2)) = Map (e,s)
+widening w (Map (e1,s1)) (Map (e2,s2)) =
+  let (stable,s') = foldl (\(s,m) a -> let (a',(s'',b)) = join a in (s ⊔ s'',H.insert a' b m)) (Stable, H.empty) (H.keys e)
+  in (stable,(Map (e,s')))
   where
     e = H.union e1 e2
-    s = H.fromList $ flip map (H.keys e) $ \x -> case (H.lookup x e1,H.lookup x e2) of
-          (Just a1, Just a2) -> (a1, (W.finite W.** w) (s1 H.! a1) (s2 H.! a2))
-          (Just a1, Nothing) -> (a1, s1 H.! a1) 
-          (Nothing, Just a2) -> (a2, s2 H.! a2)
-          (Nothing, Nothing) -> error "cannot happen"
+    join k = case (H.lookup k e1,H.lookup k e2) of
+      (Just a1,Just a2) -> (a1, (T.widening ** w) (s1 H.! a1) (s2 H.! a2))
+      (Just a1,Nothing) -> (a1, (Instable, s1 H.! a1))
+      (Nothing,Just a2) -> (a2, (Instable, s2 H.! a2))
+      (Nothing,Nothing) -> error "cannot happen"
 
 
 empty :: Map x addr y

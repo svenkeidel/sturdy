@@ -1,140 +1,125 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE Arrows #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.Abstract.Error where
 
-import Control.Arrow
 import Control.Monad
-import Control.DeepSeq
-
+import Control.Monad.Except
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
 import Data.Bifunctor
 import Data.Hashable
 import Data.Order
-import Data.Traversable
+
 import Data.Monoidal
 
 import GHC.Generics (Generic, Generic1)
+import Control.DeepSeq
 
--- | Abstrat domain for exceptions. This abstract domain approximates
--- error more precisely because 'Success ⋢ Fail'. Use this type for
--- analysis in languages that can handle exceptions.
-data Error e x
-  = Success x
-  | Fail e
-  | SuccessOrFail e x
-  deriving (Eq, Show, Generic, Generic1, NFData, NFData1)
+-- | Failure is an Either-like type with the special ordering Failure ⊑ Success.
+-- Left and Right of the regular Either type, on the other hand are incomparable.
+data Error e a = Fail e | Success a
+  deriving (Eq, Functor, Generic, Generic1, NFData, NFData1)
 
-instance (Hashable e, Hashable x) => Hashable (Error e x) where
-  hashWithSalt s (Success x) = s `hashWithSalt` (0::Int) `hashWithSalt` x
-  hashWithSalt s (Fail e) = s `hashWithSalt` (1::Int) `hashWithSalt` e
-  hashWithSalt s (SuccessOrFail e x) = s `hashWithSalt` (2 ::Int) `hashWithSalt` e `hashWithSalt` x
+instance (Show e,Show a) => Show (Error e a) where
+  show (Fail e) = "Error " ++ show e
+  show (Success a) = show a
+
+instance (Hashable e, Hashable a) => Hashable (Error e a) where
+  hashWithSalt s (Fail e)  = s `hashWithSalt` (0::Int) `hashWithSalt` e
+  hashWithSalt s (Success a) = s `hashWithSalt` (1::Int) `hashWithSalt`  a
 
 instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
-  m1 ⊑ m2 = case (m1,m2) of
-    (Fail e, Fail e') ->  e ⊑ e'
-    (Success a, Success b) -> a ⊑ b
-    (Success a, SuccessOrFail _ b) -> a ⊑ b
-    (SuccessOrFail e a, SuccessOrFail e' b) -> e ⊑ e' && a ⊑ b
-    (Fail e, SuccessOrFail e' _) -> e ⊑ e'
-    (_, _) -> False
+  Success x ⊑ Success y = x ⊑ y
+  Success _ ⊑ Fail _  = True
+  Fail x ⊑ Fail y = x ⊑ y
+  _ ⊑ _ = False
 
-instance (Complete e, Complete a) => Complete (Error e a) where
-  (⊔) = widening (⊔) (⊔)
+  Fail x ≈ Fail y = x ≈ y
+  Success x ≈ Success y = x ≈ y
+  _ ≈ _ = False
+
+instance (Complete e,Complete a) => Complete (Error e a) where
+  (⊔) = toJoin2 widening (⊔) (⊔)
+
+instance (PreOrd a, UpperBounded e) => UpperBounded (Error e a) where
+  top = Fail top
 
 widening :: Widening e -> Widening a -> Widening (Error e a)
-widening we wa m1 m2 = case (m1,m2) of
-    (Success x, Success y) -> Success (x `wa` y)
-    (Success x, Fail e) -> SuccessOrFail e x
-    (Fail e, Success y) -> SuccessOrFail e y
-    (Fail e, Fail e') -> Fail (e `we` e')
-    (SuccessOrFail e x, Success y) -> SuccessOrFail e (x `wa` y)
-    (Success x, SuccessOrFail e y) -> SuccessOrFail e (x `wa` y)
-    (SuccessOrFail e x, Fail e') -> SuccessOrFail (e `we` e') x
-    (Fail e, SuccessOrFail e' y) -> SuccessOrFail (e `we` e') y
-    (SuccessOrFail e x, SuccessOrFail e' y) -> SuccessOrFail (e `we` e') (x `wa` y)
+widening we _ (Fail a) (Fail b) = second Fail (a `we` b)
+widening _ wa (Success a) (Success b) = second Success (a `wa` b)
+widening _ _ (Fail a) (Success _) = (Instable ,Fail a)
+widening _ _ (Success _) (Fail b) = (Instable ,Fail b)
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeCompletion a)) => Complete (FreeCompletion (Error e a)) where
   Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of
     Fail (Lower e) -> Lower (Fail e)
     Success (Lower a) -> Lower (Success a)
-    SuccessOrFail (Lower e) (Lower a) -> Lower (SuccessOrFail e a)
     _ -> Top
   _ ⊔ _ = Top
-
-instance (UpperBounded e, UpperBounded a) => UpperBounded (Error e a) where
-  top = SuccessOrFail top top
-
--- instance (LowerBounded e, LowerBounded a) => LowerBounded (Error e a) where
---   bottom = SuccessOrFail bottom bottom
-
-instance (PreOrd a, PreOrd e, UpperBounded (FreeCompletion e), UpperBounded (FreeCompletion a))
-  => UpperBounded (FreeCompletion (Error e a)) where
-  top = case (top,top) of
-    (Lower e,Lower a) -> Lower (SuccessOrFail e a)
-    (_,_) -> Top
 
 instance Bifunctor Error where
   bimap f g x = case x of
     Fail e -> Fail (f e)
     Success a -> Success (g a)
-    SuccessOrFail e a -> SuccessOrFail (f e) (g a)
 
-instance Functor (Error e) where
-  fmap f r = case r of
-    Success a -> Success (f a)
-    Fail e -> Fail e
-    SuccessOrFail e a -> SuccessOrFail e (f a)
+instance MonadError e (Error e) where
+  throwError = Fail
+  catchError (Fail e) f = f e
+  catchError (Success a) _ = Success a
 
-instance Complete e => Applicative (Error e) where
+instance Applicative (Error e) where
   pure = return
   (<*>) = ap
 
-instance Complete e => Monad (Error e) where
-  return = arr Success
-  x >>= k = case x of
-    Success y -> k y
-    Fail e -> Fail e
-    SuccessOrFail e y -> case k y of
-      Success z -> SuccessOrFail e z
-      Fail e' -> Fail (e ⊔ e')
-      SuccessOrFail e' z -> SuccessOrFail (e ⊔ e') z
+instance Monad (Error e) where
+  return = Success
+  Fail e >>= _ = Fail e
+  Success a >>= k = k a
 
-instance PreOrd a => LowerBounded (Error () a) where
-  bottom = Fail ()
+fromError :: a -> Error e a -> a
+fromError _ (Success a) = a
+fromError a (Fail _) = a
 
-instance Foldable (Error e) where
-  foldMap = foldMapDefault
+fromEither :: Either e a -> Error e a
+fromEither (Left e) = Fail e
+fromEither (Right a) = Success a
 
-instance Traversable (Error e) where
-  traverse f (Success x) = Success <$> f x
-  traverse _ (Fail e) = pure (Fail e)
-  traverse f (SuccessOrFail e x) = SuccessOrFail e <$> f x
-
--- instance Complete e => StrongMonad (Error e) (,) where
---   mstrength (Success _,Fail e) = Fail e
---   mstrength (Fail e,Fail e') = Fail (e ⊔ e')
---   mstrength (SuccessOrFail e _,Fail e') = Fail (e ⊔ e')
-
---   mstrength (Success x,Success y) = Success (x,y)
---   mstrength (Fail e,Success _) = Fail e
---   mstrength (SuccessOrFail e x,Success y) = SuccessOrFail e (x,y)
-
---   mstrength (Success x,SuccessOrFail e y) = SuccessOrFail e (x,y)
---   mstrength (Fail e,SuccessOrFail e' _) = Fail (e ⊔ e')
---   mstrength (SuccessOrFail e x,SuccessOrFail e' y) = SuccessOrFail (e ⊔ e') (x,y)
-
+toEither :: Error e a -> Either e a
+toEither (Fail e) = Left e
+toEither (Success a) = Right a
 
 fromMaybe :: Maybe a -> Error () a
-fromMaybe m = case m of
-  Just a -> Success a
-  Nothing -> Fail ()
+fromMaybe Nothing = Fail ()
+fromMaybe (Just a) = Success a
 
 toMaybe :: Error e a -> Maybe a
-toMaybe (Success x) = Just x
 toMaybe (Fail _) = Nothing
-toMaybe (SuccessOrFail _ x) = Just x
+toMaybe (Success a) = Just a
+
+instance Monoidal Error where
+  mmap f _ (Fail x) = Fail (f x)
+  mmap _ g (Success y) = Success (g y)
+
+  assoc1 (Fail a) = Fail (Fail a)
+  assoc1 (Success (Fail b)) = Fail (Success b)
+  assoc1 (Success (Success c)) = Success c
+
+  assoc2 (Fail (Fail a)) = Fail a
+  assoc2 (Fail (Success b)) = Success (Fail b)
+  assoc2 (Success c) = Success (Success c)
+
+instance Symmetric Error where
+  commute (Fail a) = Success a
+  commute (Success a) = Fail a
+
+instance Applicative f => Strong f Error where
+  strength1 (Success a) = pure $ Success a
+  strength1 (Fail a) = Fail <$> a
+
+  strength2 (Success a) = Success <$> a
+  strength2 (Fail a) = pure $ Fail a

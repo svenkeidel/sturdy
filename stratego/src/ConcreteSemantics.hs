@@ -36,8 +36,7 @@ import           Control.Category
 import           Control.Monad (join)
 import           Control.Monad.Reader (replicateM)
 
-import           Data.Concrete.Error
-import           Data.Concrete.Failure (Failure)
+import           Data.Concrete.Error (Error)
 import           Data.Constructor
 import           Data.Foldable (foldr')
 import           Data.HashMap.Lazy (HashMap)
@@ -65,11 +64,11 @@ newtype Interp a b = Interp (ReaderT StratEnv (StateT TermEnv (ExceptT () (Failu
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowApply)
 
 -- | Executes a concrete interpreter computation.
-runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Failure String (Error () (TermEnv,b))
+runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error String (Error () (TermEnv,b))
 runInterp (Interp f) senv tenv t = runFailureT (runExceptT (runStateT (runReaderT f))) (tenv, (senv, t))
 
 -- | Concrete interpreter function.
-eval :: Strat -> StratEnv -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
+eval :: Strat -> StratEnv -> TermEnv -> Term -> Error String (Error () (TermEnv,Term))
 eval s = runInterp (eval' s)
 
 -- Instances -----------------------------------------------------------------------------------------

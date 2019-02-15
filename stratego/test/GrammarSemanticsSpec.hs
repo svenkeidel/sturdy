@@ -13,7 +13,7 @@ import           Control.Arrow
 
 import           Data.ATerm
 import           Data.Abstract.FreeCompletion
-import           Data.Abstract.Error as E
+import           Data.Abstract.Except as E
 import           Data.Abstract.Failure as F
 import qualified Data.Abstract.Map as S
 import qualified Data.Abstract.StackWidening as SW
@@ -38,13 +38,13 @@ import           TreeAutomata
 main :: IO ()
 main = hspec spec
 
-success :: a -> Failure String (Error () a)
+success :: a -> Failure String (Except () a)
 success a = F.Success $ E.Success a
 
-successOrFail :: () -> a -> Failure String (Error () a)
+successOrFail :: () -> a -> Failure String (Except () a)
 successOrFail () a = F.Success $ E.SuccessOrFail () a
 
-uncaught :: () -> Failure String (Error () a)
+uncaught :: () -> Failure String (Except () a)
 uncaught = F.Success . E.Fail
 
 spec :: Spec
@@ -342,10 +342,10 @@ spec = do
              $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
 
   where
-    geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> FreeCompletion (Failure String (Error () (TermEnv, Term)))
+    geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> FreeCompletion (Failure String (Except () (TermEnv, Term)))
     geval' i strat senv tenv g = fromTerminating Top $ eval i strat senv tenv g
 
-    geval :: Int -> Strat -> TermEnv -> Term -> FreeCompletion (Failure String (Error () (TermEnv, Term)))
+    geval :: Int -> Strat -> TermEnv -> Term -> FreeCompletion (Failure String (Except () (TermEnv, Term)))
     geval i strat tenv g = geval' i strat LM.empty tenv g
 
     sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
@@ -353,7 +353,7 @@ spec = do
       r = LM.empty
       pow = C.fromFoldable $ fmap (second termEnv') xs
       f = eval' s :: C.Interp C.Term C.Term
-      g = eval' s :: Interp (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) Term Term
+      g = eval' s :: Interp (SW.Groups (Strat,StratEnv) SW.Stack) Term Term
 
     termEnv = S.fromList
     termEnv' = C.TermEnv . LM.fromList

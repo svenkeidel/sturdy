@@ -49,6 +49,7 @@ ifZero e1 e2 e3 = IfZero <$> e1 <*> e2 <*> e3 <*> fresh
 fix :: State Label Expr -> State Label Expr
 fix e = Y <$> e <*> fresh
 
+
 instance Show Expr where
   showsPrec d e0 = case e0 of
     Var x _ -> showString (unpack x)

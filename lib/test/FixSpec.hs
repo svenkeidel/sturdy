@@ -13,16 +13,11 @@ import           Prelude hiding (lookup,Bounded,Bool(..),fail)
 import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Failure
 import           Control.Arrow.Transformer.Abstract.Terminating
-import           Control.Arrow.Transformer.State
-import           Control.Arrow.Fail
-import           Control.Arrow.State
 
 import           Data.Identifiable
 import           Data.Boolean(Logic(..))
 import           Data.Abstract.Boolean(Bool)
-import           Data.Abstract.Failure (Failure(..))
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
@@ -33,11 +28,11 @@ import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.StackWidening (StackWidening)
 import qualified Data.Abstract.StackWidening as SW
-import           Data.Monoidal (Iso (..))
 
 import           Data.Order
 import           Data.Hashable
 import           Data.Profunctor
+import           Data.Lens (_2)
 
 import           GHC.Generics
 
@@ -69,12 +64,12 @@ spec = do
          run fib (iv 5 10) `shouldBe` return (iv 5 55)
 
       it "fib[100,110] with stack size 3 should be [0,∞]" $
-         let ?stackWiden = SW.stack (SW.maxSize 3 (SW.reuse' (SW.fromWidening I.widening))) in 
+         let ?stackWiden = SW.stack (SW.maxSize 3 (SW.reuseFirst (SW.fromWidening I.widening))) in 
          let ?widen = I.widening in
          run fib (iv 100 110) `shouldBe` return (iv 0 Infinity)
 
       it "fib[1,∞] should be [0,∞]" $
-         let ?stackWiden = SW.stack $ SW.reuse' $ SW.finite' in
+         let ?stackWiden = SW.stack $ SW.reuseFirst $ SW.finite' in
          let ?widen = I.widening in
          run fib (iv 0 Infinity) `shouldBe` return (iv 0 Infinity)
 
@@ -96,7 +91,7 @@ spec = do
          run fact (iv 10 15) `shouldBe` return (iv 720 Infinity)
 
       it "fact[0,∞] should be [1,∞]" $
-         let ?stackWiden = SW.stack $ SW.reuse' $ SW.finite' in
+         let ?stackWiden = SW.stack $ SW.reuseFirst $ SW.finite' in
          let ?widen = I.widening in
          run fact (iv 0 Infinity) `shouldBe` return (iv 1 Infinity)
 
@@ -122,7 +117,7 @@ spec = do
          run ackermann (iv 0 3, iv 0 3) `shouldBe` return (iv 1 Infinity)
 
       it "ack([0,∞],[0,∞]) should be [1,∞] " $
-         let ?stackWiden = SW.stack $ SW.reuse' $ SW.fromWidening (I.widening W.** I.widening) in
+         let ?stackWiden = SW.stack $ SW.reuseFirst $ SW.fromWidening (I.widening W.** I.widening) in
          let ?widen = I.widening in
          run ackermann (iv 0 Infinity, iv 0 Infinity) `shouldBe` return (iv 1 Infinity)
 
@@ -135,9 +130,15 @@ spec = do
           Odd -> ifLowerThan 0 (proc _ -> returnA -< false)
                                 (ifLowerThan 1 (proc _ -> returnA -< true)
                                                (proc x -> f -< (Even,x-I.Interval 1 1))) -< x
-    in it "even([0,∞]) should be top" $
-         let ?stackWiden = SW.categorize (Iso id id) $ SW.stack $ SW.reuse' $ SW.finite' in
-         let ?widen = W.finite in
+    in
+      it "even([0,∞]) should be top" $
+         let ?stackWiden = SW.groupBy fst
+                         $ SW.project _2
+                         $ SW.stack
+                         $ SW.maxSize 3
+                         $ SW.reuseFirst
+                         $ SW.finite'
+         in let ?widen = W.finite in
          run evenOdd (Even,iv 0 Infinity) `shouldBe` top
 
   describe "non-terminating function" $
@@ -146,7 +147,7 @@ spec = do
           0 -> f -< 0
           _ -> f -< (n-1)
     in it "should terminate with bottom" $
-         let ?stackWiden = SW.stack $ SW.reuse' $ SW.finite' in
+         let ?stackWiden = SW.stack $ SW.reuseFirst $ SW.finite' in
          let ?widen = W.finite in
          run diverge 5 `shouldBe` bottom
 

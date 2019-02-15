@@ -10,7 +10,6 @@ module Control.Arrow.Transformer.Abstract.Failure(FailureT(..)) where
 
 import Prelude hiding (id,(.),lookup,read)
 
-import Control.Applicative
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Deduplicate
@@ -26,11 +25,12 @@ import Control.Arrow.Utils(duplicate)
 import Control.Arrow.Abstract.Join
 import Control.Category
 
-import Data.Abstract.Failure
 import Data.Order
 import Data.Monoidal
 import Data.Identifiable
 import Data.Profunctor
+import Data.Abstract.Failure
+import Data.Abstract.Widening (toJoin)
 
 -- | Describes computations that can fail.
 newtype FailureT e c x y = FailureT { runFailureT :: c x (Failure e y) }
@@ -110,7 +110,7 @@ instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (FailureT e c) where
   askConst = lift' askConst
 
 instance (ArrowJoin c, ArrowChoice c) => ArrowJoin (FailureT e c) where
-  joinWith lub' (FailureT f) (FailureT g) = FailureT $ joinWith (widening lub') f g
+  joinWith lub' (FailureT f) (FailureT g) = FailureT $ joinWith (toJoin widening lub') f g
 
 deriving instance PreOrd (c x (Failure e y)) => PreOrd (FailureT e c x y)
 deriving instance LowerBounded (c x (Failure e y)) => LowerBounded (FailureT e c x y)

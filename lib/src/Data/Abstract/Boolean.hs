@@ -57,4 +57,7 @@ instance UpperBounded Bool where
 instance Hashable Bool
 
 widening :: Widening Bool
-widening = finite
+widening True True = (Stable,True)
+widening False False = (Stable,False)
+widening Top Top = (Stable,Top)
+widening _ _ = (Instable,Top)

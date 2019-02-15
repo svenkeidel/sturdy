@@ -19,10 +19,11 @@ import Control.Arrow.Utils(duplicate)
 import Control.Arrow.Abstract.Join
 import Control.Category
 
-import Data.Abstract.Terminating
 import Data.Order
 import Data.Monoidal
 import Data.Profunctor
+import Data.Abstract.Terminating
+import Data.Abstract.Widening (toJoin)
 
 -- | Arrow that propagates non-terminating computations.
 newtype TerminatingT c x y = TerminatingT { runTerminatingT :: c x (Terminating y) }
@@ -77,7 +78,7 @@ instance (ArrowChoice c, ArrowFix (Dom TerminatingT x y) (Cod TerminatingT x y) 
   fix = liftFix
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (TerminatingT c) where
-  joinWith lub' f g = lift $ joinWith (widening lub') (unlift f) (unlift g)
+  joinWith lub' f g = lift $ joinWith (toJoin widening lub') (unlift f) (unlift g)
 
 deriving instance PreOrd (c x (Terminating y)) => PreOrd (TerminatingT c x y)
 deriving instance LowerBounded (c x (Terminating y)) => LowerBounded (TerminatingT c x y)

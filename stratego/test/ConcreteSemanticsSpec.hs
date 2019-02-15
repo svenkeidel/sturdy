@@ -16,23 +16,23 @@ import           Control.Monad
 
 import           Data.ATerm
 import           Data.Concrete.Error as E
-import           Data.Concrete.Failure as F
+import           Data.Concrete.Error as F
 import           Data.Term (TermUtils(..))
 import qualified Data.HashMap.Lazy as M
 
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
-import           Test.QuickCheck hiding (Success)
+import           Test.QuickCheck hiding (Success,output)
 
 import qualified Data.Text.IO as TIO
 
 main :: IO ()
 main = hspec spec
 
-success :: a -> Failure String (Error () a)
+success :: a -> Error String (Error () a)
 success a = F.Success $ E.Success a
 
-uncaught :: () -> Failure String (Error () a)
+uncaught :: () -> Error String (Error () a)
 uncaught = F.Success . E.Fail
 
 spec :: Spec

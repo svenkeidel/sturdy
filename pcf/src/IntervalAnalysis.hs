@@ -1,3 +1,4 @@
+
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -18,7 +19,7 @@
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module IntervalAnalysis where
 
-import           Prelude hiding (Bounded,fail)
+import           Prelude hiding (Bounded,fail,(.))
 
 import           Control.Category
 import           Control.Arrow
@@ -39,9 +40,9 @@ import           Control.Monad.State hiding (lift,fail)
 import           Data.Hashable
 import           Data.Label
 import           Data.Order
-import           Data.Monoidal(Iso(..))
 import           Data.Text (Text)
 import           Data.Profunctor
+import qualified Data.Lens as L
 
 import           Data.Abstract.Map(Map)
 import qualified Data.Abstract.Map as M
@@ -59,13 +60,15 @@ import qualified Data.Abstract.Terminating as T
 import           GHC.Generics(Generic)
 import           GHC.Exts(toList)
 
-import           Syntax (Expr)
+import           Syntax (Expr(..))
 import           GenericInterpreter
 
 -- | Abstract closures are expressions paired with an abstract
 -- environment, consisting of a mapping from variables to addresses
 -- and a mapping from addresses to stores.
 newtype Closure = Closure (Map Expr (F.Map Text Addr Val)) deriving (Eq,Generic,PreOrd,Complete,Show)
+
+type Env = F.Map Text (Text, CallString Label) Val
 
 -- | Numeric values are approximated with bounded intervals, closure
 -- values are approximated with a set of abstract closures.
@@ -95,11 +98,14 @@ evalInterval k env e = -- runInterp eval ?bound k env (generate e)
                             (FixT _ () () (->))))))) Expr Val))))))
     (env,generate e)
   where
-    widenVal = widening (W.bounded ?bound top)
-    stackWiden = SW.categorize (Iso (\(ev,ex) -> (ex,ev)) (\(ex,ev) -> (ev,ex)))
+    widenVal = widening (W.bounded ?bound I.widening)
+    stackWiden :: SW.StackWidening _ (Env,Expr)
+    stackWiden = SW.filter (\(_,ex) -> case ex of App {} -> True; Y {} -> True; _ -> False)
+               $ SW.groupBy (\(_,ex) -> label ex :: Label)
+               $ SW.project L._1
                $ SW.stack
                $ SW.maxSize 3
-               $ SW.reuse (\_ l -> head l)
+               $ SW.reuseFirst
                $ SW.fromWidening (F.widening widenVal)
 
 newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowJoin)
@@ -152,13 +158,14 @@ instance PreOrd Val where
   _ ⊑ _ = False
 
 instance Complete Val where
-  (⊔) = widening (⊔)
+  (⊔) = W.toJoin widening (⊔)
 
 widening :: W.Widening IV -> W.Widening Val
-widening w (NumVal x) (NumVal y) = NumVal (x `w` y)
+widening w (NumVal x) (NumVal y) = second NumVal (x `w` y)
 widening w (ClosureVal (Closure cs)) (ClosureVal (Closure cs')) =
-  ClosureVal $ Closure $ M.widening (F.widening (widening w)) cs cs'
-widening _ _ _ = Top
+  second (ClosureVal . Closure) $ M.widening (F.widening (widening w)) cs cs'
+widening _ Top Top = (W.Stable,Top)
+widening _ _ _ = (W.Instable,Top)
 
 instance UpperBounded Val where
   top = Top

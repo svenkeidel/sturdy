@@ -13,7 +13,7 @@ import qualified WildcardSemantics as W
 
 import           Control.Arrow
 
-import           Data.Abstract.Error as E
+import           Data.Abstract.Except as E
 import           Data.Abstract.Failure as F
 import qualified Data.Abstract.Powerset as A
 import qualified Data.Abstract.Map as S
@@ -34,13 +34,13 @@ import           Test.QuickCheck hiding (Success)
 main :: IO ()
 main = hspec spec
 
-success :: a -> Failure String (Error () a)
+success :: a -> Failure String (Except () a)
 success a = F.Success $ E.Success a
 
-successOrFail :: () -> a -> Failure String (Error () a)
+successOrFail :: () -> a -> Failure String (Except () a)
 successOrFail () a = F.Success $ E.SuccessOrFail () a
 
-uncaught :: () -> Failure String (Error () a)
+uncaught :: () -> Failure String (Except () a)
 uncaught = F.Success . E.Fail
 
 spec :: Spec
@@ -112,14 +112,14 @@ spec = do
 
   where
     sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
-    sound' s xs = sound M.empty (C.fromFoldable $ fmap (second termEnv) xs) (eval' s) (eval' s :: W.Interp (SW.Categories (Strat,StratEnv) (W.TermEnv, W.Term) SW.Stack) W.Term W.Term)
+    sound' s xs = sound M.empty (C.fromFoldable $ fmap (second termEnv) xs) (eval' s) (eval' s :: W.Interp (SW.Groups (Strat,StratEnv) SW.Stack) W.Term W.Term)
 
     termEnv = C.TermEnv . M.fromList
 
     showLub :: C.Term -> C.Term -> String
     showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: W.Term) 
 
-    shouldBe' :: A.Pow (Failure String (Error () W.Term)) -> A.Pow (Failure String (Error () W.Term)) -> Property
+    shouldBe' :: A.Pow (Failure String (Except () W.Term)) -> A.Pow (Failure String (Except () W.Term)) -> Property
     shouldBe' s1 s2 = counterexample (printf "%s < %s\n" (show s1) (show s2)) (s2 ⊑ s1 `shouldBe` True)
     infix 1 `shouldBe'`
 
@@ -135,5 +135,5 @@ spec = do
                Build (Cons "Cons" ["x'", "xs'"]))
               (Build (Cons "Nil" []))))
 
-    weval :: Int -> Strat -> W.Term -> A.Pow (Failure String (Error () (W.TermEnv,W.Term)))
+    weval :: Int -> Strat -> W.Term -> A.Pow (Failure String (Except () (W.TermEnv,W.Term)))
     weval i s = fromTerminating (error "non-terminating wildcard semantics") . W.eval i s M.empty S.empty

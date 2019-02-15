@@ -79,5 +79,6 @@ instance (Ord n, Bounded n) => UpperBounded (Interval n) where
 
 widening :: Ord n => Widening (Interval (InfiniteNumber n))
 widening (Interval i1 i2) (Interval j1 j2) =
-  Interval (if j1 P.< i1 then NegInfinity else j1)
-           (if j2 P.> i2 then Infinity else i2)
+  (if j1 P.< i1 || j2 P.> i2 then Instable else Stable,
+    Interval (if j1 P.< i1 then NegInfinity else j1)
+             (if j2 P.> i2 then Infinity else i2))

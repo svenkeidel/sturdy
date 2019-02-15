@@ -52,9 +52,10 @@ instance UpperBounded a => UpperBounded (Failure e a) where
   top = Success top
 
 widening :: Widening a -> Widening (Failure e a)
-widening _ (Fail _) b = b
-widening _ a (Fail _) = a
-widening w (Success x) (Success y) = Success (x `w` y)
+widening _ (Fail _) (Fail b) = (Stable,Fail b)
+widening _ (Fail _) (Success y) = (Instable ,Success y)
+widening _ (Success x) (Fail _) = (Instable ,Success x)
+widening w (Success x) (Success y) = second Success (x `w` y)
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion a)) => Complete (FreeCompletion (Failure e a)) where
   Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of

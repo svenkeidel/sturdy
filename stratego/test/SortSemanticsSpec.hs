@@ -17,8 +17,8 @@ import qualified SortContext as Ctx
 -- import           Control.Arrow
 
 import           Data.Abstract.FreeCompletion (fromCompletion)
-import           Data.Abstract.Error as E
-import           Data.Abstract.Failure as F
+import           Data.Abstract.Except as E
+import           Data.Abstract.Error as F
 -- import qualified Data.Abstract.Maybe as M
 import qualified Data.Abstract.Map as S
 import           Data.Abstract.There
@@ -31,12 +31,18 @@ import qualified Data.HashMap.Lazy as M
 -- import           Data.GaloisConnection
 -- import qualified Data.Set as Set
 -- import qualified Data.Term as C
+import qualified Data.Text.IO as TIO
+import qualified Data.ATerm as A
     
--- import           Text.Printf
+import           Text.Printf
 
 import           Test.Hspec hiding (context)
 -- import           Test.Hspec.QuickCheck
 -- import           Test.QuickCheck hiding (Success)
+
+import           GHC.Exts(IsString(..))
+
+import           Paths_sturdy_stratego
 
 main :: IO ()
 main = hspec spec
@@ -265,7 +271,7 @@ spec = do
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
           tenv = termEnv [("x",t)]
-      in seval 1 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) t
+      in seval 2 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) t
         `shouldBe` success (tenv, term (List Numerical))
 
   describe "Call" $ do
@@ -281,7 +287,7 @@ spec = do
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [] ?ctx
           tenv = termEnv [("x",t)]
-      in seval'' 1 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
+      in seval'' 2 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should support a singleton list in recursive applications" $
@@ -289,7 +295,7 @@ spec = do
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [numerical] ?ctx
           tenv = termEnv [("x",t)]
-      in seval'' 1 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
+      in seval'' 2 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should support recursion on a list of numbers" $
@@ -298,7 +304,7 @@ spec = do
           c = Ctx.empty
           t = convertToList [numerical, numerical, numerical] c
           tenv = termEnv [("x",t)]
-      in seval'' 1 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
+      in seval'' 2 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should terminate and not produce infinite sorts" $ do
@@ -307,8 +313,8 @@ spec = do
           c = Ctx.empty
           t = Term Top c
           tenv = termEnv [("x",t)]
-      seval'' 1 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
-        success (tenv, Term (List (List (List Top))) c)
+      seval'' 3 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
+        success (tenv, Term (List (List Top)) c)
 
 
   describe "simplify arithmetics" $ do
@@ -350,6 +356,16 @@ spec = do
       let reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
       let reduce3 = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"]) in
       seval 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) exp `shouldBe` successOrFail () (termEnv' [("x", may exp),("y", may exp)], exp)
+
+  describe "PCF interpreter in Stratego" $
+    before (caseStudy "pcf") $
+      it "pcf :: Exp -> Val" $ \pcf ->
+        let ?ctx = signature pcf in
+        let senv = stratEnv pcf
+            prog = term (Tuple [List "Val", "Exp"])
+            val = term "Val"
+        in seval'' 2 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
+             success (emptyEnv, val)
 
     -- prop "should be sound" $ do
     --   i <- choose (0,10)
@@ -418,13 +434,13 @@ spec = do
                Build (Cons "Cons" ["x'", "xs'"]))
               (Build (Cons "Nil" []))))
 
-    seval :: Int -> Strat -> Term -> Failure String (Error () (TermEnv,Term))
+    seval :: Int -> Strat -> Term -> Error TypeError (Except () (TermEnv,Term))
     seval i s = seval'' i 10 s M.empty emptyEnv
 
-    seval' :: Int -> Strat -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
+    seval' :: Int -> Strat -> TermEnv -> Term -> Error TypeError (Except () (TermEnv,Term))
     seval' i s = seval'' i 10 s M.empty
 
-    seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Failure String (Error () (TermEnv,Term))
+    seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Error TypeError (Except () (TermEnv,Term))
     seval'' i j s senv tenv t = fromCompletion (error "top element")
                                (fromTerminating (error "sort semantics does not terminate")
                                 (eval i j s senv (context t) tenv t))
@@ -444,14 +460,21 @@ spec = do
     top :: (?ctx :: Context) => Term
     top = term Top
 
-    success :: a -> Failure String (Error () a)
+    success :: a -> Error e (Except () a)
     success a = F.Success $ E.Success a
     
-    successOrFail :: () -> a -> Failure String (Error () a)
+    successOrFail :: () -> a -> Error e (Except () a)
     successOrFail () a = F.Success $ E.SuccessOrFail () a
     
-    uncaught :: () -> Failure String (Error () a)
+    uncaught :: () -> Error e (Except () a)
     uncaught = F.Success . E.Fail
     
-    failure :: String -> Failure String (Error () a)
-    failure = F.Fail
+    failure :: String -> Error TypeError (Except () a)
+    failure = F.Fail . fromString
+
+    caseStudy :: String -> IO Module
+    caseStudy name = do
+      file <- TIO.readFile =<< getDataFileName (printf "case-studies/%s/%s.aterm" name name)
+      case parseModule =<< A.parseATerm file of
+        Left e -> fail (show e)
+        Right module_ -> return module_

@@ -8,16 +8,16 @@
 {-# LANGUAGE RankNTypes #-}
 module Data.Abstract.StackWidening where
 
-import           Control.Monad.State
+import           Prelude hiding (pred)
 
 import           Data.Order
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Identifiable
-import           Data.Monoidal
 import           Data.Maybe
-import           Data.Abstract.Widening(Widening)
-import           Debug.Trace
+import           Data.Abstract.Widening(Widening,Stable(..))
+import           Data.Functor.Const
+import           Data.Lens
 
 -- | A stack widening operator @(▽ :: s -> a -> (s,a))@ follows the same
 -- idea as a regular widening operator, but does not have the
@@ -36,7 +36,7 @@ import           Debug.Trace
 --
 -- Furthermore, a stack widening operator has to be monotone in the
 -- second argument, i.e., for all @x ⊑ y@, @snd (s ▽ x) ⊑ snd (s ▽ y)@.
-type StackWidening s a = a -> State (s a) (Loop,a)
+type StackWidening s a = s a -> a -> (s a,(Loop,a))
 
 -- | Datatype that signals that we are in a loop.
 data Loop = Loop | NoLoop deriving (Show,Eq)
@@ -49,10 +49,27 @@ instance Monoid (Unit a) where
 
 -- | Trivial stack widening if the abstract domain is finite.
 finite :: StackWidening Unit a
-finite a = return (NoLoop,a)
+finite u a = (u,(NoLoop,a))
 
 finite' :: StackWidening s a
-finite' a = return (NoLoop,a)
+finite' u a = (u,(NoLoop,a))
+
+filter :: (a -> Bool) -> StackWidening s a -> StackWidening s a
+filter pred widen s a
+  | pred a = widen s a
+  | otherwise = (s,(NoLoop,a))
+
+filter' :: Prism' a b -> StackWidening s b -> StackWidening (Const (s b)) a
+filter' pred widen s a = case getMaybe pred a of
+  Just b ->
+    let (s',(l,b')) = widen (getConst s) b
+    in (Const s',(l,set pred b' a))
+  Nothing -> (s,(NoLoop,a))
+
+project :: Lens' a b -> StackWidening s b -> StackWidening (Const (s b)) a
+project f widen s a =
+  let (s',(l,b)) = widen (getConst s) (get f a)
+  in (Const s',(l,set f b a))
 
 data Stack a = Stack Int [a]
 instance Semigroup (Stack a) where (<>) = mappend
@@ -64,60 +81,52 @@ instance Show a => Show (Stack a) where show (Stack _ xs) = show xs
 -- | Pushes elements onto a stack and increases its size. Always calls
 -- the given widening.
 stack :: StackWidening Stack a -> StackWidening Stack a
-stack f x = state $ \s@(Stack n st) -> let (w,x') = evalState (f x) s in ((w,x'),Stack (n+1) (x':st))
-
-traceStack :: Show a => StackWidening Stack a -> StackWidening Stack a
-traceStack f x = state $ \s@(Stack n st) -> let (w,x') = evalState (f x) s in traceShow (w,x') ((w,x'),Stack (n+1) (x':st))
+stack f s@(Stack n st) x =
+  let (_,(l,x')) = f s x
+  in (Stack (n+1) (x':st),(l,x'))
 
 -- | Return the same elements until the specified maximum stack size
 -- is reached, then call the fallback widening.
 maxSize :: Int -> StackWidening Stack a -> StackWidening Stack a
-maxSize limit fallback x = do
-  Stack n _ <- get
-  if n < limit
-  then return (NoLoop,x)
-  else fallback x
+maxSize limit fallback s@(Stack n _) x
+  | n < limit = (s,(NoLoop,x))
+  | otherwise = fallback s x
 
 -- | Reuse an element from the stack that is greater than the current
 -- element. If no such elements exist, call the fallback widening.
 reuse :: PreOrd a => (a -> [a] -> a) -> StackWidening Stack a -> StackWidening Stack a
-reuse bestChoice fallback x = do
-  Stack _ st <- get
-  -- All elements in the stack that are greater than the current
-  -- element are potential candidates.
-  let candidates = [ y | y <- st, x ⊑ y ]
-  if | null st               -> return (NoLoop,x)
-     | not (null candidates) -> return (Loop,bestChoice x candidates)
-     | otherwise             -> fallback x
+reuse bestChoice fallback s@(Stack _ st) x
+  | null st               = (s,(NoLoop,x))
+  | not (null candidates) = (s,(Loop,bestChoice x candidates))
+  | otherwise             = fallback s x
+  where
+    -- All elements in the stack that are greater than the current
+    -- element are potential candidates.
+    candidates = [ y | y <- st, x ⊑ y ]
 
-reuse' :: PreOrd a => StackWidening Stack a -> StackWidening Stack a
-reuse' = reuse (\_ -> head)
+reuseFirst :: PreOrd a => StackWidening Stack a -> StackWidening Stack a
+reuseFirst = reuse (\_ -> head)
 
-data Categories k b s a = Categories (HashMap k (s b))
-instance (Identifiable k, Monoid (s b)) => Semigroup (Categories k b s a) where (<>) = mappend
-instance (Identifiable k, Monoid (s b)) => Monoid (Categories k b s a) where
-  mempty = Categories M.empty
-  mappend (Categories m) (Categories m') = Categories (m `mappend` m')
-instance (Show k, Show (s b)) => Show (Categories k b s a) where
-  show (Categories m) = show (M.toList m)
-
-categorize :: (Monoid (s b), Identifiable k) => Iso a (k,b) -> StackWidening s b -> StackWidening (Categories k b s) a
-categorize iso w a = do
-  Categories m <- get
-  let (k,b) = to iso a
+data Groups k s a = Groups (HashMap k (s a))
+instance (Identifiable k, Monoid (s a)) => Semigroup (Groups k s a) where (<>) = mappend
+instance (Identifiable k, Monoid (s a)) => Monoid (Groups k s a) where
+  mempty = Groups M.empty
+  mappend (Groups m) (Groups m') = Groups (m `mappend` m')
+instance (Show k, Show (s a)) => Show (Groups k s a) where
+  show (Groups m) = show (M.toList m)
+                    
+groupBy :: (Monoid (s a), Identifiable k) => (a -> k) -> StackWidening s a -> StackWidening (Groups k s) a
+groupBy f fallback (Groups m) a =
+  let k = f a
       s = fromMaybe mempty (M.lookup k m)
-      ((l,b'),s') = runState (w b) s
-  put $ Categories $ M.insert k s' m
-  return (l,from iso (k,b'))
+      (s',(l,a')) = fallback s a
+  in (Groups (M.insert k s' m), (l,a'))
 
 fromWidening :: Complete a => Widening a -> StackWidening Stack a
-fromWidening w a = do
-  Stack _ s <- get
-  case s of
-    [] -> return (NoLoop,a)
-    x:_ -> do
-      let x' = x `w` (x ⊔ a)
-      return (if (x' ⊑ x) then Loop else NoLoop,x')
+fromWidening w s@(Stack _ l) a = case l of
+  []  -> (s,(NoLoop,a))
+  x:_ -> let (stable,x') = x `w` (x ⊔ a)
+         in (s,(case stable of Stable -> Loop; Instable -> NoLoop,x'))
 
 data Product s1 s2 x where
   Product :: s1 a -> s2 b -> Product s1 s2 (a,b)
@@ -129,32 +138,22 @@ instance (Show (s1 a), Show (s2 b)) => Show (Product s1 s2 (a,b)) where
   show (Product s1 s2) = show (s1,s2)
 
 (**) :: StackWidening s1 a -> StackWidening s2 b -> StackWidening (Product s1 s2) (a,b)
-(**) f g (a,b) = do
-  Product s1 s2 <- get
-  let ((la,a'),s1') = runState (f a) s1
-      ((lb,b'),s2') = runState (g b) s2 
-  put $ Product s1' s2'
-  return (la ⊔ lb,(a',b'))
-
-(***) :: StackWidening Stack a -> StackWidening Stack b -> StackWidening Stack (a,b)
-(***) f g (a,b) = do
-  Stack i st <- get
-  let ((la,a'),Stack i' as') = runState (f a) (Stack i (map fst st))
-      ((lb,b'),Stack i'' bs') = runState (g b) (Stack i' (map snd st))
-  put (Stack i'' (zip as' bs'))
-  return (la ⊔ lb,(a',b'))
+(**) f g (Product s1 s2) (a,b) =
+  let (s1',(la,a')) = f s1 a
+      (s2',(lb,b')) = g s2 b
+  in (Product s1' s2',(la ⊔ lb,(a',b')))
 
 topOut :: (Eq a,UpperBounded a) => StackWidening Stack a
 topOut = topOut' top
 
 topOut' :: Eq a => a -> StackWidening Stack a
-topOut' t x = do
-  Stack _ st <- get
-  case st of
-    []                -> return (NoLoop,x)
-    (l:_) | l /= t    -> return (NoLoop,t)
-          | otherwise -> return (Loop,t)
+topOut' t = topOut'' (const t)
 
+topOut'' :: Eq a => (a -> a) -> StackWidening Stack a
+topOut'' f s@(Stack _ st) x = case st of
+  []                -> (s,(NoLoop,x))
+  (l:_) | l /= f x  -> (s,(NoLoop,f x))
+        | otherwise -> (s,(Loop,f x))
 
 instance PreOrd Loop where
   NoLoop ⊑ NoLoop = True

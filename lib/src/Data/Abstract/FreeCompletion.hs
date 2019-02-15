@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Data.Abstract.FreeCompletion where
 
+import Control.Arrow(second)
 import Control.Applicative
 import Control.Monad
 import Control.DeepSeq
@@ -92,8 +93,10 @@ instance Complete (FreeCompletion ()) where
   _ ⊔ _ = Top
 
 widening :: Widening a -> Widening (FreeCompletion a)
-widening wa (Lower a) (Lower a') = Lower (a `wa` a')
-widening _ _ _ = Top
+widening wa (Lower a) (Lower a') = second Lower (a `wa` a')
+widening _ Top Top = (Stable,Top)
+widening _ (Lower _) Top = (Instable,Top)
+widening _ Top (Lower _) = (Instable,Top)
 
 fromCompletion :: a -> FreeCompletion a -> a
 fromCompletion a Top = a

@@ -10,6 +10,10 @@ signature
     Pred : Exp -> Exp
     Ifz  : Exp * Exp * Exp -> Exp
 
+    Closure : Exp * List(Val) -> Val
+    Z       : Val
+    S       : Val -> Val
+
     Num  : Type
     Fun  : Type * Type -> Type
 
@@ -18,7 +22,7 @@ signature
          : ()
          : a -> (a)
          : a * b -> (a, b)
-         : a * b * c -> (a, b, c)
+: a * b * c -> (a, b, c)
 
 strategies
 
@@ -38,17 +42,18 @@ strategies
           <check> (ctx,e2) => t
 
   eval: (env, Var(x)) -> <lookup> (x,env)
-  eval: (env, Abs(x,t,e)) -> Abs(x,t,e)
-  eval: (env, App(e1,e2)) -> <eval> ([(x,arg)|env],e)
-    where <eval> (env,e1) => Abs(x,_,e);
+  eval: (env, Abs(x,t,e)) -> Closure(Abs(x,t,e),env)
+  eval: (env, App(e1,e2)) -> <eval> ([(x,arg)|env'],e)
+    where <eval> (env,e1) => Closure(Abs(x,_,e),env');
           <eval> (env,e2) => arg
-  eval: (_, Zero()) -> Zero()
-  eval: (env, Succ(e)) -> Succ(<eval>(env,e))
-  eval: (env, Pred(e)) -> Pred(<eval>(env,e))
+  eval: (_, Zero()) -> Z()
+  eval: (env, Succ(e)) -> S(<eval>(env,e))
+  eval: (env, Pred(e)) -> v
+    where <eval> (env,e) => S(v)
   eval: (env, Ifz(e1,e2,e3)) -> <eval>(env,e2)
-    where <eval> (env,e1) => Zero()
+    where <eval> (env,e1) => Z()
   eval: (env, Ifz(e1,e2,e3)) -> <eval>(env,e3)
-    where <eval> (env,e2) => Succ(_)
+    where <eval> (env,e2) => S(_)
 
   check-eval: e -> <eval> ([], e)
     where <check> ([],e) => _

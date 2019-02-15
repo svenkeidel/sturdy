@@ -4,7 +4,6 @@ module Control.Arrow.Abstract.Join where
 import Prelude hiding ((.))
 
 import Control.Arrow
-import Control.Arrow.Utils
 import Data.Order(Complete(..))
 import Data.Profunctor
 
@@ -17,8 +16,8 @@ class (Arrow c, Profunctor c) => ArrowJoin c where
   -- @
   joinWith :: (y -> y -> y) -> c x y -> c x y -> c x y
 
-joinWith' :: ArrowJoin c => (y -> y -> y) -> c x y -> c x' y -> c (x,x') y
-joinWith' lub f g = joinWith lub (f <<< pi1) (g <<< pi2)
+joinWith' :: (ArrowJoin c) => (y -> y -> y) -> c x y -> c x' y -> c (x,x') y
+joinWith' lub f g = joinWith lub (lmap fst f) (lmap snd g)
 
 (<⊔>) :: (ArrowJoin c, Complete y) => c x y -> c x y -> c x y
 (<⊔>) = joinWith (⊔)
@@ -30,8 +29,8 @@ joinWith' lub f g = joinWith lub (f <<< pi1) (g <<< pi2)
 -- @
 joinList :: (ArrowChoice c, ArrowJoin c, Complete y) => c (e,s) y -> c (e,(x,s)) y -> c (e,([x],s)) y
 joinList empty f = proc (e,(l,s)) -> case l of
-  [] -> empty -< (e,s)
-  [x] -> f -< (e,(x,s))
+  []     -> empty -< (e,s)
+  [x]    -> f -< (e,(x,s))
   (x:xs) -> (f -< (e,(x,s))) <⊔> (joinList empty f -< (e,(xs,s)))
 
 instance ArrowJoin (->) where

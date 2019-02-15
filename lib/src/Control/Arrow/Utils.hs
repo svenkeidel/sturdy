@@ -4,6 +4,7 @@ module Control.Arrow.Utils where
 
 import Prelude hiding (map,zipWith)
 import Control.Arrow
+import Data.Profunctor
 
 -- | Applies a computation to all elements of the input list and
 -- collects the results in an list.
@@ -16,14 +17,12 @@ map f = proc l -> case l of
     returnA -< (b:bs)
 
 -- | Throws away the result of a computation.
-void :: Arrow c => c x y -> c x ()
-void f = proc x -> do
-  _ <- f -< x
-  returnA -< ()
+void :: Profunctor c => c x y -> c x ()
+void f = rmap (\_ -> ()) f
 
 infixr 1 &&>
-(&&>) :: Arrow c => c a () -> c a b -> c a b
-f &&> g = f &&& g >>> arr snd
+(&&>) :: (Arrow c, Profunctor c) => c a () -> c a b -> c a b
+f &&> g = rmap snd (f &&& g)
 
 -- | Projects the first component of a product.
 pi1 :: Arrow c => c (x,y) x
@@ -34,11 +33,11 @@ pi2 :: Arrow c => c (x,y) y
 pi2 = arr snd
 
 -- | Zips two lists together.
-zipWith :: ArrowChoice c => c (x,y) z -> c ([x],[y]) [z]
+zipWith :: (ArrowChoice c,Profunctor c) => c (x,y) z -> c ([x],[y]) [z]
 zipWith f = proc (l1,l2) -> case (l1,l2) of
   ([],_)      -> returnA -< []
   (_,[])      -> returnA -< []
-  (a:as,b:bs) -> uncurry (:) ^<< f *** zipWith f -< ((a,b),(as,bs)) 
+  (a:as,b:bs) -> rmap (uncurry (:)) (f *** zipWith f) -< ((a,b),(as,bs)) 
 
 -- | Folds a computation over a list from left to right.
 fold :: ArrowChoice c => c (a,x) a -> c ([x],a) a
@@ -53,5 +52,5 @@ duplicate :: Arrow c => c x (x,x)
 duplicate = arr (\x -> (x,x))
 
 -- | creates a computation that always returns the same value.
-const :: Arrow c => c () x -> c y x
-const f = arr (\_ -> ()) >>> f
+const :: Profunctor c => c () x -> c y x
+const f = lmap (\_ -> ()) f

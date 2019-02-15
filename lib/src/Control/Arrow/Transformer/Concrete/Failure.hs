@@ -24,12 +24,12 @@ import Control.Arrow.Utils
 import Control.Category
 
 import Data.Profunctor
-import Data.Concrete.Failure
+import Data.Concrete.Error
 import Data.Monoidal
 import Data.Identifiable
 
 -- | Arrow transformer that adds failure to the result of a computation
-newtype FailureT e c x y = FailureT { runFailureT :: c x (Failure e y) }
+newtype FailureT e c x y = FailureT { runFailureT :: c x (Error e y) }
 
 instance (ArrowChoice c, Profunctor c) => ArrowFail e (FailureT e c) where
   fail = lift $ arr Fail
@@ -41,7 +41,7 @@ instance (Profunctor c, Arrow c) => Profunctor (FailureT e c) where
 
 instance ArrowTrans (FailureT e) where
   type Dom (FailureT e) x y = x
-  type Cod (FailureT e) x y = Failure e y
+  type Cod (FailureT e) x y = Error e y
   lift = FailureT
   unlift = runFailureT
 

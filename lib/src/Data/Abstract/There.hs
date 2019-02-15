@@ -4,6 +4,7 @@ module Data.Abstract.There where
 
 import Data.Order
 import Data.Hashable
+import Data.Abstract.Widening
 
 import Control.DeepSeq
 import GHC.Generics (Generic)
@@ -24,6 +25,12 @@ instance PreOrd There where
 instance Complete There where
   Must ⊔ Must = Must
   _ ⊔ _ = May
+
+widening :: Widening There
+widening Must Must = (Stable,Must)
+widening May May   = (Stable,May)
+widening Must May  = (Instable,May)
+widening May Must  = (Instable,May)
 
 instance Hashable There where
   hashWithSalt s Must = s `hashWithSalt` (1::Int)

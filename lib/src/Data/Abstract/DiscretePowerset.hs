@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Data.Abstract.DiscretePowerset where
 
 import           Data.Order
@@ -8,6 +9,9 @@ import qualified Data.HashSet as H
 import           Data.Hashable
 import           Data.Identifiable
 import           Data.List (intercalate)
+import           Data.Abstract.Widening
+import           Data.Abstract.FreeCompletion (FreeCompletion)
+import qualified Data.Abstract.FreeCompletion as F
 import           GHC.Generics
 import           GHC.Exts
 
@@ -57,6 +61,17 @@ instance Identifiable x => PreOrd (Pow x) where
 instance Identifiable x => Complete (Pow x) where
   (⊔) = union
 
+widening :: Identifiable x => Widening (Pow x)
+widening (Pow xs) (Pow ys) = let zs = H.union xs ys in (if H.size zs == H.size xs then Stable else Instable,Pow zs)
+widening Top (Pow _) = (Instable,Top)
+widening (Pow _) Top = (Instable,Top)
+widening Top Top = (Stable,Top)
+
+instance Identifiable x => Complete (FreeCompletion (Pow x)) where
+  F.Top ⊔ _ = F.Top
+  _ ⊔ F.Top = F.Top
+  F.Lower xs ⊔ F.Lower ys = F.Lower (xs ⊔ ys)
+
 instance Hashable x => Hashable (Pow x)
 
 instance Identifiable x => UpperBounded (Pow x) where
@@ -70,3 +85,6 @@ instance Identifiable x => IsList (Pow x) where
   fromList ls = Pow (H.fromList ls)
   toList (Pow xs) = H.toList xs
   toList Top = error "toList ⊤"
+
+instance (IsString x, Identifiable x) => IsString (Pow x) where
+  fromString s = Pow (H.singleton (fromString s))
