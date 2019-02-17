@@ -13,6 +13,7 @@ import           Prelude hiding (id,(.),const,head,iterate)
 
 import           Control.Category
 import           Control.Arrow hiding (loop)
+import           Control.Arrow.Deduplicate
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
@@ -115,14 +116,20 @@ instance ArrowLift (FixT s a b) where
 instance (ArrowApply c, Profunctor c) => ArrowApply (FixT s a b c) where
   app = FixT (lmap (first unFixT) app)
 
+instance (Arrow c, Profunctor c) => ArrowDeduplicate x y (FixT s a b c) where
+  dedup f = f
+
 ----- Helper functions -----
 stackWiden' :: (ArrowReader (s a) c,ArrowChoice c) => ConstT (StackWidening s a,r) c (a,a) b -> ConstT (StackWidening s a,r) c a b -> ConstT (StackWidening s a,r) c a b
-stackWiden' (ConstT (StaticT f)) (ConstT (StaticT g)) = constT $ \(sw,w) -> (local (f (sw,w)) ||| g (sw,w))
-                                                    <<< rmap (\(s,x) -> let ~(s',(l,x')) = sw s x
-                                                                        in case l of
-                                                                            NoLoop -> Left (s',(x,x'))
-                                                                            Loop   -> Right x'
-                                                             ) (const ask &&& id)
+stackWiden' (ConstT (StaticT f)) (ConstT (StaticT g)) =
+  constT $ \(sw,w) -> 
+       rmap (\(s,x) -> let ~(s',(l,x')) = sw s x
+                       in case l of
+                           NoLoop -> Left (s',(x,x'))
+                           Loop   -> Right x'
+            ) (const ask &&& id)
+       >>>
+       (local (f (sw,w)) ||| g (sw,w))
 
 initializeCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => c a b
 initializeCache = modifyCache (\x -> insertWithLookup (\_ old -> old) x bottom)

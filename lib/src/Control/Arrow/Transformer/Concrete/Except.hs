@@ -5,9 +5,9 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Concrete.Except(ExceptT(..)) where
+module Control.Arrow.Transformer.Concrete.Except(ExceptT,runExceptT) where
 
-import Prelude hiding (id,(.),lookup,read,fail)
+import Prelude hiding (id,(.))
 
 import Control.Arrow
 import Control.Arrow.Const
@@ -20,16 +20,18 @@ import Control.Arrow.Reader
 import Control.Arrow.Store as Store
 import Control.Arrow.State
 import Control.Arrow.Except
-import Control.Arrow.Utils
 import Control.Category
+import Control.Arrow.Transformer.Kleisli
 
 import Data.Concrete.Error
-import Data.Monoidal
 import Data.Identifiable
 import Data.Profunctor
 
 -- | Arrow transformer that adds exceptions to the result of a computation
-newtype ExceptT e c x y = ExceptT { runExceptT :: c x (Error e y) }
+newtype ExceptT e c x y = ExceptT { unExceptT :: KleisliT (Error e) c x y }
+
+runExceptT :: ExceptT e c x y -> c x (Error e y)
+runExceptT = runKleisliT . unExceptT
 
 instance (ArrowChoice c, Profunctor c) => ArrowExcept e (ExceptT e c) where
   type Join (ExceptT e c) x y = ()
@@ -47,69 +49,19 @@ instance (ArrowChoice c, Profunctor c) => ArrowExcept e (ExceptT e c) where
     unlift g -< x
     returnA -< e
 
-instance (Profunctor c, Arrow c) => Profunctor (ExceptT e c) where
-  dimap f g h = lift $ dimap f (fmap g) (unlift h)
-  lmap f h = lift $ lmap f (unlift h)
-  rmap g h = lift $ rmap (fmap g) (unlift h)
-
-instance ArrowTrans (ExceptT e) where
-  type Dom (ExceptT e) x y = x
-  type Cod (ExceptT e) x y = Error e y
-  lift = ExceptT
-  unlift = runExceptT
-
-instance ArrowLift (ExceptT e) where
-  lift' f = lift (rmap Success f)
-
-instance (ArrowChoice c, Profunctor c) => Category (ExceptT r c) where
-  id = lift' id
-  f . g = lift $ unlift g >>> lmap toEither (arr Fail ||| unlift f)
-
-instance (ArrowChoice c, Profunctor c) => Arrow (ExceptT r c) where
-  arr f = lift' (arr f)
-  first f = lift $ rmap strength1 (first (unlift f))
-  second f = lift $ rmap strength2 (second (unlift f))
-  f *** g = first f >>> second g
-  f &&& g = lmap duplicate (f *** g)
-
-instance (ArrowChoice c, Profunctor c) => ArrowChoice (ExceptT r c) where
-  left f = lift $ left (unlift f) >>^ strength1
-  right f = lift $ right (unlift f) >>^ strength2
-  f ||| g = lift $ unlift f ||| unlift g
-  f +++ g = lift $ rmap distribute2 (unlift f +++ unlift g)
-
-instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where
-  app = lift $ lmap (first unlift) app
-
-instance (ArrowChoice c, ArrowState s c) => ArrowState s (ExceptT e c) where
-  get = lift' get
-  put = lift' put
-
-instance (ArrowChoice c, ArrowFail f c) => ArrowFail f (ExceptT e c) where
-  fail = lift' fail
-
-instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (ExceptT e c) where
-  ask = lift' ask
-  local f = lift (local (unlift f))
-
-instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (ExceptT e c) where
-  type Join (ExceptT e c) x y = Env.Join c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)
-  lookup f g = lift $ lookup (unlift f) (unlift g)
-  getEnv = lift' getEnv
-  extendEnv = lift' extendEnv
-  localEnv f = lift (localEnv (unlift f))
-
-instance (ArrowChoice c, ArrowStore var val c) => ArrowStore var val (ExceptT e c) where
-  type Join (ExceptT e c) x y = Store.Join c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)
-  read f g = lift $ read (unlift f) (unlift g)
-  write = lift' write
-
+deriving instance (ArrowChoice c, Profunctor c) => Profunctor (ExceptT e c)
+deriving instance (ArrowChoice c, Profunctor c) => Category (ExceptT e c)
+deriving instance (ArrowChoice c, Profunctor c) => Arrow (ExceptT e c)
+deriving instance (ArrowChoice c, Profunctor c) => ArrowChoice (ExceptT e c)
+instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where app = lift $ lmap (first unlift) app
+deriving instance ArrowTrans (ExceptT e)
+deriving instance ArrowLift (ExceptT e)
+deriving instance (ArrowChoice c, ArrowState s c) => ArrowState s (ExceptT e c)
+deriving instance (ArrowChoice c, ArrowFail f c) => ArrowFail f (ExceptT e c)
+deriving instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (ExceptT e c)
+deriving instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (ExceptT e c)
+deriving instance (ArrowChoice c, ArrowStore var val c) => ArrowStore var val (ExceptT e c)
 type instance Fix x y (ExceptT e c) = ExceptT e (Fix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c)
-instance (ArrowChoice c, ArrowFix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c) where
-  fix = liftFix
-
-instance (Identifiable e, ArrowChoice c, ArrowDeduplicate x (Error e y) c) => ArrowDeduplicate x y (ExceptT e c) where
-  dedup f = lift (dedup (unlift f))
-
-instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (ExceptT e c) where
-  askConst = lift' askConst
+deriving instance (ArrowChoice c, ArrowFix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c)
+deriving instance (Identifiable (Error e y), ArrowChoice c, ArrowDeduplicate x (Error e y) c) => ArrowDeduplicate x y (ExceptT e c)
+deriving instance (ArrowChoice c, ArrowConst r c) => ArrowConst r (ExceptT e c)

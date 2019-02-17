@@ -5,7 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
-module Control.Arrow.Transformer.Abstract.Powerset(PowT(..)) where
+module Control.Arrow.Transformer.Abstract.Powerset(PowT,runPowT) where
 
 import           Prelude hiding (id,(.),lookup,fail)
 
@@ -18,95 +18,37 @@ import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Fix
+import           Control.Arrow.Const
+import           Control.Arrow.Store
+import           Control.Arrow.Except
+import           Control.Arrow.Transformer.Kleisli
 import           Control.Category
-import           Control.Monad (join)
 
 import qualified Data.Abstract.Powerset as A
-import           Data.Monoidal
 import           Data.Order
 import           Data.Identifiable
-import           Data.Sequence hiding (lookup)
 import           Data.Profunctor
 
 -- | Computation that produces a set of results.
-newtype PowT c x y = PowT { runPowT :: c x (A.Pow y)}
+newtype PowT c x y = PowT { unPowT :: KleisliT A.Pow c x y}
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowState s, ArrowReader r,
+            ArrowConst r, ArrowEnv a b e', ArrowStore a b, ArrowFail e', ArrowExcept e')
 
-instance (Profunctor c, Arrow c) => Profunctor (PowT c) where
-  dimap f g h = lift $ dimap f (fmap g) (unlift h)
-  lmap f h = lift $ lmap f (unlift h)
-  rmap g h = lift $ rmap (fmap g) (unlift h)
-
-instance ArrowTrans PowT where
-  type Dom PowT x y = x
-  type Cod PowT x y = A.Pow y
-  lift = PowT
-  unlift = runPowT
-
-instance ArrowLift PowT where
-  lift' f = lift $ rmap A.singleton f
-
-mapPow :: ArrowChoice c => c x y -> c (A.Pow x) (A.Pow y)
-mapPow f = proc (A.Pow s) -> case viewl s of
-  EmptyL -> returnA -< A.empty
-  (x :< xs) -> do
-    p <- f -< x
-    A.Pow ps <- mapPow f -< A.Pow xs
-    returnA -< A.Pow (p <| ps)
-
-instance (ArrowChoice c, Profunctor c) => Category (PowT c) where
-  id = lift' id
-  f . g = lift $ rmap join (unlift g >>> mapPow (unlift f))
-
-instance (ArrowChoice c, Profunctor c) => Arrow (PowT c) where
-  arr f = lift' (arr f)
-  first f = lift $ rmap (\(pow,n) -> A.cartesian (pow, A.singleton n)) (first (unlift f))
-  second f = lift $ rmap (\(n,pow) -> A.cartesian (A.singleton n, pow)) (second (unlift f))
-  f &&& g = lift $ rmap A.cartesian (unlift f &&& unlift g)
-  f *** g = lift $ rmap A.cartesian (unlift f *** unlift g)
-
-instance (ArrowChoice c, Profunctor c) => ArrowChoice (PowT c) where
-  left f = lift $ rmap strength1 $ left (unlift f)
-  right f = lift $ rmap strength2 $ right (unlift f)
-  f ||| g = lift $ unlift f ||| unlift g
-  f +++ g = lift $ rmap merge $ unlift f +++ unlift g
-    where
-      merge :: Either (A.Pow a) (A.Pow b) -> A.Pow (Either a b)
-      merge (Left e) = fmap Left e
-      merge (Right e) = fmap Right e
-
-instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (PowT c) where
-  app = PowT $ lmap (first unlift) app
-
-instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (PowT c) where
-  ask = lift' ask
-  local (PowT f) = PowT $ local f
-
-instance (ArrowChoice c, ArrowState s c) => ArrowState s (PowT c) where
-  get = lift' get
-  put = lift' put
-
-instance (ArrowChoice c, ArrowFail e c) => ArrowFail e (PowT c) where
-  fail = lift' fail
-
-instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (PowT c) where
-  type Join (PowT c) x y = Env.Join c x (A.Pow y)
-  lookup (PowT f) (PowT g) = PowT (lookup f g)
-  getEnv = lift' getEnv
-  extendEnv = lift' extendEnv
-  localEnv (PowT f) = PowT $ localEnv f
+runPowT :: PowT c x y -> c x (A.Pow y)
+runPowT = runKleisliT . unPowT
 
 instance (ArrowChoice c, ArrowDeduplicate x y c, Identifiable y) => ArrowDeduplicate x y (PowT c) where
-  dedup (PowT f) = PowT $ A.dedup ^<< f
+  dedup f = lift $ rmap A.dedup (unlift f)
 
-instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
-  joinWith _ (PowT f) (PowT g) = PowT $ joinWith A.union f g
-
+instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (PowT c) where app = lift $ lmap (first unlift) app
 type instance Fix x y (PowT c) = PowT (Fix (Dom PowT x y) (Cod PowT x y) c)
-instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (PowT c) where
-  fix f = PowT (fix (runPowT . f . PowT))
+deriving instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (PowT c)
 
 deriving instance PreOrd (c x (A.Pow y)) => PreOrd (PowT c x y)
 deriving instance LowerBounded (c x (A.Pow y)) => LowerBounded (PowT c x y)
 deriving instance Complete (c x (A.Pow y)) => Complete (PowT c x y)
 deriving instance CoComplete (c x (A.Pow y)) => CoComplete (PowT c x y)
 deriving instance UpperBounded (c x (A.Pow y)) => UpperBounded (PowT c x y)
+
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
+  joinWith _ f g = lift $ joinWith A.union (unlift f) (unlift g)

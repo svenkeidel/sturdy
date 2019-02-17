@@ -1,18 +1,23 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 module Data.Abstract.FreeCompletion where
 
-import Control.Arrow(second)
+import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow.Monad
 import Control.Applicative
 import Control.Monad
 import Control.DeepSeq
+
+import Data.Profunctor
 import Data.Abstract.Widening
 import Data.Hashable
 import Data.Order
+
 import GHC.Generics(Generic)
 
 data FreeCompletion a = Lower a | Top deriving (Eq,Functor,Traversable,Foldable,Generic)
@@ -35,6 +40,12 @@ instance Monad FreeCompletion where
   return = Lower
   Lower x >>= k = k x
   Top >>= _ = Top
+
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor FreeCompletion c c where
+  mapA f = lmap toEither (arr (const Top) ||| rmap Lower f)
+
+instance (ArrowChoice c, Profunctor c) => ArrowMonad FreeCompletion c where
+  mapJoinA f = lmap toEither (arr (const Top) ||| f)
 
 instance PreOrd a => PreOrd (FreeCompletion a) where
   _ ⊑ Top = True
@@ -91,6 +102,10 @@ instance Fractional a => Fractional (FreeCompletion a) where
 instance Complete (FreeCompletion ()) where
   Lower _ ⊔ Lower _ = Lower ()
   _ ⊔ _ = Top
+
+toEither :: FreeCompletion a -> Either () a
+toEither Top = Left ()
+toEither (Lower a) = Right a
 
 widening :: Widening a -> Widening (FreeCompletion a)
 widening wa (Lower a) (Lower a') = second Lower (a `wa` a')

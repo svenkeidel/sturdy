@@ -362,7 +362,7 @@ spec = do
       it "pcf :: Exp -> Val" $ \pcf ->
         let ?ctx = signature pcf in
         let senv = stratEnv pcf
-            prog = term (Tuple [List "Val", "Exp"])
+            prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
             val = term "Val"
         in seval'' 2 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
              success (emptyEnv, val)

@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -8,11 +9,14 @@ module Data.Abstract.Powerset where
 
 import           Prelude hiding ((.))
 
+import           Control.Arrow hiding (ArrowMonad)
+import           Control.Arrow.Monad
 import           Control.Applicative hiding (empty)
 import           Control.Category
 import           Control.Monad
 
-import           Data.Sequence (Seq,(<|))
+import           Data.Profunctor
+import           Data.Sequence (Seq,(<|),viewl,ViewL(..))
 import           Data.Hashable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
@@ -45,6 +49,17 @@ instance Show a => Show (Pow a) where
 instance (Eq a, Hashable a) => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
 
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor Pow c c where
+  mapA f = lmap toEither (arr (\_ -> empty) ||| rmap (\(y,Pow ys) -> Pow (y <| ys)) (f *** mapA f))
+
+instance (ArrowChoice c, Profunctor c) => ArrowMonad Pow c where
+  mapJoinA f = lmap toEither (arr (\_ -> empty) ||| rmap (\(ys,ys') -> ys <> join ys') (f *** mapA f))
+
+toEither :: Pow a -> Either () (a,Pow a)
+toEither (Pow s) = case viewl s of
+  EmptyL -> Left ()
+  x :< xs -> Right (x,Pow xs)
+
 empty :: Pow a
 empty = mempty
 
@@ -56,12 +71,6 @@ insert a (Pow as) = Pow (a <| as)
 
 union :: Pow a -> Pow a -> Pow a
 union = mappend
-
-cartesian :: (Pow a, Pow b) -> Pow (a,b)
-cartesian (as,bs) = do
-  a <- as
-  b <- bs
-  return (a,b)
 
 toHashSet :: (Hashable a, Eq a) => Pow a -> HashSet a
 toHashSet = foldl' (flip H.insert) H.empty

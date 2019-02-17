@@ -6,16 +6,22 @@
 {-# LANGUAGE Arrows #-}
 module Data.Abstract.Except where
 
-import Control.Arrow as A
+import Prelude hiding (id,(.))
+
+import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow.Monad
+import Control.Arrow.Abstract.Join
+
 import Control.Monad
 import Control.DeepSeq
 
+import Data.Profunctor
+import Data.Bifunctor (Bifunctor(bimap))
+import Data.Hashable
+import Data.Order hiding (lub)
+import Data.Traversable
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
-import Data.Bifunctor
-import Data.Hashable
-import Data.Order
-import Data.Traversable
 
 import GHC.Generics (Generic, Generic1)
 
@@ -47,10 +53,10 @@ instance (Complete e, Complete a) => Complete (Except e a) where
 
 widening :: Widening e -> Widening a -> Widening (Except e a)
 widening we wa m1 m2 = case (m1,m2) of
-    (Success x, Success y) -> A.second Success (x `wa` y)
+    (Success x, Success y) -> second Success (x `wa` y)
     (Success x, Fail e) -> (Instable,SuccessOrFail e x)
     (Fail e, Success y) -> (Instable,SuccessOrFail e y)
-    (Fail e, Fail e') -> A.second Fail (e `we` e')
+    (Fail e, Fail e') -> second Fail (e `we` e')
     (SuccessOrFail e x, Success y) -> (Instable,SuccessOrFail e (snd (x `wa` y)))
     (Success x, SuccessOrFail e y) -> (Instable,SuccessOrFail e (snd (x `wa` y)))
     (SuccessOrFail e x, Fail e') -> (Instable,SuccessOrFail (snd (e `we` e')) x)
@@ -70,9 +76,6 @@ instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeComplet
 
 instance (UpperBounded e, UpperBounded a) => UpperBounded (Except e a) where
   top = SuccessOrFail top top
-
--- instance (LowerBounded e, LowerBounded a) => LowerBounded (Except e a) where
---   bottom = SuccessOrFail bottom bottom
 
 instance (PreOrd a, PreOrd e, UpperBounded (FreeCompletion e), UpperBounded (FreeCompletion a))
   => UpperBounded (FreeCompletion (Except e a)) where
@@ -106,6 +109,18 @@ instance Complete e => Monad (Except e) where
       Fail e' -> Fail (e ⊔ e')
       SuccessOrFail e' z -> SuccessOrFail (e ⊔ e') z
 
+instance (ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c c where
+  mapA f = lmap toEither (arr Fail ||| rmap Success f ||| joinWith' (\(Fail e) (Success x) -> SuccessOrFail e x) (arr Fail) (rmap Success f))
+
+instance (Complete e, ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
+  mapJoinA f = lmap toEither (arr Fail ||| f ||| joinWith' lub (arr Fail) f)
+    where 
+      lub (Fail e) m = case m of
+        Fail e' -> Fail (e ⊔ e')
+        Success y -> SuccessOrFail e y
+        SuccessOrFail e' y -> SuccessOrFail (e ⊔ e') y
+      lub _ _ = error "cannot happen"
+
 instance PreOrd a => LowerBounded (Except () a) where
   bottom = Fail ()
 
@@ -116,6 +131,12 @@ instance Traversable (Except e) where
   traverse f (Success x) = Success <$> f x
   traverse _ (Fail e) = pure (Fail e)
   traverse f (SuccessOrFail e x) = SuccessOrFail e <$> f x
+
+toEither :: Except e a -> Either e (Either a (e,a))
+toEither (Fail e) = Left e
+toEither (Success a) = Right (Left a)
+toEither (SuccessOrFail e a) = Right (Right (e,a))
+
 
 fromMaybe :: Maybe a -> Except () a
 fromMaybe m = case m of

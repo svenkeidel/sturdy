@@ -7,18 +7,20 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.Abstract.Error where
 
+import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow.Monad
 import Control.Monad
 import Control.Monad.Except
-import Data.Abstract.FreeCompletion (FreeCompletion(..))
-import Data.Abstract.Widening
-import Data.Bifunctor
+import Control.DeepSeq
+
+import Data.Profunctor
+import Data.Bifunctor hiding (second)
 import Data.Hashable
 import Data.Order
-
-import Data.Monoidal
+import Data.Abstract.FreeCompletion (FreeCompletion(..))
+import Data.Abstract.Widening
 
 import GHC.Generics (Generic, Generic1)
-import Control.DeepSeq
 
 -- | Failure is an Either-like type with the special ordering Failure ⊑ Success.
 -- Left and Right of the regular Either type, on the other hand are incomparable.
@@ -32,6 +34,31 @@ instance (Show e,Show a) => Show (Error e a) where
 instance (Hashable e, Hashable a) => Hashable (Error e a) where
   hashWithSalt s (Fail e)  = s `hashWithSalt` (0::Int) `hashWithSalt` e
   hashWithSalt s (Success a) = s `hashWithSalt` (1::Int) `hashWithSalt`  a
+
+instance Bifunctor Error where
+  bimap f g x = case x of
+    Fail e -> Fail (f e)
+    Success a -> Success (g a)
+
+instance MonadError e (Error e) where
+  throwError = Fail
+  catchError (Fail e) f = f e
+  catchError (Success a) _ = Success a
+
+instance Applicative (Error e) where
+  pure = return
+  (<*>) = ap
+
+instance Monad (Error e) where
+  return = Success
+  Fail e >>= _ = Fail e
+  Success a >>= k = k a
+
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Error e) c c where
+  mapA f = lmap toEither (arr Fail ||| rmap Success f)
+
+instance (ArrowChoice c, Profunctor c) => ArrowMonad (Error e) c where
+  mapJoinA f = lmap toEither (arr Fail ||| f)
 
 instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
   Success x ⊑ Success y = x ⊑ y
@@ -62,25 +89,6 @@ instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeComplet
     _ -> Top
   _ ⊔ _ = Top
 
-instance Bifunctor Error where
-  bimap f g x = case x of
-    Fail e -> Fail (f e)
-    Success a -> Success (g a)
-
-instance MonadError e (Error e) where
-  throwError = Fail
-  catchError (Fail e) f = f e
-  catchError (Success a) _ = Success a
-
-instance Applicative (Error e) where
-  pure = return
-  (<*>) = ap
-
-instance Monad (Error e) where
-  return = Success
-  Fail e >>= _ = Fail e
-  Success a >>= k = k a
-
 fromError :: a -> Error e a -> a
 fromError _ (Success a) = a
 fromError a (Fail _) = a
@@ -100,26 +108,3 @@ fromMaybe (Just a) = Success a
 toMaybe :: Error e a -> Maybe a
 toMaybe (Fail _) = Nothing
 toMaybe (Success a) = Just a
-
-instance Monoidal Error where
-  mmap f _ (Fail x) = Fail (f x)
-  mmap _ g (Success y) = Success (g y)
-
-  assoc1 (Fail a) = Fail (Fail a)
-  assoc1 (Success (Fail b)) = Fail (Success b)
-  assoc1 (Success (Success c)) = Success c
-
-  assoc2 (Fail (Fail a)) = Fail a
-  assoc2 (Fail (Success b)) = Success (Fail b)
-  assoc2 (Success c) = Success (Success c)
-
-instance Symmetric Error where
-  commute (Fail a) = Success a
-  commute (Success a) = Fail a
-
-instance Applicative f => Strong f Error where
-  strength1 (Success a) = pure $ Success a
-  strength1 (Fail a) = Fail <$> a
-
-  strength2 (Success a) = Success <$> a
-  strength2 (Fail a) = pure $ Fail a

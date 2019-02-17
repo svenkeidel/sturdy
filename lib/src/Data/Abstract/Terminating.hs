@@ -2,16 +2,20 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Data.Abstract.Terminating where
 
+import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow.Monad
 import Control.Monad
 import Control.Applicative
 import Control.DeepSeq
 import Control.Arrow(second)
 
+import Data.Profunctor
 import Data.Order
+import Data.Hashable
 import Data.Abstract.Widening
--- import Data.Monoidal
 
 import GHC.Generics
 
@@ -19,21 +23,11 @@ import GHC.Generics
 data Terminating a = NonTerminating | Terminating a deriving (Eq,Functor,Traversable,Foldable,Generic)
 instance NFData a => NFData (Terminating a)
 
-fromTerminating :: a -> Terminating a -> a
-fromTerminating _ (Terminating a) = a
-fromTerminating a NonTerminating = a
-
-toMaybe :: Terminating a -> Maybe a
-toMaybe (Terminating a) = Just a
-toMaybe NonTerminating = Nothing
-
-toEither :: Terminating a -> Either () a
-toEither (Terminating a) = Right a
-toEither NonTerminating = Left ()
-
 instance Show a => Show (Terminating a) where
   show NonTerminating = "NonTerminating"
   show (Terminating a) = show a
+
+instance Hashable a => Hashable (Terminating a)
 
 instance Applicative Terminating where
   pure = return
@@ -43,6 +37,12 @@ instance Monad Terminating where
   return = Terminating
   Terminating x >>= k = k x
   NonTerminating >>= _ = NonTerminating
+
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor Terminating c c where
+  mapA f = lmap toEither (arr (\_ -> NonTerminating) ||| rmap Terminating f)
+
+instance (ArrowChoice c, Profunctor c) => ArrowMonad Terminating c where
+  mapJoinA f = lmap toEither (arr (\_ -> NonTerminating) ||| f)
 
 instance PreOrd a => PreOrd (Terminating a) where
   NonTerminating ⊑ _ = True
@@ -75,11 +75,6 @@ widening _ NonTerminating (Terminating b) = (Instable,Terminating b)
 widening _ (Terminating a) NonTerminating = (Instable,Terminating a)
 widening w (Terminating a) (Terminating b) = second Terminating (w a b)
 
--- instance StrongMonad Terminating (,) where
---   mstrength (NonTerminating,_) = NonTerminating
---   mstrength (_,NonTerminating) = NonTerminating
---   mstrength (Terminating a,Terminating b) = Terminating (a,b)
-
 instance Num a => Num (Terminating a) where
   (+) = liftA2 (+)
   (*) = liftA2 (*)
@@ -92,3 +87,14 @@ instance Fractional a => Fractional (Terminating a) where
   (/) = liftA2 (/)
   fromRational = pure . fromRational
 
+fromTerminating :: a -> Terminating a -> a
+fromTerminating _ (Terminating a) = a
+fromTerminating a NonTerminating = a
+
+toMaybe :: Terminating a -> Maybe a
+toMaybe (Terminating a) = Just a
+toMaybe NonTerminating = Nothing
+
+toEither :: Terminating a -> Either () a
+toEither (Terminating a) = Right a
+toEither NonTerminating = Left ()

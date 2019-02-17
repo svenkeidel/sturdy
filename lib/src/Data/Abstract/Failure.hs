@@ -7,18 +7,20 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.Abstract.Failure where
 
+import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow.Monad
 import Control.Monad
 import Control.Monad.Except
-import Data.Abstract.FreeCompletion
-import Data.Abstract.Widening
-import Data.Bifunctor
+import Control.DeepSeq
+
+import Data.Bifunctor (Bifunctor(bimap))
+import Data.Profunctor
 import Data.Hashable
 import Data.Order
-
-import Data.Monoidal
+import Data.Abstract.FreeCompletion(FreeCompletion(..))
+import Data.Abstract.Widening
 
 import GHC.Generics (Generic, Generic1)
-import Control.DeepSeq
 
 -- | Failure is an Either-like type with the special ordering Failure ⊑ Success.
 -- Left and Right of the regular Either type, on the other hand are incomparable.
@@ -83,6 +85,12 @@ instance Monad (Failure e) where
   Fail e >>= _ = Fail e
   Success a >>= k = k a
 
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Failure e) c c where
+  mapA f = lmap toEither (arr Fail ||| rmap Success f) 
+
+instance (ArrowChoice c, Profunctor c) => ArrowMonad (Failure e) c where
+  mapJoinA f = lmap toEither (arr Fail ||| f) 
+
 fromFailure :: a -> Failure e a -> a
 fromFailure _ (Success a) = a
 fromFailure a (Fail _) = a
@@ -102,74 +110,3 @@ fromMaybe (Just a) = Success a
 toMaybe :: Failure e a -> Maybe a
 toMaybe (Fail _) = Nothing
 toMaybe (Success a) = Just a
-
-instance Monoidal Failure where
-  mmap f _ (Fail x) = Fail (f x)
-  mmap _ g (Success y) = Success (g y)
-
-  assoc1 (Fail a) = Fail (Fail a)
-  assoc1 (Success (Fail b)) = Fail (Success b)
-  assoc1 (Success (Success c)) = Success c
-
-  assoc2 (Fail (Fail a)) = Fail a
-  assoc2 (Fail (Success b)) = Success (Fail b)
-  assoc2 (Success c) = Success (Success c)
-
-instance Symmetric Failure where
-  commute (Fail a) = Success a
-  commute (Success a) = Fail a
-
-instance Applicative f => Strong f Failure where
-  strength1 (Success a) = pure $ Success a
-  strength1 (Fail a) = Fail <$> a
-
-  strength2 (Success a) = Success <$> a
-  strength2 (Fail a) = pure $ Fail a
-
--- instance Applicative f => StrongMonad f Failure where
---   mstrength (Success a) = fmap Success a
---   mstrength (Fail a) = fmap Fail a
-
--- instance StrongMonad (Failure e) (,) where
---   mstrength (Success a,Success b) = Success (a,b)
---   mstrength (Fail e,_) = Fail e
---   mstrength (_,Fail e) = Fail e
-
--- instance Distributive (,) Failure where
---   distribute = Iso distTo distFrom
---     where
---       distTo :: (a,Failure b c) -> Failure (a,b) (a,c)
---       distTo (a,Fail b) = Fail (a,b)
---       distTo (a,Success c) = Success (a,c)
-
---       distFrom :: Failure (a,b) (a,c) -> (a,Failure b c)
---       distFrom (Fail (a,b)) = (a,Fail b)
---       distFrom (Success (a,c)) = (a,Success c)
-
--- instance Distributive Either Failure where
---   distribute = Iso distTo distFrom
---     where
---       distTo :: Either a (Failure b c) -> Failure (Either a b) (Either a c)
---       distTo (Left a) = Fail (Left a)
---       distTo (Right (Fail b)) = Fail (Right b)
---       distTo (Right (Success c)) = Success (Right c)
-  
---       distFrom :: Failure (Either a b) (Either a c) -> Either a (Failure b c)
---       distFrom (Fail (Left a)) = Left a
---       distFrom (Fail (Right b)) = Right (Fail b)
---       distFrom (Success (Left a)) = Left a
---       distFrom (Success (Right c)) = Right (Success c)
-
--- instance Distributive Failure Either where
---   distribute = Iso distTo distFrom
---     where
---       distTo :: Failure a (Either b c) -> Either (Failure a b) (Failure a c)
---       distTo (Fail a) = Right (Fail a)
---       distTo (Success (Left b)) = Left (Success b)
---       distTo (Success (Right c)) = Right (Success c)
-  
---       distFrom :: Either (Failure a b) (Failure a c) -> Failure a (Either b c)
---       distFrom (Left (Fail a)) = Fail a
---       distFrom (Left (Success b)) = Success (Left b)
---       distFrom (Right (Fail a)) = Fail a
---       distFrom (Right (Success c)) = Success (Right c)
