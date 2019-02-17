@@ -1,0 +1,41 @@
+name:                sturdy-lambdajs
+version:             0.1.0.0
+license:             BSD3
+maintainer:          Sven Keidel <svenkeidel@gmail.com>
+category:            Language
+
+dependencies:
+  - base
+  - hashable
+  - mtl
+  - profunctors
+  - sturdy-lib
+  - random
+  - text
+  - transformers
+  - unordered-containers
+  - parsec >= 3.0.0
+  - language-ecmascript
+  - syb
+  - containers
+  - pretty >= 0.1
+
+library:
+  source-dirs:
+    - src
+
+  ghc-options: -Wall
+
+
+tests:
+  spec:
+    main: Spec.hs
+
+    source-dirs:
+      - test
+
+    ghc-options: -Wall
+
+    dependencies:
+      - hspec
+      - sturdy-while

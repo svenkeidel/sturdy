@@ -8,6 +8,7 @@ module Syntax where
 import           Data.Abstract.DiscretePowerset
 import           Data.Abstract.FiniteMap        as M
 import           Data.Hashable
+import qualified Data.Label as Lab
 import           Data.List                      (sort)
 import           Data.Order
 import           Data.Set
@@ -66,7 +67,7 @@ data Expr
     | EApp Expr [Expr]
     | ELet [(Ident, Expr)] Expr
     | ESetRef Expr Expr
-    | ERef Expr
+    | ERef Lab.Label Expr
     | EDeref Expr
     | EGetField Expr Expr
     | EUpdateField Expr Expr Expr
@@ -129,6 +130,6 @@ type Location' = Set Location
 
 type Type' = Pow Type
 
-deriving instance Ord Type
-deriving instance Ord (Pow Type)
-deriving instance Ord (Map Ident Location Type')
+-- deriving instance Ord Type
+-- deriving instance Ord (Pow Type)
+-- deriving instance Ord (Map Ident Location Type')
