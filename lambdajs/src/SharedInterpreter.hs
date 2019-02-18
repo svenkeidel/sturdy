@@ -23,6 +23,7 @@ import           Control.Arrow.Store as Store
 import           Control.Arrow.Utils
 
 import qualified Data.Label as Lab
+import           Data.Profunctor
 import           Data.String
 
 import           Text.Printf
@@ -58,13 +59,11 @@ class Arrow c => JSOps v env addr c | c -> v, c -> env, c -> addr where
     ref :: c addr v
     withRef :: c (e,(addr,v)) x -> c (e,v) x -> c (e,v) x 
 
-    -- control flow
-    label :: c Expr v -> c (Label, Expr) v
-    break :: c (Label, v) v
 
 withRef' :: (JSOps v env addr c, ArrowFail f c, IsString f, Show v) => c (e,(addr,v)) x -> c (e,v) x 
 withRef' f = withRef f (proc (_,refVal) -> fail -< fromString $ printf "Not a reference %s" (show refVal))
 
+data Except v = Throw v | Break Label v
 
 eval :: (JSOps v env addr c,
          ArrowChoice c,
@@ -72,13 +71,14 @@ eval :: (JSOps v env addr c,
          ArrowCond v c,
          ArrowEnv Ident v env c,
          ArrowFail f c, IsString f,
-         ArrowExcept v c,
+         ArrowExcept (Except v) c,
          ArrowStore addr v c, ArrowAlloc (Lab.Label,v) addr c,
          Show v, Show addr,
          Cond.Join c (Expr, Expr) v,
          Env.Join c ((v,Ident),Ident) v,
          Store.Join c ((v, addr), addr) v,
-         Exc.Join c ((Expr, Expr), ((Expr, Expr), v)) v
+         Exc.Join c ((Expr, Expr), ((Expr, Expr), Except v)) v,
+         Exc.Join c ((Expr, Label), ((Expr, Label), Except v)) v
         ) => c Expr v
 eval = fix $ \ev -> proc e -> do
     case e of
@@ -144,7 +144,7 @@ eval = fix $ \ev -> proc e -> do
                         returnA -< refVal)
                      -< (rhsVal,refVal)
 
-        -- control related expressions
+        -- standard control related expressions
         ESeq e1 e2 -> do
             ev -< e1
             ev -< e2
@@ -153,20 +153,20 @@ eval = fix $ \ev -> proc e -> do
             if_ ev ev -< (v, (thenE, elseE))
         EWhile cond body -> do
             ev -< EIf cond (ESeq body e) EUndefined
-        ELabel l ex -> do
-            label ev -< (l, ex)
-        EBreak l ex -> do
-            val <- ev -< ex
-            break -< (l, val)
 
         -- exception related expressions
         EThrow ex -> do
             val <- ev -< ex
-            throw -< val
-        ECatch tryE catchE -> do
-            catch (pi1 >>> ev) (evalCatch ev)  -< (tryE, catchE)
+            throw -< Throw val
+        ECatch tryE catchE ->
+            catch (lmap fst ev) (evalCatch ev)  -< (tryE, catchE)
         EFinally e1 e2 ->
-            finally (pi1 >>> ev) (pi2 >>> ev) -< (e1, e2)
+            finally (lmap fst ev) (lmap snd ev) -< (e1, e2)
+        EBreak l e -> do
+            val <- ev -< e
+            throw -< Break l val
+        ELabel l e ->
+            catch (lmap fst ev) (evalJump ev) -< (e, l)
 
         -- self-eval expression
         EEval -> fail -< fromString "Encountered EEval"
@@ -176,8 +176,15 @@ eval = fix $ \ev -> proc e -> do
         env' <- bindings -< (zip vars argVals, env)
         localEnv ev -< (env', body)
 
-      evalCatch ev = proc ((_,catchE), v) -> case catchE of
-         ELambda [x] e -> extendEnv' ev -< (x, v, e)
-         _ -> fail -< fromString $ printf "Catch block must be a lambda expression with one parameter, but was %s" (show catchE)
+      evalCatch ev = proc ((_,catchE), ex) -> case ex of
+        Throw v -> case catchE of
+           ELambda [x] e -> extendEnv' ev -< (x, v, e)
+           _ -> fail -< fromString $ printf "Catch block must be a lambda expression with one parameter, but was %s" (show catchE)
+        Break _ _ -> throw -< ex
+
+      evalJump ev = proc ((_,l), ex) -> case ex of
+        Throw _ -> throw -< ex
+        Break l' v | l == l'   -> returnA -< v
+                   | otherwise -> throw -< ex
 
 
