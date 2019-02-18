@@ -16,6 +16,7 @@ dependencies:
   - unordered-containers
   - containers
   - LambdaJS
+  - split
 
 library:
   source-dirs:
@@ -35,4 +36,4 @@ tests:
 
     dependencies:
       - hspec
-      - sturdy-while
+      - sturdy-lambdajs

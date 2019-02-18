@@ -9,8 +9,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 module SharedInterpreter where
 
-import           Prelude             hiding (break, lookup, map, read, fail)
-import qualified Prelude
+import           Prelude             hiding (break, lookup, map, read, fail, exp)
 
 import           Control.Arrow
 import           Control.Arrow.Alloc
@@ -68,7 +67,6 @@ class IsException v e c | c -> e where
 withRef' :: (JSOps v env addr c, ArrowFail f c, IsString f, Show v) => c (e,(addr,v)) x -> c (e,v) x 
 withRef' f = withRef f (proc (_,refVal) -> fail -< fromString $ printf "Not a reference %s" (show refVal))
 
-data Except v = Throw v | Break Label v
 
 eval :: (JSOps v env addr c,
          ArrowChoice c,
@@ -160,34 +158,37 @@ eval = fix $ \ev -> proc e -> do
             ev -< EIf cond (ESeq body e) EUndefined
 
         -- exception related expressions
-        EThrow ex -> do
-            val <- ev -< ex
+        EThrow exp -> do
+            val <- ev -< exp
             ex <- throwExc -< val
             throw -< ex
         ECatch tryE catchE ->
             catch (lmap fst ev) (handleThrow $ evalCatch ev)  -< (tryE, catchE)
         EFinally e1 e2 ->
             finally (lmap fst ev) (lmap snd ev) -< (e1, e2)
-        EBreak l e -> do
-            val <- ev -< e
+        EBreak l exp -> do
+            val <- ev -< exp
             ex <- breakExc -< (l, val)
             throw -< ex
-        ELabel l e ->
-            catch (lmap fst ev) (handleBreak $ evalJump ev) -< (e, l)
+        ELabel l exp ->
+            catch (lmap fst ev) (handleBreak evalJump) -< (exp, l)
 
         -- self-eval expression
         EEval -> fail -< fromString "Encountered EEval"
 
     where
-      evalBody ev = proc ((env, vars, body), argVals) -> do
-        env' <- bindings -< (zip vars argVals, env)
-        localEnv ev -< (env', body)
+      evalBody ev = proc ((env, vars, body), argVals) ->
+        if length vars == length argVals
+          then do
+            env' <- bindings -< (zip vars argVals, env)
+            localEnv ev -< (env', body)
+          else fail -< fromString $ printf "Wrong number of arguments. Found %d vars but got % arguments." (length vars) (length argVals)
 
       evalCatch ev = proc ((_,catchE), _, v) -> case catchE of
          ELambda [x] e -> extendEnv' ev -< (x, v, e)
          _ -> fail -< fromString $ printf "Catch block must be a lambda expression with one parameter, but was %s" (show catchE)
 
-      evalJump ev = proc ((_,l), ex, (l',v)) ->
+      evalJump = proc ((_,l), ex, (l',v)) ->
           if l == l'
             then returnA -< v
             else throw -< ex
