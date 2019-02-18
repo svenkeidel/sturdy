@@ -7,13 +7,14 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Abstract.Fix(FixT,runFixT) where
+module Control.Arrow.Transformer.Abstract.Fix(FixT,runFixT,runFixT') where
 
 import           Prelude hiding (id,(.),const,head,iterate)
 
 import           Control.Category
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Deduplicate
+import           Control.Arrow.Const
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
@@ -35,6 +36,7 @@ import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
 import           Data.Profunctor
 
+#define TRACE
 #ifdef TRACE
 import           Debug.Trace
 import           Text.Printf
@@ -42,12 +44,22 @@ import           Text.Printf
 
 type Cache a b = HashMap a b
 type Component a = HashSet a
-newtype FixT s a b c x y = FixT { unFixT :: ConstT (StackWidening s a, Widening b) (ReaderT (s a) (StateT (Cache a b, Component a) c)) x y }
+type Print a = a -> String
+data Constant s a b = Constant
+  { printDom :: Print (a,a)
+  , printCod :: Print b
+  , stackWidening :: StackWidening s a
+  , widening :: Widening b
+  }
+newtype FixT s a b c x y = FixT { unFixT :: ConstT (Constant s a b) (ReaderT (s a) (StateT (Cache a b, Component a) c)) x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice)
 type instance Fix x y (FixT s () () c) = FixT s x y c
 
 runFixT :: (Identifiable a, PreOrd b, Monoid (s a),ArrowChoice c, Profunctor c) => StackWidening s a -> Widening b -> FixT s a b c x y -> c x y
-runFixT sw w f = dimap (\x -> ((M.empty,H.empty),(mempty,x))) snd $ runStateT $ runReaderT $ runConstT (sw,w) $ unFixT f
+runFixT = runFixT' (error "use runFixT'") (error "use runFixT'")
+
+runFixT' :: (Identifiable a, PreOrd b, Monoid (s a),ArrowChoice c, Profunctor c) => Print (a,a) -> Print b -> StackWidening s a -> Widening b -> FixT s a b c x y -> c x y
+runFixT' pa pb sw w f = dimap (\x -> ((M.empty,H.empty),(mempty,x))) snd $ runStateT $ runReaderT $ runConstT (Constant pa pb sw w) $ unFixT f
 
 #ifndef TRACE
 instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFix a b (FixT s a b c) where
@@ -72,20 +84,21 @@ instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFi
 
 #else
 
-instance (Show a, Show b, Show (s a), Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFix a b (FixT s a b c) where
+instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFix a b (FixT s a b c) where
   fix f = FixT $ stackWiden'
       (let iterate = proc (x,x') -> do
+             c <- askConst -< ()
              -- If we are not in a loop, continue recursing.
-             (y,(member,head)) <- unFixT (f (fix f)) &&& inComponent -< trace (printf "call    [%s -> %s]" (show x) (show x')) x'
+             (y,(member,head)) <- unFixT (f (fix f)) &&& inComponent -< trace (printf "call    [%s]" (printDom c (x,x'))) x'
              if member
                then do
                  (stable,yNew) <- updateCache -< (x',y)
                  
                  -- If we did not reach a fixpoint of f(x'), keep iterating.
                  if head && not stable
-                   then iterate -< trace (printf "iterate [%s -> %s] = %s" (show x) (show x') (show yNew)) (x,x')
-                   else returnA -< if head then trace (printf "fixed   [%s -> %s] = %s" (show x) (show x') (show yNew)) yNew else yNew
-               else returnA -< trace (printf "return  [%s -> %s] = %s" (show x) (show x') (show y)) y
+                   then iterate -< trace (printf "iterate [%s] = %s" (printDom c (x,x')) (printCod c yNew)) (x,x')
+                   else returnA -< if head then trace (printf "fixed   [%s] = %s" (printDom c (x,x')) (printCod c yNew)) yNew else yNew
+               else returnA -< trace (printf "return  [%s] = %s" (printDom c (x,x')) (printCod c y)) y
        in iterate)
 
       -- If we are in a loop, return the cached value or bottom otherwise.
@@ -120,23 +133,23 @@ instance (Arrow c, Profunctor c) => ArrowDeduplicate x y (FixT s a b c) where
   dedup f = f
 
 ----- Helper functions -----
-stackWiden' :: (ArrowReader (s a) c,ArrowChoice c) => ConstT (StackWidening s a,r) c (a,a) b -> ConstT (StackWidening s a,r) c a b -> ConstT (StackWidening s a,r) c a b
+stackWiden' :: (ArrowReader (s a) c,ArrowChoice c) => ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c a b -> ConstT (Constant s a b) c a b
 stackWiden' (ConstT (StaticT f)) (ConstT (StaticT g)) =
-  constT $ \(sw,w) -> 
-       rmap (\(s,x) -> let ~(s',(l,x')) = sw s x
+  constT $ \c -> 
+       rmap (\(s,x) -> let ~(s',(l,x')) = stackWidening c s x
                        in case l of
                            NoLoop -> Left (s',(x,x'))
                            Loop   -> Right x'
             ) (const ask &&& id)
        >>>
-       (local (f (sw,w)) ||| g (sw,w))
+       (local (f c) ||| g c)
 
 initializeCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => c a b
 initializeCache = modifyCache (\x -> insertWithLookup (\_ old -> old) x bottom)
 
-updateCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => ConstT (r,Widening b) c (a,b) (Bool,b)
-updateCache = constT $ \(_,widen) -> modifyCache $ \(x,y) cache -> case M.lookup x cache of
-  Just yOld -> let (s,yNew) = widen yOld y in ((s == Stable,yNew),M.insert x yNew cache)
+updateCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => ConstT (Constant s a b) c (a,b) (Bool,b)
+updateCache = constT $ \c -> modifyCache $ \(x,y) cache -> case M.lookup x cache of
+  Just yOld -> let (s,yNew) = widening c yOld y in ((s == Stable,yNew),M.insert x yNew cache)
   Nothing   -> ((False,y),M.insert x y cache)
 
 inComponent :: (Identifiable a, Arrow c, Profunctor c, ArrowState (Cache a b,Component a) c) => c a (Bool,Bool)

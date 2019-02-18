@@ -162,7 +162,7 @@ match = proc (p,t) -> case p of
                      insertTerm' -< (x,t'')
                      returnA -< t'')
       (proc _ -> do insertTerm' -< (x,t)
-                    returnA -< t) -<< (x,undefined)
+                    returnA -< t) -<< (x,())
   S.Cons c ts ->
     matchTermAgainstConstructor (zipWithA match) -< (c,ts,t)
   S.Explode c ts ->

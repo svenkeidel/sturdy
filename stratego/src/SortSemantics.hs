@@ -96,7 +96,7 @@ type Interp s x y =
 
 runInterp :: forall x y. Interp _ x y -> Int -> Int -> StratEnv -> Context -> TermEnv -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv,y))))
 runInterp f k l senv ctx tenv a =
-  runFixT stackWidening (T.widening resultWidening)
+  runFixT' (\(_,(te,(_,(s,t)))) -> show (s,te,t)) show stackWidening (T.widening resultWidening)
    (runTerminatingT
     (runCompletionT
      (runErrorT
@@ -169,7 +169,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
            <⊔>
            (throw -< ())
       ("Cons",_,_) -> typeMismatch -< ("List",show s)
-      ("Nil",[],_) -> (returnA -< Term (List Bottom) ctx) <⊔> (throw -< ())
+      ("Nil",[],_) | isList t -> (returnA -< Term (List Bottom) ctx) <⊔> (throw -< ())
       ("Nil",_,_) -> throw -< ()
       ("",_,Tuple ss)
         | eqLength ss ps -> do
@@ -389,8 +389,12 @@ isNumeric (Term s ctx) = Ctx.isNumerical ctx s
 isList :: Term -> Bool
 isList (Term s ctx) = Ctx.isList ctx s
 
+isTuple :: Term -> Int -> Bool
+isTuple (Term s ctx) i = Ctx.isTuple ctx i s
+
 isSingleton :: Term -> Bool
 isSingleton (Term s ctx) = Ctx.isSingleton ctx s
+
 
 sortsToTerms :: [Sort] -> Context -> [Term]
 sortsToTerms ss ctx = map (`Term` ctx) ss

@@ -7,7 +7,7 @@
 module SortContext(
   Context, HasContext(..), Sort(..), Signature(..), SortId(..), empty, signatures, sorts,
   fromList, insertSignature, insertSubtype, subtype, lookupSort, lookupCons,
-  lub, glb, isLexical, isList, isSingleton, isNumerical
+  lub, glb, isLexical, isList, isSingleton, isNumerical, isTuple
 ) where
 
 import           Sort
@@ -79,6 +79,9 @@ isNumerical ctx = subtype ctx Numerical
 isList :: Context -> Sort -> Bool
 isList ctx = subtype ctx (List Bottom)
 
+isTuple :: Context -> Int -> Sort -> Bool
+isTuple ctx i = subtype ctx (Tuple (replicate i Bottom))
+
 isSingleton :: Context -> Sort -> Bool
 isSingleton ctx s = case s of
   Bottom -> True
@@ -89,7 +92,6 @@ isSingleton ctx s = case s of
   List _ -> False
   Tuple ss -> all (isSingleton ctx) ss
   Top -> False
-
 
 class Arrow c => HasContext c where
   getContext :: c () Context

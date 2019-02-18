@@ -121,9 +121,9 @@ spec = do
          successOrFail () (termEnv [("x", t), ("y", t)], t)
 
     it "should support linear pattern matching" $
-      let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp")] in
-      let t = term "Exp"
-      in seval 0 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["x"])) t `shouldBe` uncaught ()
+      let ?ctx = Ctx.fromList [] in
+      let t = term (Tuple [Lexical, Lexical])
+      in seval 0 (Match (Cons "" ["x", "x"])) t `shouldBe` successOrFail () (termEnv [("x",lexical)],t)
 
     it "should succeed when exploding literals" $
       let ?ctx = Ctx.empty in
@@ -357,16 +357,6 @@ spec = do
       let reduce3 = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"]) in
       seval 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) exp `shouldBe` successOrFail () (termEnv' [("x", may exp),("y", may exp)], exp)
 
-  describe "PCF interpreter in Stratego" $
-    before (caseStudy "pcf") $
-      it "pcf :: Exp -> Val" $ \pcf ->
-        let ?ctx = signature pcf in
-        let senv = stratEnv pcf
-            prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
-            val = term "Val"
-        in seval'' 2 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
-             success (emptyEnv, val)
-
     -- prop "should be sound" $ do
     --   i <- choose (0,10)
     --   j <- choose (0,10)
@@ -376,6 +366,23 @@ spec = do
     --   let t2 = C.convertToList l2
     --   return $ counterexample (printf "t: %s\n" (showLub t1 t2))
     --          $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
+
+  describe "PCF interpreter in Stratego" $
+    before (caseStudy "pcf") $ do
+      it "lookup: String * Env -> Val" $ \pcf ->
+        let ?ctx = signature pcf in
+        let senv = stratEnv pcf
+            prog = term (Tuple [Lexical, List (Tuple [Lexical, "Val"])])
+            val  = term "Val"
+        in do
+          seval'' 2 10 (Call "lookup_0_0" [] []) senv emptyEnv prog `shouldBe` successOrFail () (emptyEnv, val)
+
+      it "eval: Env * Exp -> Val" $ \pcf ->
+        let ?ctx = signature pcf in
+        let senv = stratEnv pcf
+            prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
+            val  = term "Val"
+        in seval'' 2 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe` success (emptyEnv, val)
 
   where
     -- sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property

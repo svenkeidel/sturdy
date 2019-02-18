@@ -3,6 +3,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Data.Abstract.DiscretePowerset where
 
+import           Control.DeepSeq
+
 import           Data.Order
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
@@ -12,10 +14,12 @@ import           Data.List (intercalate)
 import           Data.Abstract.Widening
 import           Data.Abstract.FreeCompletion (FreeCompletion)
 import qualified Data.Abstract.FreeCompletion as F
+
 import           GHC.Generics
 import           GHC.Exts
 
 data Pow x = Pow (HashSet x) | Top deriving (Eq,Generic)
+instance NFData x => NFData (Pow x)
 
 empty :: Pow a
 empty = Pow H.empty

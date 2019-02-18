@@ -5,7 +5,6 @@ module GrammarSemanticsSpec(main, spec) where
 import qualified ConcreteSemantics as C
 import           GrammarSemantics
 import           SharedSemantics
-import           Soundness
 import           Syntax hiding (Fail)
 import           Syntax as T
 
@@ -16,7 +15,6 @@ import           Data.Abstract.FreeCompletion
 import           Data.Abstract.Except as E
 import           Data.Abstract.Failure as F
 import qualified Data.Abstract.Map as S
-import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
 import qualified Data.Concrete.Powerset as C
 import           Data.GaloisConnection
@@ -349,11 +347,8 @@ spec = do
     geval i strat tenv g = geval' i strat LM.empty tenv g
 
     sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
-    sound' s xs = sound r pow f g where
-      r = LM.empty
+    sound' s xs = sound LM.empty pow (eval' s) (eval' s) where
       pow = C.fromFoldable $ fmap (second termEnv') xs
-      f = eval' s :: C.Interp C.Term C.Term
-      g = eval' s :: Interp (SW.Groups (Strat,StratEnv) SW.Stack) Term Term
 
     termEnv = S.fromList
     termEnv' = C.TermEnv . LM.fromList
