@@ -1,3 +1,6 @@
 [submodule "rtg"]
 	path = rtg
 	url = https://github.com/svenkeidel/tree-automata
+[submodule "lambdajs-desugar"]
+	path = lambdajs-desugar
+	url = git@github.com:seba--/LambdaJS.git
