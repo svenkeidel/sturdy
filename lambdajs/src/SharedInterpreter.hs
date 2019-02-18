@@ -15,10 +15,11 @@ import qualified Prelude
 import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Environment as Env
+import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Store as Store
-import           Control.Arrow.Utils (map)
+import           Control.Arrow.Utils
 
 import qualified Data.Label as Lab
 import           Data.String
@@ -48,9 +49,9 @@ class Arrow c => JSOps v env addr c | c -> v, c -> env, c -> addr where
 
     -- objects
     objectVal :: c [(Ident, v)] v
-    getField :: c Expr v -> c (v, Expr) v
-    updateField :: c Expr v -> c (v, Expr, v) v
-    deleteField :: c Expr v -> c (v, Expr) v
+    getField :: c (v, v) v
+    updateField :: c (v, v, v) v
+    deleteField :: c (v, v) v
 
     -- store ops
     ref :: c addr v
@@ -60,18 +61,20 @@ class Arrow c => JSOps v env addr c | c -> v, c -> env, c -> addr where
     if_ :: c Expr v -> c Expr v -> c (v, Expr, Expr) v
     label :: c Expr v -> c (Label, Expr) v
     break :: c (Label, v) v
-    catch :: c Expr v -> c (Expr, Expr) v
-    throw :: c v v
 
-withRef' :: (JSOps v env addr c, ArrowFail String c, Show v) => c (e,(addr,v)) x -> c (e,v) x 
-withRef' f = withRef f (proc (_,refVal) -> fail -< printf "Not a reference %s" (show refVal))
+withRef' :: (JSOps v env addr c, ArrowFail f c, IsString f, Show v) => c (e,(addr,v)) x -> c (e,v) x 
+withRef' f = withRef f (proc (_,refVal) -> fail -< fromString $ printf "Not a reference %s" (show refVal))
 
 
 eval :: (JSOps v env addr c, ArrowChoice c, ArrowFix Expr v c,
-         ArrowEnv Ident v env c, ArrowFail String c,
+         ArrowEnv Ident v env c,
+         ArrowFail f c, IsString f,
+         ArrowExcept v c,
          ArrowStore addr v c, ArrowAlloc (Lab.Label,v) addr c,
          Show v, Show addr,
-         Env.Join c ((v,Ident),Ident) v, Store.Join c ((v, addr), addr) v
+         Env.Join c ((v,Ident),Ident) v,
+         Store.Join c ((v, addr), addr) v,
+         Exc.Join c ((Expr, Expr), ((Expr, Expr), v)) v
         ) => c Expr v
 eval = fix $ \ev -> proc e -> do
     case e of
@@ -82,7 +85,7 @@ eval = fix $ \ev -> proc e -> do
         EUndefined -> undefVal -< ()
         ENull -> nullVal -< ()
         EOp op exps -> do
-            vals <- (map ev) -< exps
+            vals <- map ev -< exps
             evalOp -< (op, vals)
 
         -- closure expressions
@@ -100,14 +103,17 @@ eval = fix $ \ev -> proc e -> do
             objectVal -< vals
         EGetField objE fieldE -> do
             obj <- ev -< objE
-            getField ev -< (obj, fieldE)
+            field <- ev -< fieldE
+            getField -< (obj, field)
         EUpdateField objE fieldE valE -> do
-            val <- ev -< valE
             obj <- ev -< objE
-            updateField ev -< (obj, fieldE, val)
+            field <- ev -< fieldE
+            val <- ev -< valE
+            updateField -< (obj, field, val)
         EDeleteField objE fieldE -> do
             obj <- ev -< objE
-            deleteField ev -< (obj, fieldE)
+            field <- ev -< fieldE
+            deleteField -< (obj, field)
 
         -- environment related expressions
         EId ident -> lookup' -< ident
@@ -153,17 +159,21 @@ eval = fix $ \ev -> proc e -> do
         EThrow ex -> do
             val <- ev -< ex
             throw -< val
-        ECatch try catchE -> do
-            catch ev -< (try, catchE)
-        EFinally e1 e2 -> do
-            res <- ev -< e1
-            ev -< e2
-            returnA -< res
+        ECatch tryE catchE -> do
+            catch (pi1 >>> ev) (evalCatch ev)  -< (tryE, catchE)
+        EFinally e1 e2 ->
+            finally (pi1 >>> ev) (pi2 >>> ev) -< (e1, e2)
 
         -- self-eval expression
-        EEval -> fail -< "Encountered EEval"
+        EEval -> fail -< fromString "Encountered EEval"
 
     where
       evalBody ev = proc ((env, vars, body), argVals) -> do
         env' <- bindings -< (zip vars argVals, env)
         localEnv ev -< (env', body)
+
+      evalCatch ev = proc ((_,catchE), v) -> case catchE of
+         ELambda [x] e -> extendEnv' ev -< (x, v, e)
+         _ -> fail -< fromString $ printf "Catch block must be a lambda expression with one parameter, but was %s" (show catchE)
+
+
