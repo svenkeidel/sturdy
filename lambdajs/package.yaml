@@ -14,11 +14,8 @@ dependencies:
   - text
   - transformers
   - unordered-containers
-  - parsec >= 3.0.0
-  - language-ecmascript
-  - syb
   - containers
-  - pretty >= 0.1
+  - LambdaJS
 
 library:
   source-dirs:

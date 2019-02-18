@@ -10,4 +10,5 @@ packages:
 # - 'lambda-adt'
 # - 'jimple'
 # - 'tutorial'
+- 'lambdajs-desugar/haskell'
 - 'lambdajs'
