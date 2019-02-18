@@ -14,6 +14,7 @@ import qualified Prelude
 
 import           Control.Arrow
 import           Control.Arrow.Alloc
+import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail
@@ -58,7 +59,6 @@ class Arrow c => JSOps v env addr c | c -> v, c -> env, c -> addr where
     withRef :: c (e,(addr,v)) x -> c (e,v) x -> c (e,v) x 
 
     -- control flow
-    if_ :: c Expr v -> c Expr v -> c (v, Expr, Expr) v
     label :: c Expr v -> c (Label, Expr) v
     break :: c (Label, v) v
 
@@ -66,12 +66,16 @@ withRef' :: (JSOps v env addr c, ArrowFail f c, IsString f, Show v) => c (e,(add
 withRef' f = withRef f (proc (_,refVal) -> fail -< fromString $ printf "Not a reference %s" (show refVal))
 
 
-eval :: (JSOps v env addr c, ArrowChoice c, ArrowFix Expr v c,
+eval :: (JSOps v env addr c,
+         ArrowChoice c,
+         ArrowFix Expr v c,
+         ArrowCond v c,
          ArrowEnv Ident v env c,
          ArrowFail f c, IsString f,
          ArrowExcept v c,
          ArrowStore addr v c, ArrowAlloc (Lab.Label,v) addr c,
          Show v, Show addr,
+         Cond.Join c (Expr, Expr) v,
          Env.Join c ((v,Ident),Ident) v,
          Store.Join c ((v, addr), addr) v,
          Exc.Join c ((Expr, Expr), ((Expr, Expr), v)) v
@@ -145,8 +149,8 @@ eval = fix $ \ev -> proc e -> do
             ev -< e1
             ev -< e2
         EIf condE thenE elseE -> do
-            cond <- ev -< condE
-            if_ ev ev -< (cond, thenE, elseE)
+            v <- ev -< condE
+            if_ ev ev -< (v, (thenE, elseE))
         EWhile cond body -> do
             ev -< EIf cond (ESeq body e) EUndefined
         ELabel l ex -> do
