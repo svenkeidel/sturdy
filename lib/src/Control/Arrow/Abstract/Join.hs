@@ -33,5 +33,15 @@ joinList empty f = proc (e,(l,s)) -> case l of
   [x]    -> f -< (e,(x,s))
   (x:xs) -> (f -< (e,(x,s))) <⊔> (joinList empty f -< (e,(xs,s)))
 
+-- | Joins a non-empty list of arguments. Use it with idiom brackets:
+-- @
+--   let a = ...; b = ...; xs = ...
+--   (| joinList (\x -> f -< x+b) |) xs
+-- @
+joinList' :: (ArrowChoice c, ArrowJoin c, Complete y) => c (e,(x,s)) y -> c (e,([x],s)) y
+joinList' f = proc (e,(l,s)) -> case l of
+  [x]    -> f -< (e,(x,s))
+  (x:xs) -> (f -< (e,(x,s))) <⊔> (joinList' f -< (e,(xs,s)))
+
 instance ArrowJoin (->) where
   joinWith lub f g = \x -> lub (f x) (g x)

@@ -60,9 +60,9 @@ class Arrow c => JSOps v env addr c | c -> v, c -> env, c -> addr where
 
 class IsException v e c | c -> e where
   throwExc :: c v e
-  breakExc :: c (Label,v) e
-  handleThrow :: c (x,e,v) a -> c (x,e) a
-  handleBreak :: c (x,e,(Label,v)) a -> c (x,e) a
+  breakExc :: c (Label, v) e
+  handleThrow :: c (x, v) a -> c (x,e) a
+  handleBreak :: c (x, Label, v) a -> c (x,e) a
 
 withRef' :: (JSOps v env addr c, ArrowFail f c, IsString f, Show v) => c (e,(addr,v)) x -> c (e,v) x 
 withRef' f = withRef f (proc (_,refVal) -> fail -< fromString $ printf "Not a reference %s" (show refVal))
@@ -184,13 +184,15 @@ eval = fix $ \ev -> proc e -> do
             localEnv ev -< (env', body)
           else fail -< fromString $ printf "Wrong number of arguments. Found %d vars but got % arguments." (length vars) (length argVals)
 
-      evalCatch ev = proc ((_,catchE), _, v) -> case catchE of
+      evalCatch ev = proc ((_,catchE), v) -> case catchE of
          ELambda [x] e -> extendEnv' ev -< (x, v, e)
          _ -> fail -< fromString $ printf "Catch block must be a lambda expression with one parameter, but was %s" (show catchE)
 
-      evalJump = proc ((_,l), ex, (l',v)) ->
+      evalJump = proc ((_,l), l', v) ->
           if l == l'
             then returnA -< v
-            else throw -< ex
+            else do
+              ex <- breakExc -< (l', v)
+              throw -< ex
 
 

@@ -92,43 +92,43 @@ instance Hashable Expr
 -- in a finite map/array we can bound the domain.
 -- TRef can currently also contain an infinite number of locations. The number of possible locations should be limited to bound this.
 
-data Type
-    = TNumber
-    | TString
-    | TBool
-    | TUndefined
-    | TNull
-    | TLambda [Ident] Expr (M.Map Ident Location Type')
-    | TObject [(Ident, Type')]
-    | TTop
-    | TBottom
-    | TRef Location'
-    | TThrown Type'
-    | TBreak Label Type'
-    deriving (Show, Eq, Generic)
-deriving instance Hashable Type
+-- data Type
+--     = TNumber
+--     | TString
+--     | TBool
+--     | TUndefined
+--     | TNull
+--     | TLambda [Ident] Expr (M.Map Ident Location Type')
+--     | TObject [(Ident, Type')]
+--     | TTop
+--     | TBottom
+--     | TRef Location'
+--     | TThrown Type'
+--     | TBreak Label Type'
+--     deriving (Show, Eq, Generic)
+-- deriving instance Hashable Type
 
-instance PreOrd Type where
-    TLambda ids1 _ e1 ⊑ TLambda ids2 _ e2 = ids1 == ids2 && e1 ⊑ e2
-    TObject fields1 ⊑ TObject fields2 = all (\((f1, t1), (f2, t2)) -> f1 == f2 && t1 ⊑ t2) (zip fields1 fields2)
-    TRef l1 ⊑ TRef l2 = Data.Set.isSubsetOf l1 l2
-    TThrown t1 ⊑ TThrown t2 = t1 ⊑ t2
-    TBreak l1 t1 ⊑ TBreak l2 t2 = t1 ⊑ t2 && l1 == l2
-    TNumber ⊑ TNumber = True
-    a ⊑ b | a == b = True
-    _ ⊑ _ = False
+-- instance PreOrd Type where
+--     TLambda ids1 _ e1 ⊑ TLambda ids2 _ e2 = ids1 == ids2 && e1 ⊑ e2
+--     TObject fields1 ⊑ TObject fields2 = all (\((f1, t1), (f2, t2)) -> f1 == f2 && t1 ⊑ t2) (zip fields1 fields2)
+--     TRef l1 ⊑ TRef l2 = Data.Set.isSubsetOf l1 l2
+--     TThrown t1 ⊑ TThrown t2 = t1 ⊑ t2
+--     TBreak l1 t1 ⊑ TBreak l2 t2 = t1 ⊑ t2 && l1 == l2
+--     TNumber ⊑ TNumber = True
+--     a ⊑ b | a == b = True
+--     _ ⊑ _ = False
 
-instance (Hashable v, Ord v) => Hashable (Set v) where
-  hashWithSalt salt set =
-    Prelude.foldr (\x s -> s + (hash x)) salt (sort $ Data.Set.toList set)
+-- instance (Hashable v, Ord v) => Hashable (Set v) where
+--   hashWithSalt salt set =
+--     Prelude.foldr (\x s -> s + (hash x)) salt (sort $ Data.Set.toList set)
 
-type Location' = Set Location
+-- type Location' = Set Location
 
 -- TODO
 -- Type' is currently a DiscretePowerset. This might be an issue with regards to performance, because the number of types can grow very large
 -- when many slightly different TObjects are in the set. Some widening might be necessary to keep the number of elements in check.
 
-type Type' = Pow Type
+-- type Type' = Pow Type
 
 -- deriving instance Ord Type
 -- deriving instance Ord (Pow Type)

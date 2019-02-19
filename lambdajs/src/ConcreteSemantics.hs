@@ -112,7 +112,7 @@ instance (ArrowChoice c,
     stringVal = arr VString
     undefVal = arr (const VUndefined)
     nullVal = arr (const VNull)
-    evalOp = proc (op, vals) -> evalOp_ -< (op, vals)
+    evalOp = evalOp_
 
     -- closures
     closureVal = arr $ \(env, ids, body) -> VLambda ids body env
@@ -163,10 +163,10 @@ instance (ArrowChoice c, ArrowExcept Exceptional c) => IsException Value Excepti
   throwExc = arr Throw
   breakExc = arr (uncurry Break)
   handleThrow f = proc (x, e) -> case e of
-    Throw v -> f -< (x, e, v)
+    Throw v -> f -< (x, v)
     _ -> throw -< e
   handleBreak f = proc (x, e) -> case e of
-    Break l v -> f -< (x, e, (l, v))
+    Break l v -> f -< (x, l, v)
     _ -> throw -< e
 
 instance (ArrowChoice c, ArrowFail f c, IsString f) => ArrowCond Value (ConcreteT c) where
