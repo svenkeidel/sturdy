@@ -1,23 +1,30 @@
 module SharedSpec where
 
-import           ConcreteSemantics         (ConcreteArr, Value (..))
-import qualified ConcreteSemantics         as Interpreter (runConcrete)
-import           Control.Arrow.Fail
-import           Data.Concrete.Environment
-import           Data.Concrete.Error
-import           Syntax
-import           Test.Hspec
+import           ConcreteSemantics         (Value (..), Exceptional(..), Addr, objectFromList)
+import qualified ConcreteSemantics         as Concrete (run)
 
 import           Data.Either               (isLeft)
 import           Data.Fixed                (mod')
+import qualified Data.Label as Lab
+import qualified Data.HashMap.Lazy as HM
+import           Data.Concrete.Error
+
+import           Syntax
+
+import           Test.Hspec
+
+
+import Text.Printf
 
 main :: IO ()
 main = hspec spec
 
-eval :: [(Ident, Value)] -> [(Location, Value)] -> Expr -> Either String Value
-eval env st e = case Interpreter.runConcrete env st e of
-  (st, Fail s)    -> Left s
-  (st, Success r) -> Right r
+eval :: [(Ident, Value)] -> [(Addr, Value)] -> Expr -> Either String Value
+eval env st e = case Concrete.run env st e of
+  Fail (Throw v)   -> Left $ printf "Uncaught throw with value %s" (show v)
+  Fail (Break l v) -> Left $ printf "Jump to undefined label %s with value %s" (show l) (show v)
+  Success (Fail s) -> Left s
+  Success (Success (_, v)) -> Right v
 
 spec :: Spec
 spec = do
@@ -36,18 +43,18 @@ spec = do
     it "null literal" $ do
       eval scope store ENull `shouldBe` Right (VNull)
     it "lambda literal" $ do
-      eval scope store (ELambda [] (ENumber 1.0)) `shouldBe` Right ((VLambda [] (ENumber 1.0) (empty)))
+      eval scope store (ELambda [] (ENumber 1.0)) `shouldBe` Right ((VLambda [] (ENumber 1.0) HM.empty))
 
   describe "objects" $ do
     it "object with numbers" $ do
       let program = EObject [("a", ENumber 2.0), ("b", ENumber 3.0)]
-      eval scope store program `shouldBe` Right (VObject [("a", VNumber 2.0), ("b", VNumber 3.0)])
+      eval scope store program `shouldBe` Right (objectFromList [("a", VNumber 2.0), ("b", VNumber 3.0)])
 
   describe "identifiers" $ do
     it "single identifier" $ do
       let program = EDeref $ EId "a"
-      let scopeWithId = [("a", VRef (Location 0))]
-      let storeWithId = [(Location 0, VNumber 1.0)]
+      let scopeWithId = [("a", VRef (Lab.Label 0))]
+      let storeWithId = [(Lab.Label 0, VNumber 1.0)]
       eval scopeWithId storeWithId program `shouldBe` Right (VNumber 1.0)
 
   describe "operators" $ do
@@ -296,7 +303,7 @@ spec = do
                   (EObject
                     [("a", ENumber 1.0),
                     ("b", ENumber 2.0),
-                    ("$proto", ERef (EObject [("c", ENumber 3.0)]))])
+                    ("$proto", ERef (Lab.Label 0) (EObject [("c", ENumber 3.0)]))])
                   (EString "c")
       eval scope store program `shouldBe` Right (VNumber 3.0)
     it "update field" $ do
@@ -307,7 +314,7 @@ spec = do
       eval scope store program `shouldBe` Right VUndefined
     it "delete field" $ do
       let program = EApp (ELambda ["$obj", "$toDel"] (EDeleteField (EId "$obj") (EId "$toDel"))) [(EObject [("a", ENumber 1.0), ("b", ENumber 2.0)]), (EString "a")]
-      eval scope store program `shouldBe` Right (VObject [("b", VNumber 2.0)])
+      eval scope store program `shouldBe` Right (objectFromList [("b", VNumber 2.0)])
 
   -- lambda application
   describe "lambda application" $ do
@@ -341,7 +348,7 @@ spec = do
     it "set ref" $ do
       let program =
                 ELet
-                  [("a", ERef $ ENumber 1.0)]
+                  [("a", ERef (Lab.Label 0) $ ENumber 1.0)]
                   (ESeq
                     (ESetRef (EId "a") (ENumber 2.0))
                     (EDeref (EId "a")))
@@ -377,22 +384,51 @@ spec = do
       eval scope store program `shouldBe` Right (VNumber 1.0)
 
   describe "error?" $ do
+    it "set and get global 1" $ do
+      let program = (ELet [("$global", ERef (Lab.Label 0) $ EObject [])]
+                      (EUpdateField
+                        (EDeref (EId "$global"))
+                        (EString "z")
+                        (ENumber 40.0)))
+      eval scope store program `shouldBe` Right (objectFromList [("z", VNumber 40.0)])
+
+    it "set and get global 2" $ do
+      let program = (ELet [("$global", ERef (Lab.Label 0) $ EObject [])]
+                      (ESeq
+                        (EUpdateField
+                          (EDeref (EId "$global"))
+                          (EString "z")
+                          (ENumber 40.0))
+                        (EDeref (EId "$global"))))
+      eval scope store program `shouldBe` Right (objectFromList []) -- because no ESetRef after EUpdateField
+
+    it "set and get global 3" $ do
+      let program = (ELet [("$global", ERef (Lab.Label 0) $ EObject [])]
+                      (ESeq
+                        (ESetRef (EId "$global")
+                          (EUpdateField
+                            (EDeref (EId "$global"))
+                            (EString "z")
+                            (ENumber 40.0)))
+                        (EDeref (EId "$global"))))
+      eval scope store program `shouldBe` Right (objectFromList [("z", VNumber 40.0)])
+
     it "set and get global" $ do
-      let program = (ELet [("$global", ERef $ EObject [])]
+      let program = (ELet [("$global", ERef (Lab.Label 0) $ EObject [])]
                       (ESeq
                         (ESetRef
                           (EId "$global")
                           (EUpdateField
-                              (EDeref (EId "$global"))
+                              (EDeref (EId "$global")) -- ~> objectFromList []
                               (EString "t")
                               (ESeq
                                   (ESetRef
                                       (EId "$global")
                                       (EUpdateField
-                                          (EDeref (EId "$global"))
+                                          (EDeref (EId "$global")) -- ~> objectFromList []
                                           (EString "z")
                                           (ENumber 40.0)))
                                   (ENumber 1.0))))
                         (EGetField (EDeref (EId "$global")) (EString "z"))))
-      eval scope store program `shouldBe` Right (VNumber 40.0)
+      eval scope store program `shouldBe` Right VUndefined -- because (EDeref (EId "$global")) evaluates to (objectFromList []) before field "z" has been added
   where (scope, store) = ([], [])

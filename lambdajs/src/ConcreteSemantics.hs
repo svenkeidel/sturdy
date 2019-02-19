@@ -46,32 +46,6 @@ import           Data.Concrete.Error
 import           Text.Printf
 import           Text.Read (readMaybe)
 
-
-
--- import           Data.Hashable
--- import           Data.List                                      (elemIndex,
---                                                                  find,
---                                                                  isPrefixOf,
---                                                                  sort)
-
-
--- import           Control.Arrow.Transformer.Concrete.Environment
--- import           Control.Arrow.Transformer.Concrete.Except
--- import           Control.Arrow.Transformer.Concrete.Fixpoint
--- import           Control.Arrow.Transformer.Concrete.Store
--- import           Control.Arrow.Transformer.State
--- import           Control.Arrow.Utils                            (pi1)
-
--- import           Control.Arrow
--- import           Control.Arrow.Environment
--- import           Control.Arrow.Except
--- import           Control.Arrow.Fail
--- import           Control.Arrow.Fix
--- import           Control.Arrow.Reader                           ()
--- import           Control.Arrow.State
--- import           Control.Arrow.Store
--- import           Control.Category
-
 type Env = HashMap Ident Value
 
 data Value
@@ -106,15 +80,15 @@ eval ::
   Expr Value
 eval = Shared.eval
 
-run :: Expr -> Error Exceptional (Error String (HashMap Addr Value, Value))
-run e =
+run :: [(Ident, Value)] -> [(Addr, Value)] -> Expr -> Error Exceptional (Error String (HashMap Addr Value, Value))
+run env st e =
   runExceptT (
     runFailureT (
       runStoreT (
         runEnvT (
           runConcreteT (
             eval)))))
-  (HM.empty, (HM.empty, e))
+  (HM.fromList st, (HM.fromList env, e))
 
 -- | Arrow transformer that implements the concrete value semantics
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
@@ -204,51 +178,8 @@ instance (ArrowChoice c, ArrowFail f c, IsString f) => ArrowCond Value (Concrete
     _           -> failWrongType -< ("Bool", cond)
 
 
--- instance Hashable Value
--- instance Ord (Env Ident Value) where
---     (<=) a b = (sort $ Data.Concrete.Environment.toList a) <= (sort $ Data.Concrete.Environment.toList b)
-
--- deriving instance Ord Value
-
--- data Exceptional
---     = Break Label Value
---     | Thrown Value
---     deriving (Show, Eq, Generic)
--- instance Hashable Exceptional
--- deriving instance Ord Exceptional
-
--- newtype ConcreteArr x y = ConcreteArr
---     (Fix Expr Value
---         (Except
---             (Either String Exceptional)
---             (Environment Ident Value
---                 (StoreArrow Location Value
---                     (State Location (->))))) x y)
-
--- deriving instance ArrowFail (Either String Exceptional) ConcreteArr
--- deriving instance ArrowEnv Ident Value (Env Ident Value) ConcreteArr
--- deriving instance ArrowState Location ConcreteArr
--- deriving instance ArrowChoice ConcreteArr
--- deriving instance Arrow ConcreteArr
--- deriving instance Category ConcreteArr
--- deriving instance ArrowRead Location Value x Value ConcreteArr
--- deriving instance ArrowWrite Location Value ConcreteArr
--- deriving instance ArrowExcept (Label, Expr) (Label, Value) (Either String Exceptional) ConcreteArr
--- deriving instance ArrowExcept (Expr, Expr) (Expr, Value) (Either String Exceptional) ConcreteArr
--- deriving instance ArrowFix Expr Value ConcreteArr
-
--- runLJS :: ConcreteArr x y -> [(Ident, Value)] -> [(Location, Value)] -> x -> (Location, (Store Location Value, Error (Either String Exceptional) y))
--- runLJS (ConcreteArr f) env env2 x = runFix (runState (runStore (runEnvironment (runExcept f)))) (Location 0, (Data.Concrete.Store.fromList env2, (Data.Concrete.Environment.fromList env, x)))
-
--- runConcrete :: [(Ident, Value)] -> [(Location, Value)] -> Expr -> (Store Location Value, Error String Value)
--- runConcrete env st expr =
---     case runLJS eval env st expr of
---         (_, (newSt, Fail (Left e))) -> (newSt, Fail e)
---         (_, (newSt, Fail (Right e))) -> (newSt, Fail $ "Error: Uncaught throws or label break: " ++ (show e))
---         (_, (newSt, Success res)) -> (newSt, Success res)
-
 evalOp_ :: (ArrowChoice c, ArrowFail f c, IsString f) => c (Op, [Value]) Value
-evalOp_ = proc (op, vals) -> case (op, vals) of
+evalOp_ = proc (op, args) -> case (op, args) of
     -- number operators
     (ONumPlus, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a + b)
     (OMul, [(VNumber a), (VNumber b)]) -> returnA -< VNumber (a * b)
@@ -357,7 +288,7 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
     (OMathAbs, [(VNumber a)]) -> returnA -< VNumber $ abs a
     (OMathPow, [(VNumber a), (VNumber b)]) -> returnA -< VNumber $ a ** b
     -- object operators
-    (OHasOwnProp, [(VObject props vals), (VString field)]) ->
+    (OHasOwnProp, [(VObject _ vals), (VString field)]) ->
         returnA -< VBool $ HM.member field vals
     (OObjCanDelete, [(VObject _ _), (VString field)]) ->
         returnA -< VBool $ (length field) > 0 && (not $ head field == '$')
@@ -379,106 +310,4 @@ evalOp_ = proc (op, vals) -> case (op, vals) of
         VString _       -> returnA -< VString "string"
         VBool _         -> returnA -< VString "boolean"
         _               -> fail    -< fromString $ "Error: unimplemented typeOf for " ++ (show a)
-    _ -> fail -< fromString $ "Unimplemented operator: " ++ (show op) ++ " with args: " ++ (show vals)
-
--- fresh :: ArrowState Location c => c () Location
--- fresh = proc () -> do
---     Location s <- Control.Arrow.State.get -< ()
---     put -< Location $ s + 1
---     returnA -< Location s
-
--- deleteField_ :: ArrowFail (Either String Exceptional) e => e (Value, Value) Value
--- deleteField_ = proc (VObject obj, VString field) -> do
---     filtered <- arr $ (\(fs, n) -> (filter (\(fn, _) -> fn /= n) fs)) -< (obj, field)
---     returnA -< VObject filtered
-
--- instance {-# OVERLAPS #-} AbstractValue Value ConcreteArr where
---     -- values
---     numVal = proc n -> returnA -< VNumber n
---     boolVal = proc b -> returnA -< VBool b
---     stringVal = proc s -> returnA -< VString s
---     undefVal = proc () -> returnA -< VUndefined
---     nullVal = proc () -> returnA -< VNull
---     lambdaVal = proc (ids, body) -> do
---         env <- getEnv -< ()
---         returnA -< VLambda ids body env
---     objectVal = proc (props) -> returnA -< VObject props
---     getField f1 = proc (obj, fieldE) -> do
---         field <- f1 -< fieldE
---         getField_ -< (obj, field)
---     updateField f1 = proc (obj, fieldE, val) -> do
---         field <- f1 -< fieldE
---         updateField_ -< (obj, field, val)
---     deleteField f1 = proc (obj, fieldE) -> do
---         field <- f1 -< fieldE
---         deleteField_ -< (obj, field)
---     -- operator/delta function
---     evalOp = proc (op, vals) -> evalOp_ -< (op, vals)
---     -- environment ops
---     lookup = proc id_ -> do
---         Control.Arrow.Environment.lookup pi1 (proc (_) -> fail -< Left $ "id does not exist") -< (id_, id_)
---     apply f1 = proc (lambda, args) -> do
---         case lambda of
---             VLambda names body closureEnv
---                 | length names == length args -> do
---                     newBindings <- arr $ uncurry zip -< (names, args)
---                     bindingEnv <- bindings -< (newBindings, closureEnv)
---                     outsideEnv <- getEnv -< ()
---                     finalEnv <- bindings -< (Data.Concrete.Environment.toList bindingEnv, outsideEnv)
---                     localEnv f1 -< (finalEnv, body)
---                 | otherwise -> fail -< Left $ "Error: applied lambda with less/more params than arguments"
---             _ -> fail -< Left $ "Error: apply on non-lambda value: " ++ (show lambda) ++ " " ++ (show args)
---     -- store ops
---     set = proc (loc, val) -> do
---         case loc of
---             VRef l -> do
---                 write -< (l, val)
---                 returnA -< ()
---             _ -> fail -< Left $ "Error: ESetRef lhs must be location, is: " ++ (show loc)
---     new = proc (val) -> do
---         loc <- fresh -< ()
---         set -< (VRef loc, val)
---         returnA -< VRef loc
---     get = proc (loc) -> do
---         case loc of
---             VRef l -> do
---                 val <- read pi1 id -< (l, VUndefined)
---                 returnA -< val
---             _ -> fail -< Left $ "Error: EDeref lhs must be location, is: " ++ (show loc)
---     -- control flow
---     if_ f1 f2 = proc (cond, thenBranch, elseBranch) -> do
---         case cond of
---             VBool True  -> f1 -< thenBranch
---             VBool False -> f2 -< elseBranch
---             _           -> fail -< Left $ (show cond)
---     while_ f1 f2 = proc (cond, body) -> do
---         condV <- f1 -< cond
---         case condV of
---             VBool True  -> f2 -< (ESeq body (EWhile cond body))
---             VBool False -> returnA -< VUndefined
---             _ -> fail -< Left $ "Error: condition must be evaluate to boolean value"
---     label f1 = proc (l, e) -> do
---         (_, res) <- tryCatch (second f1) (proc ((label_, _), err) -> case err of
---             Left s -> fail -< Left s
---             Right (Break l1 v)
---                 | l1 == label_ -> returnA -< (label_, v)
---                 | otherwise -> fail -< (Right $ Break l1 v)
---             Right (Thrown v) -> fail -< (Right $ Thrown v)) -< (l, e)
---         returnA -< res
---     break = proc (l, v) -> do
---         fail -< Right (Break l v)
---     throw = proc v -> do
---         fail -< Right (Thrown v)
---     catch f1 = proc (try, catch_) -> do
---         (_, res) <- tryCatch (second f1) (proc ((catch_, _), err) -> case err of
---             Left s -> fail -< Left s
---             Right (Break l1 v) -> fail -< Right $ Break l1 v
---             Right (Thrown v) -> case catch_ of
---                 ELambda [x] body -> do
---                     scope <- getEnv -< ()
---                     env' <- extendEnv -< (x, v, scope)
---                     res <- localEnv f1 -< (env', body)
---                     returnA -< (catch_, res)
---                 _ -> fail -< Left "Error: Catch block must be of type ELambda") -< (catch_, try)
---         returnA -< res
---     error = proc s -> fail -< Left $ "Error: aborted with message: " ++ s
+    _ -> fail -< fromString $ "Unimplemented operator: " ++ (show op) ++ " with args: " ++ (show args)
