@@ -5,7 +5,6 @@ module Sort where
 import Utils
 
 import Control.DeepSeq
-import Control.Arrow(second)
 
 import Data.Text(Text, unpack)
 import Data.String(IsString(..))
@@ -40,7 +39,7 @@ instance Show Sort where
     Bottom -> "Bottom"
     Top -> "Top"
     Numerical -> "Int"
-    Lexical -> "String"
+    Lexical -> "Lexical"
     List s -> "List (" ++ show s ++ ")"
     Option s -> "Option (" ++ show s ++ ")"
     Sort (SortId s) -> unpack s
@@ -68,12 +67,11 @@ getSortId s = case s of
   _ -> Nothing
 
 widening :: Int -> Widening Sort
-widening n0 _ = go n0
+widening n0 s1 s2 = let s' = go n0 s2 in (if s' == s1 then Stable else Instable,s')
   where
-    go 0 Top = (Stable,Top)
-    go 0 _ = (Instable,Top)
+    go 0 _ = Top
     go n s = case s of 
-      List s' -> second List (go (n-1) s')
-      Option s' -> second Option (go (n-1) s')
-      Tuple ss -> second Tuple (traverse (go (n-1)) ss)
-      _ -> (Stable,s)
+      List s' -> List (go (n-1) s')
+      Option s' -> Option (go (n-1) s')
+      Tuple ss -> Tuple (map (go (n-1)) ss)
+      _ -> s

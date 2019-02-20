@@ -10,7 +10,7 @@ signature
     Pred : Exp -> Exp
     Ifz  : Exp * Exp * Exp -> Exp
 
-    Closure : Exp * List(Val) -> Val
+    Closure : Exp * List(String, Val) -> Val
     Z       : Val
     S       : Val -> Val
 
@@ -22,7 +22,7 @@ signature
          : ()
          : a -> (a)
          : a * b -> (a, b)
-: a * b * c -> (a, b, c)
+         : a * b * c -> (a, b, c)
 
 strategies
 

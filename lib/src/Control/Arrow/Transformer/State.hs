@@ -34,6 +34,7 @@ import Data.Hashable
 import Data.Order hiding (lub)
 import Data.Monoidal
 import Data.Profunctor
+import Data.Coerce
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype StateT s c x y = StateT { runStateT :: c (s,x) (s,y) }
@@ -52,8 +53,8 @@ instance (Profunctor c, Arrow c) => Profunctor (StateT s c) where
 instance ArrowTrans (StateT s) where
   type Dom (StateT s) x y = (s,x)
   type Cod (StateT s) x y = (s,y)
-  lift = StateT
-  unlift = runStateT
+  lift = coerce
+  unlift = coerce
 
 instance ArrowLift (StateT s) where
   lift' f = lift (second f)

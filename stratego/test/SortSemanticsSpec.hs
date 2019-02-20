@@ -19,9 +19,9 @@ import qualified SortContext as Ctx
 import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
+import qualified Data.Abstract.Maybe as A
 -- import qualified Data.Abstract.Maybe as M
-import qualified Data.Abstract.Map as S
-import           Data.Abstract.There
+import qualified Data.Abstract.WeakMap as S
 -- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
 -- import qualified Data.Concrete.Powerset as C
@@ -31,18 +31,15 @@ import qualified Data.HashMap.Lazy as M
 -- import           Data.GaloisConnection
 -- import qualified Data.Set as Set
 -- import qualified Data.Term as C
-import qualified Data.Text.IO as TIO
-import qualified Data.ATerm as A
+import           Data.Set (Set)
     
-import           Text.Printf
-
 import           Test.Hspec hiding (context)
 -- import           Test.Hspec.QuickCheck
 -- import           Test.QuickCheck hiding (Success)
 
 import           GHC.Exts(IsString(..))
 
-import           Paths_sturdy_stratego
+import           CaseStudy
 
 main :: IO ()
 main = hspec spec
@@ -127,7 +124,7 @@ spec = do
 
     it "should succeed when exploding literals" $
       let ?ctx = Ctx.empty in
-      let tenv = termEnv [("x", convertToList [] ?ctx)]
+      let tenv = termEnv [("x", term (List Bottom))]
       in seval 0 (Match (Explode "_" "x")) numerical `shouldBe` success (tenv, numerical)
 
     -- it "should handle inconsistent environments" $ do
@@ -213,12 +210,6 @@ spec = do
           t = bottom
       in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` success (tenv, term (List Numerical))
 
-    it "should support linear pattern matching" $
-      let ?ctx = Ctx.empty in
-      let tenv = termEnv [("x", numerical)]
-          t = bottom
-      in seval' 0 (Build (Cons "Cons" [Var "x", Var "x"])) tenv t `shouldBe` success (tenv, top)
-
     it "should merge a variable and the given subject term" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp") ,("Zero",[],"Exp") ,("Ifz",["Exp","Exp","Exp"],"Exp")] in
       let t = bottom
@@ -247,115 +238,122 @@ spec = do
 
     it "should make non-declared variables available" $
       let ?ctx = Ctx.empty in
-      let tenv = termEnv [("x", numerical)]
+      let tenv = termEnv [ ("x",numerical) ]
       in do
-         seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe` success (tenv, numerical)
-         seval' 0 (Scope ["y"] (Match "z")) tenv numerical `shouldBe`
-           success (termEnv [("x", numerical), ("z", numerical)], numerical)
+         seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe`
+           success (S.delete' ["y"] $ termEnv [("x", numerical)], numerical)
+         seval' 0 (Scope ["y"] (Match "z")) (S.delete' ["z"] tenv) numerical `shouldBe`
+           success (S.delete' ["y"] $ termEnv [ ("x",numerical), ("z",numerical)], numerical)
 
     it "should hide variables bound in a choice's test from the else branch" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp"), ("One",[],"Exp")] in
-      let exp = term "Exp" in
-      let or1 = Build (T.Cons "Zero" []) `Seq` Match "x" `Seq` T.Fail in
-      let or2 = Match "x" in
-      seval 0 (or1 `leftChoice` or2) exp `shouldBe` success (termEnv' [("x", must exp)], exp)
+      let exp = term "Exp"
+          tenv = S.delete "x" emptyEnv
+          prog = (Build (T.Cons "Zero" []) `Seq` Match "x" `Seq` T.Fail)
+                `leftChoice`
+                (Match "x")
+      in seval' 0 prog tenv exp `shouldBe` success (termEnv [("x", exp)], exp)
 
   describe "Let" $ do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
       let t = term (Tuple ["Exp","Exp"])
           tenv = termEnv [("x",t)]
-      in seval 2 (Let [("swap", swap)] (Match "x" `Seq` Call "swap" [] ["x"])) t `shouldBe` success (tenv, t)
+      in seval' 2 (Let [("swap", swap)] (Scope ["x"] (Match "x" `Seq` Call "swap" [] ["x"]))) tenv t
+           `shouldBe` success (delete swap tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
-          tenv = termEnv [("x",t)]
-      in seval 2 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) t
-        `shouldBe` success (tenv, term (List Numerical))
+          tenv = termEnv []
+      in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) t
+        `shouldBe` success (delete map' tenv, term (List Numerical))
 
   describe "Call" $ do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "swap" (Closure swap M.empty)
           t = term (Tuple ["Exp","Exp"])
-          tenv = termEnv [("x",t)]
-      in seval'' 1 10 (Match "x" `Seq` Call "swap" [] []) senv emptyEnv t `shouldBe` success (tenv, t)
+          tenv = termEnv []
+      in seval'' 1 10 (Scope ["x"] (Match "x" `Seq` Call "swap" [] [])) senv emptyEnv t `shouldBe` success (delete swap tenv, t)
 
     it "should support an empty list in recursive applications" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [] ?ctx
-          tenv = termEnv [("x",t)]
-      in seval'' 2 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
-           success (tenv, term (List Numerical))
+          tenv = termEnv []
+      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+           success (delete map' tenv, term (List Numerical))
 
     it "should support a singleton list in recursive applications" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [numerical] ?ctx
-          tenv = termEnv [("x",t)]
-      in seval'' 2 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
-           success (tenv, term (List Numerical))
+          tenv = termEnv []
+      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+           success (delete map' tenv, term (List Numerical))
 
     it "should support recursion on a list of numbers" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           c = Ctx.empty
           t = convertToList [numerical, numerical, numerical] c
-          tenv = termEnv [("x",t)]
-      in seval'' 2 10 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv emptyEnv t `shouldBe`
-           success (tenv, term (List Numerical))
+          tenv = termEnv []
+      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+           success (delete map' tenv, term (List Numerical))
 
     it "should terminate and not produce infinite sorts" $ do
       let senv = M.fromList [("map",Closure map' M.empty),
-                             ("foo",Closure (Strategy [] [] (Match "x" `Seq` Call "map" ["foo"] ["x"])) M.empty)]
+                             ("foo",Closure (Strategy [] [] (Scope ["x"] (Match "x" `Seq` Call "map" ["foo"] ["x"]))) M.empty)]
           c = Ctx.empty
           t = Term Top c
-          tenv = termEnv [("x",t)]
-      seval'' 3 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
-        success (tenv, Term (List (List Top)) c)
-
+          tenv = termEnv []
+      seval'' 10 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
+        success (delete map' tenv, Term (List (List (List Top))) c)
 
   describe "simplify arithmetics" $ do
     it "reduce Add(Zero,y)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
-      let exp = term "Exp" in
-      let reduce = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
-      seval 0 (reduce) exp `shouldBe` successOrFail () (termEnv [("y", exp)], exp)
+      let exp = term "Exp"
+          reduce = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
+      in seval' 0 (reduce) (S.delete "y" emptyEnv) exp
+           `shouldBe` successOrFail () (termEnv [("y", exp)], exp)
 
     it "reduce Add(x,Zero)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
-      let exp = term "Exp" in
-      let reduce = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
-      seval 0 (reduce) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+      let exp = term "Exp"
+          reduce = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
+      in seval' 0 reduce (S.delete "x" emptyEnv) exp
+           `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
 
     it "reduce Add(Zero,y) < id + Add(x,Zero)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
-      let exp = term "Exp" in
-      let reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
-      let reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
-      seval 0 (reduce1 `leftChoice` reduce2) exp `shouldBe` successOrFail () (termEnv' [("x", may exp),("y", may exp)], exp)
+      let exp = term "Exp"
+          reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
+          reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
+      in seval' 0 (reduce1 `leftChoice` reduce2) (S.delete' ["x", "y"] emptyEnv) exp
+           `shouldBe` successOrFail () (termEnv' [may "x" exp, may "y" exp], exp)
 
     it "reduce Add(x,y); !x; ?Zero()" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
-      let exp = term "Exp" in
-      let reduce = Match (Cons "Add" ["x", "y"]) `Seq` Build "x" `Seq` Match (Cons "Zero" []) `Seq` Build "y" in
-      seval 0 (reduce) exp `shouldBe` successOrFail () (termEnv' [("x", must exp),("y", must exp)], exp)
+      let exp = term "Exp"
+          reduce = Match (Cons "Add" ["x", "y"]) `Seq` Build "x" `Seq` Match (Cons "Zero" []) `Seq` Build "y"
+      in seval' 0 reduce (S.delete' ["x", "y"] emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp),("y", exp)], exp)
 
     it "reduce Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp"),("Double",["Exp"],"Exp")] in
-      let exp = term "Exp" in
-      let reduce = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"]) in
-      seval 0 (reduce) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+      let exp = term "Exp"
+          reduce = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"])
+      in seval' 0 reduce (S.delete' ["x"] emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
 
     it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
-      let exp = term "Exp" in
-      let reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y" in
-      let reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x" in
-      let reduce3 = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"]) in
-      seval 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) exp `shouldBe` successOrFail () (termEnv' [("x", may exp),("y", may exp)], exp)
+      let exp = term "Exp"
+          reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
+          reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
+          reduce3 = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"])
+      in seval' 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) (S.delete' ["x","y"] emptyEnv) exp
+           `shouldBe` successOrFail () (termEnv' [may "x" exp, may "y" exp], exp)
 
     -- prop "should be sound" $ do
     --   i <- choose (0,10)
@@ -368,21 +366,23 @@ spec = do
     --          $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
 
   describe "PCF interpreter in Stratego" $
-    before (caseStudy "pcf") $ do
+    before pcfCaseStudy $ do
       it "lookup: String * Env -> Val" $ \pcf ->
         let ?ctx = signature pcf in
         let senv = stratEnv pcf
             prog = term (Tuple [Lexical, List (Tuple [Lexical, "Val"])])
             val  = term "Val"
         in do
-          seval'' 2 10 (Call "lookup_0_0" [] []) senv emptyEnv prog `shouldBe` successOrFail () (emptyEnv, val)
+          seval'' 2 10 (Call "lookup_0_0" [] []) senv emptyEnv prog `shouldBe`
+            successOrFail () (delete (senv M.! "lookup_0_0") emptyEnv, val)
 
       it "eval: Env * Exp -> Val" $ \pcf ->
         let ?ctx = signature pcf in
         let senv = stratEnv pcf
             prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
             val  = term "Val"
-        in seval'' 2 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe` success (emptyEnv, val)
+        in seval'' 5 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
+             successOrFail () (emptyEnv, val)
 
   where
     -- sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
@@ -418,8 +418,11 @@ spec = do
     termEnv :: [(TermVar, Term)] -> TermEnv
     termEnv = S.fromList
 
-    termEnv' :: [(TermVar, (There,Term))] -> TermEnv
-    termEnv' = S.fromThereList
+    termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
+    termEnv' = S.fromList'
+
+    delete :: TermVars s => s -> TermEnv -> TermEnv
+    delete s = S.deleteIfNotPresent' (termVars s :: Set TermVar)
 
     emptyEnv :: TermEnv
     emptyEnv = S.empty
@@ -467,6 +470,15 @@ spec = do
     top :: (?ctx :: Context) => Term
     top = term Top
 
+    may :: k -> v -> (k,A.Maybe v)
+    may k v = (k,A.JustNothing v)
+
+    must :: k -> v -> (k, A.Maybe v)
+    must k v = (k, A.Just v)
+
+    notThere :: k -> (k, A.Maybe v) 
+    notThere k = (k,A.Nothing)
+
     success :: a -> Error e (Except () a)
     success a = F.Success $ E.Success a
     
@@ -479,9 +491,3 @@ spec = do
     failure :: String -> Error TypeError (Except () a)
     failure = F.Fail . fromString
 
-    caseStudy :: String -> IO Module
-    caseStudy name = do
-      file <- TIO.readFile =<< getDataFileName (printf "case-studies/%s/%s.aterm" name name)
-      case parseModule =<< A.parseATerm file of
-        Left e -> fail (show e)
-        Right module_ -> return module_

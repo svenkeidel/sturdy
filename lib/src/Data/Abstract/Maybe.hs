@@ -1,7 +1,13 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Data.Abstract.Maybe where
 
 import Prelude hiding (Maybe(..))
+import qualified Prelude as Con
 
+import Control.DeepSeq
 import Control.Monad(ap)
 import Control.Arrow(second)
 
@@ -10,9 +16,13 @@ import Data.Hashable
 import Data.Traversable
 import Data.Abstract.Widening
 
+import GHC.Generics(Generic)
+
 -- | Abstract 'Maybe' type with an upper bound for 'Just' and 'Nothing'
 data Maybe a = Just a | Nothing | JustNothing a
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Generic)
+
+instance NFData a => NFData (Maybe a)
 
 instance (Hashable a) => Hashable (Maybe a) where
   hashWithSalt s (Just a) = s `hashWithSalt` (1::Int) `hashWithSalt` a
@@ -79,3 +89,8 @@ instance Traversable Maybe where
   traverse _ Nothing = pure Nothing
   traverse f (Just a) = Just <$> f a
   traverse f (JustNothing a) = JustNothing <$> f a
+
+fromConcreteMaybe :: Con.Maybe a -> Maybe a
+fromConcreteMaybe m = case m of
+    Con.Just a -> Just a
+    Con.Nothing -> Nothing

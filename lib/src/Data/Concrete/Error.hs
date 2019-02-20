@@ -5,7 +5,6 @@
 module Data.Concrete.Error where
 
 import Data.Hashable
-import Data.Monoidal
 import Data.Profunctor
 
 import Control.Monad

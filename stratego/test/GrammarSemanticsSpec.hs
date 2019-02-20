@@ -20,7 +20,9 @@ import qualified Data.Concrete.Powerset as C
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as LM
 import qualified Data.Map as M
+import           Data.Set (Set)
 import           Data.Term hiding (wildcard)
+import           Data.Foldable (toList)
 import qualified Data.Text.IO as TIO
 
 import           Paths_sturdy_stratego
@@ -241,8 +243,8 @@ spec = do
     prop "should be sound" $ do
       [t1,t2,t3] <- C.similarTerms 3 7 2 10
       matchPattern <- C.similarTermPattern t1 3
-      let vars = patternVars' matchPattern
-      buildPattern <- arbitraryTermPattern 5 2 (if not (null vars) then elements vars else arbitrary)
+      let vars = termVars matchPattern :: Set TermVar
+      buildPattern <- arbitraryTermPattern 5 2 (if not (null vars) then elements (toList vars) else arbitrary)
       return $ counterexample
                (printf "match pattern: %s\nbuild pattern: %s\nt2: %s\nt3: %s\nlub t2 t3 = %s"
                  (show matchPattern) (show buildPattern) (show t2) (show t3)

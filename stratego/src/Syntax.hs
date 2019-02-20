@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 module Syntax where
 
 import           SortContext (Context,Sort,Signature)
@@ -21,8 +23,11 @@ import qualified Data.Set as S
 import           Data.String (IsString(..))
 import           Data.Text (Text,pack,unpack)
 import qualified Data.Text as T
+import           Data.Lens(Prism')
+import qualified Data.Lens as L
 
 import           GHC.Generics(Generic)
+import           GHC.Exts(IsList(..))
 
 import           Text.Read (readMaybe)
 import           Test.QuickCheck (Arbitrary(..),Gen)
@@ -43,6 +48,7 @@ data Strat
   | Let [(StratVar,Strategy)] Strat
   | Call StratVar [Strat] [TermVar]
   | Prim StratVar [Strat] [TermVar]
+  | Apply Strat
   deriving (Eq,Generic)
 instance NFData Strat
 
@@ -89,24 +95,8 @@ stratEnv (Module _ senv) = fmap (`Closure` M.empty) senv
 signature :: Module -> Context
 signature (Module sig _) = sig
 
-patternVars :: TermPattern -> Set TermVar
-patternVars t = case t of
-  As v p -> S.singleton v `S.union` patternVars p
-  Cons _ ts -> S.unions $ patternVars <$> ts
-  Explode f l -> patternVars f `S.union` patternVars l
-  Var x -> S.singleton x
-  _ -> S.empty
-
-patternVars' :: TermPattern -> [TermVar]
-patternVars' t =  case t of
-  As v p -> v : patternVars' p
-  Cons _ ts -> concat $ patternVars' <$> ts
-  Explode f l -> patternVars' f ++ patternVars' l
-  Var x -> return x
-  _ -> []
-
 linear :: TermPattern -> Bool
-linear p = S.size (patternVars p) == length (patternVars' p)
+linear p = S.size (termVars p :: Set TermVar) == length (termVars p :: [TermVar])
 
 parseModule :: MonadError String m => ATerm -> m Module
 parseModule t = case t of
@@ -157,27 +147,34 @@ parseFun t = case t of
 parseSort :: MonadError String m => ATerm -> m Sort
 parseSort t = case t of
   ATerm "ConstType" [res] -> parseSort res
+  ATerm "SortNoArgs" [String "String"] -> return $ I.Lexical
   ATerm "SortNoArgs" [String sortName] -> return $ I.Sort (I.SortId sortName)
+  ATerm "Sort" [String "String", List []] ->
+    return $ I.Lexical
   ATerm "Sort" [String sortName, List []] ->
     return $ I.Sort (I.SortId sortName)
   ATerm "Sort" [String "List", List [s]] ->
     I.List <$> parseSort s
+  ATerm "Sort" [String "List", List ss] ->
+    I.List <$> I.Tuple <$> traverse parseSort ss
   ATerm "Sort" [String "Option", List [s]] ->
     I.Option <$> parseSort s
+  ATerm "Sort" [String "Option", List ss] ->
+    I.Option <$> I.Tuple <$> traverse parseSort ss
   ATerm "SortTuple" [List args] ->
     I.Tuple <$> traverse parseSort args
   _ -> throwError $ "unexpected input while parsing sort from aterm: " ++ show t
 
 parseStrategy :: MonadError String m => ATerm -> m (StratVar,Strategy)
 parseStrategy strat = case strat of
-  ATerm "SDefT" [String name, List stratVars, List termVars, body] -> do
+  ATerm "SDefT" [String name, List stratVars, List ts, body] -> do
     str <- Strategy <$> parseStratVars stratVars
-                    <*> parseTermVars termVars
+                    <*> parseTermVars ts
                     <*> parseStrat body
     return (StratVar name, str)
-  ATerm "ExtSDef" [String name, List termVars, List stratVars] -> do
+  ATerm "ExtSDef" [String name, List ts, List stratVars] -> do
     str <- Strategy <$> parseStratVars stratVars
-                    <*> parseTermVars termVars
+                    <*> parseTermVars ts
                     <*> return Id
     return (StratVar name, str)
   _ -> throwError $ "unexpected input while parsing strategy from aterm: " ++ show strat
@@ -289,6 +286,7 @@ instance Hashable Strat where
     Call sv ss tv -> s `hashWithSalt` (10::Int) `hashWithSalt` sv `hashWithSalt` ss `hashWithSalt` tv
     Let bnds body -> s `hashWithSalt` (11::Int) `hashWithSalt` bnds `hashWithSalt` body
     Prim sv ss tv -> s `hashWithSalt` (12::Int) `hashWithSalt` sv `hashWithSalt` ss `hashWithSalt` tv
+    Apply body -> s `hashWithSalt` (13::Int) `hashWithSalt` body
 
 instance Show Strat where
   showsPrec d s0 = case s0 of
@@ -339,6 +337,8 @@ instance Show Strat where
      . showString "|"
      . showString (intercalate "," (map show ts))
      . showString ")"
+    Apply body ->
+      showsPrec d body
     Prim (StratVar f) ss ts ->
      showString (unpack f)
      . showString "("
@@ -418,3 +418,59 @@ arbitraryTermPattern h w var
   --         tp <- arbitraryTermPattern h' w var
   --         tl <- arbitraryListPattern (len-1)
   --         return $ Cons "Cons" [tp,tl]
+
+class TermVars s where
+  termVars :: (IsList (f TermVar), Item (f TermVar) ~ TermVar, Monoid (f TermVar)) => s -> f TermVar
+
+instance (TermVars x,TermVars y) => TermVars (HashMap x y) where
+  termVars = termVars . M.toList
+
+instance TermVars Closure where
+  termVars (Closure s env) = termVars s <> termVars env
+
+instance TermVars Strat where
+  termVars s = case s of
+    Fail -> mempty
+    Id -> mempty
+    Seq s1 s2 -> termVars s1 <> termVars s2
+    GuardedChoice s1 s2 s3 -> termVars s1 <> termVars s2 <> termVars s3
+    One s1 -> termVars s1
+    Some s1 -> termVars s1
+    All s1 -> termVars s1
+    Match p -> termVars p
+    Build p -> termVars p
+    Scope vs s1 -> termVars vs <> termVars s1
+    Let strats s1 -> termVars strats <> termVars s1
+    Call _ _ vs -> termVars vs
+    Prim _ _ vs -> termVars vs
+    Apply body -> termVars body
+
+instance TermVars StratVar where
+  termVars _ = mempty
+
+instance TermVars Strategy where
+  termVars (Strategy _ ts s) = termVars ts <> termVars s
+
+instance TermVars TermPattern where
+  termVars t = case t of
+    As v p -> termVars v <> termVars p
+    Cons _ ts -> termVars ts
+    Explode f l -> termVars f <> termVars l
+    Var x -> termVars x
+    _ -> mempty
+
+instance TermVars x => TermVars [x] where
+  termVars l = mconcat $ termVars <$> l
+
+instance (TermVars x, TermVars y) => TermVars (x,y) where
+  termVars (x,y) = termVars x <> termVars y
+
+instance TermVars TermVar where
+  termVars "_" = mempty
+  termVars x = fromList [x]
+
+stratCall :: Prism' Strat Strat
+stratCall = L.prism' (\strat -> Apply strat)
+                (\s -> case s of
+                   Apply strat -> Just strat
+                   _ -> Nothing)

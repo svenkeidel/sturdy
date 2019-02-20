@@ -19,7 +19,7 @@
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module IntervalAnalysis where
 
-import           Prelude hiding (Bounded,fail,(.))
+import           Prelude hiding (Bounded,fail,(.),exp)
 
 import           Control.Category
 import           Control.Arrow
@@ -81,7 +81,7 @@ type Addr = (Text,CallString Label)
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
 evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Failure String Val)
-evalInterval k env e = -- runInterp eval ?bound k env (generate e)
+evalInterval k env0 e = -- runInterp eval ?bound k env (generate e)
   runFixT stackWiden (T.widening (E.widening widenVal))
     (runTerminatingT
       (runFailureT
@@ -96,13 +96,12 @@ evalInterval k env e = -- runInterp eval ?bound k env (generate e)
                         (FailureT String
                           (TerminatingT
                             (FixT _ () () (->))))))) Expr Val))))))
-    (env,generate e)
+    (env0,generate e)
   where
     widenVal = widening (W.bounded ?bound I.widening)
     stackWiden :: SW.StackWidening _ (Env,Expr)
     stackWiden = SW.filter (\(_,ex) -> case ex of App {} -> True; Y {} -> True; _ -> False)
-               $ SW.groupBy (\(_,ex) -> label ex :: Label)
-               $ SW.project L._1
+               $ SW.groupBy (L.iso' (\(env,exp) -> (exp,env)) (\(exp,env) -> (env,exp)))
                $ SW.stack
                $ SW.maxSize 3
                $ SW.reuseFirst

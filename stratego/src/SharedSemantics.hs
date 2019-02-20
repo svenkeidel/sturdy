@@ -50,6 +50,7 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Let bnds body -> let_ bnds body eval'
     Call f ss ps -> call f ss ps ev
     Prim {} -> undefined
+    Apply body -> ev body
 
 -- | Guarded choice executes the first strategy, if it succeeds the
 -- result is passed to the second strategy, if it fails the original
@@ -120,18 +121,20 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
   case M.lookup f senv of
     Just (Closure (Strategy formalStratArgs formalTermArgs body) senv') -> do
       tenv <- getTermEnv -< ()
-      mapA bindTermArg -< zip actualTermArgs formalTermArgs
-      let senv'' = bindStratArgs (zip formalStratArgs actualStratArgs)
-                                 (if M.null senv' then senv else senv')
-      b <- localStratEnv senv'' (interp body) -<< a
+      let termArgs = zip actualTermArgs formalTermArgs
+          stratArgs = zip formalStratArgs actualStratArgs
+      mapA bindTermArg -< termArgs
+      let senv'' = bindStratArgs stratArgs (if M.null senv' then senv else senv')
+      b <- localStratEnv senv'' (interp (Apply body)) -<< a
       tenv' <- getTermEnv -< ()
       putTermEnv <<< unionTermEnvs -< (formalTermArgs,tenv,tenv')
       returnA -< b
     Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
   where
     bindTermArg = proc (actual,formal) ->
-      lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t) fail -<<
-        (actual, fromString $ "unbound term variable " ++ show actual ++ " in strategy call " ++ show (Call f actualStratArgs actualTermArgs))
+      lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t)
+                     (proc _ -> fail -< fromString $ "unbound term variable " ++ show actual ++ " in strategy call " ++ show (Call f actualStratArgs actualTermArgs))
+        -<< (actual, ())
     {-# INLINE bindTermArg #-}
 
     bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
@@ -152,7 +155,7 @@ match = proc (p,t) -> case p of
     t' <- match -< (S.Var v,t)
     match -< (p2,t')
   S.Var "_" ->
-    success -< t
+    returnA -< t
   S.Var x ->
     -- Stratego implements linear pattern matching, i.e., if a
     -- variable appears multiple times in a term pattern, the terms at

@@ -28,6 +28,7 @@ import Control.Arrow.Abstract.Join
 import Data.Profunctor
 import Data.Monoidal
 import Data.Order hiding (lub)
+import Data.Coerce
 
 newtype WriterT w c x y = WriterT { runWriterT :: c x (w,y) }
 
@@ -39,8 +40,8 @@ instance (Profunctor c, Arrow c) => Profunctor (WriterT w c) where
 instance ArrowTrans (WriterT w) where
   type Dom (WriterT w) x y = x
   type Cod (WriterT w) x y = (w,y)
-  lift = WriterT
-  unlift = runWriterT
+  lift = coerce
+  unlift = coerce
 
 instance Monoid w => ArrowLift (WriterT w) where
   lift' f = lift (rmap (\y -> (mempty,y)) f)
@@ -67,7 +68,7 @@ instance (Monoid w, ArrowChoice c, Profunctor c) => ArrowChoice (WriterT w c) wh
   f +++ g = lift $ rmap distribute2 (unlift f +++ unlift g) 
 
 instance (Monoid w, ArrowApply c, Profunctor c) => ArrowApply (WriterT w c) where
-  app = lift $ lmap (first runWriterT) app
+  app = lift $ lmap (first unlift) app
 
 instance (Monoid w, ArrowState s c) => ArrowState s (WriterT w c) where
   get = lift' get

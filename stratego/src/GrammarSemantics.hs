@@ -50,7 +50,6 @@ import           Data.Order
 import           Data.Term
 import           Data.Text (Text)
 import           Data.Profunctor
-import           Data.Lens (Prism')
 import qualified Data.Lens as L
 import           Data.Abstract.FreeCompletion (FreeCompletion(Lower,Top))
 import qualified Data.Abstract.FreeCompletion as Free
@@ -91,7 +90,7 @@ type Interp s a b =
                     (->))))))))) a b
 
 runInterp :: Interp _ a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Failure String (Except () (TermEnv, b))))
-runInterp f i senv tenv a =
+runInterp f i senv0 tenv0 a =
   runFixT stackWidening (T.widening grammarWidening)
     (runTerminatingT
       (runCompletionT
@@ -100,24 +99,17 @@ runInterp f i senv tenv a =
             (runStateT
               (runReaderT
                 (runGrammarT f)))))))
-    (tenv, (senv, a))
+    (tenv0, (senv0, a))
   where
     stackWidening :: SW.StackWidening _ (TermEnv, (StratEnv, (Strat, Term)))
     stackWidening = SW.filter' (L.second (L.second (L.first stratCall)))
-                  $ SW.groupBy (\(_,(_,((stratVar,_,_),_))) -> stratVar)
-                  $ SW.project (L.second (L._2 . L._2))
+                  $ SW.groupBy (L.iso' (\(tenv,(senv,(strat,term))) -> ((strat,senv),(term,tenv))) (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term)))))
                   $ SW.stack
                   $ SW.reuseFirst
                   $ SW.maxSize i
-                  $ SW.fromWidening (S.widening widening W.** widening)
+                  $ SW.fromWidening (widening W.** S.widening widening)
 
     grammarWidening = Free.widening (F.widening (E.widening (\_ _ -> (Stable,())) (S.widening widening W.** widening)))
-
-    stratCall :: Prism' Strat (StratVar,[Strat],[TermVar])
-    stratCall = L.prism' (\(sv,sa,ta) -> Call sv sa ta)
-                    (\s -> case s of
-                       Call sv sa ta -> Just (sv,sa,ta)
-                       _ -> Nothing)
 
 eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Failure String (Except () (TermEnv, Term))))
 eval i s = runInterp (eval' s) i

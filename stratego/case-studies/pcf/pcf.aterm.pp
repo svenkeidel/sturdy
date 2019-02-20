@@ -38,7 +38,9 @@ Specification(
           , OpDecl(
               "Closure"
             , FunType(
-                [ConstType(SortNoArgs("Exp")), ConstType(Sort("List", [SortNoArgs("Val")]))]
+                [ ConstType(SortNoArgs("Exp"))
+                , ConstType(Sort("List", [SortNoArgs("String"), SortNoArgs("Val")]))
+                ]
               , ConstType(SortNoArgs("Val"))
               )
             )

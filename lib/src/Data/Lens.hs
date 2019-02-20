@@ -1,9 +1,3 @@
-{- 
-Haskell code for the paper "Profunctor Optics: Modular Data Accessors"
-by Matthew Pickering, Jeremy Gibbons, and Nicolas Wu
-
-to appear in "The Art, Science, and Engineering of Programming" 1(2), 2017
- -}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 module Data.Lens where
@@ -13,6 +7,12 @@ import Data.Functor.Const
 import Data.Functor.Identity
 import Data.Monoid
 
+{- 
+Haskell code for the paper "Profunctor Optics: Modular Data Accessors"
+by Matthew Pickering, Jeremy Gibbons, and Nicolas Wu
+
+to appear in "The Art, Science, and Engineering of Programming" 1(2), 2017
+ -}
 type Optic p s t a b = p a b -> p s t
 
 type Iso s t a b = forall p. Profunctor p => Optic p s t a b
@@ -91,3 +91,18 @@ instance (Strong c) => Strong (SecondT u c) where
 instance (Choice c) => Choice (SecondT u c) where
   left' (SecondT f) = SecondT (dimap (\(u,e) -> either (Left . (u,)) (Right . (u,)) e) (either (second' Left) (second' Right)) (left' f))
   right' (SecondT f) = SecondT (dimap (\(u,e) -> either (Left . (u,)) (Right . (u,)) e) (either (second' Left) (second' Right)) (right' f))
+
+-- | Due to https://hackage.haskell.org/package/lens-4.17/docs/src/Control.Lens.Internal.Iso.html
+data Exchange a b s t = Exchange (s -> a) (b -> t)
+
+instance Profunctor (Exchange a b) where
+  dimap f g (Exchange f' g') = Exchange (f' . f) (g . g')
+  lmap f (Exchange f' g') = Exchange (f' . f) g'
+  rmap g (Exchange f' g') = Exchange f' (g . g')
+
+withIso :: Iso s t a b -> ((s -> a) -> (b -> t) -> r) -> r
+withIso f k = let (Exchange f' g') = f (Exchange id id)
+              in k f' g'
+
+from :: Iso s t a b -> Iso b a t s
+from f = withIso f $ \f' g' -> iso g' f'

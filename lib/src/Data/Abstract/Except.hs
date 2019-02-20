@@ -1,9 +1,11 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE Arrows #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE Arrows #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Data.Abstract.Except where
 
 import Prelude hiding (id,(.))
@@ -24,6 +26,7 @@ import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
 
 import GHC.Generics (Generic, Generic1)
+import GHC.TypeLits
 
 -- | Abstrat domain for exceptions. This abstract domain approximates
 -- error more precisely because 'Success ⋢ Fail'. Use this type for
@@ -77,6 +80,9 @@ instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeComplet
 instance (UpperBounded e, UpperBounded a) => UpperBounded (Except e a) where
   top = SuccessOrFail top top
 
+instance (TypeError ('Text "Except does not have a lower bound. You probably want to use bottom of Data.Abstract.Terminating"), PreOrd a, PreOrd e) => LowerBounded (Except e a) where
+  bottom = error "do not implement"
+
 instance (PreOrd a, PreOrd e, UpperBounded (FreeCompletion e), UpperBounded (FreeCompletion a))
   => UpperBounded (FreeCompletion (Except e a)) where
   top = case (top,top) of
@@ -120,9 +126,6 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (E
         Success y -> SuccessOrFail e y
         SuccessOrFail e' y -> SuccessOrFail (e ⊔ e') y
       lub _ _ = error "cannot happen"
-
-instance PreOrd a => LowerBounded (Except () a) where
-  bottom = Fail ()
 
 instance Foldable (Except e) where
   foldMap = foldMapDefault

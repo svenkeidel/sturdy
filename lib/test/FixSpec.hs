@@ -32,7 +32,7 @@ import qualified Data.Abstract.StackWidening as SW
 import           Data.Order
 import           Data.Hashable
 import           Data.Profunctor
-import           Data.Lens (_2)
+import           Data.Lens (iso')
 
 import           GHC.Generics
 
@@ -132,8 +132,7 @@ spec = do
                                                (proc x -> f -< (Even,x-I.Interval 1 1))) -< x
     in
       it "even([0,∞]) should be top" $
-         let ?stackWiden = SW.groupBy fst
-                         $ SW.project _2
+         let ?stackWiden = SW.groupBy (iso' id id)
                          $ SW.stack
                          $ SW.maxSize 3
                          $ SW.reuseFirst

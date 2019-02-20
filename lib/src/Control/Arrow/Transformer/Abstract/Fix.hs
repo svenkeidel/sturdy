@@ -36,7 +36,6 @@ import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
 import           Data.Profunctor
 
-#define TRACE
 #ifdef TRACE
 import           Debug.Trace
 import           Text.Printf
@@ -80,7 +79,7 @@ instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFi
 
       -- If we are in a loop, return the cached value or bottom otherwise.
       -- Furthermore, add x' to the current component.
-      (addToComponent &&> initializeCache)
+      (lmap snd $ addToComponent &&> initializeCache)
 
 #else
 
@@ -103,7 +102,10 @@ instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFi
 
       -- If we are in a loop, return the cached value or bottom otherwise.
       -- Furthermore, add x' to the current component.
-      (addToComponent &&> initializeCache)
+      (proc (x,x') -> do
+         c <- askConst -< ()
+         y <- addToComponent &&> initializeCache -< x'
+         returnA -< trace (printf "loop    [%s] = %s" (printDom c (x,x')) (printCod c y)) y)
 #endif
 
 instance (ArrowJoin c, ArrowChoice c) => ArrowJoin (FixT s a b c) where
@@ -133,13 +135,13 @@ instance (Arrow c, Profunctor c) => ArrowDeduplicate x y (FixT s a b c) where
   dedup f = f
 
 ----- Helper functions -----
-stackWiden' :: (ArrowReader (s a) c,ArrowChoice c) => ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c a b -> ConstT (Constant s a b) c a b
+stackWiden' :: (ArrowReader (s a) c,ArrowChoice c) => ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c a b
 stackWiden' (ConstT (StaticT f)) (ConstT (StaticT g)) =
   constT $ \c -> 
        rmap (\(s,x) -> let ~(s',(l,x')) = stackWidening c s x
                        in case l of
                            NoLoop -> Left (s',(x,x'))
-                           Loop   -> Right x'
+                           Loop   -> Right (x,x')
             ) (const ask &&& id)
        >>>
        (local (f c) ||| g c)

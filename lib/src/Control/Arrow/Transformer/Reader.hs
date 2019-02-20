@@ -31,6 +31,7 @@ import Control.Category
 import Data.Profunctor
 import Data.Order hiding (lub)
 import Data.Monoidal
+import Data.Coerce
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype ReaderT r c x y = ReaderT { runReaderT :: c (r,x) y }
@@ -43,8 +44,8 @@ instance (Profunctor c, Arrow c) => Profunctor (ReaderT r c) where
 instance ArrowTrans (ReaderT r) where
   type Dom (ReaderT r) x y = (r,x)
   type Cod (ReaderT r) x y = y
-  lift = ReaderT
-  unlift = runReaderT
+  lift = coerce
+  unlift = coerce
 
 instance ArrowLift (ReaderT r) where
   lift' f = lift $ lmap snd f
