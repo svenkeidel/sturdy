@@ -33,5 +33,11 @@ joinList empty f = proc (e,(l,s)) -> case l of
   [x]    -> f -< (e,(x,s))
   (x:xs) -> (f -< (e,(x,s))) <⊔> (joinList empty f -< (e,(xs,s)))
 
+joinList1 :: (ArrowChoice c, ArrowJoin c, Complete y) => c (e,(x,s)) y -> c (e,([x],s)) y
+joinList1 f = proc (e,(l,s)) -> case l of
+  []     -> returnA -< error "empty list"
+  [x]    -> f -< (e,(x,s))
+  (x:xs) -> (f -< (e,(x,s))) <⊔> (joinList1 f -< (e,(xs,s)))
+
 instance ArrowJoin (->) where
   joinWith lub f g = \x -> lub (f x) (g x)

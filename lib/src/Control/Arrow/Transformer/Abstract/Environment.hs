@@ -13,8 +13,8 @@ import Prelude hiding ((.),read,Maybe(..))
 import Data.Order
 import Data.Identifiable
 import Data.Abstract.Maybe
-import Data.Abstract.Map (Map)
-import qualified Data.Abstract.Map as M
+import Data.Abstract.WeakMap (Map)
+import qualified Data.Abstract.WeakMap as M
 
 import Control.Category
 import Control.Arrow
@@ -42,11 +42,11 @@ runEnvT = unlift
 runEnvT' :: (Arrow c, Profunctor c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
 runEnvT' f = first M.fromList ^>> runEnvT f
 
-instance (Identifiable var, ArrowChoice c,Profunctor c) => ArrowEnv var val (Map var val) (EnvT var val c) where
+instance (Identifiable var, UpperBounded val, ArrowChoice c, Profunctor c) => ArrowEnv var val (Map var val) (EnvT var val c) where
   type Join (EnvT var val c) x y = (Complete (c (Map var val,x) y))
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- ask -< ()
-    case M.lookup var env of
+    case M.lookup' var env of
       Just val        -> f          -< (val,x)
       JustNothing val -> joined f g -< ((val,x),x)
       Nothing         -> g          -< x
