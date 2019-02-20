@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImplicitParams #-}
-module IntervalAnalysisSpec where
+module KCFASpec where
 
 import           Prelude hiding (succ,pred)
 import           SharedSpecs

@@ -42,7 +42,7 @@ runEnvT = unlift
 runEnvT' :: (Arrow c, Profunctor c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
 runEnvT' f = first M.fromList ^>> runEnvT f
 
-instance (Show var, Identifiable var, ArrowChoice c,Profunctor c) => ArrowEnv var val (Map var val) (EnvT var val c) where
+instance (Identifiable var, ArrowChoice c,Profunctor c) => ArrowEnv var val (Map var val) (EnvT var val c) where
   type Join (EnvT var val c) x y = (Complete (c (Map var val,x) y))
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- ask -< ()

@@ -15,8 +15,10 @@ import Control.Arrow.Conditional as Cond
 
 import Data.Text (Text)
 
+import GHC.Exts(IsString(..))
+
 -- | Shared interpreter for PCF.
-eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail String c,
+eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail e c, IsString e,
          ArrowCond v c, IsVal v c, IsClosure v env c, Env.Join c ((v,Text),Text) v, Cond.Join c (Expr,Expr) v)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
@@ -43,16 +45,17 @@ eval = fix $ \ev -> proc e0 -> case e0 of
     env <- getEnv -< ()
     arg <- closure -< (Y e l, env)
     applyClosure' ev -< (fun, arg)
+  Apply e _ -> ev -< e
   where
     -- Helper function used to apply closure or a suspended fixpoint computation to its argument.
     applyClosure' ev = applyClosure $ proc ((e,env),arg) -> case e of
-      Lam x body _ -> do
+      Lam x body l -> do
         env' <- extendEnv -< (x,arg,env)
-        localEnv ev -< (env', body)
+        localEnv ev -< (env', Apply body l)
       Y e' l -> do
         fun' <- localEnv ev -< (env, Y e' l)
         applyClosure' ev -< (fun',arg)
-      _ -> fail -< "found unexpected epxression in closure: " ++ show e
+      _ -> fail -< fromString $ "found unexpected epxression in closure: " ++ show e
 
 -- | Interface for numeric operations
 class Arrow c => IsVal v c | c -> v where

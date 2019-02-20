@@ -21,6 +21,7 @@ data Expr
   | Pred Expr Label
   | IfZero Expr Expr Expr Label
   | Y Expr Label
+  | Apply Expr Label
   deriving (Eq)
 
 -- Smart constructors that build labeled PCF expressions.
@@ -57,6 +58,7 @@ instance Show Expr where
     Succ e _ -> showParen (d > app_prec) $ showString "succ " . showsPrec (app_prec + 1) e
     Pred e _ -> showParen (d > app_prec) $ showString "pred " . showsPrec (app_prec + 1) e
     Y e _ -> showParen (d > app_prec) $ showString "Y " . showsPrec (app_prec + 1) e
+    Apply e _ -> showParen (d > app_prec) $ showsPrec (app_prec + 1) e
     IfZero e1 e2 e3 _ -> showParen (d > app_prec)
       $ showString "ifZero "
       . showsPrec (app_prec + 1) e1
@@ -87,6 +89,7 @@ instance HasLabel Expr Label where
     Pred _ l -> l
     IfZero _ _ _ l -> l
     Y _ l -> l
+    Apply _ l -> l
 
 instance IsString (State Label Expr) where
   fromString = var . fromString
@@ -100,3 +103,4 @@ instance Hashable Expr where
   hashWithSalt s (Pred e _) = s `hashWithSalt` (5::Int) `hashWithSalt` e
   hashWithSalt s (IfZero e1 e2 e3 _) = s `hashWithSalt` (6::Int) `hashWithSalt` e1 `hashWithSalt` e2 `hashWithSalt` e3
   hashWithSalt s (Y e _) = s `hashWithSalt` (7::Int) `hashWithSalt` e
+  hashWithSalt s (Apply e _) = s `hashWithSalt` (8::Int) `hashWithSalt` e
