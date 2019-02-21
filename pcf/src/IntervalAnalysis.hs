@@ -23,13 +23,15 @@ import           Prelude hiding (Bounded,fail,(.),exp)
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Alloc
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Environment
 import           Control.Arrow.Abstract.Join
-import           Control.Arrow.Transformer.Abstract.Environment
+import           Control.Arrow.Transformer.Abstract.Contour
+import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -42,8 +44,7 @@ import           Data.Text (Text)
 import           Data.Profunctor
 import qualified Data.Lens as L
 
-import           Data.Abstract.WeakMap(Map)
-import qualified Data.Abstract.WeakMap as M
+import qualified Data.Abstract.FiniteMap as F
 import           Data.Abstract.Error (Error)
 import qualified Data.Abstract.Error as E
 import           Data.Abstract.InfiniteNumbers
@@ -53,65 +54,65 @@ import qualified Data.Abstract.Widening as W
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating(Terminating)
 import qualified Data.Abstract.Terminating as T
-import           Data.Abstract.DiscretePowerset(Pow)
-import           Data.Abstract.Closure(Closure)
+import           Data.Abstract.Closure (Closure)
 import qualified Data.Abstract.Closure as C
-
+import           Data.Abstract.DiscretePowerset (Pow)
+    
 import           GHC.Generics(Generic)
 import           GHC.Exts(IsString(..))
 
 import           Syntax (Expr(..))
 import           GenericInterpreter
 
-type Env = Map Text Val
+type Env = F.Map Text (Text, CallString Label) Val
+
+-- | Numeric values are approximated with bounded intervals, closure
+-- values are approximated with a set of abstract closures.
 data Val = NumVal IV | ClosureVal (Closure Expr Env) | Top deriving (Eq, Generic)
 
-instance PreOrd Val where
-  _ ⊑ Top = True
-  NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
-  ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
-  _ ⊑ _ = False
+-- | Addresses for this analysis are variables paired with the k-bounded call string.
+type Addr = (Text,CallString Label)
 
-instance Complete Val where
-  (⊔) = W.toJoin widening (⊔)
-
-widening :: W.Widening IV -> W.Widening Val
-widening w (NumVal x) (NumVal y) = second NumVal (x `w` y)
-widening w (ClosureVal cs) (ClosureVal cs') = second ClosureVal $ C.widening (M.widening (widening w)) cs cs'
-widening _ Top Top = (W.Stable,Top)
-widening _ _ _ = (W.Instable,Top)
-
-instance UpperBounded Val where
-  top = Top
-
--- | The abstract interpreter for Interval analysis.
+-- | Run the abstract interpreter for the k-CFA / Interval analysis. The arguments are the
+-- maximum interval bound, the depth @k@ of the longest call string,
+-- an environment, and the input of the computation.
 evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
-evalInterval k env0 e =
+evalInterval k env0 e = -- runInterp eval ?bound k env (generate e)
   runFixT stackWiden (T.widening (E.widening W.finite widenVal))
     (runTerminatingT
       (runErrorT
-        (runEnvT
-          (runIntervalT
-            (eval ::
-              Fix Expr Val
-                (IntervalT
-                  (EnvT Text Val
-                    (ErrorT (Pow String)
-                      (TerminatingT
-                        (FixT _ () () (->)))))) Expr Val)))))
-    (M.fromList env0,generate e)
+        (runContourT k
+          (runEnvT alloc
+            (runIntervalT
+              (eval ::
+                Fix Expr Val
+                  (IntervalT
+                    (EnvT Text Addr Val
+                      (ContourT Label
+                        (ErrorT (Pow String)
+                          (TerminatingT
+                            (FixT _ () () (->))))))) Expr Val))))))
+    (env0,generate e)
   where
+    widenVal = widening (W.bounded ?bound I.widening)
     stackWiden :: SW.StackWidening _ (Env,Expr)
     stackWiden = SW.filter (\(_,ex) -> case ex of Apply {} -> True; _ -> False)
                $ SW.groupBy (L.iso' (\(env,exp) -> (exp,env)) (\(exp,env) -> (env,exp)))
                $ SW.stack
                $ SW.reuseFirst
-               $ SW.maxSize k
-               $ SW.fromWidening (M.widening widenVal)
-
-    widenVal = widening (W.bounded ?bound I.widening)
+               $ SW.maxSize 3
+               $ SW.fromWidening (F.widening widenVal)
 
 newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowJoin)
+type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
+deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
+deriving instance ArrowEnv var val env c => ArrowEnv var val env (IntervalT c)
+
+instance ArrowTrans IntervalT where
+  type Dom IntervalT x y = x
+  type Cod IntervalT x y = y
+  lift = IntervalT
+  unlift = runIntervalT
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (IntervalT c) where
   succ = proc x -> case x of
@@ -135,13 +136,34 @@ instance (IsString e, ArrowChoice c, ArrowJoin c, ArrowFail e c) => ArrowCond Va
     (ClosureVal _, _)      -> fail -< "Expected a number as condition for 'ifZero'"
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c)
-    => IsClosure Val (Map Text Val) (IntervalT c) where
+    => IsClosure Val (F.Map Text Addr Val) (IntervalT c) where
   closure = arr $ \(e, env) -> ClosureVal (C.closure e env)
   applyClosure f = proc (fun, arg) -> case fun of
     Top -> (returnA -< Top) <⊔> (fail -< "Expected a closure")
     ClosureVal cls -> (| C.apply (\(e,env) -> f -< ((e,env),arg)) |) cls
     NumVal _ -> fail -< "Expected a closure"
 
+instance PreOrd Val where
+  _ ⊑ Top = True
+  NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
+  ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
+  _ ⊑ _ = False
+
+instance Complete Val where
+  (⊔) = W.toJoin widening (⊔)
+
+widening :: W.Widening IV -> W.Widening Val
+widening w (NumVal x) (NumVal y) = second NumVal (x `w` y)
+widening w (ClosureVal cs) (ClosureVal cs') =
+  second ClosureVal $ C.widening (F.widening (widening w)) cs cs'
+widening _ Top Top = (W.Stable,Top)
+widening _ _ _ = (W.Instable,Top)
+
+instance UpperBounded Val where
+  top = Top
+
+instance HasLabel (F.Map Text Addr Val,Expr) Label where
+  label (_,e) = label e
 
 instance Hashable Val
 instance Show Val where
@@ -150,12 +172,3 @@ instance Show Val where
   show Top = "⊤"
 
 type IV = Interval (InfiniteNumber Int)
-
-type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
-deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
-deriving instance ArrowEnv var val env c => ArrowEnv var val env (IntervalT c)
-instance ArrowTrans IntervalT where
-  type Dom IntervalT x y = x
-  type Cod IntervalT x y = y
-  lift = IntervalT
-  unlift = runIntervalT

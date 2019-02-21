@@ -39,7 +39,7 @@ spec = do
       in do
         evalInterval 10 [] (app (app add zero) two) `shouldBe` Terminating (Success (num 2 2))
         evalInterval 10 [] (app (app add one) two) `shouldBe` Terminating (Success (num 3 3))
-        evalInterval 10 [("x", num 0 1)] (app (app add "x") two) `shouldBe` Terminating (Success (num 2 3))
+        evalInterval 10 [("x", num 0 1)] (app (app add "x") two) `shouldBe` Terminating (Success (num 2 6))
 
     it "should terminate for the non-terminating program" $
       let ?bound = I.Interval 0 5
