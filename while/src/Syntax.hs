@@ -4,16 +4,18 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Syntax where
 
-import Control.Monad.State
+import           Control.Monad.State
 
-import Data.Label
+import           Data.Label
 
-import Data.Text (Text,unpack)
-import Data.Hashable
-import Data.Order
-import Data.String
+import           Data.Text (Text,unpack)
+import           Data.Hashable
+import           Data.Order
+import           Data.String
+import           Data.Lens (Prism')
+import qualified Data.Lens as L
 
-import GHC.Generics
+import           GHC.Generics
 
 data Expr
   = Var Text Label
@@ -145,6 +147,12 @@ while cond body = do
   l <- fresh
   While <$> cond <*> begin body <*> pure l
 
+whileLoops :: Prism' [Statement] ((Expr,Statement,Label),[Statement])
+whileLoops = L.prism' (\((c,b,l),ss) -> While c b l:ss)
+                (\s -> case s of
+                   While c b l:ss -> Just ((c,b,l),ss)
+                   _ -> Nothing)
+
 ifExpr :: State Label Expr -> [State Label Statement] -> [State Label Statement] -> State Label Statement
 ifExpr cond ifBranch elseBranch = If <$> cond <*> begin ifBranch <*> begin elseBranch <*> fresh
 
@@ -163,6 +171,7 @@ instance HasLabel Statement Label where
     Begin _ l -> l
 
 instance Hashable Statement where
+  hashWithSalt s e = s `hashWithSalt` (label e :: Label)
 
 blocks :: [Statement] -> [Statement]
 blocks ss = flip concatMap ss $ \s -> case s of

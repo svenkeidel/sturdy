@@ -13,8 +13,8 @@ import Prelude hiding ((.),read,Maybe(..))
 import Data.Order
 import Data.Identifiable
 import Data.Abstract.Maybe
-import Data.Abstract.WeakMap (Map)
-import qualified Data.Abstract.WeakMap as M
+import Data.Abstract.StrongMap (Map)
+import qualified Data.Abstract.StrongMap as M
 
 import Control.Category
 import Control.Arrow

@@ -125,7 +125,7 @@ spec = do
     it "should succeed when exploding literals" $
       let ?ctx = Ctx.empty in
       let tenv = termEnv [("x", term (List Bottom))]
-      in seval 0 (Match (Explode "_" "x")) numerical `shouldBe` success (tenv, numerical)
+      in seval' 0 (Match (Explode "_" "x")) (S.delete "x" emptyEnv) numerical `shouldBe` success (tenv, numerical)
 
     -- it "should handle inconsistent environments" $ do
     --   let t1 = C.Cons "f" []

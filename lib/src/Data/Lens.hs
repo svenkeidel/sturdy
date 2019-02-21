@@ -45,6 +45,9 @@ type Prism' a b = Prism a a b b
 prism' :: (b -> a) -> (a -> Maybe b) -> Prism' a b
 prism' f g = dimap (\a -> maybe (Left a) Right (g a)) (either id f) . right'
 
+head :: Prism' [a] (a,[a])
+head = prism' (\(a,as) -> a:as) (\xs -> case xs of (a:as) -> Just (a,as); _ -> Nothing)
+
 type Getter r s t a b = Optic (Star (Const r)) s t a b
 get :: Getter a s t a b -> s -> a
 get f = getConst . runStar (f (Star Const))

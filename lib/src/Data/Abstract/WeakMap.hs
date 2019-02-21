@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Abstract.WeakMap(Map,widening,empty,insert,lookup,lookup',delete,delete',deleteIfNotPresent,deleteIfNotPresent',union,fromList,fromList') where
+module Data.Abstract.WeakMap(Map,widening,empty,insert,lookup,lookup',delete,delete',deleteIfNotPresent,deleteIfNotPresent',union,fromList,fromList',toList) where
 
 import           Prelude hiding (lookup)
 
@@ -14,6 +14,7 @@ import qualified Data.Abstract.Maybe as A
 import           Data.Abstract.Widening
 import           Data.Coerce
 import           Data.Hashable
+import           Data.Maybe (mapMaybe)
 
 import           Text.Printf
 
@@ -78,6 +79,9 @@ fromList l = fromList' [ (a,A.Just b) | (a,b) <- l]
 
 fromList' :: Identifiable a => [(a,A.Maybe b)] -> Map a b
 fromList' l = coerce (M.fromList l)
+
+toList :: Map a b -> [(a,b)]
+toList (Map m) = mapMaybe (\(a,mb) -> case mb of A.Just b -> Just (a,b); A.JustNothing b -> Just (a,b); A.Nothing -> Nothing) (M.toList m)
 
 withMap2 :: Coercible c c' => (HashMap a (A.Maybe b) -> HashMap a (A.Maybe b) -> c) -> Map a b -> Map a b -> c'
 withMap2 = coerce

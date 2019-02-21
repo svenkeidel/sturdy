@@ -25,6 +25,9 @@ instance Complete (FreeCompletion Label) where
   Lower l1 ⊔ Lower l2 | l1 == l2 = Lower l1
   _ ⊔ _ = Top
 
+instance UpperBounded (FreeCompletion Label) where
+  top = Top
+
 fresh :: State Label Label
 fresh = state (\l -> (l,l+1))
 

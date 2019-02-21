@@ -9,7 +9,7 @@ import IntervalAnalysis
 
 import Data.Abstract.Interval as I
 import Data.Abstract.Terminating
-import Data.Abstract.Failure
+import Data.Abstract.Error
 import Data.Abstract.Boolean(Bool(..))
 
 import Test.Hspec

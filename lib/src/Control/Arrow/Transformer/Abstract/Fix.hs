@@ -14,7 +14,6 @@ import           Prelude hiding (id,(.),const,head,iterate)
 import           Control.Category
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Deduplicate
-import           Control.Arrow.Const
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
@@ -41,7 +40,7 @@ import           Debug.Trace
 import           Text.Printf
 #endif
 
-type Cache a b = HashMap a b
+type Cache a b = HashMap a (Stable,b)
 type Component a = HashSet a
 type Print a = a -> String
 data Constant s a b = Constant
@@ -65,15 +64,15 @@ instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFi
   fix f = FixT $ stackWiden'
       (let iterate = proc (x,x') -> do
              -- If we are not in a loop, continue recursing.
-             (y,(member,head)) <- unFixT (f (fix f)) &&& inComponent -< x'
+             (y,member) <- unFixT (f (fix f)) &&& inComponent -< x'
              if member
                then do
                  (stable,yNew) <- updateCache -< (x',y)
                  
                  -- If we did not reach a fixpoint of f(x'), keep iterating.
-                 if head && not stable
-                   then iterate -< (x,x')
-                   else returnA -< yNew
+                 case stable of
+                   Instable -> iterate -< (x,x')
+                   Stable   -> returnA -< yNew
                else returnA -< y
        in iterate)
 
@@ -147,15 +146,15 @@ stackWiden' (ConstT (StaticT f)) (ConstT (StaticT g)) =
        (local (f c) ||| g c)
 
 initializeCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => c a b
-initializeCache = modifyCache (\x -> insertWithLookup (\_ old -> old) x bottom)
+initializeCache = modifyCache (\x -> first snd . insertWithLookup (\_ old -> old) x (Instable,bottom))
 
-updateCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => ConstT (Constant s a b) c (a,b) (Bool,b)
+updateCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => ConstT (Constant s a b) c (a,b) (Stable,b)
 updateCache = constT $ \c -> modifyCache $ \(x,y) cache -> case M.lookup x cache of
-  Just yOld -> let (s,yNew) = widening c yOld y in ((s == Stable,yNew),M.insert x yNew cache)
-  Nothing   -> ((False,y),M.insert x y cache)
+  Just (_,yOld) -> let yNew = widening c yOld y in (yNew,M.insert x yNew cache)
+  Nothing   -> ((Instable,y),M.insert x (Instable,y) cache)
 
-inComponent :: (Identifiable a, Arrow c, Profunctor c, ArrowState (Cache a b,Component a) c) => c a (Bool,Bool)
-inComponent = modifyComp $ \x comp -> ((not (H.null comp) && H.member x comp, H.singleton x == comp), H.delete x comp)
+inComponent :: (Identifiable a, Arrow c, Profunctor c, ArrowState (Cache a b,Component a) c) => c a (Bool)
+inComponent = modifyComp $ \x comp -> ((not (H.null comp) && H.member x comp), H.delete x comp)
 
 addToComponent :: (Identifiable a,ArrowState (Cache a b,Component a) c) => c a ()
 addToComponent = modifyComp (\x comp -> ((),H.insert x comp))

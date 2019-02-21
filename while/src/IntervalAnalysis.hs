@@ -1,16 +1,17 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 module IntervalAnalysis where
 
@@ -23,23 +24,25 @@ import qualified GenericInterpreter as Generic
 
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
-import           Data.Abstract.Failure (Failure(..))
 import qualified Data.Abstract.Failure as F
+import           Data.Abstract.Error (Error(..))
+import qualified Data.Abstract.Error as E
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
-import           Data.Abstract.Map (Map)
+import qualified Data.Abstract.StrongMap as SM
 import qualified Data.Abstract.Map as M
 import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening (Widening)
 import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Abstract.InfiniteNumbers
-import           Data.Monoidal (Iso(..))
+import           Data.Abstract.DiscretePowerset (Pow)
 import qualified Data.Abstract.Widening as W
 import qualified Data.Abstract.StackWidening as S
 import qualified Data.Abstract.Ordering as O
 import qualified Data.Abstract.Equality as E
 
+import qualified Data.Lens as L
 import           Data.Profunctor
 import qualified Data.Boolean as B
 import           Data.Hashable
@@ -60,23 +63,24 @@ import           Control.Arrow.Store
 import           Control.Arrow.Abstract.Join
 
 import           Control.Arrow.Transformer.Abstract.Environment
-import           Control.Arrow.Transformer.Abstract.Failure
+import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
 
+import           GHC.Exts(IsString(..))
 import           GHC.Generics
 
 type Addr = FreeCompletion Label
 type IV = Interval (InfiniteNumber Int)
 data Val = BoolVal Bool | NumVal IV | Top deriving (Eq,Generic)
 
-run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Failure String (Map Addr Val))
+run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
 run k env ss =
   fmap fst <$>
     runFixT stackWiden widenTerm
       (runTerminatingT
-        (runFailureT
+        (runErrorT
            (runStoreT
              (runEnvT
                (runIntervalT
@@ -85,19 +89,22 @@ run k env ss =
                      (IntervalT
                        (EnvT Text Addr
                          (StoreT Addr Val
-                           (FailureT String
+                           (ErrorT (Pow String)
                              (TerminatingT
                                (FixT _ () () (->))))))) [Statement] ()))))))
-      (M.empty,(M.fromList env, generate <$> ss))
+      (M.empty,(SM.fromList env, generate <$> ss))
 
   where
-    widenVal = widening (W.bounded ?bound top)
-    widenTerm = T.widening $ F.widening (M.widening widenVal W.** W.finite)
-    stackWiden = S.categorize (Iso (\(store,(ev,stmts)) -> ((ev,stmts),store)) (\((ev,stmts),store) -> (store,(ev,stmts))))
+    widenVal = widening (W.bounded ?bound I.widening)
+
+    widenTerm = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
+
+    stackWiden = S.filter' (L.second (L.second whileLoops))
+               $ S.groupBy (L.iso (\(store,(ev,stmts)) -> (stmts,(ev,store))) (\(stmts,(ev,store)) -> (store,(ev,stmts))))
                $ S.stack
                $ S.maxSize k
-               $ S.reuse (\_ l -> head l)
-               $ S.fromWidening (M.widening widenVal)
+               $ S.reuseFirst
+               $ S.fromWidening (SM.widening W.finite W.** M.widening widenVal)
 
 newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
@@ -106,7 +113,7 @@ deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
 instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (IntervalT c) where
   alloc = arr $ \(_,_,l) -> return l
 
-instance (ArrowChoice c, ArrowFail String c, ArrowJoin c) => IsVal Val (IntervalT c) where
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (IntervalT c) where
   boolLit = arr $ \(b,_) -> case b of
     P.True -> BoolVal B.True
     P.False -> BoolVal B.False
@@ -137,8 +144,8 @@ instance (ArrowChoice c, ArrowFail String c, ArrowJoin c) => IsVal Val (Interval
     _                          -> fail -< "Expected two numbers as arguments for 'mul'"
   div = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> case n1 / n2 of
-      Fail e     -> fail -< e
-      Success n3 -> returnA -< NumVal n3
+      F.Fail e     -> fail -< (fromString e)
+      F.Success n3 -> returnA -< NumVal n3
     _ | v1 == Top || v2 == Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected two numbers as arguments for 'mul'")
     _                          -> fail -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2,_) -> case (v1,v2) of
@@ -151,7 +158,7 @@ instance (ArrowChoice c, ArrowFail String c, ArrowJoin c) => IsVal Val (Interval
     _ | v1 == Top || v2 == Top -> (returnA -< BoolVal top) <⊔> (fail -< "Expected two numbers as arguments for 'lt'")
     _                          -> fail -< "Expected two numbers as arguments for 'lt'"
 
-instance (ArrowChoice c,ArrowFail String c, ArrowJoin c) => ArrowCond Val (IntervalT c) where
+instance (IsString e, ArrowChoice c,ArrowFail e c, ArrowJoin c) => ArrowCond Val (IntervalT c) where
   type Join (IntervalT c) (x,y) z = Complete z
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True  -> f1 -< x
@@ -173,13 +180,14 @@ instance UpperBounded Val where
   top = Top
 
 instance Complete Val where
-  (⊔) = widening (⊔)
+  (⊔) = W.toJoin widening (⊔)
 
 widening :: Widening IV -> Widening Val
 widening w v1 v2 = case (v1,v2) of
-  (BoolVal b1,BoolVal b2) -> BoolVal (b1 ⊔ b2)
-  (NumVal n1,NumVal n2) -> NumVal (n1 `w` n2)
-  (_,_) -> Top
+  (BoolVal b1,BoolVal b2) -> second BoolVal (B.widening b1 b2)
+  (NumVal n1,NumVal n2) -> second NumVal (n1 `w` n2)
+  (Top,Top) -> (W.Stable,Top)
+  (_,_) -> (W.Instable,Top)
 
 instance Show Val where
   show (NumVal iv) = show iv

@@ -18,11 +18,12 @@ import           Syntax
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
-import           Data.Abstract.Failure (Failure(..))
-import           Data.Abstract.Map (Map)
+import           Data.Abstract.Error (Error(..))
 import qualified Data.Abstract.Map as M
+import qualified Data.Abstract.StrongMap as SM
 import           Data.Abstract.Terminating
 import           Data.Abstract.FreeCompletion(FreeCompletion)
+import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Widening as W
 
@@ -43,7 +44,7 @@ import           Control.Arrow.Random
 import           Control.Arrow.Abstract.Join
 
 import           Control.Arrow.Transformer.Abstract.Environment
-import           Control.Arrow.Transformer.Abstract.Failure
+import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -52,12 +53,12 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 type Addr = FreeCompletion Label
 type Val = ()
 
-run :: [(Text,Addr)] -> [LStatement] -> Terminating (Failure String (Map Addr Val))
+run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
 run env ss =
   fmap fst <$>
     runFixT SW.finite W.finite
       (runTerminatingT
-         (runFailureT
+         (runErrorT
            (runStoreT
              (runEnvT
                (runUnitT
@@ -66,10 +67,10 @@ run env ss =
                      (UnitT
                        (EnvT Text Addr
                          (StoreT Addr Val
-                           (FailureT String
+                           (ErrorT (Pow String)
                              (TerminatingT
                                (FixT _ () () (->))))))) [Statement] ()))))))
-      (M.empty,(M.fromList env,generate <$> ss))
+      (M.empty,(SM.fromList env,generate <$> ss))
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)

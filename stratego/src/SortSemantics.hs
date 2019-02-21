@@ -204,11 +204,11 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
 
   matchTermAgainstExplode matchCons matchSubterms = proc t -> case t of
     _ | isLexical t -> do
-      matchSubterms -< convertToList [] (context t)
-      returnA -< t
-    Term Numerical ctx -> do
-      matchSubterms -< convertToList [] ctx
-      returnA -< t
+        matchSubterms -< convertToList [] (context t)
+        returnA -< t
+      | isNumeric t -> do
+        matchSubterms -< convertToList [] (context t)
+        returnA -< t
     Term _ ctx -> do
       matchCons -< Term Lexical ctx
       matchSubterms -< Term (List Top) ctx
