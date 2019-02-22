@@ -42,7 +42,7 @@ import qualified Debug.Trace as Debug
 type StackWidening s a = s a -> a -> (s a,(Loop,a))
 
 -- | Datatype that signals that we are in a loop.
-data Loop = Loop | NoLoop deriving (Show,Eq)
+data Loop = NoLoop | MaybeLoop | Loop deriving (Show,Eq)
 
 data Unit a = Unit deriving (Show)
 instance Semigroup (Unit a) where (<>) = mappend
@@ -52,10 +52,10 @@ instance Monoid (Unit a) where
 
 -- | Trivial stack widening if the abstract domain is finite.
 finite :: StackWidening Unit a
-finite u a = (u,(NoLoop,a))
+finite u a = (u,(MaybeLoop,a))
 
 finite' :: StackWidening s a
-finite' u a = (u,(NoLoop,a))
+finite' u a = (u,(MaybeLoop,a))
 
 filter :: (a -> Bool) -> StackWidening s a -> StackWidening s a
 filter pred widen s a
@@ -95,14 +95,14 @@ trace showA widening s x = Debug.trace (showA s x) (widening s x)
 -- is reached, then call the fallback widening.
 maxSize :: Int -> StackWidening Stack a -> StackWidening Stack a
 maxSize limit fallback s@(Stack n _) x
-  | n < limit = (s,(NoLoop,x))
+  | n < limit = (s,(MaybeLoop,x))
   | otherwise = fallback s x
 
 -- | Reuses an element from the stack. If no such elements exists, the
 -- fallback widening is called.
 reuse :: (a -> [a] -> Maybe a) -> StackWidening Stack a -> StackWidening Stack a
 reuse choice fallback s@(Stack _ st) x
-  | null st   = (s,(NoLoop,x))
+  | null st   = (s,(MaybeLoop,x))
   | otherwise = case choice x st of
      Just x' -> (s,(Loop,x'))
      Nothing -> fallback s x
@@ -127,9 +127,9 @@ groupBy f widen (Groups m) a =
 
 fromWidening :: Complete a => Widening a -> StackWidening Stack a
 fromWidening w s@(Stack _ l) a = case l of
-  []  -> (s,(NoLoop,a))
+  []  -> (s,(MaybeLoop,a))
   x:_ -> let (stable,x') = x `w` (x ⊔ a)
-         in (s,(case stable of Stable -> Loop; Instable -> NoLoop,x'))
+         in (s,(case stable of Stable -> Loop; Instable -> MaybeLoop,x'))
 
 data Product s1 s2 x where
   Product :: s1 a -> s2 b -> Product s1 s2 (a,b)
@@ -154,17 +154,19 @@ topOut' t = topOut'' (const t)
 
 topOut'' :: Eq a => (a -> a) -> StackWidening Stack a
 topOut'' f s@(Stack _ st) x = case st of
-  []                -> (s,(NoLoop,x))
-  (l:_) | l /= f x  -> (s,(NoLoop,f x))
+  []                -> (s,(MaybeLoop,x))
+  (l:_) | l /= f x  -> (s,(MaybeLoop,f x))
         | otherwise -> (s,(Loop,f x))
 
 instance PreOrd Loop where
-  NoLoop ⊑ NoLoop = True
+  NoLoop ⊑ MaybeLoop = True
+  MaybeLoop ⊑ Loop = True
   NoLoop ⊑ Loop = True
-  Loop ⊑ Loop = True
-  _ ⊑ _ = False
+  x ⊑ y = x == y
 
 instance Complete Loop where
   NoLoop ⊔ l = l
   l ⊔ NoLoop = l
-  Loop ⊔ Loop = Loop
+  Loop ⊔ _ = Loop
+  _ ⊔ Loop = Loop
+  MaybeLoop ⊔ MaybeLoop = MaybeLoop

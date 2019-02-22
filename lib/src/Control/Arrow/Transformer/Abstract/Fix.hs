@@ -40,6 +40,9 @@ import           Debug.Trace
 import           Text.Printf
 #endif
 
+newtype FixT s a b c x y = FixT { unFixT :: ConstT (Constant s a b) (ReaderT (s a) (StateT (Cache a b, Component a) c)) x y }
+  deriving (Profunctor,Category,Arrow,ArrowChoice)
+
 type Cache a b = HashMap a (Stable,b)
 type Component a = HashSet a
 type Print a = a -> String
@@ -49,9 +52,6 @@ data Constant s a b = Constant
   , stackWidening :: StackWidening s a
   , widening :: Widening b
   }
-newtype FixT s a b c x y = FixT { unFixT :: ConstT (Constant s a b) (ReaderT (s a) (StateT (Cache a b, Component a) c)) x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice)
-type instance Fix x y (FixT s () () c) = FixT s x y c
 
 runFixT :: (Identifiable a, PreOrd b, Monoid (s a),ArrowChoice c, Profunctor c) => StackWidening s a -> Widening b -> FixT s a b c x y -> c x y
 runFixT = runFixT' (error "use runFixT'") (error "use runFixT'")
@@ -59,11 +59,18 @@ runFixT = runFixT' (error "use runFixT'") (error "use runFixT'")
 runFixT' :: (Identifiable a, PreOrd b, Monoid (s a),ArrowChoice c, Profunctor c) => Print (a,a) -> Print b -> StackWidening s a -> Widening b -> FixT s a b c x y -> c x y
 runFixT' pa pb sw w f = dimap (\x -> ((M.empty,H.empty),(mempty,x))) snd $ runStateT $ runReaderT $ runConstT (Constant pa pb sw w) $ unFixT f
 
+type instance Fix x y (FixT s () () c) = FixT s x y c
 #ifndef TRACE
 instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFix a b (FixT s a b c) where
-  fix f = FixT $ stackWiden'
+  fix f = FixT $
+    stackWiden
+      -- If there is no loop, keep recursing.
+      (unFixT (f (fix f)))
+
+      -- If we may be in a loop, continue recursing and check
+      -- afterwards if the cached value has stabilized, otherwise keep
+      -- iterating.
       (let iterate = proc (x,x') -> do
-             -- If we are not in a loop, continue recursing.
              (y,member) <- unFixT (f (fix f)) &&& inComponent -< x'
              if member
                then do
@@ -83,7 +90,7 @@ instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFi
 #else
 
 instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFix a b (FixT s a b c) where
-  fix f = FixT $ stackWiden'
+  fix f = FixT $ stackWiden
       (let iterate = proc (x,x') -> do
              c <- askConst -< ()
              -- If we are not in a loop, continue recursing.
@@ -134,19 +141,23 @@ instance (Arrow c, Profunctor c) => ArrowDeduplicate x y (FixT s a b c) where
   dedup f = f
 
 ----- Helper functions -----
-stackWiden' :: (ArrowReader (s a) c,ArrowChoice c) => ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c a b
-stackWiden' (ConstT (StaticT f)) (ConstT (StaticT g)) =
+stackWiden :: (ArrowReader (s a) c,ArrowChoice c) => ConstT (Constant s a b) c a b -> ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c a b
+stackWiden (ConstT (StaticT f)) (ConstT (StaticT g)) (ConstT (StaticT h)) =
   constT $ \c -> 
        rmap (\(s,x) -> let ~(s',(l,x')) = stackWidening c s x
                        in case l of
-                           NoLoop -> Left (s',(x,x'))
-                           Loop   -> Right (x,x')
+                           NoLoop    -> Left (s',x')
+                           MaybeLoop -> Right (Left (s',(x,x')))
+                           Loop      -> Right (Right (x,x'))
             ) (const ask &&& id)
        >>>
-       (local (f c) ||| g c)
+       (local (f c) ||| local (g c) ||| h c)
 
 initializeCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => c a b
 initializeCache = modifyCache (\x -> first snd . insertWithLookup (\_ old -> old) x (Instable,bottom))
+
+lookupCache ::  (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => c a (Maybe (Stable,b))
+lookupCache = modifyCache (\x m -> (M.lookup x m,m))
 
 updateCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => ConstT (Constant s a b) c (a,b) (Stable,b)
 updateCache = constT $ \c -> modifyCache $ \(x,y) cache -> case M.lookup x cache of
