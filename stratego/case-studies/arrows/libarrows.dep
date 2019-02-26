@@ -1,3 +1,2 @@
 libarrows: \
-	./haskell.str \
 	./arrows.str

@@ -53,7 +53,7 @@ signature
     PatBind          : Qvar * Pat -> FPat
     LabeledPats      : List(FPat) -> LabeledPat
     Irrefutable      : APat -> APat
-    List             : List(Pat) -> APat
+    ListPat          : List(Pat) -> APat
     Tuple            : Pat * List(Pat) -> APat
                      : Pat -> APat
     Wildcard         : APat
