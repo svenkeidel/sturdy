@@ -6,7 +6,7 @@ import           Prelude hiding (exp)
 
 import           SortSemantics -- hiding (sortContext)
 import           Syntax hiding (Fail)
-import           CaseStudy
+import qualified CaseStudy
 
 import           SortContext(Context,Sort(..))
 import qualified SortContext as Ctx
@@ -20,7 +20,7 @@ import           Criterion.Main
 
 main :: IO ()
 main = do
-  pcf <- pcfCaseStudy
+  pcf <- CaseStudy.pcf
   defaultMain [
       bgroup "Sort Semantics" [
         bench "reduce Add(Zero,y)" $

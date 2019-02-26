@@ -33,7 +33,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Abstract.Completion
 import           Control.Arrow.Transformer.Abstract.Except
-import           Control.Arrow.Transformer.Abstract.Failure
+import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Terminating
 
@@ -55,8 +55,8 @@ import           Data.Abstract.FreeCompletion (FreeCompletion(Lower,Top))
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except (Except)
 import qualified Data.Abstract.Except as E
-import           Data.Abstract.Failure (Failure)
-import qualified Data.Abstract.Failure as F
+import           Data.Abstract.Error (Error)
+import qualified Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as AM
 import           Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as S
@@ -64,6 +64,7 @@ import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (Terminating,fromTerminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening as W
+import           Data.Abstract.DiscretePowerset(Pow)
 
 import qualified Test.QuickCheck as Q
 import           Text.Printf
@@ -83,18 +84,18 @@ type Interp s a b =
       (ReaderT StratEnv
         (StateT TermEnv
           (ExceptT ()
-            (FailureT String
+            (ErrorT (Pow String)
               (CompletionT
                 (TerminatingT
                   (FixT s () ()
                     (->))))))))) a b
 
-runInterp :: Interp _ a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Failure String (Except () (TermEnv, b))))
+runInterp :: Interp _ a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv, b))))
 runInterp f i senv0 tenv0 a =
   runFixT stackWidening (T.widening grammarWidening)
     (runTerminatingT
       (runCompletionT
-        (runFailureT
+        (runErrorT
           (runExceptT
             (runStateT
               (runReaderT
@@ -109,9 +110,9 @@ runInterp f i senv0 tenv0 a =
                   $ SW.maxSize i
                   $ SW.fromWidening (widening W.** S.widening widening)
 
-    grammarWidening = Free.widening (F.widening (E.widening (\_ _ -> (Stable,())) (S.widening widening W.** widening)))
+    grammarWidening = Free.widening (F.widening W.finite (E.widening (\_ _ -> (Stable,())) (S.widening widening W.** widening)))
 
-eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Failure String (Except () (TermEnv, Term))))
+eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv, Term))))
 eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
@@ -194,7 +195,7 @@ instance (ArrowJoin c, ArrowExcept () c, ArrowChoice c, Profunctor c, LowerBound
            cons -< (Constructor c,ts')
          _ -> throw -< ()) |) (coerce (toSubterms g))
 
-  matchTermAgainstExplode _ _ = undefined
+  matchTermAgainstExplode _ _ = error "unsupported"
 
   matchTermAgainstNumber = proc (n,Term g) -> matchLit -< (normalize (epsilonClosure g), NumLit n)
   matchTermAgainstString = proc (s,Term g) -> matchLit -< (normalize (epsilonClosure g), StringLit s)
@@ -204,7 +205,8 @@ instance (ArrowJoin c, ArrowExcept () c, ArrowChoice c, Profunctor c, LowerBound
       | isSingleton (normalize (epsilonClosure g1)) && isSingleton (normalize (epsilonClosure g2)) -> returnA -< Term g
       | otherwise -> (returnA -< Term g) <⊔> (throw -< ())
 
-  convertFromList = undefined
+  convertFromList = error "unsupported"
+
 
   mapSubterms f = proc (Term g) ->
     (| joinList (bottom -< ()) (\(c,ts) -> case c of
@@ -251,13 +253,13 @@ instance Galois (C.Pow C.Term) Term where
 instance Galois (C.Pow C.TermEnv) TermEnv where
   alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (LM.toList (fmap alphaSing e)))
   gamma = undefined
-          
+
 sound :: (Identifiable b1, Show b2, Complete b2, Galois (C.Pow a1) a2, Galois (C.Pow b1) b2)
       => StratEnv -> C.Pow (a1, C.TermEnv) -> C.Interp a1 b1 -> Interp _ a2 b2 -> Q.Property
 sound senv xs f g = Q.forAll (Q.choose (2,3)) $ \i ->
-  let con :: FreeCompletion (Failure String (Except () (TermEnv,_)))
+  let con :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
       con = Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
-      abst :: FreeCompletion (Failure String (Except () (TermEnv,_)))
+      abst :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
       -- TODO: using fromTerminating is a bit of a hack...
       abst = fromTerminating Top $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
   in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst

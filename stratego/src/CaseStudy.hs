@@ -7,8 +7,14 @@ import qualified Data.ATerm as A
 import           Paths_sturdy_stratego
 import           Text.Printf
 
-pcfCaseStudy :: IO Module
-pcfCaseStudy = caseStudy "pcf"
+pcf :: IO Module
+pcf = caseStudy "pcf"
+
+nnf :: IO Module
+nnf = caseStudy "nnf"
+
+arrows :: IO Module
+arrows = caseStudy "arrows"
 
 caseStudy :: String -> IO Module
 caseStudy name = do

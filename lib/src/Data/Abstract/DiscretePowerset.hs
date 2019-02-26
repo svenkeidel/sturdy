@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Data.Abstract.DiscretePowerset where
 
 import           Control.DeepSeq
@@ -14,6 +15,8 @@ import           Data.List (intercalate)
 import           Data.Abstract.Widening
 import           Data.Abstract.FreeCompletion (FreeCompletion)
 import qualified Data.Abstract.FreeCompletion as F
+import           Data.GaloisConnection
+import qualified Data.Concrete.Powerset as C
 
 import           GHC.Generics
 import           GHC.Exts
@@ -92,3 +95,8 @@ instance Identifiable x => IsList (Pow x) where
 
 instance (IsString x, Identifiable x) => IsString (Pow x) where
   fromString s = Pow (H.singleton (fromString s))
+
+instance Identifiable a => Galois (C.Pow a) (Pow a) where
+  alpha xs = Pow (C.toHashSet xs)
+  gamma = fromList . toList
+  

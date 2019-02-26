@@ -4,17 +4,14 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ConcreteSemanticsSpec(main, spec) where
 
-import           Prelude hiding (map)
+import           Prelude hiding (map,or,and,error)
 
 import           ConcreteSemantics
-import           Syntax hiding (Fail,TermPattern(..))
+import           Syntax hiding (Fail,TermPattern(..),StringLiteral)
 import qualified Syntax as T
-
-import           Paths_sturdy_stratego
 
 import           Control.Monad
 
-import           Data.ATerm
 import           Data.Concrete.Error as E
 import           Data.Concrete.Error as F
 import           Data.Term (TermUtils(..))
@@ -24,16 +21,10 @@ import           Test.Hspec
 import           Test.Hspec.QuickCheck
 import           Test.QuickCheck hiding (Success,output)
 
-import qualified Data.Text.IO as TIO
+import qualified CaseStudy
 
 main :: IO ()
 main = hspec spec
-
-success :: a -> Error String (Error () a)
-success a = F.Success $ E.Success a
-
-uncaught :: () -> Error String (Error () a)
-uncaught = F.Success . E.Fail
 
 spec :: Spec
 spec = do
@@ -42,7 +33,7 @@ spec = do
     it "should hide declare variables" $ do
       let tenv = termEnv [("x", term1)]
       eval (Scope ["x"] (Build "x")) M.empty tenv term2 
-        `shouldBe` uncaught ()
+        `shouldBe` error "unbound term variable x in build statement !x"
       eval (Scope ["x"] (Match "x")) M.empty tenv term2
         `shouldBe` success (tenv,term2)
 
@@ -110,33 +101,6 @@ spec = do
       eval (Build (T.Var "x")) M.empty tenv t `shouldBe`
         success (tenv,t)
 
-  describe "Case Studies" $ describe "Haskell Arrows" $ beforeAll parseArrowCaseStudy $ do
-
-    it "union should work" $ \module_ -> do
-      let l1 = convertToList [1,2,3,4]
-          l2 = convertToList [2,4]
-          t = tup l1 l2
-          tenv = termEnv []
-      eval (Call "union_0_0" [] []) (stratEnv module_) tenv t
-        `shouldBe`
-           success (tenv, convertToList [1,3,2,4])
-
-    it "concat should work" $ \module_ ->
-      let l = convertToList (fmap convertToList [[1,2,3],[4,5],[],[6]])
-          tenv = termEnv []
-      in eval (Call "concat_0_0" [] []) (stratEnv module_) tenv l
-        `shouldBe`
-           success (tenv, convertToList [1,2,3,4,5,6])
-
-    it "free-pat-vars should work" $ \module_ ->
-      let var x = Cons "Var" [x]
-          tuple x y = Cons "Tuple" [x,convertToList y]
-          t = tuple (tuple (var "a") [var "b"])
-                    [tuple (var "c") [var "a"]]
-          tenv = termEnv []
-      in eval (Call "free_pat_vars_0_0" [] []) (stratEnv module_) tenv t
-          `shouldBe`
-             success (tenv, convertToList [var "b", var "c", var "a"])
 
   describe "simplify arithmetics" $ do
     it "reduce Add(Zero,y)" $
@@ -202,6 +166,55 @@ spec = do
       let reduce3 = Match (T.Cons "Double" ["x"]) `Seq` Build (T.Cons "Add" ["x", "x"]) in
       eval (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) M.empty (termEnv []) input `shouldBe` success (termEnv [("x", Cons "Add" [Cons "One" [], Cons "One" []])], output)
 
+  describe "Case Studies" $ do
+    describe "Haskell Arrows" $ beforeAll CaseStudy.arrows $ do
+
+      it "union should work" $ \arrows -> do
+        let l1 = convertToList [1,2,3,4]
+            l2 = convertToList [2,4]
+            t = tup l1 l2
+            tenv = termEnv []
+        eval (Call "union_0_0" [] []) (stratEnv arrows) tenv t
+          `shouldBe`
+             success (tenv, convertToList [1,3,2,4])
+
+      it "concat should work" $ \arrows ->
+        let l = convertToList (fmap convertToList [[1,2,3],[4,5],[],[6]])
+            tenv = termEnv []
+        in eval (Call "concat_0_0" [] []) (stratEnv arrows) tenv l
+          `shouldBe`
+             success (tenv, convertToList [1,2,3,4,5,6])
+
+      it "free-pat-vars should work" $ \arrows ->
+        let var x = Cons "Var" [x]
+            tuple x y = Cons "Tuple" [x,convertToList y]
+            t = tuple (tuple (var "a") [var "b"])
+                      [tuple (var "c") [var "a"]]
+            tenv = termEnv []
+        in eval (Call "free_pat_vars_0_0" [] []) (stratEnv arrows) tenv t
+            `shouldBe`
+               success (tenv, convertToList [var "b", var "c", var "a"])
+
+    describe "NNF" $ beforeAll CaseStudy.nnf $ do
+      let neg t = Cons "Neg" [t]
+          or t1 t2 = Cons "Or" [t1,t2]
+          and t1 t2 = Cons "And" [t1,t2]
+          atom s = Cons "Atom" [StringLiteral s]
+      it "¬((φ ∧ ψ) ∨ θ) =  (¬φ ∨ ¬ψ) ∧ ¬θ" $ \nnf ->
+        let t = neg (or (and (atom "φ") (atom "ψ")) (atom "θ"))
+            t' = and (or (neg (atom "φ")) (neg (atom "ψ"))) (neg (atom "θ"))
+            tenv = termEnv []
+        in eval (Call "main_0_0" [] []) (stratEnv nnf) tenv t
+             `shouldBe` success (tenv, t')
+
+      it "¬(¬(φ ∧ ψ) ∨ θ) = (φ ∧ ψ) ∧ ¬θ" $ \nnf ->
+        let t = neg (or (neg (and (atom "φ") (atom "ψ"))) (atom "θ"))
+            t' = and (and (atom "φ") (atom "ψ")) (neg (atom "θ"))
+            tenv = termEnv []
+        in eval (Call "main_0_0" [] []) (stratEnv nnf) tenv t
+             `shouldBe` success (tenv, t')
+
+
   where
 
     map = Strategy ["f"] ["l"] (Scope ["x","xs","x'","xs'"] (
@@ -221,10 +234,13 @@ spec = do
     term1 = NumberLiteral 1
     term2 = NumberLiteral 2
 
-    parseArrowCaseStudy = do
-      file <- TIO.readFile =<< getDataFileName "case-studies/arrows/arrows.aterm"
-      case parseModule =<< parseATerm file of
-        Left e -> fail (show e)
-        Right module_ -> return module_
-
     tup x y = Cons "" [x,y]
+
+    success :: a -> Error String (Error () a)
+    success a = F.Success $ E.Success a
+
+    error :: String -> Error String a
+    error = F.Fail
+    
+    uncaught :: () -> Error String (Error () a)
+    uncaught = F.Success . E.Fail

@@ -32,6 +32,7 @@ data-files:
   - case-studies/arith/arith.aterm
   - case-studies/cca/cca.aterm
   - case-studies/go2js/go2js.aterm
+  - case-studies/nnf/nnf.aterm
 
 library:
   source-dirs:

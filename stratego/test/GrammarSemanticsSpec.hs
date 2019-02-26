@@ -2,6 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module GrammarSemanticsSpec(main, spec) where
 
+import           Prelude hiding (error)
+
 import qualified ConcreteSemantics as C
 import           GrammarSemantics
 import           SharedSemantics
@@ -13,7 +15,8 @@ import           Control.Arrow
 import           Data.ATerm
 import           Data.Abstract.FreeCompletion
 import           Data.Abstract.Except as E
-import           Data.Abstract.Failure as F
+import           Data.Abstract.Error as F
+import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.Map as S
 import           Data.Abstract.Terminating (fromTerminating)
 import qualified Data.Concrete.Powerset as C
@@ -32,20 +35,12 @@ import           Test.Hspec.QuickCheck
 import           Test.QuickCheck hiding (Success)
 
 import           Text.Printf
+import           GHC.Exts(IsString(..))
 
 import           TreeAutomata
 
 main :: IO ()
 main = hspec spec
-
-success :: a -> Failure String (Except () a)
-success a = F.Success $ E.Success a
-
-successOrFail :: () -> a -> Failure String (Except () a)
-successOrFail () a = F.Success $ E.SuccessOrFail () a
-
-uncaught :: () -> Failure String (Except () a)
-uncaught = F.Success . E.Fail
 
 spec :: Spec
 spec = do
@@ -120,13 +115,14 @@ spec = do
       in geval 1 (Match (Cons "Succ" ["x"])) (termEnv []) (Term g) `shouldBe`
         Lower (success (termEnv [("x", Term g')], Term g))
 
-    it "should introduce one variable 2" $
+    it "should introduce one variable 2" $ do
+      pendingWith "unsupported"
       let g = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
                                        ,("S1", [ Ctor (Constr "Succ") [ "S2" ] ])
                                        ,("S2", [ Ctor (Constr "Zero") [] ])])
           g' = grammar "S0" (M.fromList [("S0", [ Ctor (Constr "Succ") [ "S1" ] ])
                                         ,("S1", [ Ctor (Constr "Zero") [] ])])
-      in geval 10 (Match (Cons "Succ" ["x"])) (termEnv []) (Term g) `shouldBe`
+      geval 10 (Match (Cons "Succ" ["x"])) (termEnv []) (Term g) `shouldBe`
         Lower (success (termEnv [("x", Term g')], Term g))
 
     it "should introduce multiple variables and support linear pattern matching" $ do
@@ -154,7 +150,7 @@ spec = do
       sound' (Match "x") [(t1, [("x", t1)]), (t2, [("y", t2)])]
 
     prop "should be sound" $ do
-      [t1,t2,t3] <- C.similarTerms 3 7 2 10
+      ~[t1,t2,t3] <- C.similarTerms 3 7 2 10
       matchPattern <- C.similarTermPattern t1 3
       return $ counterexample
                  (printf "pattern: %s\n %s ⊔ %s = %s"
@@ -241,7 +237,7 @@ spec = do
                                                                ,("S3", [ Ctor (Constr "Zero") []])]))
 
     prop "should be sound" $ do
-      [t1,t2,t3] <- C.similarTerms 3 7 2 10
+      ~[t1,t2,t3] <- C.similarTerms 3 7 2 10
       matchPattern <- C.similarTermPattern t1 3
       let vars = termVars matchPattern :: Set TermVar
       buildPattern <- arbitraryTermPattern 5 2 (if not (null vars) then elements (toList vars) else arbitrary)
@@ -255,7 +251,7 @@ spec = do
     it "should hide declared variables" $ do
       let tenv = termEnv [("x", numberGrammar 42)]
       geval 1 (Scope ["x"] (Build "x")) tenv (numberGrammar 42) `shouldBe`
-        Lower (uncaught ())
+        Lower (error "unbound term variable x in build statement !x")
       geval 2 (Scope ["x"] (Match "x")) tenv (numberGrammar 42) `shouldBe`
         Lower (success (tenv, numberGrammar 42))
 
@@ -331,21 +327,21 @@ spec = do
       geval' 12 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
         `shouldBe` Lower (success (tenv', Term t'))
 
-    prop "should be sound" $ do
-      i <- choose (0,10)
-      j <- choose (0,10)
-      l <- C.similarTerms i 7 2 10
-      let (l1,l2) = splitAt j l
-      let t1 = convertToList l1
-      let t2 = convertToList l2
-      return $ counterexample (printf "t: %s\n" (showLub t1 t2))
-             $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
+    -- prop "should be sound" $ do
+    --   i <- choose (0,10)
+    --   j <- choose (0,10)
+    --   l <- C.similarTerms i 7 2 10
+    --   let (l1,l2) = splitAt j l
+    --   let t1 = convertToList l1
+    --   let t2 = convertToList l2
+    --   return $ counterexample (printf "t: %s\n" (showLub t1 t2))
+    --          $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
 
   where
-    geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> FreeCompletion (Failure String (Except () (TermEnv, Term)))
+    geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> FreeCompletion (Error (Pow String) (Except () (TermEnv, Term)))
     geval' i strat senv tenv g = fromTerminating Top $ eval i strat senv tenv g
 
-    geval :: Int -> Strat -> TermEnv -> Term -> FreeCompletion (Failure String (Except () (TermEnv, Term)))
+    geval :: Int -> Strat -> TermEnv -> Term -> FreeCompletion (Error (Pow String) (Except () (TermEnv, Term)))
     geval i strat tenv g = geval' i strat LM.empty tenv g
 
     sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
@@ -395,3 +391,15 @@ spec = do
                                         Match "xs'" `Seq`
                                         Build (Cons "Cons" ["x'", "xs'"]))
                                       (Build (Cons "Nil" []))))
+
+    error :: String -> Error (Pow String) a
+    error = F.Fail . fromString
+
+    success :: a -> Error (Pow String) (Except () a)
+    success a = F.Success $ E.Success a
+    
+    successOrFail :: () -> a -> Error (Pow String) (Except () a)
+    successOrFail () a = F.Success $ E.SuccessOrFail () a
+    
+    uncaught :: () -> Error (Pow String) (Except () a)
+    uncaught = F.Success . E.Fail

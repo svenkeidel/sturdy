@@ -19,6 +19,11 @@ import Data.Hashable
 import Data.Order
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
+import Data.GaloisConnection
+import Data.Abstract.DiscretePowerset (Pow)
+import Data.Concrete.Powerset as C
+import Data.Identifiable
+import qualified Data.Concrete.Error as C
 
 import GHC.Generics (Generic, Generic1)
 
@@ -88,6 +93,14 @@ instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeComplet
     Success (Lower a) -> Lower (Success a)
     _ -> Top
   _ ⊔ _ = Top
+
+instance (Identifiable a, Identifiable e, Complete e', Complete a', Galois (C.Pow e) e', Galois (C.Pow a) a')
+    => Galois (C.Pow (C.Error e a)) (Error e' a') where
+  alpha = lifted $ \er -> case er of
+    C.Fail e -> Fail (alphaSing e)
+    C.Success y -> Success (alphaSing y)
+  gamma (Fail e) = C.Fail <$> gamma e
+  gamma (Success x) = C.Success <$> gamma x
 
 fromError :: a -> Error e a -> a
 fromError _ (Success a) = a

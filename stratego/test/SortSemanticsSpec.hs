@@ -39,7 +39,7 @@ import           Test.Hspec hiding (context)
 
 import           GHC.Exts(IsString(..))
 
-import           CaseStudy
+import qualified CaseStudy
 
 main :: IO ()
 main = hspec spec
@@ -366,7 +366,7 @@ spec = do
     --          $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
 
   describe "PCF interpreter in Stratego" $
-    before pcfCaseStudy $ do
+    before CaseStudy.pcf $ do
       it "lookup: String * Env -> Val" $ \pcf ->
         let ?ctx = signature pcf in
         let senv = stratEnv pcf
