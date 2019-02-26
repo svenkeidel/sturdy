@@ -22,7 +22,6 @@ dependencies:
   - sturdy-lib
   - text
   - transformers
-  - tree-automata
   - unordered-containers
   - QuickCheck
 

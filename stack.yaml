@@ -3,10 +3,8 @@ extra-package-dbs: []
 resolver: lts-13.8
 packages:
 - 'lib'
-- 'rtg'
 - 'pcf'
 - 'while'
 - 'stratego'
-# - 'lambda-adt'
 # - 'jimple'
 # - 'tutorial'

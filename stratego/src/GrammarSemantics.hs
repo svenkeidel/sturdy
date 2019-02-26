@@ -51,7 +51,7 @@ import           Data.Term
 import           Data.Text (Text)
 import           Data.Profunctor
 import qualified Data.Lens as L
-import           Data.Abstract.FreeCompletion (FreeCompletion(Lower,Top))
+import           Data.Abstract.FreeCompletion (FreeCompletion)
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except (Except)
 import qualified Data.Abstract.Except as E
@@ -65,14 +65,20 @@ import           Data.Abstract.Terminating (Terminating,fromTerminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening as W
 import           Data.Abstract.DiscretePowerset(Pow)
+import           Data.Abstract.TreeGrammar
+import qualified Data.Abstract.TreeGrammar.Terminal as Term
 
 import qualified Test.QuickCheck as Q
 import           Text.Printf
 
-import           TreeAutomata
 
-data Constr = Constr Text | StringLit Text | NumLit Int deriving (Eq, Ord, Show)
-newtype Term = Term (GrammarBuilder Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
+data Constr n = Bot | Constr (Term.Constr n) | StringLit Text | NumLit Int | Top deriving (Eq, Show)
+newtype Term = Term (GrammarBuilder Int Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
+
+instance Term.Terminal Constr where
+instance Monoid (Constr n) where
+  mempty = Bot
+  mappend = (⊔)
 
 type TermEnv = Map TermVar Term
 
@@ -117,25 +123,25 @@ eval i s = runInterp (eval' s) i
 
 -- Create grammars -----------------------------------------------------------------------------------
 
-sortToNonterm :: Sort -> Nonterm
-sortToNonterm sort = case sort of
-  Sort (SortId nt) -> nt
-  _ -> error "Parametric polymorphism is not yet supported"
+-- sortToNonterm :: Sort -> Nonterm
+-- sortToNonterm sort = case sort of
+--   Sort (SortId nt) -> nt
+--   _ -> error "Parametric polymorphism is not yet supported"
 
-toRhs :: (Constructor,Signature) -> Rhs Constr
-toRhs (Constructor constr, Signature ss _) = Ctor (Constr constr) (map sortToNonterm ss)
+-- toRhs :: (Constructor,Signature) -> Rhs Constr
+-- toRhs (Constructor constr, Signature ss _) = Ctor (Constr constr) (map sortToNonterm ss)
 
-toProd :: (Sort, [(Constructor,Signature)]) -> (Nonterm, [Rhs Constr])
-toProd (sort, rhss) = (sortToNonterm sort, map toRhs rhss)
+-- toProd :: (Sort, [(Constructor,Signature)]) -> (Nonterm, [Rhs Constr])
+-- toProd (sort, rhss) = (sortToNonterm sort, map toRhs rhss)
 
-createGrammar :: Context -> GrammarBuilder Constr
-createGrammar ctx = grammar startSymbol prods
-  where
-    startSymbol = "Start"
-    startProd = (startSymbol, map (Eps . sortToNonterm) (LM.keys (sorts ctx)))
-    -- TODO: what to do with these builtins?
-    builtins = [("String", [ Ctor (Constr "String") []]) ]
-    prods = M.fromList $ startProd : map toProd (LM.toList (sorts ctx)) ++ builtins
+-- createGrammar :: Context -> GrammarBuilder Int Constr
+-- createGrammar ctx = grammar startSymbol prods
+--   where
+--     startSymbol = "Start"
+--     startProd = (startSymbol, map (Eps . sortToNonterm) (LM.keys (sorts ctx)))
+--     -- TODO: what to do with these builtins?
+--     builtins = [("String", [ Ctor (Constr "String") []]) ]
+--     prods = M.fromList $ startProd : map toProd (LM.toList (sorts ctx)) ++ builtins
 
 -- Instances -----------------------------------------------------------------------------------------
 type instance Fix x y (GrammarT c) = GrammarT (Fix x y c)
@@ -148,46 +154,37 @@ deriving instance Complete (c x y) => Complete (GrammarT c x y)
 deriving instance LowerBounded (c x y) => LowerBounded (GrammarT c x y)
 deriving instance ArrowFix x y c => ArrowFix x y (GrammarT c)
 
-instance Hashable Constr where
-  hashWithSalt s (Constr c) = s `hashWithSalt` (0::Int) `hashWithSalt` c
-  hashWithSalt s (StringLit s') = s `hashWithSalt` (1::Int) `hashWithSalt` s'
-  hashWithSalt s (NumLit n) = s `hashWithSalt` (2::Int) `hashWithSalt` n
+-- instance Hashable (Constr n) where
+--   hashWithSalt s (Constr c) = s `hashWithSalt` (0::Int) `hashWithSalt` c
+--   hashWithSalt s (StringLit s') = s `hashWithSalt` (1::Int) `hashWithSalt` s'
+--   hashWithSalt s (NumLit n) = s `hashWithSalt` (2::Int) `hashWithSalt` n
 
-instance PreOrd (GrammarBuilder Constr) where
-  g1 ⊑ g2 = d1 `subsetOf` d2 where
-    g1' = normalize (epsilonClosure g1)
-    g2' = normalize (epsilonClosure g2)
-    d1 = if isDeterministic g1' then g1' else determinize g1'
-    d2 = if isDeterministic g2' then g2' else determinize g2'
-
-instance Complete (GrammarBuilder Constr) where
-  (⊔) = union
-
-instance CoComplete (GrammarBuilder Constr) where
-  (⊓) = intersection
+-- instance CoComplete (GrammarBuilder Constr) where
+--   (⊓) = intersection
 
 instance (Arrow c, Profunctor c) => ArrowDeduplicate Term Term (GrammarT c) where
   -- We normalize and determinize here to reduce duplicated production
   -- rules, which can save us up to X times the work.
-  dedup f = rmap (Term . determinize . normalize . fromTerm) f
+  dedup f = rmap (Term . determinize . fromTerm) f
 
 instance (Arrow c, Profunctor c, ArrowReader StratEnv c) => HasStratEnv (GrammarT c) where
   readStratEnv = lmap (const ()) ask
   localStratEnv senv f = proc a -> local f -< (senv,a)
 
 instance Complete (FreeCompletion Term) where
-  Lower x ⊔ Lower y = Lower (x ⊔ y)
-  _ ⊔ _ = Top
+  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
+  _ ⊔ _ = Free.Top
 
 instance Complete (FreeCompletion TermEnv) where
-  Lower x ⊔ Lower y = Lower (x ⊔ y)
-  _ ⊔ _ = Top
+  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
+  _ ⊔ _ = Free.Top
 
-instance Complete (FreeCompletion (GrammarBuilder Constr)) where
-  Lower x ⊔ Lower y = Lower (x ⊔ y)
-  _ ⊔ _ = Top
+instance Complete (FreeCompletion (GrammarBuilder Int Constr)) where
+  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
+  _ ⊔ _ = Free.Top
 
-instance (ArrowJoin c, ArrowExcept () c, ArrowChoice c, Profunctor c, LowerBounded (c () Term)) => IsTerm Term (GrammarT c) where
+instance (ArrowJoin c, ArrowExcept () c, ArrowChoice c, Profunctor c, LowerBounded (c () Term))
+   => IsTerm Term (GrammarT c) where
   matchTermAgainstConstructor matchSubterms = proc (Constructor c,ps,Term g) ->
     (| joinList (bottom -< ()) (\(c',ts) -> case c' of
          Constr c'' | c'' == c && eqLength ps ts -> do
@@ -197,12 +194,12 @@ instance (ArrowJoin c, ArrowExcept () c, ArrowChoice c, Profunctor c, LowerBound
 
   matchTermAgainstExplode _ _ = error "unsupported"
 
-  matchTermAgainstNumber = proc (n,Term g) -> matchLit -< (normalize (epsilonClosure g), NumLit n)
-  matchTermAgainstString = proc (s,Term g) -> matchLit -< (normalize (epsilonClosure g), StringLit s)
+  matchTermAgainstNumber = proc (n,Term g) -> matchLit -< (g, NumLit n)
+  matchTermAgainstString = proc (s,Term g) -> matchLit -< (g, StringLit s)
 
   equal = proc (Term g1, Term g2) -> case g1 ⊓ g2 of
     g | isEmpty g -> throw -< ()
-      | isSingleton (normalize (epsilonClosure g1)) && isSingleton (normalize (epsilonClosure g2)) -> returnA -< Term g
+      | isSingleton g1 && isSingleton g2 -> returnA -< Term g
       | otherwise -> (returnA -< Term g) <⊔> (throw -< ())
 
   convertFromList = error "unsupported"
@@ -215,7 +212,7 @@ instance (ArrowJoin c, ArrowExcept () c, ArrowChoice c, Profunctor c, LowerBound
                cons -< (Constructor c',ts')
              _ -> throw -< ()) |) (coerce (toSubterms g))
 
-  cons = arr $ \(Constructor c,ts) -> Term (normalize (epsilonClosure (addConstructor (Constr c) (fromTerms ts))))
+  cons = arr $ \(Constructor c,ts) -> Term (addConstructor (Constr c) (fromTerms ts))
   numberLiteral = arr numberGrammar
   stringLiteral = arr stringGrammar
 
@@ -223,8 +220,8 @@ instance TermUtils Term where
   convertToList ts = case ts of
     (x:xs) -> Term (addConstructor (Constr "Cons") [fromTerm x, fromTerm (convertToList xs)])
     [] -> Term (singleton (Constr "Nil"))
-  size (Term g) = TreeAutomata.size g
-  height (Term g) = TreeAutomata.height g
+  size (Term g) = error "not implemented: TreeAutomata.size g"
+  height (Term g) = error "not implemented: TreeAutomata.height g"
 
 instance (ArrowChoice c, ArrowJoin c, Profunctor c, ArrowState TermEnv c) => IsTermEnv TermEnv Term (GrammarT c) where
   getTermEnv = get
@@ -238,7 +235,7 @@ instance (ArrowChoice c, ArrowJoin c, Profunctor c, ArrowState TermEnv c) => IsT
   deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
 
-instance Galois (C.Pow C.Term) (GrammarBuilder Constr) where
+instance Galois (C.Pow C.Term) (GrammarBuilder Int Constr) where
   alpha = lub . fmap go
     where
       go (C.Cons (Constructor c) ts) = addConstructor (Constr c) (fmap go ts)
@@ -258,10 +255,10 @@ sound :: (Identifiable b1, Show b2, Complete b2, Galois (C.Pow a1) a2, Galois (C
       => StratEnv -> C.Pow (a1, C.TermEnv) -> C.Interp a1 b1 -> Interp _ a2 b2 -> Q.Property
 sound senv xs f g = Q.forAll (Q.choose (2,3)) $ \i ->
   let con :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
-      con = Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
+      con = Free.Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
       abst :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
       -- TODO: using fromTerminating is a bit of a hack...
-      abst = fromTerminating Top $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+      abst = fromTerminating Free.Top $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
   in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 -- Helpers -------------------------------------------------------------------------------------------
@@ -273,21 +270,21 @@ mapSnd :: (a -> b) -> [(c, a)] -> [(c, b)]
 mapSnd _ [] = []
 mapSnd f ((x,y):s) = (x,f y) : mapSnd f s
 
-toTerms :: [GrammarBuilder Constr] -> [Term]
+toTerms :: [GrammarBuilder Int Constr] -> [Term]
 toTerms = map Term
 
-fromTerms :: [Term] -> [GrammarBuilder Constr]
+fromTerms :: [Term] -> [GrammarBuilder Int Constr]
 fromTerms = map fromTerm
 
-fromTerm :: Term -> GrammarBuilder Constr
+fromTerm :: Term -> GrammarBuilder Int Constr
 fromTerm (Term g) = g
 
-checkConstructorAndLength :: Constructor -> [t'] -> Interp s (Constr, [GrammarBuilder Constr]) (Constructor, ([t'], [Term]))
+checkConstructorAndLength :: Constructor -> [t'] -> Interp s (Constr Int, [GrammarBuilder Int Constr]) (Constructor, ([t'], [Term]))
 checkConstructorAndLength (Constructor c) ts = proc (c', gs) -> case c' of
   Constr c'' | c == c'' && eqLength ts gs -> returnA -< (Constructor c, (ts, toTerms gs))
   _ -> throw -< ()
 
-matchLit :: (ArrowChoice c, ArrowJoin c, ArrowExcept () c) => c (GrammarBuilder Constr, Constr) Term
+matchLit :: (ArrowChoice c, ArrowJoin c, ArrowExcept () c) => c (GrammarBuilder Int Constr, Constr Int) Term
 -- TODO: check if production to n has empty argument list? This should be the case by design.
 matchLit = proc (g,l) -> case g `produces` l of
   True | isSingleton g -> returnA -< Term g
