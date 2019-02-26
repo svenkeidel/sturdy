@@ -8,7 +8,7 @@ prepare() {
   java -Xms512m -Xmx1024m -Xss16m -jar ../strategoxt.jar -i $1.str -o $1.java
   javac -cp ../strategoxt.jar $1.java
   
-  runhaskell -i../../src ../Combine.hs $1.ast $1.core > $1.aterm
+  stack runhaskell -- -i../../src ../Combine.hs $1.ast $1.core > $1.aterm
   
   ../pp-aterm -i $1.aterm > $1.aterm.pp
   
