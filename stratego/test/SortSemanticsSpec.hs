@@ -21,7 +21,8 @@ import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as A
 -- import qualified Data.Abstract.Maybe as M
-import qualified Data.Abstract.WeakMap as S
+import qualified Data.Abstract.Map as S
+import           Data.Abstract.There
 -- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
 -- import qualified Data.Concrete.Powerset as C
@@ -384,6 +385,39 @@ spec = do
         in seval'' 5 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
              successOrFail () (emptyEnv, val)
 
+
+  describe "Arrow desugaring in Stratego" $
+    before arrDesugarCaseStudy $ do
+      it "tuple-pat': List Var -> APat" $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term $ List "Var"
+            val  = term "APat"
+            env = termEnv []
+        in do
+          seval'' 2 10 (Call "tuple_pat_0_0" [] []) senv env prog `shouldBe`
+            successOrFail () (env, val)
+
+      it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term "ArrCommand"
+            val  = term "APat"
+            env = termEnv [("vars-list", term $ List "Var")]
+        in do
+          print (Ctx.lookupCons ?ctx "Constr")
+          seval'' 2 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
+            successOrFail () (env, val)
+
+      -- it "eval: Env * Exp -> Val" $ \desugar ->
+      --   let ?ctx = signature desugar in
+      --   let senv = stratEnv desugar
+      --       prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
+      --       val  = term "Val"
+      --   in seval'' 5 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
+      --        successOrFail () (emptyEnv, val)
+
+
   where
     -- sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
     -- sound' s xs = sound (M.empty,ctx) (C.fromFoldable $ fmap (second termEnv') xs) (eval' s) (eval' s :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) Term Term) where
@@ -418,11 +452,12 @@ spec = do
     termEnv :: [(TermVar, Term)] -> TermEnv
     termEnv = S.fromList
 
-    termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
-    termEnv' = S.fromList'
+    termEnv' = S.fromThereList
+    -- termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
+    -- termEnv' = S.fromList'
 
     delete :: TermVars s => s -> TermEnv -> TermEnv
-    delete s = S.deleteIfNotPresent' (termVars s :: Set TermVar)
+    delete s = S.delete' (termVars s :: Set TermVar)
 
     emptyEnv :: TermEnv
     emptyEnv = S.empty
@@ -470,8 +505,8 @@ spec = do
     top :: (?ctx :: Context) => Term
     top = term Top
 
-    may :: k -> v -> (k,A.Maybe v)
-    may k v = (k,A.JustNothing v)
+    may :: k -> v -> (k,(There,v))
+    may k v = (k,(May,v))
 
     must :: k -> v -> (k, A.Maybe v)
     must k v = (k, A.Just v)

@@ -56,15 +56,15 @@ import qualified Data.Abstract.DiscretePowerset as P
 -- import qualified Data.Concrete.Powerset as C
 -- import qualified Data.Concrete.Error as CE
 -- import qualified Data.Concrete.Failure as CF
-import           Data.Abstract.WeakMap (Map)
-import qualified Data.Abstract.WeakMap as S
+import           Data.Abstract.Map (Map)
+import qualified Data.Abstract.Map as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening as W
 import           Data.Foldable (foldr')
 -- import           Data.GaloisConnection
--- import qualified Data.HashMap.Lazy as M
+import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.Order
 import           Data.Profunctor
@@ -95,19 +95,22 @@ type Interp s x y =
 
 runInterp :: forall x y. Interp _ x y -> Int -> Int -> StratEnv -> Context -> TermEnv -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv,y))))
 runInterp f k l senv0 ctx tenv0 a =
-  runFixT' (\((te,(_,(s,t))),(te',(_,(s',t')))) -> printf "strat = %s -> %s, sort = %s -> %s, env = %s -> %s" (show s) (show s') (show t) (show t') (show te) (show te'))
-           show
-           stackWidening
-           (T.widening resultWidening)
-   (runTerminatingT
-    (runCompletionT
-     (runErrorT
-      (runExceptT
-       (runStateT
-        (runReaderT
-         (runConstT ctx
-           (runSortT f))))))))
-    (tenv0, (senv0, a))
+  if not $ M.null (Ctx.filterInconsistentConstructors ctx)
+  then error $ printf "Invalid constructor singnatures %s" (show $ Ctx.filterInconsistentConstructors ctx)
+  else
+    runFixT' (\((te,(_,(s,t))),(te',(_,(s',t')))) -> printf "strat = %s -> %s, sort = %s -> %s, env = %s -> %s" (show s) (show s') (show t) (show t') (show te) (show te'))
+             show
+             stackWidening
+             (T.widening resultWidening)
+     (runTerminatingT
+      (runCompletionT
+       (runErrorT
+        (runExceptT
+         (runStateT
+          (runReaderT
+           (runConstT ctx
+             (runSortT f))))))))
+      (tenv0, (senv0, a))
   where
     stackWidening :: SW.StackWidening _ (TermEnv, (StratEnv, (Strat, Term)))
     stackWidening = SW.filter' (L.second (L.second (L.first stratCall)))
@@ -283,7 +286,7 @@ instance (ArrowChoice c, ArrowJoin c, ArrowState TermEnv c, ArrowConst Context c
   {-# INLINE putTermEnv #-}
   lookupTermVar f g = proc (v,env,ex) -> do
     ctx <- askConst -< ()
-    case S.lookup v (Term Top ctx) env of
+    case S.lookup v env of
       A.Just t        -> f -< t
       A.Nothing       -> g -< ex
       A.JustNothing t -> (f -< t) <⊔> (g -< ex)

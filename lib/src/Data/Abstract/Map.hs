@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TupleSections #-}
-module Data.Abstract.Map (Map,singleton,empty,lookup,unsafeLookup,insert,insertWith,unsafeInsertWith,unsafeInsertWithLookup,delete,union,adjust,toList,fromList,mapMaybe,map,compose,widening,fromThereList) where
+module Data.Abstract.Map (Map,singleton,empty,lookup,unsafeLookup,insert,insertWith,unsafeInsertWith,unsafeInsertWithLookup,delete,delete',union,adjust,toList,fromList,mapMaybe,map,compose,widening,fromThereList) where
 
 import           Prelude hiding (lookup,map,Either(..),(**))
 
@@ -103,6 +103,9 @@ unsafeInsertWithLookup f a b m =
 
 delete :: Identifiable a => a -> Map a b -> Map a b
 delete a (Map m) = Map (H.delete a m)
+
+delete' :: (Foldable f, Identifiable a) => f a -> Map a b -> Map a b
+delete' l m = foldl (flip delete) m l
 
 union :: (Identifiable a, Complete b) => Map a b -> Map a b -> Map a b
 union (Map m1) (Map m2) = Map (H.unionWith (\(here,l) (_,r) -> case here of
