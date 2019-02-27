@@ -16,9 +16,6 @@ nnf = caseStudy "nnf"
 arrows :: IO Module
 arrows = caseStudy "arrows"
 
-arrDesugarCaseStudy :: IO Module
-arrDesugarCaseStudy = caseStudy "arrows"
-
 caseStudy :: String -> IO Module
 caseStudy name = do
   file <- TIO.readFile =<< getDataFileName (printf "case-studies/%s/%s.aterm" name name)

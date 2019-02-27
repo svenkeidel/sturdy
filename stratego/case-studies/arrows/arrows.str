@@ -350,229 +350,227 @@ rules
                               )
     where <free-pat-vars> pat => pat-vars
 
-  desugar-arrow'(|vars): ArrFirst(f, e) -> <tuple-pat> vars
+  desugar-arrow'(|vars):
+    ArrFirst(f, e) -> OpApp(
+                        AppBin(
+                          Var("arr")
+                        , Abs(
+                            [(<tuple-pat> vars)]
+                          , e
+                          )
+                        )
+                      , ">>>"
+                      , f
+                      )
 
-  // desugar-arrow'(|vars):
-  //   ArrFirst(f, e) -> OpApp(
-  //                       AppBin(
-  //                         Var("arr")
-  //                       , Abs(
-  //                           [(<tuple-pat> vars)]
-  //                         , e
-  //                         )
-  //                       )
-  //                     , ">>>"
-  //                     , f
-  //                     )
+  desugar-arrow'(|vars):
+    ArrHigher(f, e) -> OpApp(
+                         AppBin(
+                           Var("arr")
+                         , Abs(
+                             [(<tuple-pat> vars)]
+                           , Product(ECons(f, [e]))
+                           )
+                         )
+                       , ">>>"
+                       , Var("app")
+                       )
 
-  // desugar-arrow'(|vars):
-  //   ArrHigher(f, e) -> OpApp(
-  //                        AppBin(
-  //                          Var("arr")
-  //                        , Abs(
-  //                            [(<tuple-pat> vars)]
-  //                          , Product(ECons(f, [e]))
-  //                          )
-  //                        )
-  //                      , ">>>"
-  //                      , Var("app")
-  //                      )
+  desugar-arrow'(|vars):
+    ArrIf(e, c1, c2) -> OpApp(
+                          AppBin(
+                            Var("arr")
+                          , Abs(
+                              [(<tuple-pat> vars)]
+                            , If(
+                                e
+                              , AppBin(
+                                  Constr("Left")
+                                , (<tuple> vars)
+                                )
+                              , AppBin(
+                                  Constr("Right")
+                                , (<tuple> vars)
+                                )
+                              )
+                            )
+                          )
+                        , ">>>"
+                        , OpApp(
+                            (<desugar-arrow'(|vars)> c1)
+                          , "|||"
+                          , (<desugar-arrow'(|vars)> c2)
+                          )
+                        )
 
-  // desugar-arrow'(|vars):
-  //   ArrIf(e, c1, c2) -> OpApp(
-  //                         AppBin(
-  //                           Var("arr")
-  //                         , Abs(
-  //                             [(<tuple-pat> vars)]
-  //                           , If(
-  //                               e
-  //                             , AppBin(
-  //                                 Constr("Left")
-  //                               , (<tuple> vars)
-  //                               )
-  //                             , AppBin(
-  //                                 Constr("Right")
-  //                               , (<tuple> vars)
-  //                               )
-  //                             )
-  //                           )
-  //                         )
-  //                       , ">>>"
-  //                       , OpApp(
-  //                           (<desugar-arrow'(|vars)> c1)
-  //                         , "|||"
-  //                         , (<desugar-arrow'(|vars)> c2)
-  //                         )
-  //                       )
+  desugar-arrow'(|vars):
+    ArrLet(decls, c) -> OpApp(
+                          AppBin(
+                            Var("arr")
+                          , Abs(
+                              [(<tuple-pat> vars)]
+                            , Let(decls, (<tuple> all-vars))
+                            )
+                          )
+                        , ">>>"
+                        , (<desugar-arrow'(|all-vars)> c)
+                        )
+    where <free-decls-vars> decls => decls-vars
+          ; <conc> (vars, decls-vars) => all-vars
 
-  // desugar-arrow'(|vars):
-  //   ArrLet(decls, c) -> OpApp(
-  //                         AppBin(
-  //                           Var("arr")
-  //                         , Abs(
-  //                             [(<tuple-pat> vars)]
-  //                           , Let(decls, (<tuple> all-vars))
-  //                           )
-  //                         )
-  //                       , ">>>"
-  //                       , (<desugar-arrow'(|all-vars)> c)
-  //                       )
-  //   where <free-decls-vars> decls => decls-vars
-  //         ; <conc> (vars, decls-vars) => all-vars
+  desugar-arrow'(|vars):
+    ArrAbs([p], c) -> OpApp(
+                        AppBin(
+                          Var("arr")
+                        , Abs(
+                            [ TuplePat(
+                                (<tuple-pat> vars)
+                              , [Var(p)]
+                              )
+                            ]
+                          , (<tuple> all-vars)
+                          )
+                        )
+                      , ">>>"
+                      , (<desugar-arrow'(|all-vars)> c)
+                      )
+    where <free-pat-vars> p => pat-vars
+          ; <conc> (vars, pat-vars) => all-vars
 
-  // desugar-arrow'(|vars):
-  //   ArrAbs([p], c) -> OpApp(
-  //                       AppBin(
-  //                         Var("arr")
-  //                       , Abs(
-  //                           [ TuplePat(
-  //                               (<tuple-pat> vars)
-  //                             , [Var(p)]
-  //                             )
-  //                           ]
-  //                         , (<tuple> all-vars)
-  //                         )
-  //                       )
-  //                     , ">>>"
-  //                     , (<desugar-arrow'(|all-vars)> c)
-  //                     )
-  //   where <free-pat-vars> p => pat-vars
-  //         ; <conc> (vars, pat-vars) => all-vars
+  desugar-arrow'(|vars):
+    ArrAppBin(c, e) -> OpApp(
+                         AppBin(
+                           Var("arr")
+                         , Abs(
+                             [(<tuple-pat> vars)]
+                           , Product(
+                               ECons(
+                                 (<tuple> vars)
+                               , [e]
+                               )
+                             )
+                           )
+                         )
+                       , ">>>"
+                       , (<desugar-arrow'(|vars)> c)
+                       )
 
-  // desugar-arrow'(|vars):
-  //   ArrAppBin(c, e) -> OpApp(
-  //                        AppBin(
-  //                          Var("arr")
-  //                        , Abs(
-  //                            [(<tuple-pat> vars)]
-  //                          , Product(
-  //                              ECons(
-  //                                (<tuple> vars)
-  //                              , [e]
-  //                              )
-  //                            )
-  //                          )
-  //                        )
-  //                      , ">>>"
-  //                      , (<desugar-arrow'(|vars)> c)
-  //                      )
+  desugar-arrow'(|vars):
+    ArrForm(e, cs) -> <apply-all(|k)> ( e
+                                      , <map(desugar-arrow'(|vars))> cs
+                                      )
+    where k := Abs(
+                 [(<tuple-pat> vars)]
+               , (<tuple> vars)
+               )
 
-  // desugar-arrow'(|vars):
-  //   ArrForm(e, cs) -> <apply-all(|k)> ( e
-  //                                     , <map(desugar-arrow'(|vars))> cs
-  //                                     )
-  //   where k := Abs(
-  //                [(<tuple-pat> vars)]
-  //              , (<tuple> vars)
-  //              )
+  desugar-arrow'(|vars):
+    ArrOpApp(c1, op, c2) -> <desugar-arrow'(|vars)> ArrForm(
+                                                      BinCon(op)
+                                                    , [c1, c2]
+                                                    )
 
-  // desugar-arrow'(|vars):
-  //   ArrOpApp(c1, op, c2) -> <desugar-arrow'(|vars)> ArrForm(
-  //                                                     BinCon(op)
-  //                                                   , [c1, c2]
-  //                                                   )
+  desugar-arrow'(|vars):
+    ArrDo(ArrStmtList(ArrCmdStmt(c))) -> <desugar-arrow'(|vars)> c
 
-  // desugar-arrow'(|vars):
-  //   ArrDo(ArrStmtList(ArrCmdStmt(c))) -> <desugar-arrow'(|vars)> c
+  desugar-arrow'(|vars):
+    ArrDo(
+      ArrStmtList(ArrStmtSeq(ArrLetStmt(decls), cs))
+    ) -> OpApp(
+           AppBin(
+             Var("arr")
+           , Abs(
+               [(<tuple-pat> vars)]
+             , Let(decls, (<tuple> all-vars))
+             )
+           )
+         , ">>>"
+         , ( <desugar-arrow'(|all-vars)> ArrDo(ArrStmtList(cs))
+           )
+         )
+    where <free-decls-vars> decls => decls-vars
+          ; <conc> (vars, decls-vars) => all-vars
 
-  // desugar-arrow'(|vars):
-  //   ArrDo(
-  //     ArrStmtList(ArrStmtSeq(ArrLetStmt(decls), cs))
-  //   ) -> OpApp(
-  //          AppBin(
-  //            Var("arr")
-  //          , Abs(
-  //              [(<tuple-pat> vars)]
-  //            , Let(decls, (<tuple> all-vars))
-  //            )
-  //          )
-  //        , ">>>"
-  //        , ( <desugar-arrow'(|all-vars)> ArrDo(ArrStmtList(cs))
-  //          )
-  //        )
-  //   where <free-decls-vars> decls => decls-vars
-  //         ; <conc> (vars, decls-vars) => all-vars
+  desugar-arrow'(|vars):
+    ArrDo(
+      ArrStmtList(ArrStmtSeq(ArrCmdStmt(c), cs))
+    ) -> OpApp(
+           AppBin(
+             Var("arr")
+           , Abs(
+               [(<tuple-pat> vars)]
+             , Product(
+                 ECons(
+                   (<tuple> vars)
+                 , [(<tuple> vars)]
+                 )
+               )
+             )
+           )
+         , ">>>"
+         , OpApp(
+             AppBin(
+               Var("first")
+             , (<desugar-arrow'(|vars)> c)
+             )
+           , ">>>"
+           , OpApp(
+               AppBin(
+                 Var("arr")
+               , Var("snd")
+               )
+             , ">>>"
+             , ( <desugar-arrow'(|vars)> ArrDo(ArrStmtList(cs))
+               )
+             )
+           )
+         )
 
-  // desugar-arrow'(|vars):
-  //   ArrDo(
-  //     ArrStmtList(ArrStmtSeq(ArrCmdStmt(c), cs))
-  //   ) -> OpApp(
-  //          AppBin(
-  //            Var("arr")
-  //          , Abs(
-  //              [(<tuple-pat> vars)]
-  //            , Product(
-  //                ECons(
-  //                  (<tuple> vars)
-  //                , [(<tuple> vars)]
-  //                )
-  //              )
-  //            )
-  //          )
-  //        , ">>>"
-  //        , OpApp(
-  //            AppBin(
-  //              Var("first")
-  //            , (<desugar-arrow'(|vars)> c)
-  //            )
-  //          , ">>>"
-  //          , OpApp(
-  //              AppBin(
-  //                Var("arr")
-  //              , Var("snd")
-  //              )
-  //            , ">>>"
-  //            , ( <desugar-arrow'(|vars)> ArrDo(ArrStmtList(cs))
-  //              )
-  //            )
-  //          )
-  //        )
-
-  // desugar-arrow'(|vars):
-  //   ArrDo(
-  //     ArrStmtList(
-  //       ArrStmtSeq(ArrBindStmt(p, c), cs)
-  //     )
-  //   ) -> OpApp(
-  //          AppBin(
-  //            Var("arr")
-  //          , Abs(
-  //              [(<tuple-pat> vars)]
-  //            , Product(
-  //                ECons(
-  //                  (<tuple> vars)
-  //                , [(<tuple> vars)]
-  //                )
-  //              )
-  //            )
-  //          )
-  //        , ">>>"
-  //        , OpApp(
-  //            AppBin(
-  //              Var("first")
-  //            , (<desugar-arrow'(|vars)> c)
-  //            )
-  //          , ">>>"
-  //          , OpApp(
-  //              AppBin(
-  //                Var("arr")
-  //              , Abs(
-  //                  [ TuplePat(
-  //                      p
-  //                    , [(<tuple-pat> vars)]
-  //                    )
-  //                  ]
-  //                , (<tuple> all-vars)
-  //                )
-  //              )
-  //            , ">>>"
-  //            , ( <desugar-arrow'(|all-vars)> ArrDo(ArrStmtList(cs))
-  //              )
-  //            )
-  //          )
-  //        )
-  //   where <free-pat-vars> p => pat-vars
-  //         ; <conc> (pat-vars, vars) => all-vars
+  desugar-arrow'(|vars):
+    ArrDo(
+      ArrStmtList(
+        ArrStmtSeq(ArrBindStmt(p, c), cs)
+      )
+    ) -> OpApp(
+           AppBin(
+             Var("arr")
+           , Abs(
+               [(<tuple-pat> vars)]
+             , Product(
+                 ECons(
+                   (<tuple> vars)
+                 , [(<tuple> vars)]
+                 )
+               )
+             )
+           )
+         , ">>>"
+         , OpApp(
+             AppBin(
+               Var("first")
+             , (<desugar-arrow'(|vars)> c)
+             )
+           , ">>>"
+           , OpApp(
+               AppBin(
+                 Var("arr")
+               , Abs(
+                   [ TuplePat(
+                       p
+                     , [(<tuple-pat> vars)]
+                     )
+                   ]
+                 , (<tuple> all-vars)
+                 )
+               )
+             , ">>>"
+             , ( <desugar-arrow'(|all-vars)> ArrDo(ArrStmtList(cs))
+               )
+             )
+           )
+         )
+    where <free-pat-vars> p => pat-vars
+          ; <conc> (pat-vars, vars) => all-vars
 
 
 rules

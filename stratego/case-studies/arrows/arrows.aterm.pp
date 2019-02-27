@@ -1661,19 +1661,1726 @@ Specification(
       , SDefT(
           "desugar_arrow_p__0_1"
         , []
-        , [VarDec("x_12", ConstType(Sort("ATerm", [])))]
-        , Scope(
-            ["y_12", "z_12"]
-          , Seq(
-              Match(
-                Anno(
-                  Op("ArrFirst", [Var("y_12"), Var("z_12")])
-                , Wld()
+        , [VarDec("o_32", ConstType(Sort("ATerm", [])))]
+        , GuardedLChoice(
+            Scope(
+              ["j_17", "k_17", "l_17", "m_17"]
+            , Seq(
+                Match(
+                  Anno(
+                    Op("ArrFirst", [Var("k_17"), Var("j_17")])
+                  , Wld()
+                  )
+                )
+              , Seq(
+                  Match(Var("m_17"))
+                , Seq(
+                    Build(Var("o_32"))
+                  , Seq(
+                      CallT(SVar("tuple_pat_0_0"), [], [])
+                    , Seq(
+                        Match(Var("l_17"))
+                      , Seq(
+                          Build(Var("m_17"))
+                        , Build(
+                            Anno(
+                              Op(
+                                "OpApp"
+                              , [ Anno(
+                                    Op(
+                                      "AppBin"
+                                    , [ Anno(
+                                          Op(
+                                            "Var"
+                                          , [Anno(Str("arr"), Op("Nil", []))]
+                                          )
+                                        , Op("Nil", [])
+                                        )
+                                      , Anno(
+                                          Op(
+                                            "Abs"
+                                          , [ Anno(
+                                                Op(
+                                                  "Cons"
+                                                , [Var("l_17"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                )
+                                              , Op("Nil", [])
+                                              )
+                                            , Var("j_17")
+                                            ]
+                                          )
+                                        , Op("Nil", [])
+                                        )
+                                      ]
+                                    )
+                                  , Op("Nil", [])
+                                  )
+                                , Anno(Str(">>>"), Op("Nil", []))
+                                , Var("k_17")
+                                ]
+                              )
+                            , Op("Nil", [])
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
                 )
               )
-            , Seq(
-                Build(Var("x_12"))
-              , CallT(SVar("tuple_pat_0_0"), [], [])
+            )
+          , Id()
+          , GuardedLChoice(
+              Scope(
+                ["e_17", "f_17", "g_17", "h_17"]
+              , Seq(
+                  Match(
+                    Anno(
+                      Op("ArrHigher", [Var("e_17"), Var("f_17")])
+                    , Wld()
+                    )
+                  )
+                , Seq(
+                    Match(Var("h_17"))
+                  , Seq(
+                      Build(Var("o_32"))
+                    , Seq(
+                        CallT(SVar("tuple_pat_0_0"), [], [])
+                      , Seq(
+                          Match(Var("g_17"))
+                        , Seq(
+                            Build(Var("h_17"))
+                          , Build(
+                              Anno(
+                                Op(
+                                  "OpApp"
+                                , [ Anno(
+                                      Op(
+                                        "AppBin"
+                                      , [ Anno(
+                                            Op(
+                                              "Var"
+                                            , [Anno(Str("arr"), Op("Nil", []))]
+                                            )
+                                          , Op("Nil", [])
+                                          )
+                                        , Anno(
+                                            Op(
+                                              "Abs"
+                                            , [ Anno(
+                                                  Op(
+                                                    "Cons"
+                                                  , [Var("g_17"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                  )
+                                                , Op("Nil", [])
+                                                )
+                                              , Anno(
+                                                  Op(
+                                                    "Product"
+                                                  , [ Anno(
+                                                        Op(
+                                                          "ECons"
+                                                        , [ Var("e_17")
+                                                          , Anno(
+                                                              Op(
+                                                                "Cons"
+                                                              , [Var("f_17"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                              )
+                                                            , Op("Nil", [])
+                                                            )
+                                                          ]
+                                                        )
+                                                      , Op("Nil", [])
+                                                      )
+                                                    ]
+                                                  )
+                                                , Op("Nil", [])
+                                                )
+                                              ]
+                                            )
+                                          , Op("Nil", [])
+                                          )
+                                        ]
+                                      )
+                                    , Op("Nil", [])
+                                    )
+                                  , Anno(Str(">>>"), Op("Nil", []))
+                                  , Anno(
+                                      Op(
+                                        "Var"
+                                      , [Anno(Str("app"), Op("Nil", []))]
+                                      )
+                                    , Op("Nil", [])
+                                    )
+                                  ]
+                                )
+                              , Op("Nil", [])
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            , Id()
+            , GuardedLChoice(
+                Scope(
+                  [ "q_16"
+                  , "r_16"
+                  , "s_16"
+                  , "t_16"
+                  , "y_16"
+                  , "u_16"
+                  , "z_16"
+                  , "v_16"
+                  , "a_17"
+                  , "w_16"
+                  , "b_17"
+                  , "x_16"
+                  , "c_17"
+                  ]
+                , Seq(
+                    Match(
+                      Anno(
+                        Op(
+                          "ArrIf"
+                        , [Var("q_16"), Var("r_16"), Var("s_16")]
+                        )
+                      , Wld()
+                      )
+                    )
+                  , Seq(
+                      Match(Var("y_16"))
+                    , Seq(
+                        Build(Var("o_32"))
+                      , Seq(
+                          CallT(SVar("tuple_pat_0_0"), [], [])
+                        , Seq(
+                            Match(Var("t_16"))
+                          , Seq(
+                              Build(Var("y_16"))
+                            , Seq(
+                                Match(Var("z_16"))
+                              , Seq(
+                                  Build(Var("o_32"))
+                                , Seq(
+                                    CallT(SVar("tuple_0_0"), [], [])
+                                  , Seq(
+                                      Match(Var("u_16"))
+                                    , Seq(
+                                        Build(Var("z_16"))
+                                      , Seq(
+                                          Match(Var("a_17"))
+                                        , Seq(
+                                            Build(Var("o_32"))
+                                          , Seq(
+                                              CallT(SVar("tuple_0_0"), [], [])
+                                            , Seq(
+                                                Match(Var("v_16"))
+                                              , Seq(
+                                                  Build(Var("a_17"))
+                                                , Seq(
+                                                    Match(Var("b_17"))
+                                                  , Seq(
+                                                      Build(Var("r_16"))
+                                                    , Seq(
+                                                        CallT(SVar("desugar_arrow_p__0_1"), [], [Var("o_32")])
+                                                      , Seq(
+                                                          Match(Var("w_16"))
+                                                        , Seq(
+                                                            Build(Var("b_17"))
+                                                          , Seq(
+                                                              Match(Var("c_17"))
+                                                            , Seq(
+                                                                Build(Var("s_16"))
+                                                              , Seq(
+                                                                  CallT(SVar("desugar_arrow_p__0_1"), [], [Var("o_32")])
+                                                                , Seq(
+                                                                    Match(Var("x_16"))
+                                                                  , Seq(
+                                                                      Build(Var("c_17"))
+                                                                    , Build(
+                                                                        Anno(
+                                                                          Op(
+                                                                            "OpApp"
+                                                                          , [ Anno(
+                                                                                Op(
+                                                                                  "AppBin"
+                                                                                , [ Anno(
+                                                                                      Op(
+                                                                                        "Var"
+                                                                                      , [Anno(Str("arr"), Op("Nil", []))]
+                                                                                      )
+                                                                                    , Op("Nil", [])
+                                                                                    )
+                                                                                  , Anno(
+                                                                                      Op(
+                                                                                        "Abs"
+                                                                                      , [ Anno(
+                                                                                            Op(
+                                                                                              "Cons"
+                                                                                            , [Var("t_16"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                                            )
+                                                                                          , Op("Nil", [])
+                                                                                          )
+                                                                                        , Anno(
+                                                                                            Op(
+                                                                                              "If"
+                                                                                            , [ Var("q_16")
+                                                                                              , Anno(
+                                                                                                  Op(
+                                                                                                    "AppBin"
+                                                                                                  , [ Anno(
+                                                                                                        Op(
+                                                                                                          "Constr"
+                                                                                                        , [Anno(Str("Left"), Op("Nil", []))]
+                                                                                                        )
+                                                                                                      , Op("Nil", [])
+                                                                                                      )
+                                                                                                    , Var("u_16")
+                                                                                                    ]
+                                                                                                  )
+                                                                                                , Op("Nil", [])
+                                                                                                )
+                                                                                              , Anno(
+                                                                                                  Op(
+                                                                                                    "AppBin"
+                                                                                                  , [ Anno(
+                                                                                                        Op(
+                                                                                                          "Constr"
+                                                                                                        , [Anno(Str("Right"), Op("Nil", []))]
+                                                                                                        )
+                                                                                                      , Op("Nil", [])
+                                                                                                      )
+                                                                                                    , Var("v_16")
+                                                                                                    ]
+                                                                                                  )
+                                                                                                , Op("Nil", [])
+                                                                                                )
+                                                                                              ]
+                                                                                            )
+                                                                                          , Op("Nil", [])
+                                                                                          )
+                                                                                        ]
+                                                                                      )
+                                                                                    , Op("Nil", [])
+                                                                                    )
+                                                                                  ]
+                                                                                )
+                                                                              , Op("Nil", [])
+                                                                              )
+                                                                            , Anno(Str(">>>"), Op("Nil", []))
+                                                                            , Anno(
+                                                                                Op(
+                                                                                  "OpApp"
+                                                                                , [ Var("w_16")
+                                                                                  , Anno(Str("|||"), Op("Nil", []))
+                                                                                  , Var("x_16")
+                                                                                  ]
+                                                                                )
+                                                                              , Op("Nil", [])
+                                                                              )
+                                                                            ]
+                                                                          )
+                                                                        , Op("Nil", [])
+                                                                        )
+                                                                      )
+                                                                    )
+                                                                  )
+                                                                )
+                                                              )
+                                                            )
+                                                          )
+                                                        )
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              , Id()
+              , GuardedLChoice(
+                  Scope(
+                    [ "e_16"
+                    , "f_16"
+                    , "g_16"
+                    , "h_16"
+                    , "i_16"
+                    , "j_16"
+                    , "m_16"
+                    , "k_16"
+                    , "n_16"
+                    , "l_16"
+                    , "o_16"
+                    ]
+                  , Seq(
+                      Match(
+                        Anno(
+                          Op("ArrLet", [Var("f_16"), Var("e_16")])
+                        , Wld()
+                        )
+                      )
+                    , Seq(
+                        Match(Var("i_16"))
+                      , Seq(
+                          Build(Var("f_16"))
+                        , Seq(
+                            CallT(SVar("free_decls_vars_0_0"), [], [])
+                          , Seq(
+                              Match(Var("g_16"))
+                            , Seq(
+                                Build(
+                                  Anno(
+                                    Op("", [Var("o_32"), Var("g_16")])
+                                  , Op("Nil", [])
+                                  )
+                                )
+                              , Seq(
+                                  CallT(SVar("conc_0_0"), [], [])
+                                , Seq(
+                                    Match(Var("h_16"))
+                                  , Seq(
+                                      Build(Var("i_16"))
+                                    , Seq(
+                                        Match(Var("m_16"))
+                                      , Seq(
+                                          Build(Var("o_32"))
+                                        , Seq(
+                                            CallT(SVar("tuple_pat_0_0"), [], [])
+                                          , Seq(
+                                              Match(Var("j_16"))
+                                            , Seq(
+                                                Build(Var("m_16"))
+                                              , Seq(
+                                                  Match(Var("n_16"))
+                                                , Seq(
+                                                    Build(Var("h_16"))
+                                                  , Seq(
+                                                      CallT(SVar("tuple_0_0"), [], [])
+                                                    , Seq(
+                                                        Match(Var("k_16"))
+                                                      , Seq(
+                                                          Build(Var("n_16"))
+                                                        , Seq(
+                                                            Match(Var("o_16"))
+                                                          , Seq(
+                                                              Build(Var("e_16"))
+                                                            , Seq(
+                                                                CallT(SVar("desugar_arrow_p__0_1"), [], [Var("h_16")])
+                                                              , Seq(
+                                                                  Match(Var("l_16"))
+                                                                , Seq(
+                                                                    Build(Var("o_16"))
+                                                                  , Build(
+                                                                      Anno(
+                                                                        Op(
+                                                                          "OpApp"
+                                                                        , [ Anno(
+                                                                              Op(
+                                                                                "AppBin"
+                                                                              , [ Anno(
+                                                                                    Op(
+                                                                                      "Var"
+                                                                                    , [Anno(Str("arr"), Op("Nil", []))]
+                                                                                    )
+                                                                                  , Op("Nil", [])
+                                                                                  )
+                                                                                , Anno(
+                                                                                    Op(
+                                                                                      "Abs"
+                                                                                    , [ Anno(
+                                                                                          Op(
+                                                                                            "Cons"
+                                                                                          , [Var("j_16"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                                          )
+                                                                                        , Op("Nil", [])
+                                                                                        )
+                                                                                      , Anno(
+                                                                                          Op("Let", [Var("f_16"), Var("k_16")])
+                                                                                        , Op("Nil", [])
+                                                                                        )
+                                                                                      ]
+                                                                                    )
+                                                                                  , Op("Nil", [])
+                                                                                  )
+                                                                                ]
+                                                                              )
+                                                                            , Op("Nil", [])
+                                                                            )
+                                                                          , Anno(Str(">>>"), Op("Nil", []))
+                                                                          , Var("l_16")
+                                                                          ]
+                                                                        )
+                                                                      , Op("Nil", [])
+                                                                      )
+                                                                    )
+                                                                  )
+                                                                )
+                                                              )
+                                                            )
+                                                          )
+                                                        )
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                , Id()
+                , GuardedLChoice(
+                    Scope(
+                      [ "s_15"
+                      , "t_15"
+                      , "u_15"
+                      , "v_15"
+                      , "w_15"
+                      , "x_15"
+                      , "a_16"
+                      , "y_15"
+                      , "b_16"
+                      , "z_15"
+                      , "c_16"
+                      ]
+                    , Seq(
+                        Match(
+                          Anno(
+                            Op(
+                              "ArrAbs"
+                            , [ Anno(
+                                  Op(
+                                    "Cons"
+                                  , [Var("t_15"), Anno(Op("Nil", []), Wld())]
+                                  )
+                                , Wld()
+                                )
+                              , Var("s_15")
+                              ]
+                            )
+                          , Wld()
+                          )
+                        )
+                      , Seq(
+                          Match(Var("w_15"))
+                        , Seq(
+                            Build(Var("t_15"))
+                          , Seq(
+                              CallT(SVar("free_pat_vars_0_0"), [], [])
+                            , Seq(
+                                Match(Var("u_15"))
+                              , Seq(
+                                  Build(
+                                    Anno(
+                                      Op("", [Var("o_32"), Var("u_15")])
+                                    , Op("Nil", [])
+                                    )
+                                  )
+                                , Seq(
+                                    CallT(SVar("conc_0_0"), [], [])
+                                  , Seq(
+                                      Match(Var("v_15"))
+                                    , Seq(
+                                        Build(Var("w_15"))
+                                      , Seq(
+                                          Match(Var("a_16"))
+                                        , Seq(
+                                            Build(Var("o_32"))
+                                          , Seq(
+                                              CallT(SVar("tuple_pat_0_0"), [], [])
+                                            , Seq(
+                                                Match(Var("x_15"))
+                                              , Seq(
+                                                  Build(Var("a_16"))
+                                                , Seq(
+                                                    Match(Var("b_16"))
+                                                  , Seq(
+                                                      Build(Var("v_15"))
+                                                    , Seq(
+                                                        CallT(SVar("tuple_0_0"), [], [])
+                                                      , Seq(
+                                                          Match(Var("y_15"))
+                                                        , Seq(
+                                                            Build(Var("b_16"))
+                                                          , Seq(
+                                                              Match(Var("c_16"))
+                                                            , Seq(
+                                                                Build(Var("s_15"))
+                                                              , Seq(
+                                                                  CallT(SVar("desugar_arrow_p__0_1"), [], [Var("v_15")])
+                                                                , Seq(
+                                                                    Match(Var("z_15"))
+                                                                  , Seq(
+                                                                      Build(Var("c_16"))
+                                                                    , Build(
+                                                                        Anno(
+                                                                          Op(
+                                                                            "OpApp"
+                                                                          , [ Anno(
+                                                                                Op(
+                                                                                  "AppBin"
+                                                                                , [ Anno(
+                                                                                      Op(
+                                                                                        "Var"
+                                                                                      , [Anno(Str("arr"), Op("Nil", []))]
+                                                                                      )
+                                                                                    , Op("Nil", [])
+                                                                                    )
+                                                                                  , Anno(
+                                                                                      Op(
+                                                                                        "Abs"
+                                                                                      , [ Anno(
+                                                                                            Op(
+                                                                                              "Cons"
+                                                                                            , [ Anno(
+                                                                                                  Op(
+                                                                                                    "TuplePat"
+                                                                                                  , [ Var("x_15")
+                                                                                                    , Anno(
+                                                                                                        Op(
+                                                                                                          "Cons"
+                                                                                                        , [ Anno(
+                                                                                                              Op("Var", [Var("t_15")])
+                                                                                                            , Op("Nil", [])
+                                                                                                            )
+                                                                                                          , Anno(Op("Nil", []), Op("Nil", []))
+                                                                                                          ]
+                                                                                                        )
+                                                                                                      , Op("Nil", [])
+                                                                                                      )
+                                                                                                    ]
+                                                                                                  )
+                                                                                                , Op("Nil", [])
+                                                                                                )
+                                                                                              , Anno(Op("Nil", []), Op("Nil", []))
+                                                                                              ]
+                                                                                            )
+                                                                                          , Op("Nil", [])
+                                                                                          )
+                                                                                        , Var("y_15")
+                                                                                        ]
+                                                                                      )
+                                                                                    , Op("Nil", [])
+                                                                                    )
+                                                                                  ]
+                                                                                )
+                                                                              , Op("Nil", [])
+                                                                              )
+                                                                            , Anno(Str(">>>"), Op("Nil", []))
+                                                                            , Var("z_15")
+                                                                            ]
+                                                                          )
+                                                                        , Op("Nil", [])
+                                                                        )
+                                                                      )
+                                                                    )
+                                                                  )
+                                                                )
+                                                              )
+                                                            )
+                                                          )
+                                                        )
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
+                  , Id()
+                  , GuardedLChoice(
+                      Scope(
+                        ["j_15", "k_15", "l_15", "o_15", "m_15", "p_15", "n_15", "q_15"]
+                      , Seq(
+                          Match(
+                            Anno(
+                              Op("ArrAppBin", [Var("k_15"), Var("j_15")])
+                            , Wld()
+                            )
+                          )
+                        , Seq(
+                            Match(Var("o_15"))
+                          , Seq(
+                              Build(Var("o_32"))
+                            , Seq(
+                                CallT(SVar("tuple_pat_0_0"), [], [])
+                              , Seq(
+                                  Match(Var("l_15"))
+                                , Seq(
+                                    Build(Var("o_15"))
+                                  , Seq(
+                                      Match(Var("p_15"))
+                                    , Seq(
+                                        Build(Var("o_32"))
+                                      , Seq(
+                                          CallT(SVar("tuple_0_0"), [], [])
+                                        , Seq(
+                                            Match(Var("m_15"))
+                                          , Seq(
+                                              Build(Var("p_15"))
+                                            , Seq(
+                                                Match(Var("q_15"))
+                                              , Seq(
+                                                  Build(Var("k_15"))
+                                                , Seq(
+                                                    CallT(SVar("desugar_arrow_p__0_1"), [], [Var("o_32")])
+                                                  , Seq(
+                                                      Match(Var("n_15"))
+                                                    , Seq(
+                                                        Build(Var("q_15"))
+                                                      , Build(
+                                                          Anno(
+                                                            Op(
+                                                              "OpApp"
+                                                            , [ Anno(
+                                                                  Op(
+                                                                    "AppBin"
+                                                                  , [ Anno(
+                                                                        Op(
+                                                                          "Var"
+                                                                        , [Anno(Str("arr"), Op("Nil", []))]
+                                                                        )
+                                                                      , Op("Nil", [])
+                                                                      )
+                                                                    , Anno(
+                                                                        Op(
+                                                                          "Abs"
+                                                                        , [ Anno(
+                                                                              Op(
+                                                                                "Cons"
+                                                                              , [Var("l_15"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                              )
+                                                                            , Op("Nil", [])
+                                                                            )
+                                                                          , Anno(
+                                                                              Op(
+                                                                                "Product"
+                                                                              , [ Anno(
+                                                                                    Op(
+                                                                                      "ECons"
+                                                                                    , [ Var("m_15")
+                                                                                      , Anno(
+                                                                                          Op(
+                                                                                            "Cons"
+                                                                                          , [Var("j_15"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                                          )
+                                                                                        , Op("Nil", [])
+                                                                                        )
+                                                                                      ]
+                                                                                    )
+                                                                                  , Op("Nil", [])
+                                                                                  )
+                                                                                ]
+                                                                              )
+                                                                            , Op("Nil", [])
+                                                                            )
+                                                                          ]
+                                                                        )
+                                                                      , Op("Nil", [])
+                                                                      )
+                                                                    ]
+                                                                  )
+                                                                , Op("Nil", [])
+                                                                )
+                                                              , Anno(Str(">>>"), Op("Nil", []))
+                                                              , Var("n_15")
+                                                              ]
+                                                            )
+                                                          , Op("Nil", [])
+                                                          )
+                                                        )
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                      )
+                    , Id()
+                    , GuardedLChoice(
+                        Scope(
+                          [ "y_14"
+                          , "z_14"
+                          , "a_15"
+                          , "b_15"
+                          , "c_15"
+                          , "e_15"
+                          , "d_15"
+                          , "f_15"
+                          , "g_15"
+                          , "h_15"
+                          ]
+                        , Seq(
+                            Match(
+                              Anno(
+                                Op("ArrForm", [Var("y_14"), Var("z_14")])
+                              , Wld()
+                              )
+                            )
+                          , Seq(
+                              Match(Var("b_15"))
+                            , Seq(
+                                Match(Var("e_15"))
+                              , Seq(
+                                  Build(Var("o_32"))
+                                , Seq(
+                                    CallT(SVar("tuple_pat_0_0"), [], [])
+                                  , Seq(
+                                      Match(Var("c_15"))
+                                    , Seq(
+                                        Build(Var("e_15"))
+                                      , Seq(
+                                          Match(Var("f_15"))
+                                        , Seq(
+                                            Build(Var("o_32"))
+                                          , Seq(
+                                              CallT(SVar("tuple_0_0"), [], [])
+                                            , Seq(
+                                                Match(Var("d_15"))
+                                              , Seq(
+                                                  Build(Var("f_15"))
+                                                , Seq(
+                                                    Build(
+                                                      Anno(
+                                                        Op(
+                                                          "Abs"
+                                                        , [ Anno(
+                                                              Op(
+                                                                "Cons"
+                                                              , [Var("c_15"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                              )
+                                                            , Op("Nil", [])
+                                                            )
+                                                          , Var("d_15")
+                                                          ]
+                                                        )
+                                                      , Op("Nil", [])
+                                                      )
+                                                    )
+                                                  , Seq(
+                                                      Match(Var("a_15"))
+                                                    , Seq(
+                                                        Build(Var("b_15"))
+                                                      , Seq(
+                                                          Match(Var("h_15"))
+                                                        , Seq(
+                                                            Build(Var("z_14"))
+                                                          , Seq(
+                                                              CallT(
+                                                                SVar("map_1_0")
+                                                              , [CallT(SVar("desugar_arrow_p__0_1"), [], [Var("o_32")])]
+                                                              , []
+                                                              )
+                                                            , Seq(
+                                                                Match(Var("g_15"))
+                                                              , Seq(
+                                                                  Build(Var("h_15"))
+                                                                , Seq(
+                                                                    Build(
+                                                                      Anno(
+                                                                        Op("", [Var("y_14"), Var("g_15")])
+                                                                      , Op("Nil", [])
+                                                                      )
+                                                                    )
+                                                                  , CallT(SVar("apply_all_0_1"), [], [Var("a_15")])
+                                                                  )
+                                                                )
+                                                              )
+                                                            )
+                                                          )
+                                                        )
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                      , Id()
+                      , GuardedLChoice(
+                          Scope(
+                            ["u_14", "v_14", "w_14"]
+                          , Seq(
+                              Match(
+                                Anno(
+                                  Op(
+                                    "ArrOpApp"
+                                  , [Var("v_14"), Var("u_14"), Var("w_14")]
+                                  )
+                                , Wld()
+                                )
+                              )
+                            , Seq(
+                                Build(
+                                  Anno(
+                                    Op(
+                                      "ArrForm"
+                                    , [ Anno(
+                                          Op("BinCon", [Var("u_14")])
+                                        , Op("Nil", [])
+                                        )
+                                      , Anno(
+                                          Op(
+                                            "Cons"
+                                          , [ Var("v_14")
+                                            , Anno(
+                                                Op(
+                                                  "Cons"
+                                                , [Var("w_14"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                )
+                                              , Op("Nil", [])
+                                              )
+                                            ]
+                                          )
+                                        , Op("Nil", [])
+                                        )
+                                      ]
+                                    )
+                                  , Op("Nil", [])
+                                  )
+                                )
+                              , CallT(SVar("desugar_arrow_p__0_1"), [], [Var("o_32")])
+                              )
+                            )
+                          )
+                        , Id()
+                        , GuardedLChoice(
+                            Scope(
+                              ["s_14"]
+                            , Seq(
+                                Match(
+                                  Anno(
+                                    Op(
+                                      "ArrDo"
+                                    , [ Anno(
+                                          Op(
+                                            "ArrStmtList"
+                                          , [Anno(Op("ArrCmdStmt", [Var("s_14")]), Wld())]
+                                          )
+                                        , Wld()
+                                        )
+                                      ]
+                                    )
+                                  , Wld()
+                                  )
+                                )
+                              , Seq(
+                                  Build(Var("s_14"))
+                                , CallT(SVar("desugar_arrow_p__0_1"), [], [Var("o_32")])
+                                )
+                              )
+                            )
+                          , Id()
+                          , GuardedLChoice(
+                              Scope(
+                                [ "g_14"
+                                , "h_14"
+                                , "i_14"
+                                , "j_14"
+                                , "k_14"
+                                , "l_14"
+                                , "o_14"
+                                , "m_14"
+                                , "p_14"
+                                , "n_14"
+                                , "q_14"
+                                ]
+                              , Seq(
+                                  Match(
+                                    Anno(
+                                      Op(
+                                        "ArrDo"
+                                      , [ Anno(
+                                            Op(
+                                              "ArrStmtList"
+                                            , [ Anno(
+                                                  Op(
+                                                    "ArrStmtSeq"
+                                                  , [Anno(Op("ArrLetStmt", [Var("h_14")]), Wld()), Var("g_14")]
+                                                  )
+                                                , Wld()
+                                                )
+                                              ]
+                                            )
+                                          , Wld()
+                                          )
+                                        ]
+                                      )
+                                    , Wld()
+                                    )
+                                  )
+                                , Seq(
+                                    Match(Var("k_14"))
+                                  , Seq(
+                                      Build(Var("h_14"))
+                                    , Seq(
+                                        CallT(SVar("free_decls_vars_0_0"), [], [])
+                                      , Seq(
+                                          Match(Var("i_14"))
+                                        , Seq(
+                                            Build(
+                                              Anno(
+                                                Op("", [Var("o_32"), Var("i_14")])
+                                              , Op("Nil", [])
+                                              )
+                                            )
+                                          , Seq(
+                                              CallT(SVar("conc_0_0"), [], [])
+                                            , Seq(
+                                                Match(Var("j_14"))
+                                              , Seq(
+                                                  Build(Var("k_14"))
+                                                , Seq(
+                                                    Match(Var("o_14"))
+                                                  , Seq(
+                                                      Build(Var("o_32"))
+                                                    , Seq(
+                                                        CallT(SVar("tuple_pat_0_0"), [], [])
+                                                      , Seq(
+                                                          Match(Var("l_14"))
+                                                        , Seq(
+                                                            Build(Var("o_14"))
+                                                          , Seq(
+                                                              Match(Var("p_14"))
+                                                            , Seq(
+                                                                Build(Var("j_14"))
+                                                              , Seq(
+                                                                  CallT(SVar("tuple_0_0"), [], [])
+                                                                , Seq(
+                                                                    Match(Var("m_14"))
+                                                                  , Seq(
+                                                                      Build(Var("p_14"))
+                                                                    , Seq(
+                                                                        Match(Var("q_14"))
+                                                                      , Seq(
+                                                                          Build(
+                                                                            Anno(
+                                                                              Op(
+                                                                                "ArrDo"
+                                                                              , [Anno(
+                                                                                   Op("ArrStmtList", [Var("g_14")])
+                                                                                 , Op("Nil", [])
+                                                                                 )]
+                                                                              )
+                                                                            , Op("Nil", [])
+                                                                            )
+                                                                          )
+                                                                        , Seq(
+                                                                            CallT(SVar("desugar_arrow_p__0_1"), [], [Var("j_14")])
+                                                                          , Seq(
+                                                                              Match(Var("n_14"))
+                                                                            , Seq(
+                                                                                Build(Var("q_14"))
+                                                                              , Build(
+                                                                                  Anno(
+                                                                                    Op(
+                                                                                      "OpApp"
+                                                                                    , [ Anno(
+                                                                                          Op(
+                                                                                            "AppBin"
+                                                                                          , [ Anno(
+                                                                                                Op(
+                                                                                                  "Var"
+                                                                                                , [Anno(Str("arr"), Op("Nil", []))]
+                                                                                                )
+                                                                                              , Op("Nil", [])
+                                                                                              )
+                                                                                            , Anno(
+                                                                                                Op(
+                                                                                                  "Abs"
+                                                                                                , [ Anno(
+                                                                                                      Op(
+                                                                                                        "Cons"
+                                                                                                      , [Var("l_14"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                                                      )
+                                                                                                    , Op("Nil", [])
+                                                                                                    )
+                                                                                                  , Anno(
+                                                                                                      Op("Let", [Var("h_14"), Var("m_14")])
+                                                                                                    , Op("Nil", [])
+                                                                                                    )
+                                                                                                  ]
+                                                                                                )
+                                                                                              , Op("Nil", [])
+                                                                                              )
+                                                                                            ]
+                                                                                          )
+                                                                                        , Op("Nil", [])
+                                                                                        )
+                                                                                      , Anno(Str(">>>"), Op("Nil", []))
+                                                                                      , Var("n_14")
+                                                                                      ]
+                                                                                    )
+                                                                                  , Op("Nil", [])
+                                                                                  )
+                                                                                )
+                                                                              )
+                                                                            )
+                                                                          )
+                                                                        )
+                                                                      )
+                                                                    )
+                                                                  )
+                                                                )
+                                                              )
+                                                            )
+                                                          )
+                                                        )
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            , Id()
+                            , GuardedLChoice(
+                                Scope(
+                                  [ "t_13"
+                                  , "u_13"
+                                  , "v_13"
+                                  , "a_14"
+                                  , "w_13"
+                                  , "b_14"
+                                  , "x_13"
+                                  , "c_14"
+                                  , "y_13"
+                                  , "d_14"
+                                  , "z_13"
+                                  , "e_14"
+                                  ]
+                                , Seq(
+                                    Match(
+                                      Anno(
+                                        Op(
+                                          "ArrDo"
+                                        , [ Anno(
+                                              Op(
+                                                "ArrStmtList"
+                                              , [ Anno(
+                                                    Op(
+                                                      "ArrStmtSeq"
+                                                    , [Anno(Op("ArrCmdStmt", [Var("t_13")]), Wld()), Var("u_13")]
+                                                    )
+                                                  , Wld()
+                                                  )
+                                                ]
+                                              )
+                                            , Wld()
+                                            )
+                                          ]
+                                        )
+                                      , Wld()
+                                      )
+                                    )
+                                  , Seq(
+                                      Match(Var("a_14"))
+                                    , Seq(
+                                        Build(Var("o_32"))
+                                      , Seq(
+                                          CallT(SVar("tuple_pat_0_0"), [], [])
+                                        , Seq(
+                                            Match(Var("v_13"))
+                                          , Seq(
+                                              Build(Var("a_14"))
+                                            , Seq(
+                                                Match(Var("b_14"))
+                                              , Seq(
+                                                  Build(Var("o_32"))
+                                                , Seq(
+                                                    CallT(SVar("tuple_0_0"), [], [])
+                                                  , Seq(
+                                                      Match(Var("w_13"))
+                                                    , Seq(
+                                                        Build(Var("b_14"))
+                                                      , Seq(
+                                                          Match(Var("c_14"))
+                                                        , Seq(
+                                                            Build(Var("o_32"))
+                                                          , Seq(
+                                                              CallT(SVar("tuple_0_0"), [], [])
+                                                            , Seq(
+                                                                Match(Var("x_13"))
+                                                              , Seq(
+                                                                  Build(Var("c_14"))
+                                                                , Seq(
+                                                                    Match(Var("d_14"))
+                                                                  , Seq(
+                                                                      Build(Var("t_13"))
+                                                                    , Seq(
+                                                                        CallT(SVar("desugar_arrow_p__0_1"), [], [Var("o_32")])
+                                                                      , Seq(
+                                                                          Match(Var("y_13"))
+                                                                        , Seq(
+                                                                            Build(Var("d_14"))
+                                                                          , Seq(
+                                                                              Match(Var("e_14"))
+                                                                            , Seq(
+                                                                                Build(
+                                                                                  Anno(
+                                                                                    Op(
+                                                                                      "ArrDo"
+                                                                                    , [Anno(
+                                                                                         Op("ArrStmtList", [Var("u_13")])
+                                                                                       , Op("Nil", [])
+                                                                                       )]
+                                                                                    )
+                                                                                  , Op("Nil", [])
+                                                                                  )
+                                                                                )
+                                                                              , Seq(
+                                                                                  CallT(SVar("desugar_arrow_p__0_1"), [], [Var("o_32")])
+                                                                                , Seq(
+                                                                                    Match(Var("z_13"))
+                                                                                  , Seq(
+                                                                                      Build(Var("e_14"))
+                                                                                    , Build(
+                                                                                        Anno(
+                                                                                          Op(
+                                                                                            "OpApp"
+                                                                                          , [ Anno(
+                                                                                                Op(
+                                                                                                  "AppBin"
+                                                                                                , [ Anno(
+                                                                                                      Op(
+                                                                                                        "Var"
+                                                                                                      , [Anno(Str("arr"), Op("Nil", []))]
+                                                                                                      )
+                                                                                                    , Op("Nil", [])
+                                                                                                    )
+                                                                                                  , Anno(
+                                                                                                      Op(
+                                                                                                        "Abs"
+                                                                                                      , [ Anno(
+                                                                                                            Op(
+                                                                                                              "Cons"
+                                                                                                            , [Var("v_13"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                                                            )
+                                                                                                          , Op("Nil", [])
+                                                                                                          )
+                                                                                                        , Anno(
+                                                                                                            Op(
+                                                                                                              "Product"
+                                                                                                            , [ Anno(
+                                                                                                                  Op(
+                                                                                                                    "ECons"
+                                                                                                                  , [ Var("w_13")
+                                                                                                                    , Anno(
+                                                                                                                        Op(
+                                                                                                                          "Cons"
+                                                                                                                        , [Var("x_13"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                                                                        )
+                                                                                                                      , Op("Nil", [])
+                                                                                                                      )
+                                                                                                                    ]
+                                                                                                                  )
+                                                                                                                , Op("Nil", [])
+                                                                                                                )
+                                                                                                              ]
+                                                                                                            )
+                                                                                                          , Op("Nil", [])
+                                                                                                          )
+                                                                                                        ]
+                                                                                                      )
+                                                                                                    , Op("Nil", [])
+                                                                                                    )
+                                                                                                  ]
+                                                                                                )
+                                                                                              , Op("Nil", [])
+                                                                                              )
+                                                                                            , Anno(Str(">>>"), Op("Nil", []))
+                                                                                            , Anno(
+                                                                                                Op(
+                                                                                                  "OpApp"
+                                                                                                , [ Anno(
+                                                                                                      Op(
+                                                                                                        "AppBin"
+                                                                                                      , [ Anno(
+                                                                                                            Op(
+                                                                                                              "Var"
+                                                                                                            , [Anno(Str("first"), Op("Nil", []))]
+                                                                                                            )
+                                                                                                          , Op("Nil", [])
+                                                                                                          )
+                                                                                                        , Var("y_13")
+                                                                                                        ]
+                                                                                                      )
+                                                                                                    , Op("Nil", [])
+                                                                                                    )
+                                                                                                  , Anno(Str(">>>"), Op("Nil", []))
+                                                                                                  , Anno(
+                                                                                                      Op(
+                                                                                                        "OpApp"
+                                                                                                      , [ Anno(
+                                                                                                            Op(
+                                                                                                              "AppBin"
+                                                                                                            , [ Anno(
+                                                                                                                  Op(
+                                                                                                                    "Var"
+                                                                                                                  , [Anno(Str("arr"), Op("Nil", []))]
+                                                                                                                  )
+                                                                                                                , Op("Nil", [])
+                                                                                                                )
+                                                                                                              , Anno(
+                                                                                                                  Op(
+                                                                                                                    "Var"
+                                                                                                                  , [Anno(Str("snd"), Op("Nil", []))]
+                                                                                                                  )
+                                                                                                                , Op("Nil", [])
+                                                                                                                )
+                                                                                                              ]
+                                                                                                            )
+                                                                                                          , Op("Nil", [])
+                                                                                                          )
+                                                                                                        , Anno(Str(">>>"), Op("Nil", []))
+                                                                                                        , Var("z_13")
+                                                                                                        ]
+                                                                                                      )
+                                                                                                    , Op("Nil", [])
+                                                                                                    )
+                                                                                                  ]
+                                                                                                )
+                                                                                              , Op("Nil", [])
+                                                                                              )
+                                                                                            ]
+                                                                                          )
+                                                                                        , Op("Nil", [])
+                                                                                        )
+                                                                                      )
+                                                                                    )
+                                                                                  )
+                                                                                )
+                                                                              )
+                                                                            )
+                                                                          )
+                                                                        )
+                                                                      )
+                                                                    )
+                                                                  )
+                                                                )
+                                                              )
+                                                            )
+                                                          )
+                                                        )
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              , Id()
+                              , Scope(
+                                  [ "y_12"
+                                  , "z_12"
+                                  , "a_13"
+                                  , "b_13"
+                                  , "c_13"
+                                  , "d_13"
+                                  , "e_13"
+                                  , "l_13"
+                                  , "f_13"
+                                  , "m_13"
+                                  , "g_13"
+                                  , "n_13"
+                                  , "h_13"
+                                  , "o_13"
+                                  , "i_13"
+                                  , "p_13"
+                                  , "j_13"
+                                  , "q_13"
+                                  , "k_13"
+                                  , "r_13"
+                                  ]
+                                , Seq(
+                                    Match(
+                                      Anno(
+                                        Op(
+                                          "ArrDo"
+                                        , [ Anno(
+                                              Op(
+                                                "ArrStmtList"
+                                              , [ Anno(
+                                                    Op(
+                                                      "ArrStmtSeq"
+                                                    , [ Anno(
+                                                          Op("ArrBindStmt", [Var("a_13"), Var("y_12")])
+                                                        , Wld()
+                                                        )
+                                                      , Var("z_12")
+                                                      ]
+                                                    )
+                                                  , Wld()
+                                                  )
+                                                ]
+                                              )
+                                            , Wld()
+                                            )
+                                          ]
+                                        )
+                                      , Wld()
+                                      )
+                                    )
+                                  , Seq(
+                                      Match(Var("d_13"))
+                                    , Seq(
+                                        Build(Var("a_13"))
+                                      , Seq(
+                                          CallT(SVar("free_pat_vars_0_0"), [], [])
+                                        , Seq(
+                                            Match(Var("b_13"))
+                                          , Seq(
+                                              Build(
+                                                Anno(
+                                                  Op("", [Var("b_13"), Var("o_32")])
+                                                , Op("Nil", [])
+                                                )
+                                              )
+                                            , Seq(
+                                                CallT(SVar("conc_0_0"), [], [])
+                                              , Seq(
+                                                  Match(Var("c_13"))
+                                                , Seq(
+                                                    Build(Var("d_13"))
+                                                  , Seq(
+                                                      Match(Var("l_13"))
+                                                    , Seq(
+                                                        Build(Var("o_32"))
+                                                      , Seq(
+                                                          CallT(SVar("tuple_pat_0_0"), [], [])
+                                                        , Seq(
+                                                            Match(Var("e_13"))
+                                                          , Seq(
+                                                              Build(Var("l_13"))
+                                                            , Seq(
+                                                                Match(Var("m_13"))
+                                                              , Seq(
+                                                                  Build(Var("o_32"))
+                                                                , Seq(
+                                                                    CallT(SVar("tuple_0_0"), [], [])
+                                                                  , Seq(
+                                                                      Match(Var("f_13"))
+                                                                    , Seq(
+                                                                        Build(Var("m_13"))
+                                                                      , Seq(
+                                                                          Match(Var("n_13"))
+                                                                        , Seq(
+                                                                            Build(Var("o_32"))
+                                                                          , Seq(
+                                                                              CallT(SVar("tuple_0_0"), [], [])
+                                                                            , Seq(
+                                                                                Match(Var("g_13"))
+                                                                              , Seq(
+                                                                                  Build(Var("n_13"))
+                                                                                , Seq(
+                                                                                    Match(Var("o_13"))
+                                                                                  , Seq(
+                                                                                      Build(Var("y_12"))
+                                                                                    , Seq(
+                                                                                        CallT(SVar("desugar_arrow_p__0_1"), [], [Var("o_32")])
+                                                                                      , Seq(
+                                                                                          Match(Var("h_13"))
+                                                                                        , Seq(
+                                                                                            Build(Var("o_13"))
+                                                                                          , Seq(
+                                                                                              Match(Var("p_13"))
+                                                                                            , Seq(
+                                                                                                Build(Var("o_32"))
+                                                                                              , Seq(
+                                                                                                  CallT(SVar("tuple_pat_0_0"), [], [])
+                                                                                                , Seq(
+                                                                                                    Match(Var("i_13"))
+                                                                                                  , Seq(
+                                                                                                      Build(Var("p_13"))
+                                                                                                    , Seq(
+                                                                                                        Match(Var("q_13"))
+                                                                                                      , Seq(
+                                                                                                          Build(Var("c_13"))
+                                                                                                        , Seq(
+                                                                                                            CallT(SVar("tuple_0_0"), [], [])
+                                                                                                          , Seq(
+                                                                                                              Match(Var("j_13"))
+                                                                                                            , Seq(
+                                                                                                                Build(Var("q_13"))
+                                                                                                              , Seq(
+                                                                                                                  Match(Var("r_13"))
+                                                                                                                , Seq(
+                                                                                                                    Build(
+                                                                                                                      Anno(
+                                                                                                                        Op(
+                                                                                                                          "ArrDo"
+                                                                                                                        , [Anno(
+                                                                                                                             Op("ArrStmtList", [Var("z_12")])
+                                                                                                                           , Op("Nil", [])
+                                                                                                                           )]
+                                                                                                                        )
+                                                                                                                      , Op("Nil", [])
+                                                                                                                      )
+                                                                                                                    )
+                                                                                                                  , Seq(
+                                                                                                                      CallT(SVar("desugar_arrow_p__0_1"), [], [Var("c_13")])
+                                                                                                                    , Seq(
+                                                                                                                        Match(Var("k_13"))
+                                                                                                                      , Seq(
+                                                                                                                          Build(Var("r_13"))
+                                                                                                                        , Build(
+                                                                                                                            Anno(
+                                                                                                                              Op(
+                                                                                                                                "OpApp"
+                                                                                                                              , [ Anno(
+                                                                                                                                    Op(
+                                                                                                                                      "AppBin"
+                                                                                                                                    , [ Anno(
+                                                                                                                                          Op(
+                                                                                                                                            "Var"
+                                                                                                                                          , [Anno(Str("arr"), Op("Nil", []))]
+                                                                                                                                          )
+                                                                                                                                        , Op("Nil", [])
+                                                                                                                                        )
+                                                                                                                                      , Anno(
+                                                                                                                                          Op(
+                                                                                                                                            "Abs"
+                                                                                                                                          , [ Anno(
+                                                                                                                                                Op(
+                                                                                                                                                  "Cons"
+                                                                                                                                                , [Var("e_13"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                                                                                                )
+                                                                                                                                              , Op("Nil", [])
+                                                                                                                                              )
+                                                                                                                                            , Anno(
+                                                                                                                                                Op(
+                                                                                                                                                  "Product"
+                                                                                                                                                , [ Anno(
+                                                                                                                                                      Op(
+                                                                                                                                                        "ECons"
+                                                                                                                                                      , [ Var("f_13")
+                                                                                                                                                        , Anno(
+                                                                                                                                                            Op(
+                                                                                                                                                              "Cons"
+                                                                                                                                                            , [Var("g_13"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                                                                                                            )
+                                                                                                                                                          , Op("Nil", [])
+                                                                                                                                                          )
+                                                                                                                                                        ]
+                                                                                                                                                      )
+                                                                                                                                                    , Op("Nil", [])
+                                                                                                                                                    )
+                                                                                                                                                  ]
+                                                                                                                                                )
+                                                                                                                                              , Op("Nil", [])
+                                                                                                                                              )
+                                                                                                                                            ]
+                                                                                                                                          )
+                                                                                                                                        , Op("Nil", [])
+                                                                                                                                        )
+                                                                                                                                      ]
+                                                                                                                                    )
+                                                                                                                                  , Op("Nil", [])
+                                                                                                                                  )
+                                                                                                                                , Anno(Str(">>>"), Op("Nil", []))
+                                                                                                                                , Anno(
+                                                                                                                                    Op(
+                                                                                                                                      "OpApp"
+                                                                                                                                    , [ Anno(
+                                                                                                                                          Op(
+                                                                                                                                            "AppBin"
+                                                                                                                                          , [ Anno(
+                                                                                                                                                Op(
+                                                                                                                                                  "Var"
+                                                                                                                                                , [Anno(Str("first"), Op("Nil", []))]
+                                                                                                                                                )
+                                                                                                                                              , Op("Nil", [])
+                                                                                                                                              )
+                                                                                                                                            , Var("h_13")
+                                                                                                                                            ]
+                                                                                                                                          )
+                                                                                                                                        , Op("Nil", [])
+                                                                                                                                        )
+                                                                                                                                      , Anno(Str(">>>"), Op("Nil", []))
+                                                                                                                                      , Anno(
+                                                                                                                                          Op(
+                                                                                                                                            "OpApp"
+                                                                                                                                          , [ Anno(
+                                                                                                                                                Op(
+                                                                                                                                                  "AppBin"
+                                                                                                                                                , [ Anno(
+                                                                                                                                                      Op(
+                                                                                                                                                        "Var"
+                                                                                                                                                      , [Anno(Str("arr"), Op("Nil", []))]
+                                                                                                                                                      )
+                                                                                                                                                    , Op("Nil", [])
+                                                                                                                                                    )
+                                                                                                                                                  , Anno(
+                                                                                                                                                      Op(
+                                                                                                                                                        "Abs"
+                                                                                                                                                      , [ Anno(
+                                                                                                                                                            Op(
+                                                                                                                                                              "Cons"
+                                                                                                                                                            , [ Anno(
+                                                                                                                                                                  Op(
+                                                                                                                                                                    "TuplePat"
+                                                                                                                                                                  , [ Var("a_13")
+                                                                                                                                                                    , Anno(
+                                                                                                                                                                        Op(
+                                                                                                                                                                          "Cons"
+                                                                                                                                                                        , [Var("i_13"), Anno(Op("Nil", []), Op("Nil", []))]
+                                                                                                                                                                        )
+                                                                                                                                                                      , Op("Nil", [])
+                                                                                                                                                                      )
+                                                                                                                                                                    ]
+                                                                                                                                                                  )
+                                                                                                                                                                , Op("Nil", [])
+                                                                                                                                                                )
+                                                                                                                                                              , Anno(Op("Nil", []), Op("Nil", []))
+                                                                                                                                                              ]
+                                                                                                                                                            )
+                                                                                                                                                          , Op("Nil", [])
+                                                                                                                                                          )
+                                                                                                                                                        , Var("j_13")
+                                                                                                                                                        ]
+                                                                                                                                                      )
+                                                                                                                                                    , Op("Nil", [])
+                                                                                                                                                    )
+                                                                                                                                                  ]
+                                                                                                                                                )
+                                                                                                                                              , Op("Nil", [])
+                                                                                                                                              )
+                                                                                                                                            , Anno(Str(">>>"), Op("Nil", []))
+                                                                                                                                            , Var("k_13")
+                                                                                                                                            ]
+                                                                                                                                          )
+                                                                                                                                        , Op("Nil", [])
+                                                                                                                                        )
+                                                                                                                                      ]
+                                                                                                                                    )
+                                                                                                                                  , Op("Nil", [])
+                                                                                                                                  )
+                                                                                                                                ]
+                                                                                                                              )
+                                                                                                                            , Op("Nil", [])
+                                                                                                                            )
+                                                                                                                          )
+                                                                                                                        )
+                                                                                                                      )
+                                                                                                                    )
+                                                                                                                  )
+                                                                                                                )
+                                                                                                              )
+                                                                                                            )
+                                                                                                          )
+                                                                                                        )
+                                                                                                      )
+                                                                                                    )
+                                                                                                  )
+                                                                                                )
+                                                                                              )
+                                                                                            )
+                                                                                          )
+                                                                                        )
+                                                                                      )
+                                                                                    )
+                                                                                  )
+                                                                                )
+                                                                              )
+                                                                            )
+                                                                          )
+                                                                        )
+                                                                      )
+                                                                    )
+                                                                  )
+                                                                )
+                                                              )
+                                                            )
+                                                          )
+                                                        )
+                                                      )
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
               )
             )
           )
@@ -1698,33 +3405,33 @@ Specification(
           , Id()
           , GuardedLChoice(
               Scope(
-                ["c_13"]
+                ["p_17"]
               , Seq(
                   Match(
                     Anno(
                       Op(
                         "Cons"
-                      , [Var("c_13"), Anno(Op("Nil", []), Wld())]
+                      , [Var("p_17"), Anno(Op("Nil", []), Wld())]
                       )
                     , Wld()
                     )
                   )
-                , Build(Var("c_13"))
+                , Build(Var("p_17"))
                 )
               )
             , Id()
             , Scope(
-                ["a_13", "b_13"]
+                ["n_17", "o_17"]
               , Seq(
                   Match(
                     Anno(
-                      Op("Cons", [Var("a_13"), Var("b_13")])
+                      Op("Cons", [Var("n_17"), Var("o_17")])
                     , Wld()
                     )
                   )
                 , Build(
                     Anno(
-                      Op("TuplePat", [Var("a_13"), Var("b_13")])
+                      Op("TuplePat", [Var("n_17"), Var("o_17")])
                     , Op("Nil", [])
                     )
                   )
@@ -1753,27 +3460,27 @@ Specification(
           , Id()
           , GuardedLChoice(
               Scope(
-                ["f_13"]
+                ["s_17"]
               , Seq(
                   Match(
                     Anno(
                       Op(
                         "Cons"
-                      , [Var("f_13"), Anno(Op("Nil", []), Wld())]
+                      , [Var("s_17"), Anno(Op("Nil", []), Wld())]
                       )
                     , Wld()
                     )
                   )
-                , Build(Var("f_13"))
+                , Build(Var("s_17"))
                 )
               )
             , Id()
             , Scope(
-                ["d_13", "e_13"]
+                ["q_17", "r_17"]
               , Seq(
                   Match(
                     Anno(
-                      Op("Cons", [Var("d_13"), Var("e_13")])
+                      Op("Cons", [Var("q_17"), Var("r_17")])
                     , Wld()
                     )
                   )
@@ -1782,7 +3489,7 @@ Specification(
                       Op(
                         "Product"
                       , [ Anno(
-                            Op("ECons", [Var("d_13"), Var("e_13")])
+                            Op("ECons", [Var("q_17"), Var("r_17")])
                           , Op("Nil", [])
                           )
                         ]
@@ -1814,12 +3521,12 @@ Specification(
           , [ Match(Anno(Op("Var", [Wld()]), Wld()))
             , CallT(SVar("union_0_0"), [], [])
             , Scope(
-                ["g_13"]
+                ["t_17"]
               , Seq(
                   Match(
-                    Anno(Op("VarFunLHS", [Var("g_13"), Wld()]), Wld())
+                    Anno(Op("VarFunLHS", [Var("t_17"), Wld()]), Wld())
                   )
-                , Build(Var("g_13"))
+                , Build(Var("t_17"))
                 )
               )
             ]
@@ -1829,34 +3536,34 @@ Specification(
       , SDefT(
           "apply_all_0_1"
         , []
-        , [VarDec("b_28", ConstType(Sort("ATerm", [])))]
+        , [VarDec("p_32", ConstType(Sort("ATerm", [])))]
         , GuardedLChoice(
             Scope(
-              ["m_13"]
+              ["z_17"]
             , Seq(
                 Match(
                   Anno(
                     Op(
                       ""
-                    , [Var("m_13"), Anno(Op("Nil", []), Wld())]
+                    , [Var("z_17"), Anno(Op("Nil", []), Wld())]
                     )
                   , Wld()
                   )
                 )
-              , Build(Var("m_13"))
+              , Build(Var("z_17"))
               )
             )
           , Id()
           , Scope(
-              ["i_13", "j_13", "k_13"]
+              ["v_17", "w_17", "x_17"]
             , Seq(
                 Match(
                   Anno(
                     Op(
                       ""
-                    , [ Var("i_13")
+                    , [ Var("v_17")
                       , Anno(
-                          Op("Cons", [Var("j_13"), Var("k_13")])
+                          Op("Cons", [Var("w_17"), Var("x_17")])
                         , Wld()
                         )
                       ]
@@ -1872,7 +3579,7 @@ Specification(
                       , [ Anno(
                             Op(
                               "AppBin"
-                            , [ Var("i_13")
+                            , [ Var("v_17")
                               , Anno(
                                   Op(
                                     "OpApp"
@@ -1886,13 +3593,13 @@ Specification(
                                               )
                                             , Op("Nil", [])
                                             )
-                                          , Var("b_28")
+                                          , Var("p_32")
                                           ]
                                         )
                                       , Op("Nil", [])
                                       )
                                     , Anno(Str(">>>"), Op("Nil", []))
-                                    , Var("j_13")
+                                    , Var("w_17")
                                     ]
                                   )
                                 , Op("Nil", [])
@@ -1901,13 +3608,13 @@ Specification(
                             )
                           , Op("Nil", [])
                           )
-                        , Var("k_13")
+                        , Var("x_17")
                         ]
                       )
                     , Op("Nil", [])
                     )
                   )
-                , CallT(SVar("apply_all_0_1"), [], [Var("b_28")])
+                , CallT(SVar("apply_all_0_1"), [], [Var("p_32")])
                 )
               )
             )
@@ -1916,7 +3623,7 @@ Specification(
       , SDefT(
           "map_1_0"
         , [ VarDec(
-              "s_13"
+              "f_18"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -1926,37 +3633,37 @@ Specification(
         , []
         , Let(
             [ SDefT(
-                "t_13"
+                "g_18"
               , []
               , []
               , GuardedLChoice(
                   Match(Anno(Op("Nil", []), Wld()))
                 , Id()
                 , Scope(
-                    ["n_13", "o_13", "p_13", "q_13", "r_13"]
+                    ["a_18", "b_18", "c_18", "d_18", "e_18"]
                   , Seq(
                       Match(
                         Anno(
-                          Op("Cons", [Var("n_13"), Var("o_13")])
-                        , Var("r_13")
+                          Op("Cons", [Var("a_18"), Var("b_18")])
+                        , Var("e_18")
                         )
                       )
                     , Seq(
-                        Build(Var("n_13"))
+                        Build(Var("a_18"))
                       , Seq(
-                          CallT(SVar("s_13"), [], [])
+                          CallT(SVar("f_18"), [], [])
                         , Seq(
-                            Match(Var("p_13"))
+                            Match(Var("c_18"))
                           , Seq(
-                              Build(Var("o_13"))
+                              Build(Var("b_18"))
                             , Seq(
-                                CallT(SVar("t_13"), [], [])
+                                CallT(SVar("g_18"), [], [])
                               , Seq(
-                                  Match(Var("q_13"))
+                                  Match(Var("d_18"))
                                 , Build(
                                     Anno(
-                                      Op("Cons", [Var("p_13"), Var("q_13")])
-                                    , Var("r_13")
+                                      Op("Cons", [Var("c_18"), Var("d_18")])
+                                    , Var("e_18")
                                     )
                                   )
                                 )
@@ -1970,13 +3677,13 @@ Specification(
                 )
               )
             ]
-          , CallT(SVar("t_13"), [], [])
+          , CallT(SVar("g_18"), [], [])
           )
         )
       , SDefT(
           "collect_all_1_0"
         , [ VarDec(
-              "u_13"
+              "h_18"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -1986,7 +3693,7 @@ Specification(
         , []
         , CallT(
             SVar("collect_all_2_0")
-          , [ CallT(SVar("u_13"), [], [])
+          , [ CallT(SVar("h_18"), [], [])
             , CallT(SVar("union_0_0"), [], [])
             ]
           , []
@@ -1995,14 +3702,14 @@ Specification(
       , SDefT(
           "collect_all_2_0"
         , [ VarDec(
-              "v_13"
+              "i_18"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "w_13"
+              "j_18"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2012,38 +3719,38 @@ Specification(
         , []
         , Let(
             [ SDefT(
-                "x_13"
+                "k_18"
               , []
               , []
               , GuardedLChoice(
                   Scope(
-                    ["y_13", "a_14", "z_13", "b_14"]
+                    ["l_18", "n_18", "m_18", "o_18"]
                   , Seq(
-                      Match(Var("a_14"))
+                      Match(Var("n_18"))
                     , Seq(
-                        CallT(SVar("v_13"), [], [])
+                        CallT(SVar("i_18"), [], [])
                       , Seq(
-                          Match(Var("y_13"))
+                          Match(Var("l_18"))
                         , Seq(
-                            Build(Var("a_14"))
+                            Build(Var("n_18"))
                           , Seq(
-                              Match(Var("b_14"))
+                              Match(Var("o_18"))
                             , Seq(
                                 CallT(
                                   SVar("crush_3_0")
                                 , [ Build(Anno(Op("Nil", []), Op("Nil", [])))
-                                  , CallT(SVar("w_13"), [], [])
-                                  , CallT(SVar("x_13"), [], [])
+                                  , CallT(SVar("j_18"), [], [])
+                                  , CallT(SVar("k_18"), [], [])
                                   ]
                                 , []
                                 )
                               , Seq(
-                                  Match(Var("z_13"))
+                                  Match(Var("m_18"))
                                 , Seq(
-                                    Build(Var("b_14"))
+                                    Build(Var("o_18"))
                                   , Build(
                                       Anno(
-                                        Op("Cons", [Var("y_13"), Var("z_13")])
+                                        Op("Cons", [Var("l_18"), Var("m_18")])
                                       , Op("Nil", [])
                                       )
                                     )
@@ -2060,35 +3767,35 @@ Specification(
                 , CallT(
                     SVar("crush_3_0")
                   , [ Build(Anno(Op("Nil", []), Op("Nil", [])))
-                    , CallT(SVar("w_13"), [], [])
-                    , CallT(SVar("x_13"), [], [])
+                    , CallT(SVar("j_18"), [], [])
+                    , CallT(SVar("k_18"), [], [])
                     ]
                   , []
                   )
                 )
               )
             ]
-          , CallT(SVar("x_13"), [], [])
+          , CallT(SVar("k_18"), [], [])
           )
         )
       , SDefT(
           "collect_all_3_0"
         , [ VarDec(
-              "c_14"
+              "p_18"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "d_14"
+              "q_18"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "e_14"
+              "r_18"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2098,38 +3805,38 @@ Specification(
         , []
         , Let(
             [ SDefT(
-                "f_14"
+                "s_18"
               , []
               , []
               , GuardedLChoice(
                   Scope(
-                    ["g_14", "i_14", "h_14", "j_14"]
+                    ["t_18", "v_18", "u_18", "w_18"]
                   , Seq(
-                      Match(Var("i_14"))
+                      Match(Var("v_18"))
                     , Seq(
-                        CallT(SVar("c_14"), [], [])
+                        CallT(SVar("p_18"), [], [])
                       , Seq(
-                          Match(Var("g_14"))
+                          Match(Var("t_18"))
                         , Seq(
-                            Build(Var("i_14"))
+                            Build(Var("v_18"))
                           , Seq(
-                              Match(Var("j_14"))
+                              Match(Var("w_18"))
                             , Seq(
                                 CallT(
                                   SVar("crush_3_0")
                                 , [ Build(Anno(Op("Nil", []), Op("Nil", [])))
-                                  , CallT(SVar("d_14"), [], [])
-                                  , CallT(SVar("f_14"), [], [])
+                                  , CallT(SVar("q_18"), [], [])
+                                  , CallT(SVar("s_18"), [], [])
                                   ]
                                 , []
                                 )
                               , Seq(
-                                  Match(Var("h_14"))
+                                  Match(Var("u_18"))
                                 , Seq(
-                                    Build(Var("j_14"))
+                                    Build(Var("w_18"))
                                   , Build(
                                       Anno(
-                                        Op("Cons", [Var("g_14"), Var("h_14")])
+                                        Op("Cons", [Var("t_18"), Var("u_18")])
                                       , Op("Nil", [])
                                       )
                                     )
@@ -2145,15 +3852,15 @@ Specification(
                 , Id()
                 , GuardedLChoice(
                     Seq(
-                      CallT(SVar("e_14"), [], [])
-                    , CallT(SVar("f_14"), [], [])
+                      CallT(SVar("r_18"), [], [])
+                    , CallT(SVar("s_18"), [], [])
                     )
                   , Id()
                   , CallT(
                       SVar("crush_3_0")
                     , [ Build(Anno(Op("Nil", []), Op("Nil", [])))
-                      , CallT(SVar("d_14"), [], [])
-                      , CallT(SVar("f_14"), [], [])
+                      , CallT(SVar("q_18"), [], [])
+                      , CallT(SVar("s_18"), [], [])
                       ]
                     , []
                     )
@@ -2161,27 +3868,27 @@ Specification(
                 )
               )
             ]
-          , CallT(SVar("f_14"), [], [])
+          , CallT(SVar("s_18"), [], [])
           )
         )
       , SDefT(
           "crush_3_0"
         , [ VarDec(
-              "l_14"
+              "y_18"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "m_14"
+              "z_18"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "n_14"
+              "a_19"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2190,16 +3897,16 @@ Specification(
           ]
         , []
         , Scope(
-            ["k_14"]
+            ["x_18"]
           , Seq(
-              Match(Anno(Explode(Wld(), Var("k_14")), Wld()))
+              Match(Anno(Explode(Wld(), Var("x_18")), Wld()))
             , Seq(
-                Build(Var("k_14"))
+                Build(Var("x_18"))
               , CallT(
                   SVar("foldr_3_0")
-                , [ CallT(SVar("l_14"), [], [])
-                  , CallT(SVar("m_14"), [], [])
-                  , CallT(SVar("n_14"), [], [])
+                , [ CallT(SVar("y_18"), [], [])
+                  , CallT(SVar("z_18"), [], [])
+                  , CallT(SVar("a_19"), [], [])
                   ]
                 , []
                 )
@@ -2210,21 +3917,21 @@ Specification(
       , SDefT(
           "foldr_3_0"
         , [ VarDec(
-              "q_14"
+              "d_19"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "r_14"
+              "e_19"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "s_14"
+              "f_19"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2235,53 +3942,53 @@ Specification(
         , GuardedLChoice(
             Seq(
               Match(Anno(Op("Nil", []), Wld()))
-            , CallT(SVar("q_14"), [], [])
+            , CallT(SVar("d_19"), [], [])
             )
           , Id()
           , Scope(
-              ["o_14", "p_14", "t_14", "v_14", "u_14", "w_14"]
+              ["b_19", "c_19", "g_19", "i_19", "h_19", "j_19"]
             , Seq(
                 Match(
                   Anno(
-                    Op("Cons", [Var("o_14"), Var("p_14")])
+                    Op("Cons", [Var("b_19"), Var("c_19")])
                   , Wld()
                   )
                 )
               , Seq(
-                  Match(Var("v_14"))
+                  Match(Var("i_19"))
                 , Seq(
-                    Build(Var("o_14"))
+                    Build(Var("b_19"))
                   , Seq(
-                      CallT(SVar("s_14"), [], [])
+                      CallT(SVar("f_19"), [], [])
                     , Seq(
-                        Match(Var("t_14"))
+                        Match(Var("g_19"))
                       , Seq(
-                          Build(Var("v_14"))
+                          Build(Var("i_19"))
                         , Seq(
-                            Match(Var("w_14"))
+                            Match(Var("j_19"))
                           , Seq(
-                              Build(Var("p_14"))
+                              Build(Var("c_19"))
                             , Seq(
                                 CallT(
                                   SVar("foldr_3_0")
-                                , [ CallT(SVar("q_14"), [], [])
-                                  , CallT(SVar("r_14"), [], [])
-                                  , CallT(SVar("s_14"), [], [])
+                                , [ CallT(SVar("d_19"), [], [])
+                                  , CallT(SVar("e_19"), [], [])
+                                  , CallT(SVar("f_19"), [], [])
                                   ]
                                 , []
                                 )
                               , Seq(
-                                  Match(Var("u_14"))
+                                  Match(Var("h_19"))
                                 , Seq(
-                                    Build(Var("w_14"))
+                                    Build(Var("j_19"))
                                   , Seq(
                                       Build(
                                         Anno(
-                                          Op("", [Var("t_14"), Var("u_14")])
+                                          Op("", [Var("g_19"), Var("h_19")])
                                         , Op("Nil", [])
                                         )
                                       )
-                                    , CallT(SVar("r_14"), [], [])
+                                    , CallT(SVar("e_19"), [], [])
                                     )
                                   )
                                 )
@@ -2303,32 +4010,32 @@ Specification(
         , []
         , GuardedLChoice(
             Scope(
-              ["x_14", "y_14"]
+              ["k_19", "l_19"]
             , Seq(
                 Match(
                   Anno(
-                    Op("", [Var("x_14"), Var("y_14")])
+                    Op("", [Var("k_19"), Var("l_19")])
                   , Wld()
                   )
                 )
               , Seq(
-                  Build(Var("x_14"))
-                , CallT(SVar("at_end_1_0"), [Build(Var("y_14"))], [])
+                  Build(Var("k_19"))
+                , CallT(SVar("at_end_1_0"), [Build(Var("l_19"))], [])
                 )
               )
             )
           , Id()
           , Scope(
-              ["z_14"]
+              ["m_19"]
             , Seq(
                 Match(
                   Anno(
-                    Explode(Anno(Str(""), Wld()), Var("z_14"))
+                    Explode(Anno(Str(""), Wld()), Var("m_19"))
                   , Wld()
                   )
                 )
               , Seq(
-                  Build(Var("z_14"))
+                  Build(Var("m_19"))
                 , CallT(SVar("concat_0_0"), [], [])
                 )
               )
@@ -2338,7 +4045,7 @@ Specification(
       , SDefT(
           "at_end_1_0"
         , [ VarDec(
-              "f_15"
+              "s_19"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2348,33 +4055,33 @@ Specification(
         , []
         , Let(
             [ SDefT(
-                "g_15"
+                "t_19"
               , []
               , []
               , GuardedLChoice(
                   Scope(
-                    ["a_15", "b_15", "c_15", "d_15", "e_15"]
+                    ["n_19", "o_19", "p_19", "q_19", "r_19"]
                   , Seq(
                       Match(
                         Anno(
-                          Op("Cons", [Var("a_15"), Var("b_15")])
-                        , Var("e_15")
+                          Op("Cons", [Var("n_19"), Var("o_19")])
+                        , Var("r_19")
                         )
                       )
                     , Seq(
-                        Build(Var("a_15"))
+                        Build(Var("n_19"))
                       , Seq(
-                          Match(Var("c_15"))
+                          Match(Var("p_19"))
                         , Seq(
-                            Build(Var("b_15"))
+                            Build(Var("o_19"))
                           , Seq(
-                              CallT(SVar("g_15"), [], [])
+                              CallT(SVar("t_19"), [], [])
                             , Seq(
-                                Match(Var("d_15"))
+                                Match(Var("q_19"))
                               , Build(
                                   Anno(
-                                    Op("Cons", [Var("c_15"), Var("d_15")])
-                                  , Var("e_15")
+                                    Op("Cons", [Var("p_19"), Var("q_19")])
+                                  , Var("r_19")
                                   )
                                 )
                               )
@@ -2387,12 +4094,12 @@ Specification(
                 , Id()
                 , Seq(
                     Match(Anno(Op("Nil", []), Wld()))
-                  , CallT(SVar("f_15"), [], [])
+                  , CallT(SVar("s_19"), [], [])
                   )
                 )
               )
             ]
-          , CallT(SVar("g_15"), [], [])
+          , CallT(SVar("t_19"), [], [])
           )
         )
       , SDefT(
@@ -2401,28 +4108,28 @@ Specification(
         , []
         , Let(
             [ SDefT(
-                "j_15"
+                "w_19"
               , []
               , []
               , GuardedLChoice(
                   Match(Anno(Op("Nil", []), Wld()))
                 , Id()
                 , Scope(
-                    ["h_15", "i_15"]
+                    ["u_19", "v_19"]
                   , Seq(
                       Match(
                         Anno(
-                          Op("Cons", [Var("h_15"), Var("i_15")])
+                          Op("Cons", [Var("u_19"), Var("v_19")])
                         , Wld()
                         )
                       )
                     , Seq(
-                        Build(Var("h_15"))
+                        Build(Var("u_19"))
                       , CallT(
                           SVar("at_end_1_0")
                         , [Seq(
-                             Build(Var("i_15"))
-                           , CallT(SVar("j_15"), [], [])
+                             Build(Var("v_19"))
+                           , CallT(SVar("w_19"), [], [])
                            )]
                         , []
                         )
@@ -2432,7 +4139,7 @@ Specification(
                 )
               )
             ]
-          , CallT(SVar("j_15"), [], [])
+          , CallT(SVar("w_19"), [], [])
           )
         )
       , SDefT(
@@ -2440,47 +4147,47 @@ Specification(
         , []
         , []
         , Scope(
-            ["k_15", "l_15"]
+            ["x_19", "y_19"]
           , Let(
               [ SDefT(
-                  "r_15"
+                  "e_20"
                 , []
                 , []
                 , GuardedLChoice(
                     Seq(
                       Match(Anno(Op("Nil", []), Wld()))
-                    , Build(Var("k_15"))
+                    , Build(Var("x_19"))
                     )
                   , Id()
                   , GuardedLChoice(
                       Seq(
-                        CallT(SVar("HdMember_1_0"), [Build(Var("k_15"))], [])
-                      , CallT(SVar("r_15"), [], [])
+                        CallT(SVar("HdMember_1_0"), [Build(Var("x_19"))], [])
+                      , CallT(SVar("e_20"), [], [])
                       )
                     , Id()
                     , Scope(
-                        ["m_15", "n_15", "o_15", "p_15", "q_15"]
+                        ["z_19", "a_20", "b_20", "c_20", "d_20"]
                       , Seq(
                           Match(
                             Anno(
-                              Op("Cons", [Var("m_15"), Var("n_15")])
-                            , Var("q_15")
+                              Op("Cons", [Var("z_19"), Var("a_20")])
+                            , Var("d_20")
                             )
                           )
                         , Seq(
-                            Build(Var("m_15"))
+                            Build(Var("z_19"))
                           , Seq(
-                              Match(Var("o_15"))
+                              Match(Var("b_20"))
                             , Seq(
-                                Build(Var("n_15"))
+                                Build(Var("a_20"))
                               , Seq(
-                                  CallT(SVar("r_15"), [], [])
+                                  CallT(SVar("e_20"), [], [])
                                 , Seq(
-                                    Match(Var("p_15"))
+                                    Match(Var("c_20"))
                                   , Build(
                                       Anno(
-                                        Op("Cons", [Var("o_15"), Var("p_15")])
-                                      , Var("q_15")
+                                        Op("Cons", [Var("b_20"), Var("c_20")])
+                                      , Var("d_20")
                                       )
                                     )
                                   )
@@ -2497,13 +4204,13 @@ Specification(
             , Seq(
                 Match(
                   Anno(
-                    Op("", [Var("l_15"), Var("k_15")])
+                    Op("", [Var("y_19"), Var("x_19")])
                   , Wld()
                   )
                 )
               , Seq(
-                  Build(Var("l_15"))
-                , CallT(SVar("r_15"), [], [])
+                  Build(Var("y_19"))
+                , CallT(SVar("e_20"), [], [])
                 )
               )
             )
@@ -2512,7 +4219,7 @@ Specification(
       , SDefT(
           "HdMember_1_0"
         , [ VarDec(
-              "v_15"
+              "i_20"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2521,29 +4228,29 @@ Specification(
           ]
         , []
         , Scope(
-            ["s_15", "t_15", "w_15"]
+            ["f_20", "g_20", "j_20"]
           , Seq(
               Match(
                 Anno(
-                  Op("Cons", [Var("t_15"), Var("s_15")])
+                  Op("Cons", [Var("g_20"), Var("f_20")])
                 , Wld()
                 )
               )
             , Seq(
-                Match(Var("w_15"))
+                Match(Var("j_20"))
               , Seq(
-                  CallT(SVar("v_15"), [], [])
+                  CallT(SVar("i_20"), [], [])
                 , Seq(
                     CallT(
                       SVar("fetch_1_0")
                     , [ Scope(
-                          ["u_15"]
+                          ["h_20"]
                         , Seq(
-                            Match(Var("u_15"))
+                            Match(Var("h_20"))
                           , Seq(
                               Build(
                                 Anno(
-                                  Op("", [Var("t_15"), Var("u_15")])
+                                  Op("", [Var("g_20"), Var("h_20")])
                                 , Op("Nil", [])
                                 )
                               )
@@ -2554,7 +4261,7 @@ Specification(
                       ]
                     , []
                     )
-                  , Seq(Build(Var("w_15")), Build(Var("s_15")))
+                  , Seq(Build(Var("j_20")), Build(Var("f_20")))
                   )
                 )
               )
@@ -2564,7 +4271,7 @@ Specification(
       , SDefT(
           "fetch_1_0"
         , [ VarDec(
-              "h_16"
+              "u_20"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2574,33 +4281,33 @@ Specification(
         , []
         , Let(
             [ SDefT(
-                "i_16"
+                "v_20"
               , []
               , []
               , GuardedLChoice(
                   Scope(
-                    ["x_15", "y_15", "z_15", "a_16", "b_16"]
+                    ["k_20", "l_20", "m_20", "n_20", "o_20"]
                   , Seq(
                       Match(
                         Anno(
-                          Op("Cons", [Var("x_15"), Var("y_15")])
-                        , Var("b_16")
+                          Op("Cons", [Var("k_20"), Var("l_20")])
+                        , Var("o_20")
                         )
                       )
                     , Seq(
-                        Build(Var("x_15"))
+                        Build(Var("k_20"))
                       , Seq(
-                          CallT(SVar("h_16"), [], [])
+                          CallT(SVar("u_20"), [], [])
                         , Seq(
-                            Match(Var("z_15"))
+                            Match(Var("m_20"))
                           , Seq(
-                              Build(Var("y_15"))
+                              Build(Var("l_20"))
                             , Seq(
-                                Match(Var("a_16"))
+                                Match(Var("n_20"))
                               , Build(
                                   Anno(
-                                    Op("Cons", [Var("z_15"), Var("a_16")])
-                                  , Var("b_16")
+                                    Op("Cons", [Var("m_20"), Var("n_20")])
+                                  , Var("o_20")
                                   )
                                 )
                               )
@@ -2612,28 +4319,28 @@ Specification(
                   )
                 , Id()
                 , Scope(
-                    ["c_16", "d_16", "e_16", "f_16", "g_16"]
+                    ["p_20", "q_20", "r_20", "s_20", "t_20"]
                   , Seq(
                       Match(
                         Anno(
-                          Op("Cons", [Var("c_16"), Var("d_16")])
-                        , Var("g_16")
+                          Op("Cons", [Var("p_20"), Var("q_20")])
+                        , Var("t_20")
                         )
                       )
                     , Seq(
-                        Build(Var("c_16"))
+                        Build(Var("p_20"))
                       , Seq(
-                          Match(Var("e_16"))
+                          Match(Var("r_20"))
                         , Seq(
-                            Build(Var("d_16"))
+                            Build(Var("q_20"))
                           , Seq(
-                              CallT(SVar("i_16"), [], [])
+                              CallT(SVar("v_20"), [], [])
                             , Seq(
-                                Match(Var("f_16"))
+                                Match(Var("s_20"))
                               , Build(
                                   Anno(
-                                    Op("Cons", [Var("e_16"), Var("f_16")])
-                                  , Var("g_16")
+                                    Op("Cons", [Var("r_20"), Var("s_20")])
+                                  , Var("t_20")
                                   )
                                 )
                               )
@@ -2646,7 +4353,7 @@ Specification(
                 )
               )
             ]
-          , CallT(SVar("i_16"), [], [])
+          , CallT(SVar("v_20"), [], [])
           )
         )
       , SDefT(
@@ -2654,10 +4361,10 @@ Specification(
         , []
         , []
         , Scope(
-            ["j_16"]
+            ["w_20"]
           , Match(
               Anno(
-                Op("", [Var("j_16"), Var("j_16")])
+                Op("", [Var("w_20"), Var("w_20")])
               , Wld()
               )
             )
@@ -2666,7 +4373,7 @@ Specification(
       , SDefT(
           "oncetd_1_0"
         , [ VarDec(
-              "k_16"
+              "x_20"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2676,17 +4383,17 @@ Specification(
         , []
         , Let(
             [ SDefT(
-                "l_16"
+                "y_20"
               , []
               , []
               , GuardedLChoice(
-                  CallT(SVar("k_16"), [], [])
+                  CallT(SVar("x_20"), [], [])
                 , Id()
-                , One(CallT(SVar("l_16"), [], []))
+                , One(CallT(SVar("y_20"), [], []))
                 )
               )
             ]
-          , CallT(SVar("l_16"), [], [])
+          , CallT(SVar("y_20"), [], [])
           )
         )
       , SDefT(
@@ -2702,14 +4409,14 @@ Specification(
       , SDefT(
           "Anno__Cong_____2_0"
         , [ VarDec(
-              "q_16"
+              "d_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "r_16"
+              "e_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2718,22 +4425,22 @@ Specification(
           ]
         , []
         , Scope(
-            ["m_16", "n_16", "o_16", "p_16"]
+            ["z_20", "a_21", "b_21", "c_21"]
           , Seq(
-              Match(Anno(Var("m_16"), Var("n_16")))
+              Match(Anno(Var("z_20"), Var("a_21")))
             , Seq(
-                Build(Var("m_16"))
+                Build(Var("z_20"))
               , Seq(
-                  CallT(SVar("q_16"), [], [])
+                  CallT(SVar("d_21"), [], [])
                 , Seq(
-                    Match(Var("o_16"))
+                    Match(Var("b_21"))
                   , Seq(
-                      Build(Var("n_16"))
+                      Build(Var("a_21"))
                     , Seq(
-                        CallT(SVar("r_16"), [], [])
+                        CallT(SVar("e_21"), [], [])
                       , Seq(
-                          Match(Var("p_16"))
-                        , Build(Anno(Var("o_16"), Var("p_16")))
+                          Match(Var("c_21"))
+                        , Build(Anno(Var("b_21"), Var("c_21")))
                         )
                       )
                     )
@@ -2752,14 +4459,14 @@ Specification(
       , SDefT(
           "Cons_2_0"
         , [ VarDec(
-              "s_16"
+              "f_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "t_16"
+              "g_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2768,30 +4475,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["e_28", "c_28", "d_28", "f_28", "g_28"]
+            ["s_32", "q_32", "r_32", "t_32", "u_32"]
           , Seq(
               Match(
                 Anno(
-                  Op("Cons", [Var("c_28"), Var("d_28")])
-                , Var("e_28")
+                  Op("Cons", [Var("q_32"), Var("r_32")])
+                , Var("s_32")
                 )
               )
             , Seq(
-                Build(Var("c_28"))
+                Build(Var("q_32"))
               , Seq(
-                  CallT(SVar("s_16"), [], [])
+                  CallT(SVar("f_21"), [], [])
                 , Seq(
-                    Match(Var("f_28"))
+                    Match(Var("t_32"))
                   , Seq(
-                      Build(Var("d_28"))
+                      Build(Var("r_32"))
                     , Seq(
-                        CallT(SVar("t_16"), [], [])
+                        CallT(SVar("g_21"), [], [])
                       , Seq(
-                          Match(Var("g_28"))
+                          Match(Var("u_32"))
                         , Build(
                             Anno(
-                              Op("Cons", [Var("f_28"), Var("g_28")])
-                            , Var("e_28")
+                              Op("Cons", [Var("t_32"), Var("u_32")])
+                            , Var("s_32")
                             )
                           )
                         )
@@ -2806,14 +4513,14 @@ Specification(
       , SDefT(
           "Conc_2_0"
         , [ VarDec(
-              "u_16"
+              "h_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "v_16"
+              "i_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2822,30 +4529,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["j_28", "h_28", "i_28", "k_28", "l_28"]
+            ["x_32", "v_32", "w_32", "y_32", "z_32"]
           , Seq(
               Match(
                 Anno(
-                  Op("Conc", [Var("h_28"), Var("i_28")])
-                , Var("j_28")
+                  Op("Conc", [Var("v_32"), Var("w_32")])
+                , Var("x_32")
                 )
               )
             , Seq(
-                Build(Var("h_28"))
+                Build(Var("v_32"))
               , Seq(
-                  CallT(SVar("u_16"), [], [])
+                  CallT(SVar("h_21"), [], [])
                 , Seq(
-                    Match(Var("k_28"))
+                    Match(Var("y_32"))
                   , Seq(
-                      Build(Var("i_28"))
+                      Build(Var("w_32"))
                     , Seq(
-                        CallT(SVar("v_16"), [], [])
+                        CallT(SVar("i_21"), [], [])
                       , Seq(
-                          Match(Var("l_28"))
+                          Match(Var("z_32"))
                         , Build(
                             Anno(
-                              Op("Conc", [Var("k_28"), Var("l_28")])
-                            , Var("j_28")
+                              Op("Conc", [Var("y_32"), Var("z_32")])
+                            , Var("x_32")
                             )
                           )
                         )
@@ -2866,14 +4573,14 @@ Specification(
       , SDefT(
           "_2_0"
         , [ VarDec(
-              "w_16"
+              "j_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "x_16"
+              "k_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2882,30 +4589,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["o_28", "m_28", "n_28", "p_28", "q_28"]
+            ["c_33", "a_33", "b_33", "d_33", "e_33"]
           , Seq(
               Match(
                 Anno(
-                  Op("", [Var("m_28"), Var("n_28")])
-                , Var("o_28")
+                  Op("", [Var("a_33"), Var("b_33")])
+                , Var("c_33")
                 )
               )
             , Seq(
-                Build(Var("m_28"))
+                Build(Var("a_33"))
               , Seq(
-                  CallT(SVar("w_16"), [], [])
+                  CallT(SVar("j_21"), [], [])
                 , Seq(
-                    Match(Var("p_28"))
+                    Match(Var("d_33"))
                   , Seq(
-                      Build(Var("n_28"))
+                      Build(Var("b_33"))
                     , Seq(
-                        CallT(SVar("x_16"), [], [])
+                        CallT(SVar("k_21"), [], [])
                       , Seq(
-                          Match(Var("q_28"))
+                          Match(Var("e_33"))
                         , Build(
                             Anno(
-                              Op("", [Var("p_28"), Var("q_28")])
-                            , Var("o_28")
+                              Op("", [Var("d_33"), Var("e_33")])
+                            , Var("c_33")
                             )
                           )
                         )
@@ -2920,21 +4627,21 @@ Specification(
       , SDefT(
           "_3_0"
         , [ VarDec(
-              "y_16"
+              "l_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "z_16"
+              "m_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "a_17"
+              "n_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -2943,42 +4650,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["u_28", "r_28", "s_28", "t_28", "v_28", "w_28", "x_28"]
+            ["i_33", "f_33", "g_33", "h_33", "j_33", "k_33", "l_33"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     ""
-                  , [Var("r_28"), Var("s_28"), Var("t_28")]
+                  , [Var("f_33"), Var("g_33"), Var("h_33")]
                   )
-                , Var("u_28")
+                , Var("i_33")
                 )
               )
             , Seq(
-                Build(Var("r_28"))
+                Build(Var("f_33"))
               , Seq(
-                  CallT(SVar("y_16"), [], [])
+                  CallT(SVar("l_21"), [], [])
                 , Seq(
-                    Match(Var("v_28"))
+                    Match(Var("j_33"))
                   , Seq(
-                      Build(Var("s_28"))
+                      Build(Var("g_33"))
                     , Seq(
-                        CallT(SVar("z_16"), [], [])
+                        CallT(SVar("m_21"), [], [])
                       , Seq(
-                          Match(Var("w_28"))
+                          Match(Var("k_33"))
                         , Seq(
-                            Build(Var("t_28"))
+                            Build(Var("h_33"))
                           , Seq(
-                              CallT(SVar("a_17"), [], [])
+                              CallT(SVar("n_21"), [], [])
                             , Seq(
-                                Match(Var("x_28"))
+                                Match(Var("l_33"))
                               , Build(
                                   Anno(
                                     Op(
                                       ""
-                                    , [Var("v_28"), Var("w_28"), Var("x_28")]
+                                    , [Var("j_33"), Var("k_33"), Var("l_33")]
                                     )
-                                  , Var("u_28")
+                                  , Var("i_33")
                                   )
                                 )
                               )
@@ -2996,14 +4703,14 @@ Specification(
       , SDefT(
           "StmtSeqOff_2_0"
         , [ VarDec(
-              "b_17"
+              "o_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "c_17"
+              "p_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3012,30 +4719,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_29", "y_28", "z_28", "b_29", "c_29"]
+            ["o_33", "m_33", "n_33", "p_33", "q_33"]
           , Seq(
               Match(
                 Anno(
-                  Op("StmtSeqOff", [Var("y_28"), Var("z_28")])
-                , Var("a_29")
+                  Op("StmtSeqOff", [Var("m_33"), Var("n_33")])
+                , Var("o_33")
                 )
               )
             , Seq(
-                Build(Var("y_28"))
+                Build(Var("m_33"))
               , Seq(
-                  CallT(SVar("b_17"), [], [])
+                  CallT(SVar("o_21"), [], [])
                 , Seq(
-                    Match(Var("b_29"))
+                    Match(Var("p_33"))
                   , Seq(
-                      Build(Var("z_28"))
+                      Build(Var("n_33"))
                     , Seq(
-                        CallT(SVar("c_17"), [], [])
+                        CallT(SVar("p_21"), [], [])
                       , Seq(
-                          Match(Var("c_29"))
+                          Match(Var("q_33"))
                         , Build(
                             Anno(
-                              Op("StmtSeqOff", [Var("b_29"), Var("c_29")])
-                            , Var("a_29")
+                              Op("StmtSeqOff", [Var("p_33"), Var("q_33")])
+                            , Var("o_33")
                             )
                           )
                         )
@@ -3050,14 +4757,14 @@ Specification(
       , SDefT(
           "DeclSeqOff_2_0"
         , [ VarDec(
-              "d_17"
+              "q_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "e_17"
+              "r_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3066,30 +4773,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["f_29", "d_29", "e_29", "g_29", "h_29"]
+            ["t_33", "r_33", "s_33", "u_33", "v_33"]
           , Seq(
               Match(
                 Anno(
-                  Op("DeclSeqOff", [Var("d_29"), Var("e_29")])
-                , Var("f_29")
+                  Op("DeclSeqOff", [Var("r_33"), Var("s_33")])
+                , Var("t_33")
                 )
               )
             , Seq(
-                Build(Var("d_29"))
+                Build(Var("r_33"))
               , Seq(
-                  CallT(SVar("d_17"), [], [])
+                  CallT(SVar("q_21"), [], [])
                 , Seq(
-                    Match(Var("g_29"))
+                    Match(Var("u_33"))
                   , Seq(
-                      Build(Var("e_29"))
+                      Build(Var("s_33"))
                     , Seq(
-                        CallT(SVar("e_17"), [], [])
+                        CallT(SVar("r_21"), [], [])
                       , Seq(
-                          Match(Var("h_29"))
+                          Match(Var("v_33"))
                         , Build(
                             Anno(
-                              Op("DeclSeqOff", [Var("g_29"), Var("h_29")])
-                            , Var("f_29")
+                              Op("DeclSeqOff", [Var("u_33"), Var("v_33")])
+                            , Var("t_33")
                             )
                           )
                         )
@@ -3104,14 +4811,14 @@ Specification(
       , SDefT(
           "AltSeqOff_2_0"
         , [ VarDec(
-              "f_17"
+              "s_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "g_17"
+              "t_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3120,30 +4827,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["k_29", "i_29", "j_29", "l_29", "m_29"]
+            ["y_33", "w_33", "x_33", "z_33", "a_34"]
           , Seq(
               Match(
                 Anno(
-                  Op("AltSeqOff", [Var("i_29"), Var("j_29")])
-                , Var("k_29")
+                  Op("AltSeqOff", [Var("w_33"), Var("x_33")])
+                , Var("y_33")
                 )
               )
             , Seq(
-                Build(Var("i_29"))
+                Build(Var("w_33"))
               , Seq(
-                  CallT(SVar("f_17"), [], [])
+                  CallT(SVar("s_21"), [], [])
                 , Seq(
-                    Match(Var("l_29"))
+                    Match(Var("z_33"))
                   , Seq(
-                      Build(Var("j_29"))
+                      Build(Var("x_33"))
                     , Seq(
-                        CallT(SVar("g_17"), [], [])
+                        CallT(SVar("t_21"), [], [])
                       , Seq(
-                          Match(Var("m_29"))
+                          Match(Var("a_34"))
                         , Build(
                             Anno(
-                              Op("AltSeqOff", [Var("l_29"), Var("m_29")])
-                            , Var("k_29")
+                              Op("AltSeqOff", [Var("z_33"), Var("a_34")])
+                            , Var("y_33")
                             )
                           )
                         )
@@ -3158,14 +4865,14 @@ Specification(
       , SDefT(
           "TopdeclSeqOff_2_0"
         , [ VarDec(
-              "h_17"
+              "u_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "i_17"
+              "v_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3174,30 +4881,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["p_29", "n_29", "o_29", "q_29", "r_29"]
+            ["d_34", "b_34", "c_34", "e_34", "f_34"]
           , Seq(
               Match(
                 Anno(
-                  Op("TopdeclSeqOff", [Var("n_29"), Var("o_29")])
-                , Var("p_29")
+                  Op("TopdeclSeqOff", [Var("b_34"), Var("c_34")])
+                , Var("d_34")
                 )
               )
             , Seq(
-                Build(Var("n_29"))
+                Build(Var("b_34"))
               , Seq(
-                  CallT(SVar("h_17"), [], [])
+                  CallT(SVar("u_21"), [], [])
                 , Seq(
-                    Match(Var("q_29"))
+                    Match(Var("e_34"))
                   , Seq(
-                      Build(Var("o_29"))
+                      Build(Var("c_34"))
                     , Seq(
-                        CallT(SVar("i_17"), [], [])
+                        CallT(SVar("v_21"), [], [])
                       , Seq(
-                          Match(Var("r_29"))
+                          Match(Var("f_34"))
                         , Build(
                             Anno(
-                              Op("TopdeclSeqOff", [Var("q_29"), Var("r_29")])
-                            , Var("p_29")
+                              Op("TopdeclSeqOff", [Var("e_34"), Var("f_34")])
+                            , Var("d_34")
                             )
                           )
                         )
@@ -3212,14 +4919,14 @@ Specification(
       , SDefT(
           "ImportdeclSeqOff_2_0"
         , [ VarDec(
-              "j_17"
+              "w_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "k_17"
+              "x_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3228,30 +4935,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["u_29", "s_29", "t_29", "v_29", "w_29"]
+            ["i_34", "g_34", "h_34", "j_34", "k_34"]
           , Seq(
               Match(
                 Anno(
-                  Op("ImportdeclSeqOff", [Var("s_29"), Var("t_29")])
-                , Var("u_29")
+                  Op("ImportdeclSeqOff", [Var("g_34"), Var("h_34")])
+                , Var("i_34")
                 )
               )
             , Seq(
-                Build(Var("s_29"))
+                Build(Var("g_34"))
               , Seq(
-                  CallT(SVar("j_17"), [], [])
+                  CallT(SVar("w_21"), [], [])
                 , Seq(
-                    Match(Var("v_29"))
+                    Match(Var("j_34"))
                   , Seq(
-                      Build(Var("t_29"))
+                      Build(Var("h_34"))
                     , Seq(
-                        CallT(SVar("k_17"), [], [])
+                        CallT(SVar("x_21"), [], [])
                       , Seq(
-                          Match(Var("w_29"))
+                          Match(Var("k_34"))
                         , Build(
                             Anno(
-                              Op("ImportdeclSeqOff", [Var("v_29"), Var("w_29")])
-                            , Var("u_29")
+                              Op("ImportdeclSeqOff", [Var("j_34"), Var("k_34")])
+                            , Var("i_34")
                             )
                           )
                         )
@@ -3266,7 +4973,7 @@ Specification(
       , SDefT(
           "FloatHash_1_0"
         , [ VarDec(
-              "l_17"
+              "y_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3275,19 +4982,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["y_29", "x_29", "z_29"]
+            ["m_34", "l_34", "n_34"]
           , Seq(
               Match(
-                Anno(Op("FloatHash", [Var("x_29")]), Var("y_29"))
+                Anno(Op("FloatHash", [Var("l_34")]), Var("m_34"))
               )
             , Seq(
-                Build(Var("x_29"))
+                Build(Var("l_34"))
               , Seq(
-                  CallT(SVar("l_17"), [], [])
+                  CallT(SVar("y_21"), [], [])
                 , Seq(
-                    Match(Var("z_29"))
+                    Match(Var("n_34"))
                   , Build(
-                      Anno(Op("FloatHash", [Var("z_29")]), Var("y_29"))
+                      Anno(Op("FloatHash", [Var("n_34")]), Var("m_34"))
                     )
                   )
                 )
@@ -3298,7 +5005,7 @@ Specification(
       , SDefT(
           "IntegerHash_1_0"
         , [ VarDec(
-              "m_17"
+              "z_21"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3307,19 +5014,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["b_30", "a_30", "c_30"]
+            ["p_34", "o_34", "q_34"]
           , Seq(
               Match(
-                Anno(Op("IntegerHash", [Var("a_30")]), Var("b_30"))
+                Anno(Op("IntegerHash", [Var("o_34")]), Var("p_34"))
               )
             , Seq(
-                Build(Var("a_30"))
+                Build(Var("o_34"))
               , Seq(
-                  CallT(SVar("m_17"), [], [])
+                  CallT(SVar("z_21"), [], [])
                 , Seq(
-                    Match(Var("c_30"))
+                    Match(Var("q_34"))
                   , Build(
-                      Anno(Op("IntegerHash", [Var("c_30")]), Var("b_30"))
+                      Anno(Op("IntegerHash", [Var("q_34")]), Var("p_34"))
                     )
                   )
                 )
@@ -3330,7 +5037,7 @@ Specification(
       , SDefT(
           "StringHash_1_0"
         , [ VarDec(
-              "n_17"
+              "a_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3339,19 +5046,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["e_30", "d_30", "f_30"]
+            ["s_34", "r_34", "t_34"]
           , Seq(
               Match(
-                Anno(Op("StringHash", [Var("d_30")]), Var("e_30"))
+                Anno(Op("StringHash", [Var("r_34")]), Var("s_34"))
               )
             , Seq(
-                Build(Var("d_30"))
+                Build(Var("r_34"))
               , Seq(
-                  CallT(SVar("n_17"), [], [])
+                  CallT(SVar("a_22"), [], [])
                 , Seq(
-                    Match(Var("f_30"))
+                    Match(Var("t_34"))
                   , Build(
-                      Anno(Op("StringHash", [Var("f_30")]), Var("e_30"))
+                      Anno(Op("StringHash", [Var("t_34")]), Var("s_34"))
                     )
                   )
                 )
@@ -3362,7 +5069,7 @@ Specification(
       , SDefT(
           "CharHash_1_0"
         , [ VarDec(
-              "o_17"
+              "b_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3371,19 +5078,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["h_30", "g_30", "i_30"]
+            ["v_34", "u_34", "w_34"]
           , Seq(
               Match(
-                Anno(Op("CharHash", [Var("g_30")]), Var("h_30"))
+                Anno(Op("CharHash", [Var("u_34")]), Var("v_34"))
               )
             , Seq(
-                Build(Var("g_30"))
+                Build(Var("u_34"))
               , Seq(
-                  CallT(SVar("o_17"), [], [])
+                  CallT(SVar("b_22"), [], [])
                 , Seq(
-                    Match(Var("i_30"))
+                    Match(Var("w_34"))
                   , Build(
-                      Anno(Op("CharHash", [Var("i_30")]), Var("h_30"))
+                      Anno(Op("CharHash", [Var("w_34")]), Var("v_34"))
                     )
                   )
                 )
@@ -3394,7 +5101,7 @@ Specification(
       , SDefT(
           "FlexibleContext_1_0"
         , [ VarDec(
-              "p_17"
+              "c_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3403,19 +5110,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["k_30", "j_30", "l_30"]
+            ["y_34", "x_34", "z_34"]
           , Seq(
               Match(
-                Anno(Op("FlexibleContext", [Var("j_30")]), Var("k_30"))
+                Anno(Op("FlexibleContext", [Var("x_34")]), Var("y_34"))
               )
             , Seq(
-                Build(Var("j_30"))
+                Build(Var("x_34"))
               , Seq(
-                  CallT(SVar("p_17"), [], [])
+                  CallT(SVar("c_22"), [], [])
                 , Seq(
-                    Match(Var("l_30"))
+                    Match(Var("z_34"))
                   , Build(
-                      Anno(Op("FlexibleContext", [Var("l_30")]), Var("k_30"))
+                      Anno(Op("FlexibleContext", [Var("z_34")]), Var("y_34"))
                     )
                   )
                 )
@@ -3426,14 +5133,14 @@ Specification(
       , SDefT(
           "SimpleClassFle_2_0"
         , [ VarDec(
-              "q_17"
+              "d_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "r_17"
+              "e_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3442,30 +5149,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["o_30", "m_30", "n_30", "p_30", "q_30"]
+            ["c_35", "a_35", "b_35", "d_35", "e_35"]
           , Seq(
               Match(
                 Anno(
-                  Op("SimpleClassFle", [Var("m_30"), Var("n_30")])
-                , Var("o_30")
+                  Op("SimpleClassFle", [Var("a_35"), Var("b_35")])
+                , Var("c_35")
                 )
               )
             , Seq(
-                Build(Var("m_30"))
+                Build(Var("a_35"))
               , Seq(
-                  CallT(SVar("q_17"), [], [])
+                  CallT(SVar("d_22"), [], [])
                 , Seq(
-                    Match(Var("p_30"))
+                    Match(Var("d_35"))
                   , Seq(
-                      Build(Var("n_30"))
+                      Build(Var("b_35"))
                     , Seq(
-                        CallT(SVar("r_17"), [], [])
+                        CallT(SVar("e_22"), [], [])
                       , Seq(
-                          Match(Var("q_30"))
+                          Match(Var("e_35"))
                         , Build(
                             Anno(
-                              Op("SimpleClassFle", [Var("p_30"), Var("q_30")])
-                            , Var("o_30")
+                              Op("SimpleClassFle", [Var("d_35"), Var("e_35")])
+                            , Var("c_35")
                             )
                           )
                         )
@@ -3480,14 +5187,14 @@ Specification(
       , SDefT(
           "ClassFlex_2_0"
         , [ VarDec(
-              "s_17"
+              "f_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "t_17"
+              "g_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3496,30 +5203,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["t_30", "r_30", "s_30", "u_30", "v_30"]
+            ["h_35", "f_35", "g_35", "i_35", "j_35"]
           , Seq(
               Match(
                 Anno(
-                  Op("ClassFlex", [Var("r_30"), Var("s_30")])
-                , Var("t_30")
+                  Op("ClassFlex", [Var("f_35"), Var("g_35")])
+                , Var("h_35")
                 )
               )
             , Seq(
-                Build(Var("r_30"))
+                Build(Var("f_35"))
               , Seq(
-                  CallT(SVar("s_17"), [], [])
+                  CallT(SVar("f_22"), [], [])
                 , Seq(
-                    Match(Var("u_30"))
+                    Match(Var("i_35"))
                   , Seq(
-                      Build(Var("s_30"))
+                      Build(Var("g_35"))
                     , Seq(
-                        CallT(SVar("t_17"), [], [])
+                        CallT(SVar("g_22"), [], [])
                       , Seq(
-                          Match(Var("v_30"))
+                          Match(Var("j_35"))
                         , Build(
                             Anno(
-                              Op("ClassFlex", [Var("u_30"), Var("v_30")])
-                            , Var("t_30")
+                              Op("ClassFlex", [Var("i_35"), Var("j_35")])
+                            , Var("h_35")
                             )
                           )
                         )
@@ -3534,14 +5241,14 @@ Specification(
       , SDefT(
           "StmtSeq_2_0"
         , [ VarDec(
-              "u_17"
+              "h_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "v_17"
+              "i_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3550,30 +5257,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["y_30", "w_30", "x_30", "z_30", "a_31"]
+            ["m_35", "k_35", "l_35", "n_35", "o_35"]
           , Seq(
               Match(
                 Anno(
-                  Op("StmtSeq", [Var("w_30"), Var("x_30")])
-                , Var("y_30")
+                  Op("StmtSeq", [Var("k_35"), Var("l_35")])
+                , Var("m_35")
                 )
               )
             , Seq(
-                Build(Var("w_30"))
+                Build(Var("k_35"))
               , Seq(
-                  CallT(SVar("u_17"), [], [])
+                  CallT(SVar("h_22"), [], [])
                 , Seq(
-                    Match(Var("z_30"))
+                    Match(Var("n_35"))
                   , Seq(
-                      Build(Var("x_30"))
+                      Build(Var("l_35"))
                     , Seq(
-                        CallT(SVar("v_17"), [], [])
+                        CallT(SVar("i_22"), [], [])
                       , Seq(
-                          Match(Var("a_31"))
+                          Match(Var("o_35"))
                         , Build(
                             Anno(
-                              Op("StmtSeq", [Var("z_30"), Var("a_31")])
-                            , Var("y_30")
+                              Op("StmtSeq", [Var("n_35"), Var("o_35")])
+                            , Var("m_35")
                             )
                           )
                         )
@@ -3588,7 +5295,7 @@ Specification(
       , SDefT(
           "StmtList_1_0"
         , [ VarDec(
-              "w_17"
+              "j_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3597,19 +5304,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["c_31", "b_31", "d_31"]
+            ["q_35", "p_35", "r_35"]
           , Seq(
               Match(
-                Anno(Op("StmtList", [Var("b_31")]), Var("c_31"))
+                Anno(Op("StmtList", [Var("p_35")]), Var("q_35"))
               )
             , Seq(
-                Build(Var("b_31"))
+                Build(Var("p_35"))
               , Seq(
-                  CallT(SVar("w_17"), [], [])
+                  CallT(SVar("j_22"), [], [])
                 , Seq(
-                    Match(Var("d_31"))
+                    Match(Var("r_35"))
                   , Build(
-                      Anno(Op("StmtList", [Var("d_31")]), Var("c_31"))
+                      Anno(Op("StmtList", [Var("r_35")]), Var("q_35"))
                     )
                   )
                 )
@@ -3620,14 +5327,14 @@ Specification(
       , SDefT(
           "FBind_2_0"
         , [ VarDec(
-              "x_17"
+              "k_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "y_17"
+              "l_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3636,30 +5343,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["g_31", "e_31", "f_31", "h_31", "i_31"]
+            ["u_35", "s_35", "t_35", "v_35", "w_35"]
           , Seq(
               Match(
                 Anno(
-                  Op("FBind", [Var("e_31"), Var("f_31")])
-                , Var("g_31")
+                  Op("FBind", [Var("s_35"), Var("t_35")])
+                , Var("u_35")
                 )
               )
             , Seq(
-                Build(Var("e_31"))
+                Build(Var("s_35"))
               , Seq(
-                  CallT(SVar("x_17"), [], [])
+                  CallT(SVar("k_22"), [], [])
                 , Seq(
-                    Match(Var("h_31"))
+                    Match(Var("v_35"))
                   , Seq(
-                      Build(Var("f_31"))
+                      Build(Var("t_35"))
                     , Seq(
-                        CallT(SVar("y_17"), [], [])
+                        CallT(SVar("l_22"), [], [])
                       , Seq(
-                          Match(Var("i_31"))
+                          Match(Var("w_35"))
                         , Build(
                             Anno(
-                              Op("FBind", [Var("h_31"), Var("i_31")])
-                            , Var("g_31")
+                              Op("FBind", [Var("v_35"), Var("w_35")])
+                            , Var("u_35")
                             )
                           )
                         )
@@ -3674,7 +5381,7 @@ Specification(
       , SDefT(
           "LetStmt_1_0"
         , [ VarDec(
-              "z_17"
+              "m_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3683,19 +5390,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["k_31", "j_31", "l_31"]
+            ["y_35", "x_35", "z_35"]
           , Seq(
               Match(
-                Anno(Op("LetStmt", [Var("j_31")]), Var("k_31"))
+                Anno(Op("LetStmt", [Var("x_35")]), Var("y_35"))
               )
             , Seq(
-                Build(Var("j_31"))
+                Build(Var("x_35"))
               , Seq(
-                  CallT(SVar("z_17"), [], [])
+                  CallT(SVar("m_22"), [], [])
                 , Seq(
-                    Match(Var("l_31"))
+                    Match(Var("z_35"))
                   , Build(
-                      Anno(Op("LetStmt", [Var("l_31")]), Var("k_31"))
+                      Anno(Op("LetStmt", [Var("z_35")]), Var("y_35"))
                     )
                   )
                 )
@@ -3706,7 +5413,7 @@ Specification(
       , SDefT(
           "ExpStmt_1_0"
         , [ VarDec(
-              "a_18"
+              "n_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3715,19 +5422,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_31", "m_31", "o_31"]
+            ["b_36", "a_36", "c_36"]
           , Seq(
               Match(
-                Anno(Op("ExpStmt", [Var("m_31")]), Var("n_31"))
+                Anno(Op("ExpStmt", [Var("a_36")]), Var("b_36"))
               )
             , Seq(
-                Build(Var("m_31"))
+                Build(Var("a_36"))
               , Seq(
-                  CallT(SVar("a_18"), [], [])
+                  CallT(SVar("n_22"), [], [])
                 , Seq(
-                    Match(Var("o_31"))
+                    Match(Var("c_36"))
                   , Build(
-                      Anno(Op("ExpStmt", [Var("o_31")]), Var("n_31"))
+                      Anno(Op("ExpStmt", [Var("c_36")]), Var("b_36"))
                     )
                   )
                 )
@@ -3738,14 +5445,14 @@ Specification(
       , SDefT(
           "BindStmt_2_0"
         , [ VarDec(
-              "b_18"
+              "o_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "c_18"
+              "p_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3754,30 +5461,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["r_31", "p_31", "q_31", "s_31", "t_31"]
+            ["f_36", "d_36", "e_36", "g_36", "h_36"]
           , Seq(
               Match(
                 Anno(
-                  Op("BindStmt", [Var("p_31"), Var("q_31")])
-                , Var("r_31")
+                  Op("BindStmt", [Var("d_36"), Var("e_36")])
+                , Var("f_36")
                 )
               )
             , Seq(
-                Build(Var("p_31"))
+                Build(Var("d_36"))
               , Seq(
-                  CallT(SVar("b_18"), [], [])
+                  CallT(SVar("o_22"), [], [])
                 , Seq(
-                    Match(Var("s_31"))
+                    Match(Var("g_36"))
                   , Seq(
-                      Build(Var("q_31"))
+                      Build(Var("e_36"))
                     , Seq(
-                        CallT(SVar("c_18"), [], [])
+                        CallT(SVar("p_22"), [], [])
                       , Seq(
-                          Match(Var("t_31"))
+                          Match(Var("h_36"))
                         , Build(
                             Anno(
-                              Op("BindStmt", [Var("s_31"), Var("t_31")])
-                            , Var("r_31")
+                              Op("BindStmt", [Var("g_36"), Var("h_36")])
+                            , Var("f_36")
                             )
                           )
                         )
@@ -3792,14 +5499,14 @@ Specification(
       , SDefT(
           "ListCompr_2_0"
         , [ VarDec(
-              "d_18"
+              "q_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "e_18"
+              "r_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3808,30 +5515,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_31", "u_31", "v_31", "x_31", "y_31"]
+            ["k_36", "i_36", "j_36", "l_36", "m_36"]
           , Seq(
               Match(
                 Anno(
-                  Op("ListCompr", [Var("u_31"), Var("v_31")])
-                , Var("w_31")
+                  Op("ListCompr", [Var("i_36"), Var("j_36")])
+                , Var("k_36")
                 )
               )
             , Seq(
-                Build(Var("u_31"))
+                Build(Var("i_36"))
               , Seq(
-                  CallT(SVar("d_18"), [], [])
+                  CallT(SVar("q_22"), [], [])
                 , Seq(
-                    Match(Var("x_31"))
+                    Match(Var("l_36"))
                   , Seq(
-                      Build(Var("v_31"))
+                      Build(Var("j_36"))
                     , Seq(
-                        CallT(SVar("e_18"), [], [])
+                        CallT(SVar("r_22"), [], [])
                       , Seq(
-                          Match(Var("y_31"))
+                          Match(Var("m_36"))
                         , Build(
                             Anno(
-                              Op("ListCompr", [Var("x_31"), Var("y_31")])
-                            , Var("w_31")
+                              Op("ListCompr", [Var("l_36"), Var("m_36")])
+                            , Var("k_36")
                             )
                           )
                         )
@@ -3846,21 +5553,21 @@ Specification(
       , SDefT(
           "ListFirstFromTo_3_0"
         , [ VarDec(
-              "f_18"
+              "s_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "g_18"
+              "t_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "h_18"
+              "u_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3869,42 +5576,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["c_32", "z_31", "a_32", "b_32", "d_32", "e_32", "f_32"]
+            ["q_36", "n_36", "o_36", "p_36", "r_36", "s_36", "t_36"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "ListFirstFromTo"
-                  , [Var("z_31"), Var("a_32"), Var("b_32")]
+                  , [Var("n_36"), Var("o_36"), Var("p_36")]
                   )
-                , Var("c_32")
+                , Var("q_36")
                 )
               )
             , Seq(
-                Build(Var("z_31"))
+                Build(Var("n_36"))
               , Seq(
-                  CallT(SVar("f_18"), [], [])
+                  CallT(SVar("s_22"), [], [])
                 , Seq(
-                    Match(Var("d_32"))
+                    Match(Var("r_36"))
                   , Seq(
-                      Build(Var("a_32"))
+                      Build(Var("o_36"))
                     , Seq(
-                        CallT(SVar("g_18"), [], [])
+                        CallT(SVar("t_22"), [], [])
                       , Seq(
-                          Match(Var("e_32"))
+                          Match(Var("s_36"))
                         , Seq(
-                            Build(Var("b_32"))
+                            Build(Var("p_36"))
                           , Seq(
-                              CallT(SVar("h_18"), [], [])
+                              CallT(SVar("u_22"), [], [])
                             , Seq(
-                                Match(Var("f_32"))
+                                Match(Var("t_36"))
                               , Build(
                                   Anno(
                                     Op(
                                       "ListFirstFromTo"
-                                    , [Var("d_32"), Var("e_32"), Var("f_32")]
+                                    , [Var("r_36"), Var("s_36"), Var("t_36")]
                                     )
-                                  , Var("c_32")
+                                  , Var("q_36")
                                   )
                                 )
                               )
@@ -3922,14 +5629,14 @@ Specification(
       , SDefT(
           "ListFromTo_2_0"
         , [ VarDec(
-              "i_18"
+              "v_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "j_18"
+              "w_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3938,30 +5645,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["i_32", "g_32", "h_32", "j_32", "k_32"]
+            ["w_36", "u_36", "v_36", "x_36", "y_36"]
           , Seq(
               Match(
                 Anno(
-                  Op("ListFromTo", [Var("g_32"), Var("h_32")])
-                , Var("i_32")
+                  Op("ListFromTo", [Var("u_36"), Var("v_36")])
+                , Var("w_36")
                 )
               )
             , Seq(
-                Build(Var("g_32"))
+                Build(Var("u_36"))
               , Seq(
-                  CallT(SVar("i_18"), [], [])
+                  CallT(SVar("v_22"), [], [])
                 , Seq(
-                    Match(Var("j_32"))
+                    Match(Var("x_36"))
                   , Seq(
-                      Build(Var("h_32"))
+                      Build(Var("v_36"))
                     , Seq(
-                        CallT(SVar("j_18"), [], [])
+                        CallT(SVar("w_22"), [], [])
                       , Seq(
-                          Match(Var("k_32"))
+                          Match(Var("y_36"))
                         , Build(
                             Anno(
-                              Op("ListFromTo", [Var("j_32"), Var("k_32")])
-                            , Var("i_32")
+                              Op("ListFromTo", [Var("x_36"), Var("y_36")])
+                            , Var("w_36")
                             )
                           )
                         )
@@ -3976,14 +5683,14 @@ Specification(
       , SDefT(
           "ListFirstFrom_2_0"
         , [ VarDec(
-              "k_18"
+              "x_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "l_18"
+              "y_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -3992,30 +5699,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_32", "l_32", "m_32", "o_32", "p_32"]
+            ["b_37", "z_36", "a_37", "c_37", "d_37"]
           , Seq(
               Match(
                 Anno(
-                  Op("ListFirstFrom", [Var("l_32"), Var("m_32")])
-                , Var("n_32")
+                  Op("ListFirstFrom", [Var("z_36"), Var("a_37")])
+                , Var("b_37")
                 )
               )
             , Seq(
-                Build(Var("l_32"))
+                Build(Var("z_36"))
               , Seq(
-                  CallT(SVar("k_18"), [], [])
+                  CallT(SVar("x_22"), [], [])
                 , Seq(
-                    Match(Var("o_32"))
+                    Match(Var("c_37"))
                   , Seq(
-                      Build(Var("m_32"))
+                      Build(Var("a_37"))
                     , Seq(
-                        CallT(SVar("l_18"), [], [])
+                        CallT(SVar("y_22"), [], [])
                       , Seq(
-                          Match(Var("p_32"))
+                          Match(Var("d_37"))
                         , Build(
                             Anno(
-                              Op("ListFirstFrom", [Var("o_32"), Var("p_32")])
-                            , Var("n_32")
+                              Op("ListFirstFrom", [Var("c_37"), Var("d_37")])
+                            , Var("b_37")
                             )
                           )
                         )
@@ -4030,7 +5737,7 @@ Specification(
       , SDefT(
           "ListFrom_1_0"
         , [ VarDec(
-              "m_18"
+              "z_22"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4039,19 +5746,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["r_32", "q_32", "s_32"]
+            ["f_37", "e_37", "g_37"]
           , Seq(
               Match(
-                Anno(Op("ListFrom", [Var("q_32")]), Var("r_32"))
+                Anno(Op("ListFrom", [Var("e_37")]), Var("f_37"))
               )
             , Seq(
-                Build(Var("q_32"))
+                Build(Var("e_37"))
               , Seq(
-                  CallT(SVar("m_18"), [], [])
+                  CallT(SVar("z_22"), [], [])
                 , Seq(
-                    Match(Var("s_32"))
+                    Match(Var("g_37"))
                   , Build(
-                      Anno(Op("ListFrom", [Var("s_32")]), Var("r_32"))
+                      Anno(Op("ListFrom", [Var("g_37")]), Var("f_37"))
                     )
                   )
                 )
@@ -4062,7 +5769,7 @@ Specification(
       , SDefT(
           "List_1_0"
         , [ VarDec(
-              "n_18"
+              "a_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4071,19 +5778,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["u_32", "t_32", "v_32"]
+            ["i_37", "h_37", "j_37"]
           , Seq(
               Match(
-                Anno(Op("List", [Var("t_32")]), Var("u_32"))
+                Anno(Op("List", [Var("h_37")]), Var("i_37"))
               )
             , Seq(
-                Build(Var("t_32"))
+                Build(Var("h_37"))
               , Seq(
-                  CallT(SVar("n_18"), [], [])
+                  CallT(SVar("a_23"), [], [])
                 , Seq(
-                    Match(Var("v_32"))
+                    Match(Var("j_37"))
                   , Build(
-                      Anno(Op("List", [Var("v_32")]), Var("u_32"))
+                      Anno(Op("List", [Var("j_37")]), Var("i_37"))
                     )
                   )
                 )
@@ -4094,7 +5801,7 @@ Specification(
       , SDefT(
           "QualLet_1_0"
         , [ VarDec(
-              "o_18"
+              "b_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4103,19 +5810,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["x_32", "w_32", "y_32"]
+            ["l_37", "k_37", "m_37"]
           , Seq(
               Match(
-                Anno(Op("QualLet", [Var("w_32")]), Var("x_32"))
+                Anno(Op("QualLet", [Var("k_37")]), Var("l_37"))
               )
             , Seq(
-                Build(Var("w_32"))
+                Build(Var("k_37"))
               , Seq(
-                  CallT(SVar("o_18"), [], [])
+                  CallT(SVar("b_23"), [], [])
                 , Seq(
-                    Match(Var("y_32"))
+                    Match(Var("m_37"))
                   , Build(
-                      Anno(Op("QualLet", [Var("y_32")]), Var("x_32"))
+                      Anno(Op("QualLet", [Var("m_37")]), Var("l_37"))
                     )
                   )
                 )
@@ -4126,14 +5833,14 @@ Specification(
       , SDefT(
           "QualBind_2_0"
         , [ VarDec(
-              "p_18"
+              "c_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "q_18"
+              "d_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4142,30 +5849,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["b_33", "z_32", "a_33", "c_33", "d_33"]
+            ["p_37", "n_37", "o_37", "q_37", "r_37"]
           , Seq(
               Match(
                 Anno(
-                  Op("QualBind", [Var("z_32"), Var("a_33")])
-                , Var("b_33")
+                  Op("QualBind", [Var("n_37"), Var("o_37")])
+                , Var("p_37")
                 )
               )
             , Seq(
-                Build(Var("z_32"))
+                Build(Var("n_37"))
               , Seq(
-                  CallT(SVar("p_18"), [], [])
+                  CallT(SVar("c_23"), [], [])
                 , Seq(
-                    Match(Var("c_33"))
+                    Match(Var("q_37"))
                   , Seq(
-                      Build(Var("a_33"))
+                      Build(Var("o_37"))
                     , Seq(
-                        CallT(SVar("q_18"), [], [])
+                        CallT(SVar("d_23"), [], [])
                       , Seq(
-                          Match(Var("d_33"))
+                          Match(Var("r_37"))
                         , Build(
                             Anno(
-                              Op("QualBind", [Var("c_33"), Var("d_33")])
-                            , Var("b_33")
+                              Op("QualBind", [Var("q_37"), Var("r_37")])
+                            , Var("p_37")
                             )
                           )
                         )
@@ -4180,14 +5887,14 @@ Specification(
       , SDefT(
           "PatBind_2_0"
         , [ VarDec(
-              "r_18"
+              "e_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "s_18"
+              "f_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4196,30 +5903,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["g_33", "e_33", "f_33", "h_33", "i_33"]
+            ["u_37", "s_37", "t_37", "v_37", "w_37"]
           , Seq(
               Match(
                 Anno(
-                  Op("PatBind", [Var("e_33"), Var("f_33")])
-                , Var("g_33")
+                  Op("PatBind", [Var("s_37"), Var("t_37")])
+                , Var("u_37")
                 )
               )
             , Seq(
-                Build(Var("e_33"))
+                Build(Var("s_37"))
               , Seq(
-                  CallT(SVar("r_18"), [], [])
+                  CallT(SVar("e_23"), [], [])
                 , Seq(
-                    Match(Var("h_33"))
+                    Match(Var("v_37"))
                   , Seq(
-                      Build(Var("f_33"))
+                      Build(Var("t_37"))
                     , Seq(
-                        CallT(SVar("s_18"), [], [])
+                        CallT(SVar("f_23"), [], [])
                       , Seq(
-                          Match(Var("i_33"))
+                          Match(Var("w_37"))
                         , Build(
                             Anno(
-                              Op("PatBind", [Var("h_33"), Var("i_33")])
-                            , Var("g_33")
+                              Op("PatBind", [Var("v_37"), Var("w_37")])
+                            , Var("u_37")
                             )
                           )
                         )
@@ -4234,7 +5941,7 @@ Specification(
       , SDefT(
           "LabeledPats_1_0"
         , [ VarDec(
-              "t_18"
+              "g_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4243,19 +5950,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["k_33", "j_33", "l_33"]
+            ["y_37", "x_37", "z_37"]
           , Seq(
               Match(
-                Anno(Op("LabeledPats", [Var("j_33")]), Var("k_33"))
+                Anno(Op("LabeledPats", [Var("x_37")]), Var("y_37"))
               )
             , Seq(
-                Build(Var("j_33"))
+                Build(Var("x_37"))
               , Seq(
-                  CallT(SVar("t_18"), [], [])
+                  CallT(SVar("g_23"), [], [])
                 , Seq(
-                    Match(Var("l_33"))
+                    Match(Var("z_37"))
                   , Build(
-                      Anno(Op("LabeledPats", [Var("l_33")]), Var("k_33"))
+                      Anno(Op("LabeledPats", [Var("z_37")]), Var("y_37"))
                     )
                   )
                 )
@@ -4266,7 +5973,7 @@ Specification(
       , SDefT(
           "Irrefutable_1_0"
         , [ VarDec(
-              "u_18"
+              "h_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4275,19 +5982,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_33", "m_33", "o_33"]
+            ["b_38", "a_38", "c_38"]
           , Seq(
               Match(
-                Anno(Op("Irrefutable", [Var("m_33")]), Var("n_33"))
+                Anno(Op("Irrefutable", [Var("a_38")]), Var("b_38"))
               )
             , Seq(
-                Build(Var("m_33"))
+                Build(Var("a_38"))
               , Seq(
-                  CallT(SVar("u_18"), [], [])
+                  CallT(SVar("h_23"), [], [])
                 , Seq(
-                    Match(Var("o_33"))
+                    Match(Var("c_38"))
                   , Build(
-                      Anno(Op("Irrefutable", [Var("o_33")]), Var("n_33"))
+                      Anno(Op("Irrefutable", [Var("c_38")]), Var("b_38"))
                     )
                   )
                 )
@@ -4298,7 +6005,7 @@ Specification(
       , SDefT(
           "ListPat_1_0"
         , [ VarDec(
-              "v_18"
+              "i_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4307,19 +6014,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["q_33", "p_33", "r_33"]
+            ["e_38", "d_38", "f_38"]
           , Seq(
               Match(
-                Anno(Op("ListPat", [Var("p_33")]), Var("q_33"))
+                Anno(Op("ListPat", [Var("d_38")]), Var("e_38"))
               )
             , Seq(
-                Build(Var("p_33"))
+                Build(Var("d_38"))
               , Seq(
-                  CallT(SVar("v_18"), [], [])
+                  CallT(SVar("i_23"), [], [])
                 , Seq(
-                    Match(Var("r_33"))
+                    Match(Var("f_38"))
                   , Build(
-                      Anno(Op("ListPat", [Var("r_33")]), Var("q_33"))
+                      Anno(Op("ListPat", [Var("f_38")]), Var("e_38"))
                     )
                   )
                 )
@@ -4330,14 +6037,14 @@ Specification(
       , SDefT(
           "TuplePat_2_0"
         , [ VarDec(
-              "w_18"
+              "j_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "x_18"
+              "k_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4346,30 +6053,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["u_33", "s_33", "t_33", "v_33", "w_33"]
+            ["i_38", "g_38", "h_38", "j_38", "k_38"]
           , Seq(
               Match(
                 Anno(
-                  Op("TuplePat", [Var("s_33"), Var("t_33")])
-                , Var("u_33")
+                  Op("TuplePat", [Var("g_38"), Var("h_38")])
+                , Var("i_38")
                 )
               )
             , Seq(
-                Build(Var("s_33"))
+                Build(Var("g_38"))
               , Seq(
-                  CallT(SVar("w_18"), [], [])
+                  CallT(SVar("j_23"), [], [])
                 , Seq(
-                    Match(Var("v_33"))
+                    Match(Var("j_38"))
                   , Seq(
-                      Build(Var("t_33"))
+                      Build(Var("h_38"))
                     , Seq(
-                        CallT(SVar("x_18"), [], [])
+                        CallT(SVar("k_23"), [], [])
                       , Seq(
-                          Match(Var("w_33"))
+                          Match(Var("k_38"))
                         , Build(
                             Anno(
-                              Op("TuplePat", [Var("v_33"), Var("w_33")])
-                            , Var("u_33")
+                              Op("TuplePat", [Var("j_38"), Var("k_38")])
+                            , Var("i_38")
                             )
                           )
                         )
@@ -4390,14 +6097,14 @@ Specification(
       , SDefT(
           "LabeledPat_2_0"
         , [ VarDec(
-              "y_18"
+              "l_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "z_18"
+              "m_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4406,30 +6113,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["z_33", "x_33", "y_33", "a_34", "b_34"]
+            ["n_38", "l_38", "m_38", "o_38", "p_38"]
           , Seq(
               Match(
                 Anno(
-                  Op("LabeledPat", [Var("x_33"), Var("y_33")])
-                , Var("z_33")
+                  Op("LabeledPat", [Var("l_38"), Var("m_38")])
+                , Var("n_38")
                 )
               )
             , Seq(
-                Build(Var("x_33"))
+                Build(Var("l_38"))
               , Seq(
-                  CallT(SVar("y_18"), [], [])
+                  CallT(SVar("l_23"), [], [])
                 , Seq(
-                    Match(Var("a_34"))
+                    Match(Var("o_38"))
                   , Seq(
-                      Build(Var("y_33"))
+                      Build(Var("m_38"))
                     , Seq(
-                        CallT(SVar("z_18"), [], [])
+                        CallT(SVar("m_23"), [], [])
                       , Seq(
-                          Match(Var("b_34"))
+                          Match(Var("p_38"))
                         , Build(
                             Anno(
-                              Op("LabeledPat", [Var("a_34"), Var("b_34")])
-                            , Var("z_33")
+                              Op("LabeledPat", [Var("o_38"), Var("p_38")])
+                            , Var("n_38")
                             )
                           )
                         )
@@ -4444,7 +6151,7 @@ Specification(
       , SDefT(
           "ConstrPat_1_0"
         , [ VarDec(
-              "a_19"
+              "n_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4453,19 +6160,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["d_34", "c_34", "e_34"]
+            ["r_38", "q_38", "s_38"]
           , Seq(
               Match(
-                Anno(Op("ConstrPat", [Var("c_34")]), Var("d_34"))
+                Anno(Op("ConstrPat", [Var("q_38")]), Var("r_38"))
               )
             , Seq(
-                Build(Var("c_34"))
+                Build(Var("q_38"))
               , Seq(
-                  CallT(SVar("a_19"), [], [])
+                  CallT(SVar("n_23"), [], [])
                 , Seq(
-                    Match(Var("e_34"))
+                    Match(Var("s_38"))
                   , Build(
-                      Anno(Op("ConstrPat", [Var("e_34")]), Var("d_34"))
+                      Anno(Op("ConstrPat", [Var("s_38")]), Var("r_38"))
                     )
                   )
                 )
@@ -4476,14 +6183,14 @@ Specification(
       , SDefT(
           "NamedPat_2_0"
         , [ VarDec(
-              "b_19"
+              "o_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "c_19"
+              "p_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4492,30 +6199,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["h_34", "f_34", "g_34", "i_34", "j_34"]
+            ["v_38", "t_38", "u_38", "w_38", "x_38"]
           , Seq(
               Match(
                 Anno(
-                  Op("NamedPat", [Var("f_34"), Var("g_34")])
-                , Var("h_34")
+                  Op("NamedPat", [Var("t_38"), Var("u_38")])
+                , Var("v_38")
                 )
               )
             , Seq(
-                Build(Var("f_34"))
+                Build(Var("t_38"))
               , Seq(
-                  CallT(SVar("b_19"), [], [])
+                  CallT(SVar("o_23"), [], [])
                 , Seq(
-                    Match(Var("i_34"))
+                    Match(Var("w_38"))
                   , Seq(
-                      Build(Var("g_34"))
+                      Build(Var("u_38"))
                     , Seq(
-                        CallT(SVar("c_19"), [], [])
+                        CallT(SVar("p_23"), [], [])
                       , Seq(
-                          Match(Var("j_34"))
+                          Match(Var("x_38"))
                         , Build(
                             Anno(
-                              Op("NamedPat", [Var("i_34"), Var("j_34")])
-                            , Var("h_34")
+                              Op("NamedPat", [Var("w_38"), Var("x_38")])
+                            , Var("v_38")
                             )
                           )
                         )
@@ -4530,14 +6237,14 @@ Specification(
       , SDefT(
           "ConstrApp_2_0"
         , [ VarDec(
-              "d_19"
+              "q_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "e_19"
+              "r_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4546,30 +6253,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["m_34", "k_34", "l_34", "n_34", "o_34"]
+            ["a_39", "y_38", "z_38", "b_39", "c_39"]
           , Seq(
               Match(
                 Anno(
-                  Op("ConstrApp", [Var("k_34"), Var("l_34")])
-                , Var("m_34")
+                  Op("ConstrApp", [Var("y_38"), Var("z_38")])
+                , Var("a_39")
                 )
               )
             , Seq(
-                Build(Var("k_34"))
+                Build(Var("y_38"))
               , Seq(
-                  CallT(SVar("d_19"), [], [])
+                  CallT(SVar("q_23"), [], [])
                 , Seq(
-                    Match(Var("n_34"))
+                    Match(Var("b_39"))
                   , Seq(
-                      Build(Var("l_34"))
+                      Build(Var("z_38"))
                     , Seq(
-                        CallT(SVar("e_19"), [], [])
+                        CallT(SVar("r_23"), [], [])
                       , Seq(
-                          Match(Var("o_34"))
+                          Match(Var("c_39"))
                         , Build(
                             Anno(
-                              Op("ConstrApp", [Var("n_34"), Var("o_34")])
-                            , Var("m_34")
+                              Op("ConstrApp", [Var("b_39"), Var("c_39")])
+                            , Var("a_39")
                             )
                           )
                         )
@@ -4584,7 +6291,7 @@ Specification(
       , SDefT(
           "NegationPat_1_0"
         , [ VarDec(
-              "f_19"
+              "s_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4593,19 +6300,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["q_34", "p_34", "r_34"]
+            ["e_39", "d_39", "f_39"]
           , Seq(
               Match(
-                Anno(Op("NegationPat", [Var("p_34")]), Var("q_34"))
+                Anno(Op("NegationPat", [Var("d_39")]), Var("e_39"))
               )
             , Seq(
-                Build(Var("p_34"))
+                Build(Var("d_39"))
               , Seq(
-                  CallT(SVar("f_19"), [], [])
+                  CallT(SVar("s_23"), [], [])
                 , Seq(
-                    Match(Var("r_34"))
+                    Match(Var("f_39"))
                   , Build(
-                      Anno(Op("NegationPat", [Var("r_34")]), Var("q_34"))
+                      Anno(Op("NegationPat", [Var("f_39")]), Var("e_39"))
                     )
                   )
                 )
@@ -4616,21 +6323,21 @@ Specification(
       , SDefT(
           "BinOpApp_3_0"
         , [ VarDec(
-              "g_19"
+              "t_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "h_19"
+              "u_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "i_19"
+              "v_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4639,42 +6346,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["v_34", "s_34", "t_34", "u_34", "w_34", "x_34", "y_34"]
+            ["j_39", "g_39", "h_39", "i_39", "k_39", "l_39", "m_39"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "BinOpApp"
-                  , [Var("s_34"), Var("t_34"), Var("u_34")]
+                  , [Var("g_39"), Var("h_39"), Var("i_39")]
                   )
-                , Var("v_34")
+                , Var("j_39")
                 )
               )
             , Seq(
-                Build(Var("s_34"))
+                Build(Var("g_39"))
               , Seq(
-                  CallT(SVar("g_19"), [], [])
+                  CallT(SVar("t_23"), [], [])
                 , Seq(
-                    Match(Var("w_34"))
+                    Match(Var("k_39"))
                   , Seq(
-                      Build(Var("t_34"))
+                      Build(Var("h_39"))
                     , Seq(
-                        CallT(SVar("h_19"), [], [])
+                        CallT(SVar("u_23"), [], [])
                       , Seq(
-                          Match(Var("x_34"))
+                          Match(Var("l_39"))
                         , Seq(
-                            Build(Var("u_34"))
+                            Build(Var("i_39"))
                           , Seq(
-                              CallT(SVar("i_19"), [], [])
+                              CallT(SVar("v_23"), [], [])
                             , Seq(
-                                Match(Var("y_34"))
+                                Match(Var("m_39"))
                               , Build(
                                   Anno(
                                     Op(
                                       "BinOpApp"
-                                    , [Var("w_34"), Var("x_34"), Var("y_34")]
+                                    , [Var("k_39"), Var("l_39"), Var("m_39")]
                                     )
-                                  , Var("v_34")
+                                  , Var("j_39")
                                   )
                                 )
                               )
@@ -4692,14 +6399,14 @@ Specification(
       , SDefT(
           "DeclSeq_2_0"
         , [ VarDec(
-              "j_19"
+              "w_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "k_19"
+              "x_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4708,30 +6415,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["b_35", "z_34", "a_35", "c_35", "d_35"]
+            ["p_39", "n_39", "o_39", "q_39", "r_39"]
           , Seq(
               Match(
                 Anno(
-                  Op("DeclSeq", [Var("z_34"), Var("a_35")])
-                , Var("b_35")
+                  Op("DeclSeq", [Var("n_39"), Var("o_39")])
+                , Var("p_39")
                 )
               )
             , Seq(
-                Build(Var("z_34"))
+                Build(Var("n_39"))
               , Seq(
-                  CallT(SVar("j_19"), [], [])
+                  CallT(SVar("w_23"), [], [])
                 , Seq(
-                    Match(Var("c_35"))
+                    Match(Var("q_39"))
                   , Seq(
-                      Build(Var("a_35"))
+                      Build(Var("o_39"))
                     , Seq(
-                        CallT(SVar("k_19"), [], [])
+                        CallT(SVar("x_23"), [], [])
                       , Seq(
-                          Match(Var("d_35"))
+                          Match(Var("r_39"))
                         , Build(
                             Anno(
-                              Op("DeclSeq", [Var("c_35"), Var("d_35")])
-                            , Var("b_35")
+                              Op("DeclSeq", [Var("q_39"), Var("r_39")])
+                            , Var("p_39")
                             )
                           )
                         )
@@ -4746,7 +6453,7 @@ Specification(
       , SDefT(
           "DeclList_1_0"
         , [ VarDec(
-              "l_19"
+              "y_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4755,19 +6462,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["f_35", "e_35", "g_35"]
+            ["t_39", "s_39", "u_39"]
           , Seq(
               Match(
-                Anno(Op("DeclList", [Var("e_35")]), Var("f_35"))
+                Anno(Op("DeclList", [Var("s_39")]), Var("t_39"))
               )
             , Seq(
-                Build(Var("e_35"))
+                Build(Var("s_39"))
               , Seq(
-                  CallT(SVar("l_19"), [], [])
+                  CallT(SVar("y_23"), [], [])
                 , Seq(
-                    Match(Var("g_35"))
+                    Match(Var("u_39"))
                   , Build(
-                      Anno(Op("DeclList", [Var("g_35")]), Var("f_35"))
+                      Anno(Op("DeclList", [Var("u_39")]), Var("t_39"))
                     )
                   )
                 )
@@ -4778,7 +6485,7 @@ Specification(
       , SDefT(
           "Where_1_0"
         , [ VarDec(
-              "m_19"
+              "z_23"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4787,19 +6494,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["i_35", "h_35", "j_35"]
+            ["w_39", "v_39", "x_39"]
           , Seq(
               Match(
-                Anno(Op("Where", [Var("h_35")]), Var("i_35"))
+                Anno(Op("Where", [Var("v_39")]), Var("w_39"))
               )
             , Seq(
-                Build(Var("h_35"))
+                Build(Var("v_39"))
               , Seq(
-                  CallT(SVar("m_19"), [], [])
+                  CallT(SVar("z_23"), [], [])
                 , Seq(
-                    Match(Var("j_35"))
+                    Match(Var("x_39"))
                   , Build(
-                      Anno(Op("Where", [Var("j_35")]), Var("i_35"))
+                      Anno(Op("Where", [Var("x_39")]), Var("w_39"))
                     )
                   )
                 )
@@ -4810,14 +6517,14 @@ Specification(
       , SDefT(
           "NestedFunLHS_2_0"
         , [ VarDec(
-              "n_19"
+              "a_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "o_19"
+              "b_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4826,30 +6533,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["m_35", "k_35", "l_35", "n_35", "o_35"]
+            ["a_40", "y_39", "z_39", "b_40", "c_40"]
           , Seq(
               Match(
                 Anno(
-                  Op("NestedFunLHS", [Var("k_35"), Var("l_35")])
-                , Var("m_35")
+                  Op("NestedFunLHS", [Var("y_39"), Var("z_39")])
+                , Var("a_40")
                 )
               )
             , Seq(
-                Build(Var("k_35"))
+                Build(Var("y_39"))
               , Seq(
-                  CallT(SVar("n_19"), [], [])
+                  CallT(SVar("a_24"), [], [])
                 , Seq(
-                    Match(Var("n_35"))
+                    Match(Var("b_40"))
                   , Seq(
-                      Build(Var("l_35"))
+                      Build(Var("z_39"))
                     , Seq(
-                        CallT(SVar("o_19"), [], [])
+                        CallT(SVar("b_24"), [], [])
                       , Seq(
-                          Match(Var("o_35"))
+                          Match(Var("c_40"))
                         , Build(
                             Anno(
-                              Op("NestedFunLHS", [Var("n_35"), Var("o_35")])
-                            , Var("m_35")
+                              Op("NestedFunLHS", [Var("b_40"), Var("c_40")])
+                            , Var("a_40")
                             )
                           )
                         )
@@ -4864,21 +6571,21 @@ Specification(
       , SDefT(
           "OpFunLHS_3_0"
         , [ VarDec(
-              "p_19"
+              "c_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "q_19"
+              "d_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "r_19"
+              "e_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4887,42 +6594,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["s_35", "p_35", "q_35", "r_35", "t_35", "u_35", "v_35"]
+            ["g_40", "d_40", "e_40", "f_40", "h_40", "i_40", "j_40"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "OpFunLHS"
-                  , [Var("p_35"), Var("q_35"), Var("r_35")]
+                  , [Var("d_40"), Var("e_40"), Var("f_40")]
                   )
-                , Var("s_35")
+                , Var("g_40")
                 )
               )
             , Seq(
-                Build(Var("p_35"))
+                Build(Var("d_40"))
               , Seq(
-                  CallT(SVar("p_19"), [], [])
+                  CallT(SVar("c_24"), [], [])
                 , Seq(
-                    Match(Var("t_35"))
+                    Match(Var("h_40"))
                   , Seq(
-                      Build(Var("q_35"))
+                      Build(Var("e_40"))
                     , Seq(
-                        CallT(SVar("q_19"), [], [])
+                        CallT(SVar("d_24"), [], [])
                       , Seq(
-                          Match(Var("u_35"))
+                          Match(Var("i_40"))
                         , Seq(
-                            Build(Var("r_35"))
+                            Build(Var("f_40"))
                           , Seq(
-                              CallT(SVar("r_19"), [], [])
+                              CallT(SVar("e_24"), [], [])
                             , Seq(
-                                Match(Var("v_35"))
+                                Match(Var("j_40"))
                               , Build(
                                   Anno(
                                     Op(
                                       "OpFunLHS"
-                                    , [Var("t_35"), Var("u_35"), Var("v_35")]
+                                    , [Var("h_40"), Var("i_40"), Var("j_40")]
                                     )
-                                  , Var("s_35")
+                                  , Var("g_40")
                                   )
                                 )
                               )
@@ -4940,14 +6647,14 @@ Specification(
       , SDefT(
           "VarFunLHS_2_0"
         , [ VarDec(
-              "s_19"
+              "f_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "t_19"
+              "g_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -4956,30 +6663,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["y_35", "w_35", "x_35", "z_35", "a_36"]
+            ["m_40", "k_40", "l_40", "n_40", "o_40"]
           , Seq(
               Match(
                 Anno(
-                  Op("VarFunLHS", [Var("w_35"), Var("x_35")])
-                , Var("y_35")
+                  Op("VarFunLHS", [Var("k_40"), Var("l_40")])
+                , Var("m_40")
                 )
               )
             , Seq(
-                Build(Var("w_35"))
+                Build(Var("k_40"))
               , Seq(
-                  CallT(SVar("s_19"), [], [])
+                  CallT(SVar("f_24"), [], [])
                 , Seq(
-                    Match(Var("z_35"))
+                    Match(Var("n_40"))
                   , Seq(
-                      Build(Var("x_35"))
+                      Build(Var("l_40"))
                     , Seq(
-                        CallT(SVar("t_19"), [], [])
+                        CallT(SVar("g_24"), [], [])
                       , Seq(
-                          Match(Var("a_36"))
+                          Match(Var("o_40"))
                         , Build(
                             Anno(
-                              Op("VarFunLHS", [Var("z_35"), Var("a_36")])
-                            , Var("y_35")
+                              Op("VarFunLHS", [Var("n_40"), Var("o_40")])
+                            , Var("m_40")
                             )
                           )
                         )
@@ -4994,14 +6701,14 @@ Specification(
       , SDefT(
           "Guarded_2_0"
         , [ VarDec(
-              "u_19"
+              "h_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "v_19"
+              "i_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5010,30 +6717,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["d_36", "b_36", "c_36", "e_36", "f_36"]
+            ["r_40", "p_40", "q_40", "s_40", "t_40"]
           , Seq(
               Match(
                 Anno(
-                  Op("Guarded", [Var("b_36"), Var("c_36")])
-                , Var("d_36")
+                  Op("Guarded", [Var("p_40"), Var("q_40")])
+                , Var("r_40")
                 )
               )
             , Seq(
-                Build(Var("b_36"))
+                Build(Var("p_40"))
               , Seq(
-                  CallT(SVar("u_19"), [], [])
+                  CallT(SVar("h_24"), [], [])
                 , Seq(
-                    Match(Var("e_36"))
+                    Match(Var("s_40"))
                   , Seq(
-                      Build(Var("c_36"))
+                      Build(Var("q_40"))
                     , Seq(
-                        CallT(SVar("v_19"), [], [])
+                        CallT(SVar("i_24"), [], [])
                       , Seq(
-                          Match(Var("f_36"))
+                          Match(Var("t_40"))
                         , Build(
                             Anno(
-                              Op("Guarded", [Var("e_36"), Var("f_36")])
-                            , Var("d_36")
+                              Op("Guarded", [Var("s_40"), Var("t_40")])
+                            , Var("r_40")
                             )
                           )
                         )
@@ -5048,21 +6755,21 @@ Specification(
       , SDefT(
           "GdValdef_3_0"
         , [ VarDec(
-              "w_19"
+              "j_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "x_19"
+              "k_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "y_19"
+              "l_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5071,42 +6778,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["j_36", "g_36", "h_36", "i_36", "k_36", "l_36", "m_36"]
+            ["x_40", "u_40", "v_40", "w_40", "y_40", "z_40", "a_41"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "GdValdef"
-                  , [Var("g_36"), Var("h_36"), Var("i_36")]
+                  , [Var("u_40"), Var("v_40"), Var("w_40")]
                   )
-                , Var("j_36")
+                , Var("x_40")
                 )
               )
             , Seq(
-                Build(Var("g_36"))
+                Build(Var("u_40"))
               , Seq(
-                  CallT(SVar("w_19"), [], [])
+                  CallT(SVar("j_24"), [], [])
                 , Seq(
-                    Match(Var("k_36"))
+                    Match(Var("y_40"))
                   , Seq(
-                      Build(Var("h_36"))
+                      Build(Var("v_40"))
                     , Seq(
-                        CallT(SVar("x_19"), [], [])
+                        CallT(SVar("k_24"), [], [])
                       , Seq(
-                          Match(Var("l_36"))
+                          Match(Var("z_40"))
                         , Seq(
-                            Build(Var("i_36"))
+                            Build(Var("w_40"))
                           , Seq(
-                              CallT(SVar("y_19"), [], [])
+                              CallT(SVar("l_24"), [], [])
                             , Seq(
-                                Match(Var("m_36"))
+                                Match(Var("a_41"))
                               , Build(
                                   Anno(
                                     Op(
                                       "GdValdef"
-                                    , [Var("k_36"), Var("l_36"), Var("m_36")]
+                                    , [Var("y_40"), Var("z_40"), Var("a_41")]
                                     )
-                                  , Var("j_36")
+                                  , Var("x_40")
                                   )
                                 )
                               )
@@ -5124,21 +6831,21 @@ Specification(
       , SDefT(
           "Valdef_3_0"
         , [ VarDec(
-              "z_19"
+              "m_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "a_20"
+              "n_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "b_20"
+              "o_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5147,42 +6854,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["q_36", "n_36", "o_36", "p_36", "r_36", "s_36", "t_36"]
+            ["e_41", "b_41", "c_41", "d_41", "f_41", "g_41", "h_41"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "Valdef"
-                  , [Var("n_36"), Var("o_36"), Var("p_36")]
+                  , [Var("b_41"), Var("c_41"), Var("d_41")]
                   )
-                , Var("q_36")
+                , Var("e_41")
                 )
               )
             , Seq(
-                Build(Var("n_36"))
+                Build(Var("b_41"))
               , Seq(
-                  CallT(SVar("z_19"), [], [])
+                  CallT(SVar("m_24"), [], [])
                 , Seq(
-                    Match(Var("r_36"))
+                    Match(Var("f_41"))
                   , Seq(
-                      Build(Var("o_36"))
+                      Build(Var("c_41"))
                     , Seq(
-                        CallT(SVar("a_20"), [], [])
+                        CallT(SVar("n_24"), [], [])
                       , Seq(
-                          Match(Var("s_36"))
+                          Match(Var("g_41"))
                         , Seq(
-                            Build(Var("p_36"))
+                            Build(Var("d_41"))
                           , Seq(
-                              CallT(SVar("b_20"), [], [])
+                              CallT(SVar("o_24"), [], [])
                             , Seq(
-                                Match(Var("t_36"))
+                                Match(Var("h_41"))
                               , Build(
                                   Anno(
                                     Op(
                                       "Valdef"
-                                    , [Var("r_36"), Var("s_36"), Var("t_36")]
+                                    , [Var("f_41"), Var("g_41"), Var("h_41")]
                                     )
-                                  , Var("q_36")
+                                  , Var("e_41")
                                   )
                                 )
                               )
@@ -5200,14 +6907,14 @@ Specification(
       , SDefT(
           "AltSeq_2_0"
         , [ VarDec(
-              "c_20"
+              "p_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "d_20"
+              "q_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5216,30 +6923,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_36", "u_36", "v_36", "x_36", "y_36"]
+            ["k_41", "i_41", "j_41", "l_41", "m_41"]
           , Seq(
               Match(
                 Anno(
-                  Op("AltSeq", [Var("u_36"), Var("v_36")])
-                , Var("w_36")
+                  Op("AltSeq", [Var("i_41"), Var("j_41")])
+                , Var("k_41")
                 )
               )
             , Seq(
-                Build(Var("u_36"))
+                Build(Var("i_41"))
               , Seq(
-                  CallT(SVar("c_20"), [], [])
+                  CallT(SVar("p_24"), [], [])
                 , Seq(
-                    Match(Var("x_36"))
+                    Match(Var("l_41"))
                   , Seq(
-                      Build(Var("v_36"))
+                      Build(Var("j_41"))
                     , Seq(
-                        CallT(SVar("d_20"), [], [])
+                        CallT(SVar("q_24"), [], [])
                       , Seq(
-                          Match(Var("y_36"))
+                          Match(Var("m_41"))
                         , Build(
                             Anno(
-                              Op("AltSeq", [Var("x_36"), Var("y_36")])
-                            , Var("w_36")
+                              Op("AltSeq", [Var("l_41"), Var("m_41")])
+                            , Var("k_41")
                             )
                           )
                         )
@@ -5254,7 +6961,7 @@ Specification(
       , SDefT(
           "AltList_1_0"
         , [ VarDec(
-              "e_20"
+              "r_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5263,19 +6970,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_37", "z_36", "b_37"]
+            ["o_41", "n_41", "p_41"]
           , Seq(
               Match(
-                Anno(Op("AltList", [Var("z_36")]), Var("a_37"))
+                Anno(Op("AltList", [Var("n_41")]), Var("o_41"))
               )
             , Seq(
-                Build(Var("z_36"))
+                Build(Var("n_41"))
               , Seq(
-                  CallT(SVar("e_20"), [], [])
+                  CallT(SVar("r_24"), [], [])
                 , Seq(
-                    Match(Var("b_37"))
+                    Match(Var("p_41"))
                   , Build(
-                      Anno(Op("AltList", [Var("b_37")]), Var("a_37"))
+                      Anno(Op("AltList", [Var("p_41")]), Var("o_41"))
                     )
                   )
                 )
@@ -5286,14 +6993,14 @@ Specification(
       , SDefT(
           "GdPat_2_0"
         , [ VarDec(
-              "f_20"
+              "s_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "g_20"
+              "t_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5302,30 +7009,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["e_37", "c_37", "d_37", "f_37", "g_37"]
+            ["s_41", "q_41", "r_41", "t_41", "u_41"]
           , Seq(
               Match(
                 Anno(
-                  Op("GdPat", [Var("c_37"), Var("d_37")])
-                , Var("e_37")
+                  Op("GdPat", [Var("q_41"), Var("r_41")])
+                , Var("s_41")
                 )
               )
             , Seq(
-                Build(Var("c_37"))
+                Build(Var("q_41"))
               , Seq(
-                  CallT(SVar("f_20"), [], [])
+                  CallT(SVar("s_24"), [], [])
                 , Seq(
-                    Match(Var("f_37"))
+                    Match(Var("t_41"))
                   , Seq(
-                      Build(Var("d_37"))
+                      Build(Var("r_41"))
                     , Seq(
-                        CallT(SVar("g_20"), [], [])
+                        CallT(SVar("t_24"), [], [])
                       , Seq(
-                          Match(Var("g_37"))
+                          Match(Var("u_41"))
                         , Build(
                             Anno(
-                              Op("GdPat", [Var("f_37"), Var("g_37")])
-                            , Var("e_37")
+                              Op("GdPat", [Var("t_41"), Var("u_41")])
+                            , Var("s_41")
                             )
                           )
                         )
@@ -5340,21 +7047,21 @@ Specification(
       , SDefT(
           "GdAlt_3_0"
         , [ VarDec(
-              "h_20"
+              "u_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "i_20"
+              "v_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "j_20"
+              "w_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5363,42 +7070,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["k_37", "h_37", "i_37", "j_37", "l_37", "m_37", "n_37"]
+            ["y_41", "v_41", "w_41", "x_41", "z_41", "a_42", "b_42"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "GdAlt"
-                  , [Var("h_37"), Var("i_37"), Var("j_37")]
+                  , [Var("v_41"), Var("w_41"), Var("x_41")]
                   )
-                , Var("k_37")
+                , Var("y_41")
                 )
               )
             , Seq(
-                Build(Var("h_37"))
+                Build(Var("v_41"))
               , Seq(
-                  CallT(SVar("h_20"), [], [])
+                  CallT(SVar("u_24"), [], [])
                 , Seq(
-                    Match(Var("l_37"))
+                    Match(Var("z_41"))
                   , Seq(
-                      Build(Var("i_37"))
+                      Build(Var("w_41"))
                     , Seq(
-                        CallT(SVar("i_20"), [], [])
+                        CallT(SVar("v_24"), [], [])
                       , Seq(
-                          Match(Var("m_37"))
+                          Match(Var("a_42"))
                         , Seq(
-                            Build(Var("j_37"))
+                            Build(Var("x_41"))
                           , Seq(
-                              CallT(SVar("j_20"), [], [])
+                              CallT(SVar("w_24"), [], [])
                             , Seq(
-                                Match(Var("n_37"))
+                                Match(Var("b_42"))
                               , Build(
                                   Anno(
                                     Op(
                                       "GdAlt"
-                                    , [Var("l_37"), Var("m_37"), Var("n_37")]
+                                    , [Var("z_41"), Var("a_42"), Var("b_42")]
                                     )
-                                  , Var("k_37")
+                                  , Var("y_41")
                                   )
                                 )
                               )
@@ -5416,21 +7123,21 @@ Specification(
       , SDefT(
           "Alt_3_0"
         , [ VarDec(
-              "k_20"
+              "x_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "l_20"
+              "y_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "m_20"
+              "z_24"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5439,42 +7146,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["r_37", "o_37", "p_37", "q_37", "s_37", "t_37", "u_37"]
+            ["f_42", "c_42", "d_42", "e_42", "g_42", "h_42", "i_42"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "Alt"
-                  , [Var("o_37"), Var("p_37"), Var("q_37")]
+                  , [Var("c_42"), Var("d_42"), Var("e_42")]
                   )
-                , Var("r_37")
+                , Var("f_42")
                 )
               )
             , Seq(
-                Build(Var("o_37"))
+                Build(Var("c_42"))
               , Seq(
-                  CallT(SVar("k_20"), [], [])
+                  CallT(SVar("x_24"), [], [])
                 , Seq(
-                    Match(Var("s_37"))
+                    Match(Var("g_42"))
                   , Seq(
-                      Build(Var("p_37"))
+                      Build(Var("d_42"))
                     , Seq(
-                        CallT(SVar("l_20"), [], [])
+                        CallT(SVar("y_24"), [], [])
                       , Seq(
-                          Match(Var("t_37"))
+                          Match(Var("h_42"))
                         , Seq(
-                            Build(Var("q_37"))
+                            Build(Var("e_42"))
                           , Seq(
-                              CallT(SVar("m_20"), [], [])
+                              CallT(SVar("z_24"), [], [])
                             , Seq(
-                                Match(Var("u_37"))
+                                Match(Var("i_42"))
                               , Build(
                                   Anno(
                                     Op(
                                       "Alt"
-                                    , [Var("s_37"), Var("t_37"), Var("u_37")]
+                                    , [Var("g_42"), Var("h_42"), Var("i_42")]
                                     )
-                                  , Var("r_37")
+                                  , Var("f_42")
                                   )
                                 )
                               )
@@ -5492,7 +7199,7 @@ Specification(
       , SDefT(
           "LabelBinds_1_0"
         , [ VarDec(
-              "n_20"
+              "a_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5501,19 +7208,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_37", "v_37", "x_37"]
+            ["k_42", "j_42", "l_42"]
           , Seq(
               Match(
-                Anno(Op("LabelBinds", [Var("v_37")]), Var("w_37"))
+                Anno(Op("LabelBinds", [Var("j_42")]), Var("k_42"))
               )
             , Seq(
-                Build(Var("v_37"))
+                Build(Var("j_42"))
               , Seq(
-                  CallT(SVar("n_20"), [], [])
+                  CallT(SVar("a_25"), [], [])
                 , Seq(
-                    Match(Var("x_37"))
+                    Match(Var("l_42"))
                   , Build(
-                      Anno(Op("LabelBinds", [Var("x_37")]), Var("w_37"))
+                      Anno(Op("LabelBinds", [Var("l_42")]), Var("k_42"))
                     )
                   )
                 )
@@ -5524,21 +7231,21 @@ Specification(
       , SDefT(
           "FixDecl_3_0"
         , [ VarDec(
-              "o_20"
+              "b_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "p_20"
+              "c_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "q_20"
+              "d_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5547,42 +7254,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["b_38", "y_37", "z_37", "a_38", "c_38", "d_38", "e_38"]
+            ["p_42", "m_42", "n_42", "o_42", "q_42", "r_42", "s_42"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "FixDecl"
-                  , [Var("y_37"), Var("z_37"), Var("a_38")]
+                  , [Var("m_42"), Var("n_42"), Var("o_42")]
                   )
-                , Var("b_38")
+                , Var("p_42")
                 )
               )
             , Seq(
-                Build(Var("y_37"))
+                Build(Var("m_42"))
               , Seq(
-                  CallT(SVar("o_20"), [], [])
+                  CallT(SVar("b_25"), [], [])
                 , Seq(
-                    Match(Var("c_38"))
+                    Match(Var("q_42"))
                   , Seq(
-                      Build(Var("z_37"))
+                      Build(Var("n_42"))
                     , Seq(
-                        CallT(SVar("p_20"), [], [])
+                        CallT(SVar("c_25"), [], [])
                       , Seq(
-                          Match(Var("d_38"))
+                          Match(Var("r_42"))
                         , Seq(
-                            Build(Var("a_38"))
+                            Build(Var("o_42"))
                           , Seq(
-                              CallT(SVar("q_20"), [], [])
+                              CallT(SVar("d_25"), [], [])
                             , Seq(
-                                Match(Var("e_38"))
+                                Match(Var("s_42"))
                               , Build(
                                   Anno(
                                     Op(
                                       "FixDecl"
-                                    , [Var("c_38"), Var("d_38"), Var("e_38")]
+                                    , [Var("q_42"), Var("r_42"), Var("s_42")]
                                     )
-                                  , Var("b_38")
+                                  , Var("p_42")
                                   )
                                 )
                               )
@@ -5618,14 +7325,14 @@ Specification(
       , SDefT(
           "ECons_2_0"
         , [ VarDec(
-              "r_20"
+              "e_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "s_20"
+              "f_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5634,30 +7341,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["h_38", "f_38", "g_38", "i_38", "j_38"]
+            ["v_42", "t_42", "u_42", "w_42", "x_42"]
           , Seq(
               Match(
                 Anno(
-                  Op("ECons", [Var("f_38"), Var("g_38")])
-                , Var("h_38")
+                  Op("ECons", [Var("t_42"), Var("u_42")])
+                , Var("v_42")
                 )
               )
             , Seq(
-                Build(Var("f_38"))
+                Build(Var("t_42"))
               , Seq(
-                  CallT(SVar("r_20"), [], [])
+                  CallT(SVar("e_25"), [], [])
                 , Seq(
-                    Match(Var("i_38"))
+                    Match(Var("w_42"))
                   , Seq(
-                      Build(Var("g_38"))
+                      Build(Var("u_42"))
                     , Seq(
-                        CallT(SVar("s_20"), [], [])
+                        CallT(SVar("f_25"), [], [])
                       , Seq(
-                          Match(Var("j_38"))
+                          Match(Var("x_42"))
                         , Build(
                             Anno(
-                              Op("ECons", [Var("i_38"), Var("j_38")])
-                            , Var("h_38")
+                              Op("ECons", [Var("w_42"), Var("x_42")])
+                            , Var("v_42")
                             )
                           )
                         )
@@ -5672,21 +7379,21 @@ Specification(
       , SDefT(
           "ArrOpApp_3_0"
         , [ VarDec(
-              "t_20"
+              "g_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "u_20"
+              "h_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "v_20"
+              "i_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5695,42 +7402,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_38", "k_38", "l_38", "m_38", "o_38", "p_38", "q_38"]
+            ["b_43", "y_42", "z_42", "a_43", "c_43", "d_43", "e_43"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "ArrOpApp"
-                  , [Var("k_38"), Var("l_38"), Var("m_38")]
+                  , [Var("y_42"), Var("z_42"), Var("a_43")]
                   )
-                , Var("n_38")
+                , Var("b_43")
                 )
               )
             , Seq(
-                Build(Var("k_38"))
+                Build(Var("y_42"))
               , Seq(
-                  CallT(SVar("t_20"), [], [])
+                  CallT(SVar("g_25"), [], [])
                 , Seq(
-                    Match(Var("o_38"))
+                    Match(Var("c_43"))
                   , Seq(
-                      Build(Var("l_38"))
+                      Build(Var("z_42"))
                     , Seq(
-                        CallT(SVar("u_20"), [], [])
+                        CallT(SVar("h_25"), [], [])
                       , Seq(
-                          Match(Var("p_38"))
+                          Match(Var("d_43"))
                         , Seq(
-                            Build(Var("m_38"))
+                            Build(Var("a_43"))
                           , Seq(
-                              CallT(SVar("v_20"), [], [])
+                              CallT(SVar("i_25"), [], [])
                             , Seq(
-                                Match(Var("q_38"))
+                                Match(Var("e_43"))
                               , Build(
                                   Anno(
                                     Op(
                                       "ArrOpApp"
-                                    , [Var("o_38"), Var("p_38"), Var("q_38")]
+                                    , [Var("c_43"), Var("d_43"), Var("e_43")]
                                     )
-                                  , Var("n_38")
+                                  , Var("b_43")
                                   )
                                 )
                               )
@@ -5748,14 +7455,14 @@ Specification(
       , SDefT(
           "ArrForm_2_0"
         , [ VarDec(
-              "w_20"
+              "j_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "x_20"
+              "k_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5764,30 +7471,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["t_38", "r_38", "s_38", "u_38", "v_38"]
+            ["h_43", "f_43", "g_43", "i_43", "j_43"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrForm", [Var("r_38"), Var("s_38")])
-                , Var("t_38")
+                  Op("ArrForm", [Var("f_43"), Var("g_43")])
+                , Var("h_43")
                 )
               )
             , Seq(
-                Build(Var("r_38"))
+                Build(Var("f_43"))
               , Seq(
-                  CallT(SVar("w_20"), [], [])
+                  CallT(SVar("j_25"), [], [])
                 , Seq(
-                    Match(Var("u_38"))
+                    Match(Var("i_43"))
                   , Seq(
-                      Build(Var("s_38"))
+                      Build(Var("g_43"))
                     , Seq(
-                        CallT(SVar("x_20"), [], [])
+                        CallT(SVar("k_25"), [], [])
                       , Seq(
-                          Match(Var("v_38"))
+                          Match(Var("j_43"))
                         , Build(
                             Anno(
-                              Op("ArrForm", [Var("u_38"), Var("v_38")])
-                            , Var("t_38")
+                              Op("ArrForm", [Var("i_43"), Var("j_43")])
+                            , Var("h_43")
                             )
                           )
                         )
@@ -5802,14 +7509,14 @@ Specification(
       , SDefT(
           "ArrAppBin_2_0"
         , [ VarDec(
-              "y_20"
+              "l_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "z_20"
+              "m_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5818,30 +7525,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["y_38", "w_38", "x_38", "z_38", "a_39"]
+            ["m_43", "k_43", "l_43", "n_43", "o_43"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrAppBin", [Var("w_38"), Var("x_38")])
-                , Var("y_38")
+                  Op("ArrAppBin", [Var("k_43"), Var("l_43")])
+                , Var("m_43")
                 )
               )
             , Seq(
-                Build(Var("w_38"))
+                Build(Var("k_43"))
               , Seq(
-                  CallT(SVar("y_20"), [], [])
+                  CallT(SVar("l_25"), [], [])
                 , Seq(
-                    Match(Var("z_38"))
+                    Match(Var("n_43"))
                   , Seq(
-                      Build(Var("x_38"))
+                      Build(Var("l_43"))
                     , Seq(
-                        CallT(SVar("z_20"), [], [])
+                        CallT(SVar("m_25"), [], [])
                       , Seq(
-                          Match(Var("a_39"))
+                          Match(Var("o_43"))
                         , Build(
                             Anno(
-                              Op("ArrAppBin", [Var("z_38"), Var("a_39")])
-                            , Var("y_38")
+                              Op("ArrAppBin", [Var("n_43"), Var("o_43")])
+                            , Var("m_43")
                             )
                           )
                         )
@@ -5856,7 +7563,7 @@ Specification(
       , SDefT(
           "ArrDo_1_0"
         , [ VarDec(
-              "a_21"
+              "n_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5865,19 +7572,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["c_39", "b_39", "d_39"]
+            ["q_43", "p_43", "r_43"]
           , Seq(
               Match(
-                Anno(Op("ArrDo", [Var("b_39")]), Var("c_39"))
+                Anno(Op("ArrDo", [Var("p_43")]), Var("q_43"))
               )
             , Seq(
-                Build(Var("b_39"))
+                Build(Var("p_43"))
               , Seq(
-                  CallT(SVar("a_21"), [], [])
+                  CallT(SVar("n_25"), [], [])
                 , Seq(
-                    Match(Var("d_39"))
+                    Match(Var("r_43"))
                   , Build(
-                      Anno(Op("ArrDo", [Var("d_39")]), Var("c_39"))
+                      Anno(Op("ArrDo", [Var("r_43")]), Var("q_43"))
                     )
                   )
                 )
@@ -5888,14 +7595,14 @@ Specification(
       , SDefT(
           "ArrCase_2_0"
         , [ VarDec(
-              "b_21"
+              "o_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "c_21"
+              "p_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5904,30 +7611,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["g_39", "e_39", "f_39", "h_39", "i_39"]
+            ["u_43", "s_43", "t_43", "v_43", "w_43"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrCase", [Var("e_39"), Var("f_39")])
-                , Var("g_39")
+                  Op("ArrCase", [Var("s_43"), Var("t_43")])
+                , Var("u_43")
                 )
               )
             , Seq(
-                Build(Var("e_39"))
+                Build(Var("s_43"))
               , Seq(
-                  CallT(SVar("b_21"), [], [])
+                  CallT(SVar("o_25"), [], [])
                 , Seq(
-                    Match(Var("h_39"))
+                    Match(Var("v_43"))
                   , Seq(
-                      Build(Var("f_39"))
+                      Build(Var("t_43"))
                     , Seq(
-                        CallT(SVar("c_21"), [], [])
+                        CallT(SVar("p_25"), [], [])
                       , Seq(
-                          Match(Var("i_39"))
+                          Match(Var("w_43"))
                         , Build(
                             Anno(
-                              Op("ArrCase", [Var("h_39"), Var("i_39")])
-                            , Var("g_39")
+                              Op("ArrCase", [Var("v_43"), Var("w_43")])
+                            , Var("u_43")
                             )
                           )
                         )
@@ -5942,21 +7649,21 @@ Specification(
       , SDefT(
           "ArrIf_3_0"
         , [ VarDec(
-              "d_21"
+              "q_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "e_21"
+              "r_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "f_21"
+              "s_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -5965,42 +7672,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["m_39", "j_39", "k_39", "l_39", "n_39", "o_39", "p_39"]
+            ["a_44", "x_43", "y_43", "z_43", "b_44", "c_44", "d_44"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "ArrIf"
-                  , [Var("j_39"), Var("k_39"), Var("l_39")]
+                  , [Var("x_43"), Var("y_43"), Var("z_43")]
                   )
-                , Var("m_39")
+                , Var("a_44")
                 )
               )
             , Seq(
-                Build(Var("j_39"))
+                Build(Var("x_43"))
               , Seq(
-                  CallT(SVar("d_21"), [], [])
+                  CallT(SVar("q_25"), [], [])
                 , Seq(
-                    Match(Var("n_39"))
+                    Match(Var("b_44"))
                   , Seq(
-                      Build(Var("k_39"))
+                      Build(Var("y_43"))
                     , Seq(
-                        CallT(SVar("e_21"), [], [])
+                        CallT(SVar("r_25"), [], [])
                       , Seq(
-                          Match(Var("o_39"))
+                          Match(Var("c_44"))
                         , Seq(
-                            Build(Var("l_39"))
+                            Build(Var("z_43"))
                           , Seq(
-                              CallT(SVar("f_21"), [], [])
+                              CallT(SVar("s_25"), [], [])
                             , Seq(
-                                Match(Var("p_39"))
+                                Match(Var("d_44"))
                               , Build(
                                   Anno(
                                     Op(
                                       "ArrIf"
-                                    , [Var("n_39"), Var("o_39"), Var("p_39")]
+                                    , [Var("b_44"), Var("c_44"), Var("d_44")]
                                     )
-                                  , Var("m_39")
+                                  , Var("a_44")
                                   )
                                 )
                               )
@@ -6018,14 +7725,14 @@ Specification(
       , SDefT(
           "ArrLet_2_0"
         , [ VarDec(
-              "g_21"
+              "t_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "h_21"
+              "u_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6034,30 +7741,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["s_39", "q_39", "r_39", "t_39", "u_39"]
+            ["g_44", "e_44", "f_44", "h_44", "i_44"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrLet", [Var("q_39"), Var("r_39")])
-                , Var("s_39")
+                  Op("ArrLet", [Var("e_44"), Var("f_44")])
+                , Var("g_44")
                 )
               )
             , Seq(
-                Build(Var("q_39"))
+                Build(Var("e_44"))
               , Seq(
-                  CallT(SVar("g_21"), [], [])
+                  CallT(SVar("t_25"), [], [])
                 , Seq(
-                    Match(Var("t_39"))
+                    Match(Var("h_44"))
                   , Seq(
-                      Build(Var("r_39"))
+                      Build(Var("f_44"))
                     , Seq(
-                        CallT(SVar("h_21"), [], [])
+                        CallT(SVar("u_25"), [], [])
                       , Seq(
-                          Match(Var("u_39"))
+                          Match(Var("i_44"))
                         , Build(
                             Anno(
-                              Op("ArrLet", [Var("t_39"), Var("u_39")])
-                            , Var("s_39")
+                              Op("ArrLet", [Var("h_44"), Var("i_44")])
+                            , Var("g_44")
                             )
                           )
                         )
@@ -6072,14 +7779,14 @@ Specification(
       , SDefT(
           "ArrAbs_2_0"
         , [ VarDec(
-              "i_21"
+              "v_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "j_21"
+              "w_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6088,30 +7795,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["x_39", "v_39", "w_39", "y_39", "z_39"]
+            ["l_44", "j_44", "k_44", "m_44", "n_44"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrAbs", [Var("v_39"), Var("w_39")])
-                , Var("x_39")
+                  Op("ArrAbs", [Var("j_44"), Var("k_44")])
+                , Var("l_44")
                 )
               )
             , Seq(
-                Build(Var("v_39"))
+                Build(Var("j_44"))
               , Seq(
-                  CallT(SVar("i_21"), [], [])
+                  CallT(SVar("v_25"), [], [])
                 , Seq(
-                    Match(Var("y_39"))
+                    Match(Var("m_44"))
                   , Seq(
-                      Build(Var("w_39"))
+                      Build(Var("k_44"))
                     , Seq(
-                        CallT(SVar("j_21"), [], [])
+                        CallT(SVar("w_25"), [], [])
                       , Seq(
-                          Match(Var("z_39"))
+                          Match(Var("n_44"))
                         , Build(
                             Anno(
-                              Op("ArrAbs", [Var("y_39"), Var("z_39")])
-                            , Var("x_39")
+                              Op("ArrAbs", [Var("m_44"), Var("n_44")])
+                            , Var("l_44")
                             )
                           )
                         )
@@ -6126,14 +7833,14 @@ Specification(
       , SDefT(
           "ArrHigher_2_0"
         , [ VarDec(
-              "k_21"
+              "x_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "l_21"
+              "y_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6142,30 +7849,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["c_40", "a_40", "b_40", "d_40", "e_40"]
+            ["q_44", "o_44", "p_44", "r_44", "s_44"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrHigher", [Var("a_40"), Var("b_40")])
-                , Var("c_40")
+                  Op("ArrHigher", [Var("o_44"), Var("p_44")])
+                , Var("q_44")
                 )
               )
             , Seq(
-                Build(Var("a_40"))
+                Build(Var("o_44"))
               , Seq(
-                  CallT(SVar("k_21"), [], [])
+                  CallT(SVar("x_25"), [], [])
                 , Seq(
-                    Match(Var("d_40"))
+                    Match(Var("r_44"))
                   , Seq(
-                      Build(Var("b_40"))
+                      Build(Var("p_44"))
                     , Seq(
-                        CallT(SVar("l_21"), [], [])
+                        CallT(SVar("y_25"), [], [])
                       , Seq(
-                          Match(Var("e_40"))
+                          Match(Var("s_44"))
                         , Build(
                             Anno(
-                              Op("ArrHigher", [Var("d_40"), Var("e_40")])
-                            , Var("c_40")
+                              Op("ArrHigher", [Var("r_44"), Var("s_44")])
+                            , Var("q_44")
                             )
                           )
                         )
@@ -6180,14 +7887,14 @@ Specification(
       , SDefT(
           "ArrFirst_2_0"
         , [ VarDec(
-              "m_21"
+              "z_25"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "n_21"
+              "a_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6196,30 +7903,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["h_40", "f_40", "g_40", "i_40", "j_40"]
+            ["v_44", "t_44", "u_44", "w_44", "x_44"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrFirst", [Var("f_40"), Var("g_40")])
-                , Var("h_40")
+                  Op("ArrFirst", [Var("t_44"), Var("u_44")])
+                , Var("v_44")
                 )
               )
             , Seq(
-                Build(Var("f_40"))
+                Build(Var("t_44"))
               , Seq(
-                  CallT(SVar("m_21"), [], [])
+                  CallT(SVar("z_25"), [], [])
                 , Seq(
-                    Match(Var("i_40"))
+                    Match(Var("w_44"))
                   , Seq(
-                      Build(Var("g_40"))
+                      Build(Var("u_44"))
                     , Seq(
-                        CallT(SVar("n_21"), [], [])
+                        CallT(SVar("a_26"), [], [])
                       , Seq(
-                          Match(Var("j_40"))
+                          Match(Var("x_44"))
                         , Build(
                             Anno(
-                              Op("ArrFirst", [Var("i_40"), Var("j_40")])
-                            , Var("h_40")
+                              Op("ArrFirst", [Var("w_44"), Var("x_44")])
+                            , Var("v_44")
                             )
                           )
                         )
@@ -6234,21 +7941,21 @@ Specification(
       , SDefT(
           "Typed_3_0"
         , [ VarDec(
-              "o_21"
+              "b_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "p_21"
+              "c_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "q_21"
+              "d_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6257,42 +7964,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_40", "k_40", "l_40", "m_40", "o_40", "p_40", "q_40"]
+            ["b_45", "y_44", "z_44", "a_45", "c_45", "d_45", "e_45"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "Typed"
-                  , [Var("k_40"), Var("l_40"), Var("m_40")]
+                  , [Var("y_44"), Var("z_44"), Var("a_45")]
                   )
-                , Var("n_40")
+                , Var("b_45")
                 )
               )
             , Seq(
-                Build(Var("k_40"))
+                Build(Var("y_44"))
               , Seq(
-                  CallT(SVar("o_21"), [], [])
+                  CallT(SVar("b_26"), [], [])
                 , Seq(
-                    Match(Var("o_40"))
+                    Match(Var("c_45"))
                   , Seq(
-                      Build(Var("l_40"))
+                      Build(Var("z_44"))
                     , Seq(
-                        CallT(SVar("p_21"), [], [])
+                        CallT(SVar("c_26"), [], [])
                       , Seq(
-                          Match(Var("p_40"))
+                          Match(Var("d_45"))
                         , Seq(
-                            Build(Var("m_40"))
+                            Build(Var("a_45"))
                           , Seq(
-                              CallT(SVar("q_21"), [], [])
+                              CallT(SVar("d_26"), [], [])
                             , Seq(
-                                Match(Var("q_40"))
+                                Match(Var("e_45"))
                               , Build(
                                   Anno(
                                     Op(
                                       "Typed"
-                                    , [Var("o_40"), Var("p_40"), Var("q_40")]
+                                    , [Var("c_45"), Var("d_45"), Var("e_45")]
                                     )
-                                  , Var("n_40")
+                                  , Var("b_45")
                                   )
                                 )
                               )
@@ -6310,7 +8017,7 @@ Specification(
       , SDefT(
           "Negation_1_0"
         , [ VarDec(
-              "r_21"
+              "e_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6319,19 +8026,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["s_40", "r_40", "t_40"]
+            ["g_45", "f_45", "h_45"]
           , Seq(
               Match(
-                Anno(Op("Negation", [Var("r_40")]), Var("s_40"))
+                Anno(Op("Negation", [Var("f_45")]), Var("g_45"))
               )
             , Seq(
-                Build(Var("r_40"))
+                Build(Var("f_45"))
               , Seq(
-                  CallT(SVar("r_21"), [], [])
+                  CallT(SVar("e_26"), [], [])
                 , Seq(
-                    Match(Var("t_40"))
+                    Match(Var("h_45"))
                   , Build(
-                      Anno(Op("Negation", [Var("t_40")]), Var("s_40"))
+                      Anno(Op("Negation", [Var("h_45")]), Var("g_45"))
                     )
                   )
                 )
@@ -6342,14 +8049,14 @@ Specification(
       , SDefT(
           "Labeled_2_0"
         , [ VarDec(
-              "s_21"
+              "f_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "t_21"
+              "g_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6358,30 +8065,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_40", "u_40", "v_40", "x_40", "y_40"]
+            ["k_45", "i_45", "j_45", "l_45", "m_45"]
           , Seq(
               Match(
                 Anno(
-                  Op("Labeled", [Var("u_40"), Var("v_40")])
-                , Var("w_40")
+                  Op("Labeled", [Var("i_45"), Var("j_45")])
+                , Var("k_45")
                 )
               )
             , Seq(
-                Build(Var("u_40"))
+                Build(Var("i_45"))
               , Seq(
-                  CallT(SVar("s_21"), [], [])
+                  CallT(SVar("f_26"), [], [])
                 , Seq(
-                    Match(Var("x_40"))
+                    Match(Var("l_45"))
                   , Seq(
-                      Build(Var("v_40"))
+                      Build(Var("j_45"))
                     , Seq(
-                        CallT(SVar("t_21"), [], [])
+                        CallT(SVar("g_26"), [], [])
                       , Seq(
-                          Match(Var("y_40"))
+                          Match(Var("m_45"))
                         , Build(
                             Anno(
-                              Op("Labeled", [Var("x_40"), Var("y_40")])
-                            , Var("w_40")
+                              Op("Labeled", [Var("l_45"), Var("m_45")])
+                            , Var("k_45")
                             )
                           )
                         )
@@ -6396,14 +8103,14 @@ Specification(
       , SDefT(
           "Named_2_0"
         , [ VarDec(
-              "u_21"
+              "h_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "v_21"
+              "i_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6412,30 +8119,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["b_41", "z_40", "a_41", "c_41", "d_41"]
+            ["p_45", "n_45", "o_45", "q_45", "r_45"]
           , Seq(
               Match(
                 Anno(
-                  Op("Named", [Var("z_40"), Var("a_41")])
-                , Var("b_41")
+                  Op("Named", [Var("n_45"), Var("o_45")])
+                , Var("p_45")
                 )
               )
             , Seq(
-                Build(Var("z_40"))
+                Build(Var("n_45"))
               , Seq(
-                  CallT(SVar("u_21"), [], [])
+                  CallT(SVar("h_26"), [], [])
                 , Seq(
-                    Match(Var("c_41"))
+                    Match(Var("q_45"))
                   , Seq(
-                      Build(Var("a_41"))
+                      Build(Var("o_45"))
                     , Seq(
-                        CallT(SVar("v_21"), [], [])
+                        CallT(SVar("i_26"), [], [])
                       , Seq(
-                          Match(Var("d_41"))
+                          Match(Var("r_45"))
                         , Build(
                             Anno(
-                              Op("Named", [Var("c_41"), Var("d_41")])
-                            , Var("b_41")
+                              Op("Named", [Var("q_45"), Var("r_45")])
+                            , Var("p_45")
                             )
                           )
                         )
@@ -6450,21 +8157,21 @@ Specification(
       , SDefT(
           "OpApp_3_0"
         , [ VarDec(
-              "w_21"
+              "j_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "x_21"
+              "k_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "y_21"
+              "l_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6473,42 +8180,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["h_41", "e_41", "f_41", "g_41", "i_41", "j_41", "k_41"]
+            ["v_45", "s_45", "t_45", "u_45", "w_45", "x_45", "y_45"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "OpApp"
-                  , [Var("e_41"), Var("f_41"), Var("g_41")]
+                  , [Var("s_45"), Var("t_45"), Var("u_45")]
                   )
-                , Var("h_41")
+                , Var("v_45")
                 )
               )
             , Seq(
-                Build(Var("e_41"))
+                Build(Var("s_45"))
               , Seq(
-                  CallT(SVar("w_21"), [], [])
+                  CallT(SVar("j_26"), [], [])
                 , Seq(
-                    Match(Var("i_41"))
+                    Match(Var("w_45"))
                   , Seq(
-                      Build(Var("f_41"))
+                      Build(Var("t_45"))
                     , Seq(
-                        CallT(SVar("x_21"), [], [])
+                        CallT(SVar("k_26"), [], [])
                       , Seq(
-                          Match(Var("j_41"))
+                          Match(Var("x_45"))
                         , Seq(
-                            Build(Var("g_41"))
+                            Build(Var("u_45"))
                           , Seq(
-                              CallT(SVar("y_21"), [], [])
+                              CallT(SVar("l_26"), [], [])
                             , Seq(
-                                Match(Var("k_41"))
+                                Match(Var("y_45"))
                               , Build(
                                   Anno(
                                     Op(
                                       "OpApp"
-                                    , [Var("i_41"), Var("j_41"), Var("k_41")]
+                                    , [Var("w_45"), Var("x_45"), Var("y_45")]
                                     )
-                                  , Var("h_41")
+                                  , Var("v_45")
                                   )
                                 )
                               )
@@ -6526,14 +8233,14 @@ Specification(
       , SDefT(
           "AppBin_2_0"
         , [ VarDec(
-              "z_21"
+              "m_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "a_22"
+              "n_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6542,30 +8249,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_41", "l_41", "m_41", "o_41", "p_41"]
+            ["b_46", "z_45", "a_46", "c_46", "d_46"]
           , Seq(
               Match(
                 Anno(
-                  Op("AppBin", [Var("l_41"), Var("m_41")])
-                , Var("n_41")
+                  Op("AppBin", [Var("z_45"), Var("a_46")])
+                , Var("b_46")
                 )
               )
             , Seq(
-                Build(Var("l_41"))
+                Build(Var("z_45"))
               , Seq(
-                  CallT(SVar("z_21"), [], [])
+                  CallT(SVar("m_26"), [], [])
                 , Seq(
-                    Match(Var("o_41"))
+                    Match(Var("c_46"))
                   , Seq(
-                      Build(Var("m_41"))
+                      Build(Var("a_46"))
                     , Seq(
-                        CallT(SVar("a_22"), [], [])
+                        CallT(SVar("n_26"), [], [])
                       , Seq(
-                          Match(Var("p_41"))
+                          Match(Var("d_46"))
                         , Build(
                             Anno(
-                              Op("AppBin", [Var("o_41"), Var("p_41")])
-                            , Var("n_41")
+                              Op("AppBin", [Var("c_46"), Var("d_46")])
+                            , Var("b_46")
                             )
                           )
                         )
@@ -6580,14 +8287,14 @@ Specification(
       , SDefT(
           "Case_2_0"
         , [ VarDec(
-              "b_22"
+              "o_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "c_22"
+              "p_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6596,30 +8303,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["s_41", "q_41", "r_41", "t_41", "u_41"]
+            ["g_46", "e_46", "f_46", "h_46", "i_46"]
           , Seq(
               Match(
                 Anno(
-                  Op("Case", [Var("q_41"), Var("r_41")])
-                , Var("s_41")
+                  Op("Case", [Var("e_46"), Var("f_46")])
+                , Var("g_46")
                 )
               )
             , Seq(
-                Build(Var("q_41"))
+                Build(Var("e_46"))
               , Seq(
-                  CallT(SVar("b_22"), [], [])
+                  CallT(SVar("o_26"), [], [])
                 , Seq(
-                    Match(Var("t_41"))
+                    Match(Var("h_46"))
                   , Seq(
-                      Build(Var("r_41"))
+                      Build(Var("f_46"))
                     , Seq(
-                        CallT(SVar("c_22"), [], [])
+                        CallT(SVar("p_26"), [], [])
                       , Seq(
-                          Match(Var("u_41"))
+                          Match(Var("i_46"))
                         , Build(
                             Anno(
-                              Op("Case", [Var("t_41"), Var("u_41")])
-                            , Var("s_41")
+                              Op("Case", [Var("h_46"), Var("i_46")])
+                            , Var("g_46")
                             )
                           )
                         )
@@ -6634,7 +8341,7 @@ Specification(
       , SDefT(
           "Do_1_0"
         , [ VarDec(
-              "d_22"
+              "q_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6643,19 +8350,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_41", "v_41", "x_41"]
+            ["k_46", "j_46", "l_46"]
           , Seq(
               Match(
-                Anno(Op("Do", [Var("v_41")]), Var("w_41"))
+                Anno(Op("Do", [Var("j_46")]), Var("k_46"))
               )
             , Seq(
-                Build(Var("v_41"))
+                Build(Var("j_46"))
               , Seq(
-                  CallT(SVar("d_22"), [], [])
+                  CallT(SVar("q_26"), [], [])
                 , Seq(
-                    Match(Var("x_41"))
+                    Match(Var("l_46"))
                   , Build(
-                      Anno(Op("Do", [Var("x_41")]), Var("w_41"))
+                      Anno(Op("Do", [Var("l_46")]), Var("k_46"))
                     )
                   )
                 )
@@ -6666,21 +8373,21 @@ Specification(
       , SDefT(
           "If_3_0"
         , [ VarDec(
-              "e_22"
+              "r_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "f_22"
+              "s_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "g_22"
+              "t_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6689,42 +8396,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["b_42", "y_41", "z_41", "a_42", "c_42", "d_42", "e_42"]
+            ["p_46", "m_46", "n_46", "o_46", "q_46", "r_46", "s_46"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "If"
-                  , [Var("y_41"), Var("z_41"), Var("a_42")]
+                  , [Var("m_46"), Var("n_46"), Var("o_46")]
                   )
-                , Var("b_42")
+                , Var("p_46")
                 )
               )
             , Seq(
-                Build(Var("y_41"))
+                Build(Var("m_46"))
               , Seq(
-                  CallT(SVar("e_22"), [], [])
+                  CallT(SVar("r_26"), [], [])
                 , Seq(
-                    Match(Var("c_42"))
+                    Match(Var("q_46"))
                   , Seq(
-                      Build(Var("z_41"))
+                      Build(Var("n_46"))
                     , Seq(
-                        CallT(SVar("f_22"), [], [])
+                        CallT(SVar("s_26"), [], [])
                       , Seq(
-                          Match(Var("d_42"))
+                          Match(Var("r_46"))
                         , Seq(
-                            Build(Var("a_42"))
+                            Build(Var("o_46"))
                           , Seq(
-                              CallT(SVar("g_22"), [], [])
+                              CallT(SVar("t_26"), [], [])
                             , Seq(
-                                Match(Var("e_42"))
+                                Match(Var("s_46"))
                               , Build(
                                   Anno(
                                     Op(
                                       "If"
-                                    , [Var("c_42"), Var("d_42"), Var("e_42")]
+                                    , [Var("q_46"), Var("r_46"), Var("s_46")]
                                     )
-                                  , Var("b_42")
+                                  , Var("p_46")
                                   )
                                 )
                               )
@@ -6742,14 +8449,14 @@ Specification(
       , SDefT(
           "Let_2_0"
         , [ VarDec(
-              "h_22"
+              "u_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "i_22"
+              "v_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6758,30 +8465,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["h_42", "f_42", "g_42", "i_42", "j_42"]
+            ["v_46", "t_46", "u_46", "w_46", "x_46"]
           , Seq(
               Match(
                 Anno(
-                  Op("Let", [Var("f_42"), Var("g_42")])
-                , Var("h_42")
+                  Op("Let", [Var("t_46"), Var("u_46")])
+                , Var("v_46")
                 )
               )
             , Seq(
-                Build(Var("f_42"))
+                Build(Var("t_46"))
               , Seq(
-                  CallT(SVar("h_22"), [], [])
+                  CallT(SVar("u_26"), [], [])
                 , Seq(
-                    Match(Var("i_42"))
+                    Match(Var("w_46"))
                   , Seq(
-                      Build(Var("g_42"))
+                      Build(Var("u_46"))
                     , Seq(
-                        CallT(SVar("i_22"), [], [])
+                        CallT(SVar("v_26"), [], [])
                       , Seq(
-                          Match(Var("j_42"))
+                          Match(Var("x_46"))
                         , Build(
                             Anno(
-                              Op("Let", [Var("i_42"), Var("j_42")])
-                            , Var("h_42")
+                              Op("Let", [Var("w_46"), Var("x_46")])
+                            , Var("v_46")
                             )
                           )
                         )
@@ -6796,14 +8503,14 @@ Specification(
       , SDefT(
           "Abs_2_0"
         , [ VarDec(
-              "j_22"
+              "w_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "k_22"
+              "x_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6812,30 +8519,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["m_42", "k_42", "l_42", "n_42", "o_42"]
+            ["a_47", "y_46", "z_46", "b_47", "c_47"]
           , Seq(
               Match(
                 Anno(
-                  Op("Abs", [Var("k_42"), Var("l_42")])
-                , Var("m_42")
+                  Op("Abs", [Var("y_46"), Var("z_46")])
+                , Var("a_47")
                 )
               )
             , Seq(
-                Build(Var("k_42"))
+                Build(Var("y_46"))
               , Seq(
-                  CallT(SVar("j_22"), [], [])
+                  CallT(SVar("w_26"), [], [])
                 , Seq(
-                    Match(Var("n_42"))
+                    Match(Var("b_47"))
                   , Seq(
-                      Build(Var("l_42"))
+                      Build(Var("z_46"))
                     , Seq(
-                        CallT(SVar("k_22"), [], [])
+                        CallT(SVar("x_26"), [], [])
                       , Seq(
-                          Match(Var("o_42"))
+                          Match(Var("c_47"))
                         , Build(
                             Anno(
-                              Op("Abs", [Var("n_42"), Var("o_42")])
-                            , Var("m_42")
+                              Op("Abs", [Var("b_47"), Var("c_47")])
+                            , Var("a_47")
                             )
                           )
                         )
@@ -6850,14 +8557,14 @@ Specification(
       , SDefT(
           "RSection_2_0"
         , [ VarDec(
-              "l_22"
+              "y_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "m_22"
+              "z_26"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6866,30 +8573,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["r_42", "p_42", "q_42", "s_42", "t_42"]
+            ["f_47", "d_47", "e_47", "g_47", "h_47"]
           , Seq(
               Match(
                 Anno(
-                  Op("RSection", [Var("p_42"), Var("q_42")])
-                , Var("r_42")
+                  Op("RSection", [Var("d_47"), Var("e_47")])
+                , Var("f_47")
                 )
               )
             , Seq(
-                Build(Var("p_42"))
+                Build(Var("d_47"))
               , Seq(
-                  CallT(SVar("l_22"), [], [])
+                  CallT(SVar("y_26"), [], [])
                 , Seq(
-                    Match(Var("s_42"))
+                    Match(Var("g_47"))
                   , Seq(
-                      Build(Var("q_42"))
+                      Build(Var("e_47"))
                     , Seq(
-                        CallT(SVar("m_22"), [], [])
+                        CallT(SVar("z_26"), [], [])
                       , Seq(
-                          Match(Var("t_42"))
+                          Match(Var("h_47"))
                         , Build(
                             Anno(
-                              Op("RSection", [Var("s_42"), Var("t_42")])
-                            , Var("r_42")
+                              Op("RSection", [Var("g_47"), Var("h_47")])
+                            , Var("f_47")
                             )
                           )
                         )
@@ -6904,14 +8611,14 @@ Specification(
       , SDefT(
           "LSection_2_0"
         , [ VarDec(
-              "n_22"
+              "a_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "o_22"
+              "b_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6920,30 +8627,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_42", "u_42", "v_42", "x_42", "y_42"]
+            ["k_47", "i_47", "j_47", "l_47", "m_47"]
           , Seq(
               Match(
                 Anno(
-                  Op("LSection", [Var("u_42"), Var("v_42")])
-                , Var("w_42")
+                  Op("LSection", [Var("i_47"), Var("j_47")])
+                , Var("k_47")
                 )
               )
             , Seq(
-                Build(Var("u_42"))
+                Build(Var("i_47"))
               , Seq(
-                  CallT(SVar("n_22"), [], [])
+                  CallT(SVar("a_27"), [], [])
                 , Seq(
-                    Match(Var("x_42"))
+                    Match(Var("l_47"))
                   , Seq(
-                      Build(Var("v_42"))
+                      Build(Var("j_47"))
                     , Seq(
-                        CallT(SVar("o_22"), [], [])
+                        CallT(SVar("b_27"), [], [])
                       , Seq(
-                          Match(Var("y_42"))
+                          Match(Var("m_47"))
                         , Build(
                             Anno(
-                              Op("LSection", [Var("x_42"), Var("y_42")])
-                            , Var("w_42")
+                              Op("LSection", [Var("l_47"), Var("m_47")])
+                            , Var("k_47")
                             )
                           )
                         )
@@ -6958,7 +8665,7 @@ Specification(
       , SDefT(
           "Product_1_0"
         , [ VarDec(
-              "p_22"
+              "c_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6967,19 +8674,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_43", "z_42", "b_43"]
+            ["o_47", "n_47", "p_47"]
           , Seq(
               Match(
-                Anno(Op("Product", [Var("z_42")]), Var("a_43"))
+                Anno(Op("Product", [Var("n_47")]), Var("o_47"))
               )
             , Seq(
-                Build(Var("z_42"))
+                Build(Var("n_47"))
               , Seq(
-                  CallT(SVar("p_22"), [], [])
+                  CallT(SVar("c_27"), [], [])
                 , Seq(
-                    Match(Var("b_43"))
+                    Match(Var("p_47"))
                   , Build(
-                      Anno(Op("Product", [Var("b_43")]), Var("a_43"))
+                      Anno(Op("Product", [Var("p_47")]), Var("o_47"))
                     )
                   )
                 )
@@ -6990,7 +8697,7 @@ Specification(
       , SDefT(
           "Lit_1_0"
         , [ VarDec(
-              "q_22"
+              "d_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -6999,19 +8706,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["d_43", "c_43", "e_43"]
+            ["r_47", "q_47", "s_47"]
           , Seq(
               Match(
-                Anno(Op("Lit", [Var("c_43")]), Var("d_43"))
+                Anno(Op("Lit", [Var("q_47")]), Var("r_47"))
               )
             , Seq(
-                Build(Var("c_43"))
+                Build(Var("q_47"))
               , Seq(
-                  CallT(SVar("q_22"), [], [])
+                  CallT(SVar("d_27"), [], [])
                 , Seq(
-                    Match(Var("e_43"))
+                    Match(Var("s_47"))
                   , Build(
-                      Anno(Op("Lit", [Var("e_43")]), Var("d_43"))
+                      Anno(Op("Lit", [Var("s_47")]), Var("r_47"))
                     )
                   )
                 )
@@ -7022,7 +8729,7 @@ Specification(
       , SDefT(
           "Constr_1_0"
         , [ VarDec(
-              "r_22"
+              "e_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7031,19 +8738,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["g_43", "f_43", "h_43"]
+            ["u_47", "t_47", "v_47"]
           , Seq(
               Match(
-                Anno(Op("Constr", [Var("f_43")]), Var("g_43"))
+                Anno(Op("Constr", [Var("t_47")]), Var("u_47"))
               )
             , Seq(
-                Build(Var("f_43"))
+                Build(Var("t_47"))
               , Seq(
-                  CallT(SVar("r_22"), [], [])
+                  CallT(SVar("e_27"), [], [])
                 , Seq(
-                    Match(Var("h_43"))
+                    Match(Var("v_47"))
                   , Build(
-                      Anno(Op("Constr", [Var("h_43")]), Var("g_43"))
+                      Anno(Op("Constr", [Var("v_47")]), Var("u_47"))
                     )
                   )
                 )
@@ -7054,7 +8761,7 @@ Specification(
       , SDefT(
           "QVar_1_0"
         , [ VarDec(
-              "s_22"
+              "f_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7063,19 +8770,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["j_43", "i_43", "k_43"]
+            ["x_47", "w_47", "y_47"]
           , Seq(
               Match(
-                Anno(Op("QVar", [Var("i_43")]), Var("j_43"))
+                Anno(Op("QVar", [Var("w_47")]), Var("x_47"))
               )
             , Seq(
-                Build(Var("i_43"))
+                Build(Var("w_47"))
               , Seq(
-                  CallT(SVar("s_22"), [], [])
+                  CallT(SVar("f_27"), [], [])
                 , Seq(
-                    Match(Var("k_43"))
+                    Match(Var("y_47"))
                   , Build(
-                      Anno(Op("QVar", [Var("k_43")]), Var("j_43"))
+                      Anno(Op("QVar", [Var("y_47")]), Var("x_47"))
                     )
                   )
                 )
@@ -7086,14 +8793,14 @@ Specification(
       , SDefT(
           "ArrProcedure_2_0"
         , [ VarDec(
-              "t_22"
+              "g_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "u_22"
+              "h_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7102,30 +8809,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_43", "l_43", "m_43", "o_43", "p_43"]
+            ["b_48", "z_47", "a_48", "c_48", "d_48"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrProcedure", [Var("l_43"), Var("m_43")])
-                , Var("n_43")
+                  Op("ArrProcedure", [Var("z_47"), Var("a_48")])
+                , Var("b_48")
                 )
               )
             , Seq(
-                Build(Var("l_43"))
+                Build(Var("z_47"))
               , Seq(
-                  CallT(SVar("t_22"), [], [])
+                  CallT(SVar("g_27"), [], [])
                 , Seq(
-                    Match(Var("o_43"))
+                    Match(Var("c_48"))
                   , Seq(
-                      Build(Var("m_43"))
+                      Build(Var("a_48"))
                     , Seq(
-                        CallT(SVar("u_22"), [], [])
+                        CallT(SVar("h_27"), [], [])
                       , Seq(
-                          Match(Var("p_43"))
+                          Match(Var("d_48"))
                         , Build(
                             Anno(
-                              Op("ArrProcedure", [Var("o_43"), Var("p_43")])
-                            , Var("n_43")
+                              Op("ArrProcedure", [Var("c_48"), Var("d_48")])
+                            , Var("b_48")
                             )
                           )
                         )
@@ -7140,14 +8847,14 @@ Specification(
       , SDefT(
           "ArrStmtSeq_2_0"
         , [ VarDec(
-              "v_22"
+              "i_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "w_22"
+              "j_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7156,30 +8863,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["s_43", "q_43", "r_43", "t_43", "u_43"]
+            ["g_48", "e_48", "f_48", "h_48", "i_48"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrStmtSeq", [Var("q_43"), Var("r_43")])
-                , Var("s_43")
+                  Op("ArrStmtSeq", [Var("e_48"), Var("f_48")])
+                , Var("g_48")
                 )
               )
             , Seq(
-                Build(Var("q_43"))
+                Build(Var("e_48"))
               , Seq(
-                  CallT(SVar("v_22"), [], [])
+                  CallT(SVar("i_27"), [], [])
                 , Seq(
-                    Match(Var("t_43"))
+                    Match(Var("h_48"))
                   , Seq(
-                      Build(Var("r_43"))
+                      Build(Var("f_48"))
                     , Seq(
-                        CallT(SVar("w_22"), [], [])
+                        CallT(SVar("j_27"), [], [])
                       , Seq(
-                          Match(Var("u_43"))
+                          Match(Var("i_48"))
                         , Build(
                             Anno(
-                              Op("ArrStmtSeq", [Var("t_43"), Var("u_43")])
-                            , Var("s_43")
+                              Op("ArrStmtSeq", [Var("h_48"), Var("i_48")])
+                            , Var("g_48")
                             )
                           )
                         )
@@ -7194,7 +8901,7 @@ Specification(
       , SDefT(
           "ArrStmtList_1_0"
         , [ VarDec(
-              "x_22"
+              "k_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7203,19 +8910,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_43", "v_43", "x_43"]
+            ["k_48", "j_48", "l_48"]
           , Seq(
               Match(
-                Anno(Op("ArrStmtList", [Var("v_43")]), Var("w_43"))
+                Anno(Op("ArrStmtList", [Var("j_48")]), Var("k_48"))
               )
             , Seq(
-                Build(Var("v_43"))
+                Build(Var("j_48"))
               , Seq(
-                  CallT(SVar("x_22"), [], [])
+                  CallT(SVar("k_27"), [], [])
                 , Seq(
-                    Match(Var("x_43"))
+                    Match(Var("l_48"))
                   , Build(
-                      Anno(Op("ArrStmtList", [Var("x_43")]), Var("w_43"))
+                      Anno(Op("ArrStmtList", [Var("l_48")]), Var("k_48"))
                     )
                   )
                 )
@@ -7226,7 +8933,7 @@ Specification(
       , SDefT(
           "ArrCmdStmt_1_0"
         , [ VarDec(
-              "y_22"
+              "l_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7235,19 +8942,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["z_43", "y_43", "a_44"]
+            ["n_48", "m_48", "o_48"]
           , Seq(
               Match(
-                Anno(Op("ArrCmdStmt", [Var("y_43")]), Var("z_43"))
+                Anno(Op("ArrCmdStmt", [Var("m_48")]), Var("n_48"))
               )
             , Seq(
-                Build(Var("y_43"))
+                Build(Var("m_48"))
               , Seq(
-                  CallT(SVar("y_22"), [], [])
+                  CallT(SVar("l_27"), [], [])
                 , Seq(
-                    Match(Var("a_44"))
+                    Match(Var("o_48"))
                   , Build(
-                      Anno(Op("ArrCmdStmt", [Var("a_44")]), Var("z_43"))
+                      Anno(Op("ArrCmdStmt", [Var("o_48")]), Var("n_48"))
                     )
                   )
                 )
@@ -7258,14 +8965,14 @@ Specification(
       , SDefT(
           "ArrBindStmt_2_0"
         , [ VarDec(
-              "z_22"
+              "m_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "a_23"
+              "n_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7274,30 +8981,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["d_44", "b_44", "c_44", "e_44", "f_44"]
+            ["r_48", "p_48", "q_48", "s_48", "t_48"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrBindStmt", [Var("b_44"), Var("c_44")])
-                , Var("d_44")
+                  Op("ArrBindStmt", [Var("p_48"), Var("q_48")])
+                , Var("r_48")
                 )
               )
             , Seq(
-                Build(Var("b_44"))
+                Build(Var("p_48"))
               , Seq(
-                  CallT(SVar("z_22"), [], [])
+                  CallT(SVar("m_27"), [], [])
                 , Seq(
-                    Match(Var("e_44"))
+                    Match(Var("s_48"))
                   , Seq(
-                      Build(Var("c_44"))
+                      Build(Var("q_48"))
                     , Seq(
-                        CallT(SVar("a_23"), [], [])
+                        CallT(SVar("n_27"), [], [])
                       , Seq(
-                          Match(Var("f_44"))
+                          Match(Var("t_48"))
                         , Build(
                             Anno(
-                              Op("ArrBindStmt", [Var("e_44"), Var("f_44")])
-                            , Var("d_44")
+                              Op("ArrBindStmt", [Var("s_48"), Var("t_48")])
+                            , Var("r_48")
                             )
                           )
                         )
@@ -7312,7 +9019,7 @@ Specification(
       , SDefT(
           "ArrLetStmt_1_0"
         , [ VarDec(
-              "b_23"
+              "o_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7321,19 +9028,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["h_44", "g_44", "i_44"]
+            ["v_48", "u_48", "w_48"]
           , Seq(
               Match(
-                Anno(Op("ArrLetStmt", [Var("g_44")]), Var("h_44"))
+                Anno(Op("ArrLetStmt", [Var("u_48")]), Var("v_48"))
               )
             , Seq(
-                Build(Var("g_44"))
+                Build(Var("u_48"))
               , Seq(
-                  CallT(SVar("b_23"), [], [])
+                  CallT(SVar("o_27"), [], [])
                 , Seq(
-                    Match(Var("i_44"))
+                    Match(Var("w_48"))
                   , Build(
-                      Anno(Op("ArrLetStmt", [Var("i_44")]), Var("h_44"))
+                      Anno(Op("ArrLetStmt", [Var("w_48")]), Var("v_48"))
                     )
                   )
                 )
@@ -7344,14 +9051,14 @@ Specification(
       , SDefT(
           "ArrAltSeqOff_2_0"
         , [ VarDec(
-              "c_23"
+              "p_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "d_23"
+              "q_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7360,30 +9067,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["l_44", "j_44", "k_44", "m_44", "n_44"]
+            ["z_48", "x_48", "y_48", "a_49", "b_49"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrAltSeqOff", [Var("j_44"), Var("k_44")])
-                , Var("l_44")
+                  Op("ArrAltSeqOff", [Var("x_48"), Var("y_48")])
+                , Var("z_48")
                 )
               )
             , Seq(
-                Build(Var("j_44"))
+                Build(Var("x_48"))
               , Seq(
-                  CallT(SVar("c_23"), [], [])
+                  CallT(SVar("p_27"), [], [])
                 , Seq(
-                    Match(Var("m_44"))
+                    Match(Var("a_49"))
                   , Seq(
-                      Build(Var("k_44"))
+                      Build(Var("y_48"))
                     , Seq(
-                        CallT(SVar("d_23"), [], [])
+                        CallT(SVar("q_27"), [], [])
                       , Seq(
-                          Match(Var("n_44"))
+                          Match(Var("b_49"))
                         , Build(
                             Anno(
-                              Op("ArrAltSeqOff", [Var("m_44"), Var("n_44")])
-                            , Var("l_44")
+                              Op("ArrAltSeqOff", [Var("a_49"), Var("b_49")])
+                            , Var("z_48")
                             )
                           )
                         )
@@ -7398,14 +9105,14 @@ Specification(
       , SDefT(
           "ArrAltSeq_2_0"
         , [ VarDec(
-              "e_23"
+              "r_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "f_23"
+              "s_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7414,30 +9121,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["q_44", "o_44", "p_44", "r_44", "s_44"]
+            ["e_49", "c_49", "d_49", "f_49", "g_49"]
           , Seq(
               Match(
                 Anno(
-                  Op("ArrAltSeq", [Var("o_44"), Var("p_44")])
-                , Var("q_44")
+                  Op("ArrAltSeq", [Var("c_49"), Var("d_49")])
+                , Var("e_49")
                 )
               )
             , Seq(
-                Build(Var("o_44"))
+                Build(Var("c_49"))
               , Seq(
-                  CallT(SVar("e_23"), [], [])
+                  CallT(SVar("r_27"), [], [])
                 , Seq(
-                    Match(Var("r_44"))
+                    Match(Var("f_49"))
                   , Seq(
-                      Build(Var("p_44"))
+                      Build(Var("d_49"))
                     , Seq(
-                        CallT(SVar("f_23"), [], [])
+                        CallT(SVar("s_27"), [], [])
                       , Seq(
-                          Match(Var("s_44"))
+                          Match(Var("g_49"))
                         , Build(
                             Anno(
-                              Op("ArrAltSeq", [Var("r_44"), Var("s_44")])
-                            , Var("q_44")
+                              Op("ArrAltSeq", [Var("f_49"), Var("g_49")])
+                            , Var("e_49")
                             )
                           )
                         )
@@ -7452,7 +9159,7 @@ Specification(
       , SDefT(
           "ArrAltList_1_0"
         , [ VarDec(
-              "g_23"
+              "t_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7461,19 +9168,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["u_44", "t_44", "v_44"]
+            ["i_49", "h_49", "j_49"]
           , Seq(
               Match(
-                Anno(Op("ArrAltList", [Var("t_44")]), Var("u_44"))
+                Anno(Op("ArrAltList", [Var("h_49")]), Var("i_49"))
               )
             , Seq(
-                Build(Var("t_44"))
+                Build(Var("h_49"))
               , Seq(
-                  CallT(SVar("g_23"), [], [])
+                  CallT(SVar("t_27"), [], [])
                 , Seq(
-                    Match(Var("v_44"))
+                    Match(Var("j_49"))
                   , Build(
-                      Anno(Op("ArrAltList", [Var("v_44")]), Var("u_44"))
+                      Anno(Op("ArrAltList", [Var("j_49")]), Var("i_49"))
                     )
                   )
                 )
@@ -7484,21 +9191,21 @@ Specification(
       , SDefT(
           "ArrAlt_3_0"
         , [ VarDec(
-              "h_23"
+              "u_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "i_23"
+              "v_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "j_23"
+              "w_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7507,42 +9214,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["z_44", "w_44", "x_44", "y_44", "a_45", "b_45", "c_45"]
+            ["n_49", "k_49", "l_49", "m_49", "o_49", "p_49", "q_49"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "ArrAlt"
-                  , [Var("w_44"), Var("x_44"), Var("y_44")]
+                  , [Var("k_49"), Var("l_49"), Var("m_49")]
                   )
-                , Var("z_44")
+                , Var("n_49")
                 )
               )
             , Seq(
-                Build(Var("w_44"))
+                Build(Var("k_49"))
               , Seq(
-                  CallT(SVar("h_23"), [], [])
+                  CallT(SVar("u_27"), [], [])
                 , Seq(
-                    Match(Var("a_45"))
+                    Match(Var("o_49"))
                   , Seq(
-                      Build(Var("x_44"))
+                      Build(Var("l_49"))
                     , Seq(
-                        CallT(SVar("i_23"), [], [])
+                        CallT(SVar("v_27"), [], [])
                       , Seq(
-                          Match(Var("b_45"))
+                          Match(Var("p_49"))
                         , Seq(
-                            Build(Var("y_44"))
+                            Build(Var("m_49"))
                           , Seq(
-                              CallT(SVar("j_23"), [], [])
+                              CallT(SVar("w_27"), [], [])
                             , Seq(
-                                Match(Var("c_45"))
+                                Match(Var("q_49"))
                               , Build(
                                   Anno(
                                     Op(
                                       "ArrAlt"
-                                    , [Var("a_45"), Var("b_45"), Var("c_45")]
+                                    , [Var("o_49"), Var("p_49"), Var("q_49")]
                                     )
-                                  , Var("z_44")
+                                  , Var("n_49")
                                   )
                                 )
                               )
@@ -7560,21 +9267,21 @@ Specification(
       , SDefT(
           "SignDecl_3_0"
         , [ VarDec(
-              "k_23"
+              "x_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "l_23"
+              "y_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "m_23"
+              "z_27"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7583,42 +9290,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["g_45", "d_45", "e_45", "f_45", "h_45", "i_45", "j_45"]
+            ["u_49", "r_49", "s_49", "t_49", "v_49", "w_49", "x_49"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "SignDecl"
-                  , [Var("d_45"), Var("e_45"), Var("f_45")]
+                  , [Var("r_49"), Var("s_49"), Var("t_49")]
                   )
-                , Var("g_45")
+                , Var("u_49")
                 )
               )
             , Seq(
-                Build(Var("d_45"))
+                Build(Var("r_49"))
               , Seq(
-                  CallT(SVar("k_23"), [], [])
+                  CallT(SVar("x_27"), [], [])
                 , Seq(
-                    Match(Var("h_45"))
+                    Match(Var("v_49"))
                   , Seq(
-                      Build(Var("e_45"))
+                      Build(Var("s_49"))
                     , Seq(
-                        CallT(SVar("l_23"), [], [])
+                        CallT(SVar("y_27"), [], [])
                       , Seq(
-                          Match(Var("i_45"))
+                          Match(Var("w_49"))
                         , Seq(
-                            Build(Var("f_45"))
+                            Build(Var("t_49"))
                           , Seq(
-                              CallT(SVar("m_23"), [], [])
+                              CallT(SVar("z_27"), [], [])
                             , Seq(
-                                Match(Var("j_45"))
+                                Match(Var("x_49"))
                               , Build(
                                   Anno(
                                     Op(
                                       "SignDecl"
-                                    , [Var("h_45"), Var("i_45"), Var("j_45")]
+                                    , [Var("v_49"), Var("w_49"), Var("x_49")]
                                     )
-                                  , Var("g_45")
+                                  , Var("u_49")
                                   )
                                 )
                               )
@@ -7636,21 +9343,21 @@ Specification(
       , SDefT(
           "ClassMulti_3_0"
         , [ VarDec(
-              "n_23"
+              "a_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "o_23"
+              "b_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "p_23"
+              "c_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7659,42 +9366,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_45", "k_45", "l_45", "m_45", "o_45", "p_45", "q_45"]
+            ["b_50", "y_49", "z_49", "a_50", "c_50", "d_50", "e_50"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "ClassMulti"
-                  , [Var("k_45"), Var("l_45"), Var("m_45")]
+                  , [Var("y_49"), Var("z_49"), Var("a_50")]
                   )
-                , Var("n_45")
+                , Var("b_50")
                 )
               )
             , Seq(
-                Build(Var("k_45"))
+                Build(Var("y_49"))
               , Seq(
-                  CallT(SVar("n_23"), [], [])
+                  CallT(SVar("a_28"), [], [])
                 , Seq(
-                    Match(Var("o_45"))
+                    Match(Var("c_50"))
                   , Seq(
-                      Build(Var("l_45"))
+                      Build(Var("z_49"))
                     , Seq(
-                        CallT(SVar("o_23"), [], [])
+                        CallT(SVar("b_28"), [], [])
                       , Seq(
-                          Match(Var("p_45"))
+                          Match(Var("d_50"))
                         , Seq(
-                            Build(Var("m_45"))
+                            Build(Var("a_50"))
                           , Seq(
-                              CallT(SVar("p_23"), [], [])
+                              CallT(SVar("c_28"), [], [])
                             , Seq(
-                                Match(Var("q_45"))
+                                Match(Var("e_50"))
                               , Build(
                                   Anno(
                                     Op(
                                       "ClassMulti"
-                                    , [Var("o_45"), Var("p_45"), Var("q_45")]
+                                    , [Var("c_50"), Var("d_50"), Var("e_50")]
                                     )
-                                  , Var("n_45")
+                                  , Var("b_50")
                                   )
                                 )
                               )
@@ -7712,14 +9419,14 @@ Specification(
       , SDefT(
           "SimpleClass_2_0"
         , [ VarDec(
-              "q_23"
+              "d_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "r_23"
+              "e_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7728,30 +9435,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["t_45", "r_45", "s_45", "u_45", "v_45"]
+            ["h_50", "f_50", "g_50", "i_50", "j_50"]
           , Seq(
               Match(
                 Anno(
-                  Op("SimpleClass", [Var("r_45"), Var("s_45")])
-                , Var("t_45")
+                  Op("SimpleClass", [Var("f_50"), Var("g_50")])
+                , Var("h_50")
                 )
               )
             , Seq(
-                Build(Var("r_45"))
+                Build(Var("f_50"))
               , Seq(
-                  CallT(SVar("q_23"), [], [])
+                  CallT(SVar("d_28"), [], [])
                 , Seq(
-                    Match(Var("u_45"))
+                    Match(Var("i_50"))
                   , Seq(
-                      Build(Var("s_45"))
+                      Build(Var("g_50"))
                     , Seq(
-                        CallT(SVar("r_23"), [], [])
+                        CallT(SVar("e_28"), [], [])
                       , Seq(
-                          Match(Var("v_45"))
+                          Match(Var("j_50"))
                         , Build(
                             Anno(
-                              Op("SimpleClass", [Var("u_45"), Var("v_45")])
-                            , Var("t_45")
+                              Op("SimpleClass", [Var("i_50"), Var("j_50")])
+                            , Var("h_50")
                             )
                           )
                         )
@@ -7766,7 +9473,7 @@ Specification(
       , SDefT(
           "SContext_1_0"
         , [ VarDec(
-              "s_23"
+              "f_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7775,19 +9482,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["x_45", "w_45", "y_45"]
+            ["l_50", "k_50", "m_50"]
           , Seq(
               Match(
-                Anno(Op("SContext", [Var("w_45")]), Var("x_45"))
+                Anno(Op("SContext", [Var("k_50")]), Var("l_50"))
               )
             , Seq(
-                Build(Var("w_45"))
+                Build(Var("k_50"))
               , Seq(
-                  CallT(SVar("s_23"), [], [])
+                  CallT(SVar("f_28"), [], [])
                 , Seq(
-                    Match(Var("y_45"))
+                    Match(Var("m_50"))
                   , Build(
-                      Anno(Op("SContext", [Var("y_45")]), Var("x_45"))
+                      Anno(Op("SContext", [Var("m_50")]), Var("l_50"))
                     )
                   )
                 )
@@ -7798,7 +9505,7 @@ Specification(
       , SDefT(
           "Context_1_0"
         , [ VarDec(
-              "t_23"
+              "g_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7807,19 +9514,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_46", "z_45", "b_46"]
+            ["o_50", "n_50", "p_50"]
           , Seq(
               Match(
-                Anno(Op("Context", [Var("z_45")]), Var("a_46"))
+                Anno(Op("Context", [Var("n_50")]), Var("o_50"))
               )
             , Seq(
-                Build(Var("z_45"))
+                Build(Var("n_50"))
               , Seq(
-                  CallT(SVar("t_23"), [], [])
+                  CallT(SVar("g_28"), [], [])
                 , Seq(
-                    Match(Var("b_46"))
+                    Match(Var("p_50"))
                   , Build(
-                      Anno(Op("Context", [Var("b_46")]), Var("a_46"))
+                      Anno(Op("Context", [Var("p_50")]), Var("o_50"))
                     )
                   )
                 )
@@ -7830,14 +9537,14 @@ Specification(
       , SDefT(
           "InstArrow_2_0"
         , [ VarDec(
-              "u_23"
+              "h_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "v_23"
+              "i_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7846,30 +9553,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["e_46", "c_46", "d_46", "f_46", "g_46"]
+            ["s_50", "q_50", "r_50", "t_50", "u_50"]
           , Seq(
               Match(
                 Anno(
-                  Op("InstArrow", [Var("c_46"), Var("d_46")])
-                , Var("e_46")
+                  Op("InstArrow", [Var("q_50"), Var("r_50")])
+                , Var("s_50")
                 )
               )
             , Seq(
-                Build(Var("c_46"))
+                Build(Var("q_50"))
               , Seq(
-                  CallT(SVar("u_23"), [], [])
+                  CallT(SVar("h_28"), [], [])
                 , Seq(
-                    Match(Var("f_46"))
+                    Match(Var("t_50"))
                   , Seq(
-                      Build(Var("d_46"))
+                      Build(Var("r_50"))
                     , Seq(
-                        CallT(SVar("v_23"), [], [])
+                        CallT(SVar("i_28"), [], [])
                       , Seq(
-                          Match(Var("g_46"))
+                          Match(Var("u_50"))
                         , Build(
                             Anno(
-                              Op("InstArrow", [Var("f_46"), Var("g_46")])
-                            , Var("e_46")
+                              Op("InstArrow", [Var("t_50"), Var("u_50")])
+                            , Var("s_50")
                             )
                           )
                         )
@@ -7884,7 +9591,7 @@ Specification(
       , SDefT(
           "InstList_1_0"
         , [ VarDec(
-              "w_23"
+              "j_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7893,19 +9600,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["i_46", "h_46", "j_46"]
+            ["w_50", "v_50", "x_50"]
           , Seq(
               Match(
-                Anno(Op("InstList", [Var("h_46")]), Var("i_46"))
+                Anno(Op("InstList", [Var("v_50")]), Var("w_50"))
               )
             , Seq(
-                Build(Var("h_46"))
+                Build(Var("v_50"))
               , Seq(
-                  CallT(SVar("w_23"), [], [])
+                  CallT(SVar("j_28"), [], [])
                 , Seq(
-                    Match(Var("j_46"))
+                    Match(Var("x_50"))
                   , Build(
-                      Anno(Op("InstList", [Var("j_46")]), Var("i_46"))
+                      Anno(Op("InstList", [Var("x_50")]), Var("w_50"))
                     )
                   )
                 )
@@ -7916,14 +9623,14 @@ Specification(
       , SDefT(
           "InstTuple_2_0"
         , [ VarDec(
-              "x_23"
+              "k_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "y_23"
+              "l_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7932,30 +9639,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["m_46", "k_46", "l_46", "n_46", "o_46"]
+            ["a_51", "y_50", "z_50", "b_51", "c_51"]
           , Seq(
               Match(
                 Anno(
-                  Op("InstTuple", [Var("k_46"), Var("l_46")])
-                , Var("m_46")
+                  Op("InstTuple", [Var("y_50"), Var("z_50")])
+                , Var("a_51")
                 )
               )
             , Seq(
-                Build(Var("k_46"))
+                Build(Var("y_50"))
               , Seq(
-                  CallT(SVar("x_23"), [], [])
+                  CallT(SVar("k_28"), [], [])
                 , Seq(
-                    Match(Var("n_46"))
+                    Match(Var("b_51"))
                   , Seq(
-                      Build(Var("l_46"))
+                      Build(Var("z_50"))
                     , Seq(
-                        CallT(SVar("y_23"), [], [])
+                        CallT(SVar("l_28"), [], [])
                       , Seq(
-                          Match(Var("o_46"))
+                          Match(Var("c_51"))
                         , Build(
                             Anno(
-                              Op("InstTuple", [Var("n_46"), Var("o_46")])
-                            , Var("m_46")
+                              Op("InstTuple", [Var("b_51"), Var("c_51")])
+                            , Var("a_51")
                             )
                           )
                         )
@@ -7970,14 +9677,14 @@ Specification(
       , SDefT(
           "InstApp_2_0"
         , [ VarDec(
-              "z_23"
+              "m_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "a_24"
+              "n_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -7986,30 +9693,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["r_46", "p_46", "q_46", "s_46", "t_46"]
+            ["f_51", "d_51", "e_51", "g_51", "h_51"]
           , Seq(
               Match(
                 Anno(
-                  Op("InstApp", [Var("p_46"), Var("q_46")])
-                , Var("r_46")
+                  Op("InstApp", [Var("d_51"), Var("e_51")])
+                , Var("f_51")
                 )
               )
             , Seq(
-                Build(Var("p_46"))
+                Build(Var("d_51"))
               , Seq(
-                  CallT(SVar("z_23"), [], [])
+                  CallT(SVar("m_28"), [], [])
                 , Seq(
-                    Match(Var("s_46"))
+                    Match(Var("g_51"))
                   , Seq(
-                      Build(Var("q_46"))
+                      Build(Var("e_51"))
                     , Seq(
-                        CallT(SVar("a_24"), [], [])
+                        CallT(SVar("n_28"), [], [])
                       , Seq(
-                          Match(Var("t_46"))
+                          Match(Var("h_51"))
                         , Build(
                             Anno(
-                              Op("InstApp", [Var("s_46"), Var("t_46")])
-                            , Var("r_46")
+                              Op("InstApp", [Var("g_51"), Var("h_51")])
+                            , Var("f_51")
                             )
                           )
                         )
@@ -8024,7 +9731,7 @@ Specification(
       , SDefT(
           "InstCons_1_0"
         , [ VarDec(
-              "b_24"
+              "o_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8033,19 +9740,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["v_46", "u_46", "w_46"]
+            ["j_51", "i_51", "k_51"]
           , Seq(
               Match(
-                Anno(Op("InstCons", [Var("u_46")]), Var("v_46"))
+                Anno(Op("InstCons", [Var("i_51")]), Var("j_51"))
               )
             , Seq(
-                Build(Var("u_46"))
+                Build(Var("i_51"))
               , Seq(
-                  CallT(SVar("b_24"), [], [])
+                  CallT(SVar("o_28"), [], [])
                 , Seq(
-                    Match(Var("w_46"))
+                    Match(Var("k_51"))
                   , Build(
-                      Anno(Op("InstCons", [Var("w_46")]), Var("v_46"))
+                      Anno(Op("InstCons", [Var("k_51")]), Var("j_51"))
                     )
                   )
                 )
@@ -8056,21 +9763,21 @@ Specification(
       , SDefT(
           "InfixConstr_3_0"
         , [ VarDec(
-              "c_24"
+              "p_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "d_24"
+              "q_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "e_24"
+              "r_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8079,42 +9786,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_47", "x_46", "y_46", "z_46", "b_47", "c_47", "d_47"]
+            ["o_51", "l_51", "m_51", "n_51", "p_51", "q_51", "r_51"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "InfixConstr"
-                  , [Var("x_46"), Var("y_46"), Var("z_46")]
+                  , [Var("l_51"), Var("m_51"), Var("n_51")]
                   )
-                , Var("a_47")
+                , Var("o_51")
                 )
               )
             , Seq(
-                Build(Var("x_46"))
+                Build(Var("l_51"))
               , Seq(
-                  CallT(SVar("c_24"), [], [])
+                  CallT(SVar("p_28"), [], [])
                 , Seq(
-                    Match(Var("b_47"))
+                    Match(Var("p_51"))
                   , Seq(
-                      Build(Var("y_46"))
+                      Build(Var("m_51"))
                     , Seq(
-                        CallT(SVar("d_24"), [], [])
+                        CallT(SVar("q_28"), [], [])
                       , Seq(
-                          Match(Var("c_47"))
+                          Match(Var("q_51"))
                         , Seq(
-                            Build(Var("z_46"))
+                            Build(Var("n_51"))
                           , Seq(
-                              CallT(SVar("e_24"), [], [])
+                              CallT(SVar("r_28"), [], [])
                             , Seq(
-                                Match(Var("d_47"))
+                                Match(Var("r_51"))
                               , Build(
                                   Anno(
                                     Op(
                                       "InfixConstr"
-                                    , [Var("b_47"), Var("c_47"), Var("d_47")]
+                                    , [Var("p_51"), Var("q_51"), Var("r_51")]
                                     )
-                                  , Var("a_47")
+                                  , Var("o_51")
                                   )
                                 )
                               )
@@ -8132,14 +9839,14 @@ Specification(
       , SDefT(
           "ConstrDecl_2_0"
         , [ VarDec(
-              "f_24"
+              "s_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "g_24"
+              "t_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8148,30 +9855,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["g_47", "e_47", "f_47", "h_47", "i_47"]
+            ["u_51", "s_51", "t_51", "v_51", "w_51"]
           , Seq(
               Match(
                 Anno(
-                  Op("ConstrDecl", [Var("e_47"), Var("f_47")])
-                , Var("g_47")
+                  Op("ConstrDecl", [Var("s_51"), Var("t_51")])
+                , Var("u_51")
                 )
               )
             , Seq(
-                Build(Var("e_47"))
+                Build(Var("s_51"))
               , Seq(
-                  CallT(SVar("f_24"), [], [])
+                  CallT(SVar("s_28"), [], [])
                 , Seq(
-                    Match(Var("h_47"))
+                    Match(Var("v_51"))
                   , Seq(
-                      Build(Var("f_47"))
+                      Build(Var("t_51"))
                     , Seq(
-                        CallT(SVar("g_24"), [], [])
+                        CallT(SVar("t_28"), [], [])
                       , Seq(
-                          Match(Var("i_47"))
+                          Match(Var("w_51"))
                         , Build(
                             Anno(
-                              Op("ConstrDecl", [Var("h_47"), Var("i_47")])
-                            , Var("g_47")
+                              Op("ConstrDecl", [Var("v_51"), Var("w_51")])
+                            , Var("u_51")
                             )
                           )
                         )
@@ -8186,7 +9893,7 @@ Specification(
       , SDefT(
           "ConstrDecls_1_0"
         , [ VarDec(
-              "h_24"
+              "u_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8195,19 +9902,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["k_47", "j_47", "l_47"]
+            ["y_51", "x_51", "z_51"]
           , Seq(
               Match(
-                Anno(Op("ConstrDecls", [Var("j_47")]), Var("k_47"))
+                Anno(Op("ConstrDecls", [Var("x_51")]), Var("y_51"))
               )
             , Seq(
-                Build(Var("j_47"))
+                Build(Var("x_51"))
               , Seq(
-                  CallT(SVar("h_24"), [], [])
+                  CallT(SVar("u_28"), [], [])
                 , Seq(
-                    Match(Var("l_47"))
+                    Match(Var("z_51"))
                   , Build(
-                      Anno(Op("ConstrDecls", [Var("l_47")]), Var("k_47"))
+                      Anno(Op("ConstrDecls", [Var("z_51")]), Var("y_51"))
                     )
                   )
                 )
@@ -8224,7 +9931,7 @@ Specification(
       , SDefT(
           "Derive_1_0"
         , [ VarDec(
-              "i_24"
+              "v_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8233,19 +9940,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_47", "m_47", "o_47"]
+            ["b_52", "a_52", "c_52"]
           , Seq(
               Match(
-                Anno(Op("Derive", [Var("m_47")]), Var("n_47"))
+                Anno(Op("Derive", [Var("a_52")]), Var("b_52"))
               )
             , Seq(
-                Build(Var("m_47"))
+                Build(Var("a_52"))
               , Seq(
-                  CallT(SVar("i_24"), [], [])
+                  CallT(SVar("v_28"), [], [])
                 , Seq(
-                    Match(Var("o_47"))
+                    Match(Var("c_52"))
                   , Build(
-                      Anno(Op("Derive", [Var("o_47")]), Var("n_47"))
+                      Anno(Op("Derive", [Var("c_52")]), Var("b_52"))
                     )
                   )
                 )
@@ -8262,14 +9969,14 @@ Specification(
       , SDefT(
           "TFunBin_2_0"
         , [ VarDec(
-              "j_24"
+              "w_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "k_24"
+              "x_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8278,30 +9985,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["r_47", "p_47", "q_47", "s_47", "t_47"]
+            ["f_52", "d_52", "e_52", "g_52", "h_52"]
           , Seq(
               Match(
                 Anno(
-                  Op("TFunBin", [Var("p_47"), Var("q_47")])
-                , Var("r_47")
+                  Op("TFunBin", [Var("d_52"), Var("e_52")])
+                , Var("f_52")
                 )
               )
             , Seq(
-                Build(Var("p_47"))
+                Build(Var("d_52"))
               , Seq(
-                  CallT(SVar("j_24"), [], [])
+                  CallT(SVar("w_28"), [], [])
                 , Seq(
-                    Match(Var("s_47"))
+                    Match(Var("g_52"))
                   , Seq(
-                      Build(Var("q_47"))
+                      Build(Var("e_52"))
                     , Seq(
-                        CallT(SVar("k_24"), [], [])
+                        CallT(SVar("x_28"), [], [])
                       , Seq(
-                          Match(Var("t_47"))
+                          Match(Var("h_52"))
                         , Build(
                             Anno(
-                              Op("TFunBin", [Var("s_47"), Var("t_47")])
-                            , Var("r_47")
+                              Op("TFunBin", [Var("g_52"), Var("h_52")])
+                            , Var("f_52")
                             )
                           )
                         )
@@ -8316,14 +10023,14 @@ Specification(
       , SDefT(
           "TAppBin_2_0"
         , [ VarDec(
-              "l_24"
+              "y_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "m_24"
+              "z_28"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8332,30 +10039,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_47", "u_47", "v_47", "x_47", "y_47"]
+            ["k_52", "i_52", "j_52", "l_52", "m_52"]
           , Seq(
               Match(
                 Anno(
-                  Op("TAppBin", [Var("u_47"), Var("v_47")])
-                , Var("w_47")
+                  Op("TAppBin", [Var("i_52"), Var("j_52")])
+                , Var("k_52")
                 )
               )
             , Seq(
-                Build(Var("u_47"))
+                Build(Var("i_52"))
               , Seq(
-                  CallT(SVar("l_24"), [], [])
+                  CallT(SVar("y_28"), [], [])
                 , Seq(
-                    Match(Var("x_47"))
+                    Match(Var("l_52"))
                   , Seq(
-                      Build(Var("v_47"))
+                      Build(Var("j_52"))
                     , Seq(
-                        CallT(SVar("m_24"), [], [])
+                        CallT(SVar("z_28"), [], [])
                       , Seq(
-                          Match(Var("y_47"))
+                          Match(Var("m_52"))
                         , Build(
                             Anno(
-                              Op("TAppBin", [Var("x_47"), Var("y_47")])
-                            , Var("w_47")
+                              Op("TAppBin", [Var("l_52"), Var("m_52")])
+                            , Var("k_52")
                             )
                           )
                         )
@@ -8370,7 +10077,7 @@ Specification(
       , SDefT(
           "TProd_1_0"
         , [ VarDec(
-              "n_24"
+              "a_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8379,19 +10086,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_48", "z_47", "b_48"]
+            ["o_52", "n_52", "p_52"]
           , Seq(
               Match(
-                Anno(Op("TProd", [Var("z_47")]), Var("a_48"))
+                Anno(Op("TProd", [Var("n_52")]), Var("o_52"))
               )
             , Seq(
-                Build(Var("z_47"))
+                Build(Var("n_52"))
               , Seq(
-                  CallT(SVar("n_24"), [], [])
+                  CallT(SVar("a_29"), [], [])
                 , Seq(
-                    Match(Var("b_48"))
+                    Match(Var("p_52"))
                   , Build(
-                      Anno(Op("TProd", [Var("b_48")]), Var("a_48"))
+                      Anno(Op("TProd", [Var("p_52")]), Var("o_52"))
                     )
                   )
                 )
@@ -8402,7 +10109,7 @@ Specification(
       , SDefT(
           "TList_1_0"
         , [ VarDec(
-              "o_24"
+              "b_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8411,19 +10118,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["d_48", "c_48", "e_48"]
+            ["r_52", "q_52", "s_52"]
           , Seq(
               Match(
-                Anno(Op("TList", [Var("c_48")]), Var("d_48"))
+                Anno(Op("TList", [Var("q_52")]), Var("r_52"))
               )
             , Seq(
-                Build(Var("c_48"))
+                Build(Var("q_52"))
               , Seq(
-                  CallT(SVar("o_24"), [], [])
+                  CallT(SVar("b_29"), [], [])
                 , Seq(
-                    Match(Var("e_48"))
+                    Match(Var("s_52"))
                   , Build(
-                      Anno(Op("TList", [Var("e_48")]), Var("d_48"))
+                      Anno(Op("TList", [Var("s_52")]), Var("r_52"))
                     )
                   )
                 )
@@ -8434,7 +10141,7 @@ Specification(
       , SDefT(
           "TVar_1_0"
         , [ VarDec(
-              "p_24"
+              "c_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8443,19 +10150,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["g_48", "f_48", "h_48"]
+            ["u_52", "t_52", "v_52"]
           , Seq(
               Match(
-                Anno(Op("TVar", [Var("f_48")]), Var("g_48"))
+                Anno(Op("TVar", [Var("t_52")]), Var("u_52"))
               )
             , Seq(
-                Build(Var("f_48"))
+                Build(Var("t_52"))
               , Seq(
-                  CallT(SVar("p_24"), [], [])
+                  CallT(SVar("c_29"), [], [])
                 , Seq(
-                    Match(Var("h_48"))
+                    Match(Var("v_52"))
                   , Build(
-                      Anno(Op("TVar", [Var("h_48")]), Var("g_48"))
+                      Anno(Op("TVar", [Var("v_52")]), Var("u_52"))
                     )
                   )
                 )
@@ -8466,7 +10173,7 @@ Specification(
       , SDefT(
           "TCon_1_0"
         , [ VarDec(
-              "q_24"
+              "d_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8475,19 +10182,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["j_48", "i_48", "k_48"]
+            ["x_52", "w_52", "y_52"]
           , Seq(
               Match(
-                Anno(Op("TCon", [Var("i_48")]), Var("j_48"))
+                Anno(Op("TCon", [Var("w_52")]), Var("x_52"))
               )
             , Seq(
-                Build(Var("i_48"))
+                Build(Var("w_52"))
               , Seq(
-                  CallT(SVar("q_24"), [], [])
+                  CallT(SVar("d_29"), [], [])
                 , Seq(
-                    Match(Var("k_48"))
+                    Match(Var("y_52"))
                   , Build(
-                      Anno(Op("TCon", [Var("k_48")]), Var("j_48"))
+                      Anno(Op("TCon", [Var("y_52")]), Var("x_52"))
                     )
                   )
                 )
@@ -8498,14 +10205,14 @@ Specification(
       , SDefT(
           "TCons_2_0"
         , [ VarDec(
-              "r_24"
+              "e_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "s_24"
+              "f_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8514,30 +10221,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_48", "l_48", "m_48", "o_48", "p_48"]
+            ["b_53", "z_52", "a_53", "c_53", "d_53"]
           , Seq(
               Match(
                 Anno(
-                  Op("TCons", [Var("l_48"), Var("m_48")])
-                , Var("n_48")
+                  Op("TCons", [Var("z_52"), Var("a_53")])
+                , Var("b_53")
                 )
               )
             , Seq(
-                Build(Var("l_48"))
+                Build(Var("z_52"))
               , Seq(
-                  CallT(SVar("r_24"), [], [])
+                  CallT(SVar("e_29"), [], [])
                 , Seq(
-                    Match(Var("o_48"))
+                    Match(Var("c_53"))
                   , Seq(
-                      Build(Var("m_48"))
+                      Build(Var("a_53"))
                     , Seq(
-                        CallT(SVar("s_24"), [], [])
+                        CallT(SVar("f_29"), [], [])
                       , Seq(
-                          Match(Var("p_48"))
+                          Match(Var("d_53"))
                         , Build(
                             Anno(
-                              Op("TCons", [Var("o_48"), Var("p_48")])
-                            , Var("n_48")
+                              Op("TCons", [Var("c_53"), Var("d_53")])
+                            , Var("b_53")
                             )
                           )
                         )
@@ -8570,7 +10277,7 @@ Specification(
       , SDefT(
           "Hiding_1_0"
         , [ VarDec(
-              "t_24"
+              "g_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8579,19 +10286,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["r_48", "q_48", "s_48"]
+            ["f_53", "e_53", "g_53"]
           , Seq(
               Match(
-                Anno(Op("Hiding", [Var("q_48")]), Var("r_48"))
+                Anno(Op("Hiding", [Var("e_53")]), Var("f_53"))
               )
             , Seq(
-                Build(Var("q_48"))
+                Build(Var("e_53"))
               , Seq(
-                  CallT(SVar("t_24"), [], [])
+                  CallT(SVar("g_29"), [], [])
                 , Seq(
-                    Match(Var("s_48"))
+                    Match(Var("g_53"))
                   , Build(
-                      Anno(Op("Hiding", [Var("s_48")]), Var("r_48"))
+                      Anno(Op("Hiding", [Var("g_53")]), Var("f_53"))
                     )
                   )
                 )
@@ -8602,7 +10309,7 @@ Specification(
       , SDefT(
           "Impspec_1_0"
         , [ VarDec(
-              "u_24"
+              "h_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8611,19 +10318,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["u_48", "t_48", "v_48"]
+            ["i_53", "h_53", "j_53"]
           , Seq(
               Match(
-                Anno(Op("Impspec", [Var("t_48")]), Var("u_48"))
+                Anno(Op("Impspec", [Var("h_53")]), Var("i_53"))
               )
             , Seq(
-                Build(Var("t_48"))
+                Build(Var("h_53"))
               , Seq(
-                  CallT(SVar("u_24"), [], [])
+                  CallT(SVar("h_29"), [], [])
                 , Seq(
-                    Match(Var("v_48"))
+                    Match(Var("j_53"))
                   , Build(
-                      Anno(Op("Impspec", [Var("v_48")]), Var("u_48"))
+                      Anno(Op("Impspec", [Var("j_53")]), Var("i_53"))
                     )
                   )
                 )
@@ -8634,7 +10341,7 @@ Specification(
       , SDefT(
           "As_1_0"
         , [ VarDec(
-              "v_24"
+              "i_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8643,19 +10350,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["x_48", "w_48", "y_48"]
+            ["l_53", "k_53", "m_53"]
           , Seq(
               Match(
-                Anno(Op("As", [Var("w_48")]), Var("x_48"))
+                Anno(Op("As", [Var("k_53")]), Var("l_53"))
               )
             , Seq(
-                Build(Var("w_48"))
+                Build(Var("k_53"))
               , Seq(
-                  CallT(SVar("v_24"), [], [])
+                  CallT(SVar("i_29"), [], [])
                 , Seq(
-                    Match(Var("y_48"))
+                    Match(Var("m_53"))
                   , Build(
-                      Anno(Op("As", [Var("y_48")]), Var("x_48"))
+                      Anno(Op("As", [Var("m_53")]), Var("l_53"))
                     )
                   )
                 )
@@ -8678,35 +10385,35 @@ Specification(
       , SDefT(
           "Import_5_0"
         , [ VarDec(
-              "w_24"
+              "j_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "x_24"
+              "k_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "y_24"
+              "l_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "z_24"
+              "m_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "a_25"
+              "n_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8715,75 +10422,75 @@ Specification(
           ]
         , []
         , Scope(
-            [ "e_49"
-            , "z_48"
-            , "a_49"
-            , "b_49"
-            , "c_49"
-            , "d_49"
-            , "f_49"
-            , "g_49"
-            , "h_49"
-            , "i_49"
-            , "j_49"
+            [ "s_53"
+            , "n_53"
+            , "o_53"
+            , "p_53"
+            , "q_53"
+            , "r_53"
+            , "t_53"
+            , "u_53"
+            , "v_53"
+            , "w_53"
+            , "x_53"
             ]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "Import"
-                  , [ Var("z_48")
-                    , Var("a_49")
-                    , Var("b_49")
-                    , Var("c_49")
-                    , Var("d_49")
+                  , [ Var("n_53")
+                    , Var("o_53")
+                    , Var("p_53")
+                    , Var("q_53")
+                    , Var("r_53")
                     ]
                   )
-                , Var("e_49")
+                , Var("s_53")
                 )
               )
             , Seq(
-                Build(Var("z_48"))
+                Build(Var("n_53"))
               , Seq(
-                  CallT(SVar("w_24"), [], [])
+                  CallT(SVar("j_29"), [], [])
                 , Seq(
-                    Match(Var("f_49"))
+                    Match(Var("t_53"))
                   , Seq(
-                      Build(Var("a_49"))
+                      Build(Var("o_53"))
                     , Seq(
-                        CallT(SVar("x_24"), [], [])
+                        CallT(SVar("k_29"), [], [])
                       , Seq(
-                          Match(Var("g_49"))
+                          Match(Var("u_53"))
                         , Seq(
-                            Build(Var("b_49"))
+                            Build(Var("p_53"))
                           , Seq(
-                              CallT(SVar("y_24"), [], [])
+                              CallT(SVar("l_29"), [], [])
                             , Seq(
-                                Match(Var("h_49"))
+                                Match(Var("v_53"))
                               , Seq(
-                                  Build(Var("c_49"))
+                                  Build(Var("q_53"))
                                 , Seq(
-                                    CallT(SVar("z_24"), [], [])
+                                    CallT(SVar("m_29"), [], [])
                                   , Seq(
-                                      Match(Var("i_49"))
+                                      Match(Var("w_53"))
                                     , Seq(
-                                        Build(Var("d_49"))
+                                        Build(Var("r_53"))
                                       , Seq(
-                                          CallT(SVar("a_25"), [], [])
+                                          CallT(SVar("n_29"), [], [])
                                         , Seq(
-                                            Match(Var("j_49"))
+                                            Match(Var("x_53"))
                                           , Build(
                                               Anno(
                                                 Op(
                                                   "Import"
-                                                , [ Var("f_49")
-                                                  , Var("g_49")
-                                                  , Var("h_49")
-                                                  , Var("i_49")
-                                                  , Var("j_49")
+                                                , [ Var("t_53")
+                                                  , Var("u_53")
+                                                  , Var("v_53")
+                                                  , Var("w_53")
+                                                  , Var("x_53")
                                                   ]
                                                 )
-                                              , Var("e_49")
+                                              , Var("s_53")
                                               )
                                             )
                                           )
@@ -8807,7 +10514,7 @@ Specification(
       , SDefT(
           "Exports_1_0"
         , [ VarDec(
-              "b_25"
+              "o_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8816,19 +10523,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["l_49", "k_49", "m_49"]
+            ["z_53", "y_53", "a_54"]
           , Seq(
               Match(
-                Anno(Op("Exports", [Var("k_49")]), Var("l_49"))
+                Anno(Op("Exports", [Var("y_53")]), Var("z_53"))
               )
             , Seq(
-                Build(Var("k_49"))
+                Build(Var("y_53"))
               , Seq(
-                  CallT(SVar("b_25"), [], [])
+                  CallT(SVar("o_29"), [], [])
                 , Seq(
-                    Match(Var("m_49"))
+                    Match(Var("a_54"))
                   , Build(
-                      Anno(Op("Exports", [Var("m_49")]), Var("l_49"))
+                      Anno(Op("Exports", [Var("a_54")]), Var("z_53"))
                     )
                   )
                 )
@@ -8839,7 +10546,7 @@ Specification(
       , SDefT(
           "Exportlist_1_0"
         , [ VarDec(
-              "c_25"
+              "p_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8848,19 +10555,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["o_49", "n_49", "p_49"]
+            ["c_54", "b_54", "d_54"]
           , Seq(
               Match(
-                Anno(Op("Exportlist", [Var("n_49")]), Var("o_49"))
+                Anno(Op("Exportlist", [Var("b_54")]), Var("c_54"))
               )
             , Seq(
-                Build(Var("n_49"))
+                Build(Var("b_54"))
               , Seq(
-                  CallT(SVar("c_25"), [], [])
+                  CallT(SVar("p_29"), [], [])
                 , Seq(
-                    Match(Var("p_49"))
+                    Match(Var("d_54"))
                   , Build(
-                      Anno(Op("Exportlist", [Var("p_49")]), Var("o_49"))
+                      Anno(Op("Exportlist", [Var("d_54")]), Var("c_54"))
                     )
                   )
                 )
@@ -8871,14 +10578,14 @@ Specification(
       , SDefT(
           "TopdeclSeq_2_0"
         , [ VarDec(
-              "d_25"
+              "q_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "e_25"
+              "r_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8887,30 +10594,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["s_49", "q_49", "r_49", "t_49", "u_49"]
+            ["g_54", "e_54", "f_54", "h_54", "i_54"]
           , Seq(
               Match(
                 Anno(
-                  Op("TopdeclSeq", [Var("q_49"), Var("r_49")])
-                , Var("s_49")
+                  Op("TopdeclSeq", [Var("e_54"), Var("f_54")])
+                , Var("g_54")
                 )
               )
             , Seq(
-                Build(Var("q_49"))
+                Build(Var("e_54"))
               , Seq(
-                  CallT(SVar("d_25"), [], [])
+                  CallT(SVar("q_29"), [], [])
                 , Seq(
-                    Match(Var("t_49"))
+                    Match(Var("h_54"))
                   , Seq(
-                      Build(Var("r_49"))
+                      Build(Var("f_54"))
                     , Seq(
-                        CallT(SVar("e_25"), [], [])
+                        CallT(SVar("r_29"), [], [])
                       , Seq(
-                          Match(Var("u_49"))
+                          Match(Var("i_54"))
                         , Build(
                             Anno(
-                              Op("TopdeclSeq", [Var("t_49"), Var("u_49")])
-                            , Var("s_49")
+                              Op("TopdeclSeq", [Var("h_54"), Var("i_54")])
+                            , Var("g_54")
                             )
                           )
                         )
@@ -8925,14 +10632,14 @@ Specification(
       , SDefT(
           "ImportdeclSeq_2_0"
         , [ VarDec(
-              "f_25"
+              "s_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "g_25"
+              "t_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8941,30 +10648,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["x_49", "v_49", "w_49", "y_49", "z_49"]
+            ["l_54", "j_54", "k_54", "m_54", "n_54"]
           , Seq(
               Match(
                 Anno(
-                  Op("ImportdeclSeq", [Var("v_49"), Var("w_49")])
-                , Var("x_49")
+                  Op("ImportdeclSeq", [Var("j_54"), Var("k_54")])
+                , Var("l_54")
                 )
               )
             , Seq(
-                Build(Var("v_49"))
+                Build(Var("j_54"))
               , Seq(
-                  CallT(SVar("f_25"), [], [])
+                  CallT(SVar("s_29"), [], [])
                 , Seq(
-                    Match(Var("y_49"))
+                    Match(Var("m_54"))
                   , Seq(
-                      Build(Var("w_49"))
+                      Build(Var("k_54"))
                     , Seq(
-                        CallT(SVar("g_25"), [], [])
+                        CallT(SVar("t_29"), [], [])
                       , Seq(
-                          Match(Var("z_49"))
+                          Match(Var("n_54"))
                         , Build(
                             Anno(
-                              Op("ImportdeclSeq", [Var("y_49"), Var("z_49")])
-                            , Var("x_49")
+                              Op("ImportdeclSeq", [Var("m_54"), Var("n_54")])
+                            , Var("l_54")
                             )
                           )
                         )
@@ -8979,14 +10686,14 @@ Specification(
       , SDefT(
           "OffBody_2_0"
         , [ VarDec(
-              "h_25"
+              "u_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "i_25"
+              "v_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -8995,30 +10702,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["c_50", "a_50", "b_50", "d_50", "e_50"]
+            ["q_54", "o_54", "p_54", "r_54", "s_54"]
           , Seq(
               Match(
                 Anno(
-                  Op("OffBody", [Var("a_50"), Var("b_50")])
-                , Var("c_50")
+                  Op("OffBody", [Var("o_54"), Var("p_54")])
+                , Var("q_54")
                 )
               )
             , Seq(
-                Build(Var("a_50"))
+                Build(Var("o_54"))
               , Seq(
-                  CallT(SVar("h_25"), [], [])
+                  CallT(SVar("u_29"), [], [])
                 , Seq(
-                    Match(Var("d_50"))
+                    Match(Var("r_54"))
                   , Seq(
-                      Build(Var("b_50"))
+                      Build(Var("p_54"))
                     , Seq(
-                        CallT(SVar("i_25"), [], [])
+                        CallT(SVar("v_29"), [], [])
                       , Seq(
-                          Match(Var("e_50"))
+                          Match(Var("s_54"))
                         , Build(
                             Anno(
-                              Op("OffBody", [Var("d_50"), Var("e_50")])
-                            , Var("c_50")
+                              Op("OffBody", [Var("r_54"), Var("s_54")])
+                            , Var("q_54")
                             )
                           )
                         )
@@ -9033,14 +10740,14 @@ Specification(
       , SDefT(
           "Body_2_0"
         , [ VarDec(
-              "j_25"
+              "w_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "k_25"
+              "x_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9049,30 +10756,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["h_50", "f_50", "g_50", "i_50", "j_50"]
+            ["v_54", "t_54", "u_54", "w_54", "x_54"]
           , Seq(
               Match(
                 Anno(
-                  Op("Body", [Var("f_50"), Var("g_50")])
-                , Var("h_50")
+                  Op("Body", [Var("t_54"), Var("u_54")])
+                , Var("v_54")
                 )
               )
             , Seq(
-                Build(Var("f_50"))
+                Build(Var("t_54"))
               , Seq(
-                  CallT(SVar("j_25"), [], [])
+                  CallT(SVar("w_29"), [], [])
                 , Seq(
-                    Match(Var("i_50"))
+                    Match(Var("w_54"))
                   , Seq(
-                      Build(Var("g_50"))
+                      Build(Var("u_54"))
                     , Seq(
-                        CallT(SVar("k_25"), [], [])
+                        CallT(SVar("x_29"), [], [])
                       , Seq(
-                          Match(Var("j_50"))
+                          Match(Var("x_54"))
                         , Build(
                             Anno(
-                              Op("Body", [Var("i_50"), Var("j_50")])
-                            , Var("h_50")
+                              Op("Body", [Var("w_54"), Var("x_54")])
+                            , Var("v_54")
                             )
                           )
                         )
@@ -9093,28 +10800,28 @@ Specification(
       , SDefT(
           "FlexibleInstance_4_0"
         , [ VarDec(
-              "l_25"
+              "y_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "m_25"
+              "z_29"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "n_25"
+              "a_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "o_25"
+              "b_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9123,48 +10830,48 @@ Specification(
           ]
         , []
         , Scope(
-            ["o_50", "k_50", "l_50", "m_50", "n_50", "p_50", "q_50", "r_50", "s_50"]
+            ["c_55", "y_54", "z_54", "a_55", "b_55", "d_55", "e_55", "f_55", "g_55"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "FlexibleInstance"
-                  , [Var("k_50"), Var("l_50"), Var("m_50"), Var("n_50")]
+                  , [Var("y_54"), Var("z_54"), Var("a_55"), Var("b_55")]
                   )
-                , Var("o_50")
+                , Var("c_55")
                 )
               )
             , Seq(
-                Build(Var("k_50"))
+                Build(Var("y_54"))
               , Seq(
-                  CallT(SVar("l_25"), [], [])
+                  CallT(SVar("y_29"), [], [])
                 , Seq(
-                    Match(Var("p_50"))
+                    Match(Var("d_55"))
                   , Seq(
-                      Build(Var("l_50"))
+                      Build(Var("z_54"))
                     , Seq(
-                        CallT(SVar("m_25"), [], [])
+                        CallT(SVar("z_29"), [], [])
                       , Seq(
-                          Match(Var("q_50"))
+                          Match(Var("e_55"))
                         , Seq(
-                            Build(Var("m_50"))
+                            Build(Var("a_55"))
                           , Seq(
-                              CallT(SVar("n_25"), [], [])
+                              CallT(SVar("a_30"), [], [])
                             , Seq(
-                                Match(Var("r_50"))
+                                Match(Var("f_55"))
                               , Seq(
-                                  Build(Var("n_50"))
+                                  Build(Var("b_55"))
                                 , Seq(
-                                    CallT(SVar("o_25"), [], [])
+                                    CallT(SVar("b_30"), [], [])
                                   , Seq(
-                                      Match(Var("s_50"))
+                                      Match(Var("g_55"))
                                     , Build(
                                         Anno(
                                           Op(
                                             "FlexibleInstance"
-                                          , [Var("p_50"), Var("q_50"), Var("r_50"), Var("s_50")]
+                                          , [Var("d_55"), Var("e_55"), Var("f_55"), Var("g_55")]
                                           )
-                                        , Var("o_50")
+                                        , Var("c_55")
                                         )
                                       )
                                     )
@@ -9185,7 +10892,7 @@ Specification(
       , SDefT(
           "Default_1_0"
         , [ VarDec(
-              "p_25"
+              "c_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9194,19 +10901,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["u_50", "t_50", "v_50"]
+            ["i_55", "h_55", "j_55"]
           , Seq(
               Match(
-                Anno(Op("Default", [Var("t_50")]), Var("u_50"))
+                Anno(Op("Default", [Var("h_55")]), Var("i_55"))
               )
             , Seq(
-                Build(Var("t_50"))
+                Build(Var("h_55"))
               , Seq(
-                  CallT(SVar("p_25"), [], [])
+                  CallT(SVar("c_30"), [], [])
                 , Seq(
-                    Match(Var("v_50"))
+                    Match(Var("j_55"))
                   , Build(
-                      Anno(Op("Default", [Var("v_50")]), Var("u_50"))
+                      Anno(Op("Default", [Var("j_55")]), Var("i_55"))
                     )
                   )
                 )
@@ -9217,28 +10924,28 @@ Specification(
       , SDefT(
           "Instance_4_0"
         , [ VarDec(
-              "q_25"
+              "d_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "r_25"
+              "e_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "s_25"
+              "f_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "t_25"
+              "g_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9247,48 +10954,48 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_51", "w_50", "x_50", "y_50", "z_50", "b_51", "c_51", "d_51", "e_51"]
+            ["o_55", "k_55", "l_55", "m_55", "n_55", "p_55", "q_55", "r_55", "s_55"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "Instance"
-                  , [Var("w_50"), Var("x_50"), Var("y_50"), Var("z_50")]
+                  , [Var("k_55"), Var("l_55"), Var("m_55"), Var("n_55")]
                   )
-                , Var("a_51")
+                , Var("o_55")
                 )
               )
             , Seq(
-                Build(Var("w_50"))
+                Build(Var("k_55"))
               , Seq(
-                  CallT(SVar("q_25"), [], [])
+                  CallT(SVar("d_30"), [], [])
                 , Seq(
-                    Match(Var("b_51"))
+                    Match(Var("p_55"))
                   , Seq(
-                      Build(Var("x_50"))
+                      Build(Var("l_55"))
                     , Seq(
-                        CallT(SVar("r_25"), [], [])
+                        CallT(SVar("e_30"), [], [])
                       , Seq(
-                          Match(Var("c_51"))
+                          Match(Var("q_55"))
                         , Seq(
-                            Build(Var("y_50"))
+                            Build(Var("m_55"))
                           , Seq(
-                              CallT(SVar("s_25"), [], [])
+                              CallT(SVar("f_30"), [], [])
                             , Seq(
-                                Match(Var("d_51"))
+                                Match(Var("r_55"))
                               , Seq(
-                                  Build(Var("z_50"))
+                                  Build(Var("n_55"))
                                 , Seq(
-                                    CallT(SVar("t_25"), [], [])
+                                    CallT(SVar("g_30"), [], [])
                                   , Seq(
-                                      Match(Var("e_51"))
+                                      Match(Var("s_55"))
                                     , Build(
                                         Anno(
                                           Op(
                                             "Instance"
-                                          , [Var("b_51"), Var("c_51"), Var("d_51"), Var("e_51")]
+                                          , [Var("p_55"), Var("q_55"), Var("r_55"), Var("s_55")]
                                           )
-                                        , Var("a_51")
+                                        , Var("o_55")
                                         )
                                       )
                                     )
@@ -9309,28 +11016,28 @@ Specification(
       , SDefT(
           "Class_4_0"
         , [ VarDec(
-              "u_25"
+              "h_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "v_25"
+              "i_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "w_25"
+              "j_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "x_25"
+              "k_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9339,48 +11046,48 @@ Specification(
           ]
         , []
         , Scope(
-            ["j_51", "f_51", "g_51", "h_51", "i_51", "k_51", "l_51", "m_51", "n_51"]
+            ["x_55", "t_55", "u_55", "v_55", "w_55", "y_55", "z_55", "a_56", "b_56"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "Class"
-                  , [Var("f_51"), Var("g_51"), Var("h_51"), Var("i_51")]
+                  , [Var("t_55"), Var("u_55"), Var("v_55"), Var("w_55")]
                   )
-                , Var("j_51")
+                , Var("x_55")
                 )
               )
             , Seq(
-                Build(Var("f_51"))
+                Build(Var("t_55"))
               , Seq(
-                  CallT(SVar("u_25"), [], [])
+                  CallT(SVar("h_30"), [], [])
                 , Seq(
-                    Match(Var("k_51"))
+                    Match(Var("y_55"))
                   , Seq(
-                      Build(Var("g_51"))
+                      Build(Var("u_55"))
                     , Seq(
-                        CallT(SVar("v_25"), [], [])
+                        CallT(SVar("i_30"), [], [])
                       , Seq(
-                          Match(Var("l_51"))
+                          Match(Var("z_55"))
                         , Seq(
-                            Build(Var("h_51"))
+                            Build(Var("v_55"))
                           , Seq(
-                              CallT(SVar("w_25"), [], [])
+                              CallT(SVar("j_30"), [], [])
                             , Seq(
-                                Match(Var("m_51"))
+                                Match(Var("a_56"))
                               , Seq(
-                                  Build(Var("i_51"))
+                                  Build(Var("w_55"))
                                 , Seq(
-                                    CallT(SVar("x_25"), [], [])
+                                    CallT(SVar("k_30"), [], [])
                                   , Seq(
-                                      Match(Var("n_51"))
+                                      Match(Var("b_56"))
                                     , Build(
                                         Anno(
                                           Op(
                                             "Class"
-                                          , [Var("k_51"), Var("l_51"), Var("m_51"), Var("n_51")]
+                                          , [Var("y_55"), Var("z_55"), Var("a_56"), Var("b_56")]
                                           )
-                                        , Var("j_51")
+                                        , Var("x_55")
                                         )
                                       )
                                     )
@@ -9401,28 +11108,28 @@ Specification(
       , SDefT(
           "Data_4_0"
         , [ VarDec(
-              "y_25"
+              "l_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "z_25"
+              "m_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "a_26"
+              "n_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "b_26"
+              "o_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9431,48 +11138,48 @@ Specification(
           ]
         , []
         , Scope(
-            ["s_51", "o_51", "p_51", "q_51", "r_51", "t_51", "u_51", "v_51", "w_51"]
+            ["g_56", "c_56", "d_56", "e_56", "f_56", "h_56", "i_56", "j_56", "k_56"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "Data"
-                  , [Var("o_51"), Var("p_51"), Var("q_51"), Var("r_51")]
+                  , [Var("c_56"), Var("d_56"), Var("e_56"), Var("f_56")]
                   )
-                , Var("s_51")
+                , Var("g_56")
                 )
               )
             , Seq(
-                Build(Var("o_51"))
+                Build(Var("c_56"))
               , Seq(
-                  CallT(SVar("y_25"), [], [])
+                  CallT(SVar("l_30"), [], [])
                 , Seq(
-                    Match(Var("t_51"))
+                    Match(Var("h_56"))
                   , Seq(
-                      Build(Var("p_51"))
+                      Build(Var("d_56"))
                     , Seq(
-                        CallT(SVar("z_25"), [], [])
+                        CallT(SVar("m_30"), [], [])
                       , Seq(
-                          Match(Var("u_51"))
+                          Match(Var("i_56"))
                         , Seq(
-                            Build(Var("q_51"))
+                            Build(Var("e_56"))
                           , Seq(
-                              CallT(SVar("a_26"), [], [])
+                              CallT(SVar("n_30"), [], [])
                             , Seq(
-                                Match(Var("v_51"))
+                                Match(Var("j_56"))
                               , Seq(
-                                  Build(Var("r_51"))
+                                  Build(Var("f_56"))
                                 , Seq(
-                                    CallT(SVar("b_26"), [], [])
+                                    CallT(SVar("o_30"), [], [])
                                   , Seq(
-                                      Match(Var("w_51"))
+                                      Match(Var("k_56"))
                                     , Build(
                                         Anno(
                                           Op(
                                             "Data"
-                                          , [Var("t_51"), Var("u_51"), Var("v_51"), Var("w_51")]
+                                          , [Var("h_56"), Var("i_56"), Var("j_56"), Var("k_56")]
                                           )
-                                        , Var("s_51")
+                                        , Var("g_56")
                                         )
                                       )
                                     )
@@ -9493,21 +11200,21 @@ Specification(
       , SDefT(
           "TypeDecl_3_0"
         , [ VarDec(
-              "c_26"
+              "p_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "d_26"
+              "q_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "e_26"
+              "r_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9516,42 +11223,42 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_52", "x_51", "y_51", "z_51", "b_52", "c_52", "d_52"]
+            ["o_56", "l_56", "m_56", "n_56", "p_56", "q_56", "r_56"]
           , Seq(
               Match(
                 Anno(
                   Op(
                     "TypeDecl"
-                  , [Var("x_51"), Var("y_51"), Var("z_51")]
+                  , [Var("l_56"), Var("m_56"), Var("n_56")]
                   )
-                , Var("a_52")
+                , Var("o_56")
                 )
               )
             , Seq(
-                Build(Var("x_51"))
+                Build(Var("l_56"))
               , Seq(
-                  CallT(SVar("c_26"), [], [])
+                  CallT(SVar("p_30"), [], [])
                 , Seq(
-                    Match(Var("b_52"))
+                    Match(Var("p_56"))
                   , Seq(
-                      Build(Var("y_51"))
+                      Build(Var("m_56"))
                     , Seq(
-                        CallT(SVar("d_26"), [], [])
+                        CallT(SVar("q_30"), [], [])
                       , Seq(
-                          Match(Var("c_52"))
+                          Match(Var("q_56"))
                         , Seq(
-                            Build(Var("z_51"))
+                            Build(Var("n_56"))
                           , Seq(
-                              CallT(SVar("e_26"), [], [])
+                              CallT(SVar("r_30"), [], [])
                             , Seq(
-                                Match(Var("d_52"))
+                                Match(Var("r_56"))
                               , Build(
                                   Anno(
                                     Op(
                                       "TypeDecl"
-                                    , [Var("b_52"), Var("c_52"), Var("d_52")]
+                                    , [Var("p_56"), Var("q_56"), Var("r_56")]
                                     )
-                                  , Var("a_52")
+                                  , Var("o_56")
                                   )
                                 )
                               )
@@ -9569,7 +11276,7 @@ Specification(
       , SDefT(
           "Program_1_0"
         , [ VarDec(
-              "f_26"
+              "s_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9578,19 +11285,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["f_52", "e_52", "g_52"]
+            ["t_56", "s_56", "u_56"]
           , Seq(
               Match(
-                Anno(Op("Program", [Var("e_52")]), Var("f_52"))
+                Anno(Op("Program", [Var("s_56")]), Var("t_56"))
               )
             , Seq(
-                Build(Var("e_52"))
+                Build(Var("s_56"))
               , Seq(
-                  CallT(SVar("f_26"), [], [])
+                  CallT(SVar("s_30"), [], [])
                 , Seq(
-                    Match(Var("g_52"))
+                    Match(Var("u_56"))
                   , Build(
-                      Anno(Op("Program", [Var("g_52")]), Var("f_52"))
+                      Anno(Op("Program", [Var("u_56")]), Var("t_56"))
                     )
                   )
                 )
@@ -9601,14 +11308,14 @@ Specification(
       , SDefT(
           "Module_2_0"
         , [ VarDec(
-              "g_26"
+              "t_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "h_26"
+              "u_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9617,30 +11324,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["j_52", "h_52", "i_52", "k_52", "l_52"]
+            ["x_56", "v_56", "w_56", "y_56", "z_56"]
           , Seq(
               Match(
                 Anno(
-                  Op("Module", [Var("h_52"), Var("i_52")])
-                , Var("j_52")
+                  Op("Module", [Var("v_56"), Var("w_56")])
+                , Var("x_56")
                 )
               )
             , Seq(
-                Build(Var("h_52"))
+                Build(Var("v_56"))
               , Seq(
-                  CallT(SVar("g_26"), [], [])
+                  CallT(SVar("t_30"), [], [])
                 , Seq(
-                    Match(Var("k_52"))
+                    Match(Var("y_56"))
                   , Seq(
-                      Build(Var("i_52"))
+                      Build(Var("w_56"))
                     , Seq(
-                        CallT(SVar("h_26"), [], [])
+                        CallT(SVar("u_30"), [], [])
                       , Seq(
-                          Match(Var("l_52"))
+                          Match(Var("z_56"))
                         , Build(
                             Anno(
-                              Op("Module", [Var("k_52"), Var("l_52")])
-                            , Var("j_52")
+                              Op("Module", [Var("y_56"), Var("z_56")])
+                            , Var("x_56")
                             )
                           )
                         )
@@ -9655,14 +11362,14 @@ Specification(
       , SDefT(
           "ModuleDec_2_0"
         , [ VarDec(
-              "i_26"
+              "v_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "j_26"
+              "w_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9671,30 +11378,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["o_52", "m_52", "n_52", "p_52", "q_52"]
+            ["c_57", "a_57", "b_57", "d_57", "e_57"]
           , Seq(
               Match(
                 Anno(
-                  Op("ModuleDec", [Var("m_52"), Var("n_52")])
-                , Var("o_52")
+                  Op("ModuleDec", [Var("a_57"), Var("b_57")])
+                , Var("c_57")
                 )
               )
             , Seq(
-                Build(Var("m_52"))
+                Build(Var("a_57"))
               , Seq(
-                  CallT(SVar("i_26"), [], [])
+                  CallT(SVar("v_30"), [], [])
                 , Seq(
-                    Match(Var("p_52"))
+                    Match(Var("d_57"))
                   , Seq(
-                      Build(Var("n_52"))
+                      Build(Var("b_57"))
                     , Seq(
-                        CallT(SVar("j_26"), [], [])
+                        CallT(SVar("w_30"), [], [])
                       , Seq(
-                          Match(Var("q_52"))
+                          Match(Var("e_57"))
                         , Build(
                             Anno(
-                              Op("ModuleDec", [Var("p_52"), Var("q_52")])
-                            , Var("o_52")
+                              Op("ModuleDec", [Var("d_57"), Var("e_57")])
+                            , Var("c_57")
                             )
                           )
                         )
@@ -9709,7 +11416,7 @@ Specification(
       , SDefT(
           "CLitLit_1_0"
         , [ VarDec(
-              "k_26"
+              "x_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9718,19 +11425,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["s_52", "r_52", "t_52"]
+            ["g_57", "f_57", "h_57"]
           , Seq(
               Match(
-                Anno(Op("CLitLit", [Var("r_52")]), Var("s_52"))
+                Anno(Op("CLitLit", [Var("f_57")]), Var("g_57"))
               )
             , Seq(
-                Build(Var("r_52"))
+                Build(Var("f_57"))
               , Seq(
-                  CallT(SVar("k_26"), [], [])
+                  CallT(SVar("x_30"), [], [])
                 , Seq(
-                    Match(Var("t_52"))
+                    Match(Var("h_57"))
                   , Build(
-                      Anno(Op("CLitLit", [Var("t_52")]), Var("s_52"))
+                      Anno(Op("CLitLit", [Var("h_57")]), Var("g_57"))
                     )
                   )
                 )
@@ -9741,7 +11448,7 @@ Specification(
       , SDefT(
           "PrimDouble_1_0"
         , [ VarDec(
-              "l_26"
+              "y_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9750,19 +11457,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["v_52", "u_52", "w_52"]
+            ["j_57", "i_57", "k_57"]
           , Seq(
               Match(
-                Anno(Op("PrimDouble", [Var("u_52")]), Var("v_52"))
+                Anno(Op("PrimDouble", [Var("i_57")]), Var("j_57"))
               )
             , Seq(
-                Build(Var("u_52"))
+                Build(Var("i_57"))
               , Seq(
-                  CallT(SVar("l_26"), [], [])
+                  CallT(SVar("y_30"), [], [])
                 , Seq(
-                    Match(Var("w_52"))
+                    Match(Var("k_57"))
                   , Build(
-                      Anno(Op("PrimDouble", [Var("w_52")]), Var("v_52"))
+                      Anno(Op("PrimDouble", [Var("k_57")]), Var("j_57"))
                     )
                   )
                 )
@@ -9773,7 +11480,7 @@ Specification(
       , SDefT(
           "PrimFloat_1_0"
         , [ VarDec(
-              "m_26"
+              "z_30"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9782,19 +11489,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["y_52", "x_52", "z_52"]
+            ["m_57", "l_57", "n_57"]
           , Seq(
               Match(
-                Anno(Op("PrimFloat", [Var("x_52")]), Var("y_52"))
+                Anno(Op("PrimFloat", [Var("l_57")]), Var("m_57"))
               )
             , Seq(
-                Build(Var("x_52"))
+                Build(Var("l_57"))
               , Seq(
-                  CallT(SVar("m_26"), [], [])
+                  CallT(SVar("z_30"), [], [])
                 , Seq(
-                    Match(Var("z_52"))
+                    Match(Var("n_57"))
                   , Build(
-                      Anno(Op("PrimFloat", [Var("z_52")]), Var("y_52"))
+                      Anno(Op("PrimFloat", [Var("n_57")]), Var("m_57"))
                     )
                   )
                 )
@@ -9805,7 +11512,7 @@ Specification(
       , SDefT(
           "PrimString_1_0"
         , [ VarDec(
-              "n_26"
+              "a_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9814,19 +11521,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["b_53", "a_53", "c_53"]
+            ["p_57", "o_57", "q_57"]
           , Seq(
               Match(
-                Anno(Op("PrimString", [Var("a_53")]), Var("b_53"))
+                Anno(Op("PrimString", [Var("o_57")]), Var("p_57"))
               )
             , Seq(
-                Build(Var("a_53"))
+                Build(Var("o_57"))
               , Seq(
-                  CallT(SVar("n_26"), [], [])
+                  CallT(SVar("a_31"), [], [])
                 , Seq(
-                    Match(Var("c_53"))
+                    Match(Var("q_57"))
                   , Build(
-                      Anno(Op("PrimString", [Var("c_53")]), Var("b_53"))
+                      Anno(Op("PrimString", [Var("q_57")]), Var("p_57"))
                     )
                   )
                 )
@@ -9837,7 +11544,7 @@ Specification(
       , SDefT(
           "PrimChar_1_0"
         , [ VarDec(
-              "o_26"
+              "b_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9846,19 +11553,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["e_53", "d_53", "f_53"]
+            ["s_57", "r_57", "t_57"]
           , Seq(
               Match(
-                Anno(Op("PrimChar", [Var("d_53")]), Var("e_53"))
+                Anno(Op("PrimChar", [Var("r_57")]), Var("s_57"))
               )
             , Seq(
-                Build(Var("d_53"))
+                Build(Var("r_57"))
               , Seq(
-                  CallT(SVar("o_26"), [], [])
+                  CallT(SVar("b_31"), [], [])
                 , Seq(
-                    Match(Var("f_53"))
+                    Match(Var("t_57"))
                   , Build(
-                      Anno(Op("PrimChar", [Var("f_53")]), Var("e_53"))
+                      Anno(Op("PrimChar", [Var("t_57")]), Var("s_57"))
                     )
                   )
                 )
@@ -9869,7 +11576,7 @@ Specification(
       , SDefT(
           "PrimInt_1_0"
         , [ VarDec(
-              "p_26"
+              "c_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9878,19 +11585,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["h_53", "g_53", "i_53"]
+            ["v_57", "u_57", "w_57"]
           , Seq(
               Match(
-                Anno(Op("PrimInt", [Var("g_53")]), Var("h_53"))
+                Anno(Op("PrimInt", [Var("u_57")]), Var("v_57"))
               )
             , Seq(
-                Build(Var("g_53"))
+                Build(Var("u_57"))
               , Seq(
-                  CallT(SVar("p_26"), [], [])
+                  CallT(SVar("c_31"), [], [])
                 , Seq(
-                    Match(Var("i_53"))
+                    Match(Var("w_57"))
                   , Build(
-                      Anno(Op("PrimInt", [Var("i_53")]), Var("h_53"))
+                      Anno(Op("PrimInt", [Var("w_57")]), Var("v_57"))
                     )
                   )
                 )
@@ -9901,7 +11608,7 @@ Specification(
       , SDefT(
           "Float_1_0"
         , [ VarDec(
-              "q_26"
+              "d_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9910,19 +11617,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["k_53", "j_53", "l_53"]
+            ["y_57", "x_57", "z_57"]
           , Seq(
               Match(
-                Anno(Op("Float", [Var("j_53")]), Var("k_53"))
+                Anno(Op("Float", [Var("x_57")]), Var("y_57"))
               )
             , Seq(
-                Build(Var("j_53"))
+                Build(Var("x_57"))
               , Seq(
-                  CallT(SVar("q_26"), [], [])
+                  CallT(SVar("d_31"), [], [])
                 , Seq(
-                    Match(Var("l_53"))
+                    Match(Var("z_57"))
                   , Build(
-                      Anno(Op("Float", [Var("l_53")]), Var("k_53"))
+                      Anno(Op("Float", [Var("z_57")]), Var("y_57"))
                     )
                   )
                 )
@@ -9933,7 +11640,7 @@ Specification(
       , SDefT(
           "Int_1_0"
         , [ VarDec(
-              "r_26"
+              "e_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9942,19 +11649,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["n_53", "m_53", "o_53"]
+            ["b_58", "a_58", "c_58"]
           , Seq(
               Match(
-                Anno(Op("Int", [Var("m_53")]), Var("n_53"))
+                Anno(Op("Int", [Var("a_58")]), Var("b_58"))
               )
             , Seq(
-                Build(Var("m_53"))
+                Build(Var("a_58"))
               , Seq(
-                  CallT(SVar("r_26"), [], [])
+                  CallT(SVar("e_31"), [], [])
                 , Seq(
-                    Match(Var("o_53"))
+                    Match(Var("c_58"))
                   , Build(
-                      Anno(Op("Int", [Var("o_53")]), Var("n_53"))
+                      Anno(Op("Int", [Var("c_58")]), Var("b_58"))
                     )
                   )
                 )
@@ -9965,7 +11672,7 @@ Specification(
       , SDefT(
           "HexadecimalEsc_1_0"
         , [ VarDec(
-              "s_26"
+              "f_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -9974,19 +11681,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["q_53", "p_53", "r_53"]
+            ["e_58", "d_58", "f_58"]
           , Seq(
               Match(
-                Anno(Op("HexadecimalEsc", [Var("p_53")]), Var("q_53"))
+                Anno(Op("HexadecimalEsc", [Var("d_58")]), Var("e_58"))
               )
             , Seq(
-                Build(Var("p_53"))
+                Build(Var("d_58"))
               , Seq(
-                  CallT(SVar("s_26"), [], [])
+                  CallT(SVar("f_31"), [], [])
                 , Seq(
-                    Match(Var("r_53"))
+                    Match(Var("f_58"))
                   , Build(
-                      Anno(Op("HexadecimalEsc", [Var("r_53")]), Var("q_53"))
+                      Anno(Op("HexadecimalEsc", [Var("f_58")]), Var("e_58"))
                     )
                   )
                 )
@@ -9997,7 +11704,7 @@ Specification(
       , SDefT(
           "OctalEsc_1_0"
         , [ VarDec(
-              "t_26"
+              "g_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10006,19 +11713,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["t_53", "s_53", "u_53"]
+            ["h_58", "g_58", "i_58"]
           , Seq(
               Match(
-                Anno(Op("OctalEsc", [Var("s_53")]), Var("t_53"))
+                Anno(Op("OctalEsc", [Var("g_58")]), Var("h_58"))
               )
             , Seq(
-                Build(Var("s_53"))
+                Build(Var("g_58"))
               , Seq(
-                  CallT(SVar("t_26"), [], [])
+                  CallT(SVar("g_31"), [], [])
                 , Seq(
-                    Match(Var("u_53"))
+                    Match(Var("i_58"))
                   , Build(
-                      Anno(Op("OctalEsc", [Var("u_53")]), Var("t_53"))
+                      Anno(Op("OctalEsc", [Var("i_58")]), Var("h_58"))
                     )
                   )
                 )
@@ -10029,7 +11736,7 @@ Specification(
       , SDefT(
           "DecimalEsc_1_0"
         , [ VarDec(
-              "u_26"
+              "h_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10038,19 +11745,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_53", "v_53", "x_53"]
+            ["k_58", "j_58", "l_58"]
           , Seq(
               Match(
-                Anno(Op("DecimalEsc", [Var("v_53")]), Var("w_53"))
+                Anno(Op("DecimalEsc", [Var("j_58")]), Var("k_58"))
               )
             , Seq(
-                Build(Var("v_53"))
+                Build(Var("j_58"))
               , Seq(
-                  CallT(SVar("u_26"), [], [])
+                  CallT(SVar("h_31"), [], [])
                 , Seq(
-                    Match(Var("x_53"))
+                    Match(Var("l_58"))
                   , Build(
-                      Anno(Op("DecimalEsc", [Var("x_53")]), Var("w_53"))
+                      Anno(Op("DecimalEsc", [Var("l_58")]), Var("k_58"))
                     )
                   )
                 )
@@ -10061,7 +11768,7 @@ Specification(
       , SDefT(
           "ASCIIEsc_1_0"
         , [ VarDec(
-              "v_26"
+              "i_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10070,19 +11777,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["z_53", "y_53", "a_54"]
+            ["n_58", "m_58", "o_58"]
           , Seq(
               Match(
-                Anno(Op("ASCIIEsc", [Var("y_53")]), Var("z_53"))
+                Anno(Op("ASCIIEsc", [Var("m_58")]), Var("n_58"))
               )
             , Seq(
-                Build(Var("y_53"))
+                Build(Var("m_58"))
               , Seq(
-                  CallT(SVar("v_26"), [], [])
+                  CallT(SVar("i_31"), [], [])
                 , Seq(
-                    Match(Var("a_54"))
+                    Match(Var("o_58"))
                   , Build(
-                      Anno(Op("ASCIIEsc", [Var("a_54")]), Var("z_53"))
+                      Anno(Op("ASCIIEsc", [Var("o_58")]), Var("n_58"))
                     )
                   )
                 )
@@ -10093,7 +11800,7 @@ Specification(
       , SDefT(
           "CharEsc_1_0"
         , [ VarDec(
-              "w_26"
+              "j_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10102,19 +11809,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["c_54", "b_54", "d_54"]
+            ["q_58", "p_58", "r_58"]
           , Seq(
               Match(
-                Anno(Op("CharEsc", [Var("b_54")]), Var("c_54"))
+                Anno(Op("CharEsc", [Var("p_58")]), Var("q_58"))
               )
             , Seq(
-                Build(Var("b_54"))
+                Build(Var("p_58"))
               , Seq(
-                  CallT(SVar("w_26"), [], [])
+                  CallT(SVar("j_31"), [], [])
                 , Seq(
-                    Match(Var("d_54"))
+                    Match(Var("r_58"))
                   , Build(
-                      Anno(Op("CharEsc", [Var("d_54")]), Var("c_54"))
+                      Anno(Op("CharEsc", [Var("r_58")]), Var("q_58"))
                     )
                   )
                 )
@@ -10125,7 +11832,7 @@ Specification(
       , SDefT(
           "Gap_1_0"
         , [ VarDec(
-              "x_26"
+              "k_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10134,19 +11841,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["f_54", "e_54", "g_54"]
+            ["t_58", "s_58", "u_58"]
           , Seq(
               Match(
-                Anno(Op("Gap", [Var("e_54")]), Var("f_54"))
+                Anno(Op("Gap", [Var("s_58")]), Var("t_58"))
               )
             , Seq(
-                Build(Var("e_54"))
+                Build(Var("s_58"))
               , Seq(
-                  CallT(SVar("x_26"), [], [])
+                  CallT(SVar("k_31"), [], [])
                 , Seq(
-                    Match(Var("g_54"))
+                    Match(Var("u_58"))
                   , Build(
-                      Anno(Op("Gap", [Var("g_54")]), Var("f_54"))
+                      Anno(Op("Gap", [Var("u_58")]), Var("t_58"))
                     )
                   )
                 )
@@ -10157,7 +11864,7 @@ Specification(
       , SDefT(
           "EscapeString_1_0"
         , [ VarDec(
-              "y_26"
+              "l_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10166,19 +11873,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["i_54", "h_54", "j_54"]
+            ["w_58", "v_58", "x_58"]
           , Seq(
               Match(
-                Anno(Op("EscapeString", [Var("h_54")]), Var("i_54"))
+                Anno(Op("EscapeString", [Var("v_58")]), Var("w_58"))
               )
             , Seq(
-                Build(Var("h_54"))
+                Build(Var("v_58"))
               , Seq(
-                  CallT(SVar("y_26"), [], [])
+                  CallT(SVar("l_31"), [], [])
                 , Seq(
-                    Match(Var("j_54"))
+                    Match(Var("x_58"))
                   , Build(
-                      Anno(Op("EscapeString", [Var("j_54")]), Var("i_54"))
+                      Anno(Op("EscapeString", [Var("x_58")]), Var("w_58"))
                     )
                   )
                 )
@@ -10189,7 +11896,7 @@ Specification(
       , SDefT(
           "Escape_1_0"
         , [ VarDec(
-              "z_26"
+              "m_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10198,19 +11905,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["l_54", "k_54", "m_54"]
+            ["z_58", "y_58", "a_59"]
           , Seq(
               Match(
-                Anno(Op("Escape", [Var("k_54")]), Var("l_54"))
+                Anno(Op("Escape", [Var("y_58")]), Var("z_58"))
               )
             , Seq(
-                Build(Var("k_54"))
+                Build(Var("y_58"))
               , Seq(
-                  CallT(SVar("z_26"), [], [])
+                  CallT(SVar("m_31"), [], [])
                 , Seq(
-                    Match(Var("m_54"))
+                    Match(Var("a_59"))
                   , Build(
-                      Anno(Op("Escape", [Var("m_54")]), Var("l_54"))
+                      Anno(Op("Escape", [Var("a_59")]), Var("z_58"))
                     )
                   )
                 )
@@ -10221,7 +11928,7 @@ Specification(
       , SDefT(
           "String_1_0"
         , [ VarDec(
-              "a_27"
+              "n_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10230,19 +11937,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["o_54", "n_54", "p_54"]
+            ["c_59", "b_59", "d_59"]
           , Seq(
               Match(
-                Anno(Op("String", [Var("n_54")]), Var("o_54"))
+                Anno(Op("String", [Var("b_59")]), Var("c_59"))
               )
             , Seq(
-                Build(Var("n_54"))
+                Build(Var("b_59"))
               , Seq(
-                  CallT(SVar("a_27"), [], [])
+                  CallT(SVar("n_31"), [], [])
                 , Seq(
-                    Match(Var("p_54"))
+                    Match(Var("d_59"))
                   , Build(
-                      Anno(Op("String", [Var("p_54")]), Var("o_54"))
+                      Anno(Op("String", [Var("d_59")]), Var("c_59"))
                     )
                   )
                 )
@@ -10253,7 +11960,7 @@ Specification(
       , SDefT(
           "Char_1_0"
         , [ VarDec(
-              "b_27"
+              "o_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10262,19 +11969,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["r_54", "q_54", "s_54"]
+            ["f_59", "e_59", "g_59"]
           , Seq(
               Match(
-                Anno(Op("Char", [Var("q_54")]), Var("r_54"))
+                Anno(Op("Char", [Var("e_59")]), Var("f_59"))
               )
             , Seq(
-                Build(Var("q_54"))
+                Build(Var("e_59"))
               , Seq(
-                  CallT(SVar("b_27"), [], [])
+                  CallT(SVar("o_31"), [], [])
                 , Seq(
-                    Match(Var("s_54"))
+                    Match(Var("g_59"))
                   , Build(
-                      Anno(Op("Char", [Var("s_54")]), Var("r_54"))
+                      Anno(Op("Char", [Var("g_59")]), Var("f_59"))
                     )
                   )
                 )
@@ -10285,14 +11992,14 @@ Specification(
       , SDefT(
           "QModId_2_0"
         , [ VarDec(
-              "c_27"
+              "p_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "d_27"
+              "q_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10301,30 +12008,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["v_54", "t_54", "u_54", "w_54", "x_54"]
+            ["j_59", "h_59", "i_59", "k_59", "l_59"]
           , Seq(
               Match(
                 Anno(
-                  Op("QModId", [Var("t_54"), Var("u_54")])
-                , Var("v_54")
+                  Op("QModId", [Var("h_59"), Var("i_59")])
+                , Var("j_59")
                 )
               )
             , Seq(
-                Build(Var("t_54"))
+                Build(Var("h_59"))
               , Seq(
-                  CallT(SVar("c_27"), [], [])
+                  CallT(SVar("p_31"), [], [])
                 , Seq(
-                    Match(Var("w_54"))
+                    Match(Var("k_59"))
                   , Seq(
-                      Build(Var("u_54"))
+                      Build(Var("i_59"))
                     , Seq(
-                        CallT(SVar("d_27"), [], [])
+                        CallT(SVar("q_31"), [], [])
                       , Seq(
-                          Match(Var("x_54"))
+                          Match(Var("l_59"))
                         , Build(
                             Anno(
-                              Op("QModId", [Var("w_54"), Var("x_54")])
-                            , Var("v_54")
+                              Op("QModId", [Var("k_59"), Var("l_59")])
+                            , Var("j_59")
                             )
                           )
                         )
@@ -10339,14 +12046,14 @@ Specification(
       , SDefT(
           "QConSym_2_0"
         , [ VarDec(
-              "e_27"
+              "r_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "f_27"
+              "s_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10355,30 +12062,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_55", "y_54", "z_54", "b_55", "c_55"]
+            ["o_59", "m_59", "n_59", "p_59", "q_59"]
           , Seq(
               Match(
                 Anno(
-                  Op("QConSym", [Var("y_54"), Var("z_54")])
-                , Var("a_55")
+                  Op("QConSym", [Var("m_59"), Var("n_59")])
+                , Var("o_59")
                 )
               )
             , Seq(
-                Build(Var("y_54"))
+                Build(Var("m_59"))
               , Seq(
-                  CallT(SVar("e_27"), [], [])
+                  CallT(SVar("r_31"), [], [])
                 , Seq(
-                    Match(Var("b_55"))
+                    Match(Var("p_59"))
                   , Seq(
-                      Build(Var("z_54"))
+                      Build(Var("n_59"))
                     , Seq(
-                        CallT(SVar("f_27"), [], [])
+                        CallT(SVar("s_31"), [], [])
                       , Seq(
-                          Match(Var("c_55"))
+                          Match(Var("q_59"))
                         , Build(
                             Anno(
-                              Op("QConSym", [Var("b_55"), Var("c_55")])
-                            , Var("a_55")
+                              Op("QConSym", [Var("p_59"), Var("q_59")])
+                            , Var("o_59")
                             )
                           )
                         )
@@ -10393,14 +12100,14 @@ Specification(
       , SDefT(
           "QVarSym_2_0"
         , [ VarDec(
-              "g_27"
+              "t_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "h_27"
+              "u_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10409,30 +12116,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["f_55", "d_55", "e_55", "g_55", "h_55"]
+            ["t_59", "r_59", "s_59", "u_59", "v_59"]
           , Seq(
               Match(
                 Anno(
-                  Op("QVarSym", [Var("d_55"), Var("e_55")])
-                , Var("f_55")
+                  Op("QVarSym", [Var("r_59"), Var("s_59")])
+                , Var("t_59")
                 )
               )
             , Seq(
-                Build(Var("d_55"))
+                Build(Var("r_59"))
               , Seq(
-                  CallT(SVar("g_27"), [], [])
+                  CallT(SVar("t_31"), [], [])
                 , Seq(
-                    Match(Var("g_55"))
+                    Match(Var("u_59"))
                   , Seq(
-                      Build(Var("e_55"))
+                      Build(Var("s_59"))
                     , Seq(
-                        CallT(SVar("h_27"), [], [])
+                        CallT(SVar("u_31"), [], [])
                       , Seq(
-                          Match(Var("h_55"))
+                          Match(Var("v_59"))
                         , Build(
                             Anno(
-                              Op("QVarSym", [Var("g_55"), Var("h_55")])
-                            , Var("f_55")
+                              Op("QVarSym", [Var("u_59"), Var("v_59")])
+                            , Var("t_59")
                             )
                           )
                         )
@@ -10447,14 +12154,14 @@ Specification(
       , SDefT(
           "QConId_2_0"
         , [ VarDec(
-              "i_27"
+              "v_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "j_27"
+              "w_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10463,30 +12170,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["k_55", "i_55", "j_55", "l_55", "m_55"]
+            ["y_59", "w_59", "x_59", "z_59", "a_60"]
           , Seq(
               Match(
                 Anno(
-                  Op("QConId", [Var("i_55"), Var("j_55")])
-                , Var("k_55")
+                  Op("QConId", [Var("w_59"), Var("x_59")])
+                , Var("y_59")
                 )
               )
             , Seq(
-                Build(Var("i_55"))
+                Build(Var("w_59"))
               , Seq(
-                  CallT(SVar("i_27"), [], [])
+                  CallT(SVar("v_31"), [], [])
                 , Seq(
-                    Match(Var("l_55"))
+                    Match(Var("z_59"))
                   , Seq(
-                      Build(Var("j_55"))
+                      Build(Var("x_59"))
                     , Seq(
-                        CallT(SVar("j_27"), [], [])
+                        CallT(SVar("w_31"), [], [])
                       , Seq(
-                          Match(Var("m_55"))
+                          Match(Var("a_60"))
                         , Build(
                             Anno(
-                              Op("QConId", [Var("l_55"), Var("m_55")])
-                            , Var("k_55")
+                              Op("QConId", [Var("z_59"), Var("a_60")])
+                            , Var("y_59")
                             )
                           )
                         )
@@ -10501,14 +12208,14 @@ Specification(
       , SDefT(
           "QVarId_2_0"
         , [ VarDec(
-              "k_27"
+              "x_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "l_27"
+              "y_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10517,30 +12224,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["p_55", "n_55", "o_55", "q_55", "r_55"]
+            ["d_60", "b_60", "c_60", "e_60", "f_60"]
           , Seq(
               Match(
                 Anno(
-                  Op("QVarId", [Var("n_55"), Var("o_55")])
-                , Var("p_55")
+                  Op("QVarId", [Var("b_60"), Var("c_60")])
+                , Var("d_60")
                 )
               )
             , Seq(
-                Build(Var("n_55"))
+                Build(Var("b_60"))
               , Seq(
-                  CallT(SVar("k_27"), [], [])
+                  CallT(SVar("x_31"), [], [])
                 , Seq(
-                    Match(Var("q_55"))
+                    Match(Var("e_60"))
                   , Seq(
-                      Build(Var("o_55"))
+                      Build(Var("c_60"))
                     , Seq(
-                        CallT(SVar("l_27"), [], [])
+                        CallT(SVar("y_31"), [], [])
                       , Seq(
-                          Match(Var("r_55"))
+                          Match(Var("f_60"))
                         , Build(
                             Anno(
-                              Op("QVarId", [Var("q_55"), Var("r_55")])
-                            , Var("p_55")
+                              Op("QVarId", [Var("e_60"), Var("f_60")])
+                            , Var("d_60")
                             )
                           )
                         )
@@ -10555,7 +12262,7 @@ Specification(
       , SDefT(
           "BinCon_1_0"
         , [ VarDec(
-              "m_27"
+              "z_31"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10564,19 +12271,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["t_55", "s_55", "u_55"]
+            ["h_60", "g_60", "i_60"]
           , Seq(
               Match(
-                Anno(Op("BinCon", [Var("s_55")]), Var("t_55"))
+                Anno(Op("BinCon", [Var("g_60")]), Var("h_60"))
               )
             , Seq(
-                Build(Var("s_55"))
+                Build(Var("g_60"))
               , Seq(
-                  CallT(SVar("m_27"), [], [])
+                  CallT(SVar("z_31"), [], [])
                 , Seq(
-                    Match(Var("u_55"))
+                    Match(Var("i_60"))
                   , Build(
-                      Anno(Op("BinCon", [Var("u_55")]), Var("t_55"))
+                      Anno(Op("BinCon", [Var("i_60")]), Var("h_60"))
                     )
                   )
                 )
@@ -10587,7 +12294,7 @@ Specification(
       , SDefT(
           "ConsOp_1_0"
         , [ VarDec(
-              "n_27"
+              "a_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10596,19 +12303,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["w_55", "v_55", "x_55"]
+            ["k_60", "j_60", "l_60"]
           , Seq(
               Match(
-                Anno(Op("ConsOp", [Var("v_55")]), Var("w_55"))
+                Anno(Op("ConsOp", [Var("j_60")]), Var("k_60"))
               )
             , Seq(
-                Build(Var("v_55"))
+                Build(Var("j_60"))
               , Seq(
-                  CallT(SVar("n_27"), [], [])
+                  CallT(SVar("a_32"), [], [])
                 , Seq(
-                    Match(Var("x_55"))
+                    Match(Var("l_60"))
                   , Build(
-                      Anno(Op("ConsOp", [Var("x_55")]), Var("w_55"))
+                      Anno(Op("ConsOp", [Var("l_60")]), Var("k_60"))
                     )
                   )
                 )
@@ -10619,7 +12326,7 @@ Specification(
       , SDefT(
           "QPrefCon_1_0"
         , [ VarDec(
-              "o_27"
+              "b_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10628,19 +12335,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["z_55", "y_55", "a_56"]
+            ["n_60", "m_60", "o_60"]
           , Seq(
               Match(
-                Anno(Op("QPrefCon", [Var("y_55")]), Var("z_55"))
+                Anno(Op("QPrefCon", [Var("m_60")]), Var("n_60"))
               )
             , Seq(
-                Build(Var("y_55"))
+                Build(Var("m_60"))
               , Seq(
-                  CallT(SVar("o_27"), [], [])
+                  CallT(SVar("b_32"), [], [])
                 , Seq(
-                    Match(Var("a_56"))
+                    Match(Var("o_60"))
                   , Build(
-                      Anno(Op("QPrefCon", [Var("a_56")]), Var("z_55"))
+                      Anno(Op("QPrefCon", [Var("o_60")]), Var("n_60"))
                     )
                   )
                 )
@@ -10651,7 +12358,7 @@ Specification(
       , SDefT(
           "PrefCon_1_0"
         , [ VarDec(
-              "p_27"
+              "c_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10660,19 +12367,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["c_56", "b_56", "d_56"]
+            ["q_60", "p_60", "r_60"]
           , Seq(
               Match(
-                Anno(Op("PrefCon", [Var("b_56")]), Var("c_56"))
+                Anno(Op("PrefCon", [Var("p_60")]), Var("q_60"))
               )
             , Seq(
-                Build(Var("b_56"))
+                Build(Var("p_60"))
               , Seq(
-                  CallT(SVar("p_27"), [], [])
+                  CallT(SVar("c_32"), [], [])
                 , Seq(
-                    Match(Var("d_56"))
+                    Match(Var("r_60"))
                   , Build(
-                      Anno(Op("PrefCon", [Var("d_56")]), Var("c_56"))
+                      Anno(Op("PrefCon", [Var("r_60")]), Var("q_60"))
                     )
                   )
                 )
@@ -10683,7 +12390,7 @@ Specification(
       , SDefT(
           "QPrefOp_1_0"
         , [ VarDec(
-              "q_27"
+              "d_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10692,19 +12399,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["f_56", "e_56", "g_56"]
+            ["t_60", "s_60", "u_60"]
           , Seq(
               Match(
-                Anno(Op("QPrefOp", [Var("e_56")]), Var("f_56"))
+                Anno(Op("QPrefOp", [Var("s_60")]), Var("t_60"))
               )
             , Seq(
-                Build(Var("e_56"))
+                Build(Var("s_60"))
               , Seq(
-                  CallT(SVar("q_27"), [], [])
+                  CallT(SVar("d_32"), [], [])
                 , Seq(
-                    Match(Var("g_56"))
+                    Match(Var("u_60"))
                   , Build(
-                      Anno(Op("QPrefOp", [Var("g_56")]), Var("f_56"))
+                      Anno(Op("QPrefOp", [Var("u_60")]), Var("t_60"))
                     )
                   )
                 )
@@ -10715,7 +12422,7 @@ Specification(
       , SDefT(
           "PrefOp_1_0"
         , [ VarDec(
-              "r_27"
+              "e_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10724,19 +12431,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["i_56", "h_56", "j_56"]
+            ["w_60", "v_60", "x_60"]
           , Seq(
               Match(
-                Anno(Op("PrefOp", [Var("h_56")]), Var("i_56"))
+                Anno(Op("PrefOp", [Var("v_60")]), Var("w_60"))
               )
             , Seq(
-                Build(Var("h_56"))
+                Build(Var("v_60"))
               , Seq(
-                  CallT(SVar("r_27"), [], [])
+                  CallT(SVar("e_32"), [], [])
                 , Seq(
-                    Match(Var("j_56"))
+                    Match(Var("x_60"))
                   , Build(
-                      Anno(Op("PrefOp", [Var("j_56")]), Var("i_56"))
+                      Anno(Op("PrefOp", [Var("x_60")]), Var("w_60"))
                     )
                   )
                 )
@@ -10747,7 +12454,7 @@ Specification(
       , SDefT(
           "ConOp_1_0"
         , [ VarDec(
-              "s_27"
+              "f_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10756,19 +12463,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["l_56", "k_56", "m_56"]
+            ["z_60", "y_60", "a_61"]
           , Seq(
               Match(
-                Anno(Op("ConOp", [Var("k_56")]), Var("l_56"))
+                Anno(Op("ConOp", [Var("y_60")]), Var("z_60"))
               )
             , Seq(
-                Build(Var("k_56"))
+                Build(Var("y_60"))
               , Seq(
-                  CallT(SVar("s_27"), [], [])
+                  CallT(SVar("f_32"), [], [])
                 , Seq(
-                    Match(Var("m_56"))
+                    Match(Var("a_61"))
                   , Build(
-                      Anno(Op("ConOp", [Var("m_56")]), Var("l_56"))
+                      Anno(Op("ConOp", [Var("a_61")]), Var("z_60"))
                     )
                   )
                 )
@@ -10779,7 +12486,7 @@ Specification(
       , SDefT(
           "Op_1_0"
         , [ VarDec(
-              "t_27"
+              "g_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10788,19 +12495,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["o_56", "n_56", "p_56"]
+            ["c_61", "b_61", "d_61"]
           , Seq(
               Match(
-                Anno(Op("Op", [Var("n_56")]), Var("o_56"))
+                Anno(Op("Op", [Var("b_61")]), Var("c_61"))
               )
             , Seq(
-                Build(Var("n_56"))
+                Build(Var("b_61"))
               , Seq(
-                  CallT(SVar("t_27"), [], [])
+                  CallT(SVar("g_32"), [], [])
                 , Seq(
-                    Match(Var("p_56"))
+                    Match(Var("d_61"))
                   , Build(
-                      Anno(Op("Op", [Var("p_56")]), Var("o_56"))
+                      Anno(Op("Op", [Var("d_61")]), Var("c_61"))
                     )
                   )
                 )
@@ -10811,7 +12518,7 @@ Specification(
       , SDefT(
           "BinOpQ_1_0"
         , [ VarDec(
-              "u_27"
+              "h_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10820,19 +12527,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["r_56", "q_56", "s_56"]
+            ["f_61", "e_61", "g_61"]
           , Seq(
               Match(
-                Anno(Op("BinOpQ", [Var("q_56")]), Var("r_56"))
+                Anno(Op("BinOpQ", [Var("e_61")]), Var("f_61"))
               )
             , Seq(
-                Build(Var("q_56"))
+                Build(Var("e_61"))
               , Seq(
-                  CallT(SVar("u_27"), [], [])
+                  CallT(SVar("h_32"), [], [])
                 , Seq(
-                    Match(Var("s_56"))
+                    Match(Var("g_61"))
                   , Build(
-                      Anno(Op("BinOpQ", [Var("s_56")]), Var("r_56"))
+                      Anno(Op("BinOpQ", [Var("g_61")]), Var("f_61"))
                     )
                   )
                 )
@@ -10843,7 +12550,7 @@ Specification(
       , SDefT(
           "BinOp_1_0"
         , [ VarDec(
-              "v_27"
+              "i_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10852,19 +12559,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["u_56", "t_56", "v_56"]
+            ["i_61", "h_61", "j_61"]
           , Seq(
               Match(
-                Anno(Op("BinOp", [Var("t_56")]), Var("u_56"))
+                Anno(Op("BinOp", [Var("h_61")]), Var("i_61"))
               )
             , Seq(
-                Build(Var("t_56"))
+                Build(Var("h_61"))
               , Seq(
-                  CallT(SVar("v_27"), [], [])
+                  CallT(SVar("i_32"), [], [])
                 , Seq(
-                    Match(Var("v_56"))
+                    Match(Var("j_61"))
                   , Build(
-                      Anno(Op("BinOp", [Var("v_56")]), Var("u_56"))
+                      Anno(Op("BinOp", [Var("j_61")]), Var("i_61"))
                     )
                   )
                 )
@@ -10875,7 +12582,7 @@ Specification(
       , SDefT(
           "Var_1_0"
         , [ VarDec(
-              "w_27"
+              "j_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10884,19 +12591,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["x_56", "w_56", "y_56"]
+            ["l_61", "k_61", "m_61"]
           , Seq(
               Match(
-                Anno(Op("Var", [Var("w_56")]), Var("x_56"))
+                Anno(Op("Var", [Var("k_61")]), Var("l_61"))
               )
             , Seq(
-                Build(Var("w_56"))
+                Build(Var("k_61"))
               , Seq(
-                  CallT(SVar("w_27"), [], [])
+                  CallT(SVar("j_32"), [], [])
                 , Seq(
-                    Match(Var("y_56"))
+                    Match(Var("m_61"))
                   , Build(
-                      Anno(Op("Var", [Var("y_56")]), Var("x_56"))
+                      Anno(Op("Var", [Var("m_61")]), Var("l_61"))
                     )
                   )
                 )
@@ -10919,7 +12626,7 @@ Specification(
       , SDefT(
           "Ins_1_0"
         , [ VarDec(
-              "x_27"
+              "k_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10928,19 +12635,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["a_57", "z_56", "b_57"]
+            ["o_61", "n_61", "p_61"]
           , Seq(
               Match(
-                Anno(Op("Ins", [Var("z_56")]), Var("a_57"))
+                Anno(Op("Ins", [Var("n_61")]), Var("o_61"))
               )
             , Seq(
-                Build(Var("z_56"))
+                Build(Var("n_61"))
               , Seq(
-                  CallT(SVar("x_27"), [], [])
+                  CallT(SVar("k_32"), [], [])
                 , Seq(
-                    Match(Var("b_57"))
+                    Match(Var("p_61"))
                   , Build(
-                      Anno(Op("Ins", [Var("b_57")]), Var("a_57"))
+                      Anno(Op("Ins", [Var("p_61")]), Var("o_61"))
                     )
                   )
                 )
@@ -10951,14 +12658,14 @@ Specification(
       , SDefT(
           "Snoc_2_0"
         , [ VarDec(
-              "y_27"
+              "l_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
               )
             )
           , VarDec(
-              "z_27"
+              "m_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -10967,30 +12674,30 @@ Specification(
           ]
         , []
         , Scope(
-            ["e_57", "c_57", "d_57", "f_57", "g_57"]
+            ["s_61", "q_61", "r_61", "t_61", "u_61"]
           , Seq(
               Match(
                 Anno(
-                  Op("Snoc", [Var("c_57"), Var("d_57")])
-                , Var("e_57")
+                  Op("Snoc", [Var("q_61"), Var("r_61")])
+                , Var("s_61")
                 )
               )
             , Seq(
-                Build(Var("c_57"))
+                Build(Var("q_61"))
               , Seq(
-                  CallT(SVar("y_27"), [], [])
+                  CallT(SVar("l_32"), [], [])
                 , Seq(
-                    Match(Var("f_57"))
+                    Match(Var("t_61"))
                   , Seq(
-                      Build(Var("d_57"))
+                      Build(Var("r_61"))
                     , Seq(
-                        CallT(SVar("z_27"), [], [])
+                        CallT(SVar("m_32"), [], [])
                       , Seq(
-                          Match(Var("g_57"))
+                          Match(Var("u_61"))
                         , Build(
                             Anno(
-                              Op("Snoc", [Var("f_57"), Var("g_57")])
-                            , Var("e_57")
+                              Op("Snoc", [Var("t_61"), Var("u_61")])
+                            , Var("s_61")
                             )
                           )
                         )
@@ -11005,7 +12712,7 @@ Specification(
       , SDefT(
           "DR__UNDEFINE_1_0"
         , [ VarDec(
-              "a_28"
+              "n_32"
             , FunType(
                 [ConstType(Sort("ATerm", []))]
               , ConstType(Sort("ATerm", []))
@@ -11014,19 +12721,19 @@ Specification(
           ]
         , []
         , Scope(
-            ["i_57", "h_57", "j_57"]
+            ["w_61", "v_61", "x_61"]
           , Seq(
               Match(
-                Anno(Op("DR_UNDEFINE", [Var("h_57")]), Var("i_57"))
+                Anno(Op("DR_UNDEFINE", [Var("v_61")]), Var("w_61"))
               )
             , Seq(
-                Build(Var("h_57"))
+                Build(Var("v_61"))
               , Seq(
-                  CallT(SVar("a_28"), [], [])
+                  CallT(SVar("n_32"), [], [])
                 , Seq(
-                    Match(Var("j_57"))
+                    Match(Var("x_61"))
                   , Build(
-                      Anno(Op("DR_UNDEFINE", [Var("j_57")]), Var("i_57"))
+                      Anno(Op("DR_UNDEFINE", [Var("x_61")]), Var("w_61"))
                     )
                   )
                 )

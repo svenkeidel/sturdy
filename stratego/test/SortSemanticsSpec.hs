@@ -387,7 +387,7 @@ spec = do
 
 
   describe "Arrow desugaring in Stratego" $
-    before arrDesugarCaseStudy $ do
+    before CaseStudy.arrows $ do
       it "tuple-pat': List Var -> APat" $ \desugar ->
         let ?ctx = signature desugar in
         let senv = stratEnv desugar
@@ -398,16 +398,16 @@ spec = do
           seval'' 2 10 (Call "tuple_pat_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
-      it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term "ArrCommand"
-            val  = term "APat"
-            env = termEnv [("vars-list", term $ List "Var")]
-        in do
-          print (Ctx.lookupCons ?ctx "Constr")
-          seval'' 2 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
-            successOrFail () (env, val)
+      -- it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
+      --   let ?ctx = signature desugar in
+      --   let senv = stratEnv desugar
+      --       prog = term "ArrCommand"
+      --       val  = term "APat"
+      --       env = termEnv [("vars-list", term $ List "Var")]
+      --   in do
+      --     print (Ctx.lookupCons ?ctx "Constr")
+      --     seval'' 2 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
+      --       successOrFail () (env, val)
 
       -- it "eval: Env * Exp -> Val" $ \desugar ->
       --   let ?ctx = signature desugar in
