@@ -19,6 +19,7 @@ import qualified Data.HashSet as H
 import           Data.Foldable (foldl',toList)
 import           Data.List (intercalate)
 import           Data.Order
+import           Data.String
 
 import           GHC.Generics (Generic)
 
@@ -44,6 +45,9 @@ instance Show a => Show (Pow a) where
 
 instance (Eq a, Hashable a) => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
+
+instance IsString f => IsString (Pow f) where
+  fromString = singleton . fromString
 
 empty :: Pow a
 empty = mempty

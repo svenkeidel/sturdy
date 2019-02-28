@@ -105,7 +105,7 @@ instance (ArrowChoice c,
           IsString f,
           ArrowStore Addr Value c,
           Store.Join c ((Value, Addr), Addr) Value
-         ) => JSOps Value Env Addr (ConcreteT c) where
+         ) => IsVal Value Env (ConcreteT c) where
     -- simple values
     numVal = arr VNumber
     boolVal = arr VBool
@@ -150,16 +150,18 @@ instance (ArrowChoice c,
         _ -> failWrongType -< ("String", f)
       _ -> failWrongType -< ("Object", o)
 
-    -- store ops
-    ref = arr VRef
-    withRef f g = proc (e, v) -> case v of
-      VRef a -> f -< (e, (a, v))
-      _ -> g -< (e, v)
+instance ArrowChoice c => IsRef Value Addr (ConcreteT c) where
+  type RefJoin (ConcreteT c) x y = ()
 
-failWrongType :: (ArrowChoice c, ArrowFail f c, IsString f, Show a) => c (String, a) b
-failWrongType = proc (typ, a) -> fail -< fromString $ printf "Wrong type. Expected %s but found %s" typ (show a)
+  -- store ops
+  ref = arr VRef
+  withRef f g = proc (e, v) -> case v of
+    VRef a -> f -< (e, (a, v))
+    _ -> g -< (e, v)
 
 instance (ArrowChoice c, ArrowExcept Exceptional c) => IsException Value Exceptional (ConcreteT c) where
+  type ExcJoin (ConcreteT c) x y = ()
+
   throwExc = arr Throw
   breakExc = arr (uncurry Break)
   handleThrow f = proc (x, e) -> case e of
@@ -177,6 +179,9 @@ instance (ArrowChoice c, ArrowFail f c, IsString f) => ArrowCond Value (Concrete
     VBool False -> f2 -< y
     _           -> failWrongType -< ("Bool", cond)
 
+
+failWrongType :: (ArrowChoice c, ArrowFail f c, IsString f, Show a) => c (String, a) b
+failWrongType = proc (typ, a) -> fail -< fromString $ printf "Wrong type. Expected %s but found %s" typ (show a)
 
 evalOp_ :: (ArrowChoice c, ArrowFail f c, IsString f) => c (Op, [Value]) Value
 evalOp_ = proc (op, args) -> case (op, args) of
@@ -292,13 +297,13 @@ evalOp_ = proc (op, args) -> case (op, args) of
         returnA -< VBool $ HM.member field vals
     (OObjCanDelete, [(VObject _ _), (VString field)]) ->
         returnA -< VBool $ (length field) > 0 && (not $ head field == '$')
-    (OObjIterHasNext, [(VObject props vals), VUndefined]) ->
+    (OObjIterHasNext, [(VObject props _), VUndefined]) ->
         returnA -< VBool $ not $ null props
-    (OObjIterHasNext, [(VObject props vals), (VNumber i)]) ->
+    (OObjIterHasNext, [(VObject props _), (VNumber i)]) ->
         returnA -< VBool $ (floor i)+1 < length props
-    (OObjIterNext, [(VObject (p:props) vals), VUndefined]) ->
+    (OObjIterNext, [(VObject (_:_) _), VUndefined]) ->
         returnA -< VNumber $ 0
-    (OObjIterNext, [(VObject props vals), (VNumber i)]) -> do
+    (OObjIterNext, [(VObject _ _), (VNumber i)]) -> do
         returnA -< VNumber $ i + 1
     (OObjIterKey, [(VObject props _), (VNumber i)]) -> do
         returnA -< (VString $ props !! floor i)

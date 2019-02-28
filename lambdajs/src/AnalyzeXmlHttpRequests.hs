@@ -12,7 +12,6 @@ module AnalyzeXmlHttpRequests where
 
 import           GHC.Generics (Generic)
 import           Prelude hiding (break, error, fail, id, (.), lookup, map, read)
-import qualified Prelude
 
 import           SharedInterpreter hiding (eval)
 import qualified SharedInterpreter as Shared
@@ -31,33 +30,26 @@ import           Control.Arrow.Abstract.Join
 
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Except
-import           Control.Arrow.Transformer.Abstract.Failure
+import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Store
 
-import           Data.Bits (shift)
-import           Data.Fixed (mod')
 import           Data.Foldable
 import qualified Data.Label as Lab
-import           Data.List
-import           Data.List.Split (splitOn)
 import           Data.Order
 import           Data.Profunctor
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import           Data.String
-import           Data.Word (Word32)
 
 import           Data.Abstract.Powerset (Pow(..))
 import qualified Data.Abstract.Powerset as Pow
 import           Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as M
 import           Data.Abstract.Except
-import           Data.Abstract.Failure
+import           Data.Abstract.Error
 
 import           Text.Printf
-import           Text.Read (readMaybe)
 
 type Env = Map Ident Type
 
@@ -129,32 +121,32 @@ instance PreOrd Exceptional where
 
 
 eval ::
-  AbstractT (
+  AnalysisT (
     EnvT Ident Type (
       StoreT Addr Type (
-        FailureT String (
+        ErrorT (Pow String) (
           ExceptT (Pow Exceptional) (
             ->)))))
   Expr Type
 eval = Shared.eval
 
-run :: [(Ident, Type)] -> [(Addr, Type)] -> Expr -> Except (Pow Exceptional) (Failure String (Map Addr Type, Type))
+run :: [(Ident, Type)] -> [(Addr, Type)] -> Expr -> Except (Pow Exceptional) (Error (Pow String) (Map Addr Type, Type))
 run env st e =
   runExceptT (
-    runFailureT (
+    runErrorT (
       runStoreT (
         runEnvT (
-          runAbstractT (
+          runAnalysisT (
             eval)))))
   (M.fromList st, (M.fromList env, e))
 
 -- | Arrow transformer that implements the abstract value semantics
-newtype AbstractT c x y = AbstractT { runAbstractT :: c x y }
+newtype AnalysisT c x y = AnalysisT { runAnalysisT :: c x y }
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail f, ArrowExcept ex, ArrowStore addr val, ArrowJoin)
-deriving instance ArrowFix x y c => ArrowFix x y (AbstractT c)
-deriving instance ArrowEnv var Type env c => ArrowEnv var Type env (AbstractT c)
+deriving instance ArrowFix x y c => ArrowFix x y (AnalysisT c)
+deriving instance ArrowEnv var Type env c => ArrowEnv var Type env (AnalysisT c)
 
-instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Lab.Label,Type) Addr (AbstractT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Lab.Label,Type) Addr (AnalysisT c) where
   alloc = arr (const ())
 
 unsafeStrings :: Set String
@@ -166,7 +158,7 @@ instance (ArrowChoice c,
           ArrowStore Addr Type c,
           ArrowJoin c,
           Store.Join c ((Type, Addr), Addr) Type
-         ) => JSOps Type Env Addr (AbstractT c) where
+         ) => IsVal Type Env (AnalysisT c) where
     -- simple values
     numVal = arr (const SafeAny)
     boolVal = arr (const SafeAny)
@@ -177,8 +169,6 @@ instance (ArrowChoice c,
 
     -- closures
     closureVal = arr $ \(env, ids, body) -> TLambda ids body env
-    -- | applies a closure to an argument. The given continuation
-    -- describes how to evaluated the body of the closure.
     applyClosure f = proc (fun, args) ->
         case fun of
           TLambda names body closureEnv -> f -< ((closureEnv, names, body), args)
@@ -186,48 +176,53 @@ instance (ArrowChoice c,
 
     -- objects
     objectVal = arr (const SafeAny)
-    getField = proc (o, f) -> case f of
+    getField = proc (_, f) -> case f of
       SafeString -> returnA -< Top
       SafeAny -> returnA -< Top
       _ -> failWrongType -< ("safe value", f)
-    updateField = proc (o, f, v) ->
+    updateField = proc (_, _, _) ->
       returnA -< SafeAny
-    deleteField = proc (o, f) ->
+    deleteField = proc (_, _) ->
       returnA -< SafeAny
 
-    -- store ops
-    ref = arr (const SafeAny)
-    withRef f g = proc (e, v) ->
-      (f -< (e, ((), v))) <⊔> (g -< (e, v))
+
+instance (ArrowChoice c, ArrowJoin c) => IsRef Type Addr (AnalysisT c) where
+  type RefJoin (AnalysisT c) x y = (Complete y)
+
+-- store ops
+  ref = arr (const SafeAny)
+  withRef f g = proc (e, v) ->
+    (f -< (e, ((), v))) <⊔> (g -< (e, v))
 
 failWrongType :: (ArrowChoice c, ArrowFail f c, IsString f, Show a) => c (String, a) b
 failWrongType = proc (typ, a) -> fail -< fromString $ printf "Wrong type. Expected %s but found %s" typ (show a)
 
-instance (ArrowChoice c, ArrowJoin c, ArrowExcept (Pow Exceptional) c) => IsException Type (Pow Exceptional) (AbstractT c) where
+instance (ArrowChoice c, ArrowJoin c, ArrowExcept (Pow Exceptional) c) => IsException Type (Pow Exceptional) (AnalysisT c) where
+  type ExcJoin (AnalysisT c) x a = (Complete a)
+
   throwExc = arr (Pow.singleton . Throw)
   breakExc = arr (Pow.singleton . uncurry Break)
   handleThrow f = proc (x, Pow es) -> case Seq.partition isThrow es of
     (throws, Seq.Empty) -> (| joinList' (\ex -> f -< (x, throwValue ex)) |) (toList throws)
     (Seq.Empty, breaks) -> throw -< Pow breaks
-    (throws, breaks) -> (| joinList' (\ex -> f -< (x, throwValue ex)) |) (toList throws)  ⊔  (throw -< Pow breaks)
+    (throws, breaks) -> (| joinList' (\ex -> f -< (x, throwValue ex)) |) (toList throws)  <⊔>  (throw -< Pow breaks)
     where
       isThrow e = case e of Throw _ -> True; _ -> False
       throwValue e = case e of Throw v -> v
   handleBreak f = proc (x, Pow es) -> case Seq.partition isBreak es of
     (breaks, Seq.Empty) -> (| joinList' (\ex -> f -< (x, breakLabel ex, breakValue ex)) |) (toList breaks)
     (Seq.Empty, throws) -> throw -< Pow throws
-    (breaks, throws) -> (| joinList' (\ex -> f -< (x, breakLabel ex, breakValue ex)) |) (toList breaks)  ⊔  (throw -< Pow throws)
+    (breaks, throws) -> (| joinList' (\ex -> f -< (x, breakLabel ex, breakValue ex)) |) (toList breaks)  <⊔>  (throw -< Pow throws)
     where
       isBreak e = case e of Break _ _ -> True; _ -> False
       breakValue e = case e of Break _ v -> v
       breakLabel e = case e of Break l _ -> l
 
-instance (ArrowChoice c, ArrowFail f c, IsString f, ArrowJoin c) => ArrowCond Type (AbstractT c) where
-  type Join (AbstractT c) (x,y) z = Complete z
+instance (ArrowChoice c, ArrowFail f c, IsString f, ArrowJoin c) => ArrowCond Type (AnalysisT c) where
+  type Join (AnalysisT c) (x,y) z = Complete (c (x,y) z)
 
-  if_ f1 f2 = proc (cond, (x, y)) ->
-    (f1 -< x) <⊔> (f2 -< y)
-
+  if_ (AnalysisT f1) (AnalysisT f2) = AnalysisT $ proc (_, (x, y)) ->
+    joined f1 f2 -< (x, y)
 
 evalOp_ :: (ArrowChoice c, ArrowFail f c, IsString f) => c (Op, [Type]) Type
 evalOp_ = proc (op, args) -> case (op, args) of
@@ -246,7 +241,7 @@ evalOp_ = proc (op, args) -> case (op, args) of
     (OSpRShift, _) -> returnA -< SafeAny
     (OZfRShift, _) -> returnA -< SafeAny
     -- string operators
-    (OStrPlus, [a, b]) -> returnA -< UnsafeString
+    (OStrPlus, [_, _]) -> returnA -< UnsafeString
     (OStrLt, _) -> returnA -< SafeAny
     (OStrLen, _) -> returnA -< SafeAny
     (OStrStartsWith, _) -> returnA -< SafeAny
@@ -286,8 +281,6 @@ evalOp_ = proc (op, args) -> case (op, args) of
     (OHasOwnProp, _) -> returnA -< SafeAny
     (OObjCanDelete, _) -> returnA -< SafeAny
     (OObjIterHasNext, _) -> returnA -< SafeAny
-    (OObjIterHasNext, _) -> returnA -< SafeAny
-    (OObjIterNext, _) -> returnA -< SafeAny
     (OObjIterNext, _) -> returnA -< SafeAny
     (OObjIterKey, _) -> returnA -< UnsafeString
     --

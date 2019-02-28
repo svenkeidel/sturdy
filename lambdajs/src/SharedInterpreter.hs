@@ -4,26 +4,33 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
-
 {-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ConstraintKinds #-}
 module SharedInterpreter where
 
 import           Prelude             hiding (break, lookup, map, read, fail, exp)
 
 import           Control.Arrow
 import           Control.Arrow.Alloc
-import           Control.Arrow.Conditional as Cond
-import           Control.Arrow.Environment as Env
-import           Control.Arrow.Except as Exc
+import           Control.Arrow.Conditional as Cond hiding (Join)
+import qualified Control.Arrow.Conditional as Cond
+import           Control.Arrow.Environment as Env hiding (Join)
+import qualified Control.Arrow.Environment as Env
+import           Control.Arrow.Except as Exc hiding (Join)
+import qualified Control.Arrow.Except as Exc
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Store as Store
+import           Control.Arrow.Store as Store hiding (Join)
+import qualified Control.Arrow.Store as Store
 import           Control.Arrow.Utils
 
 import qualified Data.Label as Lab
 import           Data.Profunctor
 import           Data.String
+
+import GHC.Exts(Constraint)
 
 import           Text.Printf
 
@@ -33,42 +40,49 @@ import           Syntax
 -- This typeclass can be split up into multiple to partially reuse implementations across interpreters
 -- But this might not save effort if the implementation is completely different.
 
-class Arrow c => JSOps v env addr c | c -> v, c -> env, c -> addr where
-    -- simple values
-    numVal :: c Double v
-    boolVal :: c Bool v
-    stringVal :: c String v
-    undefVal :: c () v
-    nullVal :: c () v
-    evalOp :: c (Op, [v]) v
+class Arrow c => IsVal v env c | c -> v, c -> env where
+  -- simple values
+  numVal :: c Double v
+  boolVal :: c Bool v
+  stringVal :: c String v
+  undefVal :: c () v
+  nullVal :: c () v
+  evalOp :: c (Op, [v]) v
 
-    -- closures
-    closureVal :: c (env, [Ident], Expr) v
-    -- | applies a closure to an argument. The given continuation
-    -- describes how to evaluated the body of the closure.
-    applyClosure :: c ((env, [Ident], Expr),[v]) v -> c (v, [v]) v
+  -- objects
+  objectVal :: c [(Ident, v)] v
+  getField :: c (v, v) v
+  updateField :: c (v, v, v) v
+  deleteField :: c (v, v) v
 
-    -- objects
-    objectVal :: c [(Ident, v)] v
-    getField :: c (v, v) v
-    updateField :: c (v, v, v) v
-    deleteField :: c (v, v) v
+  -- closures
+  closureVal :: c (env, [Ident], Expr) v
+  -- | applies a closure to an argument. The given continuation
+  -- describes how to evaluated the body of the closure.
+  applyClosure :: c ((env, [Ident], Expr),[v]) v -> c (v, [v]) v 
 
-    -- store ops
-    ref :: c addr v
-    withRef :: c (e,(addr,v)) x -> c (e,v) x -> c (e,v) x 
+class Arrow c => IsRef v addr c | c -> v, c -> addr where
+  type family RefJoin (c :: * -> * -> *) x y :: Constraint
 
-class IsException v e c | c -> e where
-  throwExc :: c v e
-  breakExc :: c (Label, v) e
-  handleThrow :: c (x, v) a -> c (x,e) a
-  handleBreak :: c (x, Label, v) a -> c (x,e) a
+  -- store ops
+  ref :: c addr v
+  withRef :: RefJoin c (s,(addr,v),v) x => c (s,(addr,v)) x -> c (s,v) x -> c (s,v) x 
 
-withRef' :: (JSOps v env addr c, ArrowFail f c, IsString f, Show v) => c (e,(addr,v)) x -> c (e,v) x 
+withRef' :: (IsRef v addr c, RefJoin c (s,(addr,v),v) x, ArrowFail f c, IsString f, Show v) => c (s,(addr,v)) x -> c (s,v) x 
 withRef' f = withRef f (proc (_,refVal) -> fail -< fromString $ printf "Not a reference %s" (show refVal))
 
+class Arrow c => IsException v e c | c -> e where
+  type family ExcJoin (c :: * -> * -> *) x y :: Constraint
 
-eval :: (JSOps v env addr c,
+  throwExc :: c v e
+  breakExc :: c (Label, v) e
+  handleThrow :: ExcJoin c ((x, v),e) a => c (x, v) a -> c (x,e) a
+  handleBreak :: ExcJoin c ((x, Label, v),e) a => c (x, Label, v) a -> c (x,e) a
+
+
+eval :: (IsVal v env c,
+         IsRef v addr c,
+         IsException v e c,
          ArrowChoice c,
          ArrowFix Expr v c,
          ArrowCond v c,
@@ -77,6 +91,12 @@ eval :: (JSOps v env addr c,
          ArrowExcept e c, IsException v e c,
          ArrowStore addr v c, ArrowAlloc (Lab.Label,v) addr c,
          Show v, Show addr,
+
+         RefJoin c ((), (addr, v), v) v,
+         RefJoin c (v, (addr, v), v) v,
+         ExcJoin c (((Expr, Expr), v), e) v,
+         ExcJoin c (((Expr, Label), Label, v), e) v,
+
          Cond.Join c (Expr, Expr) v,
          Env.Join c ((v,Ident),Ident) v,
          Store.Join c ((v, addr), addr) v,
