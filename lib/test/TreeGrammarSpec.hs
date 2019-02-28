@@ -29,7 +29,7 @@ spec = do
 
   describe "Inclusion" $ do
     it "should work for non-deterministic grammars" $ do
-      let g :: GrammarBuilder Named Constr
+      let g :: Grammar Named Constr
           g = grammar "S" [ ("S", [ ("f",["A", "B"])
                                   , ("f",["A'", "B'"])])
                           , ("A", [ ("a",[]) ])
@@ -38,7 +38,7 @@ spec = do
                           , ("B'", [ ("b'",[]) ])
                           ]
                           []
-          g' :: GrammarBuilder Named Constr
+          g' :: Grammar Named Constr
           g' = grammar "S" [ ("S", [("f",["A", "B"])])
                            , ("A", [("a",[]), ("a'",[])])
                            , ("B", [("b",[]), ("b'",[])])
@@ -51,7 +51,7 @@ spec = do
       pcf_sub `shouldBeSubsetOf` pcf
       pcf `shouldNotBeSubsetOf` pcf_sub
 
-    prop "should be reflexive" $ \(g :: GrammarBuilder Named Constr) ->
+    prop "should be reflexive" $ \(g :: Grammar Named Constr) ->
       g `shouldBeSubsetOf` g
 
   describe "Union" $ do
@@ -59,122 +59,62 @@ spec = do
     it "should work for non deterministic grammars" $
       union pcf nondet `shouldBe` pcf_nondet
 
-    prop "should be idempotent: G ∪ G = G" $ \(g :: GrammarBuilder Named Constr) ->
+    prop "is idempotent: G ∪ G = G" $ \(g :: Grammar Named Constr) ->
       union g g `shouldBe` g
 
-    prop "should be an upper bound: G1 ⊆ G1 ∪ G2" $ \(g1 :: GrammarBuilder Named Constr) (g2 :: GrammarBuilder Named Constr) ->
+    prop "is an upper bound: G1 ⊆ G1 ∪ G2" $ \(g1 :: Grammar Named Constr) (g2 :: Grammar Named Constr) -> do
       g1 `shouldBeSubsetOf` union g1 g2
+      g2 `shouldBeSubsetOf` union g1 g2
 
+  describe "Intersection" $ do
+    prop "should be idempotent: G ∩ G = G" $ \(g :: Grammar Named Constr) ->
+      intersection g g `shouldBe` g
 
-  -- describe "Intersection" $ do
-  --   it "of a subset of the PCF grammar should be that subset" $
-  --     intersection pcf pcf_sub `shouldBeLiteral` (grammar "PStart⨯PSStart" $
-  --                                                 M.fromList [ ("Exp⨯Exp", [ Ctor "Zero" []
-  --                                                                          , Ctor "Succ" ["Exp⨯Exp"]
-  --                                                                          , Ctor "Pred" ["Exp⨯Exp"]])
-  --                                                            , ("PStart⨯PSStart", [ Ctor "Zero" []
-  --                                                                                 , Ctor "Succ" ["Exp⨯Exp"]
-  --                                                                                 , Ctor "Pred" ["Exp⨯Exp"]
-  --                                                                                 , Ctor "Num" []
-  --                                                                                 , Ctor "Fun" [ "Type⨯Type", "Type⨯Type" ]])
-  --                                                            , ("Type⨯Type", [ Ctor "Num" []
-  --                                                                            , Ctor "Fun" [ "Type⨯Type", "Type⨯Type" ]])])
+    prop "is lower bound: G1 ∩ G2 ⊆ G1" $ \(g1 :: Grammar Named Constr) (g2 :: Grammar Named Constr) -> do
+      intersection g1 g2 `shouldBeSubsetOf` g1
+      intersection g1 g2 `shouldBeSubsetOf` g2
 
-  --   it "should give an empty grammar if the arguments have no intersection" $ do
-  --     intersection nondet pcf `shouldBeLiteral` (grammar "S⨯PStart" M.empty)
-
-  --   it "should give an empty grammar when one of the arguments is an empty grammar" $ do
-  --     intersection nondet infinite `shouldBeLiteral` (grammar "S⨯EStart" M.empty)
-  --     intersection infinite nondet `shouldBeLiteral` (grammar "EStart⨯S" M.empty)
+    prop "is the opposite of union" $ \(g1 :: Grammar Named Constr) (g2 :: Grammar Named Constr) ->
+      g1 `union` (g1 `intersection` g2) `shouldBe` g1 `intersection` (g1 `union` g2)
 
   describe "Grammar Optimizations" $ do
     describe "Epsilon Closure" $ do
       prop "describes the same language: epsilonClosure g = g" $
-        \(g :: GrammarBuilder Named Constr) -> epsilonClosure g `shouldBe` g
+        \(g :: Grammar Named Constr) -> epsilonClosure g `shouldBe` g
 
     describe "Dropping unreachable prductions" $ do
       prop "describes the same language: dropUnreachable g = g" $
-        \(g :: GrammarBuilder Named Constr) -> dropUnreachable g `shouldBe` g
+        \(g :: Grammar Named Constr) -> dropUnreachable g `shouldBe` g
 
     describe "Dropping unproductive prductions" $ do
       prop "removes infinite terms from the language: dropUnproductive g ⊆ g" $
-        \(g :: GrammarBuilder Named Constr) -> do
+        \(g :: Grammar Named Constr) -> do
            dropUnproductive g `shouldBeSubsetOf` g
 
     describe "Determinization" $ do
       prop "removes relations between subterms: g ⊆ determinize g" $ do
-        \(g :: GrammarBuilder Named Constr) -> do
+        \(g :: Grammar Named Constr) -> do
            g `shouldBeSubsetOf` determinize g
 
       prop "is idempotent: determinize g = determinize (determinize g)" $ do
-        \(g :: GrammarBuilder Named Constr) ->
-           let g' = determinize g :: GrammarBuilder Named Constr
+        \(g :: Grammar Named Constr) ->
+           let g' = determinize g :: Grammar Named Constr
            in g' `shouldBe` determinize g'
 
   describe "Hashing" $
     prop "unequal hashes imply inequality" $
-      \(g1 :: GrammarBuilder Named Constr) ->
-      \(g2 :: GrammarBuilder Named Constr) ->
+      \(g1 :: Grammar Named Constr) ->
+      \(g2 :: Grammar Named Constr) ->
       hash g1 /= hash g2 ==> g1 `shouldNotBe` g2
 
   describe "Subterms" $ do
     prop "toSubterms and fromSubterms are inverse" $
-      \(g :: GrammarBuilder Named Constr) ->
+      \(g :: Grammar Named Constr) ->
          fromSubterms (toSubterms g) `shouldBe` g
 
     prop "fromSubterms and toSubterms are inverse" $
-      \(g :: Constr (GrammarBuilder Named Constr)) ->
+      \(g :: Constr (Grammar Named Constr)) ->
          toSubterms (fromSubterms g) `shouldBe` g
-
-           -- describe "Size" $ do
-  --   it "should be 25 on PCF" $
-  --     size pcf `shouldBe` 25
-
-  --   it "should be 10 on nondet" $
-  --     size nondet `shouldBe` 10
-
-  --   it "should be defined on an infinite grammar" $
-  --     size infinite `shouldBe` 2
-
-  -- describe "Height" $ do
-  --   it "should be 11 on PCF" $
-  --     height pcf `shouldBe` 11
-
-  --   it "should be 5 on nondet" $
-  --     height nondet `shouldBe` 5
-
-  --   it "should be defined on an infinite grammar" $
-  --     height infinite `shouldBe` 1
-
-  -- describe "Productivity" $ do
-  --   it "should give all nonterminals for PCF" $ do
-  --     (`productive` pcf) ["Exp", "Type", "String", "PStart"] `shouldBe` [True, True, True, True]
-
-  --   it "should give no nonterminals for infinite" $ do
-  --     let infinite' = evalState infinite 0
-  --     map (`isProductive` infinite') ["foo", "EStart"] `shouldBe` [False, False]
-
-  --   it "should give all nonterminals for a nondeterministic grammar" $ do
-  --     let nondet'' = evalState nondet 0
-  --     map (`isProductive` nondet'') ["S", "A", "G", "F"] `shouldBe` [True, True, True, True]
-
-  --   it "should give all nonterminals for nondet'" $ do
-  --     let nondet''' = evalState nondet' 0
-  --     map (`isProductive` nondet''') ["S", "A", "G", "H", "F"] `shouldBe` [True, True, True, True, True]
-
-  --   it "should give all nonterminals for the PCF subset" $ do
-  --     let pcf_sub' = evalState pcf_sub 0
-  --     map (`isProductive` pcf_sub') ["PSStart", "Exp", "Type"] `shouldBe` [True, True, True]
-
-  --   it "should give all nonterminals for the union of PCF and a nondeterministic grammar" $ do
-  --     let pcf_nondet' = evalState pcf_nondet 0
-  --     map (`isProductive` pcf_nondet') ["Start0", "PStart", "S", "A", "G", "F", "Exp", "Type", "Type"] `shouldBe` [True, True, True, True, True, True, True, True, True]
-
-  --   it "should correctly compute that PCF produces Zero, Num and String" $
-  --     map (\n -> produces (pcf::GrammarBuilder Text) n) ["Zero", "Num", "String", "Succ", "Pred", "Ifz"] `shouldBe` [True, True, True, False, False, False]
-
-  --   it "should correctly compute that the infinite grammar does not produce \"foo\"" $
-  --     produces infinite "foo" `shouldBe` False
 
   -- describe "Emptiness" $ do
   --   it "should be true on the infinite infinite grammar" $
@@ -200,7 +140,7 @@ spec = do
   --     pcf `shouldNotSatisfy` isSingleton
 
   --   it "should be true on a singleton grammar" $
-  --     let g :: GrammarBuilder Text
+  --     let g :: Grammar Text
   --         g = grammar "Foo" (M.fromList [ ("Foo", [ Ctor "Bar" [ "Baz" ] ])
   --                                       , ("Baz", [ Ctor "Baz" [] ]) ])
   --     in g `shouldSatisfy` isSingleton
@@ -355,7 +295,7 @@ spec = do
   --                                                                                              ,("par","T7",0)])]
 
   --   it "should replace nonterminals with ancestors" $ do
-  --     let consr :: GrammarBuilder Int Constr
+  --     let consr :: Grammar Int Constr
   --         consr = grammar "T3" $ M.fromList [ ("T3", [ Ctor "nil" [], Ctor "cons" ["T4","T3"] ])
   --                                           , ("T4", [ Ctor "any" [] ])
   --                                           , ("T6", [ Ctor "any" [] ])
@@ -364,7 +304,7 @@ spec = do
   --     return (replaceNonterm "T5" "T3" cons1') `shouldBeLiteral` consr
 
   --   it "should replace an edge" $ do
-  --     let consr :: GrammarBuilder Int Constr
+  --     let consr :: Grammar Int Constr
   --         consr = grammar "T3" $ M.fromList [ ("T3", [ Ctor "nil" [], Ctor "cons" ["T4","T3"] ])
   --                                           , ("T4", [ Ctor "any" [] ])
   --                                           , ("T5", [ Ctor "nil" [], Ctor "cons" ["T6","T7"] ])
@@ -392,7 +332,7 @@ spec = do
   --     arith1 `shouldSatisfy` subsetOf w_arith
 
   where
-    nondet :: GrammarBuilder Named Constr
+    nondet :: Grammar Named Constr
     nondet = grammar "S" [ ("A", [ ("a",[]) ])
                          , ("G", [ ("g",[ "G" ])
                                  , ("g",[ "A" ])])
@@ -406,7 +346,7 @@ spec = do
     --                         , ("H", [ Eps "G" ])
     --                         , ("F", [ Ctor "f" [ "G", "H" ]])]
     -- infinite = grammar "EStart" $ [ ("EStart", [ Ctor "Bar" ["EStart"]])]
-    pcf :: GrammarBuilder Named Constr
+    pcf :: Grammar Named Constr
     pcf = grammar "PStart" [ ("Exp", [ ("App",["Exp", "Exp"])
                                      , ("Abs",["String", "Type", "Exp"])
                                      , ("Zero",[])
@@ -421,14 +361,14 @@ spec = do
                            ]
 
                            [ ("PStart", [ "Exp" , "Type" ]) ]
-    pcf_sub :: GrammarBuilder Named Constr
+    pcf_sub :: Grammar Named Constr
     pcf_sub = grammar "PSStart" [ ("Exp", [ ("Succ",[ "Exp" ])
                                           , ("Pred",[ "Exp" ])
                                           , ("Zero",[])])
                                 , ("Type", [ ("Num",[])
                                            , ("Fun",["Type", "Type"])])]
                                 [ ("PSStart", [ "Exp" , "Type" ]) ]
-    pcf_nondet :: GrammarBuilder Named Constr
+    pcf_nondet :: Grammar Named Constr
     pcf_nondet = grammar "Start" [ ("A", [ ("a",[]) ])
                                  , ("G", [ ("g",[ "G" ])
                                          , ("g",[ "A" ])])
@@ -445,17 +385,17 @@ spec = do
 
                                  [ ("Start", [ "Exp" , "Type", "F" ]) ]
 
-    -- cons0 :: GrammarBuilder Named Constr
+    -- cons0 :: Grammar Named Constr
     -- cons0 = grammar "T0" $ M.fromList [ ("T0", [ Ctor "nil" [], Ctor "cons" ["T1","T2"] ])
     --                                   , ("T1", [ Ctor "any" [] ])
     --                                   , ("T2", [ Ctor "nil" [] ])]
-    -- cons1 :: GrammarBuilder Named Constr
+    -- cons1 :: Grammar Named Constr
     -- cons1 = grammar "T3" $ M.fromList [ ("T3", [ Ctor "nil" [], Ctor "cons" ["T4","T5"] ])
     --                                   , ("T4", [ Ctor "any" [] ])
     --                                   , ("T5", [ Ctor "nil" [], Ctor "cons" ["T6","T7"] ])
     --                                   , ("T6", [ Ctor "any" [] ])
     --                                   , ("T7", [ Ctor "nil" [] ])]
-    -- cons2 :: GrammarBuilder Named Constr
+    -- cons2 :: Grammar Named Constr
     -- cons2 = grammar "T8" $ M.fromList [ ("T8", [ Ctor "nil" [], Ctor "cons" ["T9","T10"] ])
     --                                   , ("T9", [ Ctor "any" [] ])
     --                                   , ("T10", [ Ctor "nil" [], Ctor "cons" ["T11","T12"] ])
@@ -463,21 +403,21 @@ spec = do
     --                                   , ("T12", [ Ctor "nil" [], Ctor "cons" ["T13","T14"] ])
     --                                   , ("T13", [ Ctor "any" [] ])
     --                                   , ("T14", [ Ctor "nil" [] ])]
-    -- cons01 :: GrammarBuilder Named Constr
+    -- cons01 :: Grammar Named Constr
     -- cons01 = grammar "T3" $ M.fromList [ ("T3", [ Ctor "nil" [], Ctor "cons" ["T4", "T3"] ])
     --                                    , ("T4", [ Ctor "any" [] ])]
-    -- cons12 :: GrammarBuilder Named Constr
+    -- cons12 :: Grammar Named Constr
     -- cons12 = grammar "T8" $ M.fromList [ ("T8", [ Ctor "nil" [], Ctor "cons" ["T9", "T10"] ])
     --                                    , ("T9", [ Ctor "any" [] ])
     --                                    , ("T10", [ Ctor "nil" [], Ctor "cons" ["T11", "T10"] ])
     --                                    , ("T11", [ Ctor "any" [] ])]
 
-    -- arith0 :: GrammarBuilder Named Constr
+    -- arith0 :: Grammar Named Constr
     -- arith0 = grammar "T0" $ M.fromList [ ("T0", [ Ctor "zero" [], Ctor "Add" ["Tx", "T1"] ])
     --                                    , ("Tx", [ Ctor "zero" [] ])
     --                                    , ("T1", [ Ctor "one" [], Ctor "Mul" ["T1","T2"] ])
     --                                    , ("T2", [ Ctor "cst" [], Ctor "par" ["Tx"], Ctor "var" [] ])]
-    -- arith1 :: GrammarBuilder Named Constr
+    -- arith1 :: Grammar Named Constr
     -- arith1 = grammar "Tn" $ M.fromList [ ("Tn", [ Ctor "zero" [], Ctor "Add" ["T3","T6"] ])
     --                                    , ("T3", [ Ctor "zero" [], Ctor "Add" ["Tx","T4"] ])
     --                                    , ("Tx", [ Ctor "Zero" [] ])
@@ -485,21 +425,21 @@ spec = do
     --                                    , ("T5", [ Ctor "cst" [], Ctor "par" ["Tx"], Ctor "var" [] ])
     --                                    , ("T6", [ Ctor "one" [], Ctor "Mul" ["T6","T7"] ])
     --                                    , ("T7", [ Ctor "cst" [], Ctor "par" ["T3"], Ctor "var" [] ])]
-    -- arith2 :: GrammarBuilder Named Constr
+    -- arith2 :: Grammar Named Constr
     -- arith2 = grammar "T0" $ M.fromList [ ("T0", [ Ctor "cst" [], Ctor "var" [] ]) ]
-    -- arith3 :: GrammarBuilder Named Constr
+    -- arith3 :: Grammar Named Constr
     -- arith3 = grammar "Tn" $ M.fromList [ ("Tn", [ Ctor "cst" [], Ctor "par" ["Tx"], Ctor "var" [] ])
     --                                    , ("Tx", [ Ctor "zero" [] ]) ]
-    -- arith01 :: GrammarBuilder Named Constr
+    -- arith01 :: Grammar Named Constr
     -- arith01 = grammar "Tn" $ M.fromList [ ("Tn", [ Ctor "zero" [], Ctor "Add" ["Tn","T6"] ])
     --                                     , ("T6", [ Ctor "one" [], Ctor "Mul" ["T6","T7"] ])
     --                                     , ("T7", [ Ctor "var" [], Ctor "par" ["Tn"], Ctor "cst" [] ])]
 
-    shouldBeSubsetOf :: (Show n, Show (t n), IsGrammar n t) => GrammarBuilder n t -> GrammarBuilder n t -> Expectation
+    shouldBeSubsetOf :: (Show n, Show (t n), IsGrammar n t) => Grammar n t -> Grammar n t -> Expectation
     shouldBeSubsetOf b1 b2 = unless (b1 `subsetOf` b2) $
       expectationFailure (printf "Grammar %s is not subset of %s" (show b1) (show b2))
 
-    shouldNotBeSubsetOf :: (Show n, Show (t n), IsGrammar n t) => GrammarBuilder n t -> GrammarBuilder n t -> Expectation
+    shouldNotBeSubsetOf :: (Show n, Show (t n), IsGrammar n t) => Grammar n t -> Grammar n t -> Expectation
     shouldNotBeSubsetOf b1 b2 = when (b1 `subsetOf` b2) $
       expectationFailure (printf "Grammar %s is subset of %s" (show b1) (show b2))
 
@@ -507,12 +447,12 @@ spec = do
 type NonTerminals = [String]
 type Alphabet = [(Text,Int)]
 
-instance Arbitrary (GrammarBuilder Named Constr) where
+instance Arbitrary (Grammar Named Constr) where
   arbitrary = arbitraryGrammar
               ["A","B","C","D","E","F"]
               [("a",0),("b",0),("c",0),("f",1),("g",2),("h",0),("h",1),("h",2)]
 
-arbitraryGrammar :: NonTerminals -> Alphabet -> Gen (GrammarBuilder Named Constr)
+arbitraryGrammar :: NonTerminals -> Alphabet -> Gen (Grammar Named Constr)
 arbitraryGrammar ns alph = do
   grammar <$> elements ns <*> genCons <*> genEps
   where

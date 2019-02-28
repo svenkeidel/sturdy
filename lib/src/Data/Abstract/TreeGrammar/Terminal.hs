@@ -33,6 +33,7 @@ class Terminal t where
   filter :: (n -> Bool) -> t n -> t n
   determinize :: (Identifiable n, Identifiable n', Applicative f) => (HashSet n -> f n') -> t n -> f (t n')
   subsetOf :: (Identifiable n, Identifiable n', MonadPlus f) => ([(n,n')] -> f ()) -> t n -> t n' -> f ()
+  intersection :: (Identifiable n1, Identifiable n2, Identifiable n', Applicative f) => ([(n1,n2)] -> f [n']) -> t n1 -> t n2 -> f (t n')
   traverse :: (Identifiable n', Applicative f) => (n -> f n') -> t n -> f (t n')
   hashWithSalt :: (Identifiable n, Monad f) => (Int -> n -> f Int) -> Int -> t n -> f Int
 
@@ -60,9 +61,15 @@ instance Terminal Constr where
     ar <- M.elems m
     sub <- IM.elems ar
     concat (H.toList sub)
-  productive prod (Constr m) = any (any (any (all (`H.member` prod)))) m
+
+  productive prod (Constr m)
+    | M.null m  = False
+    | otherwise = any (any (any (all (`H.member` prod)))) m
+
   filter pred (Constr m) = Constr (M.map (IM.map (H.filter (all pred))) m)
+
   determinize f (Constr m) = Constr <$> T.traverse (T.traverse (fmap H.singleton . T.traverse f . transpose)) m
+
   subsetOf leq (Constr m1) (Constr m2) = do
     guard (m1 `subsetKeys` m2)
     forM_ (M.intersectionWith (,) m1 m2) $ \(a1,a2) -> do
@@ -70,6 +77,12 @@ instance Terminal Constr where
       forM_ (IM.intersectionWith (,) a1 a2) $ \(l1,l2)-> do
         forM_ l1 $ \as ->
           msum [ leq (zip as bs) | bs <- H.toList l2 ]
+
+  intersection f (Constr m1) (Constr m2) = Constr <$> T.traverse (T.traverse (fmap H.fromList . T.traverse f)) (M.intersectionWith (IM.intersectionWith cross) m1 m2)
+    where
+      cross :: HashSet [a] -> HashSet [b] -> [[(a,b)]]
+      cross t1 t2 = [ zip as bs | as <- (H.toList t1), bs <- (H.toList t2)]
+
   traverse f (Constr m) = Constr <$> T.traverse (T.traverse (traverseHashSet (T.traverse f))) m
   hashWithSalt f s m = foldM (\s' (c,ts) -> foldM f (s' `Hash.hashWithSalt` c) ts) s (toList m)
 

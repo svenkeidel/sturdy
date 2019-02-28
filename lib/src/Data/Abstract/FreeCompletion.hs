@@ -17,8 +17,10 @@ import Data.Profunctor
 import Data.Abstract.Widening
 import Data.Hashable
 import Data.Order
+import Data.Text(Text)
 
 import GHC.Generics(Generic)
+import GHC.Exts
 
 data FreeCompletion a = Lower a | Top deriving (Eq,Functor,Traversable,Foldable,Generic)
 
@@ -78,6 +80,13 @@ instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]
       eqLength _ _ = False
   _ ⊔ _ = Top
 
+instance Complete (FreeCompletion Int) where
+  Lower x ⊔ Lower y | x == y = Lower x
+  _ ⊔ _ = Top
+
+instance Complete (FreeCompletion Text) where
+  Lower x ⊔ Lower y | x == y = Lower x
+  _ ⊔ _ = Top
 
 instance CoComplete a => CoComplete (FreeCompletion a) where
   Lower a ⊓ Lower b = Lower (a ⊓ b) 
@@ -102,6 +111,9 @@ instance Fractional a => Fractional (FreeCompletion a) where
 instance Complete (FreeCompletion ()) where
   Lower _ ⊔ Lower _ = Lower ()
   _ ⊔ _ = Top
+
+instance IsString s => IsString (FreeCompletion s) where
+  fromString = Lower . fromString
 
 toEither :: FreeCompletion a -> Either () a
 toEither Top = Left ()
