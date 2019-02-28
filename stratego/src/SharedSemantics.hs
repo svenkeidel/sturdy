@@ -5,6 +5,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TupleSections #-}
 module SharedSemantics where
 
 import           Prelude hiding ((.),id,all,sequence,curry, uncurry,fail)
@@ -121,8 +122,9 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
   case M.lookup f senv of
     Just (Closure (Strategy formalStratArgs formalTermArgs body) senv') -> do
       tenv <- getTermEnv -< ()
-      let termArgs = zip actualTermArgs formalTermArgs
+      let termArgs = (tenv,) <$> zip actualTermArgs formalTermArgs
           stratArgs = zip formalStratArgs actualStratArgs
+      emptyTermEnv -< ()
       mapA bindTermArg -< termArgs
       let senv'' = bindStratArgs stratArgs (if M.null senv' then senv else senv')
       b <- localStratEnv senv'' (interp (Apply body)) -<< a
@@ -131,10 +133,10 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
       returnA -< b
     Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
   where
-    bindTermArg = proc (actual,formal) ->
-      lookupTermVar' (proc t -> do insertTerm' -< (formal,t); returnA -< t)
-                     (proc _ -> fail -< fromString $ "unbound term variable " ++ show actual ++ " in strategy call " ++ show (Call f actualStratArgs actualTermArgs))
-        -<< (actual, ())
+    bindTermArg = proc (tenv,(actual,formal)) ->
+      lookupTermVar (proc t -> do insertTerm' -< (formal,t); returnA -< (t))
+                    (proc _ -> fail -< fromString $ "unbound term variable " ++ show actual ++ " in strategy call " ++ show (Call f actualStratArgs actualTermArgs))
+        -<< (actual, tenv, ())
     {-# INLINE bindTermArg #-}
 
     bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
@@ -244,6 +246,8 @@ class Arrow c => IsTermEnv env t c | c -> env, env -> t where
   -- | Fetch the current term environment.
   putTermEnv :: c env ()
                 
+  emptyTermEnv :: c () ()
+
   -- | Lookup a term in the given environment, the first continuation
   -- is called in case the term is in the environment and the second
   -- continuation otherwise.

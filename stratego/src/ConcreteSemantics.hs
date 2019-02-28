@@ -87,6 +87,7 @@ instance HasStratEnv Interp where
 instance IsTermEnv TermEnv Term Interp where
   getTermEnv = get
   putTermEnv = put
+  emptyTermEnv = lmap (\() -> TermEnv M.empty) put
   lookupTermVar f g = proc (v,TermEnv env,exc) ->
     case M.lookup v env of
       Just t -> f -< t

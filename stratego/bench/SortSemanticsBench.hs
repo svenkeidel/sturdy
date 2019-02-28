@@ -11,7 +11,7 @@ import qualified CaseStudy
 import           SortContext(Context,Sort(..))
 import qualified SortContext as Ctx
 
-import qualified Data.Abstract.WeakMap as S
+import qualified Data.Abstract.Map as S
 import qualified Data.HashMap.Lazy as M
 
 

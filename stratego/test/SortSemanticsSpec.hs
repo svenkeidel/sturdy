@@ -261,14 +261,14 @@ spec = do
       let t = term (Tuple ["Exp","Exp"])
           tenv = termEnv [("x",t)]
       in seval' 2 (Let [("swap", swap)] (Scope ["x"] (Match "x" `Seq` Call "swap" [] ["x"]))) tenv t
-           `shouldBe` success (delete swap tenv, t)
+           `shouldBe` success (tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
           tenv = termEnv []
       in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) t
-        `shouldBe` success (delete map' tenv, term (List Numerical))
+        `shouldBe` success (tenv, term (List Numerical))
 
   describe "Call" $ do
     it "should apply a single function call" $
@@ -382,7 +382,7 @@ spec = do
         let senv = stratEnv pcf
             prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
             val  = term "Val"
-        in seval'' 5 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
+        in seval'' 10 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
              successOrFail () (emptyEnv, val)
 
 

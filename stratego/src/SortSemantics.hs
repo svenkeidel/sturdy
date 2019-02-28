@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module SortSemantics where
 
 import           Prelude hiding ((.),fail)
@@ -281,22 +281,16 @@ instance Complete (FreeCompletion TermEnv) where
 
 instance (ArrowChoice c, ArrowJoin c, ArrowState TermEnv c, ArrowConst Context c) => IsTermEnv TermEnv Term (SortT c) where
   getTermEnv = get
-  {-# INLINE getTermEnv #-}
   putTermEnv = put
-  {-# INLINE putTermEnv #-}
+  emptyTermEnv = lmap (\() -> S.empty) put
   lookupTermVar f g = proc (v,env,ex) -> do
-    ctx <- askConst -< ()
     case S.lookup v env of
       A.Just t        -> f -< t
       A.Nothing       -> g -< ex
       A.JustNothing t -> (f -< t) <⊔> (g -< ex)
-  {-# INLINE lookupTermVar #-}
   insertTerm = arr $ \(v,t,env) -> S.insert v t env
-  {-# INLINE insertTerm #-}
   deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
-  {-# INLINE deleteTermVars #-}
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (S.delete' vars e2))
-  {-# INLINE unionTermEnvs #-}
 
 
 -- alphaTerm :: Context -> C.Pow C.Term -> Term
