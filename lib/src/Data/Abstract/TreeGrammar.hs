@@ -36,6 +36,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Data.Abstract.TreeGrammar
 ( Grammar
@@ -56,11 +58,12 @@ module Data.Abstract.TreeGrammar
 )
 where
 
-import           Prelude hiding (lookup)
+import           Prelude hiding (lookup,repeat)
 
 import           Control.Arrow
 import           Control.Monad.State
 import           Control.Monad.Writer
+import           Control.Monad.Reader
 
 import           Data.Maybe
 import           Data.Hashable
@@ -71,6 +74,9 @@ import qualified Data.HashSet as Set
 import           Data.Foldable
 import qualified Data.List as L
 import           Data.Order
+import           Data.OrdMap(OrdMap)
+import qualified Data.OrdMap as O
+import qualified Data.Abstract.Either as A
 
 import           Data.Abstract.TreeGrammar.NonTerminal
 import           Data.Abstract.TreeGrammar.Terminal (Terminal)
@@ -122,35 +128,51 @@ rename g = do
           modify $ second $ Map.insert n n'
           return n'
 
-
--- OPT: Deduplicate grammar
-union :: (NonTerminal n, IsGrammar n t)
-      => Grammar n t -> Grammar n t -> Grammar n t
-union b1 b2 = generate $ do
-  g1 <- rename b1
-  g2 <- rename b2
-  s <- fresh $ Nothing
-  return $ Grammar s $ Map.insert s (mempty {eps = [start g1, start g2]})
-                     $ Map.unionWith (error "non terminals are not disjoint") (prods g1) (prods g2)
+union :: forall n1 n2 n' t. (IsGrammar n1 t, IsGrammar n2 t, IsGrammar n' t)
+      => Grammar n1 t -> Grammar n2 t -> Grammar n' t
+union g1 g2 = generate $ do
+  i <- get
+  let (s',(_,(ps,_))) = runState (go (A.LeftRight (start g1) (start g2))) (i,(mempty,emptyRenameMap))
+  return $ Grammar s' ps
+  where
+    go :: A.Either n1 n2 -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) n'
+    go n = do
+      m <- getRenameMap
+      case n of
+        A.Left  n1 -> addProduction n $ T.traverse (go . A.Left) (lookup n1 g1)
+        A.Right n2 -> addProduction n $ T.traverse (go . A.Right) (lookup n2 g2)
+        A.LeftRight n1 n2 ->
+          case O.compare n1 n2 (ordMap m) of
+            Just O.LessThan     -> go (A.Right n2)
+            Just O.GreaterThan  -> go (A.Left n1)
+            Just O.Incomparable -> addProduction n $ T.union go (lookup n1 g1) (lookup n2 g2)
+            Nothing -> do
+              updateOrdMap g1 g2 n1 n2
+              go (A.LeftRight n1 n2)
+      
 
 intersection :: forall n1 n2 n' t. (IsGrammar n1 t, IsGrammar n2 t, Monoid (t n1), Monoid (t n2), IsGrammar n' t)
              => Grammar n1 t -> Grammar n2 t -> Grammar n' t
 intersection g1 g2 = generate $ do
   i <- get
-  let ([s'],(_,(ps,_))) = runState (go [(start g1, start g2)]) (i,(mempty,mempty))
+  let (s',(_,(ps,_))) = runState (go (A.LeftRight (start g1) (start g2))) (i,(mempty,emptyRenameMap))
   return $ Grammar s' ps
   where
-    go :: [(n1,n2)] -> State (Gen n', (ProdMap n' t, HashMap (n1,n2) n')) [n']
-    go ns = forM ns $ \(n1,n2) -> do
-      (_,(_,rmap)) <- get
-      case Map.lookup (n1,n2) rmap of
-        Just x -> return x
-        Nothing -> do
-          n' <- fresh' Nothing
-          modify $ second $ second $ Map.insert (n1,n2) n'
-          ctrs <- T.intersection go (lookup n1 g1) (lookup n2 g2)
-          modify $ second $ first $ Map.insert n' (Rhs { cons = ctrs, eps = mempty })
-          return n'
+    go :: A.Either n1 n2 -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) n'
+    go n = do
+      m <- getRenameMap
+      case n of
+        A.Left  n1 -> addProduction n $ T.traverse (go . A.Left) (lookup n1 g1)
+        A.Right n2 -> addProduction n $ T.traverse (go . A.Right) (lookup n2 g2)
+        A.LeftRight n1 n2 ->
+          case O.compare n1 n2 (ordMap m) of
+            Just O.LessThan     -> go (A.Left n1)
+            Just O.GreaterThan  -> go (A.Right n2)
+            Just O.Incomparable -> addProduction (A.LeftRight n1 n2)
+                                 $ T.intersection (go . uncurry A.LeftRight) (lookup n1 g1) (lookup n2 g2)
+            Nothing -> do
+              updateOrdMap g1 g2 n1 n2
+              go (A.LeftRight n1 n2)
 
 -- | Inlines all productions reachable via epsilon rules.
 epsilonClosure :: (Identifiable n, IsGrammar n t) => Grammar n t -> Grammar n t
@@ -219,7 +241,6 @@ productive (Grammar _ prods) = go $ Set.fromList [ n | (n, rhs) <- Map.toList pr
     rhsProductive rhs prod = any (`Set.member` prod) (eps rhs)
                           || T.productive prod (cons rhs)
 
-type RenameMap n n' = HashMap (HashSet n) n'
 determinize :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => Grammar n t -> Grammar n' t
 determinize g = generate $ do
   i <- get
@@ -233,7 +254,7 @@ determinize g = generate $ do
    --      ...
    --    ]
    -- = [ N1 U N2 U N3 -> foo(A1 U A2 U A3, B1 U B2 U B3) | bar(B1 U B2) | biz(B3) ... ]
-   go :: HashSet n -> State (Gen n', (ProdMap n' t,RenameMap n n')) n'
+   go :: HashSet n -> State (Gen n', (ProdMap n' t,HashMap (HashSet n) n')) n'
    go ns = do
      rmap <- getRenameMap
      case Map.lookup ns rmap of
@@ -245,35 +266,46 @@ determinize g = generate $ do
          result $ Map.insert n (Rhs { cons = ctrs, eps = mempty})
          return n
 
-   getRenameMap :: State (Gen n',(ProdMap n' t',RenameMap n n')) (RenameMap n n')
-   getRenameMap = snd . snd <$> get
+getRenameMap :: State (a,(b,rmap)) rmap
+getRenameMap = snd . snd <$> get
 
-   putRenameMap :: RenameMap n n' -> State (Gen n',(ProdMap n' t',RenameMap n n')) ()
-   putRenameMap r = modify (second (second (const r)))
+putRenameMap :: rmap -> State (a,(b,rmap)) ()
+putRenameMap r = modify (second (second (const r)))
 
-   result :: (ProdMap n' t -> ProdMap n' t) -> State (Gen n',(ProdMap n' t,RenameMap n n')) ()
-   result f = modify (second (first f))
+result :: (res -> res) -> State (a,(res,rmap)) ()
+result f = modify (second (first f))
 
--- | Test whether the first grammar is a subset of the second,
--- i.e. whether L(G1) ⊆ L(G2). The return value is either @Nothing@ in
--- case L(G1) ⊈ L(G2) or a wittness L(G1) ⊆ L(G2).  For example, if
--- @([A,B],X) in subsetOf G1 G2@ then @L(G1(A)) U L(G1(B)) ⊆
--- L(G2(X))@.
+subsetOf :: (IsGrammar n1 t, IsGrammar n2 t) => Grammar n1 t -> Grammar n2 t -> Bool
+subsetOf m1 m2 = isJust $ subsetOf' m1 m2 mempty
+
 subsetOf' :: forall n1 n2 t. (IsGrammar n1 t, IsGrammar n2 t)
-         => Grammar n1 t -> Grammar n2 t -> Maybe [(HashSet n1,n2)]
-g1 `subsetOf'` g2 = fmap (fmap (\(x,y) -> (y,x)) . Map.toList) (execStateT (go [(start g1,start g2)]) mempty)
+         => Grammar n1 t -> Grammar n2 t -> OrdMap n1 n2 -> Maybe (OrdMap n1 n2)
+subsetOf' g1 g2 m = execStateT (go [(start g1,start g2)]) m
   where
-    go :: [(n1,n2)] -> StateT (HashMap n2 (HashSet n1)) Maybe ()
+    go :: [(n1,n2)] -> StateT (OrdMap n1 n2) Maybe ()
     go l = forM_ l $ \(m1,m2) -> do
       seen <- get
-      let xs = Map.lookupDefault mempty m2 seen
-      unless (m1 `Set.member` xs) $ do
-        put $ Map.insert m2 (Set.insert m1 xs) seen
-        T.subsetOf go (lookup m1 g1) (lookup m2 g2)
+      case O.compare m1 m2 seen of
+        Just O.LessThan -> return ()
+        Just O.Incomparable -> fail ""
+        _ -> do
+          put $ O.insert m1 m2 O.LessThan seen
+          T.subsetOf go (lookup m1 g1) (lookup m2 g2)
 
-subsetOf :: (IsGrammar n1 t, IsGrammar n2 t)
-        => Grammar n1 t -> Grammar n2 t -> Bool
-subsetOf m1 m2 = isJust $ subsetOf' m1 m2
+supersetOf' :: forall n1 n2 t. (IsGrammar n1 t, IsGrammar n2 t)
+            => Grammar n1 t -> Grammar n2 t -> OrdMap n1 n2 -> Maybe (OrdMap n1 n2)
+supersetOf' g1 g2 m = execStateT (go [(start g2,start g1)]) m
+  where
+    go :: [(n2,n1)] -> StateT (OrdMap n1 n2) Maybe ()
+    go l = forM_ l $ \(m2,m1) -> do
+      seen <- get
+      case O.compare m1 m2 seen of
+        Just O.GreaterThan -> return ()
+        Just O.Incomparable -> fail ""
+        _ -> do
+          put $ O.insert m1 m2 O.GreaterThan seen
+          T.subsetOf go (lookup m2 g2) (lookup m1 g1)
+
 
 toSubterms :: (IsGrammar n t, Monoid (t Int)) => Grammar n t -> t (Grammar n t)
 toSubterms g = T.map (\n -> g {start = n})
@@ -296,16 +328,14 @@ instance IsGrammar n t => Eq (Grammar n t) where
 instance forall n t. (IsGrammar n t, Monoid (t Int)) => Hashable (Grammar n t) where
   hashWithSalt s0 b =
     let g = determinize b :: Grammar Int t
-    in evalState (go g s0 (start g)) mempty
+    in runReader (go g s0 (start g)) 3
     where
-      go :: forall n' t'. IsGrammar n' t' => Grammar n' t' -> Int -> n' -> State (HashSet n') Int
+      go :: forall n' t'. IsGrammar n' t' => Grammar n' t' -> Int -> n' -> Reader Int Int
       go g s n = do
-        seen <- get
-        if Set.member n seen
-        then return $ hashWithSalt s n -- Probably wrong. Needs to be 0
-        else do
-          put $ Set.insert n seen
-          T.hashWithSalt (go g) s (lookup n g)
+        fuel <- ask
+        if fuel <= 0
+        then return $ hashWithSalt s (0 :: Int)
+        else local (\f -> f - 1) (T.hashWithSalt (go g) s (lookup n g))
 
 instance IsGrammar n t => PreOrd (Grammar n t) where
   (⊑) = subsetOf
@@ -331,3 +361,34 @@ instance (Show n, Show (t n)) => Show (Grammar n t) where
 
 instance (Show n, Show (t n)) => Show (Rhs n t) where
   show rhs = L.intercalate " | " $ show (cons rhs) : (map show (Set.toList (eps rhs)))
+
+data RenameMap n1 n2 n' = RenameMap
+  { ordMap    :: OrdMap n1 n2
+  , renameMap :: HashMap (A.Either n1 n2) n'
+  }
+
+emptyRenameMap :: RenameMap n1 n2 n'
+emptyRenameMap = RenameMap O.empty Map.empty
+
+addProduction :: (NonTerminal n', Identifiable n1, Identifiable n2, Identifiable n') => A.Either n1 n2 -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) (t n') -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) n'
+addProduction n g = do
+  m <- getRenameMap
+  case Map.lookup n (renameMap m) of
+    Just n' -> return n'
+    Nothing -> do
+      n' <- fresh' Nothing
+      putRenameMap $ m { renameMap = Map.insert n n' (renameMap m) }
+      ctrs <- g
+      result $ Map.insert n' (Rhs { cons = ctrs, eps = mempty}) 
+      return n'
+
+updateOrdMap :: (IsGrammar n1 t, IsGrammar n2 t) => Grammar n1 t -> Grammar n2 t -> n1 -> n2 -> State (a, (b, RenameMap n1 n2 n')) ()
+updateOrdMap g1 g2 n1 n2 = do
+  m <- getRenameMap
+  let g1' = g1 { start = n1 }
+      g2' = g2 { start = n2 }
+      ordMap' = case (subsetOf' g1' g2' (ordMap m), supersetOf' g1' g2' (ordMap m)) of
+        (Just ord,_)      -> ord
+        (_,Just ord)      -> ord
+        (Nothing,Nothing) -> O.insert n1 n2 O.Incomparable (ordMap m)
+  putRenameMap $ m {ordMap = ordMap'}

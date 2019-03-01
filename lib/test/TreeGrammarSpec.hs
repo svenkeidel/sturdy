@@ -75,7 +75,8 @@ spec = do
       intersection g1 g2 `shouldBeSubsetOf` g2
 
     prop "is the opposite of union" $ \(g1 :: Grammar Named Constr) (g2 :: Grammar Named Constr) ->
-      g1 `union` (g1 `intersection` g2) `shouldBe` g1 `intersection` (g1 `union` g2)
+      (g1 `union` (g1 `intersection` g2 :: Grammar Named Constr) :: Grammar Named Constr)
+        `shouldBe` (g1 `intersection` (g1 `union` g2 :: Grammar Named Constr) :: Grammar Named Constr)
 
   describe "Grammar Optimizations" $ do
     describe "Epsilon Closure" $ do
