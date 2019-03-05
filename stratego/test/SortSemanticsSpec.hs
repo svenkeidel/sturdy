@@ -21,7 +21,7 @@ import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as A
 -- import qualified Data.Abstract.Maybe as M
-import qualified Data.Abstract.Map as S
+import qualified Data.Abstract.WeakMap as S
 import           Data.Abstract.There
 -- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
@@ -259,16 +259,17 @@ spec = do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
       let t = term (Tuple ["Exp","Exp"])
-          tenv = termEnv [("x",t)]
+          -- tenv = termEnv [("x",t)]
+          tenv = termEnv []
       in seval' 2 (Let [("swap", swap)] (Scope ["x"] (Match "x" `Seq` Call "swap" [] ["x"]))) tenv t
-           `shouldBe` success (tenv, t)
+           `shouldBe` success (delete swap tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
           tenv = termEnv []
       in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) t
-        `shouldBe` success (tenv, term (List Numerical))
+        `shouldBe` success (delete map' tenv, term (List Numerical))
 
   describe "Call" $ do
     it "should apply a single function call" $
@@ -452,9 +453,9 @@ spec = do
     termEnv :: [(TermVar, Term)] -> TermEnv
     termEnv = S.fromList
 
-    termEnv' = S.fromThereList
-    -- termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
-    -- termEnv' = S.fromList'
+    -- termEnv' = S.fromThereList
+    termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
+    termEnv' = S.fromList'
 
     delete :: TermVars s => s -> TermEnv -> TermEnv
     delete s = S.delete' (termVars s :: Set TermVar)
@@ -505,11 +506,11 @@ spec = do
     top :: (?ctx :: Context) => Term
     top = term Top
 
-    may :: k -> v -> (k,(There,v))
-    may k v = (k,(May,v))
+    may :: k -> v -> (k,A.Maybe v)
+    may k v = (k,A.JustNothing v)
 
-    must :: k -> v -> (k, A.Maybe v)
-    must k v = (k, A.Just v)
+    must :: k -> v -> (k,A.Maybe v)
+    must k v = (k,A.Just v)
 
     notThere :: k -> (k, A.Maybe v) 
     notThere k = (k,A.Nothing)

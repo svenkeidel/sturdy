@@ -56,8 +56,8 @@ import qualified Data.Abstract.DiscretePowerset as P
 -- import qualified Data.Concrete.Powerset as C
 -- import qualified Data.Concrete.Error as CE
 -- import qualified Data.Concrete.Failure as CF
-import           Data.Abstract.Map (Map)
-import qualified Data.Abstract.Map as S
+import           Data.Abstract.WeakMap (Map)
+import qualified Data.Abstract.WeakMap as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
@@ -284,7 +284,8 @@ instance (ArrowChoice c, ArrowJoin c, ArrowState TermEnv c, ArrowConst Context c
   putTermEnv = put
   emptyTermEnv = lmap (\() -> S.empty) put
   lookupTermVar f g = proc (v,env,ex) -> do
-    case S.lookup v env of
+    ctx <- askConst -< ()
+    case S.lookup v (Term Top ctx) env of
       A.Just t        -> f -< t
       A.Nothing       -> g -< ex
       A.JustNothing t -> (f -< t) <⊔> (g -< ex)

@@ -15,7 +15,7 @@ import           Prelude hiding (fail)
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics
-import           SortContext(Context,Signature(..),Sort(Sort),SortId(..),sorts)
+import           SortContext(Context,Signature(..),Sort,sorts)
 import           Syntax hiding (Fail)
 import           Utils
 
@@ -46,12 +46,12 @@ import           Data.Foldable (foldr')
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as LM
 import           Data.Hashable
-import qualified Data.Map as M
 import           Data.Order
 import           Data.Term
 import           Data.Text (Text)
 import           Data.Profunctor
 import qualified Data.Lens as L
+import qualified Data.Abstract.Either as A
 import           Data.Abstract.FreeCompletion (FreeCompletion)
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except (Except)
@@ -59,8 +59,8 @@ import qualified Data.Abstract.Except as E
 import           Data.Abstract.Error (Error)
 import qualified Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as AM
-import           Data.Abstract.Map (Map)
-import qualified Data.Abstract.Map as S
+import           Data.Abstract.WeakMap (Map)
+import qualified Data.Abstract.WeakMap as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (Terminating,fromTerminating)
 import qualified Data.Abstract.Terminating as T
@@ -75,7 +75,7 @@ import           GHC.Exts
 
 
 data Constr n = Bot | Constr (Term.Constr n) | StringLit (FreeCompletion Text) | NumLit (FreeCompletion Int) | Top deriving (Eq)
-newtype Term = Term (Grammar Int Constr) deriving (Complete, Eq, Hashable, PreOrd, Show)
+newtype Term = Term (Grammar Int Constr) deriving (Complete, Eq, Hashable, PreOrd)
 
 type TermEnv = Map TermVar Term
 
@@ -107,38 +107,18 @@ runInterp f i senv0 tenv0 a =
   where
     stackWidening :: SW.StackWidening _ (TermEnv, (StratEnv, (Strat, Term)))
     stackWidening = SW.filter' (L.second (L.second (L.first stratCall)))
-                  $ SW.groupBy (L.iso' (\(tenv,(senv,(strat,term))) -> ((strat,senv),(term,tenv))) (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term)))))
+                  $ SW.groupBy (L.iso' (\(tenv,(senv,(strat,term))) -> ((strat,senv),(term,tenv)))
+                                       (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term)))))
                   $ SW.stack
                   $ SW.reuseFirst
                   $ SW.maxSize i
-                  $ SW.fromWidening (widening W.** S.widening widening)
+                  $ error "Top"
+                  -- $ SW.fromWidening (widening W.** S.widening widening)
 
     grammarWidening = Free.widening (F.widening W.finite (E.widening (\_ _ -> (Stable,())) (S.widening widening W.** widening)))
 
 eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv, Term))))
 eval i s = runInterp (eval' s) i
-
--- Create grammars -----------------------------------------------------------------------------------
-
--- sortToNonterm :: Sort -> Nonterm
--- sortToNonterm sort = case sort of
---   Sort (SortId nt) -> nt
---   _ -> error "Parametric polymorphism is not yet supported"
-
--- toRhs :: (Constructor,Signature) -> Rhs Constr
--- toRhs (Constructor constr, Signature ss _) = Ctor (Constr constr) (map sortToNonterm ss)
-
--- toProd :: (Sort, [(Constructor,Signature)]) -> (Nonterm, [Rhs Constr])
--- toProd (sort, rhss) = (sortToNonterm sort, map toRhs rhss)
-
--- createGrammar :: Context -> GrammarBuilder Int Constr
--- createGrammar ctx = grammar startSymbol prods
---   where
---     startSymbol = "Start"
---     startProd = (startSymbol, map (Eps . sortToNonterm) (LM.keys (sorts ctx)))
---     -- TODO: what to do with these builtins?
---     builtins = [("String", [ Ctor (Constr "String") []]) ]
---     prods = M.fromList $ startProd : map toProd (LM.toList (sorts ctx)) ++ builtins
 
 -- Instances -----------------------------------------------------------------------------------------
 type instance Fix x y (GrammarT c) = GrammarT (Fix x y c)
@@ -152,8 +132,6 @@ deriving instance LowerBounded (c x y) => LowerBounded (GrammarT c x y)
 deriving instance ArrowFix x y c => ArrowFix x y (GrammarT c)
 
 instance (Arrow c, Profunctor c) => ArrowDeduplicate Term Term (GrammarT c) where
-  -- We normalize and determinize here to reduce duplicated production
-  -- rules, which can save us up to X times the work.
   dedup f = f
 
 instance (Arrow c, Profunctor c, ArrowReader StratEnv c) => HasStratEnv (GrammarT c) where
@@ -245,7 +223,7 @@ instance (ArrowChoice c, ArrowJoin c, Profunctor c, ArrowState TermEnv c) => IsT
   putTermEnv = put
   emptyTermEnv = lmap (\() -> S.empty) put
   lookupTermVar f g = proc (v,env,ex) ->
-    case S.lookup v env of
+    case S.lookup v topGrammar env of
       AM.Just t -> f -< t
       AM.JustNothing t -> (f -< t) <⊔> (g -< ex)
       AM.Nothing -> g -< ex
@@ -265,15 +243,15 @@ instance Galois (C.Pow C.TermEnv) TermEnv where
   alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (LM.toList (fmap alphaSing e)))
   gamma = undefined
 
--- sound :: (Identifiable b1, Show b2, Complete b2, Galois (C.Pow a1) a2, Galois (C.Pow b1) b2)
---       => StratEnv -> C.Pow (a1, C.TermEnv) -> C.Interp a1 b1 -> Interp _ a2 b2 -> Q.Property
--- sound senv xs f g = Q.forAll (Q.choose (2,3)) $ \i ->
---   let con :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
---       con = Free.Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
---       abst :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
---       -- TODO: using fromTerminating is a bit of a hack...
---       abst = fromTerminating Free.Top $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
---   in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
+sound :: (Identifiable b1, Show b2, Complete b2, Galois (C.Pow a1) a2, Galois (C.Pow b1) b2)
+      => Int -> StratEnv -> C.Pow (a1, C.TermEnv) -> C.Interp a1 b1 -> Interp _ a2 b2 -> Q.Property
+sound i senv xs f g =
+  let con :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
+      con = Free.Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
+      abst :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
+      -- TODO: using fromTerminating is a bit of a hack...
+      abst = fromTerminating Free.Top $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+  in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 -- Helpers -------------------------------------------------------------------------------------------
 widening :: Widening Term
@@ -313,6 +291,20 @@ instance Term.Terminal Constr where
   determinize _ (NumLit s) = pure (NumLit s)
   determinize _ Bot = pure Bot
 
+  subsetOf _ _ Top = return ()
+  subsetOf _ Bot _ = return ()
+  subsetOf _ (StringLit s) (StringLit s') = M.guard (s ⊑ s')
+  subsetOf _ (NumLit n) (NumLit n') = M.guard (n ⊑ n')
+  subsetOf f (Constr ns) (Constr ns') = Term.subsetOf f ns ns'
+  subsetOf _ _ _ = M.mzero
+                      
+  union f Bot a = Term.traverse (f . A.Right) a
+  union f a Bot = Term.traverse (f . A.Left) a
+  union _ (StringLit s) (StringLit s') = pure (StringLit (s ⊔ s'))
+  union _ (NumLit n) (NumLit n') = pure (NumLit (n ⊔ n'))
+  union f (Constr cs) (Constr cs') = Constr <$> Term.union f cs cs'
+  union _ _ _ = pure Top
+
   intersection _ (StringLit s) (StringLit s')
     | s == s' = pure (StringLit s)
     | otherwise = pure Bot
@@ -323,13 +315,6 @@ instance Term.Terminal Constr where
   intersection _ Top Top = pure Top
   intersection _ _ _ = pure Bot
   
-  subsetOf _ _ Top = return ()
-  subsetOf _ Bot _ = return ()
-  subsetOf _ (StringLit s) (StringLit s') = M.guard (s ⊑ s')
-  subsetOf _ (NumLit n) (NumLit n') = M.guard (n ⊑ n')
-  subsetOf f (Constr ns) (Constr ns') = Term.subsetOf f ns ns'
-  subsetOf _ _ _ = M.mzero
-
   traverse _ Top = pure Top
   traverse _ Bot = pure Bot
   traverse _ (StringLit s) = pure (StringLit s)
@@ -360,3 +345,13 @@ instance (Identifiable n, Show n) => Show (Constr n) where
   show (StringLit s) = "String " ++ show s
   show (NumLit n) = "Number " ++ show n
   show (Constr cs) = show cs
+
+instance Show Term where
+  show (Term t) = show (dropUnreachable t)
+
+fromContext :: Context -> Term
+fromContext ctx = Term $ grammar "Start" (map toProd (LM.toList (sorts ctx))) [("Start", map show $ LM.keys (sorts ctx))]
+  where
+    toProd :: (Sort,[(Constructor,Signature)]) -> (String, Constr String)
+    toProd (sort, rhss) = (show sort,Constr (fromList (map (toText *** (\(Signature args _) -> map show args)) rhss)))
+    

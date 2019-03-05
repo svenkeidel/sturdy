@@ -39,6 +39,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 module Data.Abstract.TreeGrammar
 ( Grammar
 , IsGrammar
@@ -55,6 +56,8 @@ module Data.Abstract.TreeGrammar
 , toSubterms
 , fromSubterms
 , isEmpty
+, deduplicate
+, equivalenceClasses
 )
 where
 
@@ -64,6 +67,8 @@ import           Control.Arrow
 import           Control.Monad.State
 import           Control.Monad.Writer
 import           Control.Monad.Reader
+import           Control.Monad.Trans.UnionFind (UnionFindT)
+import qualified Control.Monad.Trans.UnionFind as U
 
 import           Data.Maybe
 import           Data.Hashable
@@ -75,6 +80,7 @@ import           Data.Foldable
 import qualified Data.List as L
 import           Data.Order
 import           Data.OrdMap(OrdMap)
+import           Data.Sequence (Seq)
 import qualified Data.OrdMap as O
 import qualified Data.Abstract.Either as A
 
@@ -128,6 +134,12 @@ rename g = do
           modify $ second $ Map.insert n n'
           return n'
 
+mapNonTerms :: (IsGrammar n t, IsGrammar n' t) => (n -> n') -> Grammar n t -> Grammar n' t
+mapNonTerms f g = Grammar
+  { start = f (start g)
+  , prods = Map.fromList [ (f k, Rhs (T.map f (lookup k g)) mempty) | k <- Map.keys (prods g)]
+  }
+
 union :: forall n1 n2 n' t. (IsGrammar n1 t, IsGrammar n2 t, IsGrammar n' t)
       => Grammar n1 t -> Grammar n2 t -> Grammar n' t
 union g1 g2 = generate $ do
@@ -144,6 +156,7 @@ union g1 g2 = generate $ do
         A.LeftRight n1 n2 ->
           case O.compare n1 n2 (ordMap m) of
             Just O.LessThan     -> go (A.Right n2)
+            Just O.Equivalent   -> go (A.Left n1)
             Just O.GreaterThan  -> go (A.Left n1)
             Just O.Incomparable -> addProduction n $ T.union go (lookup n1 g1) (lookup n2 g2)
             Nothing -> do
@@ -167,6 +180,7 @@ intersection g1 g2 = generate $ do
         A.LeftRight n1 n2 ->
           case O.compare n1 n2 (ordMap m) of
             Just O.LessThan     -> go (A.Left n1)
+            Just O.Equivalent   -> go (A.Left n1)
             Just O.GreaterThan  -> go (A.Right n2)
             Just O.Incomparable -> addProduction (A.LeftRight n1 n2)
                                  $ T.intersection (go . uncurry A.LeftRight) (lookup n1 g1) (lookup n2 g2)
@@ -266,15 +280,6 @@ determinize g = generate $ do
          result $ Map.insert n (Rhs { cons = ctrs, eps = mempty})
          return n
 
-getRenameMap :: State (a,(b,rmap)) rmap
-getRenameMap = snd . snd <$> get
-
-putRenameMap :: rmap -> State (a,(b,rmap)) ()
-putRenameMap r = modify (second (second (const r)))
-
-result :: (res -> res) -> State (a,(res,rmap)) ()
-result f = modify (second (first f))
-
 subsetOf :: (IsGrammar n1 t, IsGrammar n2 t) => Grammar n1 t -> Grammar n2 t -> Bool
 subsetOf m1 m2 = isJust $ subsetOf' m1 m2 mempty
 
@@ -286,9 +291,10 @@ subsetOf' g1 g2 m = execStateT (go [(start g1,start g2)]) m
     go l = forM_ l $ \(m1,m2) -> do
       seen <- get
       case O.compare m1 m2 seen of
-        Just O.LessThan -> return ()
-        Just O.Incomparable -> fail ""
-        _ -> do
+        Just O.LessThan   -> return ()
+        Just O.Equivalent -> return ()
+        Just _ -> fail ""
+        Nothing -> do
           put $ O.insert m1 m2 O.LessThan seen
           T.subsetOf go (lookup m1 g1) (lookup m2 g2)
 
@@ -301,18 +307,59 @@ supersetOf' g1 g2 m = execStateT (go [(start g2,start g1)]) m
       seen <- get
       case O.compare m1 m2 seen of
         Just O.GreaterThan -> return ()
-        Just O.Incomparable -> fail ""
-        _ -> do
+        Just O.Equivalent  -> return ()
+        Just _ -> fail ""
+        Nothing -> do
           put $ O.insert m1 m2 O.GreaterThan seen
           T.subsetOf go (lookup m2 g2) (lookup m1 g1)
 
+-- | Optimizes the grammar by joining non-terminals that produce the
+-- same language. This function has a runtime complexity /O(n*log(n))/
+-- where /n/ is the number of reachable non-terminals.
+deduplicate :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => Grammar n t -> Grammar n' t
+deduplicate (dropUnreachable -> g) = generate $ do
+  rmap <- foldM (foldM (\m n -> Map.insert n <$> fresh Nothing <*> pure m)) Map.empty (equivalenceClasses g)
+  return (mapNonTerms (rmap Map.!) g)
+
+-- | Returns the equivalence classes of non-terminals that produce the
+-- same language. This function has a runtime complexity /O(n*log(n))/
+-- where /n/ is the number of non-terminals.
+equivalenceClasses :: IsGrammar n t => Grammar n t -> HashMap n (Seq n)
+equivalenceClasses g = flip evalState O.empty $ U.runUnionFind $ do
+  points <- Map.fromList <$> mapM (\n -> (n,) <$> U.fresh n) nonTerms
+
+  forM_ (triangle nonTerms) $ \(n1,n2) -> do
+    let g1 = g {start = n1}; p1 = points Map.! n1
+        g2 = g {start = n2}; p2 = points Map.! n2
+    b1 <- lift' (subsetOf'   g1 g2)
+    b2 <- lift' (supersetOf' g1 g2)
+    when (b1 && b2) (U.union p1 p2)
+
+  foldM (\equiv (n,p) -> do
+      representative <- U.descriptor =<< U.repr p
+      return $ Map.insertWith (<>) representative (pure n) equiv
+    ) Map.empty (Map.toList points)
+
+    where
+      nonTerms = Map.keys (prods g)
+
+      lift' :: (Monad (t (State s)), MonadTrans t) => (s -> Maybe s) -> t (State s) Bool
+      lift' f = do
+        m <- lift $ gets f
+        case m of
+          Just s -> do lift (put s); return True
+          Nothing -> return False
+
+      triangle :: [x] -> [(x,x)]
+      triangle [] = []
+      triangle (x:xs) = (x,x) : fmap (x,) xs ++ triangle xs
 
 toSubterms :: (IsGrammar n t, Monoid (t Int)) => Grammar n t -> t (Grammar n t)
-toSubterms g = T.map (\n -> g {start = n})
+toSubterms g = T.map (\n -> dropUnreachable (g {start = n}))
                      (lookup (start g) g)
 
 -- OPT: deduplicate grammar.
-fromSubterms :: IsGrammar n t => t (Grammar n t) -> Grammar n t
+fromSubterms :: (IsGrammar n t, IsGrammar n' t) => t (Grammar n t) -> Grammar n' t
 fromSubterms t = generate $ do
   s <- fresh Nothing
   (t',p) <- runWriterT $ T.traverse (\b -> do
@@ -362,6 +409,9 @@ instance (Show n, Show (t n)) => Show (Grammar n t) where
 instance (Show n, Show (t n)) => Show (Rhs n t) where
   show rhs = L.intercalate " | " $ show (cons rhs) : (map show (Set.toList (eps rhs)))
 
+
+----- Helper Functions -----
+
 data RenameMap n1 n2 n' = RenameMap
   { ordMap    :: OrdMap n1 n2
   , renameMap :: HashMap (A.Either n1 n2) n'
@@ -369,6 +419,15 @@ data RenameMap n1 n2 n' = RenameMap
 
 emptyRenameMap :: RenameMap n1 n2 n'
 emptyRenameMap = RenameMap O.empty Map.empty
+
+getRenameMap :: State (a,(b,rmap)) rmap
+getRenameMap = snd . snd <$> get
+
+putRenameMap :: rmap -> State (a,(b,rmap)) ()
+putRenameMap r = modify (second (second (const r)))
+
+result :: (res -> res) -> State (a,(res,rmap)) ()
+result f = modify (second (first f))
 
 addProduction :: (NonTerminal n', Identifiable n1, Identifiable n2, Identifiable n') => A.Either n1 n2 -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) (t n') -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) n'
 addProduction n g = do

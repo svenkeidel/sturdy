@@ -8,3 +8,5 @@ cabal.config
 *.cabal
 cabal.project.local
 .ghc.environment.*
+*.class
+*.java.dep

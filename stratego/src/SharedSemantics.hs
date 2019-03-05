@@ -124,7 +124,6 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
       tenv <- getTermEnv -< ()
       let termArgs = (tenv,) <$> zip actualTermArgs formalTermArgs
           stratArgs = zip formalStratArgs actualStratArgs
-      emptyTermEnv -< ()
       mapA bindTermArg -< termArgs
       let senv'' = bindStratArgs stratArgs (if M.null senv' then senv else senv')
       b <- localStratEnv senv'' (interp (Apply body)) -<< a

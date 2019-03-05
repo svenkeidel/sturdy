@@ -14,45 +14,33 @@ import           Syntax as T
 
 import           Control.Arrow
 
-import           Data.ATerm
 import           Data.Abstract.FreeCompletion
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import           Data.Abstract.DiscretePowerset(Pow)
-import qualified Data.Abstract.Map as S
+import qualified Data.Abstract.WeakMap as S
 import           Data.Abstract.Terminating (fromTerminating)
 import qualified Data.Concrete.Powerset as C
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as LM
-import qualified Data.Map as M
 import           Data.Set (Set)
 import           Data.Term hiding (wildcard)
-import           Data.Foldable (toList)
-import qualified Data.Text.IO as TIO
-
-import           Paths_sturdy_stratego
 
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
 import           Test.QuickCheck hiding (Success)
 
 import           Text.Printf
-import           GHC.Exts(IsString(..))
+import           GHC.Exts(IsString(..),IsList(..))
 
 import           Data.Abstract.TreeGrammar
+import qualified CaseStudy
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
 spec = do
-
-  -- describe "Construction" $ do
-  --   it "should correctly construct an RTG from a Stratego signature" $ do
-  --     file <- TIO.readFile =<< getDataFileName "case-studies/pcf/pcf.aterm"
-  --     case parseModule =<< parseATerm file of
-  --       Left e -> fail (show e)
-  --       Right m -> createGrammar (signature m) `shouldBe` pcf
 
   describe "Utilities" $ do
     it "convertToList should work" $
@@ -95,17 +83,17 @@ spec = do
         uncaught ()
 
     it "should match a PCF expression" $
-      geval 1 (Match (Cons "Zero" [])) (termEnv []) (Term pcf) `shouldBe`
+      geval 1 (Match (Cons "Zero" [])) (termEnv []) pcf `shouldBe`
         successOrFail () (termEnv [], constr "Zero" [])
 
     it "should match a nested PCF expression" $
-      geval 1 (Match (Cons "Succ" [Cons "Zero" []])) (termEnv []) (Term pcf) `shouldBe`
+      geval 1 (Match (Cons "Succ" [Cons "Zero" []])) (termEnv []) pcf `shouldBe`
         successOrFail () (termEnv [], Term (grammar "S0" [("S0", Constr [("Succ",["S1"])] )
                                                                 ,("S1", Constr [("Zero",[])] )]
                                                    []))
 
     it "should match a constructor with more than one argument" $
-      geval 1 (Match (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) (termEnv []) (Term pcf) `shouldBe`
+      geval 1 (Match (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) (termEnv []) pcf `shouldBe`
         successOrFail () (termEnv [], Term (grammar "S0" [("S0", Constr [("Ifz",["S1","S2","S3"])])
                                                                 ,("S1", Constr [("Zero",[])])
                                                                 ,("S2", Constr [("Succ",["S3"])])
@@ -145,7 +133,7 @@ spec = do
         `shouldBe` success (termEnv [("x", Term g'), ("y", Term g')], Term g)
 
     it "should support linear pattern matching" $
-      geval 2 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["x"])) (termEnv []) (Term  pcf) `shouldBe`
+      geval 2 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Var" ["x"])) (termEnv []) pcf `shouldBe`
         uncaught ()
 
     it "should succeed when exploding literals" $
@@ -154,19 +142,19 @@ spec = do
     --        Right (tenv', 1)
       pendingWith "Explosion is not yet implemented"
 
-    -- it "should handle inconsistent environments" $ do
-    --   let t1 = C.Cons "f" []
-    --       t2 = C.Cons "g" []
-    --   sound' (Match "x") [(t1, [("x", t1)]), (t2, [("y", t2)])]
+    it "should handle inconsistent environments" $ do
+      let t1 = C.Cons "f" []
+          t2 = C.Cons "g" []
+      sound' 5 (Match "x") [(t1, [("x", t1)]), (t2, [("y", t2)])]
 
-    -- prop "should be sound" $ do
-    --   ~[t1,t2,t3] <- C.similarTerms 3 7 2 10
-    --   matchPattern <- C.similarTermPattern t1 3
-    --   return $ counterexample
-    --              (printf "pattern: %s\n %s ⊔ %s = %s"
-    --                 (show matchPattern) (show t2) (show t3)
-    --                 (showLub t2 t3))
-    --          $ sound' (Match matchPattern) [(t2,[]),(t3,[])]
+    prop "should be sound" $ do
+      ~[t1,t2,t3] <- C.similarTerms 3 7 2 10
+      matchPattern <- C.similarTermPattern t1 3
+      return $ counterexample
+                 (printf "pattern: %s\n %s ⊔ %s = %s"
+                    (show matchPattern) (show t2) (show t3)
+                    (showLub t2 t3))
+             $ sound' 5 (Match matchPattern) [(t2,[]),(t3,[])]
 
   describe "Build" $ do
 
@@ -215,8 +203,8 @@ spec = do
           success (tenv, numLit 42)
 
     it "should lookup variables" $
-      let tenv = termEnv [("x", Term pcf)]
-      in geval 1 (Build (Var "x")) tenv (Term empty) `shouldBe` success (tenv, Term pcf)
+      let tenv = termEnv [("x", pcf)]
+      in geval 1 (Build (Var "x")) tenv (Term empty) `shouldBe` success (tenv, pcf)
 
     it "should merge two variables into one grammar" $
       let tenv = termEnv [("x", numLit 42), ("y", stringLit "x")]
@@ -234,22 +222,22 @@ spec = do
 
     it "should merge a variable and the given subject grammar" $
       let tenv = termEnv [("x", numLit 42)]
-      in geval 1 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv (Term pcf) `shouldBe`
+      in geval 1 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv pcf `shouldBe`
          success (tenv, Term $ grammar "S" [("S",  Constr [("Ifz",["S1", "S2", "S3"])])
                                            ,("S1", NumLit 42 )
                                            ,("S2", Constr [("Succ",["S3"])])
                                            ,("S3", Constr [("Zero",[])])] [])
 
-    -- prop "should be sound" $ do
-    --   ~[t1,t2,t3] <- C.similarTerms 3 7 2 10
-    --   matchPattern <- C.similarTermPattern t1 3
-    --   let vars = termVars matchPattern :: Set TermVar
-    --   buildPattern <- arbitraryTermPattern 5 2 (if not (null vars) then elements (toList vars) else arbitrary)
-    --   return $ counterexample
-    --            (printf "match pattern: %s\nbuild pattern: %s\nt2: %s\nt3: %s\nlub t2 t3 = %s"
-    --              (show matchPattern) (show buildPattern) (show t2) (show t3)
-    --              (showLub t2 t3))
-    --          $ sound' (Match matchPattern `Seq` Build buildPattern) [(t2,[]),(t3,[])]
+    prop "should be sound" $ do
+      ~[t1,t2,t3] <- C.similarTerms 3 7 2 10
+      matchPattern <- C.similarTermPattern t1 3
+      let vars = termVars matchPattern :: Set TermVar
+      buildPattern <- arbitraryTermPattern 5 2 (if not (null vars) then elements (toList vars) else arbitrary)
+      return $ counterexample
+               (printf "match pattern: %s\nbuild pattern: %s\nt2: %s\nt3: %s\nlub t2 t3 = %s"
+                 (show matchPattern) (show buildPattern) (show t2) (show t3)
+                 (showLub t2 t3))
+             $ sound' 5 (Match matchPattern `Seq` Build buildPattern) [(t2,[]),(t3,[])]
 
   describe "Scope" $ do
     it "should hide declared variables" $ do
@@ -337,15 +325,20 @@ spec = do
       geval' 12 (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]) senv tenv t
         `shouldBe` success (tenv', t')
 
-    -- prop "should be sound" $ do
-    --   i <- choose (0,10)
-    --   j <- choose (0,10)
-    --   l <- C.similarTerms i 7 2 10
-    --   let (l1,l2) = splitAt j l
-    --   let t1 = convertToList l1
-    --   let t2 = convertToList l2
-    --   return $ counterexample (printf "t: %s\n" (showLub t1 t2))
-    --          $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
+    prop "should be sound" $ do
+      i <- choose (0,10)
+      j <- choose (0,10)
+      l <- C.similarTerms i 7 2 10
+      let (l1,l2) = splitAt j l
+      let t1 = convertToList l1
+      let t2 = convertToList l2
+      return $ counterexample (printf "t: %s\n" (showLub t1 t2))
+             $ sound' 10 (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
+
+    -- describe "Construction" $ do
+    --   before CaseStudy.pcf $ do
+    --     it "should correctly construct an RTG from a Stratego signature" $ \pcfModule ->
+    --       fromContext (signature pcfModule) `shouldBe` pcf
 
   where
     geval' :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Error (Pow String) (Except () (TermEnv, Term))
@@ -356,21 +349,20 @@ spec = do
     geval :: Int -> Strat -> TermEnv -> Term -> Error (Pow String) (Except () (TermEnv, Term))
     geval i strat tenv g = geval' i strat LM.empty tenv g
 
-    -- sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
-    -- sound' s xs = sound LM.empty pow (eval' s) (eval' s) where
-    --   pow = C.fromFoldable $ fmap (second termEnv') xs
+    sound' :: Int -> Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
+    sound' i s xs = sound i LM.empty pow (eval' s) (eval' s) where
+      pow = C.fromFoldable $ fmap (second fromList) xs
 
     termEnv = S.fromList
-    termEnv' = C.TermEnv . LM.fromList
 
-    -- showLub :: C.Term -> C.Term -> String
-    -- showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: Term)
+    showLub :: C.Term -> C.Term -> String
+    showLub t1 t2 = show (alpha ([t1,t2] :: C.Pow C.Term) :: Term)
 
     empty :: Grammar Int Constr
     empty = grammar "empty" [ ("empty", mempty) ] []
 
-    pcf :: Grammar Int Constr
-    pcf = grammar "PStart" [ ("Exp", Constr
+    pcf :: Term
+    pcf = Term $ grammar "PStart" [ ("Exp", Constr
                                      [ ("App",["Exp", "Exp"])
                                      , ("Abs",["String", "Type", "Exp"])
                                      , ("Zero",[])

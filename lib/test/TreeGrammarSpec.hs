@@ -5,21 +5,22 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module TreeGrammarSpec(main, spec) where
 
-import Control.Monad
+import           Control.Monad
 
-import Data.Hashable
-import Data.Text(Text)
+import           Data.Hashable
+import           Data.Text(Text)
+import qualified Data.Sequence as S
 
-import Data.Abstract.TreeGrammar
-import Data.Abstract.TreeGrammar.Terminal(Constr)
-import Data.Abstract.TreeGrammar.NonTerminal(Named)
+import           Data.Abstract.TreeGrammar
+import           Data.Abstract.TreeGrammar.Terminal(Constr)
+import           Data.Abstract.TreeGrammar.NonTerminal(Named)
 
-import Test.Hspec
-import Test.Hspec.QuickCheck
-import Test.QuickCheck
+import           Test.Hspec
+import           Test.Hspec.QuickCheck
+import           Test.QuickCheck
 
-import GHC.Exts
-import Text.Printf
+import           GHC.Exts
+import           Text.Printf
 
 main :: IO ()
 main = hspec spec
@@ -79,28 +80,39 @@ spec = do
         `shouldBe` (g1 `intersection` (g1 `union` g2 :: Grammar Named Constr) :: Grammar Named Constr)
 
   describe "Grammar Optimizations" $ do
-    describe "Epsilon Closure" $ do
+    describe "Epsilon Closure" $
       prop "describes the same language: epsilonClosure g = g" $
         \(g :: Grammar Named Constr) -> epsilonClosure g `shouldBe` g
 
-    describe "Dropping unreachable prductions" $ do
+    describe "Dropping unreachable prductions" $
       prop "describes the same language: dropUnreachable g = g" $
         \(g :: Grammar Named Constr) -> dropUnreachable g `shouldBe` g
 
-    describe "Dropping unproductive prductions" $ do
+    describe "Dropping unproductive prductions" $
       prop "removes infinite terms from the language: dropUnproductive g ⊆ g" $
-        \(g :: Grammar Named Constr) -> do
+        \(g :: Grammar Named Constr) ->
            dropUnproductive g `shouldBeSubsetOf` g
 
     describe "Determinization" $ do
-      prop "removes relations between subterms: g ⊆ determinize g" $ do
-        \(g :: Grammar Named Constr) -> do
+      prop "removes relations between subterms: g ⊆ determinize g" $
+        \(g :: Grammar Named Constr) ->
            g `shouldBeSubsetOf` determinize g
 
-      prop "is idempotent: determinize g = determinize (determinize g)" $ do
+      prop "is idempotent: determinize g = determinize (determinize g)" $
         \(g :: Grammar Named Constr) ->
            let g' = determinize g :: Grammar Named Constr
            in g' `shouldBe` determinize g'
+
+    describe "Deduplicate" $ do
+      prop "describes the same language: deduplicate g = g" $
+        \(g :: Grammar Named Constr) ->
+           deduplicate g `shouldBe` g
+
+      prop "has distinct equivalence classes" $
+        \(g :: Grammar Named Constr) ->
+           (deduplicate g :: Grammar Named Constr) `shouldSatisfy`
+             all ((1 ==) . S.length) . equivalenceClasses 
+
 
   describe "Hashing" $
     prop "unequal hashes imply inequality" $

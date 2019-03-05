@@ -48,6 +48,7 @@ import           Data.Text (Text)
 import           Data.Profunctor
 
 import           Test.QuickCheck
+import           GHC.Exts
 
 -- | Terms are either a constructor with subterms or a literal.
 data Term
@@ -243,6 +244,11 @@ arbitraryTerm h w = do
   c <- arbitrary
   fmap (Cons c) $ vectorOf w' $ join $
     arbitraryTerm <$> choose (0,h-1) <*> pure w
+
+instance IsList TermEnv where
+  type Item TermEnv = (TermVar,Term)
+  fromList = TermEnv . fromList
+  toList (TermEnv m) = toList m
 
 -- prim f ps = proc _ -> case f of
 --   "strcat" -> do
