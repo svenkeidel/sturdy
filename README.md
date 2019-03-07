@@ -10,7 +10,7 @@ The sturdy project currently contains concrete and abstract interpreters for thr
 * _Jimple_, a Java Bytecode suitable for static analysis
 * _LambdaJS_, an intermediate representation for JavaScript
 
-To run the tests of a particular language use `stack test lang`, e.g.,
+To run the tests of a particular language use `stack test sturdy-$(lang)`, e.g.,
 ```
 stack test sturdy-stratego --test-arguments "-m SortSemantics"
 ```

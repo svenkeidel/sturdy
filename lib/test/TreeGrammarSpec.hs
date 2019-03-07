@@ -27,9 +27,9 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-
   describe "Inclusion" $ do
     describe "should work for non-deterministic grammars" $ do
+
       it "{ f(a,b), f(a',b') } <= { f({a,a'},{b,b'}) }" $ do
         let g :: Grammar Named Constr
             g = grammar "S" [ ("S", [ ("f",["A",  "B"])
@@ -50,6 +50,7 @@ spec = do
         g' `shouldNotBeSubsetOf` g
 
       it "{ f(a), f(b) } == { f({a,b})}" $ do
+        pendingWith "Work in progress"
         let g :: Grammar Named Constr
             g = grammar "0" [ ("0", [ ("f",["1"]), ("f",["2"]) ])
                             , ("1", [ ("a",[]) ])
@@ -93,6 +94,7 @@ spec = do
       intersection g1 g2 `shouldBeSubsetOf` g2
 
     prop "is the opposite of union" $ \(g1 :: Grammar Named Constr) (g2 :: Grammar Named Constr) -> do
+      pendingWith "Work in progress"
       (g1 `union` (g1 `intersection` g2 :: Grammar Named Constr)) `shouldBe` g1
       (g1 `intersection` (g1 `union` g2 :: Grammar Named Constr)) `shouldBe` g1
 
