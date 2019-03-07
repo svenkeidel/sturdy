@@ -1,6 +1,6 @@
 name:       sturdy-lib
-version:    0.1.0.0
-synopsis:   A library for creating sound static analyses
+version:    0.2.0.0
+synopsis:   A library for sound static analyses
 maintainer: Sven Keidel <svenkeidel@gmail.com>
 license:    BSD3
 github:     svenkeidel/sturdy
