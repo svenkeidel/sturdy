@@ -29,24 +29,41 @@ spec :: Spec
 spec = do
 
   describe "Inclusion" $ do
-    it "should work for non-deterministic grammars" $ do
-      let g :: Grammar Named Constr
-          g = grammar "S" [ ("S", [ ("f",["A", "B"])
-                                  , ("f",["A'", "B'"])])
-                          , ("A", [ ("a",[]) ])
-                          , ("B", [ ("b",[]) ])
-                          , ("A'", [ ("a'",[]) ])
-                          , ("B'", [ ("b'",[]) ])
-                          ]
-                          []
-          g' :: Grammar Named Constr
-          g' = grammar "S" [ ("S", [("f",["A", "B"])])
-                           , ("A", [("a",[]), ("a'",[])])
-                           , ("B", [("b",[]), ("b'",[])])
-                           ]
-                           []
-      g `shouldBeSubsetOf` g'
-      g' `shouldNotBeSubsetOf` g
+    describe "should work for non-deterministic grammars" $ do
+      it "{ f(a,b), f(a',b') } <= { f({a,a'},{b,b'}) }" $ do
+        let g :: Grammar Named Constr
+            g = grammar "S" [ ("S", [ ("f",["A",  "B"])
+                                    , ("f",["A'", "B'"])])
+                            , ("A", [ ("a",[]) ])
+                            , ("B", [ ("b",[]) ])
+                            , ("A'", [ ("a'",[]) ])
+                            , ("B'", [ ("b'",[]) ])
+                            ]
+                            []
+            g' :: Grammar Named Constr
+            g' = grammar "S" [ ("S", [("f",["A", "B"])])
+                             , ("A", [("a",[]), ("a'",[])])
+                             , ("B", [("b",[]), ("b'",[])])
+                             ]
+                             []
+        g `shouldBeSubsetOf` g'
+        g' `shouldNotBeSubsetOf` g
+
+      it "{ f(a), f(b) } == { f({a,b})}" $ do
+        let g :: Grammar Named Constr
+            g = grammar "0" [ ("0", [ ("f",["1"]), ("f",["2"]) ])
+                            , ("1", [ ("a",[]) ])
+                            , ("2", [ ("b",[]) ])
+                            ]
+                            []
+            g' :: Grammar Named Constr
+            g' = grammar "0" [ ("0", [ ("f",["1"]) ])
+                             , ("1", [ ("a",[]), ("b", []) ])
+                             ]
+                             [ ]
+        g `shouldBeSubsetOf` g'
+        g' `shouldBeSubsetOf` g
+
 
     it "should work for recursive grammars" $ do
       pcf_sub `shouldBeSubsetOf` pcf
@@ -75,9 +92,9 @@ spec = do
       intersection g1 g2 `shouldBeSubsetOf` g1
       intersection g1 g2 `shouldBeSubsetOf` g2
 
-    prop "is the opposite of union" $ \(g1 :: Grammar Named Constr) (g2 :: Grammar Named Constr) ->
-      (g1 `union` (g1 `intersection` g2 :: Grammar Named Constr) :: Grammar Named Constr)
-        `shouldBe` (g1 `intersection` (g1 `union` g2 :: Grammar Named Constr) :: Grammar Named Constr)
+    prop "is the opposite of union" $ \(g1 :: Grammar Named Constr) (g2 :: Grammar Named Constr) -> do
+      (g1 `union` (g1 `intersection` g2 :: Grammar Named Constr)) `shouldBe` g1
+      (g1 `intersection` (g1 `union` g2 :: Grammar Named Constr)) `shouldBe` g1
 
   describe "Grammar Optimizations" $ do
     describe "Epsilon Closure" $

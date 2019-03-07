@@ -67,10 +67,8 @@ import           Control.Arrow
 import           Control.Monad.State
 import           Control.Monad.Writer
 import           Control.Monad.Reader
-import           Control.Monad.Trans.UnionFind (UnionFindT)
 import qualified Control.Monad.Trans.UnionFind as U
 
-import           Data.Maybe
 import           Data.Hashable
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
@@ -83,6 +81,7 @@ import           Data.OrdMap(OrdMap)
 import           Data.Sequence (Seq)
 import qualified Data.OrdMap as O
 import qualified Data.Abstract.Either as A
+import qualified Data.Abstract.Boolean as A
 
 import           Data.Abstract.TreeGrammar.NonTerminal
 import           Data.Abstract.TreeGrammar.Terminal (Terminal)
@@ -154,12 +153,11 @@ union g1 g2 = generate $ do
         A.Left  n1 -> addProduction n $ T.traverse (go . A.Left) (lookup n1 g1)
         A.Right n2 -> addProduction n $ T.traverse (go . A.Right) (lookup n2 g2)
         A.LeftRight n1 n2 ->
-          case O.compare n1 n2 (ordMap m) of
-            Just O.LessThan     -> go (A.Right n2)
-            Just O.Equivalent   -> go (A.Left n1)
-            Just O.GreaterThan  -> go (A.Left n1)
-            Just O.Incomparable -> addProduction n $ T.union go (lookup n1 g1) (lookup n2 g2)
-            Nothing -> do
+          case (O.compare n1 n2 O.LessThanEquals (ordMap m), O.compare n1 n2 O.GreaterThanEquals (ordMap m)) of
+            (A.True,_)        -> go (A.Right n2)
+            (_,A.True)        -> go (A.Left n1)
+            (A.False,A.False) -> addProduction n $ T.union go (lookup n1 g1) (lookup n2 g2)
+            (_,_) -> do
               updateOrdMap g1 g2 n1 n2
               go (A.LeftRight n1 n2)
       
@@ -178,13 +176,12 @@ intersection g1 g2 = generate $ do
         A.Left  n1 -> addProduction n $ T.traverse (go . A.Left) (lookup n1 g1)
         A.Right n2 -> addProduction n $ T.traverse (go . A.Right) (lookup n2 g2)
         A.LeftRight n1 n2 ->
-          case O.compare n1 n2 (ordMap m) of
-            Just O.LessThan     -> go (A.Left n1)
-            Just O.Equivalent   -> go (A.Left n1)
-            Just O.GreaterThan  -> go (A.Right n2)
-            Just O.Incomparable -> addProduction (A.LeftRight n1 n2)
-                                 $ T.intersection (go . uncurry A.LeftRight) (lookup n1 g1) (lookup n2 g2)
-            Nothing -> do
+          case (O.compare n1 n2 O.LessThanEquals (ordMap m), O.compare n1 n2 O.GreaterThanEquals (ordMap m)) of
+            (A.True,_)        -> go (A.Left n1)
+            (_,A.True)        -> go (A.Right n2)
+            (A.False,A.False) -> addProduction n
+                               $ T.intersection (go . uncurry A.LeftRight) (lookup n1 g1) (lookup n2 g2)
+            (_,_) -> do
               updateOrdMap g1 g2 n1 n2
               go (A.LeftRight n1 n2)
 
@@ -281,36 +278,38 @@ determinize g = generate $ do
          return n
 
 subsetOf :: (IsGrammar n1 t, IsGrammar n2 t) => Grammar n1 t -> Grammar n2 t -> Bool
-subsetOf m1 m2 = isJust $ subsetOf' m1 m2 mempty
+subsetOf m1 m2 = fst $ subsetOf' m1 m2 mempty
 
 subsetOf' :: forall n1 n2 t. (IsGrammar n1 t, IsGrammar n2 t)
-         => Grammar n1 t -> Grammar n2 t -> OrdMap n1 n2 -> Maybe (OrdMap n1 n2)
-subsetOf' g1 g2 m = execStateT (go [(start g1,start g2)]) m
+         => Grammar n1 t -> Grammar n2 t -> OrdMap n1 n2 -> (Bool,OrdMap n1 n2)
+subsetOf' g1 g2 m = case runStateT (go (start g1,start g2)) m of
+  Just ((),m') -> (True,m')
+  Nothing -> (False,O.insert [[start g1]] [[start g2]] O.NotLessThanEquals m)
   where
-    go :: [(n1,n2)] -> StateT (OrdMap n1 n2) Maybe ()
-    go l = forM_ l $ \(m1,m2) -> do
+    go :: (n1,n2) -> StateT (OrdMap n1 n2) Maybe ()
+    go (m1,m2) = do
       seen <- get
-      case O.compare m1 m2 seen of
-        Just O.LessThan   -> return ()
-        Just O.Equivalent -> return ()
-        Just _ -> fail ""
-        Nothing -> do
-          put $ O.insert m1 m2 O.LessThan seen
+      case O.compare m1 m2 O.LessThanEquals seen of
+        A.True  -> return ()
+        A.False -> fail ""
+        A.Top   -> do
+          put $ O.insert m1 m2 O.LessThanEquals seen
           T.subsetOf go (lookup m1 g1) (lookup m2 g2)
 
 supersetOf' :: forall n1 n2 t. (IsGrammar n1 t, IsGrammar n2 t)
-            => Grammar n1 t -> Grammar n2 t -> OrdMap n1 n2 -> Maybe (OrdMap n1 n2)
-supersetOf' g1 g2 m = execStateT (go [(start g2,start g1)]) m
+            => Grammar n1 t -> Grammar n2 t -> OrdMap n1 n2 -> (Bool,OrdMap n1 n2)
+supersetOf' g1 g2 m = case runStateT (go [(start g2,start g1)]) m of
+  Just ((),m') -> (True,m')
+  Nothing -> (False,O.insert (start g1) (start g2) O.NotGreaterThanEquals m)
   where
     go :: [(n2,n1)] -> StateT (OrdMap n1 n2) Maybe ()
     go l = forM_ l $ \(m2,m1) -> do
       seen <- get
-      case O.compare m1 m2 seen of
-        Just O.GreaterThan -> return ()
-        Just O.Equivalent  -> return ()
-        Just _ -> fail ""
-        Nothing -> do
-          put $ O.insert m1 m2 O.GreaterThan seen
+      case O.compare m1 m2 O.GreaterThanEquals seen of
+        A.True  -> return ()
+        A.False -> fail ""
+        A.Top -> do
+          put $ O.insert m1 m2 O.GreaterThanEquals seen
           T.subsetOf go (lookup m2 g2) (lookup m1 g1)
 
 -- | Optimizes the grammar by joining non-terminals that produce the
@@ -343,12 +342,8 @@ equivalenceClasses g = flip evalState O.empty $ U.runUnionFind $ do
     where
       nonTerms = Map.keys (prods g)
 
-      lift' :: (Monad (t (State s)), MonadTrans t) => (s -> Maybe s) -> t (State s) Bool
-      lift' f = do
-        m <- lift $ gets f
-        case m of
-          Just s -> do lift (put s); return True
-          Nothing -> return False
+      lift' :: (Monad (t (State s)), MonadTrans t) => (s -> (b,s)) -> t (State s) b
+      lift' f = lift (state f)
 
       triangle :: [x] -> [(x,x)]
       triangle [] = []
@@ -446,8 +441,6 @@ updateOrdMap g1 g2 n1 n2 = do
   m <- getRenameMap
   let g1' = g1 { start = n1 }
       g2' = g2 { start = n2 }
-      ordMap' = case (subsetOf' g1' g2' (ordMap m), supersetOf' g1' g2' (ordMap m)) of
-        (Just ord,_)      -> ord
-        (_,Just ord)      -> ord
-        (Nothing,Nothing) -> O.insert n1 n2 O.Incomparable (ordMap m)
-  putRenameMap $ m {ordMap = ordMap'}
+      (_,o1) = subsetOf' g1' g2' (ordMap m)
+      (_,o2) = supersetOf' g1' g2' o1
+  putRenameMap $ m { ordMap = o2 }
