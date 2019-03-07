@@ -27,4 +27,4 @@ install:
 
 script:
 # Build the package, its tests, and its docs and run the tests
-- stack --no-terminal test --haddock --no-haddock-deps lib
+- stack --no-terminal test --haddock --no-haddock-deps
