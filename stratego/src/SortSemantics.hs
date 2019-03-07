@@ -114,7 +114,6 @@ runInterp f k l senv0 ctx tenv0 a =
   where
     stackWidening :: SW.StackWidening _ (TermEnv, (StratEnv, (Strat, Term)))
     stackWidening = SW.filter' (L.second (L.second (L.first stratCall)))
-                  -- $ SW.trace (\st (tenv,(_,(s,t))) -> printf "strat: %s\nsort: %s\nenv: %s\nstack: %s\n" (show s) (show t) (show tenv) (show st))
                   $ SW.groupBy (L.iso' (\(tenv,(senv,(strat,term))) -> ((strat,senv),(term,tenv)))
                                        (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term)))))
                   $ SW.stack
@@ -130,6 +129,7 @@ runInterp f k l senv0 ctx tenv0 a =
 
     termWidening :: Widening Term
     termWidening (Term s _) (Term s' _) = let ~(st,s'') = Sort.widening l s s' in (st,Term s'' ctx)
+
 eval :: Int -> Int -> Strat -> StratEnv -> Context -> TermEnv -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv,Term))))
 eval i j s = runInterp (Shared.eval' s) i j
 

@@ -113,7 +113,7 @@ runInterp f i senv0 tenv0 a =
                   $ SW.reuseFirst
                   $ SW.maxSize i
                   $ error "Top"
-                  -- $ SW.fromWidening (widening W.** S.widening widening)
+                  -- SW.fromWidening (widening W.** S.widening widening)
 
     grammarWidening = Free.widening (F.widening W.finite (E.widening (\_ _ -> (Stable,())) (S.widening widening W.** widening)))
 
