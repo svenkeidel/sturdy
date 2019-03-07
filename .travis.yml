@@ -26,5 +26,5 @@ install:
 - stack --no-terminal --install-ghc test --only-dependencies
 
 script:
-# Build the package, its tests, and its docs and run the tests
-- stack --no-terminal test --haddock --no-haddock-deps
+# Build the package and run the tests
+- stack --no-terminal test

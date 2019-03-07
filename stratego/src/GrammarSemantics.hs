@@ -189,7 +189,7 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
 
   equal = proc (Term g1, Term g2) -> case g1 ⊓ g2 of
     g | isEmpty g -> throw -< ()
-      -- | isSingleton g1 && isSingleton g2 -> returnA -< Term g
+      -- isSingleton g1 && isSingleton g2 -> returnA -< Term g
       | otherwise -> (returnA -< Term g) <⊔> (throw -< ())
 
   convertFromList = error "unsupported"
