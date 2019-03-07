@@ -3,11 +3,13 @@
 module Control.Arrow.Deduplicate where
 
 import Control.Arrow
+import Data.Profunctor
 
-import Data.Hashable
-
-class Arrow c => ArrowDeduplicate x y c where
-  dedup :: (Hashable y,Eq y) => c x y -> c x y
+-- | Arrow-based interface to deduplicate the result /set/ of a computation.
+-- This is required by the 'Control.Arrow.Transformer.Abstract.Powerset.PowT'
+-- arrow transformer.
+class (Arrow c, Profunctor c) => ArrowDeduplicate x y c where
+  dedup :: c x y -> c x y
 
 instance ArrowDeduplicate x y (->) where
   dedup = returnA

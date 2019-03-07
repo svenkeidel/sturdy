@@ -8,64 +8,57 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Store where
 
-import Prelude hiding ((.))
+import           Prelude hiding ((.))
 
-import Control.Arrow
-import Control.Arrow.Const
-import Control.Arrow.Fail
-import Control.Arrow.Except
-import Control.Arrow.Fix
-import Control.Arrow.Lift
-import Control.Arrow.Reader
-import Control.Arrow.State
-import Control.Arrow.Store
-import Control.Arrow.Transformer.State
-import Control.Arrow.Utils
-import Control.Category
+import           Control.Arrow
+import           Control.Arrow.Const
+import           Control.Arrow.Fail
+import           Control.Arrow.Except
+import           Control.Arrow.Fix
+import           Control.Arrow.Trans
+import           Control.Arrow.Reader
+import           Control.Arrow.State
+import           Control.Arrow.Store
+import           Control.Arrow.Transformer.State
+import           Control.Arrow.Utils
+import           Control.Category
 
-import Data.Concrete.Store (Store)
-import qualified Data.Concrete.Store as S
-import Data.Identifiable
+import           Data.Profunctor
+import           Data.HashMap.Lazy(HashMap)
+import qualified Data.HashMap.Lazy as S
+import           Data.Identifiable
 
 -- | Arrow transformer that adds a store to a computation.
-newtype StoreArrow var val c x y = StoreArrow (State (Store var val) c x y)
+newtype StoreT var val c x y = StoreT (StateT (HashMap var val) c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
+            ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e)
 
 -- | Execute a computation and only return the result value and store.
-runStore :: StoreArrow var val c x y -> c (Store var val, x) (Store var val, y)
-runStore (StoreArrow (State f)) = f
+runStoreT :: StoreT var val c x y -> c (HashMap var val, x) (HashMap var val, y)
+runStoreT (StoreT (StateT f)) = f
 
 -- | Execute a computation and only return the result value.
-evalStore :: Arrow c => StoreArrow var val c x y -> c (Store var val, x) y
-evalStore f = runStore f >>> pi2
+evalStoreT :: Arrow c => StoreT var val c x y -> c (HashMap var val, x) y
+evalStoreT f = runStoreT f >>> pi2
 
 -- | Execute a computation and only return the result store.
-execStore :: Arrow c => StoreArrow var val c x y -> c (Store var val, x) (Store var val)
-execStore f = runStore f >>> pi1
+execStoreT :: Arrow c => StoreT var val c x y -> c (HashMap var val, x) (HashMap var val)
+execStoreT f = runStoreT f >>> pi1
 
-instance ArrowLift (StoreArrow var val) where
-  lift f = StoreArrow (lift f)
-
-instance (Identifiable var, ArrowChoice c) => ArrowRead var val x y (StoreArrow var val c) where
-  read (StoreArrow f) (StoreArrow g) = StoreArrow $ proc (var,x) -> do
+instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT var val c) where
+  type Join (StoreT var val c) x y = ()
+  read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
     s <- get -< ()
     case S.lookup var s of
       Just v -> f -< (v,x)
       Nothing -> g -< x
+  write = StoreT $ modify $ arr (\((x,v),s) -> ((),S.insert x v s))
 
-instance (Identifiable var, Arrow c) => ArrowWrite var val (StoreArrow var val c) where
-  write = StoreArrow $ modify $ arr (\((x,v),s) -> S.insert x v s)
+instance ArrowState s c => ArrowState s (StoreT var val c) where
+  get = lift' get
+  put = lift' put
 
-instance ArrowState s c => ArrowState s (StoreArrow var val c) where
-  get = lift get
-  put = lift put
+instance (ArrowApply c,Profunctor c) => ArrowApply (StoreT var val c) where app = StoreT ((\(StoreT f,x) -> (f,x)) ^>> app)
 
-deriving instance ArrowConst r c => ArrowConst r (StoreArrow var val c)
-deriving instance Category c => Category (StoreArrow var val c)
-deriving instance Arrow c => Arrow (StoreArrow var val c)
-deriving instance ArrowChoice c => ArrowChoice (StoreArrow var val c)
-deriving instance ArrowReader r c => ArrowReader r (StoreArrow var val c)
-deriving instance ArrowFail e c => ArrowFail e (StoreArrow var val c)
-deriving instance ArrowExcept (Store var val,x) (Store var val,y) e c => ArrowExcept x y e (StoreArrow var val c)
-
-type instance Fix x y (StoreArrow var val c) = StoreArrow var val (Fix (Store var val,x) (Store var val,y) c)
-deriving instance ArrowFix (Store var val, x) (Store var val, y) c => ArrowFix x y (StoreArrow var val c)
+type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c)
+deriving instance ArrowFix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c => ArrowFix x y (StoreT var val c)

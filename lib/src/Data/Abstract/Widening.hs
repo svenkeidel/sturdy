@@ -18,22 +18,51 @@ import Data.Order
 --
 -- Furthermore, we allow our widening operators to maintain some state
 -- between each iteration.
-type Widening a = a -> a -> a
+type Widening a = a -> a -> (Stable,a)
+
+-- | Datatype that signals if the ascending chain stabilized.
+data Stable = Stable | Instable deriving (Eq,Show)
+
+instance Semigroup Stable where (<>) = (⊔)
+instance Monoid Stable where
+  mempty = Stable
+  mappend = (⊔) 
+            
+
+instance PreOrd Stable where
+  Stable ⊑ Stable = True
+  Stable ⊑ Instable = True
+  Instable ⊑ Instable = True
+  _ ⊑ _ = False
+
+instance Complete Stable where
+  Stable ⊔ a = a
+  a ⊔ Stable = a
+  Instable ⊔ Instable = Instable
 
 -- | For a preorder with no infinite ascending chains, (⊔) is a
 -- trivial widening operator.
 finite :: Complete a => Widening a
-finite a b = a ⊔ b
+finite a b = let x = a ⊔ b in (if x ⊑ a then Stable else Instable,x)
+
+toJoin :: (Widening a -> Widening b) -> (a -> a -> a) -> (b -> b -> b)
+toJoin f g a a' = snd (f (\b b' -> (Instable,g b b')) a a')
+{-# INLINE toJoin #-}
+
+toJoin2 :: (Widening a -> Widening b -> Widening c) -> (a -> a -> a) -> (b -> b -> b) -> (c -> c -> c)
+toJoin2 f g h c c' = snd (f (\a a' -> (Instable,g a a')) (\b b' -> (Instable,h b b')) c c')
+{-# INLINE toJoin2 #-}
 
 -- | Widening operator that joins until the given limit is
 -- reached. Then it calls the fallback widening operator.
 bounded :: Complete a => a -> Widening a -> Widening a
 bounded limit w a b
-  | b ⊑ limit = a ⊔ b
+  | b ⊑ limit = let b' = a ⊔ b
+                in (if b' ⊑ b then Stable else Instable,b')
   | otherwise = a `w` b
 
-function :: Widening b -> Widening (a -> b) 
-function w f g = \x -> (f x) `w` (g x)
-
 (**) :: Widening a -> Widening b -> Widening (a,b)
-(**) wa wb (a1,b1) (a2,b2) = (wa a1 a2, wb b1 b2)
+(**) wa wb (a1,b1) (a2,b2) =
+    let ~(s1,a') = wa a1 a2
+        ~(s2,b') = wb b1 b2
+    in (s1 ⊔ s2, (a',b'))

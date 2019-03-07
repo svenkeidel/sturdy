@@ -12,7 +12,7 @@ import Data.Numeric
 import Data.Abstract.Boolean
 import Data.Abstract.Equality
 import Data.Abstract.Ordering
-import Data.Abstract.PropagateError
+import Data.Abstract.Failure
 import Data.Abstract.InfiniteNumbers
 import Data.Abstract.Widening
 
@@ -32,7 +32,7 @@ instance Ord x => Complete (Interval x) where
   Interval i1 i2 ⊔  Interval j1 j2 = Interval (min i1 j1) (max i2 j2)
 
 instance (Num n, Ord n) => Num (Interval n) where
-  Interval i1 i2 + Interval j1 j2 = Interval (i1 + j1) (i2+ j2)
+  Interval i1 i2 + Interval j1 j2 = Interval (i1 + j1) (i2 + j2)
   (*) = withBounds2 (*)
   negate (Interval i1 i2) = Interval (negate i2) (negate i1)
   abs (Interval i j)
@@ -41,13 +41,13 @@ instance (Num n, Ord n) => Num (Interval n) where
   signum = withBounds1 signum
   fromInteger = constant . fromInteger
 
-instance Numeric (Interval Int) (Error String) where
+instance (Integral n, Num n, Ord n) => Numeric (Interval (InfiniteNumber n)) (Failure String) where
   Interval i1 i2 / Interval j1 j2
     | j1 P.== 0 && j2 P.== 0 = Fail "divided by 0 error"
     | j1 P.== 0 && 0  P.< j2 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval (j1+1) j2
     | j1 P.<  0 && j2 P.== 0 = Fail "divided by 0 error" ⊔ Interval i1 i2 / Interval j1 (j2-1)
-    | j1 P.<  0 && 0  P.< j2 = Fail "divided by 0 error" ⊔ Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
-    | otherwise = Success (withBounds2 (P.div) (Interval i1 i2) (Interval j1 j2))
+    | j1 P.<  0 && 0  P.< j2 = Fail "divided by 0 error" ⊔ Success (withBounds2 divInf (Interval i1 i2) (Interval j1 j2))
+    | otherwise = Success (withBounds2 divInf (Interval i1 i2) (Interval j1 j2))
 
 instance Ord n => Equality (Interval n) where
   Interval i1 i2 == Interval j1 j2
@@ -79,5 +79,6 @@ instance (Ord n, Bounded n) => UpperBounded (Interval n) where
 
 widening :: Ord n => Widening (Interval (InfiniteNumber n))
 widening (Interval i1 i2) (Interval j1 j2) =
-  Interval (if j1 P.< i1 then NegInfinity else j1)
-           (if j2 P.> i2 then Infinity else i2)
+  (if j1 P.< i1 || j2 P.> i2 then Instable else Stable,
+    Interval (if j1 P.< i1 then NegInfinity else j1)
+             (if j2 P.> i2 then Infinity else i2))

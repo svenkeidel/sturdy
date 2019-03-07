@@ -5,14 +5,14 @@ module IntervalAnalysisSpec where
 import           Prelude hiding (succ,pred)
 import           SharedSpecs
 
-import           Data.Abstract.Bounded
-import           Data.Abstract.PropagateError hiding (toEither)
+import           Data.Abstract.DiscretePowerset(Pow)
+import           Data.Abstract.Error hiding (toEither)
 import qualified Data.Abstract.Interval as I
-import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Terminating hiding (toEither)
 import           IntervalAnalysis
 import           Syntax
 import           Test.Hspec
+import           GHC.Exts(toList)
 
 main :: IO ()
 main = hspec spec
@@ -20,7 +20,7 @@ main = hspec spec
 spec :: Spec
 spec = do
   let ?bound = I.Interval (-100) 100 in
-        sharedSpec (\env e -> toEither $ evalInterval 3 env e) (NumVal . bounded . fromIntegral)
+        sharedSpec (\env e -> toEither $ evalInterval 3 env e) (NumVal . fromIntegral)
 
   describe "behavior specific to interval analysis" $ do
     it "should execute both branches on IfZero on interval containing zero" $
@@ -35,17 +35,11 @@ spec = do
            Terminating (Success (num 0 0))
 
     it "should analyse addition correctly" $
-      -- evalInterval 0 lim [] (App (App add five) two) `shouldBe` Success Top
       let ?bound = I.Interval 0 5
       in do
         evalInterval 10 [] (app (app add zero) two) `shouldBe` Terminating (Success (num 2 2))
         evalInterval 10 [] (app (app add one) two) `shouldBe` Terminating (Success (num 3 3))
-
-        -- The problem is that the check for `IfZero` does not improve the
-        -- value for the first parameter of `add` in the environment. This means that
-        -- at some point addition is called with add [-1,0] [2,2] and [-1,0] fails the bound check and the top interval is returned.
-        evalInterval 10 [("x", num 0 1)] (app (app add "x") two) `shouldBe`
-          Terminating (Success (num NegInfinity Infinity))
+        evalInterval 10 [("x", num 0 1)] (app (app add "x") two) `shouldBe` Terminating (Success (num 2 6))
 
     it "should terminate for the non-terminating program" $
       let ?bound = I.Interval 0 5
@@ -60,9 +54,9 @@ spec = do
     one = succ zero
     two = succ one
 
-    num i j = NumVal $ bounded $ I.Interval i j
+    num i j = NumVal $ I.Interval i j
 
-    toEither :: Terminating (Error String a) -> Either String a
-    toEither (Terminating (Fail e)) = Left e
+    toEither :: Terminating (Error (Pow String) a) -> Either String a
+    toEither (Terminating (Fail e)) = Left (unwords (toList e))
     toEither (Terminating (Success x)) = Right x
     toEither NonTerminating = Left "NonTerminating"

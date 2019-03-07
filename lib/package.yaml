@@ -1,0 +1,44 @@
+name:       sturdy-lib
+version:    0.1.0.0
+synopsis:   A library for creating sound static analyses
+maintainer: Sven Keidel <svenkeidel@gmail.com>
+license:    BSD3
+github:     svenkeidel/sturdy
+category:   Language
+
+dependencies:
+  - base
+  - containers
+  - hashable
+  - mtl
+  - random
+  - text
+  - unordered-containers
+  - union-find
+  - deepseq
+  - profunctors
+
+flags:
+  trace:
+    description: Enable tracing of the abstract intepreter
+    default:     False
+    manual:      True
+
+library:
+  ghc-options: -Wall
+  source-dirs:
+    - src
+  when:
+    - condition: flag(trace)
+      cpp-options: -DTRACE
+
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    dependencies:
+      - hspec
+      - QuickCheck
+      - sturdy-lib

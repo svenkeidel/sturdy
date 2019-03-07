@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Pretty.Haskell where
 
+import Prelude hiding ((<>))
+
 import           WildcardSemantics
 
 import qualified Data.Text as T

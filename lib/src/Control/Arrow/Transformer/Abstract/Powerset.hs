@@ -5,86 +5,50 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
-module Control.Arrow.Transformer.Abstract.Powerset(Powerset(..)) where
+module Control.Arrow.Transformer.Abstract.Powerset(PowT,runPowT) where
 
 import           Prelude hiding (id,(.),lookup,fail)
 
 import           Control.Arrow
 import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Deduplicate
-import           Control.Arrow.Environment
+import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fail
-import           Control.Arrow.Lift
+import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Fix
+import           Control.Arrow.Const
+import           Control.Arrow.Store
+import           Control.Arrow.Except
+import           Control.Arrow.Transformer.Kleisli
 import           Control.Category
-import           Control.Monad (join)
 
 import qualified Data.Abstract.Powerset as A
-import           Data.Monoidal
 import           Data.Order
-import           Data.Sequence hiding (lookup)
+import           Data.Identifiable
+import           Data.Profunctor
 
 -- | Computation that produces a set of results.
-newtype Powerset c x y = Powerset { runPowerset :: c x (A.Pow y)}
+newtype PowT c x y = PowT { unPowT :: KleisliT A.Pow c x y}
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowState s, ArrowReader r,
+            ArrowConst r, ArrowEnv a b e', ArrowStore a b, ArrowFail e', ArrowExcept e')
 
-instance ArrowLift Powerset where
-  lift f = Powerset $ f >>^ A.singleton
+runPowT :: PowT c x y -> c x (A.Pow y)
+runPowT = runKleisliT . unPowT
 
-mapPow :: ArrowChoice c => c x y -> c (A.Pow x) (A.Pow y)
-mapPow f = proc (A.Pow s) -> case viewl s of
-  EmptyL -> returnA -< A.empty
-  (x :< xs) -> do
-    p <- f -< x
-    A.Pow ps <- mapPow f -< A.Pow xs
-    returnA -< A.Pow (p <| ps)
+instance (ArrowChoice c, ArrowDeduplicate x y c, Identifiable y) => ArrowDeduplicate x y (PowT c) where
+  dedup f = lift $ rmap A.dedup (unlift f)
 
-instance ArrowChoice c => Category (Powerset c) where
-  id = lift id
-  Powerset f . Powerset g = Powerset $ g >>> mapPow f >>^ join
+instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (PowT c) where app = lift $ lmap (first unlift) app
+type instance Fix x y (PowT c) = PowT (Fix (Dom PowT x y) (Cod PowT x y) c)
+deriving instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (PowT c)
 
-instance ArrowChoice c => Arrow (Powerset c) where
-  arr f = lift (arr f)
-  first (Powerset f) = Powerset $ first f >>^ \(pow,n) -> A.cartesian (pow, A.singleton n)
-  second (Powerset f) = Powerset $ second f >>^ \(n,pow) -> A.cartesian (A.singleton n, pow)
+deriving instance PreOrd (c x (A.Pow y)) => PreOrd (PowT c x y)
+deriving instance LowerBounded (c x (A.Pow y)) => LowerBounded (PowT c x y)
+deriving instance Complete (c x (A.Pow y)) => Complete (PowT c x y)
+deriving instance CoComplete (c x (A.Pow y)) => CoComplete (PowT c x y)
+deriving instance UpperBounded (c x (A.Pow y)) => UpperBounded (PowT c x y)
 
-instance ArrowChoice c => ArrowChoice (Powerset c) where
-  left (Powerset f) = Powerset $ left f >>^ strength1
-  right (Powerset f) = Powerset $ right f >>^ strength2
-
-instance (ArrowChoice c, ArrowApply c) => ArrowApply (Powerset c) where
-  app = Powerset $ first runPowerset ^>> app
-
-instance (ArrowChoice c, ArrowReader r c) => ArrowReader r (Powerset c) where
-  ask = lift ask
-  local (Powerset f) = Powerset $ local f
-
-instance (ArrowChoice c, ArrowState s c) => ArrowState s (Powerset c) where
-  get = lift get
-  put = lift put
-
-instance (ArrowChoice c, ArrowFail e c) => ArrowFail e (Powerset c) where
-  fail = lift fail
-
-instance (ArrowChoice c, ArrowEnv x y env c) => ArrowEnv x y env (Powerset c) where
-  lookup (Powerset f) (Powerset g) = Powerset (lookup f g)
-  getEnv = lift getEnv
-  extendEnv = lift extendEnv
-  localEnv (Powerset f) = Powerset $ localEnv f
-
-instance (ArrowChoice c, ArrowDeduplicate x y c) => ArrowDeduplicate x y (Powerset c) where
-  dedup (Powerset f) = Powerset $ A.dedup ^<< f
-
-instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (Powerset c) where
-  joinWith _ (Powerset f) (Powerset g) = Powerset $ joinWith A.union f g
-
-type instance Fix x y (Powerset c) = Powerset (Fix x (A.Pow y) c)
-instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (Powerset c) where
-  fix f = Powerset (fix (runPowerset . f . Powerset))
-
-deriving instance PreOrd (c x (A.Pow y)) => PreOrd (Powerset c x y)
-deriving instance LowerBounded (c x (A.Pow y)) => LowerBounded (Powerset c x y)
-deriving instance Complete (c x (A.Pow y)) => Complete (Powerset c x y)
-deriving instance CoComplete (c x (A.Pow y)) => CoComplete (Powerset c x y)
-deriving instance UpperBounded (c x (A.Pow y)) => UpperBounded (Powerset c x y)
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
+  joinWith _ f g = lift $ joinWith A.union (unlift f) (unlift g)

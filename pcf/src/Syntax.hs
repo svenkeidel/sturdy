@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Syntax where
 
 import Data.Text(Text,unpack)
@@ -20,6 +21,7 @@ data Expr
   | Pred Expr Label
   | IfZero Expr Expr Expr Label
   | Y Expr Label
+  | Apply Expr Label
   deriving (Eq)
 
 -- Smart constructors that build labeled PCF expressions.
@@ -48,6 +50,7 @@ ifZero e1 e2 e3 = IfZero <$> e1 <*> e2 <*> e3 <*> fresh
 fix :: State Label Expr -> State Label Expr
 fix e = Y <$> e <*> fresh
 
+
 instance Show Expr where
   showsPrec d e0 = case e0 of
     Var x _ -> showString (unpack x)
@@ -55,6 +58,7 @@ instance Show Expr where
     Succ e _ -> showParen (d > app_prec) $ showString "succ " . showsPrec (app_prec + 1) e
     Pred e _ -> showParen (d > app_prec) $ showString "pred " . showsPrec (app_prec + 1) e
     Y e _ -> showParen (d > app_prec) $ showString "Y " . showsPrec (app_prec + 1) e
+    Apply e _ -> showParen (d > app_prec) $ showsPrec (app_prec + 1) e
     IfZero e1 e2 e3 _ -> showParen (d > app_prec)
       $ showString "ifZero "
       . showsPrec (app_prec + 1) e1
@@ -75,7 +79,7 @@ instance Show Expr where
       app_prec = 10
       lam_prec = 9
 
-instance HasLabel Expr where
+instance HasLabel Expr Label where
   label e = case e of
     Var _ l -> l
     Lam _ _ l -> l
@@ -85,6 +89,7 @@ instance HasLabel Expr where
     Pred _ l -> l
     IfZero _ _ _ l -> l
     Y _ l -> l
+    Apply _ l -> l
 
 instance IsString (State Label Expr) where
   fromString = var . fromString
@@ -98,3 +103,4 @@ instance Hashable Expr where
   hashWithSalt s (Pred e _) = s `hashWithSalt` (5::Int) `hashWithSalt` e
   hashWithSalt s (IfZero e1 e2 e3 _) = s `hashWithSalt` (6::Int) `hashWithSalt` e1 `hashWithSalt` e2 `hashWithSalt` e3
   hashWithSalt s (Y e _) = s `hashWithSalt` (7::Int) `hashWithSalt` e
+  hashWithSalt s (Apply e _) = s `hashWithSalt` (8::Int) `hashWithSalt` e

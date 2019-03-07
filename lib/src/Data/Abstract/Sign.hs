@@ -12,7 +12,7 @@ import           Data.Numeric
 
 import           Data.Abstract.Equality
 import           Data.Abstract.Widening
-import           Data.Abstract.PropagateError
+import           Data.Abstract.Failure
 import qualified Data.Abstract.Boolean as B
 
 import           GHC.Generics
@@ -56,7 +56,7 @@ instance Num Sign where
     | n < 0 = Negative
     | otherwise = Positive
 
-instance Numeric Sign (Error String) where
+instance Numeric Sign (Failure String) where
   Negative / Negative = Success Positive
   Positive / Negative = Success Negative
   Negative / Positive = Success Negative
@@ -93,4 +93,8 @@ instance UpperBounded Sign where
 instance Hashable Sign
 
 widening :: Widening Sign
-widening = finite
+widening Negative Negative = (Stable,Negative)
+widening Zero Zero = (Stable,Zero)
+widening Positive Positive = (Stable,Positive)
+widening Top Top = (Stable,Positive)
+widening _ _ = (Instable,Top)

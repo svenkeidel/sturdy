@@ -11,6 +11,7 @@ import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import           Data.Text (Text)
+import           Data.Profunctor
 
 import           Control.Arrow
 
@@ -22,6 +23,8 @@ class PreOrd x where
   (≈) :: x -> x -> Bool
   x ≈ y = x ⊑ y && y ⊑ x
   infix 4 ≈
+
+
 
 -- | Order with all least upper bounds
 class PreOrd x => Complete x where
@@ -35,25 +38,15 @@ class PreOrd x => LowerBounded x where
 lub :: (Foldable f, Complete x) => f x -> x
 lub = foldr1 (⊔)
 
-joined :: (Arrow c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
-joined f1 f2 = (arr fst >>> f1) ⊔ (arr snd >>> f2)
+joined :: (Arrow c, Profunctor c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
+joined f1 f2 = (lmap fst f1) ⊔ (lmap snd f2)
 
--- What we actually would like to write is this:
--- joined f1 f2 = proc (x1,x2) -> (f1 -< x1) ⊔ (f2 -< x2)
-
--- This is what the compiler desugars it to (we simplified it):
--- joined =
---   (arr (\(x1, x2) -> ((x2, x1), ())) )
---   >>>
---   (op
---         (arr (\((x2,x1), b) -> (x1, b))) >>> arr fst >>> f1   ::  c ((x2,x1,b)) r
---         (arr (\((x2,x1),b) -> (x2,b)) >>> arr fst >>> f2   ::     c ((x2,x1),b) r
-
-lubA :: (ArrowChoice c, Complete (c (x,[x]) y), LowerBounded (c () y)) => c x y -> c [x] y
+lubA :: (ArrowChoice c, Profunctor c, Complete (c (x,[x]) y), LowerBounded (c () y)) => c x y -> c [x] y
 lubA f = proc l -> case l of
   [] -> bottom -< ()
   -- (x:xs) -> (f -< x) ⊔ (lubA f -< xs) causes an type error.
   (x:xs) -> joined f (lubA f) -< (x, xs)
+{-# DEPRECATED lubA "Use Control.Arrow.Abstract.ArrowJoin.joinList" #-}
 
 -- | Order with all greatest lower bounds
 class PreOrd x => CoComplete x where
@@ -165,11 +158,11 @@ instance PreOrd Text where
   (≈) = (==)
 
 instance PreOrd Int where
-  (⊑) = (<=)
+  (⊑) = (==)
   (≈) = (==)
 
 instance PreOrd Double where
-  (⊑) = (<=)
+  (⊑) = (==)
   (≈) = (==)
 
 instance PreOrd a => PreOrd (Maybe a) where

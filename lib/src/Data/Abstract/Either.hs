@@ -46,15 +46,17 @@ instance (Complete a, Complete b) => Complete (Either a b) where
 
 widening :: Widening a -> Widening b -> Widening (Either a b)
 widening wa wb m1 m2 = case (m1,m2) of
-    (Right b, Right b') -> Right (b `wb` b')
-    (Right b, Left a') -> LeftRight a' b
-    (Left a, Right b') -> LeftRight a b'
-    (Left a, Left a') -> Left (a `wa` a')
-    (LeftRight a b, Right b') -> LeftRight a (b `wb` b')
-    (Right b, LeftRight a' b') -> LeftRight a' (b `wb` b')
-    (LeftRight a b, Left a') -> LeftRight (a `wa` a') b
-    (Left a, LeftRight a' b') -> LeftRight (a `wa` a') b'
-    (LeftRight a b, LeftRight a' b') -> LeftRight (a `wa` a') (b `wb` b')
+    (Right b, Right b') -> second Right (b `wb` b')
+    (Right b, Left a') -> (Instable,LeftRight a' b)
+    (Left a, Right b') -> (Instable,LeftRight a b')
+    (Left a, Left a') -> second Left (a `wa` a')
+    (LeftRight a b, Right b') -> let (_,b'') = b `wb` b' in (Instable,LeftRight a b'') 
+    (Right b, LeftRight a' b') -> let (_,b'') = b `wb` b' in (Instable,LeftRight a' b'')
+    (LeftRight a b, Left a') -> let (_,a'') = a `wa` a' in (Instable,LeftRight a'' b)
+    (Left a, LeftRight a' b') -> let (_,a'') = a `wa` a' in (Instable,LeftRight a'' b')
+    (LeftRight a b, LeftRight a' b') -> let (sa,a'') = a `wa` a'
+                                            (sb,b'') = b `wb` b'
+                                        in (sa ⊔ sb,LeftRight a'' b'')
 
 instance Bifunctor Either where
   bimap f g x = case x of

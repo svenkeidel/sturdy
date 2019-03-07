@@ -7,6 +7,7 @@ import Prelude hiding (sum)
 import Control.Arrow
 import Control.Arrow.Fix
 import Control.Arrow.Transformer.Concrete.Trace
+import Control.Arrow.Transformer.Concrete.Fixpoint
 
 import Test.Hspec
 
@@ -49,7 +50,7 @@ spec = do
               Return 16,
             Return 28
           ]
-    in runTrace sum x1 `shouldBe` (trace,28)
+    in runFixT (runTraceT (sum :: TraceT Tree Int (FixT Tree (Log Tree Int,Int) (->)) Tree Int)) x1 `shouldBe` (trace,28)
 
   -- it "Cont Trace" $ do
   --    runTrace (runCont sum) x1 `shouldBe` (trace,28)

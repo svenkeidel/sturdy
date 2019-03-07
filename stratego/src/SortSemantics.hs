@@ -7,21 +7,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures -fno-warn-orphans #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RankNTypes #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module SortSemantics where
 
 import           Prelude hiding ((.),fail)
-import qualified Prelude as P
+-- import qualified Prelude as P
 
 import qualified ConcreteSemantics as C
-import           SharedSemantics
+import           SharedSemantics as Shared
 import           Sort
 import           SortContext (Context,Signature(..))
 import qualified SortContext as Ctx
-import           Soundness
+-- import           Soundness
 import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
 import           Control.Arrow.Deduplicate
@@ -30,206 +34,222 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.State
-import           Control.Arrow.Transformer.Abstract.Completion
-import           Control.Arrow.Transformer.Abstract.Fixpoint
-import           Control.Arrow.Transformer.Abstract.HandleExcept
+import           Control.Arrow.Trans
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
-import           Control.Category
-import           Control.Monad (zipWithM)
+import           Control.Arrow.Transformer.Abstract.Completion
+import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.DeepSeq
 
 import           Data.Abstract.FreeCompletion hiding (Top)
-import qualified Data.Abstract.FreeCompletion as F
-import           Data.Abstract.HandleError as E
+import qualified Data.Abstract.FreeCompletion as Free
+import           Data.Abstract.Except as E
+import           Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as A
-import qualified Data.Concrete.Powerset as C
-import qualified Data.Concrete.Error as C
-import           Data.Abstract.PreciseStore (Store)
-import qualified Data.Abstract.PreciseStore as S
+import           Data.Abstract.DiscretePowerset(Pow)
+import qualified Data.Abstract.DiscretePowerset as P
+-- import qualified Data.Concrete.Powerset as C
+-- import qualified Data.Concrete.Error as CE
+-- import qualified Data.Concrete.Failure as CF
+import           Data.Abstract.WeakMap (Map)
+import qualified Data.Abstract.WeakMap as S
 import qualified Data.Abstract.StackWidening as SW
-import           Data.Abstract.Terminating
+import           Data.Abstract.Terminating (Terminating)
+import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening as W
 import           Data.Foldable (foldr')
-import           Data.GaloisConnection
+-- import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
-import           Data.Monoidal
 import           Data.Order
+import           Data.Profunctor
+import qualified Data.Lens as L
 
-import           Test.QuickCheck hiding (Success)
+-- import           Test.QuickCheck hiding (Success)
 import           Text.Printf
+import           GHC.Exts(IsString(..))
 
-data Term = Term {sort :: Sort , context :: Context}
+data Term = Term { sort :: Sort, context :: Context }
 
-type TermEnv = Store TermVar Term
+type TermEnv = Map TermVar Term
 
-newtype Interp s a b =
-  Interp (
-   Fix (Strat,Term) Term
-    (Const Context
-     (Reader StratEnv
-      (State TermEnv
-       (Except ()
-        (Completion
-         (Fixpoint s () ()
-          (->))))))) a b)
+type TypeError = Pow String
 
-runInterp :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) a b
-          -> Int -> Int -> StratEnv -> Context -> TermEnv -> a -> Terminating (FreeCompletion (Error () (TermEnv,b)))
-runInterp (Interp f) k l senv ctx tenv a =
-  runFix' stackWidening resultWidening
-    (runCompletion
-     (runExcept
-      (runState
-       (runReader
-        (runConst ctx f)))))
-    (tenv, (senv, a))
+type Interp s x y =
+  Fix (Strat,Term) Term
+    (SortT  
+      (ConstT Context
+       (ReaderT StratEnv
+        (StateT TermEnv
+         (ExceptT ()
+          (ErrorT TypeError
+           (CompletionT
+            (TerminatingT
+             (FixT s () ()
+              (->)))))))))) x y
+
+runInterp :: forall x y. Interp _ x y -> Int -> Int -> StratEnv -> Context -> TermEnv -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv,y))))
+runInterp f k l senv0 ctx tenv0 a =
+  if not $ M.null (Ctx.filterInconsistentConstructors ctx)
+  then error $ printf "Invalid constructor singnatures %s" (show $ Ctx.filterInconsistentConstructors ctx)
+  else
+    runFixT' (\((te,(_,(s,t))),(te',(_,(s',t')))) -> printf "strat = %s -> %s, sort = %s -> %s, env = %s -> %s" (show s) (show s') (show t) (show t') (show te) (show te'))
+             show
+             stackWidening
+             (T.widening resultWidening)
+     (runTerminatingT
+      (runCompletionT
+       (runErrorT
+        (runExceptT
+         (runStateT
+          (runReaderT
+           (runConstT ctx
+             (runSortT f))))))))
+      (tenv0, (senv0, a))
   where
-    stackWidening :: SW.StackWidening (SW.Categories (Strat,StratEnv) (TermEnv, Term) SW.Stack) (TermEnv, (StratEnv, (Strat, Term)))
-    stackWidening = SW.categorize (Iso from' to') (SW.stack (SW.maxSize k topWidening))
+    stackWidening :: SW.StackWidening _ (TermEnv, (StratEnv, (Strat, Term)))
+    stackWidening = SW.filter' (L.second (L.second (L.first stratCall)))
+                  -- $ SW.trace (\st (tenv,(_,(s,t))) -> printf "strat: %s\nsort: %s\nenv: %s\nstack: %s\n" (show s) (show t) (show tenv) (show st))
+                  $ SW.groupBy (L.iso' (\(tenv,(senv,(strat,term))) -> ((strat,senv),(term,tenv)))
+                                       (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term)))))
+                  $ SW.stack
+                  $ SW.reuseFirst
+                  $ SW.maxSize k
+                  $ error "top"
 
-    resultWidening :: Widening (FreeCompletion (Error () (TermEnv,Term)))
-    resultWidening = F.widening (E.widening (\_ _ -> ()) (S.widening sortWidening W.** sortWidening))
+    resultWidening :: Widening (FreeCompletion (Error TypeError (Except () (TermEnv,Term))))
+    resultWidening = Free.widening (F.widening P.widening (E.widening (\_ _ -> (Stable,())) (S.widening termWidening W.** termWidening)))
 
-    topWidening :: SW.StackWidening a (TermEnv,Term)
-    topWidening (env,_) = return (S.map (const (Term Top ctx)) env,Term Top ctx)
+    -- topWidening :: SW.StackWidening SW.Stack (TermEnv,Term)
+    -- topWidening = SW.topOut'' $ \(env,_) -> (S.map (const (Term Top ctx)) env,Term Top ctx)
 
-    sortWidening :: Widening Term
-    sortWidening (Term s _) (Term s' _)= Term (Sort.widening l s s') ctx
-
-from' :: (TermEnv, (StratEnv, (Strat, Term))) -> ((Strat, StratEnv), (TermEnv, Term))
-from' (tenv,(senv,(s,t))) = ((s,senv),(tenv,t))
-
-to' :: ((Strat, StratEnv), (TermEnv, Term)) -> (TermEnv, (StratEnv, (Strat, Term)))
-to' ((s,senv),(tenv,t)) = (tenv,(senv,(s,t)))
-
-eval :: Int -> Int -> Strat -> StratEnv -> Context -> TermEnv -> Term -> Terminating (FreeCompletion (Error () (TermEnv,Term)))
-eval i j s = runInterp (eval' s) i j
+    termWidening :: Widening Term
+    termWidening (Term s _) (Term s' _) = let ~(st,s'') = Sort.widening l s s' in (st,Term s'' ctx)
+eval :: Int -> Int -> Strat -> StratEnv -> Context -> TermEnv -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv,Term))))
+eval i j s = runInterp (Shared.eval' s) i j
 
 -- Instances -----------------------------------------------------------------------------------------
-deriving instance Category (Interp s)
-deriving instance Arrow (Interp s)
-deriving instance ArrowChoice (Interp s)
-deriving instance ArrowConst Context (Interp s)
-deriving instance ArrowDeduplicate Term Term (Interp s)
-deriving instance (Complete (FreeCompletion y), PreOrd y) => ArrowExcept x y () (Interp s)
-deriving instance ArrowFail () (Interp s)
-deriving instance ArrowFix (Strat,Term) Term (Interp s)
-deriving instance ArrowReader StratEnv (Interp s)
-deriving instance ArrowState TermEnv (Interp s)
-deriving instance PreOrd b => PreOrd (Interp s a b)
-deriving instance (Complete (FreeCompletion b), PreOrd b) => Complete (Interp s a b)
-deriving instance PreOrd b => LowerBounded (Interp s a b)
+type instance Fix x y (SortT c) = SortT (Fix x y c)
+newtype SortT c x y = SortT { runSortT :: c x y }
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowExcept e,ArrowReader r,ArrowState s,ArrowFail e,ArrowJoin,ArrowConst ctx,PreOrd,LowerBounded)
 
-instance Complete (FreeCompletion Term) where
-  Lower x ⊔ Lower y = Lower (x ⊔ y)
-  _ ⊔ _ = F.Top
-
-instance Complete (FreeCompletion TermEnv) where
-  Lower x ⊔ Lower y = Lower (x ⊔ y)
-  _ ⊔ _ = F.Top
-
-instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]) where
-  Lower xs ⊔ Lower ys | eqLength xs ys = zipWithM (\x y -> Lower x ⊔ Lower y) xs ys
-  _ ⊔ _ = F.Top
-
-instance ArrowApply (Interp s) where
-  app = Interp $ (\(Interp f, b) -> (f,b)) ^>> app
-
-instance HasStratEnv (Interp s) where
-  readStratEnv = proc _ ->
-    ask -< ()
+instance ArrowReader StratEnv c => HasStratEnv (SortT c) where
+  readStratEnv = proc _ -> ask -< ()
+  {-# INLINE readStratEnv #-}
   localStratEnv senv f = proc a ->
     local f -< (senv,a)
+  {-# INLINE localStratEnv #-}
 
-instance IsTermEnv TermEnv Term (Interp s) where
-  getTermEnv = get
-  putTermEnv = put
-  lookupTermVar f g = proc (v,env) ->
-    case S.lookup v env of
-      A.Just t -> f -< t
-      A.JustNothing t -> joined f g -< (t,())
-      A.Nothing -> g -< ()
-  insertTerm = arr $ \(v,t,env) -> S.insert v t env
-  deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
-  unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
-
-instance IsTerm Term (Interp s) where
+instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowFail e c, ArrowExcept () c, IsString e, LowerBounded (c () Term))
+    => IsTerm Term (SortT c) where
   matchTermAgainstConstructor matchSubterms = proc (c,ps,t@(Term s ctx)) ->
     case (c,ps,s) of
-      ("Cons",[_,_],List a) -> (do
+      (_,_,Bottom) -> typeError -< "cannot match against sort bottom."
+      ("Cons",[_,_],List a) ->
+          (do
            ss <- matchSubterms -< (ps,[Term a ctx,Term (List a) ctx])
            cons -< ("Cons",ss))
-           ⊔ (fail -< ())
+           <⊔>
+           (throw -< ())
       ("Cons",[_,_],_) | isList t -> (do
            ss <- matchSubterms -< (ps,[Term Top ctx,Term (List Top) ctx])
            cons -< ("Cons",ss))
-           ⊔ (fail -< ())
-      ("Cons",_,_) -> fail -< ()
-      ("Nil",[],_) -> (returnA -< Term (List Bottom) ctx) ⊔ (fail -< ())
-      ("Nil",_,_) -> fail -< ()
-      (_,_,Top) -> (lubA (proc (Signature ss _) -> if eqLength ss ps
-               then do
-                 ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
-                 cons -< (c,ss')
-               else fail -< ()) -<< Ctx.lookupCons ctx c)
-        ⊔ (fail -< ())
-      _ ->
-        lubA (proc (c',Signature ss _) -> if c == c' && eqLength ss ps
-               then do
-                 ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
-                 cons -< (c',ss')
-               else fail -< ()) -<< Ctx.lookupSort ctx s
+           <⊔>
+           (throw -< ())
+      ("Cons",_,_) -> typeMismatch -< ("List",show s)
+      ("Nil",[],_) | isList t -> (returnA -< Term (List Bottom) ctx) <⊔> (throw -< ())
+      ("Nil",_,_) -> throw -< ()
+      ("",_,Tuple ss)
+        | eqLength ss ps -> do
+          ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
+          cons -< (c,ss')
+        | otherwise -> throw -< ()
+      ("",_,Top) -> (do
+           ss <- matchSubterms -< (ps,[Term Top ctx | _ <- ps ])
+           cons -< ("",ss))
+           <⊔>
+           (throw -< ())
+      (_,_,Top) -> do
+         (| joinList (typeError -< printf "cannot find constructor %s in context" (show c))
+                     (\(Signature ss _) ->
+                       if eqLength ss ps
+                       then do
+                         ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
+                         cons -< (c,ss')
+                       else throw -< ()) |)
+            (Ctx.lookupCons ctx c)
+          <⊔>
+          do throw -< ()
+      _ -> do
+        (| joinList (typeError -< printf "cannot find constructor %s in context" (show c))
+                    (\(c',Signature ss _) ->
+                       if c == c' && eqLength ss ps
+                       then do
+                         ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
+                         cons -< (c',ss')
+                       else throw -< ()) |)
+           (Ctx.lookupSort ctx s)
 
   matchTermAgainstString = proc (_,t) ->
     if isLexical t
-      then returnA ⊔ fail' -< t
-      else fail -< ()
+      then (returnA -< t) <⊔> (throw -< ())
+      else throw -< ()
 
-  matchTermAgainstNumber = proc (_,t@(Term termSort _)) -> case termSort of
-    Numerical -> returnA ⊔ fail' -< t
-    _ -> fail -< ()
+  matchTermAgainstNumber = proc (_,t) ->
+    if isNumeric t
+      then (returnA -< t) <⊔> (throw -< ())
+      else throw -< ()
 
   matchTermAgainstExplode matchCons matchSubterms = proc t -> case t of
     _ | isLexical t -> do
-      matchSubterms -< convertToList [] (context t)
-      returnA -< t
-    Term Numerical ctx -> do
-      matchSubterms -< convertToList [] ctx
-      returnA -< t
+        matchSubterms -< convertToList [] (context t)
+        returnA -< t
+      | isNumeric t -> do
+        matchSubterms -< convertToList [] (context t)
+        returnA -< t
     Term _ ctx -> do
       matchCons -< Term Lexical ctx
       matchSubterms -< Term (List Top) ctx
       returnA -< t
 
   equal = proc (t1,t2) -> case t1 ⊓ t2 of
-    t | sort t == Bottom -> fail -< ()
+    t | sort t == Bottom -> typeError -< printf "Sort %s cannot be compared to sort %s." (show t1) (show t2)
       | isSingleton t1 && isSingleton t2 -> returnA -< t
-      | otherwise -> returnA ⊔ fail' -< t
+      | otherwise -> (returnA -< t) <⊔> (throw -< ())
 
   convertFromList = proc (t,ts) ->
     if isLexical t && isList ts
-      then returnA ⊔ fail' -< Term Top (context t) -- cannot deduct target sort from sort Lexical
-      else fail -< ()
+      then (returnA -< Term Top (context t)) <⊔> (throw -< ()) -- cannot deduct target sort from sort Lexical
+      else throw -< ()
 
   mapSubterms f = proc s -> do
     ctx <- askConst -< ()
-    lubA (proc (c,ts) -> do
-             ts' <- f -< ts
-             cons -< (c,ts')) -< map (\(c',Signature ss _) -> (c',sortsToTerms ss ctx)) (Ctx.lookupSort ctx (sort s))
+    (| joinList
+      (typeError -< printf "Sort %s not found in context." (show s))
+      (\(c,ts) -> do
+        ts' <- f -< ts
+        cons -< (c,ts')) |)
+      ([ (c',sortsToTerms ss ctx) | (c',Signature ss _) <- (Ctx.lookupSort ctx (sort s))])
 
   cons = proc (c, ss) -> do
     ctx <- askConst -< ()
-    returnA -< case c of
+    case c of
       "Cons" -> case ss of
-        [Term a _,Term (List b) _] -> Term (List a) ctx ⊔ Term (List b) ctx
-        _ -> Term Top ctx
+        [Term a _,Term (List b) _] -> returnA -< Term (List a) ctx ⊔ Term (List b) ctx
+        _ -> typeMismatch -< ("a * List(b)",show ss)
       "Nil" -> case ss of
-        [] -> Term (List Bottom) ctx
-        _ -> Term Top ctx
-      "Tuple" -> Term (Tuple (map sort ss)) ctx
-      _ -> glb (Term Top ctx : [ Term s ctx | Signature ss' s <- Ctx.lookupCons ctx c, ss ⊑ sortsToTerms ss' ctx ])
+        [] -> returnA -< Term (List Bottom) ctx
+        _ -> typeMismatch -< ("List(a)",show ss)
+      "" -> returnA -< Term (Tuple (map sort ss)) ctx
+      _ -> let t = glb (Term Top ctx : [ Term s ctx | Signature ss' s <- Ctx.lookupCons ctx c, ss ⊑ sortsToTerms ss' ctx ])
+           in if t == Term Bottom ctx
+              then typeError -< printf "Could not construct term %s. Could not find the constructor %s in the context." (show (c,ss)) (show c)
+              else returnA   -< t
 
   numberLiteral = proc _ -> do
     ctx <- askConst -< ()
@@ -239,36 +259,79 @@ instance IsTerm Term (Interp s) where
     ctx <- askConst -< ()
     returnA -< Term Lexical ctx
 
-alphaTerm :: Context -> C.Pow C.Term -> Term
-alphaTerm ctx = lub . fmap (toSort ctx)
+instance ArrowTrans SortT where
+  type Dom SortT x y = x
+  type Cod SortT x y = y
+  lift = SortT
+  unlift = runSortT
 
-alphaEnv :: Context -> C.Pow C.TermEnv -> TermEnv
-alphaEnv ctx = lub . fmap (\(C.TermEnv e) -> S.fromList (M.toList (fmap (toSort ctx) e)))
+instance (ArrowApply c,Profunctor c) => ArrowApply (SortT c) where
+  app = SortT (lmap (first unlift) app)
 
-alphaErr :: (Complete e', Complete x') => (e -> e') -> (x -> x') -> C.Pow (C.Error e x) -> Error e' x'
-alphaErr f g = lub . fmap (\er -> case er of
-  C.Fail e -> Fail (f e)
-  C.Success x -> Success (g x))
+deriving instance ArrowFix x y c => ArrowFix x y (SortT c)
+deriving instance ArrowDeduplicate x y c => ArrowDeduplicate x y (SortT c)
 
-instance Soundness (StratEnv,Context) (Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack)) where
- sound (senv,ctx) xs f g = forAll (choose (0,3)) $ \i -> forAll (choose (3,5)) $ \j -> 
-   let con :: Terminating (FreeCompletion (Error () (TermEnv,_)))
-       con = Terminating (Lower (alphaErr P.id ((alphaEnv ctx . return) *** alphaSing) (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)))
-       abst :: Terminating (FreeCompletion (Error () (TermEnv,_)))
-       abst = runInterp g i j senv ctx (alphaEnv ctx (fmap snd xs)) (alpha (fmap fst xs))
-   in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
+instance Complete (FreeCompletion Term) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = Free.Top
+
+instance Complete (FreeCompletion TermEnv) where
+  Lower x ⊔ Lower y = Lower (x ⊔ y)
+  _ ⊔ _ = Free.Top
+
+instance (ArrowChoice c, ArrowJoin c, ArrowState TermEnv c, ArrowConst Context c) => IsTermEnv TermEnv Term (SortT c) where
+  getTermEnv = get
+  putTermEnv = put
+  emptyTermEnv = lmap (\() -> S.empty) put
+  lookupTermVar f g = proc (v,env,ex) -> do
+    ctx <- askConst -< ()
+    case S.lookup v (Term Top ctx) env of
+      A.Just t        -> f -< t
+      A.Nothing       -> g -< ex
+      A.JustNothing t -> (f -< t) <⊔> (g -< ex)
+  insertTerm = arr $ \(v,t,env) -> S.insert v t env
+  deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
+  unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (S.delete' vars e2))
+
+
+-- alphaTerm :: Context -> C.Pow C.Term -> Term
+-- alphaTerm ctx = lub . fmap (toSort ctx)
+
+-- alphaEnv :: Context -> C.Pow C.TermEnv -> TermEnv
+-- alphaEnv ctx = lub . fmap (\(C.TermEnv e) -> S.fromList (M.toList (fmap (toSort ctx) e)))
+
+-- alphaErr :: (Complete e', Complete x') => (e -> e') -> (x -> x') -> C.Pow (CF.Failure String (CE.Error e x)) -> Failure String (Error e' x')
+-- alphaErr f g = lub . fmap (\er -> case er of
+--   CF.Fail msg -> F.Fail msg
+--   CF.Success (CE.Fail x) -> F.Success (E.Fail (f x))
+--   CF.Success (CE.Success x) -> F.Success (E.Success (g x)))
+
+-- instance Soundness (StratEnv,Context) (Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack)) where
+--  sound (senv,ctx) xs f g = forAll (choose (0,3)) $ \i -> forAll (choose (3,5)) $ \j -> 
+--    let con :: Terminating (FreeCompletion (Failure String (Error () (TermEnv,_))))
+--        con = Terminating (Lower (
+--                  alphaErr P.id ((alphaEnv ctx . return) *** alphaSing) (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs)))
+--        abst :: Terminating (FreeCompletion (Failure String (Error () (TermEnv,_))))
+--        abst = runInterp g i j senv ctx (alphaEnv ctx (fmap snd xs)) (alpha (fmap fst xs))
+--    in counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 instance Show Term where
   show (Term s _) = show s
 
+instance Eq Term where
+  Term t1 _ == Term t2 _ = t1 == t2
+
 instance Hashable Term where
-  hashWithSalt salt (Term s _) = salt `hashWithSalt` s
+  hashWithSalt salt (Term s _) = {-# SCC "Term.hash" #-} salt `hashWithSalt` s
+
+instance NFData Term where
+  rnf = rnf . sort
 
 instance PreOrd Term where
-  Term s1 ctx ⊑ Term s2 _ = Ctx.subtype ctx s1 s2
+  Term s1 ctx ⊑ Term s2 _ = {-# SCC "Term.lt" #-} Ctx.subtype ctx s1 s2
 
 instance Complete Term where
-  Term t1 ctx ⊔ Term t2 _ = Term (Ctx.lub ctx t1 t2) ctx
+  Term t1 ctx ⊔ Term t2 _ = {-# SCC "Term.join" #-} Term (Ctx.lub ctx t1 t2) ctx
 
 instance CoComplete Term where
   Term t1 ctx ⊓ Term t2 _ = Term (Ctx.glb ctx t1 t2) ctx
@@ -277,7 +340,7 @@ matchTerm :: Term -> [t'] -> Interp s ([Sort],Sort) (Term, ([t'], [Term]))
 matchTerm (Term termSort ctx) ts = proc (patParams,patSort) ->
   if eqLength patParams ts && Term patSort ctx ⊑ Term termSort ctx
     then returnA -< (Term patSort ctx, (ts,map (\s -> Term s ctx) patParams))
-    else fail -< ()
+    else throw -< ()
 
 buildTerm :: Context -> [Term] -> Interp s ([Sort],Sort) Term
 buildTerm ctx ts = proc (cParams,cSort) ->
@@ -310,14 +373,24 @@ toSort ctx t = case t of
 isLexical :: Term -> Bool
 isLexical (Term s ctx) = Ctx.isLexical ctx s
 
+isNumeric :: Term -> Bool
+isNumeric (Term s ctx) = Ctx.isNumerical ctx s
+
 isList :: Term -> Bool
 isList (Term s ctx) = Ctx.isList ctx s
+
+isTuple :: Term -> Int -> Bool
+isTuple (Term s ctx) i = Ctx.isTuple ctx i s
 
 isSingleton :: Term -> Bool
 isSingleton (Term s ctx) = Ctx.isSingleton ctx s
 
+
 sortsToTerms :: [Sort] -> Context -> [Term]
 sortsToTerms ss ctx = map (`Term` ctx) ss
 
-instance Eq Term where
-  Term t1 _ == Term t2 _ = t1 == t2
+typeMismatch :: (ArrowFail e c, IsString e) => c (String,String) a
+typeMismatch = lmap (\(expected,actual) -> printf "expected type %s but got type %s" (show expected) (show actual)) typeError
+
+typeError :: (ArrowFail e c, IsString e) => c String a
+typeError = lmap fromString fail

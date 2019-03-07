@@ -4,177 +4,171 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module IntervalAnalysis where
 
-import           Prelude hiding (Bounded,fail)
+import           Prelude hiding (Bounded,fail,(.),exp)
 
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Fail
-import           Control.Arrow.Const
 import           Control.Arrow.Fix
-import           Control.Arrow.Conditional
+import           Control.Arrow.Trans
+import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Environment
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
-import           Control.Arrow.Transformer.Abstract.PropagateExcept
-import           Control.Arrow.Transformer.Abstract.Fixpoint
-import           Control.Arrow.Transformer.Const
+import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Monad.State hiding (lift,fail)
 
-import           Data.Foldable (toList)
 import           Data.Hashable
 import           Data.Label
 import           Data.Order
 import           Data.Text (Text)
+import           Data.Profunctor
+import qualified Data.Lens as L
 
-import           Data.Abstract.Powerset(Pow)
-import           Data.Abstract.FiniteMap(Map)
-import           Data.Abstract.PropagateError (Error)
-import           Data.Abstract.Environment (Env)
-import qualified Data.Abstract.Environment as M
-import qualified Data.Abstract.PropagateError as E
+import qualified Data.Abstract.FiniteMap as F
+import           Data.Abstract.Error (Error)
+import qualified Data.Abstract.Error as E
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import qualified Data.Abstract.Widening as W
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating(Terminating)
+import qualified Data.Abstract.Terminating as T
+import           Data.Abstract.Closure (Closure)
+import qualified Data.Abstract.Closure as C
+import           Data.Abstract.DiscretePowerset (Pow)
     
-import           GHC.Generics
+import           GHC.Generics(Generic)
+import           GHC.Exts(IsString(..))
 
-import           Syntax (Expr)
-import           SharedSemantics
+import           Syntax (Expr(..))
+import           GenericInterpreter
 
--- | Abstract closures are expressions paired with an abstract
--- environment, consisting of a mapping from variables to addresses
--- and a mapping from addresses to stores.
-data Closure = Closure Expr (Map Text Addr Val) deriving (Eq,Generic)
+type Env = F.Map Text (Text, CallString Label) Val
 
 -- | Numeric values are approximated with bounded intervals, closure
 -- values are approximated with a set of abstract closures.
-data Val = NumVal IV | ClosureVal (Pow Closure) | Top deriving (Eq, Generic)
+data Val = NumVal IV | ClosureVal (Closure Expr Env) | Top deriving (Eq, Generic)
 
 -- | Addresses for this analysis are variables paired with the k-bounded call string.
-type Addr = (Text,CallString)
+type Addr = (Text,CallString Label)
 
--- | Interpreter arrow for the k-CFA / interval analysis.
-newtype Interp s x y =
-  Interp (
-    Fix Expr Val                    -- type of the fixpoint cache
-      (Environment Text Addr Val  -- threads the environment and store
-        (Contour                  -- records the k-bounded call stack used for address allocation
-          (Except String          -- allows to fail with an error message
-            (Fixpoint s () ()
-              (->))))) x y)
-
-widening :: W.Widening IV -> W.Widening Val
-widening w _ Top = Top
-widening w (NumVal x) (NumVal y) = NumVal (x `w` y)
-widening w (ClosureVal cs) (ClosureVal cs') = _
-
-
--- | Run an interpreter computation on inputs. The arguments are the
--- maximum interval bound, the depth `k` of the longest call string,
+-- | Run the abstract interpreter for the k-CFA / Interval analysis. The arguments are the
+-- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-runInterp :: Interp SW.Unit x y -> IV -> Int -> [(Text,Val)] -> x -> Terminating (Error String y)
-runInterp (Interp f) b k env x = 
-  runFix' _ (E.widening (widening _))
-    (runExcept
-      (runContour k
-        (runEnvironment alloc
-          f)))
-    (env,x)
+evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
+evalInterval k env0 e = -- runInterp eval ?bound k env (generate e)
+  runFixT stackWiden (T.widening (E.widening W.finite widenVal))
+    (runTerminatingT
+      (runErrorT
+        (runContourT k
+          (runEnvT alloc
+            (runIntervalT
+              (eval ::
+                Fix Expr Val
+                  (IntervalT
+                    (EnvT Text Addr Val
+                      (ContourT Label
+                        (ErrorT (Pow String)
+                          (TerminatingT
+                            (FixT _ () () (->))))))) Expr Val))))))
+    (env0,generate e)
+  where
+    widenVal = widening (W.bounded ?bound I.widening)
+    stackWiden :: SW.StackWidening _ (Env,Expr)
+    stackWiden = SW.filter (\(_,ex) -> case ex of Apply {} -> True; _ -> False)
+               $ SW.groupBy (L.iso' (\(env,exp) -> (exp,env)) (\(exp,env) -> (env,exp)))
+               $ SW.stack
+               $ SW.reuseFirst
+               $ SW.maxSize 3
+               $ SW.fromWidening (F.widening widenVal)
 
--- | The top-level interpreter functions that executes the analysis.
-evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error String Val)
-evalInterval k env e = runInterp eval ?bound k env (generate e)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowJoin)
+type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
+deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
+deriving instance ArrowEnv var val env c => ArrowEnv var val env (IntervalT c)
 
-instance IsVal Val (Interp s) where
+instance ArrowTrans IntervalT where
+  type Dom IntervalT x y = x
+  type Cod IntervalT x y = y
+  lift = IntervalT
+  unlift = runIntervalT
+
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (IntervalT c) where
   succ = proc x -> case x of
-    Top -> returnA -< Top
+    Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected a number as argument for 'succ'")
     NumVal n -> returnA -< NumVal $ n + 1 -- uses the `Num` instance of intervals
     ClosureVal _ -> fail -< "Expected a number as argument for 'succ'"
   pred = proc x -> case x of
-    Top -> returnA -< Top
-    NumVal n -> returnA -< NumVal $ n + negate 1
+    Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected a number as argument for 'pred'")
+    NumVal n -> returnA -< NumVal $ n - 1
     ClosureVal _ -> fail -< "Expected a number as argument for 'pred'"
   zero = proc _ -> returnA -< (NumVal 0)
 
-instance (Complete z, UpperBounded z) => ArrowCond Val x y z (Interp s) where
+instance (IsString e, ArrowChoice c, ArrowJoin c, ArrowFail e c) => ArrowCond Val (IntervalT c) where
+  type Join (IntervalT c) x y = Complete y
   if_ f g = proc v -> case v of
-    (Top, _) -> returnA -< top
+    (Top, (x,y)) -> (f -< x) <⊔> (g -< y) <⊔> (fail -< "Expected a number as condition for 'ifZero'")
     (NumVal (I.Interval i1 i2), (x, y))
-      | (i1, i2) == (0, 0) -> f -< x      -- case the interval is exactly zero
-      | i1 > 0 || i2 < 0 -> g -< y        -- case the interval does not contain zero
-      | otherwise -> (f -< x) ⊔ (g -< y)  -- case the interval contains zero and other numbers.
-    (ClosureVal _, _) -> fail -< "Expected a number as condition for 'ifZero'"
+      | (i1, i2) == (0, 0) -> f -< x                -- case the interval is exactly zero
+      | i1 > 0 || i2 < 0   -> g -< y                -- case the interval does not contain zero
+      | otherwise          -> (f -< x) <⊔> (g -< y) -- case the interval contains zero and other numbers.
+    (ClosureVal _, _)      -> fail -< "Expected a number as condition for 'ifZero'"
 
-instance IsClosure Val (Map Text Addr Val) (Interp s) where
-  closure = arr $ \(e, env) -> ClosureVal (return (Closure e env))
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c)
+    => IsClosure Val (F.Map Text Addr Val) (IntervalT c) where
+  closure = arr $ \(e, env) -> ClosureVal (C.closure e env)
   applyClosure f = proc (fun, arg) -> case fun of
-    Top -> returnA -< Top
-    ClosureVal cls ->
-      -- Apply the interpreter function `f` on all closures and join their results.
-      lubA (proc (Closure e env,arg) -> f -< ((e,env),arg)) -< [ (c,arg) | c <- toList cls]
+    Top -> (returnA -< Top) <⊔> (fail -< "Expected a closure")
+    ClosureVal cls -> (| C.apply (\(e,env) -> f -< ((e,env),arg)) |) cls
     NumVal _ -> fail -< "Expected a closure"
-
-deriving instance Category (Interp s)
-deriving instance Arrow (Interp s)
-deriving instance ArrowChoice (Interp s)
-deriving instance ArrowFail String (Interp s)
-deriving instance ArrowEnv Text Val (Map Text Addr Val) (Interp s)
-deriving instance ArrowFix Expr Val (Interp s)
-deriving instance PreOrd y => PreOrd (Interp s x y)
-deriving instance Complete y => Complete (Interp s x y)
-deriving instance PreOrd y => LowerBounded (Interp s x y)
-
-perExpression :: Pow Closure -> Env Expr (Pow (Map Text Addr Val))
-perExpression = foldr (\(Closure e,_)_) M.empty
 
 instance PreOrd Val where
   _ ⊑ Top = True
   NumVal n1 ⊑ NumVal n2 = n1 ⊑ n2
-  ClosureVal c1 ⊑ ClosureVal c2 = perExpression c1 ⊑ perExpression c2
+  ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
   _ ⊑ _ = False
 
 instance Complete Val where
-  Top ⊔ _ = Top
-  _ ⊔ Top = Top
-  NumVal x ⊔ NumVal y = NumVal (x ⊔ y)
-  ClosureVal x ⊔ ClosureVal y = ClosureVal (x ⊔ y)
-  _ ⊔ _ = Top
+  (⊔) = W.toJoin widening (⊔)
 
--- instance Widening Val where
---   -- Only intervals require widening, everything else has finite height.
---   NumVal x ▽ NumVal y = NumVal (x ▽ y)
---   x ▽ y =  x ⊔ y
+widening :: W.Widening IV -> W.Widening Val
+widening w (NumVal x) (NumVal y) = second NumVal (x `w` y)
+widening w (ClosureVal cs) (ClosureVal cs') =
+  second ClosureVal $ C.widening (F.widening (widening w)) cs cs'
+widening _ Top Top = (W.Stable,Top)
+widening _ _ _ = (W.Instable,Top)
 
 instance UpperBounded Val where
   top = Top
 
-instance PreOrd Closure where
-  Closure e1 env1 ⊑ Closure e2 env2 = e1 == e2 && env1 ⊑ env2
-
-instance HasLabel (Map Text Addr Val,Expr) where
+instance HasLabel (F.Map Text Addr Val,Expr) Label where
   label (_,e) = label e
 
-instance Hashable Closure
 instance Hashable Val
 instance Show Val where
   show (NumVal iv) = show iv
   show (ClosureVal cls) = show cls
   show Top = "⊤"
-
-instance Show Closure where
-  show (Closure e _) = show e
 
 type IV = Interval (InfiniteNumber Int)

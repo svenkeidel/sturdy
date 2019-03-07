@@ -7,7 +7,7 @@
 module SortContext(
   Context, HasContext(..), Sort(..), Signature(..), SortId(..), empty, signatures, sorts,
   fromList, insertSignature, insertSubtype, subtype, lookupSort, lookupCons,
-  lub, glb, isLexical, isList, isSingleton
+  lub, glb, isLexical, isList, isSingleton, isNumerical, isTuple, filterInconsistentConstructors
 ) where
 
 import           Sort
@@ -36,7 +36,7 @@ fromList :: [(Constructor,[Sort],Sort)] -> Context
 fromList = foldl (\ctx (c,ss,s) -> insertSignature c (Signature ss s) ctx) empty
 
 insertSignature :: Constructor -> Signature -> Context -> Context
-insertSignature con sig@(Signature _ sort) (Context cons sorts sub) =
+insertSignature con sig@(Signature _ sort) (Context cons sorts sub) = 
   Context { signatures = M.insertWith (\[v] l -> v:l) con [sig] cons
           , sorts = M.insertWith (\[v] l -> v:l) sort [(con,sig)] sorts
           , subtypes = sub
@@ -62,7 +62,7 @@ lookupSort Context {..} s0 = do
   s <- R.lower subtypes s0
   case s of
     Bottom -> []
-    Top -> error "Calculating inhabitants from sort top is not allowed"
+    Top -> error "Calculating inhabitants of sort top is not allowed"
     List a -> [("Cons", Signature [a, List a] (List a)), ("Nil", Signature [] (List a))]
     Option a -> [("Some", Signature [a] (Option a)), ("None", Signature [] (Option a))]
     Tuple as -> [("", Signature as (Tuple as))]
@@ -73,8 +73,14 @@ lookupSort Context {..} s0 = do
 isLexical :: Context -> Sort -> Bool
 isLexical ctx = subtype ctx Lexical
 
+isNumerical :: Context -> Sort -> Bool
+isNumerical ctx = subtype ctx Numerical
+
 isList :: Context -> Sort -> Bool
 isList ctx = subtype ctx (List Bottom)
+
+isTuple :: Context -> Int -> Sort -> Bool
+isTuple ctx i = subtype ctx (Tuple (replicate i Bottom))
 
 isSingleton :: Context -> Sort -> Bool
 isSingleton ctx s = case s of
@@ -87,6 +93,8 @@ isSingleton ctx s = case s of
   Tuple ss -> all (isSingleton ctx) ss
   Top -> False
 
+filterInconsistentConstructors :: Context -> HashMap Constructor [Signature]
+filterInconsistentConstructors ctx = M.filter (\sigs -> any (\(Signature _ r1) -> any (\(Signature _ r2) -> r1 /= r2) sigs) sigs) (signatures ctx)
 
 class Arrow c => HasContext c where
   getContext :: c () Context

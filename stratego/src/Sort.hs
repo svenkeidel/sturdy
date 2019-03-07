@@ -1,17 +1,24 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Sort where
 
 import Utils
 
+import Control.DeepSeq
+
 import Data.Text(Text, unpack)
 import Data.String(IsString(..))
 import Data.Hashable(Hashable(..))
 import Data.List(intercalate)
-import Data.Abstract.Widening(Widening)
+import Data.Abstract.Widening(Widening,Stable(..))
 
+import GHC.Generics(Generic)
 
-newtype SortId = SortId Text deriving (Show,Eq,Ord,Hashable,IsString)
-data Sort = Bottom | Top | Numerical | Lexical | List Sort | Option Sort | Tuple [Sort] | Sort SortId deriving (Eq)
+newtype SortId = SortId Text deriving (Show,Eq,Ord,Hashable,IsString,Generic)
+instance NFData SortId
+
+data Sort = Bottom | Top | Numerical | Lexical | List Sort | Option Sort | Tuple [Sort] | Sort SortId deriving (Eq,Generic)
+instance NFData Sort
 
 instance IsString Sort where
   fromString = Sort . fromString
@@ -32,7 +39,7 @@ instance Show Sort where
     Bottom -> "Bottom"
     Top -> "Top"
     Numerical -> "Int"
-    Lexical -> "String"
+    Lexical -> "Lexical"
     List s -> "List (" ++ show s ++ ")"
     Option s -> "Option (" ++ show s ++ ")"
     Sort (SortId s) -> unpack s
@@ -60,7 +67,7 @@ getSortId s = case s of
   _ -> Nothing
 
 widening :: Int -> Widening Sort
-widening n0 _ = go n0
+widening n0 s1 s2 = let s' = go n0 s2 in (if s' == s1 then Stable else Instable,s')
   where
     go 0 _ = Top
     go n s = case s of 

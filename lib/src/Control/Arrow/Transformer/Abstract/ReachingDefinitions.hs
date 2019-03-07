@@ -10,12 +10,13 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Transformer.Abstract.ReachingDefinitions(
-  ReachingDefinitions(..),
-  reachingDefs,
-  runReachingDefs,
+  ReachingDefsT(..),
+  reachingDefsT,
+  runReachingDefsT,
+  runReachingDefsT',
 ) where
 
-import           Prelude hiding ((.),read)
+import           Prelude hiding ((.),read,id)
 
 import           Control.Category
 import           Control.Arrow
@@ -23,60 +24,60 @@ import           Control.Arrow.Alloc
 import           Control.Arrow.Conditional
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
-import           Control.Arrow.Lift
+import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Fail
-import           Control.Arrow.Random
-import           Control.Arrow.Store
+import           Control.Arrow.Store as Store
 import           Control.Arrow.Environment
+import           Control.Arrow.Abstract.Join
+import           Control.Arrow.Transformer.Reader
 
 import           Data.Identifiable
 import           Data.Order
+import           Data.Label
+import           Data.Profunctor
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.DiscretePowerset as P
 
-newtype ReachingDefinitions c x y = ReachingDefinitions (c x y)
+newtype ReachingDefsT lab c x y = ReachingDefsT (ReaderT (Maybe lab) c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
+            ArrowFail e,ArrowExcept e,ArrowState s,ArrowEnv var val env,
+            ArrowCond val,ArrowJoin)
 
-reachingDefs ::Arrow c => c x y -> ReachingDefinitions c x y
-reachingDefs = ReachingDefinitions
+reachingDefsT :: (Arrow c,Profunctor c) => c (Maybe lab,x) y -> ReachingDefsT lab c x y
+reachingDefsT = lift
 
-runReachingDefs :: Arrow c => ReachingDefinitions c x y -> c x y
-runReachingDefs (ReachingDefinitions f) = f
+runReachingDefsT :: (Arrow c,Profunctor c) => ReachingDefsT lab c x y -> c (Maybe lab,x) y
+runReachingDefsT = unlift
 
-instance (Identifiable var, Identifiable lab, ArrowRead (var,lab) (val,Pow lab) x y c)
- => ArrowRead (var,lab) val x y (ReachingDefinitions c) where
- read (ReachingDefinitions f) (ReachingDefinitions g) = ReachingDefinitions $ proc ((var,lab),x) -> do
-   read ((\((v,_::Pow lab),x) -> (v,x)) ^>> f) g -< ((var,lab),x)
+runReachingDefsT' :: (Arrow c,Profunctor c) => ReachingDefsT lab c x y -> c x y
+runReachingDefsT' f = lmap (\x -> (Nothing,x)) (runReachingDefsT f)
 
-instance (Identifiable var, Identifiable lab, ArrowWrite (var,lab) (val,Pow lab) c)
-  => ArrowWrite (var,lab) val (ReachingDefinitions c) where
-  write = ReachingDefinitions $ proc ((var,lab),val) ->
-    write -< ((var,lab),(val,P.singleton lab))
+instance (Identifiable var, Identifiable lab, ArrowStore var (val,Pow lab) c) => ArrowStore var val (ReachingDefsT lab c) where
+  type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Pow lab),Dom (ReachingDefsT lab) x y), Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)
+  read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read (lmap (\((v,_::Pow lab),x) -> (v,x)) f) g
+  write = reachingDefsT $ lmap (\(lab,(var,val)) -> (var,(val,P.fromMaybe lab))) write
 
-type instance Fix x y (ReachingDefinitions c) = ReachingDefinitions (Fix x y c)
-deriving instance (Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefinitions c)
+type instance Fix x y (ReachingDefsT lab c) = ReachingDefsT lab (Fix x y c)
+instance (HasLabel x lab, Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefsT lab c) where
+  fix f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix (unwrap . f . lift') -< x
+    where
+      unwrap :: HasLabel x lab => ReachingDefsT lab c x y -> c x y
+      unwrap f' = (Just . label &&& id) ^>> runReachingDefsT f'
 
-instance ArrowApply c => ArrowApply (ReachingDefinitions c) where
-  app = ReachingDefinitions ((\(ReachingDefinitions f,x) -> (f,x)) ^>> app)
+instance (ArrowApply c,Profunctor c) => ArrowApply (ReachingDefsT lab c) where
+  app = ReachingDefsT (lmap (\(ReachingDefsT f,x) -> (f,x)) app)
 
-instance ArrowLift ReachingDefinitions where
-  lift f = ReachingDefinitions f
+instance ArrowReader r c => ArrowReader r (ReachingDefsT lab c) where
+  ask = lift' ask
+  local f = lift $ (\(m,(r,a)) -> (r,(m,a))) ^>> local (unlift f)
 
-deriving instance Category c => Category (ReachingDefinitions c)
-deriving instance Arrow c => Arrow (ReachingDefinitions c)
-deriving instance ArrowChoice c => ArrowChoice (ReachingDefinitions c)
-deriving instance ArrowReader r c => ArrowReader r (ReachingDefinitions c)
-deriving instance ArrowFail e c => ArrowFail e (ReachingDefinitions c)
-deriving instance ArrowExcept x y e c => ArrowExcept x y e (ReachingDefinitions c)
-deriving instance ArrowState s c => ArrowState s (ReachingDefinitions c)
-deriving instance ArrowEnv x y env c => ArrowEnv x y env (ReachingDefinitions c)
-deriving instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefinitions c)
-deriving instance ArrowCond val x y z c => ArrowCond val x y z (ReachingDefinitions c)
-deriving instance ArrowRand v c => ArrowRand v (ReachingDefinitions c)
+instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefsT lab c) where
+  alloc = lift' alloc
 
-deriving instance PreOrd (c x y) => PreOrd (ReachingDefinitions c x y)
-deriving instance LowerBounded (c x y) => LowerBounded (ReachingDefinitions c x y)
-deriving instance Complete (c x y) => Complete (ReachingDefinitions c x y)
-deriving instance CoComplete (c x y) => CoComplete (ReachingDefinitions c x y)
-deriving instance UpperBounded (c x y) => UpperBounded (ReachingDefinitions c x y)
+deriving instance PreOrd (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => PreOrd (ReachingDefsT lab c x y)
+deriving instance LowerBounded (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => LowerBounded (ReachingDefsT lab c x y)
+deriving instance Complete (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => Complete (ReachingDefsT lab c x y)
+deriving instance CoComplete (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => CoComplete (ReachingDefsT lab c x y)
+deriving instance UpperBounded (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => UpperBounded (ReachingDefsT lab c x y)

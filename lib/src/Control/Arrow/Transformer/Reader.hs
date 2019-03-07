@@ -6,104 +6,125 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Control.Arrow.Transformer.Reader(Reader(..)) where
+{-# LANGUAGE TupleSections #-}
+module Control.Arrow.Transformer.Reader(ReaderT(..)) where
 
 import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
 import Control.Arrow.Const
-import Control.Arrow.Conditional
-import Control.Arrow.Environment
+import Control.Arrow.Conditional as Cond
+import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
-import Control.Arrow.Store
+import Control.Arrow.Store as Store
 import Control.Arrow.State
 import Control.Arrow.Deduplicate
-import Control.Arrow.Except
-import Control.Arrow.Lift
+import Control.Arrow.Except as Exc
+import Control.Arrow.Trans
 import Control.Arrow.Writer
 import Control.Arrow.Utils
 import Control.Arrow.Abstract.Join
 import Control.Category
 
+import Data.Profunctor
 import Data.Order hiding (lub)
 import Data.Monoidal
+import Data.Coerce
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
-newtype Reader r c x y = Reader { runReader :: c (r,x) y }
+newtype ReaderT r c x y = ReaderT { runReaderT :: c (r,x) y }
 
-instance ArrowLift (Reader r) where
-  lift f = Reader (pi2 >>> f)
+instance (Profunctor c, Arrow c) => Profunctor (ReaderT r c) where
+  dimap f g h = lift $ dimap (second f) g (unlift h)
+  lmap f h = lift $ lmap (second f) (unlift h)
+  rmap g h = lift $ rmap g (unlift h)
 
-instance Arrow c => Category (Reader r c) where
-  id = lift id
-  Reader f . Reader g = Reader $ (\(r,x) -> (r,(r,x))) ^>> f . second g
+instance ArrowTrans (ReaderT r) where
+  type Dom (ReaderT r) x y = (r,x)
+  type Cod (ReaderT r) x y = y
+  lift = coerce
+  unlift = coerce
 
-instance Arrow c => Arrow (Reader r c) where
-  arr f = lift (arr f)
-  first (Reader f) = Reader $ (\(r,(b,d)) -> ((r,b),d)) ^>> first f
-  second (Reader f) = Reader $ (\(r,(b,d)) -> (b,(r,d))) ^>> second f
-  Reader f &&& Reader g = Reader $ f &&& g
-  Reader f *** Reader g = Reader $ (\(r,(b,d)) -> ((r,b),(r,d))) ^>> f *** g
+instance ArrowLift (ReaderT r) where
+  lift' f = lift $ lmap snd f
 
-instance ArrowChoice c => ArrowChoice (Reader r c) where
-  left (Reader f) = Reader $ to distribute ^>> mmap id pi2  ^>> left f
-  right (Reader f) = Reader $ to distribute ^>> mmap pi2 id ^>> right f
-  Reader f +++ Reader g = Reader (to distribute ^>> f +++ g)
-  Reader f ||| Reader g = Reader (to distribute ^>> f ||| g)
+instance (Arrow c, Profunctor c) => Category (ReaderT r c) where
+  id    = lift' id
+  f . g = lift $ lmap (\(r,x) -> (r,(r,x))) (unlift f . second (unlift g))
 
-instance ArrowApply c => ArrowApply (Reader r c) where
-  app = Reader $ (\(r,(Reader f,b)) -> (f,(r,b))) ^>> app
+instance (Arrow c, Profunctor c) => Arrow (ReaderT r c) where
+  arr f    = lift' (arr f)
+  first f  = lift $ lmap (\(r,(b,d)) -> ((r,b),d)) $ first (unlift f)
+  second f = lift $ lmap (\(r,(b,d)) -> (b,(r,d))) $ second (unlift f)
+  f &&& g  = lift $ unlift f &&& unlift g
+  f *** g  = lift $ lmap (\(r,(b,d)) -> ((r,b),(r,d))) $ unlift f *** unlift g
 
-instance Arrow c => ArrowReader r (Reader r c) where
-  ask = Reader pi1
-  local (Reader f) = Reader $ (\(_,(r,x)) -> (r,x)) ^>> f
+instance (ArrowChoice c, Profunctor c) => ArrowChoice (ReaderT r c) where
+  left f  = lift $ lmap (\(r,e) -> left (r,) e) $ left (unlift f)
+  right f = lift $ lmap (\(r,e) -> right (r,) e) $ right (unlift f)
+  f +++ g = lift $ lmap distribute1 $ unlift f +++ unlift g
+  f ||| g = lift $ lmap distribute1 $ unlift f ||| unlift g
 
-instance ArrowState s c => ArrowState s (Reader r c) where
-  get = lift get
-  put = lift put
+instance (ArrowApply c, Profunctor c) => ArrowApply (ReaderT r c) where
+  app = lift $ lmap (\(r,(f,b)) -> (unlift f,(r,b))) app
 
-instance ArrowWriter w c => ArrowWriter w (Reader r c) where
-  tell = lift tell
+instance (Arrow c, Profunctor c) => ArrowReader r (ReaderT r c) where
+  ask = lift pi1
+  local f = lift $ lmap (\(_,(r,x)) -> (r,x)) (unlift f)
 
-instance ArrowFail e c => ArrowFail e (Reader r c) where
-  fail = lift fail
+instance ArrowState s c => ArrowState s (ReaderT r c) where
+  get = lift' get
+  put = lift' put
+  modify f = lift (modify (lmap assoc2 (unlift f)))
 
-instance ArrowEnv x y env c => ArrowEnv x y env (Reader r c) where
-  lookup (Reader f) (Reader g) = Reader $ (\(r,(v,a)) -> (v,(r,a))) ^>> lookup ((\(v,(r,a)) -> (r,(v,a))) ^>> f) g
-  getEnv = lift getEnv
-  extendEnv = lift extendEnv
-  localEnv (Reader f) = Reader ((\(r,(env,a)) -> (env,(r,a))) ^>> localEnv f)
+instance ArrowWriter w c => ArrowWriter w (ReaderT r c) where
+  tell = lift' tell
 
-instance ArrowRead var val (r,x) y c => ArrowRead var val x y (Reader r c) where
-  read (Reader f) (Reader g) = Reader $ (\(r,(v,a)) -> (v,(r,a))) ^>> read ((\(v,(r,a)) -> (r,(v,a))) ^>> f) g
+instance ArrowFail e c => ArrowFail e (ReaderT r c) where
+  fail = lift' fail
 
-instance ArrowWrite var val c => ArrowWrite var val (Reader r c) where
-  write = lift write
+instance ArrowEnv var val env c => ArrowEnv var val env (ReaderT r c) where
+  type instance Join (ReaderT r c) ((val,x),x) y = Env.Join c ((val,Dom (ReaderT r) x y),Dom (ReaderT r) x y) (Cod (ReaderT r) x y)
+  lookup f g = lift $ lmap (\(r,(v,a)) -> (v,(r,a)))
+                    $ lookup (lmap (\(v,(r,a)) -> (r,(v,a))) (unlift f)) (unlift g)
+  getEnv     = lift' getEnv
+  extendEnv  = lift' extendEnv
+  localEnv f = lift $ lmap (\(r,(env,a)) -> (env,(r,a))) $ localEnv (unlift f)
 
-type instance Fix x y (Reader r c) = Reader r (Fix (r,x) y c)
-instance ArrowFix (r,x) y c => ArrowFix x y (Reader r c) where
-  fix f = Reader (fix (runReader . f . Reader))
+instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
+  type instance Join (ReaderT r c) ((val,x),x) y = Store.Join c ((val,Dom (ReaderT r) x y),Dom (ReaderT r) x y) (Cod (ReaderT r) x y)
+  read f g = lift $ lmap (\(r,(v,a)) -> (v,(r,a)))
+                  $ read (lmap (\(v,(r,a)) -> (r,(v,a))) (unlift f)) (unlift g)
+  write = lift' write
 
-instance ArrowExcept (r,x) y e c => ArrowExcept x y e (Reader r c) where
-  tryCatch (Reader f) (Reader g) = Reader $ tryCatch f (from assoc ^>> g)
-  finally (Reader f) (Reader g) = Reader $ finally f g
+type instance Fix x y (ReaderT r c) = ReaderT r (Fix (Dom (ReaderT r) x y) (Cod (ReaderT r) x y) c)
+instance ArrowFix (Dom (ReaderT r) x y) (Cod (ReaderT r) x y) c => ArrowFix x y (ReaderT r c) where
+  fix = liftFix
 
-instance ArrowDeduplicate (r, x) y c => ArrowDeduplicate x y (Reader r c) where
-  dedup (Reader f) = Reader (dedup f)
+instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
+  type instance Join (ReaderT r c) (x,(x,e)) y = Exc.Join c (Dom (ReaderT r) x y,(Dom (ReaderT r) x y,e)) (Cod (ReaderT r) x y)
+  throw = lift' throw
+  catch f g = lift $ catch (unlift f) (lmap assoc2 (unlift g))
+  finally f g = lift $ finally (unlift f) (unlift g)
 
-instance ArrowJoin c => ArrowJoin (Reader r c) where
-  joinWith lub (Reader f) (Reader g) = Reader $ (\(r,(x,y)) -> ((r,x),(r,y))) ^>> joinWith lub f g
+instance ArrowDeduplicate (r, x) y c => ArrowDeduplicate x y (ReaderT r c) where
+  dedup f = lift (dedup (unlift f))
 
-instance ArrowConst x c => ArrowConst x (Reader r c) where
-  askConst = lift askConst
+instance ArrowJoin c => ArrowJoin (ReaderT r c) where
+  joinWith lub f g = lift $ joinWith lub (unlift f) (unlift g)
 
-instance ArrowCond v (r,x) (r,y) z c => ArrowCond v x y z (Reader r c) where
-  if_ (Reader f) (Reader g) = Reader $ (\(r,(v,(x,y))) -> (v,((r,x),(r,y)))) ^>> if_ f g
+instance ArrowConst x c => ArrowConst x (ReaderT r c) where
+  askConst = lift' askConst
 
-deriving instance PreOrd (c (r,x) y) => PreOrd (Reader r c x y)
-deriving instance LowerBounded (c (r,x) y) => LowerBounded (Reader r c x y)
-deriving instance Complete (c (r,x) y) => Complete (Reader r c x y)
-deriving instance CoComplete (c (r,x) y) => CoComplete (Reader r c x y)
-deriving instance UpperBounded (c (r,x) y) => UpperBounded (Reader r c x y)
+instance ArrowCond v c => ArrowCond v (ReaderT r c) where
+  type instance Join (ReaderT r c) (x,y) z = Cond.Join c (Dom (ReaderT r) x z,Dom (ReaderT r) y z) (Cod (ReaderT r) (x,y) z)
+  if_ f g = lift $ lmap (\(r,(v,(x,y))) -> (v,((r,x),(r,y))))
+                 $ if_ (unlift f) (unlift g)
+
+deriving instance PreOrd (c (r,x) y) => PreOrd (ReaderT r c x y)
+deriving instance LowerBounded (c (r,x) y) => LowerBounded (ReaderT r c x y)
+deriving instance Complete (c (r,x) y) => Complete (ReaderT r c x y)
+deriving instance CoComplete (c (r,x) y) => CoComplete (ReaderT r c x y)
+deriving instance UpperBounded (c (r,x) y) => UpperBounded (ReaderT r c x y)

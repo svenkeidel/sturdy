@@ -12,26 +12,27 @@ import           Prelude hiding (lookup,Bounded,Bool(..),fail)
 
 import           Control.Arrow
 import           Control.Arrow.Fix
-import           Control.Arrow.Transformer.Abstract.Fixpoint
-import           Control.Arrow.Transformer.Abstract.PropagateExcept
-import           Control.Arrow.Transformer.State
-import           Control.Arrow.Fail
-import           Control.Arrow.State
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Terminating
 
+import           Data.Identifiable
 import           Data.Boolean(Logic(..))
 import           Data.Abstract.Boolean(Bool)
-import           Data.Abstract.PropagateError
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.Sign (Sign)
-import qualified Data.Abstract.Store as S
-import           Data.Abstract.Terminating
+import           Data.Abstract.Terminating (Terminating)
+import qualified Data.Abstract.Terminating as T
+import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
+import           Data.Abstract.StackWidening (StackWidening)
 import qualified Data.Abstract.StackWidening as SW
 
 import           Data.Order
 import           Data.Hashable
+import           Data.Profunctor
+import           Data.Lens (iso')
 
 import           GHC.Generics
 
@@ -40,15 +41,13 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Cache s x y = Fix x y (Fixpoint s () () (->)) x y
-type ErrorFix s x y = Fix x y (Except () (Fixpoint s () () (->))) x y
-type StateFix s x y = Fix x y (State IV (Fixpoint s () () (->))) x y
+type Arr s x y  = Fix x y (TerminatingT (FixT s () () (->))) x y
 type IV = Interval (InfiniteNumber Int)
 
 spec :: Spec
 spec = do
-  describe "the analysis of the fibonacci numbers" $
-    let fib :: Cache s IV IV
+  describe "fibonacci" $
+    let fib :: Show (s IV) => Arr s IV IV
         fib = fix $ \f ->
           ifLowerThan 0
             (proc _ -> returnA -< I.Interval 0 0)
@@ -58,20 +57,72 @@ spec = do
                               y <- f -< n - I.Interval 2 2
                               returnA -< x + y))
 
-    in it "should memoize numbers that have been computed before already" $ do
-         runFix' SW.finite W.finite fib (I.Interval 5 10) `shouldBe` return (I.Interval 5 55)
-         runFix' SW.finite I.widening fib (I.Interval 0 Infinity) `shouldBe` return (I.Interval 0 Infinity)
+    in do
+      it "fib[5,10] should be [5,55]" $
+         let ?stackWiden = SW.finite in
+         let ?widen = W.finite in
+         run fib (iv 5 10) `shouldBe` return (iv 5 55)
 
-  describe "the analysis of the factorial function" $
-    let fact :: Cache s IV IV
-        fact = fix $ \f -> proc n -> do
-          ifLowerThan 1 (proc _ -> returnA -< I.Interval 1 1)
-                        (proc n -> do {x <- f -< (n-I.Interval 1 1); returnA -< n * x}) -< n
-    in it "fact [-inf,inf] should produce [1,inf]" $
-         runFix' SW.finite I.widening fact top `shouldBe` return (I.Interval 1 Infinity)
+      it "fib[100,110] with stack size 3 should be [0,∞]" $
+         let ?stackWiden = SW.stack (SW.maxSize 3 (SW.reuseFirst (SW.fromWidening I.widening))) in 
+         let ?widen = I.widening in
+         run fib (iv 100 110) `shouldBe` return (iv 0 Infinity)
 
-  describe "the even and odd functions" $
-    let evenOdd :: Cache s (EvenOdd,IV) Bool
+      it "fib[1,∞] should be [0,∞]" $
+         let ?stackWiden = SW.stack $ SW.reuseFirst $ SW.finite' in
+         let ?widen = I.widening in
+         run fib (iv 0 Infinity) `shouldBe` return (iv 0 Infinity)
+
+  describe "factorial" $
+    let fact :: Show (s IV) => Arr s IV IV
+        fact = fix $ \f ->
+          ifLowerThan 1 (proc _ -> returnA -< iv 1 1)
+                        (proc n -> do x <- f -< (n - iv 1 1)
+                                      returnA -< n * x)
+    in do
+      it "fact[5,10] should be [5!,10!] = [12,3628800]" $
+         let ?stackWiden = SW.finite in
+         let ?widen = W.finite in
+         run fact (iv 5 10) `shouldBe` return (iv 120 3628800)
+
+      it "fact[10,15] with stack size 3 should be [1,∞] * [8,13] * [9,14] * [10,15] = [720,∞]" $
+         let ?stackWiden = (SW.stack (SW.maxSize 3 (SW.fromWidening I.widening))) in
+         let ?widen = I.widening in
+         run fact (iv 10 15) `shouldBe` return (iv 720 Infinity)
+
+      it "fact[0,∞] should be [1,∞]" $
+         let ?stackWiden = SW.stack $ SW.reuseFirst $ SW.finite' in
+         let ?widen = I.widening in
+         run fact (iv 0 Infinity) `shouldBe` return (iv 1 Infinity)
+
+  describe "ackermann" $
+    let ackermann :: Show (s (IV,IV)) => Arr s (IV,IV) IV
+        ackermann = fix $ \f -> proc (m,n) ->
+          ifLowerThan 0
+            (proc _ -> returnA -< n + iv 1 1)
+            (proc m' -> ifLowerThan 0
+                          (proc _ -> f -< (m'- iv 1 1, iv 1 1))
+                          (proc n' -> do x <- f -< (m,n'-iv 1 1)
+                                         f -< (m'- iv 1 1, x)) -<< n)
+            -<< m
+    in do
+      it "ack([0,3],[0,3]) should be [1,61] " $
+         let ?stackWiden = SW.finite in
+         let ?widen = W.finite in
+         run ackermann (iv 0 3, iv 0 3) `shouldBe` return (iv 1 61)
+
+      it "ack([0,3],[0,3]) with stack size 3 should be [1,∞]" $
+         let ?stackWiden = SW.stack $ SW.maxSize 3 $ SW.topOut' (iv 0 Infinity, iv 0 Infinity) in
+         let ?widen = I.widening in
+         run ackermann (iv 0 3, iv 0 3) `shouldBe` return (iv 1 Infinity)
+
+      it "ack([0,∞],[0,∞]) should be [1,∞] " $
+         let ?stackWiden = SW.stack $ SW.reuseFirst $ SW.fromWidening (I.widening W.** I.widening) in
+         let ?widen = I.widening in
+         run ackermann (iv 0 Infinity, iv 0 Infinity) `shouldBe` return (iv 1 Infinity)
+
+  describe "mutual recursive functions" $
+    let evenOdd :: Show (s (EvenOdd,IV)) => Arr s (EvenOdd,IV) Bool
         evenOdd = fix $ \f -> proc (e,x) -> case e of
           Even -> ifLowerThan 0 (proc _ -> returnA -< true)
                                 (ifLowerThan 1 (proc _ -> returnA -< false)
@@ -79,64 +130,40 @@ spec = do
           Odd -> ifLowerThan 0 (proc _ -> returnA -< false)
                                 (ifLowerThan 1 (proc _ -> returnA -< true)
                                                (proc x -> f -< (Even,x-I.Interval 1 1))) -< x
-    in it "even([-inf,inf]) should produce top" $
-         runFix' SW.finite W.finite evenOdd (Even,I.Interval 0 Infinity) `shouldBe` top
+    in
+      it "even([0,∞]) should be top" $
+         let ?stackWiden = SW.groupBy (iso' id id)
+                         $ SW.stack
+                         $ SW.maxSize 3
+                         $ SW.reuseFirst
+                         $ SW.finite'
+         in let ?widen = W.finite in
+         run evenOdd (Even,iv 0 Infinity) `shouldBe` top
 
-  describe "the ackermann function" $
-    let ackermann :: Cache s (IV,IV) IV
-        ackermann = fix $ \f -> proc (m,n) ->
-          ifLowerThan 0
-            (proc _ -> returnA -< n + I.Interval 1 1)
-            (proc m' -> ifLowerThan 0
-                          (proc _ -> f -< (m'- I.Interval 1 1, I.Interval 1 1))
-                          (proc n' -> do x <- f -< (m,n'-I.Interval 1 1)
-                                         f -< (m'- I.Interval 1 1, x)) -<< n)
-            -<< m
-    in it "ackerman ([0,inf], [0,inf]) should be [0,inf] " $ do
-         runFix' (SW.stack (SW.reuse (const head) SW.topOut)) W.finite ackermann (I.Interval 0 Infinity, I.Interval 0 Infinity)
-           `shouldBe` return (I.Interval 1 Infinity)
-
-  describe "the analyis of a diverging program" $
-    let diverge :: Cache s Int Sign
+  describe "non-terminating function" $
+    let diverge :: Show (s Int) => Arr s Int Sign
         diverge = fix $ \f -> proc n -> case n of
           0 -> f -< 0
           _ -> f -< (n-1)
     in it "should terminate with bottom" $
-         runFix diverge 5 `shouldBe` bottom
+         let ?stackWiden = SW.stack $ SW.reuseFirst $ SW.finite' in
+         let ?widen = W.finite in
+         run diverge 5 `shouldBe` bottom
 
-  describe "the analysis of a failing program" $
-    let recurseFail :: ErrorFix s Int Sign
-        recurseFail = fix $ \f -> proc n -> case n of
-          0 -> fail -< ()
-          _ -> f -< (n-1)
-    in it "should fail, but update the fixpoint cache" $
-         runFix'' SW.finite SW.Unit W.finite (runExcept recurseFail) 5
-            `shouldBe` (S.fromList [(n,Terminating (Fail ())) | n <- [0..5]], return (Fail ()))
-
-  describe "the analysis of a stateful program" $
-    let timesTwo :: StateFix s IV ()
-        timesTwo = fix $ \f -> proc n -> case n of
-          I.Interval 0 0 -> returnA -< ()
-          _ -> do
-            s <- get -< ()
-            put -< s + I.Interval 1 1
-            f -< n-1
-            s' <- get -< ()
-            put -< s'+ I.Interval 1 1
-    in it "should cache the state of the program" $
-         runFix'' SW.finite SW.Unit W.finite (runState timesTwo) (0,5) `shouldBe`
-           (S.fromList [((fromIntegral n,5-fromIntegral n),
-                          return (10-fromIntegral n,())) | n <- [0..5::Int]],
-            return (10,()))
   where
+    run :: (Identifiable a, Complete b, Monoid (s a), ?stackWiden :: StackWidening s a, ?widen :: Widening b) => Arr s a b -> a -> Terminating b
+    run f a = runFixT ?stackWiden (T.widening ?widen) (runTerminatingT f) a
 
-    ifLowerThan :: (Num n, Ord n, ArrowChoice c, Complete (c (Interval n, Interval n) x)) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
+    ifLowerThan :: (Num n, Ord n, ArrowChoice c, Profunctor c, Complete (c (Interval n, Interval n) x)) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
     ifLowerThan l f g = proc x -> case x of
       I.Interval m n
         | n <= l -> f -< x
         | l < m -> g -< x
         | m <= l && l+1 <= n -> joined f g -< (I.Interval m l, I.Interval (l+1) n)
         | otherwise -> f -< I.Interval m l
+
+    iv :: InfiniteNumber Int -> InfiniteNumber Int -> IV
+    iv n m = I.Interval n m
 
 data EvenOdd = Even | Odd deriving (Eq,Generic,Show)
 instance Hashable EvenOdd
