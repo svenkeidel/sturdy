@@ -7,12 +7,14 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 module Control.Arrow.Transformer.Abstract.Fix(FixT,runFixT,runFixT') where
 
 import           Prelude hiding (id,(.),const,head,iterate)
 
 import           Control.Category
 import           Control.Arrow hiding (loop)
+import           Control.Arrow.Const
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
@@ -23,7 +25,6 @@ import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Static
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Utils (const,(&&>))
 
 import           Data.Identifiable
 import           Data.Order
@@ -34,11 +35,6 @@ import qualified Data.HashMap.Lazy as M
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
 import           Data.Profunctor
-
-#ifdef TRACE
-import           Debug.Trace
-import           Text.Printf
-#endif
 
 newtype FixT s a b c x y = FixT { unFixT :: ConstT (Constant s a b) (ReaderT (s a) (StateT (Cache a b, Component a) c)) x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice)
@@ -60,59 +56,51 @@ runFixT' :: (Identifiable a, PreOrd b, Monoid (s a),ArrowChoice c, Profunctor c)
 runFixT' pa pb sw w f = dimap (\x -> ((M.empty,H.empty),(mempty,x))) snd $ runStateT $ runReaderT $ runConstT (Constant pa pb sw w) $ unFixT f
 
 type instance Fix x y (FixT s () () c) = FixT s x y c
-#ifndef TRACE
-instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFix a b (FixT s a b c) where
-  fix f = FixT $
-    stackWiden
-      -- If there is no loop, keep recursing.
-      (unFixT (f (fix f)))
+instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c,ArrowApply c) => ArrowFix a b (FixT s a b c) where
+  fix f = FixT $ proc x -> do
+    -- Apply a stack widening operator to the input value.
+    -- The stack widening operator ensures that the abstract
+    -- interpreter does not recurse infinitely deep and detects
+    -- signals if the interpreter is in a loop. See
+    -- `Data.Abstract.StackWidening` for details.
+    c <- askConst -< ()
+    stack <- ask -< ()
+    let (stack',(loop,x')) = stackWidening c stack x
+                             
+    case loop of
+      NoLoop ->
+        -- If there is no loop, keep recursing.
+        local (unFixT (f (fix f))) -< (stack',x')
 
-      -- If we may be in a loop, continue recursing and check
-      -- afterwards if the cached value has stabilized, otherwise keep
-      -- iterating.
-      (let iterate = proc (x,x') -> do
-             (y,member) <- unFixT (f (fix f)) &&& inComponent -< x'
-             if member
-               then do
-                 (stable,yNew) <- updateCache -< (x',y)
-                 
-                 -- If we did not reach a fixpoint of f(x'), keep iterating.
-                 case stable of
-                   Instable -> iterate -< (x,x')
-                   Stable   -> returnA -< yNew
-               else returnA -< y
-       in iterate)
+      MaybeLoop ->
+        -- If we may be in a loop, continue recursing and check
+        -- afterwards if the cached value has stabilized, otherwise keep
+        -- iterating.
+        let iterate = proc () -> do
+               y <- local (unFixT (f (fix f))) -< (stack',x')
+               member <- inComponent -< x'
+               if member
+                 then do
+                   -- Updates the cached value by applying a widening
+                   -- operator on the old and the new `y` value. The
+                   -- widening operator also signals if the cached
+                   -- value stabilized, i.e., did not grow.
+                   (stable,yNew) <- updateCache -< (x',y)
+                   
+                   -- If we did not reach a fixpoint of f(x'), keep iterating.
+                   case stable of
+                     Instable -> iterate -< ()
+                     Stable   -> returnA -< yNew
 
-      -- If we are in a loop, return the cached value or bottom otherwise.
-      -- Furthermore, add x' to the current component.
-      (lmap snd $ addToComponent &&> initializeCache)
+                 else returnA -< y
 
-#else
+         in local iterate -<< (stack',())
 
-instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c) => ArrowFix a b (FixT s a b c) where
-  fix f = FixT $ stackWiden
-      (let iterate = proc (x,x') -> do
-             c <- askConst -< ()
-             -- If we are not in a loop, continue recursing.
-             (y,(member,head)) <- unFixT (f (fix f)) &&& inComponent -< trace (printf "call    [%s]" (printDom c (x,x'))) x'
-             if member
-               then do
-                 (stable,yNew) <- updateCache -< (x',y)
-                 
-                 -- If we did not reach a fixpoint of f(x'), keep iterating.
-                 if head && not stable
-                   then iterate -< trace (printf "iterate [%s] = %s" (printDom c (x,x')) (printCod c yNew)) (x,x')
-                   else returnA -< if head then trace (printf "fixed   [%s] = %s" (printDom c (x,x')) (printCod c yNew)) yNew else yNew
-               else returnA -< trace (printf "return  [%s] = %s" (printDom c (x,x')) (printCod c y)) y
-       in iterate)
-
-      -- If we are in a loop, return the cached value or bottom otherwise.
-      -- Furthermore, add x' to the current component.
-      (proc (x,x') -> do
-         c <- askConst -< ()
-         y <- addToComponent &&> initializeCache -< x'
-         returnA -< trace (printf "loop    [%s] = %s" (printDom c (x,x')) (printCod c y)) y)
-#endif
+      Loop -> do
+         -- If we are in a loop, return the cached value or bottom otherwise.
+         -- Furthermore, add x' to the current component.
+         addToComponent -< x'
+         initializeCache -< x'
 
 instance (ArrowJoin c, ArrowChoice c) => ArrowJoin (FixT s a b c) where
   -- | The join operation of the 'FixT' arrow *does not* join the
@@ -141,23 +129,9 @@ instance (Arrow c, Profunctor c) => ArrowDeduplicate x y (FixT s a b c) where
   dedup f = f
 
 ----- Helper functions -----
-stackWiden :: (ArrowReader (s a) c,ArrowChoice c) => ConstT (Constant s a b) c a b -> ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c (a,a) b -> ConstT (Constant s a b) c a b
-stackWiden (ConstT (StaticT f)) (ConstT (StaticT g)) (ConstT (StaticT h)) =
-  constT $ \c -> 
-       rmap (\(s,x) -> let ~(s',(l,x')) = stackWidening c s x
-                       in case l of
-                           NoLoop    -> Left (s',x')
-                           MaybeLoop -> Right (Left (s',(x,x')))
-                           Loop      -> Right (Right (x,x'))
-            ) (const ask &&& id)
-       >>>
-       (local (f c) ||| local (g c) ||| h c)
 
 initializeCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => c a b
 initializeCache = modifyCache (\x -> first snd . insertWithLookup (\_ old -> old) x (Instable,bottom))
-
-lookupCache ::  (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => c a (Maybe (Stable,b))
-lookupCache = modifyCache (\x m -> (M.lookup x m,m))
 
 updateCache :: (Identifiable a, LowerBounded b, ArrowState (Cache a b,Component a) c) => ConstT (Constant s a b) c (a,b) (Stable,b)
 updateCache = constT $ \c -> modifyCache $ \(x,y) cache -> case M.lookup x cache of
