@@ -282,12 +282,12 @@ subsetOf m1 m2 = fst $ subsetOf' m1 m2 mempty
 
 subsetOf' :: forall n1 n2 t. (IsGrammar n1 t, IsGrammar n2 t)
          => Grammar n1 t -> Grammar n2 t -> OrdMap n1 n2 -> (Bool,OrdMap n1 n2)
-subsetOf' g1 g2 m = case runStateT (go (start g1,start g2)) m of
+subsetOf' g1 g2 m = case runStateT (go [(start g1,start g2)]) m of
   Just ((),m') -> (True,m')
-  Nothing -> (False,O.insert [[start g1]] [[start g2]] O.NotLessThanEquals m)
+  Nothing -> (False,O.insert (start g1) (start g2) O.NotLessThanEquals m)
   where
-    go :: (n1,n2) -> StateT (OrdMap n1 n2) Maybe ()
-    go (m1,m2) = do
+    go :: [(n1,n2)] -> StateT (OrdMap n1 n2) Maybe ()
+    go l = forM_ l $ \(m1,m2) -> do
       seen <- get
       case O.compare m1 m2 O.LessThanEquals seen of
         A.True  -> return ()
