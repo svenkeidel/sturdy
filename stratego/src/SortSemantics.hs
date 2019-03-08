@@ -149,7 +149,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
     => IsTerm Term (SortT c) where
   matchTermAgainstConstructor matchSubterms = proc (c,ps,t@(Term s ctx)) ->
     case (c,ps,s) of
-      (_,_,Bottom) -> throw -< () -- Sort bottom represents the empty set of terms, hence matching must fail
+      (_,_,Bottom) -> bottom -< ()
       ("Cons",[_,_],List a) ->
           (do
            ss <- matchSubterms -< (ps,[Term a ctx,Term (List a) ctx])
@@ -218,7 +218,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
       returnA -< t
 
   equal = proc (t1,t2) -> case t1 ⊓ t2 of
-    t | sort t == Bottom -> throw -< () -- Sort bottom represents the empty set of terms, hence checking equality must fail
+    t | sort t == Bottom -> bottom -< ()
       | isSingleton t1 && isSingleton t2 -> returnA -< t
       | otherwise -> (returnA -< t) <⊔> (throw -< ())
 
