@@ -149,7 +149,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
     => IsTerm Term (SortT c) where
   matchTermAgainstConstructor matchSubterms = proc (c,ps,t@(Term s ctx)) ->
     case (c,ps,s) of
-      (_,_,Bottom) -> typeError -< "cannot match against sort bottom."
+      (_,_,Bottom) -> throw -< () -- Sort bottom represents the empty set of terms, hence matching must fail
       ("Cons",[_,_],List a) ->
           (do
            ss <- matchSubterms -< (ps,[Term a ctx,Term (List a) ctx])
@@ -157,7 +157,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
            <⊔>
            (throw -< ())
       ("Cons",[_,_],_) | isList t -> (do
-           ss <- matchSubterms -< (ps,[Term Top ctx,Term (List Top) ctx])
+           ss <- matchSubterms -< (ps,[getListElem t, t])
            cons -< ("Cons",ss))
            <⊔>
            (throw -< ())
@@ -218,7 +218,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
       returnA -< t
 
   equal = proc (t1,t2) -> case t1 ⊓ t2 of
-    t | sort t == Bottom -> typeError -< printf "Sort %s cannot be compared to sort %s." (show t1) (show t2)
+    t | sort t == Bottom -> throw -< () -- Sort bottom represents the empty set of terms, hence checking equality must fail
       | isSingleton t1 && isSingleton t2 -> returnA -< t
       | otherwise -> (returnA -< t) <⊔> (throw -< ())
 
@@ -378,6 +378,9 @@ isNumeric (Term s ctx) = Ctx.isNumerical ctx s
 
 isList :: Term -> Bool
 isList (Term s ctx) = Ctx.isList ctx s
+
+getListElem :: Term -> Term
+getListElem (Term s ctx) = Term (Ctx.getListElem s) ctx
 
 isTuple :: Term -> Int -> Bool
 isTuple (Term s ctx) i = Ctx.isTuple ctx i s

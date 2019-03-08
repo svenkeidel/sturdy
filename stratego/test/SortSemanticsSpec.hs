@@ -389,7 +389,7 @@ spec = do
 
   describe "Arrow desugaring in Stratego" $
     before CaseStudy.arrows $ do
-      it "tuple-pat': List Var -> APat" $ \desugar ->
+      it "tuple-pat: List Var -> APat" $ \desugar ->
         let ?ctx = signature desugar in
         let senv = stratEnv desugar
             prog = term $ List "Var"
@@ -397,6 +397,26 @@ spec = do
             env = termEnv []
         in do
           seval'' 2 10 (Call "tuple_pat_0_0" [] []) senv env prog `shouldBe`
+            successOrFail () (env, val)
+
+      it "tuple: List Exp -> Exp" $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term $ List "Exp"
+            val  = term "Exp"
+            env = termEnv []
+        in do
+          seval'' 2 10 (Call "tuple_0_0" [] []) senv env prog `shouldBe`
+            successOrFail () (env, val)
+
+      it "free-pat-vars: APat -> List Var " $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term "APat"
+            val  = term $ List "Var"
+            env = termEnv []
+        in do
+          seval'' 2 10 (Call "free_pat_vars_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       -- it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->

@@ -7,7 +7,7 @@
 module SortContext(
   Context, HasContext(..), Sort(..), Signature(..), SortId(..), empty, signatures, sorts,
   fromList, insertSignature, insertSubtype, subtype, lookupSort, lookupCons,
-  lub, glb, isLexical, isList, isSingleton, isNumerical, isTuple, filterInconsistentConstructors
+  lub, glb, isLexical, isList, getListElem, isSingleton, isNumerical, isTuple, filterInconsistentConstructors
 ) where
 
 import           Sort
@@ -78,6 +78,10 @@ isNumerical ctx = subtype ctx Numerical
 
 isList :: Context -> Sort -> Bool
 isList ctx = subtype ctx (List Bottom)
+
+getListElem :: Sort -> Sort
+getListElem (List s) = s
+getListElem _ = Top
 
 isTuple :: Context -> Int -> Sort -> Bool
 isTuple ctx i = subtype ctx (Tuple (replicate i Bottom))
