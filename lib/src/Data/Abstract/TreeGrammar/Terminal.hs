@@ -34,7 +34,7 @@ class Terminal t where
   productive :: Identifiable n => HashSet n -> t n -> Bool
   filter :: (n -> Bool) -> t n -> t n
   determinize :: (Identifiable n, Identifiable n', Applicative f) => (HashSet n -> f n') -> t n -> f (t n')
-  subsetOf :: (Identifiable n, Identifiable n', MonadPlus f) => ([(n,n')] -> f ()) -> t n -> t n' -> f ()
+  subsetOf :: (Identifiable n, Identifiable n', MonadPlus f) => (([[n]],[[n']]) -> f ()) -> t n -> t n' -> f ()
   intersection :: (Identifiable n1, Identifiable n2, Identifiable n', Applicative f) => ((n1,n2) -> f n') -> t n1 -> t n2 -> f (t n')
   union :: (Identifiable n1, Identifiable n2, Identifiable n', Applicative f) => (A.Either n1 n2 -> f n') -> t n1 -> t n2 -> f (t n')
   traverse :: (Identifiable n', Applicative f) => (n -> f n') -> t n -> f (t n')
@@ -77,9 +77,8 @@ instance Terminal Constr where
     guard (m1 `subsetKeys` m2)
     forM_ (M.intersectionWith (,) m1 m2) $ \(a1,a2) -> do
       guard (a1 `subsetKeys'` a2)
-      forM_ (IM.intersectionWith (,) a1 a2) $ \(l1,l2)-> do
-        forM_ l1 $ \as ->
-          msum [ leq (zip as bs) | bs <- H.toList l2 ]
+      forM_ (IM.intersectionWith (,) a1 a2) $ \(l1,l2) -> do
+        leq (H.toList l1, H.toList l2)
 
   union f (Constr m1) (Constr m2) = fmap Constr
                                   $ T.traverse (T.traverse (\u -> case u of

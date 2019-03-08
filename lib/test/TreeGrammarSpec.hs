@@ -10,10 +10,14 @@ import           Control.Monad
 import           Data.Hashable
 import           Data.Text(Text)
 import qualified Data.Sequence as S
+import qualified Data.OrdMap as O
+import           Data.Utils
+import           Data.List(transpose)
 
 import           Data.Abstract.TreeGrammar
 import           Data.Abstract.TreeGrammar.Terminal(Constr)
 import           Data.Abstract.TreeGrammar.NonTerminal(Named)
+import qualified Data.Abstract.Boolean as A
 
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
@@ -22,20 +26,74 @@ import           Test.QuickCheck
 import           GHC.Exts
 import           Text.Printf
 
+import           Debug.Trace
+
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
 spec = do
   describe "Inclusion" $ do
+    it "should work for grammars of constant terms" $ do
+      let g :: Grammar Named Constr
+          g = grammar "S" [ ("S", [("a", [])])
+                          ]
+                          []
+          g' :: Grammar Named Constr
+          g' = grammar "S" [ ("S", [("a", []), ("b",[])])
+                           ]
+                           []
+
+      g `shouldBeSubsetOf` g'
+      g' `shouldNotBeSubsetOf` g
+
+
     describe "should work for non-deterministic grammars" $ do
+
+      it "should compare non-terminals in the correct order" $ do
+
+        (toList (fmap (zip ["S1"]) (powComplementPick (transpose [["S2"]]))) :: [[(String,[String])]])
+          `shouldMatchList`
+             [[("S1",["S2"])]]
+
+        (toList (fmap (zip ["X"]) (powComplementPick (transpose [["A"],["B"]]))) :: [[(String,[String])]])
+          `shouldMatchList`
+             [ [("X",["A","B"]) ] ]
+
+        (toList (fmap (zip ["X","Y"]) (powComplementPick (transpose [["A","B"]]))) :: [[(String,[String])]])
+          `shouldMatchList`
+             [ [("X",["A"]), ("Y",[])]
+             , [("X",[]), ("Y",["B"])]
+             ]
+
+        (toList (fmap (zip ["X","Y"]) (powComplementPick (transpose [["A1","B1"],["A2","B2"]]))) :: [[(String,[String])]])
+          `shouldMatchList`
+             [ [("X",["A1","A2"]), ("Y",[])]
+             , [("X",["A1"]), ("Y",["B2"])]
+             , [("X",["A2"]), ("Y",["B1"])]
+             , [("X",[]), ("Y",["B1","B2"])]
+             ]
+
+      it "should compare non-terminals in conjunctive normal form" $ do
+        (forM_ (powComplementPick (transpose [["S2" :: String]])) $ \l ->
+          msum [ guard True | _ <- zip ["S1" :: String] l ])
+          `shouldBe` Just ()
+
+        let o = O.insertLeq ("X" :: String) [("A1" :: String)]
+              $ O.insertLeq "X" ["A2"]
+              $ O.insertLeq "Y" ["B1","B2"]
+              $ O.empty
+
+        (forM_ (powComplementPick (transpose [["A1","B1"],["A2","B2"]])) $ \l ->
+          msum [ guard (O.leq x xs o == A.True) | (x,xs) <- zip ["X","Y"] l ])
+          `shouldBe` Just ()
 
       it "{ f(a,b), f(a',b') } <= { f({a,a'},{b,b'}) }" $ do
         let g :: Grammar Named Constr
-            g = grammar "S" [ ("S", [ ("f",["A",  "B"])
+            g = grammar "S" [ ("S", [ ("f",["A",  "B" ])
                                     , ("f",["A'", "B'"])])
-                            , ("A", [ ("a",[]) ])
-                            , ("B", [ ("b",[]) ])
+                            , ("A",  [ ("a", []) ])
+                            , ("B",  [ ("b", []) ])
                             , ("A'", [ ("a'",[]) ])
                             , ("B'", [ ("b'",[]) ])
                             ]
@@ -49,17 +107,16 @@ spec = do
         g `shouldBeSubsetOf` g'
         g' `shouldNotBeSubsetOf` g
 
-      it "{ f(a), f(b) } == { f({a,b})}" $ do
-        pendingWith "Work in progress"
+      it "{ f(a), f(b) } == { f({a,b}) }" $ do
         let g :: Grammar Named Constr
-            g = grammar "0" [ ("0", [ ("f",["1"]), ("f",["2"]) ])
-                            , ("1", [ ("a",[]) ])
-                            , ("2", [ ("b",[]) ])
+            g = grammar "S" [ ("S", [ ("f",["A"]), ("f",["B"]) ])
+                            , ("A", [ ("a",[]) ])
+                            , ("B", [ ("b",[]) ])
                             ]
                             []
             g' :: Grammar Named Constr
-            g' = grammar "0" [ ("0", [ ("f",["1"]) ])
-                             , ("1", [ ("a",[]), ("b", []) ])
+            g' = grammar "S" [ ("S", [ ("f",["AB"]) ])
+                             , ("AB", [ ("a",[]), ("b", []) ])
                              ]
                              [ ]
         g `shouldBeSubsetOf` g'
@@ -94,7 +151,6 @@ spec = do
       intersection g1 g2 `shouldBeSubsetOf` g2
 
     prop "is the opposite of union" $ \(g1 :: Grammar Named Constr) (g2 :: Grammar Named Constr) -> do
-      pendingWith "Work in progress"
       (g1 `union` (g1 `intersection` g2 :: Grammar Named Constr)) `shouldBe` g1
       (g1 `intersection` (g1 `union` g2 :: Grammar Named Constr)) `shouldBe` g1
 
@@ -122,14 +178,14 @@ spec = do
            let g' = determinize g :: Grammar Named Constr
            in g' `shouldBe` determinize g'
 
-    describe "Deduplicate" $ do
+    describe "Minimize" $ do
       prop "describes the same language: deduplicate g = g" $
         \(g :: Grammar Named Constr) ->
-           deduplicate g `shouldBe` g
+           minimize g `shouldBe` g
 
       prop "has distinct equivalence classes" $
-        \(g :: Grammar Named Constr) ->
-           (deduplicate g :: Grammar Named Constr) `shouldSatisfy`
+        \(g :: Grammar Named Constr) -> do
+           (minimize g :: Grammar Named Constr) `shouldSatisfy`
              all ((1 ==) . S.length) . equivalenceClasses 
 
 
@@ -481,8 +537,8 @@ type Alphabet = [(Text,Int)]
 
 instance Arbitrary (Grammar Named Constr) where
   arbitrary = arbitraryGrammar
-              ["A","B","C","D","E","F"]
-              [("a",0),("b",0),("c",0),("f",1),("g",2),("h",0),("h",1),("h",2)]
+              ["A","B","C","D"]
+              [("a",0),("b",0),("f",1),("g",2)]
 
 arbitraryGrammar :: NonTerminals -> Alphabet -> Gen (Grammar Named Constr)
 arbitraryGrammar ns alph = do

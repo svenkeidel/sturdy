@@ -33,6 +33,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -56,7 +57,7 @@ module Data.Abstract.TreeGrammar
 , toSubterms
 , fromSubterms
 , isEmpty
-, deduplicate
+, minimize
 , equivalenceClasses
 )
 where
@@ -82,6 +83,7 @@ import           Data.Sequence (Seq)
 import qualified Data.OrdMap as O
 import qualified Data.Abstract.Either as A
 import qualified Data.Abstract.Boolean as A
+import           Data.Utils(powComplementPick)
 
 import           Data.Abstract.TreeGrammar.NonTerminal
 import           Data.Abstract.TreeGrammar.Terminal (Terminal)
@@ -133,11 +135,50 @@ rename g = do
           modify $ second $ Map.insert n n'
           return n'
 
-mapNonTerms :: (IsGrammar n t, IsGrammar n' t) => (n -> n') -> Grammar n t -> Grammar n' t
-mapNonTerms f g = Grammar
-  { start = f (start g)
-  , prods = Map.fromList [ (f k, Rhs (T.map f (lookup k g)) mempty) | k <- Map.keys (prods g)]
-  }
+subsetOf :: (IsGrammar n1 t, IsGrammar n2 t) => Grammar n1 t -> Grammar n2 t -> Bool
+subsetOf m1 m2 = fst $ subsetOf' m1 m2 mempty
+
+subsetOf' :: forall n1 n2 t. (IsGrammar n1 t, IsGrammar n2 t)
+         => Grammar n1 t -> Grammar n2 t -> OrdMap [n1] [n2] -> (Bool,OrdMap [n1] [n2])
+subsetOf' g1 g2 m = case runStateT (go ([[start g1]],[[start g2]])) m of
+  Just ((),m') -> (True,m')
+  Nothing -> (False,O.insertNotLeq [start g1] [[start g2]] m)
+  where
+    go :: ([[n1]],[[n2]]) -> StateT (OrdMap [n1] [n2]) Maybe ()
+    go ([[]],[[]]) = return ()
+    go (l1,l2) = forM_ l1 $ \m1 -> do
+      seen <- get
+      case O.leq m1 l2 seen of
+        A.True  -> return ()
+        A.False -> fail ""
+        A.Top   -> do
+          put $ O.insertLeq m1 l2 seen
+          -- Try the cheap subset check first. If it did not work, try the exponential check.
+          (msum [ T.subsetOf go (lookup x g1) (lookup y g2) | ys <- l2, (x,y) <- zip m1 ys ]
+           `mplus`
+           (forM_ (powComplementPick (L.transpose l2)) $ \l2' -> do
+             msum [ T.subsetOf go (lookup x g1) (lookup' ys g2) | (x,ys) <- zip m1 l2' ]))
+
+supersetOf' :: forall n1 n2 t. (IsGrammar n1 t, IsGrammar n2 t)
+            => Grammar n1 t -> Grammar n2 t -> OrdMap [n1] [n2] -> (Bool,OrdMap [n1] [n2])
+supersetOf' g1 g2 m = case runStateT (go ([[start g2]],[[start g1]])) m of
+  Just ((),m') -> (True,m')
+  Nothing -> (False,O.insertNotGeq [[start g1]] [start g2] m)
+  where
+    go :: ([[n2]],[[n1]]) -> StateT (OrdMap [n1] [n2]) Maybe ()
+    go ([[]],[[]]) = return ()
+    go (l2,l1) = forM_ l2 $ \m2 -> do
+      seen <- get
+      case O.geq l1 m2 seen of
+        A.True  -> return ()
+        A.False -> fail ""
+        A.Top -> do
+          put $ O.insertGeq l1 m2 seen
+          -- Try the cheap subset check first. If it did not work, try the exponential check.
+          (msum [ T.subsetOf go (lookup x g2) (lookup y g1) | ys <- l1, (x,y) <- zip m2 ys ]
+           `mplus`
+           (forM_ (powComplementPick (L.transpose l1)) $ \l1' -> do
+             msum [ T.subsetOf go (lookup x g2) (lookup' ys g1) | (x,ys) <- zip m2 l1' ]))
 
 union :: forall n1 n2 n' t. (IsGrammar n1 t, IsGrammar n2 t, IsGrammar n' t)
       => Grammar n1 t -> Grammar n2 t -> Grammar n' t
@@ -153,7 +194,7 @@ union g1 g2 = generate $ do
         A.Left  n1 -> addProduction n $ T.traverse (go . A.Left) (lookup n1 g1)
         A.Right n2 -> addProduction n $ T.traverse (go . A.Right) (lookup n2 g2)
         A.LeftRight n1 n2 ->
-          case (O.compare n1 n2 O.LessThanEquals (ordMap m), O.compare n1 n2 O.GreaterThanEquals (ordMap m)) of
+          case (O.leq [n1] [[n2]] (ordMap m), O.geq [[n1]] [n2] (ordMap m)) of
             (A.True,_)        -> go (A.Right n2)
             (_,A.True)        -> go (A.Left n1)
             (A.False,A.False) -> addProduction n $ T.union go (lookup n1 g1) (lookup n2 g2)
@@ -176,7 +217,7 @@ intersection g1 g2 = generate $ do
         A.Left  n1 -> addProduction n $ T.traverse (go . A.Left) (lookup n1 g1)
         A.Right n2 -> addProduction n $ T.traverse (go . A.Right) (lookup n2 g2)
         A.LeftRight n1 n2 ->
-          case (O.compare n1 n2 O.LessThanEquals (ordMap m), O.compare n1 n2 O.GreaterThanEquals (ordMap m)) of
+          case (O.leq [n1] [[n2]] (ordMap m), O.geq [[n1]] [n2] (ordMap m)) of
             (A.True,_)        -> go (A.Left n1)
             (_,A.True)        -> go (A.Right n2)
             (A.False,A.False) -> addProduction n
@@ -277,48 +318,23 @@ determinize g = generate $ do
          result $ Map.insert n (Rhs { cons = ctrs, eps = mempty})
          return n
 
-subsetOf :: (IsGrammar n1 t, IsGrammar n2 t) => Grammar n1 t -> Grammar n2 t -> Bool
-subsetOf m1 m2 = fst $ subsetOf' m1 m2 mempty
-
-subsetOf' :: forall n1 n2 t. (IsGrammar n1 t, IsGrammar n2 t)
-         => Grammar n1 t -> Grammar n2 t -> OrdMap n1 n2 -> (Bool,OrdMap n1 n2)
-subsetOf' g1 g2 m = case runStateT (go [(start g1,start g2)]) m of
-  Just ((),m') -> (True,m')
-  Nothing -> (False,O.insert (start g1) (start g2) O.NotLessThanEquals m)
-  where
-    go :: [(n1,n2)] -> StateT (OrdMap n1 n2) Maybe ()
-    go l = forM_ l $ \(m1,m2) -> do
-      seen <- get
-      case O.compare m1 m2 O.LessThanEquals seen of
-        A.True  -> return ()
-        A.False -> fail ""
-        A.Top   -> do
-          put $ O.insert m1 m2 O.LessThanEquals seen
-          T.subsetOf go (lookup m1 g1) (lookup m2 g2)
-
-supersetOf' :: forall n1 n2 t. (IsGrammar n1 t, IsGrammar n2 t)
-            => Grammar n1 t -> Grammar n2 t -> OrdMap n1 n2 -> (Bool,OrdMap n1 n2)
-supersetOf' g1 g2 m = case runStateT (go [(start g2,start g1)]) m of
-  Just ((),m') -> (True,m')
-  Nothing -> (False,O.insert (start g1) (start g2) O.NotGreaterThanEquals m)
-  where
-    go :: [(n2,n1)] -> StateT (OrdMap n1 n2) Maybe ()
-    go l = forM_ l $ \(m2,m1) -> do
-      seen <- get
-      case O.compare m1 m2 O.GreaterThanEquals seen of
-        A.True  -> return ()
-        A.False -> fail ""
-        A.Top -> do
-          put $ O.insert m1 m2 O.GreaterThanEquals seen
-          T.subsetOf go (lookup m2 g2) (lookup m1 g1)
-
 -- | Optimizes the grammar by joining non-terminals that produce the
 -- same language. This function has a runtime complexity /O(n*log(n))/
 -- where /n/ is the number of reachable non-terminals.
-deduplicate :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => Grammar n t -> Grammar n' t
-deduplicate (dropUnreachable -> g) = generate $ do
-  rmap <- foldM (foldM (\m n -> Map.insert n <$> fresh Nothing <*> pure m)) Map.empty (equivalenceClasses g)
+minimize :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => Grammar n t -> Grammar n' t
+minimize (dropUnreachable -> g) = generate $ do
+  rmap <- foldM ( \m ns -> do
+                    -- Map all members of the same equivalence class to a fresh symbol.
+                    n' <- fresh Nothing
+                    return $ foldl (\m' n -> Map.insert n n' m') m ns
+                ) Map.empty (equivalenceClasses g)
   return (mapNonTerms (rmap Map.!) g)
+
+mapNonTerms :: (IsGrammar n t, IsGrammar n' t) => (n -> n') -> Grammar n t -> Grammar n' t
+mapNonTerms f g = Grammar
+  { start = f (start g)
+  , prods = Map.fromList [ (f k, Rhs (T.map f (lookup k g)) mempty) | k <- Map.keys (prods g)]
+  }
 
 -- | Returns the equivalence classes of non-terminals that produce the
 -- same language. This function has a runtime complexity /O(n*log(n))/
@@ -339,24 +355,24 @@ equivalenceClasses g = flip evalState O.empty $ U.runUnionFind $ do
       return $ Map.insertWith (<>) representative (pure n) equiv
     ) Map.empty (Map.toList points)
 
-    where
-      nonTerms = Map.keys (prods g)
+   where
+     nonTerms = Map.keys (prods g)
 
-      lift' :: (Monad (t (State s)), MonadTrans t) => (s -> (b,s)) -> t (State s) b
-      lift' f = lift (state f)
+     lift' :: (Monad (t (State s)), MonadTrans t) => (s -> (b,s)) -> t (State s) b
+     lift' f = lift (state f)
 
-      triangle :: [x] -> [(x,x)]
-      triangle [] = []
-      triangle (x:xs) = (x,x) : fmap (x,) xs ++ triangle xs
+     triangle :: [x] -> [(x,x)]
+     triangle [] = []
+     triangle (x:xs) = (x,x) : fmap (x,) xs ++ triangle xs
 
 toSubterms :: (IsGrammar n t, Monoid (t Int)) => Grammar n t -> t (Grammar n t)
 toSubterms g = T.map (\n -> dropUnreachable (g {start = n}))
                      (lookup (start g) g)
 
 -- OPT: deduplicate grammar.
-fromSubterms :: (IsGrammar n t, IsGrammar n' t) => t (Grammar n t) -> Grammar n' t
+fromSubterms :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => t (Grammar n t) -> Grammar n' t
 fromSubterms t = generate $ do
-  s <- fresh Nothing
+  (s :: n') <- fresh Nothing
   (t',p) <- runWriterT $ T.traverse (\b -> do
               g <- lift (rename b)
               tell (prods g)
@@ -408,7 +424,7 @@ instance (Show n, Show (t n)) => Show (Rhs n t) where
 ----- Helper Functions -----
 
 data RenameMap n1 n2 n' = RenameMap
-  { ordMap    :: OrdMap n1 n2
+  { ordMap    :: OrdMap [n1] [n2]
   , renameMap :: HashMap (A.Either n1 n2) n'
   }
 
