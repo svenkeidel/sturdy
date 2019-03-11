@@ -66,7 +66,8 @@ import           Data.Abstract.Terminating (Terminating,fromTerminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening as W
 import           Data.Abstract.DiscretePowerset(Pow)
-import           Data.Abstract.TreeGrammar
+import           Data.Abstract.TreeGrammar(Grammar)
+import qualified Data.Abstract.TreeGrammar as G
 import qualified Data.Abstract.TreeGrammar.Terminal as Term
 
 import qualified Test.QuickCheck as Q
@@ -153,7 +154,7 @@ instance Complete (FreeCompletion (Grammar Int Constr)) where
 instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice c, Profunctor c, LowerBounded (c () Term))
    => IsTerm Term (GrammarT c) where
   matchTermAgainstConstructor matchSubterms = proc (Constructor c,ps,Term g) ->
-    case toSubterms g of
+    case G.toSubterms g of
       Bot -> bottom -< ()
       Constr cs ->
         (| joinList (bottom -< ()) (\(c',ts) ->
@@ -169,7 +170,7 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
 
   matchTermAgainstExplode _ _ = error "unsupported"
 
-  matchTermAgainstNumber = proc (n,Term g) -> case toSubterms g of
+  matchTermAgainstNumber = proc (n,Term g) -> case G.toSubterms g of
     Bot -> bottom -< ()
     NumLit (Free.Lower n')
       | n == n' -> returnA -< Term g
@@ -178,7 +179,7 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
     StringLit _ -> throw -< ()
     _ -> (returnA -< Term g) <⊔> (throw -< ())
 
-  matchTermAgainstString = proc (s,Term g) -> case toSubterms g of
+  matchTermAgainstString = proc (s,Term g) -> case G.toSubterms g of
     Bot -> bottom -< ()
     StringLit (Free.Lower s')
       | s == s' -> returnA -< Term g
@@ -188,7 +189,7 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
     _ -> (returnA -< Term g) <⊔> (throw -< ())
 
   equal = proc (Term g1, Term g2) -> case g1 ⊓ g2 of
-    g | isEmpty g -> throw -< ()
+    g | G.isEmpty g -> throw -< ()
       -- isSingleton g1 && isSingleton g2 -> returnA -< Term g
       | otherwise -> (returnA -< Term g) <⊔> (throw -< ())
 
@@ -196,7 +197,7 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
 
 
   mapSubterms f = proc (Term g) ->
-    case toSubterms g of
+    case G.toSubterms g of
       Bot -> bottom -< ()
       Constr cs -> 
         (| joinList (bottom -< ()) (\(c,ts) -> do
@@ -255,7 +256,7 @@ sound i senv xs f g =
 
 -- Helpers -------------------------------------------------------------------------------------------
 widening :: Widening Term
-widening = undefined
+widening = error "Widening not implemented"
 -- widening (Term t1) (Term t2) = Term (widen t1 t2)
 
 mapSnd :: (a -> b) -> [(c, a)] -> [(c, b)]
@@ -263,16 +264,16 @@ mapSnd _ [] = []
 mapSnd f ((x,y):s) = (x,f y) : mapSnd f s
 
 constr :: Text -> [Term] -> Term
-constr c ts = Term $ fromSubterms $ Constr $ fromList [(c,coerce ts::[Grammar Int Constr])]
+constr c ts = Term $ G.fromSubterms $ Constr $ fromList [(c,coerce ts::[Grammar Int Constr])]
 
 stringLit :: Text -> Term
-stringLit s = Term (grammar "S" [("S",StringLit (return s))] [])
+stringLit s = Term (G.grammar "S" [("S",StringLit (return s))] [])
 
 numLit :: Int -> Term
-numLit n = Term (grammar "S" [("S",NumLit (return n))] [])
+numLit n = Term (G.grammar "S" [("S",NumLit (return n))] [])
 
 topGrammar :: Term
-topGrammar = Term (grammar "S" [("S",Top)] [])
+topGrammar = Term (G.grammar "S" [("S",Top)] [])
 
 instance Term.Terminal Constr where
   nonTerminals (Constr cs) = Term.nonTerminals cs
@@ -347,10 +348,10 @@ instance (Identifiable n, Show n) => Show (Constr n) where
   show (Constr cs) = show cs
 
 instance Show Term where
-  show (Term t) = show (dropUnreachable t)
+  show (Term t) = show (G.dropUnreachable t)
 
 fromContext :: Context -> Term
-fromContext ctx = Term $ grammar "Start" (map toProd (LM.toList (sorts ctx))) [("Start", map show $ LM.keys (sorts ctx))]
+fromContext ctx = Term $ G.grammar "Start" (map toProd (LM.toList (sorts ctx))) [("Start", map show $ LM.keys (sorts ctx))]
   where
     toProd :: (Sort,[(Constructor,Signature)]) -> (String, Constr String)
     toProd (sort, rhss) = (show sort,Constr (fromList (map (toText *** (\(Signature args _) -> map show args)) rhss)))
