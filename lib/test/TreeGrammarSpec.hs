@@ -89,7 +89,7 @@ spec = do
               $ O.empty
 
         (forM_ (powComplementPick (transpose [["A1","B1"],["A2","B2"]])) $ \l ->
-          msum [ guard (O.leq x xs o == A.True) | (x,xs) <- zip ["X","Y"] l ])
+          msum [ guard (O.leq x (H.fromList xs) o == A.True) | (x,xs) <- zip ["X","Y"] l ])
           `shouldBe` Just ()
 
       it "{ f(a,b), f(a',b') } <= { f({a,a'},{b,b'}) }" $ do

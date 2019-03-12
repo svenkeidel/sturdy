@@ -1,11 +1,13 @@
 module Data.Utils where
 
 import           Control.Arrow
+import           Control.Monad
 import           Data.Maybe
 import qualified Data.IntMap as IM
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Sequence (Seq)
+import           Data.Foldable(toList)
 
 lookupM :: (Ord k, Monoid v) => k -> Map k v -> v
 lookupM x m = fromMaybe mempty $ Map.lookup x m
@@ -41,3 +43,9 @@ powComplementPick l@(x:_) = do
                    ixs elements
   where
     elements = map IM.fromList (map (zip [0..]) l)
+
+forAll :: (Foldable f, MonadPlus m) => f a -> (a -> m ()) -> m ()
+forAll = forM_
+
+exists :: (Foldable f, MonadPlus m) => f a -> (a -> m ()) -> m ()
+exists l f = msum [ f x | x <- toList l ]

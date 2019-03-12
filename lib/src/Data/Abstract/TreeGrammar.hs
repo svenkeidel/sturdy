@@ -48,6 +48,7 @@ module Data.Abstract.TreeGrammar
 , IsGrammar
 , grammar
 , lookup
+, lookup'
 , union
 , intersection
 , epsilonClosure
@@ -84,7 +85,7 @@ import           Data.Order
 import           Data.Sequence (Seq)
 import qualified Data.Abstract.Either as A
 import qualified Data.Abstract.Boolean as A
-import           Data.Utils(powComplementPick)
+import           Data.Utils(powComplementPick,forAll,exists)
 
 import           Data.Abstract.TreeGrammar.OrdMap(OrdMap)
 import qualified Data.Abstract.TreeGrammar.OrdMap as O
@@ -147,7 +148,7 @@ subsetOf' g1 g2 m = case runStateT (go ([[start g1]],[[start g2]])) m of
   Just ((),m') -> (True,m')
   Nothing -> (False,O.insertNotLeq [start g1] [[start g2]] m)
   where
-    go :: ([[n1]],[[n2]]) -> StateT (OrdMap [n1] [n2]) Maybe ()
+    go :: (HashSet [n1],HashSet [n2]) -> StateT (OrdMap [n1] [n2]) Maybe ()
     go ([[]],[[]]) = return ()
     go (l1,l2) = forM_ l1 $ \m1 -> do
       seen <- get
@@ -163,40 +164,23 @@ subsetOf' g1 g2 m = case runStateT (go ([[start g1]],[[start g2]])) m of
                modify $ O.insertLeq [x] [[y]]
            )
            `mplus`
-           (forAll (powComplementPick (L.transpose l2)) $ \l2' ->
+           (forAll (powComplementPick (L.transpose (Set.toList l2))) $ \l2' ->
              exists (zip m1 l2') $ \(x,ys) -> do
                T.subsetOf go (lookup x g1) (lookup' ys g2)
                modify $ O.insertLeq [x] [ys]
            ))
 
-forAll :: (Foldable f, MonadPlus m) => f a -> (a -> m ()) -> m ()
-forAll = forM_
 
-exists :: (Foldable f, MonadPlus m) => f a -> (a -> m ()) -> m ()
-exists l f = msum [ f x | x <- toList l ]
+union :: (IsGrammar n t) => Grammar n t -> Grammar n t -> Grammar n t
+union = union'
 
-union :: forall n1 n2 n' t. (IsGrammar n1 t, IsGrammar n2 t, IsGrammar n' t)
-      => Grammar n1 t -> Grammar n2 t -> Grammar n' t
-union g1 g2 = generate $ do
-  i <- get
-  let (s',(_,(ps,_))) = runState (go (A.LeftRight (start g1) (start g2))) (i,(mempty,emptyRenameMap))
-  return $ Grammar s' ps
-  where
-    go :: A.Either n1 n2 -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) n'
-    go n = do
-      m <- getRenameMap
-      case n of
-        A.Left  n1 -> addProduction n $ T.traverse (go . A.Left) (lookup n1 g1)
-        A.Right n2 -> addProduction n $ T.traverse (go . A.Right) (lookup n2 g2)
-        A.LeftRight n1 n2 ->
-          case (O.leq [n1] [[n2]] (ordMap1 m), O.leq [n2] [[n1]] (ordMap2 m)) of
-            (A.True,_)        -> go (A.Right n2)
-            (_,A.True)        -> go (A.Left n1)
-            (A.False,A.False) -> addProduction n $ T.union go (lookup n1 g1) (lookup n2 g2)
-            (_,_) -> do
-              updateOrdMap g1 g2 n1 n2
-              go (A.LeftRight n1 n2)
-      
+union' :: forall n1 n2 n' t. (IsGrammar n1 t, IsGrammar n2 t, IsGrammar n' t)
+       => Grammar n1 t -> Grammar n2 t -> Grammar n' t
+union' g1 g2 = generate $ do
+  g1' <- rename g1
+  g2' <- rename g2
+  s <- fresh Nothing
+  return $ Grammar s (Map.insert s (Rhs mempty [start g1',start g2']) $ Map.union (productions g1') (productions g2'))
 
 intersection :: forall n1 n2 n' t. (IsGrammar n1 t, IsGrammar n2 t, Monoid (t n1), Monoid (t n2), IsGrammar n' t)
              => Grammar n1 t -> Grammar n2 t -> Grammar n' t
@@ -206,12 +190,12 @@ intersection g1 g2 = generate $ do
   return $ Grammar s' ps
   where
     go :: A.Either n1 n2 -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) n'
-    go n = do
-      m <- getRenameMap
+    go n =
       case n of
         A.Left  n1 -> addProduction n $ T.traverse (go . A.Left) (lookup n1 g1)
         A.Right n2 -> addProduction n $ T.traverse (go . A.Right) (lookup n2 g2)
-        A.LeftRight n1 n2 ->
+        A.LeftRight n1 n2 -> do
+          m <- getRenameMap
           case (O.leq [n1] [[n2]] (ordMap1 m), O.leq [n2] [[n1]] (ordMap2 m)) of
             (A.True,_)        -> go (A.Left n1)
             (_,A.True)        -> go (A.Right n2)
@@ -288,8 +272,11 @@ productive (Grammar _ productions) = go $ Set.fromList [ n | (n, rhs) <- Map.toL
     rhsProductive rhs prod = any (`Set.member` prod) (eps rhs)
                           || T.productive prod (cons rhs)
 
-determinize :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => Grammar n t -> Grammar n' t
-determinize g = generate $ do
+determinize :: (IsGrammar n t) => Grammar n t -> Grammar n t
+determinize = determinize'
+
+determinize' :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => Grammar n t -> Grammar n' t
+determinize' g = generate $ do
   i <- get
   let (s',(_,(ps,_))) = runState (go [start g]) (i,(mempty,mempty))
   return $ Grammar s' ps
@@ -316,8 +303,11 @@ determinize g = generate $ do
 -- | Optimizes the grammar by joining non-terminals that produce the
 -- same language. This function has a runtime complexity /O(n*log(n))/
 -- where /n/ is the number of reachable non-terminals.
-minimize :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => Grammar n t -> Grammar n' t
-minimize (dropUnreachable -> g) = generate $ do
+minimize :: (IsGrammar n t) => Grammar n t -> Grammar n t
+minimize = minimize'
+
+minimize' :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => Grammar n t -> Grammar n' t
+minimize' (dropUnreachable -> g) = generate $ do
   rmap <- foldM ( \m ns -> do
                     -- Map all members of the same equivalence class to a fresh symbol.
                     n' <- fresh Nothing
@@ -380,7 +370,7 @@ instance IsGrammar n t => Eq (Grammar n t) where
 
 instance forall n t. (IsGrammar n t, Monoid (t Int)) => Hashable (Grammar n t) where
   hashWithSalt s0 b =
-    let g = determinize b :: Grammar Int t
+    let g = determinize' b :: Grammar Int t
     in runReader (go g s0 (start g)) 3
     where
       go :: forall n' t'. IsGrammar n' t' => Grammar n' t' -> Int -> n' -> Reader Int Int
@@ -394,7 +384,7 @@ instance IsGrammar n t => PreOrd (Grammar n t) where
   (⊑) = subsetOf
 
 instance IsGrammar n t => Complete (Grammar n t) where
-  g1 ⊔ g2 = union g1 g2
+  g1 ⊔ g2 = minimize (union g1 g2 :: Grammar n t)
 
 instance IsGrammar n t => CoComplete (Grammar n t) where
   g1 ⊓ g2 = intersection g1 g2
