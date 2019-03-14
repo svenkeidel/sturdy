@@ -16,6 +16,9 @@ spec = do
           $ S.insert "C" "B"
           $ S.insert "B'" "A"
           $ S.insert "C" "B'"
+          $ S.insert (List "B") "BList"
+          $ S.insert (Option "B") "BOption"
+          $ S.insert (Tuple ["B","B"]) "BTuple"
             S.empty
 
   it "is a reflexive relation" $ do
@@ -39,9 +42,12 @@ spec = do
     S.subtype rel (List "C") (List "C") `shouldBe` True
     S.subtype rel (List "C") (List Top) `shouldBe` True
     S.subtype rel (List "C") Top `shouldBe` True
+    S.subtype rel (List Bottom) (List Top) `shouldBe` True
     S.subtype rel (List Top) (List Top) `shouldBe` True
     S.subtype rel (List Top) Top `shouldBe` True
     S.subtype rel Bottom (List Bottom) `shouldBe` True
+    S.subtype rel (List Bottom) "BList" `shouldBe` True
+    S.subtype rel (List "C") "BList" `shouldBe` True
 
   it "handles option" $ do
     S.subtype rel (Option "C") (Option "A") `shouldBe` True
@@ -49,9 +55,12 @@ spec = do
     S.subtype rel (Option "C") (Option "C") `shouldBe` True
     S.subtype rel (Option "C") (Option Top) `shouldBe` True
     S.subtype rel (Option "C") Top `shouldBe` True
+    S.subtype rel (Option Bottom) (Option Top) `shouldBe` True
     S.subtype rel (Option Top) (Option Top) `shouldBe` True
     S.subtype rel (Option Top) Top `shouldBe` True
     S.subtype rel Bottom (Option Bottom) `shouldBe` True
+    S.subtype rel (Option Bottom) "BOption" `shouldBe` True
+    S.subtype rel (Option "C") "BOption" `shouldBe` True
 
   it "handles Tuple" $ do
     S.subtype rel (Tuple ["C","C"]) (Tuple ["A","A"]) `shouldBe` True
@@ -64,6 +73,10 @@ spec = do
     S.subtype rel (Tuple [Top,"B"]) (Tuple [Top,"A"]) `shouldBe` True
     S.subtype rel (Tuple [Top,"B"]) (Tuple [Top,Top]) `shouldBe` True
     S.subtype rel (Tuple [Top,"B"]) (Tuple ["A",Top]) `shouldBe` False
+    S.subtype rel (Tuple [Bottom,Bottom]) "BTuple" `shouldBe` True
+    S.subtype rel (Tuple ["C",Bottom]) "BTuple" `shouldBe` True
+    S.subtype rel (Tuple [Bottom,"C"]) "BTuple" `shouldBe` True
+    S.subtype rel (Tuple ["C","C"]) "BTuple" `shouldBe` True
 
   it "has a smallest element" $ do
     and [S.subtype rel Bottom s | s <- ["A","B","B'","C"]]

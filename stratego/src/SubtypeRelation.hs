@@ -41,10 +41,13 @@ subtype rel@(SubtypeRelation _ _ gr) s1 s2 = case (s1,s2) of
   (Lexical,Lexical) -> True
   (Numerical,Numerical) -> True
   (List x,List y) -> subtype rel x y
+  (List x,Sort y) -> any (\ysub -> subtype rel (List x) ysub) (tail $ lower rel $ Sort y)
   (Option x,Option y) -> subtype rel x y
+  (Option x,Sort y) -> any (\ysub -> subtype rel (Option x) ysub) (tail $ lower rel $ Sort y)
   (Tuple xs,Tuple ys)
     | eqLength xs ys -> and (zipWith (subtype rel) xs ys)
     | otherwise -> False
+  (Tuple xs,Sort y) -> any (\ysub -> subtype rel (Tuple xs) ysub) (tail $ lower rel $ Sort y)
   (x,Sort y)
     | x == Sort y -> True
     | otherwise -> fromMaybe False $ do
