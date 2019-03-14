@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Abstract.WeakMap(Map,widening,empty,insert,lookup,lookup',delete,delete',deleteIfNotPresent,deleteIfNotPresent',union,fromList,fromList',toList) where
+module Data.Abstract.WeakMap(Map,widening,empty,insert,lookup,lookup',delete,delete',deleteIfNotPresent,deleteIfNotPresent',union,fromList,fromList',toList,dropNegativeBindings) where
 
 import           Prelude hiding (lookup)
 
@@ -9,8 +9,11 @@ import           Data.Identifiable
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 
+import           Data.Maybe
 import           Data.Order
+import qualified Data.Abstract.Map as StrongMap
 import qualified Data.Abstract.Maybe as A
+import qualified Data.Abstract.There as T
 import           Data.Abstract.Widening
 import           Data.Coerce
 import           Data.Hashable
@@ -90,3 +93,11 @@ withMap2 = coerce
 withMap :: Coercible c c' => (HashMap a (A.Maybe b) -> c) -> Map a b -> c'
 withMap = coerce
 {-# INLINE withMap #-}
+
+dropNegativeBindings :: Identifiable a => Map a b -> Map a b
+dropNegativeBindings (Map m) = Map (M.filter noNothing m)
+  where
+    noNothing m = case m of
+      A.Just _ -> True
+      A.JustNothing _ -> True
+      A.Nothing -> False
