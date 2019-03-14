@@ -396,7 +396,7 @@ spec = do
             val  = term "APat"
             env = termEnv []
         in do
-          seval'' 2 10 (Call "tuple_pat_0_0" [] []) senv env prog `shouldBe`
+          sevalNoNeg'' 2 10 (Call "tuple_pat_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "tuple: List Exp -> Exp" $ \desugar ->
@@ -406,7 +406,7 @@ spec = do
             val  = term "Exp"
             env = termEnv []
         in do
-          seval'' 2 10 (Call "tuple_0_0" [] []) senv env prog `shouldBe`
+          sevalNoNeg'' 2 10 (Call "tuple_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "free-pat-vars: APat -> List Var " $ \desugar ->
@@ -416,19 +416,18 @@ spec = do
             val  = term $ List "Var"
             env = termEnv []
         in do
-          seval'' 2 10 (Call "free_pat_vars_0_0" [] []) senv env prog `shouldBe`
+          sevalNoNeg'' 2 10 (Call "free_pat_vars_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
-      -- it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
-      --   let ?ctx = signature desugar in
-      --   let senv = stratEnv desugar
-      --       prog = term "ArrCommand"
-      --       val  = term "APat"
-      --       env = termEnv [("vars-list", term $ List "Var")]
-      --   in do
-      --     print (Ctx.lookupCons ?ctx "Constr")
-      --     seval'' 2 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
-      --       successOrFail () (env, val)
+      it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term "ArrCommand"
+            val  = term "Exp"
+            env = termEnv [("vars-list", term $ List "Var")]
+        in do
+          sevalNoNeg'' 2 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
+            successOrFail () (env, val)
 
       -- it "eval: Env * Exp -> Val" $ \desugar ->
       --   let ?ctx = signature desugar in
@@ -507,10 +506,19 @@ spec = do
     seval' i s = seval'' i 10 s M.empty
 
     seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Error TypeError (Except () (TermEnv,Term))
-    seval'' i j s senv tenv t = fromCompletion (error "top element")
-                               (fromTerminating (error "sort semantics does not terminate")
-                                (eval i j s senv (context t) tenv t))
+    seval'' i j s senv tenv t =
+      fromCompletion (error "top element")
+        (fromTerminating (error "sort semantics does not terminate")
+           (eval i j s senv (context t) tenv t))
 
+    sevalNoNeg'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Error TypeError (Except () (TermEnv,Term))
+    sevalNoNeg'' i j s senv tenv t = dropNegativeBindings $ seval'' i j s senv tenv t
+    
+    dropNegativeBindings :: Error TypeError (Except () (TermEnv,a)) -> Error TypeError (Except () (TermEnv,a))
+    dropNegativeBindings (F.Success (E.Success (env,a))) = (F.Success (E.Success (S.dropNegativeBindings env,a)))
+    dropNegativeBindings (F.Success (E.SuccessOrFail e (env,a))) = (F.Success (E.SuccessOrFail e (S.dropNegativeBindings env,a)))
+    dropNegativeBindings res = res
+    
     term :: (?ctx :: Context) => Sort -> Term
     term s = Term s ?ctx
 
