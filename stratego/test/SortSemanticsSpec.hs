@@ -399,14 +399,46 @@ spec = do
           sevalNoNeg'' 2 10 (Call "tuple_pat_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
-      it "tuple: List Exp -> Exp" $ \desugar ->
+      it "tuple: List Var -> Exp" $ \desugar ->
         let ?ctx = signature desugar in
         let senv = stratEnv desugar
-            prog = term $ List "Exp"
+            prog = term $ List "Var"
             val  = term "Exp"
             env = termEnv []
         in do
           sevalNoNeg'' 2 10 (Call "tuple_0_0" [] []) senv env prog `shouldBe`
+            successOrFail () (env, val)
+
+      it "at-end: (=> List Var) -> List Var -> List Var " $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term $ List "Var"
+            val  = term $ List "Var"
+            env = termEnv []
+            s = Build $ Cons "Cons" [Cons "VarVar" [StringLiteral "v"], Cons "Nil" []]
+        in do
+          sevalNoNeg'' 2 10 (Call "at_end_1_0" [s] []) senv env prog `shouldBe`
+            successOrFail () (env, val)
+
+      it "at-end (scoped strat arg): (=> List Var) -> List Var -> List Var " $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term $ List "Var"
+            val  = term $ List "Var"
+            env = termEnv [("vars-list", term $ List "Var")]
+            s = Build $ Var "vars-list"
+        in do
+          sevalNoNeg'' 2 10 (Call "at_end_1_0" [s] []) senv env prog `shouldBe`
+            successOrFail () (env, val)
+
+      it "conc: (List Var, List Var) -> List Var " $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term $ Tuple [List "Var", List "Var"]
+            val  = term $ List "Var"
+            env = termEnv []
+        in do
+          sevalNoNeg'' 2 10 (Call "conc_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "free-pat-vars: APat -> List Var " $ \desugar ->
@@ -419,6 +451,16 @@ spec = do
           sevalNoNeg'' 2 10 (Call "free_pat_vars_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
+      it "free-decls-vars: Declbinds -> List Var " $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term "Declbinds"
+            val  = term $ List "Var"
+            env = termEnv []
+        in do
+          sevalNoNeg'' 2 10 (Call "free_decls_vars_0_0" [] []) senv env prog `shouldBe`
+            successOrFail () (env, val)
+
       it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
         let ?ctx = signature desugar in
         let senv = stratEnv desugar
@@ -426,16 +468,8 @@ spec = do
             val  = term "Exp"
             env = termEnv [("vars-list", term $ List "Var")]
         in do
-          sevalNoNeg'' 2 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
+          sevalNoNeg'' 4 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
             successOrFail () (env, val)
-
-      -- it "eval: Env * Exp -> Val" $ \desugar ->
-      --   let ?ctx = signature desugar in
-      --   let senv = stratEnv desugar
-      --       prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
-      --       val  = term "Val"
-      --   in seval'' 5 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
-      --        successOrFail () (emptyEnv, val)
 
 
   where
