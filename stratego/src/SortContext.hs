@@ -79,9 +79,19 @@ isNumerical ctx = subtype ctx Numerical
 isList :: Context -> Sort -> Bool
 isList ctx = subtype ctx (List Bottom)
 
-getListElem :: Sort -> Sort
-getListElem (List s) = s
-getListElem _ = Top
+getListElem :: Context -> Sort -> Sort
+getListElem _ (List s) = s
+getListElem ctx s@(Sort _) = foldl (lub ctx) Bottom $ map (getListElem ctx) $ filter (not . isSort) $ tail $ R.lower (subtypes ctx) s
+getListElem _ Bottom = Bottom
+getListElem _ Numerical = Bottom
+getListElem _ Lexical = Bottom
+getListElem _ (Option _) = Bottom
+getListElem _ (Tuple _) = Bottom
+getListElem _ Top = Top
+
+isSort :: Sort -> Bool
+isSort (Sort _) = True
+isSort _ = False
 
 isTuple :: Context -> Int -> Sort -> Bool
 isTuple ctx i = subtype ctx (Tuple (replicate i Bottom))

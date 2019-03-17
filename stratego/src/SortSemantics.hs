@@ -150,12 +150,6 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
   matchTermAgainstConstructor matchSubterms = proc (c,ps,t@(Term s ctx)) ->
     case (c,ps,s) of
       (_,_,Bottom) -> bottom -< ()
-      ("Cons",[_,_],List a) ->
-          (do
-           ss <- matchSubterms -< (ps,[Term a ctx,Term (List a) ctx])
-           cons -< ("Cons",ss))
-           <⊔>
-           (throw -< ())
       ("Cons",[_,_],_) | isList t -> (do
            ss <- matchSubterms -< (ps,[getListElem t, t])
            cons -< ("Cons",ss))
@@ -186,7 +180,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
           <⊔>
           do throw -< ()
       _ -> do
-        (| joinList (typeError -< printf "cannot find constructor %s in context" (show c))
+        (| joinList (bottom -< ()) -- printf "cannot find constructors of %s in context" (show s)
                     (\(c',Signature ss _) ->
                        if c == c' && eqLength ss ps
                        then do
@@ -211,6 +205,10 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
         returnA -< t
       | isNumeric t -> do
         matchSubterms -< convertToList [] (context t)
+        returnA -< t
+    Term (Tuple ss) ctx -> do
+        matchCons -< Term Lexical ctx
+        matchSubterms -< Term (List $ foldr (Ctx.lub ctx) Bottom ss) ctx
         returnA -< t
     Term _ ctx -> do
       matchCons -< Term Lexical ctx
@@ -240,7 +238,10 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
     ctx <- askConst -< ()
     case c of
       "Cons" -> case ss of
-        [Term a _,Term (List b) _] -> returnA -< Term (List a) ctx ⊔ Term (List b) ctx
+        [Term a _,Term s _] ->
+          if isList (Term s ctx)
+            then returnA -< Term (List a) ctx ⊔ Term s ctx
+            else typeMismatch -< ("List(_)",show s)
         _ -> typeMismatch -< ("a * List(b)",show ss)
       "Nil" -> case ss of
         [] -> returnA -< Term (List Bottom) ctx
@@ -380,7 +381,7 @@ isList :: Term -> Bool
 isList (Term s ctx) = Ctx.isList ctx s
 
 getListElem :: Term -> Term
-getListElem (Term s ctx) = Term (Ctx.getListElem s) ctx
+getListElem (Term s ctx) = Term (Ctx.getListElem ctx s) ctx
 
 isTuple :: Term -> Int -> Bool
 isTuple (Term s ctx) i = Ctx.isTuple ctx i s
