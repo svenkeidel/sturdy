@@ -186,7 +186,7 @@ spec = do
              success (tenv, convertToList [1,2,3,4,5,6])
 
       it "free-pat-vars should work" $ \arrows ->
-        let var x = Cons "Var" [x]
+        let var x = Cons "VarVar" [x]
             tuple x y = Cons "Tuple" [x,convertToList y]
             t = tuple (tuple (var "a") [var "b"])
                       [tuple (var "c") [var "a"]]
