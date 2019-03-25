@@ -25,4 +25,7 @@ strategies
   trans: Or(e1,e2)  -> Max(e1,e2)
 
   topdown(s) = s; all(topdown(s))
-  main = topdown(trans)
+  bottomup(s) = all(bottomup(s)); s
+
+  trans_topdown  = topdown(trans)
+  trans_bottomup = bottomup(trans)

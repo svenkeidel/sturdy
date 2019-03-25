@@ -369,11 +369,11 @@ spec = do
 
   describe "Boolean Algebra" $
     beforeAll CaseStudy.balg $ do
-      it "main: BExp -> Exp" $ \balg ->
+      it "trans_bottomup: BExp -> Exp" $ \balg ->
         let ?ctx = signature balg in
         let senv = stratEnv balg
         in do
-          seval'' 2 10 (Call "main_0_0" [] []) senv emptyEnv (term "BExp") `shouldBe`
+          seval'' 2 10 (Call "trans__bottomup_0_0" [] []) senv emptyEnv (term "BExp") `shouldBe`
             successOrFail () (emptyEnv, term "Exp")
 
   describe "PCF interpreter in Stratego" $
