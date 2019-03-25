@@ -23,6 +23,7 @@ case $1 in
      prepare arith
      prepare go2js
      prepare nnf
+     prepare balg
    ;;
 
    *)

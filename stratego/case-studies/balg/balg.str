@@ -1,0 +1,28 @@
+module balg
+
+signature
+  constructors
+    Num : Int -> Exp
+    Max : Exp * Exp -> Exp
+    Min : Exp * Exp -> Exp
+
+    True  : BExp
+    False : BExp
+    And   : BExp * BExp -> BExp
+    Or    : BExp * BExp -> BExp
+
+    Nil  : List(a)
+    Cons : a * List(a) -> List(a)
+         : ()
+         : a -> (a)
+         : a * b -> (a, b)
+         : a * b * c -> (a, b, c)
+
+strategies
+  trans: True()     -> Num(1)
+  trans: False()    -> Num(0)
+  trans: And(e1,e2) -> Min(e1,e2)
+  trans: Or(e1,e2)  -> Max(e1,e2)
+
+  topdown(s) = s; all(topdown(s))
+  main = topdown(trans)

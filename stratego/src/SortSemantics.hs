@@ -227,12 +227,16 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
 
   mapSubterms f = proc s -> do
     ctx <- askConst -< ()
-    (| joinList
-      (typeError -< printf "Sort %s not found in context." (show s))
-      (\(c,ts) -> do
-        ts' <- f -< ts
-        cons -< (c,ts')) |)
-      ([ (c',sortsToTerms ss ctx) | (c',Signature ss _) <- (Ctx.lookupSort ctx (sort s))])
+    case sort s of
+      Top ->
+        typeError -< "generic traversal over top is not supported."
+      s' ->
+        (| joinList
+          (typeError -< printf "Sort %s not found in context." (show s))
+          (\(c,ts) -> do
+            ts' <- f -< ts
+            cons -< (c,ts')) |)
+          ([ (c',sortsToTerms ss ctx) | (c',Signature ss _) <- Ctx.lookupSort ctx s'])
 
   cons = proc (c, ss) -> do
     ctx <- askConst -< ()

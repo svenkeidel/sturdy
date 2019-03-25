@@ -367,8 +367,17 @@ spec = do
     --   return $ counterexample (printf "t: %s\n" (showLub t1 t2))
     --          $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
 
+  describe "Boolean Algebra" $
+    beforeAll CaseStudy.balg $ do
+      it "main: BExp -> Exp" $ \balg ->
+        let ?ctx = signature balg in
+        let senv = stratEnv balg
+        in do
+          seval'' 2 10 (Call "main_0_0" [] []) senv emptyEnv (term "BExp") `shouldBe`
+            successOrFail () (emptyEnv, term "Exp")
+
   describe "PCF interpreter in Stratego" $
-    before CaseStudy.pcf $ do
+    beforeAll CaseStudy.pcf $ do
       it "lookup: String * Env -> Val" $ \pcf ->
         let ?ctx = signature pcf in
         let senv = stratEnv pcf
@@ -386,9 +395,8 @@ spec = do
         in seval'' 10 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
              successOrFail () (emptyEnv, val)
 
-
   describe "Arrow desugaring in Stratego" $
-    before CaseStudy.arrows $ do
+    beforeAll CaseStudy.arrows $ do
       it "tuple-pat: List Var -> APat" $ \desugar ->
         let ?ctx = signature desugar in
         let senv = stratEnv desugar

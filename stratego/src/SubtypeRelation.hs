@@ -96,7 +96,7 @@ glb rel s1 s2 = case (s1,s2) of
 lower :: SubtypeRelation -> Sort -> [Sort]
 lower rel@(SubtypeRelation _ _ gr) s = case s of
   Bottom -> [Bottom]
-  Top -> error "lower set of top is unsupported"
+  Top -> [Top]
   Lexical -> return Lexical
   Numerical -> return Numerical
   List x -> List <$> lower rel x
