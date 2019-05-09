@@ -21,7 +21,7 @@ More details can be found in the [paper](https://dl.acm.org/citation.cfm?id=3236
 
 To build, install the [Stack](https://www.haskellstack.org/) build tool and run `stack build` from the root directory of the project.
 
-The sturdy project currently contains concrete and abstract interpreters for three languages:
+The sturdy project currently contains concrete and abstract and generic interpreters for the following languages:
 * _PCF_, a higher-order functional language with numbers
 * _While_, an imperative language with conditionals and while loops
 * _Stratego_, a language for program transformations
@@ -44,6 +44,6 @@ ACM, 2018
 
 ## Acknowledgments
 
-I want to thank all people that have contributed to this project (in alphabetical order):
+I want to thank everyone that has contributed to this project (in alphabetical order):
 
 Matthijs Bijman, Sebastian Erdweg, Jente Hidskes, Wouter Raateland
