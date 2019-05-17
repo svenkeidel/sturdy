@@ -1,6 +1,6 @@
 flags: {}
 extra-package-dbs: []
-resolver: lts-13.8
+resolver: lts-13.19
 packages:
 - 'lib'
 - 'pcf'
