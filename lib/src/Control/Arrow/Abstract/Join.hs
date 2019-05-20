@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Control.Arrow.Abstract.Join where
 
 import Prelude hiding ((.))
@@ -15,6 +16,9 @@ class (Arrow c, Profunctor c) => ArrowJoin c where
   --   joinWith (⊔) f g = joined f g
   -- @
   joinWith :: (y -> y -> y) -> c x y -> c x y -> c x y
+
+class (Arrow c, Profunctor c) => ArrowTop x c where
+  topA :: c () x
 
 joinWith' :: (ArrowJoin c) => (y -> y -> y) -> c x y -> c x' y -> c (x,x') y
 joinWith' lub f g = joinWith lub (lmap fst f) (lmap snd g)

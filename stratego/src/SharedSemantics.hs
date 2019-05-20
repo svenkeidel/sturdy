@@ -6,6 +6,9 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
 module SharedSemantics where
 
 import           Prelude hiding ((.),id,all,sequence,curry, uncurry,fail)
@@ -19,15 +22,20 @@ import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Deduplicate
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Trans
 import           Control.Arrow.Except
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Reader
+import           Control.Arrow.Transformer.Const
+import           Control.Arrow.Transformer.Static
+import           Control.Arrow.Transformer.Reader
 import           Control.Category
 
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.Constructor
 import           Data.Text(Text)
+import           Data.Profunctor
 
 import           Text.Printf
 import           GHC.Exts(IsString(..))
@@ -169,15 +177,15 @@ match = proc (p,t) -> case p of
       (proc _ -> do insertTerm' -< (x,t)
                     returnA -< t) -<< (x,())
   S.Cons c ts ->
-    matchTermAgainstConstructor (zipWithA match) -< (c,ts,t)
+    matchCons (zipWithA match) -< (c,ts,t)
+  S.StringLiteral s ->
+    matchString -< (s,t)
+  S.NumberLiteral n ->
+    matchNum -< (n,t)
   S.Explode c ts ->
-    matchTermAgainstExplode
+    matchExplode
       (proc c' ->  match -< (c,c'))
       (proc ts' -> match -< (ts,ts')) -<< t
-  S.StringLiteral s ->
-    matchTermAgainstString -< (s,t)
-  S.NumberLiteral n ->
-    matchTermAgainstNumber -< (n,t)
 
 -- | Build a new term from a pattern. Variables are pattern are
 -- replaced by terms in the current term environment.
@@ -189,52 +197,52 @@ build = proc p -> case p of
     lookupTermVar' returnA fail -< (x,fromString ("unbound term variable " ++ show x ++ " in build statement " ++ show (Build p)))
   S.Cons c ts -> do
     ts' <- mapA build -< ts
-    cons -< (c,ts')
+    buildCons -< (c,ts')
+  S.StringLiteral s ->
+    buildString -< s
+  S.NumberLiteral n ->
+    buildNum -< n
   S.Explode c ts -> do
     c'  <- build -< c
     ts' <- build -< ts
-    convertFromList -< (c',ts')
-  S.NumberLiteral n ->
-    numberLiteral -< n
-  S.StringLiteral s ->
-    stringLiteral -< s
+    buildExplode -< (c',ts')
 
 -- Interface of the shared interpreter
 
 -- | Arrow-based interface for matching and constructing terms.
 class Arrow c => IsTerm t c | c -> t where
   -- | Match a term against a constructor and a list of subterms.
-  matchTermAgainstConstructor :: c ([t'],[t]) [t] -> c (Constructor, [t'], t) t 
+  matchCons :: c ([t'],[t]) [t] -> c (Constructor, [t'], t) t 
 
   -- | Match a term against a string literal.
-  matchTermAgainstString :: c (Text,t) t
+  matchString :: c (Text,t) t
 
   -- | Match a term against a number literal.
-  matchTermAgainstNumber :: c (Int,t) t
+  matchNum :: c (Int,t) t
 
   -- | Match a term against an explode pattern. The first strategy
   -- matches against the constructor, the second against the 'Cons'
   -- list of subterms.
-  matchTermAgainstExplode :: c t t -> c t t -> c t t
+  matchExplode :: c t t -> c t t -> c t t
+
+  -- | Construct a term from a constructor and subterms.
+  buildCons :: c (Constructor,[t]) t
+
+  -- | Construct a term from a number literal.
+  buildNum :: c Int t
+
+  -- | Construct a term from a string literal.
+  buildString :: c Text t
+
+  -- | Convert a string literal and a 'Cons' list of subterms into a new term.
+  buildExplode :: c (t,t) t
 
   -- | Checks if a given term is equal to another term and return one
   -- of the terms. If the terms are not equal, this operation fails.
   equal :: c (t,t) t
 
-  -- | Convert a string literal and a 'Cons' list of subterms into a new term.
-  convertFromList :: c (t,t) t
-
   -- | Map a strategy over the subterms of a given term.
   mapSubterms :: c [t] [t] -> c t t
-
-  -- | Construct a term from a constructor and subterms.
-  cons :: c (Constructor,[t]) t
-
-  -- | Construct a term from a number literal.
-  numberLiteral :: c Int t
-
-  -- | Construct a term from a string literal.
-  stringLiteral :: c Text t
 
 -- | Arrow-based interface for term environments. Because of the
 -- dynamic scoping of stratego, term environments are more like
@@ -296,3 +304,22 @@ fixA' f = curry (fix (uncurry . f . curry))
     
     uncurry :: ArrowApply c => (z -> c x y) -> c (z,x) y
     uncurry g = proc (z,x) -> g z -<< x
+
+deriving instance (Profunctor c, IsTermEnv env t c) => IsTermEnv env t (ConstT r c)
+instance (ArrowApply c, Profunctor c, IsTermEnv env t c) => IsTermEnv env t (ReaderT r c) where
+  getTermEnv = lift' getTermEnv
+  putTermEnv = lift' putTermEnv
+  emptyTermEnv = lift' emptyTermEnv
+  lookupTermVar (ReaderT f) (ReaderT g) = ReaderT $ proc (r,x) -> lookupTermVar (proc t -> f -< (r,t)) (proc e -> g -< (r,e)) -<< x
+  insertTerm = lift' insertTerm
+  deleteTermVars = lift' deleteTermVars
+  unionTermEnvs = lift' unionTermEnvs
+
+instance (Profunctor c, Applicative r, IsTermEnv env t c) => IsTermEnv env t (StaticT r c) where
+  getTermEnv = StaticT $ pure getTermEnv
+  putTermEnv = StaticT $ pure putTermEnv
+  emptyTermEnv = StaticT $ pure emptyTermEnv
+  lookupTermVar (StaticT f) (StaticT g) = StaticT $ lookupTermVar <$> f <*> g
+  insertTerm = StaticT $ pure insertTerm
+  deleteTermVars = StaticT $ pure deleteTermVars
+  unionTermEnvs = StaticT $ pure unionTermEnvs

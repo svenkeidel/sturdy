@@ -81,10 +81,6 @@ deriving instance ArrowDeduplicate Term Term Interp
 deriving instance ArrowFail String Interp
 instance ArrowApply Interp where app = Interp (lmap (first (\(Interp f) -> f)) app)
 
-instance HasStratEnv Interp where
-  readStratEnv = Interp (const () ^>> ask)
-  localStratEnv senv f = proc a -> local f -< (senv,a)
-
 instance IsTermEnv TermEnv Term Interp where
   getTermEnv = get
   putTermEnv = put
@@ -101,25 +97,25 @@ instance IsTermEnv TermEnv Term Interp where
     TermEnv (M.union e1 (foldr' M.delete e2 vars)))
 
 instance IsTerm Term Interp where
-  matchTermAgainstConstructor matchSubterms = proc (c,ts,t) -> case t of
+  matchCons matchSubterms = proc (c,ts,t) -> case t of
     Cons c' ts' | c == c' && eqLength ts ts' -> do
       ts'' <- matchSubterms -< (ts,ts')
       returnA -< Cons c ts''
     _ -> throw -< ()
 
-  matchTermAgainstString = proc (s,t) -> case t of
+  matchString = proc (s,t) -> case t of
     StringLiteral s'
       | s == s' -> returnA -< t
       | otherwise -> throw -< ()
     _ -> throw -< ()
 
-  matchTermAgainstNumber = proc (n,t) -> case t of
+  matchNum = proc (n,t) -> case t of
     NumberLiteral n'
       | n == n' -> returnA -< t
       | otherwise -> throw -< ()
     _ -> throw -< ()
 
-  matchTermAgainstExplode matchCons matchSubterms = proc t -> case t of
+  matchExplode matchCons matchSubterms = proc t -> case t of
       Cons (Constructor c) ts -> do
         matchCons -< (StringLiteral c)
         matchSubterms -< convertToList ts
@@ -130,20 +126,12 @@ instance IsTerm Term Interp where
       NumberLiteral _ -> do
         matchSubterms -< convertToList []
         returnA -< t
-  
-  equal = proc (t1,t2) ->
-    case (t1,t2) of
-      (Cons c ts, Cons c' ts')
-          | c == c' && eqLength ts ts' -> do
-          ts'' <- zipWithA equal -< (ts,ts')
-          cons -< (c,ts'')
-      (StringLiteral s, StringLiteral s')
-          | s == s' -> success -< t1
-      (NumberLiteral n, NumberLiteral n')
-          | n == n' -> success -< t1
-      (_,_) -> throw -< ()
 
-  convertFromList = proc (c,ts) -> case (c,go ts) of
+  buildCons = arr (uncurry Cons)
+  buildString = arr StringLiteral
+  buildNum = arr NumberLiteral
+
+  buildExplode = proc (c,ts) -> case (c,go ts) of
     (StringLiteral c', Just ts') -> returnA -< Cons (Constructor c') ts'
     _                            -> throw -< ()
     where
@@ -152,17 +140,25 @@ instance IsTerm Term Interp where
         Cons "Nil" [] -> Just []
         _ -> Nothing
 
+  equal = proc (t1,t2) ->
+    case (t1,t2) of
+      (Cons c ts, Cons c' ts')
+          | c == c' && eqLength ts ts' -> do
+          ts'' <- zipWithA equal -< (ts,ts')
+          buildCons -< (c,ts'')
+      (StringLiteral s, StringLiteral s')
+          | s == s' -> success -< t1
+      (NumberLiteral n, NumberLiteral n')
+          | n == n' -> success -< t1
+      (_,_) -> throw -< ()
+
   mapSubterms f = proc t ->
     case t of
       Cons c ts -> do
         ts' <- f -< ts
-        cons -< (c,ts')
+        buildCons -< (c,ts')
       StringLiteral {} -> returnA -< t
       NumberLiteral {} -> returnA -< t
-
-  cons = arr (uncurry Cons)
-  numberLiteral = arr NumberLiteral
-  stringLiteral = arr StringLiteral
 
 instance TermUtils Term where
   convertToList ts = case ts of

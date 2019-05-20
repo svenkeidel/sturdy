@@ -134,10 +134,6 @@ deriving instance ArrowFix x y c => ArrowFix x y (GrammarT c)
 instance (Arrow c, Profunctor c) => ArrowDeduplicate Term Term (GrammarT c) where
   dedup f = f
 
-instance (Arrow c, Profunctor c, ArrowReader StratEnv c) => HasStratEnv (GrammarT c) where
-  readStratEnv = lmap (const ()) ask
-  localStratEnv senv f = proc a -> local f -< (senv,a)
-
 instance Complete (FreeCompletion Term) where
   Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
   _ ⊔ _ = Free.Top

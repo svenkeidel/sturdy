@@ -71,6 +71,7 @@ import           Data.Order
 import           Data.Profunctor
 import qualified Data.Lens as L
 import           Data.Identifiable
+import           Data.Coerce
 
 -- import           Test.QuickCheck hiding (Success)
 import           Text.Printf
@@ -80,27 +81,28 @@ type TypeError = Pow String
 
 type Interp t s x y =
   Fix (Strat,t) t
-    (ConstT Context
-     (ReaderT StratEnv
-      (EnvironmentT t
+   (ValueT t
+    (ReaderT StratEnv
+     (EnvironmentT t
+      (ConstT Context
        (ExceptT ()
         (ErrorT TypeError
          (CompletionT
           (TerminatingT
            (FixT s () ()
-            (->))))))))) x y
+            (->)))))))))) x y
 
-runInterp :: forall t x y. (Show t, PreOrd t, Identifiable t) => Widening t -> Interp t _ x y -> Int -> StratEnv -> Context -> TermEnv t -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,y))))
-runInterp termWidening f k senv0 ctx tenv0 a =
+runInterp :: forall t x y. (Show t, PreOrd t, Identifiable t) => Interp t _ x y -> Int -> Widening t -> StratEnv -> Context -> TermEnv t -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,y))))
+runInterp f k termWidening senv0 ctx tenv0 a =
   runFixT stackWidening (T.widening resultWidening)
    (runTerminatingT
     (runCompletionT
      (runErrorT
       (runExceptT
-       (runEnvironmentT
-        (runReaderT
-         (runConstT ctx
-           f)))))))
+       (runConstT ctx
+        (runEnvironmentT
+         (runReaderT
+          (runValueT f))))))))
     (tenv0, (senv0, a))
   where
     stackWidening :: SW.StackWidening _ (TermEnv t, (StratEnv, (Strat, t)))
@@ -115,13 +117,19 @@ runInterp termWidening f k senv0 ctx tenv0 a =
     resultWidening :: Widening (FreeCompletion (Error TypeError (Except () (TermEnv t,t))))
     resultWidening = Free.widening (F.widening P.widening (E.widening (\_ _ -> (Stable,())) (S.widening termWidening W.** termWidening)))
 
--- eval :: Int -> Int -> Strat -> StratEnv -> Context -> TermEnv -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv,Term))))
--- eval i j s = runInterp (Shared.eval' s) i j
+type instance Fix x y (ValueT t c) = ValueT t (Fix (Dom (ValueT t) x y) (Cod (ValueT t) x y) c)
+newtype ValueT t c x y = ValueT { runValueT :: c x y }
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowFail e,ArrowExcept e,ArrowFix a b,ArrowDeduplicate a b,ArrowReader r,IsTermEnv env t,ArrowConst r)
 
--- Instances -----------------------------------------------------------------------------------------
+instance ArrowTrans (ValueT t) where
+  type Dom (ValueT t) x y = x
+  type Cod (ValueT t) x y = y
+  lift = ValueT
+  unlift = runValueT
 
-typeMismatch :: (ArrowFail e c, IsString e) => c (String,String) a
-typeMismatch = lmap (\(expected,actual) -> printf "expected type %s but got type %s" (show expected) (show actual)) typeError
+instance (Profunctor c, ArrowApply c) => ArrowApply (ValueT t c) where
+  app = ValueT $ lmap (first coerce) app
 
-typeError :: (ArrowFail e c, IsString e) => c String a
-typeError = lmap fromString fail
+deriving instance (PreOrd (c (Dom (ValueT t) x y) (Cod (ValueT t) x y))) => PreOrd (ValueT t c x y)
+deriving instance (LowerBounded (c (Dom (ValueT t) x y) (Cod (ValueT t) x y))) => LowerBounded (ValueT t c x y)
+deriving instance (Complete (c (Dom (ValueT t) x y) (Cod (ValueT t) x y))) => Complete (ValueT t c x y)
