@@ -9,7 +9,10 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.TermEnvironment where
 
+import           Prelude hiding ((.))
+
 import           Syntax
+import qualified ConcreteSemantics as C
 import           SharedSemantics
 
 import           Control.Category
@@ -25,13 +28,16 @@ import           Control.Arrow.Const
 import           Control.Arrow.Abstract.Join
 
 import           Data.Order
+import qualified Data.Concrete.Powerset as C
 import           Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.WeakMap (Map)
 import qualified Data.Abstract.WeakMap as S
 import qualified Data.Abstract.Maybe as A
+import qualified Data.HashMap.Lazy as LM
 import           Data.Profunctor
 import           Data.Identifiable
 import           Data.Coerce
+import           Data.GaloisConnection
 
 type TermEnv t = Map TermVar t
 
@@ -69,3 +75,7 @@ instance (Complete t, ArrowChoice c, ArrowJoin c, ArrowTop t (EnvironmentT t c))
   insertTerm = arr $ \(v,t,env) -> S.insert v t env
   deleteTermVars = arr $ \(vars,env) -> S.delete' vars env
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (S.delete' vars e2))
+
+instance (Galois (C.Pow C.Term) t, Complete t) => Galois (C.Pow C.TermEnv) (TermEnv t) where
+  alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (LM.toList (fmap alphaSing e)))
+  gamma = undefined

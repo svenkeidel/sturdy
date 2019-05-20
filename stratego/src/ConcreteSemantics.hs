@@ -115,9 +115,9 @@ instance IsTerm Term Interp where
       | otherwise -> throw -< ()
     _ -> throw -< ()
 
-  matchExplode matchCons matchSubterms = proc t -> case t of
+  matchExplode matchCons' matchSubterms = proc t -> case t of
       Cons (Constructor c) ts -> do
-        matchCons -< (StringLiteral c)
+        matchCons' -< (StringLiteral c)
         matchSubterms -< convertToList ts
         returnA -< t
       StringLiteral _ -> do

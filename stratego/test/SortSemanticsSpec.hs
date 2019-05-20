@@ -11,18 +11,19 @@ import Prelude hiding (exp)
 import           Syntax hiding (Fail)
 import           Syntax as T
 import           SortSemantics -- hiding (sortContext)
+import           AbstractSemantics
 import           SortContext(Context,Sort(..))
 import qualified SortContext as Ctx
 
 -- import           Control.Arrow
 
+import           Data.TermEnvironment
 import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as A
 -- import qualified Data.Abstract.Maybe as M
 import qualified Data.Abstract.WeakMap as S
-import           Data.Abstract.There
 -- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
 -- import qualified Data.Concrete.Powerset as C
@@ -511,17 +512,17 @@ spec = do
     --   M.Nothing -> Bottom
 
     -- termEnv' = C.TermEnv . M.fromList
-    termEnv :: [(TermVar, Term)] -> TermEnv
+    termEnv :: [(TermVar, Term)] -> TermEnv Term
     termEnv = S.fromList
 
     -- termEnv' = S.fromThereList
-    termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
+    termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv Term
     termEnv' = S.fromList'
 
-    delete :: TermVars s => s -> TermEnv -> TermEnv
+    delete :: TermVars s => s -> TermEnv Term -> TermEnv Term
     delete s = S.delete' (termVars s :: Set TermVar)
 
-    emptyEnv :: TermEnv
+    emptyEnv :: TermEnv Term
     emptyEnv = S.empty
 
     -- showLub :: C.Term -> C.Term -> String
@@ -541,22 +542,22 @@ spec = do
                Build (Cons "Cons" ["x'", "xs'"]))
               (Build (Cons "Nil" []))))
 
-    seval :: Int -> Strat -> Term -> Error TypeError (Except () (TermEnv,Term))
+    seval :: Int -> Strat -> Term -> Error TypeError (Except () (TermEnv Term,Term))
     seval i s = seval'' i 10 s M.empty emptyEnv
 
-    seval' :: Int -> Strat -> TermEnv -> Term -> Error TypeError (Except () (TermEnv,Term))
+    seval' :: Int -> Strat -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
     seval' i s = seval'' i 10 s M.empty
 
-    seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Error TypeError (Except () (TermEnv,Term))
+    seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
     seval'' i j s senv tenv t =
       fromCompletion (error "top element")
         (fromTerminating (error "sort semantics does not terminate")
            (eval i j s senv (context t) tenv t))
 
-    sevalNoNeg'' :: Int -> Int -> Strat -> StratEnv -> TermEnv -> Term -> Error TypeError (Except () (TermEnv,Term))
+    sevalNoNeg'' :: Int -> Int -> Strat -> StratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
     sevalNoNeg'' i j s senv tenv t = dropNegativeBindings $ seval'' i j s senv tenv t
     
-    dropNegativeBindings :: Error TypeError (Except () (TermEnv,a)) -> Error TypeError (Except () (TermEnv,a))
+    dropNegativeBindings :: Error TypeError (Except () (TermEnv Term,a)) -> Error TypeError (Except () (TermEnv Term,a))
     dropNegativeBindings (F.Success (E.Success (env,a))) = (F.Success (E.Success (S.dropNegativeBindings env,a)))
     dropNegativeBindings (F.Success (E.SuccessOrFail e (env,a))) = (F.Success (E.SuccessOrFail e (S.dropNegativeBindings env,a)))
     dropNegativeBindings res = res
@@ -573,17 +574,17 @@ spec = do
     numerical :: (?ctx :: Context) => Term
     numerical = term Numerical
 
-    top :: (?ctx :: Context) => Term
-    top = term Top
+    -- top :: (?ctx :: Context) => Term
+    -- top = term Top
 
     may :: k -> v -> (k,A.Maybe v)
     may k v = (k,A.JustNothing v)
 
-    must :: k -> v -> (k,A.Maybe v)
-    must k v = (k,A.Just v)
+    -- must :: k -> v -> (k,A.Maybe v)
+    -- must k v = (k,A.Just v)
 
-    notThere :: k -> (k, A.Maybe v) 
-    notThere k = (k,A.Nothing)
+    -- notThere :: k -> (k, A.Maybe v) 
+    -- notThere k = (k,A.Nothing)
 
     success :: a -> Error e (Except () a)
     success a = F.Success $ E.Success a

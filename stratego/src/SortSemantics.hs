@@ -14,7 +14,6 @@
 module SortSemantics where
 
 import           Prelude hiding ((.),fail)
--- import qualified Prelude as P
 
 import qualified ConcreteSemantics as C
 import           SharedSemantics as Shared
@@ -22,7 +21,6 @@ import           AbstractSemantics
 import           Sort
 import           SortContext (Context,Signature(..))
 import qualified SortContext as Ctx
--- import           Soundness
 import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
 import           Data.TermEnvironment
@@ -39,17 +37,12 @@ import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
--- import qualified Data.Concrete.Powerset as C
--- import qualified Data.Concrete.Error as CE
--- import qualified Data.Concrete.Failure as CF
 import           Data.Abstract.Terminating (Terminating)
 import           Data.Abstract.Widening as W
--- import           Data.GaloisConnection
 import           Data.Hashable
 import           Data.Order
 import           Data.Profunctor
 
--- import           Test.QuickCheck hiding (Success)
 import           Text.Printf
 import           GHC.Exts(IsString(..))
 
@@ -64,12 +57,12 @@ eval i j strat senv ctx  = runInterp (Shared.eval' strat) i termWidening senv ct
 -- Instances -----------------------------------------------------------------------------------------
 instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowFail e c, ArrowExcept () c, IsString e, LowerBounded (c () Term))
     => IsTerm Term (ValueT Term c) where
-  matchTermAgainstConstructor matchSubterms = proc (c,ps,t@(Term s ctx)) ->
+  matchCons matchSubterms = proc (c,ps,t@(Term s ctx)) ->
     case (c,ps,s) of
       (_,_,Bottom) -> bottom -< ()
       ("Cons",[_,_],_) | isList t -> (do
            ss <- matchSubterms -< (ps,[getListElem t, t])
-           cons -< ("Cons",ss))
+           buildCons -< ("Cons",ss))
            <⊔>
            (throw -< ())
       ("Cons",_,_) -> typeMismatch -< ("List",show s)
@@ -78,11 +71,11 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
       ("",_,Tuple ss)
         | eqLength ss ps -> do
           ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
-          cons -< (c,ss')
+          buildCons -< (c,ss')
         | otherwise -> throw -< ()
       ("",_,Top) -> (do
            ss <- matchSubterms -< (ps,[Term Top ctx | _ <- ps ])
-           cons -< ("",ss))
+           buildCons -< ("",ss))
            <⊔>
            (throw -< ())
       (_,_,Top) -> do
@@ -91,7 +84,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
                        if eqLength ss ps
                        then do
                          ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
-                         cons -< (c,ss')
+                         buildCons -< (c,ss')
                        else throw -< ()) |)
             (Ctx.lookupCons ctx c)
           <⊔>
@@ -102,21 +95,21 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
                        if c == c' && eqLength ss ps
                        then do
                          ss' <- matchSubterms -< (ps,sortsToTerms ss ctx)
-                         cons -< (c',ss')
+                         buildCons -< (c',ss')
                        else throw -< ()) |)
            (Ctx.lookupSort ctx s)
 
-  matchTermAgainstString = proc (_,t) ->
+  matchString = proc (_,t) ->
     if isLexical t
       then (returnA -< t) <⊔> (throw -< ())
       else throw -< ()
 
-  matchTermAgainstNumber = proc (_,t) ->
+  matchNum = proc (_,t) ->
     if isNumeric t
       then (returnA -< t) <⊔> (throw -< ())
       else throw -< ()
 
-  matchTermAgainstExplode matchCons matchSubterms = proc t -> case t of
+  matchExplode matchCons' matchSubterms = proc t -> case t of
     _ | isLexical t -> do
         matchSubterms -< convertToList [] (context t)
         returnA -< t
@@ -124,38 +117,20 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
         matchSubterms -< convertToList [] (context t)
         returnA -< t
     Term (Tuple ss) ctx -> do
-        matchCons -< Term Lexical ctx
+        matchCons' -< Term Lexical ctx
         matchSubterms -< Term (List $ foldr (Ctx.lub ctx) Bottom ss) ctx
         returnA -< t
     Term _ ctx -> do
-      matchCons -< Term Lexical ctx
+      matchCons' -< Term Lexical ctx
       matchSubterms -< Term (List Top) ctx
       returnA -< t
 
-  equal = proc (t1,t2) -> case t1 ⊓ t2 of
-    t | sort t == Bottom -> bottom -< ()
-      | isSingleton t1 && isSingleton t2 -> returnA -< t
-      | otherwise -> (returnA -< t) <⊔> (throw -< ())
-
-  convertFromList = proc (t,ts) ->
+  buildExplode = proc (t,ts) ->
     if isLexical t && isList ts
       then (returnA -< Term Top (context t)) <⊔> (throw -< ()) -- cannot deduct target sort from sort Lexical
       else throw -< ()
 
-  mapSubterms f = proc s -> do
-    ctx <- askConst -< ()
-    case sort s of
-      Top ->
-        typeError -< "generic traversal over top is not supported."
-      s' ->
-        (| joinList
-          (typeError -< printf "Sort %s not found in context." (show s))
-          (\(c,ts) -> do
-            ts' <- f -< ts
-            cons -< (c,ts')) |)
-          ([ (c',sortsToTerms ss ctx) | (c',Signature ss _) <- Ctx.lookupSort ctx s'])
-
-  cons = proc (c, ss) -> do
+  buildCons = proc (c, ss) -> do
     ctx <- askConst -< ()
     case c of
       "Cons" -> case ss of
@@ -173,13 +148,31 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
               then typeError -< printf "Could not construct term %s. Could not find the constructor %s in the context." (show (c,ss)) (show c)
               else returnA   -< t
 
-  numberLiteral = proc _ -> do
+  buildNum = proc _ -> do
     ctx <- askConst -< ()
     returnA -< Term Numerical ctx
 
-  stringLiteral = proc _ -> do
+  buildString = proc _ -> do
     ctx <- askConst -< ()
     returnA -< Term Lexical ctx
+
+  equal = proc (t1,t2) -> case t1 ⊓ t2 of
+    t | sort t == Bottom -> bottom -< ()
+      | isSingleton t1 && isSingleton t2 -> returnA -< t
+      | otherwise -> (returnA -< t) <⊔> (throw -< ())
+
+  mapSubterms f = proc s -> do
+    ctx <- askConst -< ()
+    case sort s of
+      Top ->
+        typeError -< "generic traversal over top is not supported."
+      s' ->
+        (| joinList
+          (typeError -< printf "Sort %s not found in context." (show s))
+          (\(c,ts) -> do
+            ts' <- f -< ts
+            buildCons -< (c,ts')) |)
+          ([ (c',sortsToTerms ss ctx) | (c',Signature ss _) <- Ctx.lookupSort ctx s'])
 
 instance ArrowConst Context c => ArrowTop Term (EnvironmentT Term c) where
   topA = proc () -> do
@@ -239,7 +232,6 @@ isTuple (Term s ctx) i = Ctx.isTuple ctx i s
 isSingleton :: Term -> Bool
 isSingleton (Term s ctx) = Ctx.isSingleton ctx s
 
-
 sortsToTerms :: [Sort] -> Context -> [Term]
 sortsToTerms ss ctx = map (`Term` ctx) ss
 
@@ -248,18 +240,6 @@ typeMismatch = lmap (\(expected,actual) -> printf "expected type %s but got type
 
 typeError :: (ArrowFail e c, IsString e) => c String a
 typeError = lmap fromString fail
-
--- matchTerm :: Term -> [t'] -> Interp Term s ([Sort],Sort) (Term, ([t'], [Term]))
--- matchTerm (Term termSort ctx) ts = proc (patParams,patSort) ->
---   if eqLength patParams ts && Term patSort ctx ⊑ Term termSort ctx
---     then returnA -< (Term patSort ctx, (ts,map (\s -> Term s ctx) patParams))
---     else throw -< ()
-
--- buildTerm :: Context -> [Term] -> Interp Term s ([Sort],Sort) Term
--- buildTerm ctx ts = proc (cParams,cSort) ->
---   if eqLength cParams ts && Term (Tuple $ map sort ts) ctx  ⊑ Term (Tuple cParams) ctx
---     then returnA -< Term cSort ctx
---     else returnA -< Term Top ctx
 
 -- alphaTerm :: Context -> C.Pow C.Term -> Term
 -- alphaTerm ctx = lub . fmap (toSort ctx)

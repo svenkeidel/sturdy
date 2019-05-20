@@ -15,15 +15,10 @@
 module AbstractSemantics where
 
 import           Prelude hiding ((.),fail)
--- import qualified Prelude as P
 
 import           SharedSemantics as Shared
-import           Sort
-import           SortContext (Context,Signature(..))
-import qualified SortContext as Ctx
--- import           Soundness
+import           SortContext (Context)
 import           Syntax hiding (Fail,TermPattern(..))
-import           Utils
 
 import           Control.Category
 import           Control.Arrow
@@ -33,49 +28,33 @@ import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
-import           Control.Arrow.State
 import           Control.Arrow.Trans
 import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Abstract.Completion
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Terminating
-import           Control.DeepSeq
 
 import           Data.TermEnvironment
 import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
-import qualified Data.Abstract.Maybe as A
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.DiscretePowerset as P
--- import qualified Data.Concrete.Powerset as C
--- import qualified Data.Concrete.Error as CE
--- import qualified Data.Concrete.Failure as CF
-import           Data.Abstract.WeakMap (Map)
 import qualified Data.Abstract.WeakMap as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening as W
-import           Data.Foldable (foldr')
--- import           Data.GaloisConnection
-import qualified Data.HashMap.Lazy as M
-import           Data.Hashable
 import           Data.Order
 import           Data.Profunctor
 import qualified Data.Lens as L
 import           Data.Identifiable
 import           Data.Coerce
-
--- import           Test.QuickCheck hiding (Success)
-import           Text.Printf
-import           GHC.Exts(IsString(..))
 
 type TypeError = Pow String
 
