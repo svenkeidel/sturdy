@@ -11,4 +11,4 @@ stages:
 stack-test:
   stage: test
   script:
-    - stack test
+    - stack test --fast
