@@ -67,14 +67,6 @@ eval i _ strat senv ctx  = runInterp (Shared.eval' strat) i widening senv ctx
 
 
 -- Instances -----------------------------------------------------------------------------------------
-instance Complete (FreeCompletion Term) where
-  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
-  _ ⊔ _ = Free.Top
-
-instance Complete (FreeCompletion (Grammar Int Constr)) where
-  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
-  _ ⊔ _ = Free.Top
-
 instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice c, Profunctor c, LowerBounded (c () Term))
    => IsTerm Term (ValueT Term c) where
   matchCons matchSubterms = proc (Constructor c,ps,Term g) ->
@@ -133,6 +125,14 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
       StringLit _ -> returnA -< Term g
       NumLit _ -> returnA -< Term g
       Top -> fail -< "cannot map over the subterms of Top"
+
+instance Complete (FreeCompletion Term) where
+  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
+  _ ⊔ _ = Free.Top
+
+instance Complete (FreeCompletion (Grammar Int Constr)) where
+  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
+  _ ⊔ _ = Free.Top
 
 instance TermUtils Term where
   convertToList ts = case ts of
