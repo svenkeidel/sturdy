@@ -23,7 +23,7 @@ import           SortContext (Context,Signature(..))
 import qualified SortContext as Ctx
 import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
-import           Data.TermEnvironment
+import           ValueT
 
 import           Control.Category
 import           Control.Arrow
@@ -42,6 +42,7 @@ import           Data.Abstract.Widening as W
 import           Data.Hashable
 import           Data.Order
 import           Data.Profunctor
+import           Data.TermEnvironment
 
 import           Text.Printf
 import           GHC.Exts(IsString(..))

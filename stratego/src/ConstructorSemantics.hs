@@ -25,7 +25,7 @@ import           SortContext (Context,Signature(..))
 import qualified SortContext as Ctx
 import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
-import           Data.TermEnvironment
+import           ValueT
 
 import           Control.Category
 import           Control.Arrow
@@ -50,6 +50,7 @@ import           Data.Identifiable
 import           Data.Constructor
 import           Data.Coerce
 import           Data.Maybe(isJust)
+import           Data.TermEnvironment
 
 import           Text.Printf
 import           GHC.Exts(IsList(..),IsString(..))

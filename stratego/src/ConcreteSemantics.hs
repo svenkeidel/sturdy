@@ -20,6 +20,7 @@ import           Syntax (TermPattern)
 import qualified Syntax as S
 import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
+import           ValueT
 
 import           Control.Arrow
 import           Control.Arrow.Deduplicate
@@ -61,18 +62,19 @@ newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
 
 -- | Concrete interpreter arrow give access to the strategy
 -- environment, term environment, and handles anonymous exceptions.
-newtype Interp a b = Interp (ReaderT StratEnv (StateT TermEnv (ExceptT () (FailureT String (->)))) a b)
+newtype Interp a b = Interp (ValueT Term (ReaderT StratEnv (StateT TermEnv (ExceptT () (FailureT String (->))))) a b)
   deriving (Profunctor,Category,Arrow,ArrowChoice)
 
 -- | Executes a concrete interpreter computation.
 runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error String (Error () (TermEnv,b))
-runInterp (Interp f) senv tenv t = runFailureT (runExceptT (runStateT (runReaderT f))) (tenv, (senv, t))
+runInterp (Interp f) senv tenv t = runFailureT (runExceptT (runStateT (runReaderT (runValueT f)))) (tenv, (senv, t))
 
 -- | Concrete interpreter function.
 eval :: Strat -> StratEnv -> TermEnv -> Term -> Error String (Error () (TermEnv,Term))
 eval s = runInterp (eval' s)
 
 -- Instances -----------------------------------------------------------------------------------------
+deriving instance IsTerm Term Interp
 deriving instance ArrowState TermEnv Interp
 deriving instance ArrowReader StratEnv Interp
 deriving instance ArrowExcept () Interp
@@ -96,7 +98,7 @@ instance IsTermEnv TermEnv Term Interp where
   unionTermEnvs = arr (\(vars, TermEnv e1, TermEnv e2) ->
     TermEnv (M.union e1 (foldr' M.delete e2 vars)))
 
-instance IsTerm Term Interp where
+instance (ArrowChoice c, ArrowApply c, ArrowExcept () c) => IsTerm Term (ValueT Term c) where
   matchCons matchSubterms = proc (c,ts,t) -> case t of
     Cons c' ts' | c == c' && eqLength ts ts' -> do
       ts'' <- matchSubterms -< (ts,ts')

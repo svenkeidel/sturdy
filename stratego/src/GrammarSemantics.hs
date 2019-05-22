@@ -20,6 +20,7 @@ import           SortContext(Context,Signature(..),Sort,sorts)
 import qualified SortContext as Ctx
 import           Syntax hiding (Fail)
 import           Utils
+import           ValueT
 
 import           Control.Arrow
 import           Control.Arrow.Except
