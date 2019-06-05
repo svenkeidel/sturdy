@@ -57,8 +57,12 @@ class PreOrd x => CoComplete x where
 class PreOrd x => UpperBounded x where
   top :: x
 
-glb :: (Foldable f, CoComplete x) => f x -> x
-glb = foldr1 (⊓)
+glb1 :: (Foldable f, CoComplete x) => f x -> x
+glb1 = foldr1 (⊓)
+
+glb :: (CoComplete x) => x -> [x] -> x
+glb x [] = x
+glb _ l = glb1 l
 
 instance (PreOrd e, PreOrd a) => PreOrd (Either e a) where
   Left e1 ⊑ Left e2 = e1 ⊑ e2

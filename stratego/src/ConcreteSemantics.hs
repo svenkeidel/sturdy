@@ -137,7 +137,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowExcept () c) => IsTerm Term (ValueT 
     (StringLiteral c', Just ts') -> returnA -< Cons (Constructor c') ts'
     _                            -> throw -< ()
     where
-      go t = case t of
+      go l = case l of
         Cons "Cons" [x,tl] -> (x:) <$> go tl
         Cons "Nil" [] -> Just []
         _ -> Nothing

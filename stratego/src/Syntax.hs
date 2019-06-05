@@ -148,21 +148,16 @@ parseSort :: MonadError String m => ATerm -> m Sort
 parseSort t = case t of
   ATerm "ConstType" [res] -> parseSort res
   ATerm "SortNoArgs" [String "String"] -> return $ I.Lexical
+  ATerm "SortNoArgs" [String "Int"] -> return $ I.Numerical
   ATerm "SortNoArgs" [String sortName] -> return $ I.Sort (I.SortId sortName)
-  ATerm "Sort" [String "String", List []] ->
-    return $ I.Lexical
-  ATerm "Sort" [String sortName, List []] ->
-    return $ I.Sort (I.SortId sortName)
-  ATerm "Sort" [String "List", List [s]] ->
-    I.List <$> parseSort s
-  ATerm "Sort" [String "List", List ss] ->
-    I.List <$> I.Tuple <$> traverse parseSort ss
-  ATerm "Sort" [String "Option", List [s]] ->
-    I.Option <$> parseSort s
-  ATerm "Sort" [String "Option", List ss] ->
-    I.Option <$> I.Tuple <$> traverse parseSort ss
-  ATerm "SortTuple" [List args] ->
-    I.Tuple <$> traverse parseSort args
+  ATerm "Sort" [String "String", List []] -> return $ I.Lexical
+  ATerm "Sort" [String "Int", List []] -> return $ I.Numerical
+  ATerm "Sort" [String sortName, List []] -> return $ I.Sort (I.SortId sortName)
+  ATerm "Sort" [String "List", List [s]] -> I.List <$> parseSort s
+  ATerm "Sort" [String "List", List ss] -> I.List <$> I.Tuple <$> traverse parseSort ss
+  ATerm "Sort" [String "Option", List [s]] -> I.Option <$> parseSort s
+  ATerm "Sort" [String "Option", List ss] -> I.Option <$> I.Tuple <$> traverse parseSort ss
+  ATerm "SortTuple" [List args] -> I.Tuple <$> traverse parseSort args
   _ -> throwError $ "unexpected input while parsing sort from aterm: " ++ show t
 
 parseStrategy :: MonadError String m => ATerm -> m (StratVar,Strategy)

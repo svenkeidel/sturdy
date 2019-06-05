@@ -38,7 +38,7 @@ instance Show Sort where
   show x = case x of
     Bottom -> "Bottom"
     Top -> "Top"
-    Numerical -> "Int"
+    Numerical -> "Numerical"
     Lexical -> "Lexical"
     List s -> "List (" ++ show s ++ ")"
     Option s -> "Option (" ++ show s ++ ")"

@@ -15,7 +15,6 @@ module SortSemantics where
 
 import           Prelude hiding ((.),fail)
 
-import qualified ConcreteSemantics as C
 import           SharedSemantics as Shared
 import           AbstractSemantics
 import           Sort
@@ -144,7 +143,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
         [] -> returnA -< Term (List Bottom) ctx
         _ -> typeMismatch -< ("List(a)",show ss)
       "" -> returnA -< Term (Tuple (map sort ss)) ctx
-      _ -> let t = glb (Term Top ctx : [ Term s ctx | Signature ss' s <- Ctx.lookupCons ctx c, ss ⊑ sortsToTerms ss' ctx ])
+      _ -> let t = glb1 (Term Top ctx : [ Term s ctx | Signature ss' s <- Ctx.lookupCons ctx c, ss ⊑ sortsToTerms ss' ctx ])
            in if t == Term Bottom ctx
               then typeError -< printf "Could not construct term %s. Could not find the constructor %s in the context." (show (c,ss)) (show c)
               else returnA   -< t
@@ -208,12 +207,6 @@ instance CoComplete Term where
 convertToList :: [Term] -> Context -> Term
 convertToList [] ctx = Term (List Bottom) ctx
 convertToList ts ctx = Term (List (sort $ lub ts)) ctx
-
-toSort :: Context -> C.Term -> Term
-toSort ctx t = case t of
-  C.StringLiteral _ -> Term Lexical ctx
-  C.NumberLiteral _ -> Term Numerical ctx
-  C.Cons c ts -> glb $ Term Top ctx : [ Term s ctx | Signature ss s <- Ctx.lookupCons ctx c, map (toSort ctx) ts ⊑ sortsToTerms ss ctx]
 
 isLexical :: Term -> Bool
 isLexical (Term s ctx) = Ctx.isLexical ctx s

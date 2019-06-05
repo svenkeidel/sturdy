@@ -32,21 +32,22 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Category
 
 import qualified Data.HashMap.Lazy as M
-import           Data.Hashable
 import           Data.Constructor
 import           Data.Text(Text)
 import           Data.Profunctor
+import           Data.Identifiable
 
 import           Text.Printf
 import           GHC.Exts(IsString(..))
+import qualified Debug.Trace as Debug
 
 -- | Shared interpreter for Stratego
 eval' :: (ArrowChoice c, ArrowFail e c, ArrowExcept () c,
-          ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Eq t, Hashable t,
+          ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Identifiable t, Show t, Show env,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c, IsString e,
           Exc.Join c (t,(t,())) t, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t]))
       => (Strat -> c t t)
-eval' = fixA' $ \ev s0 -> dedup $ case s0 of
+eval' = fixA' $ \ev s0 -> trace s0 $ dedup $ case s0 of
     Id -> id
     S.Fail -> proc _ -> throw -< ()
     Seq s1 s2 -> sequence (ev s1) (ev s2)
@@ -61,6 +62,12 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Call f ss ps -> call f ss ps ev
     Prim {} -> undefined
     Apply body -> ev body
+  where
+    trace :: (Show t, Arrow c, IsTermEnv env t c, Show env) => Strat -> c t t -> c t t
+    trace s f = proc t -> do
+       env <- getTermEnv -< ()
+       t' <- f -< Debug.trace (printf "%s -< %s, %s" (show s) (show t) (show env)) () `seq` t
+       returnA -< Debug.trace (printf "%s <- %s -< %s, %s" (show t') (show s) (show t) (show env)) () `seq` t'
 
 -- | Guarded choice executes the first strategy, if it succeeds the
 -- result is passed to the second strategy, if it fails the original
