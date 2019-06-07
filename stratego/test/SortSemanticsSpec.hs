@@ -269,52 +269,52 @@ spec = do
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
-          tenv = termEnv'' [] []
-          tenv' = termEnv' [("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop), ("l", A.Nothing)]
+          tenv = termEnv' [("l", atop), ("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop)]
       in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) t
-        `shouldBe` success (tenv', term (List Numerical))
+        `shouldBe` success (tenv, term (List Numerical))
 
   describe "Call" $ do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "swap" (Closure swap M.empty)
           t = term (Tuple ["Exp","Exp"])
-          tenv = termEnv []
-      in seval'' 1 10 (Scope ["x"] (Match "x" `Seq` Call "swap" [] [])) senv emptyEnv t `shouldBe` success (delete swap tenv, t)
+          tenv = termEnv' [("x", atop), ("y", atop)]
+      in seval'' 1 10 (Scope ["x"] (Match "x" `Seq` Call "swap" [] [])) senv emptyEnv t `shouldBe` success (tenv, t)
 
     it "should support an empty list in recursive applications" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [] ?ctx
-          tenv = termEnv []
+          tenv = termEnv' [("l", atop), ("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop)]
       in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
-           success (delete map' tenv, term (List Numerical))
+           success (tenv, term (List Numerical))
 
     it "should support a singleton list in recursive applications" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [numerical] ?ctx
-          tenv = termEnv []
+          tenv = termEnv' [("l", atop), ("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop)]
       in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
-           success (delete map' tenv, term (List Numerical))
+           success (tenv, term (List Numerical))
 
     it "should support recursion on a list of numbers" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           c = Ctx.empty
           t = convertToList [numerical, numerical, numerical] c
-          tenv = termEnv []
+          tenv = termEnv' [("l", atop), ("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop)]
       in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
-           success (delete map' tenv, term (List Numerical))
+           success (tenv, term (List Numerical))
 
-    it "should terminate and not produce infinite sorts" $ do
+    it "should terminate and not produce infinite sorts" $
+      let ?ctx = Ctx.empty in
       let senv = M.fromList [("map",Closure map' M.empty),
                              ("foo",Closure (Strategy [] [] (Scope ["x"] (Match "x" `Seq` Call "map" ["foo"] ["x"]))) M.empty)]
           c = Ctx.empty
           t = Term Top c
-          tenv = termEnv []
-      seval'' 10 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
-        success (delete map' tenv, Term (List (List (List Top))) c)
+          tenv = termEnv' [("l", atop), ("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop)]
+      in seval'' 10 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
+           success (tenv, Term (List (List (List Top))) c)
 
   describe "simplify arithmetics" $ do
     it "reduce Add(Zero,y)" $

@@ -54,12 +54,13 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Match f -> proc t -> match -< (f,t)
     Build f -> proc _ -> build -< f
     Let bnds body -> let_ bnds body eval'
-    Call f ss ps -> proc t -> do
+    Call f ss ts -> proc t -> do
       senv <- readStratEnv -< ()
       case M.lookup f senv of
         Just (Closure strat@(Strategy _ termParams _) senv') -> do
           let senv'' = if M.null senv' then senv else senv'
-          scope termParams (call f ss ps ev) -<< (strat, senv'', t)
+          args <- mapA (proc v -> ev (S.Build (S.Var v)) -<< t) -<< ts
+          scope termParams (invoke ss args ev) -<< (strat, senv'', t)
         Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
     Prim {} -> undefined
     Apply body -> ev body
@@ -143,33 +144,17 @@ let_ ss body interp = proc a -> do
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a
 
 -- | Strategy calls bind strategy variables and term variables.
-call :: (ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c, Env.Join c ((t, ()), ()) t)
-     => StratVar
-     -> [Strat]
-     -> [TermVar]
+invoke :: (ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c, Env.Join c ((t, ()), ()) t)
+     => [Strat]
+     -> [t]
      -> (Strat -> c t t)
      -> c (Strategy, StratEnv, t) t
-call f actualStratArgs actualTermArgs interp = proc a -> do
-  senv <- readStratEnv -< ()
-  case M.lookup f senv of
-    Just (Closure (Strategy formalStratArgs formalTermArgs body) senv') -> do
-      tenv <- getTermEnv -< ()
-      let termArgs = (tenv,) <$> zip actualTermArgs formalTermArgs
-          stratArgs = zip formalStratArgs actualStratArgs
-      mapA bindTermArg -< termArgs
-      let senv'' = bindStratArgs stratArgs (if M.null senv' then senv else senv')
-      b <- localStratEnv senv'' (interp (Apply body)) -<< a
-      tenv' <- getTermEnv -< ()
-      putTermEnv <<< unionTermEnvs -< (formalTermArgs,tenv,tenv')
-      returnA -< b
-    Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
+invoke actualStratArgs actualTermArgs ev = proc (Strategy formalStratArgs formalTermArgs body, senv, t) -> do
+    tenv <- getTermEnv -< ()
+    putTermEnv . bindings -< (zip formalTermArgs actualTermArgs, tenv)
+    let senv' = bindStratArgs (zip formalStratArgs actualStratArgs) senv
+    localStratEnv senv' (ev (Apply body)) -<< t
   where
-    bindTermArg = proc (tenv,(actual,formal)) ->
-      lookupTermVar (proc (t,_) -> do insertTerm' -< (formal,t); returnA -< (t))
-                    (proc _ -> fail -< fromString $ "unbound term variable " ++ show actual ++ " in strategy call " ++ show (Call f actualStratArgs actualTermArgs))
-        -<< (actual, tenv, ())
-    {-# INLINE bindTermArg #-}
-
     bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
     bindStratArgs [] senv = senv
     bindStratArgs ((v,Call v' [] []) : ss) senv =
@@ -212,12 +197,12 @@ match = proc (p,t) -> case p of
 
 -- | Build a new term from a pattern. Variables are pattern are
 -- replaced by terms in the current term environment.
-build :: (ArrowChoice c, ArrowFail e c, IsString e, IsTerm t c, IsTermEnv env t c, Env.Join c ((t, e), e) t)
+build :: (ArrowChoice c, ArrowFail e c, IsString e, ArrowExcept () c, IsTerm t c, IsTermEnv env t c, Env.Join c ((t, ()), ()) t)
       => c TermPattern t
 build = proc p -> case p of
   S.As _ _ -> fail -< "As-pattern in build is disallowed"
   S.Var x ->
-    lookupTermVar' (fst ^>> returnA) fail -< (x,fromString ("unbound term variable " ++ show x ++ " in build statement " ++ show (Build p)))
+    lookupTermVar' (fst ^>> returnA) throw -< (x,())
   S.Cons c ts -> do
     ts' <- mapA build -< ts
     cons -< (c,ts')
