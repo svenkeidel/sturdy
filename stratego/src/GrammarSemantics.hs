@@ -17,6 +17,7 @@ import qualified ConcreteSemantics as C
 import           SharedSemantics
 import           SortContext(Context,Signature(..),Sort,sorts)
 import           Syntax hiding (Fail)
+import           TermEnv
 import           Utils
 
 import           Control.Category hiding ((.))
@@ -219,13 +220,15 @@ instance TermUtils Term where
   height (Term _) = error "not implemented: TreeAutomata.height g"
 
 instance (ArrowChoice c, ArrowJoin c, Profunctor c, ArrowState TermEnv c) => IsTermEnv TermEnv Term (GrammarT c) where
+  type Join (GrammarT c) x y = (Complete y)
+
   getTermEnv = get
   putTermEnv = put
   emptyTermEnv = lmap (\() -> S.empty) put
   lookupTermVar f g = proc (v,env,ex) ->
     case S.lookup v topGrammar env of
-      AM.Just t -> f -< t
-      AM.JustNothing t -> (f -< t) <⊔> (g -< ex)
+      AM.Just t -> f -< (t,ex)
+      AM.JustNothing t -> (f -< (t,ex)) <⊔> (g -< ex)
       AM.Nothing -> g -< ex
   insertTerm = arr $ \(v,t,env) -> S.insert v t env
   deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars

@@ -23,6 +23,7 @@ import           SortContext (Context,Signature(..))
 import qualified SortContext as Ctx
 -- import           Soundness
 import           Syntax hiding (Fail,TermPattern(..))
+import           TermEnv
 import           Utils
 
 import           Control.Category
@@ -281,15 +282,17 @@ instance Complete (FreeCompletion TermEnv) where
   _ ⊔ _ = Free.Top
 
 instance (ArrowChoice c, ArrowJoin c, ArrowState TermEnv c, ArrowConst Context c) => IsTermEnv TermEnv Term (SortT c) where
+  type Join (SortT c) x y = (Complete y)
+
   getTermEnv = get
   putTermEnv = put
   emptyTermEnv = lmap (\() -> S.empty) put
   lookupTermVar f g = proc (v,env,ex) -> do
     ctx <- askConst -< ()
     case S.lookup v (Term Top ctx) env of
-      A.Just t        -> f -< t
+      A.Just t        -> f -< (t,ex)
       A.Nothing       -> g -< ex
-      A.JustNothing t -> (f -< t) <⊔> (g -< ex)
+      A.JustNothing t -> (f -< (t,ex)) <⊔> (g -< ex)
   insertTerm = arr $ \(v,t,env) -> S.insert v t env
   deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
   unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (S.delete' vars e2))

@@ -33,7 +33,9 @@ import qualified Data.HashMap.Lazy as M
 -- import qualified Data.Set as Set
 -- import qualified Data.Term as C
 import           Data.Set (Set)
-    
+
+import Data.Order
+
 import           Test.Hspec hiding (context)
 -- import           Test.Hspec.QuickCheck
 -- import           Test.QuickCheck hiding (Success)
@@ -239,10 +241,10 @@ spec = do
 
     it "should make non-declared variables available" $
       let ?ctx = Ctx.empty in
-      let tenv = termEnv [ ("x",numerical) ]
-      in do
+      let tenv = termEnv'' [ ("x",numerical) ] ["y"] in
+      do
          seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe`
-           success (S.delete' ["y"] $ termEnv [("x", numerical)], numerical)
+           success (tenv, numerical)
          seval' 0 (Scope ["y"] (Match "z")) (S.delete' ["z"] tenv) numerical `shouldBe`
            success (S.delete' ["y"] $ termEnv [ ("x",numerical), ("z",numerical)], numerical)
 
@@ -260,16 +262,17 @@ spec = do
       let ?ctx = Ctx.empty in
       let t = term (Tuple ["Exp","Exp"])
           -- tenv = termEnv [("x",t)]
-          tenv = termEnv []
+          tenv = termEnv'' [] ["x","y"]
       in seval' 2 (Let [("swap", swap)] (Scope ["x"] (Match "x" `Seq` Call "swap" [] ["x"]))) tenv t
-           `shouldBe` success (delete swap tenv, t)
+           `shouldBe` success (tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
-          tenv = termEnv []
+          tenv = termEnv'' [] []
+          tenv' = termEnv' [("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop), ("l", A.Nothing)]
       in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) t
-        `shouldBe` success (delete map' tenv, term (List Numerical))
+        `shouldBe` success (tenv', term (List Numerical))
 
   describe "Call" $ do
     it "should apply a single function call" $
@@ -510,6 +513,9 @@ spec = do
     termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
     termEnv' = S.fromList'
 
+    termEnv''  :: [(TermVar, Term)] -> [TermVar] -> TermEnv
+    termEnv'' bound notBound = foldr S.delete (S.fromList bound) notBound
+
     delete :: TermVars s => s -> TermEnv -> TermEnv
     delete s = S.delete' (termVars s :: Set TermVar)
 
@@ -567,6 +573,9 @@ spec = do
 
     top :: (?ctx :: Context) => Term
     top = term Top
+
+    atop :: (?ctx :: Context) => A.Maybe Term
+    atop = A.JustNothing top
 
     may :: k -> v -> (k,A.Maybe v)
     may k v = (k,A.JustNothing v)

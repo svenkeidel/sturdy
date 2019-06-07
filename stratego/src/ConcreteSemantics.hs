@@ -19,6 +19,7 @@ import           SharedSemantics
 import           Syntax (TermPattern)
 import qualified Syntax as S
 import           Syntax hiding (Fail,TermPattern(..))
+import           TermEnv
 import           Utils
 
 import           Control.Arrow
@@ -86,12 +87,14 @@ instance HasStratEnv Interp where
   localStratEnv senv f = proc a -> local f -< (senv,a)
 
 instance IsTermEnv TermEnv Term Interp where
+  type Join Interp x y = ()
+
   getTermEnv = get
   putTermEnv = put
   emptyTermEnv = lmap (\() -> TermEnv M.empty) put
   lookupTermVar f g = proc (v,TermEnv env,exc) ->
     case M.lookup v env of
-      Just t -> f -< t
+      Just t -> f -< (t, exc)
       Nothing -> g -< exc
   insertTerm = arr $ \(v,t,TermEnv env) ->
     TermEnv (M.insert v t env)

@@ -6,6 +6,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
 module SharedSemantics where
 
 import           Prelude hiding ((.),id,all,sequence,curry, uncurry,fail)
@@ -13,6 +14,8 @@ import           Prelude hiding ((.),id,all,sequence,curry, uncurry,fail)
 import           Syntax hiding (Fail,TermPattern(..))
 import           Syntax (TermPattern)
 import qualified Syntax as S
+import           TermEnv
+import           TermEnv as Env
 import           Utils
 
 import           Control.Arrow hiding ((<+>))
@@ -35,7 +38,9 @@ import           GHC.Exts(IsString(..))
 eval' :: (ArrowChoice c, ArrowFail e c, ArrowExcept () c,
           ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c, IsString e,
-          Exc.Join c (t,(t,())) t, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t]))
+          Exc.Join c (t,(t,())) t, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t]), Exc.Join c (((t, env), t), ((t, env), ())) t,
+          Env.Join c ((t, env), env) env, Env.Join c ((t, ()), ()) t, Env.Join c ((t, e), e) t,
+          Exc.Join c ((((Strategy, StratEnv, t), env), t), (((Strategy, StratEnv, t), env), ())) t)
       => (Strat -> c t t)
 eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Id -> id
@@ -49,7 +54,13 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Match f -> proc t -> match -< (f,t)
     Build f -> proc _ -> build -< f
     Let bnds body -> let_ bnds body eval'
-    Call f ss ps -> call f ss ps ev
+    Call f ss ps -> proc t -> do
+      senv <- readStratEnv -< ()
+      case M.lookup f senv of
+        Just (Closure strat@(Strategy _ termParams _) senv') -> do
+          let senv'' = if M.null senv' then senv else senv'
+          scope termParams (call f ss ps ev) -<< (strat, senv'', t)
+        Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
     Prim {} -> undefined
     Apply body -> ev body
 
@@ -92,16 +103,37 @@ some f = go
 all :: ArrowChoice c => c x y -> c [x] [y]
 all = mapA
 
--- | Run a strategy in a term variable scope. The term variables of
--- the scope are deleted after the scope is exited.
-scope :: IsTermEnv env t c => [TermVar] -> c x y -> c x y
+scope :: (IsTermEnv env t c, ArrowExcept e c, Env.Join c ((t, env), env) env, Exc.Join c (((x, env), y), ((x, env), e)) y) => [TermVar] -> c x y -> c x y
 scope vars s = proc t -> do
-  env  <- getTermEnv      -< ()
-  _    <- deleteTermVars' -< vars
-  t'   <- s               -< t
-  env' <- getTermEnv      -< ()
-  putTermEnv <<< unionTermEnvs -< (vars,env,env')
-  returnA -< t'
+  oldEnv <- getTermEnv -< ()
+  scopedEnv <- deleteTermVars -< (vars, oldEnv)
+  putTermEnv -< scopedEnv
+  finally
+    (proc (t,_) -> s -< t)
+    (proc (_,oldEnv) -> do
+      newEnv <- getTermEnv -< ()
+      restoredEnv <- restoreEnv vars -< (oldEnv, newEnv)
+      putTermEnv -< restoredEnv)
+    -< (t, oldEnv)
+
+  where restoreEnv []     = proc (_, env) -> returnA -< env
+        restoreEnv (v:vs) = proc (oldEnv, env) -> do
+          env' <- lookupTermVar
+            (proc (t, env) -> insertTerm -< (v, t, env))
+            (proc env      -> deleteTermVars -< ([v], env))
+              -< (v, oldEnv, env)
+          restoreEnv vs -< (oldEnv, env')
+
+
+localTermEnv :: (IsTermEnv env t c, ArrowExcept e c,  Exc.Join c (((x, env), y), ((x, env), e)) y) => c x y -> c (env,x) y
+localTermEnv f = proc (newEnv,x) -> do
+  oldEnv <- getTermEnv -< ()
+  putTermEnv -< newEnv
+  finally
+    (proc (x,_) -> f -< x)
+    (proc (_,env) -> putTermEnv -< env) -< (x,oldEnv)
+  
+
 
 -- | Let binding for strategies.
 let_ :: (ArrowApply c, HasStratEnv c) => [(StratVar,Strategy)] -> Strat -> (Strat -> c t t) -> c t t
@@ -111,12 +143,12 @@ let_ ss body interp = proc a -> do
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a
 
 -- | Strategy calls bind strategy variables and term variables.
-call :: (ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c)
+call :: (ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c, Env.Join c ((t, ()), ()) t)
      => StratVar
      -> [Strat]
      -> [TermVar]
      -> (Strat -> c t t)
-     -> c t t
+     -> c (Strategy, StratEnv, t) t
 call f actualStratArgs actualTermArgs interp = proc a -> do
   senv <- readStratEnv -< ()
   case M.lookup f senv of
@@ -133,7 +165,7 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
     Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
   where
     bindTermArg = proc (tenv,(actual,formal)) ->
-      lookupTermVar (proc t -> do insertTerm' -< (formal,t); returnA -< (t))
+      lookupTermVar (proc (t,_) -> do insertTerm' -< (formal,t); returnA -< (t))
                     (proc _ -> fail -< fromString $ "unbound term variable " ++ show actual ++ " in strategy call " ++ show (Call f actualStratArgs actualTermArgs))
         -<< (actual, tenv, ())
     {-# INLINE bindTermArg #-}
@@ -149,7 +181,7 @@ call f actualStratArgs actualTermArgs interp = proc a -> do
 
 -- | Matches a pattern against the current term. Pattern variables are
 -- bound in the term environment.
-match :: (ArrowChoice c, ArrowApply c, ArrowExcept () c, IsTerm t c, IsTermEnv env t c)
+match :: (ArrowChoice c, ArrowApply c, ArrowExcept () c, IsTerm t c, IsTermEnv env t c, Env.Join c ((t, ()), ()) t)
       => c (TermPattern,t) t
 match = proc (p,t) -> case p of
   S.As v p2 -> do
@@ -162,9 +194,9 @@ match = proc (p,t) -> case p of
     -- variable appears multiple times in a term pattern, the terms at
     -- these positions are compared for equality.
     lookupTermVar'
-      (proc t' -> do t'' <- equal -< (t,t')
-                     insertTerm' -< (x,t'')
-                     returnA -< t'')
+      (proc (t',_) -> do t'' <- equal -< (t,t')
+                         insertTerm' -< (x,t'')
+                         returnA -< t'')
       (proc _ -> do insertTerm' -< (x,t)
                     returnA -< t) -<< (x,())
   S.Cons c ts ->
@@ -180,12 +212,12 @@ match = proc (p,t) -> case p of
 
 -- | Build a new term from a pattern. Variables are pattern are
 -- replaced by terms in the current term environment.
-build :: (ArrowChoice c, ArrowFail e c, IsString e, IsTerm t c, IsTermEnv env t c)
+build :: (ArrowChoice c, ArrowFail e c, IsString e, IsTerm t c, IsTermEnv env t c, Env.Join c ((t, e), e) t)
       => c TermPattern t
 build = proc p -> case p of
   S.As _ _ -> fail -< "As-pattern in build is disallowed"
   S.Var x ->
-    lookupTermVar' returnA fail -< (x,fromString ("unbound term variable " ++ show x ++ " in build statement " ++ show (Build p)))
+    lookupTermVar' (fst ^>> returnA) fail -< (x,fromString ("unbound term variable " ++ show x ++ " in build statement " ++ show (Build p)))
   S.Cons c ts -> do
     ts' <- mapA build -< ts
     cons -< (c,ts')
@@ -235,48 +267,7 @@ class Arrow c => IsTerm t c | c -> t where
   -- | Construct a term from a string literal.
   stringLiteral :: c Text t
 
--- | Arrow-based interface for term environments. Because of the
--- dynamic scoping of stratego, term environments are more like
--- mutable state then conventional environments.
-class Arrow c => IsTermEnv env t c | c -> env, env -> t where
-  -- | Fetch the current term environment.
-  getTermEnv :: c () env
 
-  -- | Fetch the current term environment.
-  putTermEnv :: c env ()
-                
-  emptyTermEnv :: c () ()
-
-  -- | Lookup a term in the given environment, the first continuation
-  -- is called in case the term is in the environment and the second
-  -- continuation otherwise.
-  lookupTermVar :: c t t -> c exc t -> c (TermVar,env,exc) t
-
-  -- | Insert a term into the given environment.
-  insertTerm :: c (TermVar,t,env) env
-
-  -- | Delete the specified variables from the given environment.
-  deleteTermVars :: c ([TermVar],env) env
-
-  -- | Take the union of two term environments, where bindings of the
-  -- first environment take precedence. Furthermore, the specified
-  -- variables are removed from the second environment.
-  unionTermEnvs :: c ([TermVar],env,env) env
-
-lookupTermVar' :: IsTermEnv env t c => c t t -> c exc t -> c (TermVar,exc) t
-lookupTermVar' f g = proc (v,exc) -> do
-  env <- getTermEnv -< ()
-  lookupTermVar f g -< (v,env,exc)
-
-insertTerm' :: IsTermEnv env t c => c (TermVar,t) ()
-insertTerm' = proc (v,t) -> do
-  env <- getTermEnv -< ()
-  putTermEnv <<< insertTerm -< (v,t,env)
-
-deleteTermVars' :: IsTermEnv env t c => c [TermVar] ()
-deleteTermVars' = proc vs -> do
-  env <- getTermEnv -< ()
-  putTermEnv <<< deleteTermVars -< (vs,env)
 
 class Arrow c => HasStratEnv c where
   readStratEnv :: c a StratEnv
