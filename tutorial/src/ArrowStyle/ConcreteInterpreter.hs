@@ -17,26 +17,26 @@ newtype Arr x y = Arr {runArr :: (Store,x) -> Either String (Store,y)}
 -- eval :: Store -> Expr -> Either String Val
 eval :: Arr Expr Val
 eval = proc e -> case e of
-  Var x -> do
+  Var x _ -> do
     st <- get -< ()
     case Store.lookup x st of
       Just v -> returnA -< v
       Nothing -> throw -< "Variable " ++ show x ++ "not in scope"
-  NumLit n -> returnA -< (NumVal n)
-  Add e1 e2 -> do
+  NumLit n _ -> returnA -< (NumVal n)
+  Add e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
     case (v1,v2) of
       (NumVal n1, NumVal n2) -> returnA -< (NumVal (n1 + n2))
       (_,_) -> throw -< "Expected two numbers as arguments for +"
-  BoolLit b -> returnA -< (BoolVal b)
-  And e1 e2 -> do
+  BoolLit b _ -> returnA -< (BoolVal b)
+  And e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
     case (v1,v2) of
       (BoolVal b1, BoolVal b2) -> returnA -< (BoolVal (b1 && b2))
       (_,_) -> throw -< "Expected two booleans as arguments for &&"
-  Lt e1 e2 -> do
+  Lt e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
     case (v1,v2) of
@@ -55,20 +55,20 @@ throw = Arr (\(_,er) -> Left er)
 -- run :: Store -> [Statement] -> Either String Store
 run :: Arr [Statement] ()
 run = proc stmts -> case stmts of
-  (Assign x e : rest) -> do
+  (Assign x e _ : rest) -> do
     v <- eval -< e
     st <- get -< ()
     put -< (Store.insert x v st)
     run -< rest
-  (If cond ifBranch elseBranch : rest) -> do
+  (If cond ifBranch elseBranch _ : rest) -> do
     v <- eval -< cond
     case v of
       BoolVal True -> run -< ifBranch
       BoolVal False -> run -< elseBranch
       NumVal _ -> throw -< "Expected a boolean expression as condition for an if"
     run -< rest
-  (While cond body : rest) ->
-    run -< If cond (body ++ [While cond body]) [] : rest
+  (While cond body l : rest) ->
+    run -< If cond (body ++ [While cond body l]) [] l : rest
   [] ->
     returnA -< ()
 

@@ -30,13 +30,14 @@ import Data.Order
 import Data.Profunctor
 import Data.Abstract.Except
 import Data.Abstract.Widening (toJoin2)
+import Data.Coerce
 
-newtype ExceptT e c x y = ExceptT { unExceptT :: KleisliT (Except e) c x y}
+newtype ExceptT e c x y = ExceptT (KleisliT (Except e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowState s, ArrowReader r,
             ArrowConst r, ArrowEnv a b e', ArrowStore a b, ArrowFail e')
 
 runExceptT :: ExceptT e c x y -> c x (Except e y)
-runExceptT = runKleisliT . unExceptT
+runExceptT = coerce
 
 instance (ArrowChoice c, Complete e, ArrowJoin c) => ArrowExcept e (ExceptT e c) where
   type Join (ExceptT e c) (y,(x,e)) z = Complete (c (y,(x,e)) (Except e z))

@@ -2,7 +2,7 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Final.GenericInterpreter where
+module SturdyStyle.GenericInterpreter where
 
 import           Prelude hiding (lookup,and,fail)
 

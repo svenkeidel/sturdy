@@ -6,7 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Final.ConcreteInterpreter where
+module SturdyStyle.ConcreteInterpreter where
 
 import           Prelude hiding (lookup,and,fail)
 
@@ -27,8 +27,8 @@ import qualified Data.HashMap.Lazy as M
 import           Data.Profunctor
 import           Data.Label
 
-import           Final.GenericInterpreter(IsValue(..))
-import qualified Final.GenericInterpreter as Generic
+import           SturdyStyle.GenericInterpreter(IsValue(..))
+import qualified SturdyStyle.GenericInterpreter as Generic
 import           Syntax
 
 type Addr = Label
