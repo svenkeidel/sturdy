@@ -56,8 +56,8 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
 -- | Guarded choice executes the first strategy, if it succeeds the
 -- result is passed to the second strategy, if it fails the original
 -- input is passed to the third strategy.
-guardedChoice :: (ArrowExcept () c, Exc.Join c (x,(x,())) z) => c x y -> c y z -> c x z -> c x z
-guardedChoice = try
+guardedChoice :: (ArrowExcept () c, Exc.Join c (y,(x,())) z) => c x y -> c y z -> c x z -> c x z
+guardedChoice = try'
 
 -- | Sequencing of strategies is implemented with categorical composition.
 sequence :: Category c => c x y -> c y z -> c x z
@@ -78,13 +78,13 @@ some f = go
   where
     go = proc l -> case l of
       (t:ts) -> do
-        (t',ts') <- try (first f) (second go') (second go) -< (t,ts)
+        (t',ts') <- try' (first f) (second go') (second go) -< (t,ts)
         returnA -< t':ts'
       -- the strategy did not succeed for any of the subterms, i.e. some(s) fails
       [] -> throw -< ()
     go' = proc l -> case l of
       (t:ts) -> do
-        (t',ts') <- try (first f) (second go') (second go') -< (t,ts)
+        (t',ts') <- try' (first f) (second go') (second go') -< (t,ts)
         returnA -< t':ts'
       [] -> returnA -< []
 

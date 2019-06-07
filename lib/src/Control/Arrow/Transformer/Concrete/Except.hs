@@ -38,11 +38,11 @@ instance (ArrowChoice c, Profunctor c) => ArrowExcept e (ExceptT e c) where
 
   throw = lift $ arr Fail
 
-  catch f g = lift $ proc x -> do
+  try f g h = lift $ proc x -> do
     e <- unlift f -< x
     case e of
-      Fail er -> unlift g -< (x,er)
-      Success y -> returnA -< Success y
+      Success y -> unlift g -< y
+      Fail er -> unlift h -< (x,er)
 
   finally f g = lift $ proc x -> do
     e <- unlift f -< x

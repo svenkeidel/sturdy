@@ -45,7 +45,9 @@ instance ArrowTrans (ReaderT r) where
   type Dom (ReaderT r) x y = (r,x)
   type Cod (ReaderT r) x y = y
   lift = coerce
+  {-# INLINE lift #-}
   unlift = coerce
+  {-# INLINE unlift #-}
 
 instance ArrowLift (ReaderT r) where
   lift' f = lift $ lmap snd f
@@ -104,9 +106,9 @@ instance ArrowFix (Dom (ReaderT r) x y) (Cod (ReaderT r) x y) c => ArrowFix x y 
   fix = liftFix
 
 instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
-  type instance Join (ReaderT r c) (x,(x,e)) y = Exc.Join c (Dom (ReaderT r) x y,(Dom (ReaderT r) x y,e)) (Cod (ReaderT r) x y)
+  type instance Join (ReaderT r c) (y,(x,e)) z = Exc.Join c (Dom (ReaderT r) y z,(Dom (ReaderT r) x z,e)) (Cod (ReaderT r) x z)
   throw = lift' throw
-  catch f g = lift $ catch (unlift f) (lmap assoc2 (unlift g))
+  try f g h = lift $ try (lmap (\(r,x) -> (r,(r,x))) (second (unlift f))) (unlift g) (lmap assoc2 (unlift h))
   finally f g = lift $ finally (unlift f) (unlift g)
 
 instance ArrowDeduplicate (r, x) y c => ArrowDeduplicate x y (ReaderT r c) where

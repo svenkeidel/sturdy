@@ -54,7 +54,9 @@ instance ArrowTrans (StateT s) where
   type Dom (StateT s) x y = (s,x)
   type Cod (StateT s) x y = (s,y)
   lift = coerce
+  {-# INLINE lift #-}
   unlift = coerce
+  {-# INLINE unlift #-}
 
 instance ArrowLift (StateT s) where
   lift' f = lift (second f)
@@ -115,9 +117,9 @@ instance ArrowFix (s,x) (s,y) c => ArrowFix x y (StateT s c) where
   fix = liftFix
 
 instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
-  type instance Join (StateT s c) (x,(x,e)) y = Exc.Join c (Dom (StateT s) x y,(Dom (StateT s) x y,e)) (Cod (StateT s) x y)
+  type instance Join (StateT s c) (y,(x,e)) z = Exc.Join c (Cod (StateT s) x y,(Dom (StateT s) x z,e)) (Cod (StateT s) x z)
   throw = lift' throw
-  catch f g = lift $ catch (unlift f) (lmap assoc2 (unlift g))
+  try f g h = lift $ try (unlift f) (unlift g) (lmap assoc2 (unlift h))
   finally f g = lift $ finally (unlift f) (unlift g)
 
 instance (Eq s, Hashable s, ArrowDeduplicate (Dom (StateT s) x y) (Cod (StateT s) x y) c) => ArrowDeduplicate x y (StateT s c) where

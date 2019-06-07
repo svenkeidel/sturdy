@@ -9,11 +9,8 @@ import           Data.Identifiable
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 
-import           Data.Maybe
 import           Data.Order
-import qualified Data.Abstract.Map as StrongMap
 import qualified Data.Abstract.Maybe as A
-import qualified Data.Abstract.There as T
 import           Data.Abstract.Widening
 import           Data.Coerce
 import           Data.Hashable
@@ -97,7 +94,7 @@ withMap = coerce
 dropNegativeBindings :: Identifiable a => Map a b -> Map a b
 dropNegativeBindings (Map m) = Map (M.filter noNothing m)
   where
-    noNothing m = case m of
+    noNothing x = case x of
       A.Just _ -> True
       A.JustNothing _ -> True
       A.Nothing -> False

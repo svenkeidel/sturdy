@@ -39,14 +39,14 @@ runExceptT :: ExceptT e c x y -> c x (Except e y)
 runExceptT = runKleisliT . unExceptT
 
 instance (ArrowChoice c, Complete e, ArrowJoin c) => ArrowExcept e (ExceptT e c) where
-  type Join (ExceptT e c) (x,(x,e)) y = Complete (c (y,(x,e)) (Except e y))
+  type Join (ExceptT e c) (y,(x,e)) z = Complete (c (y,(x,e)) (Except e z))
   throw = lift $ arr Fail
-  catch f g = lift $ proc x -> do
+  try f g h = lift $ proc x -> do
     e <- unlift f -< x
     case e of
-      Success y          -> returnA -< Success y
-      SuccessOrFail er y -> joined (arr Success) (unlift g) -< (y,(x,er))
-      Fail er            -> unlift g -< (x,er)
+      Success y          -> unlift g -< y
+      Fail er            -> unlift h -< (x,er)
+      SuccessOrFail er y -> joined (unlift g) (unlift h) -< (y,(x,er))
   finally f g = lift $ proc x -> do
     e <- unlift f -< x
     unlift g -< x
