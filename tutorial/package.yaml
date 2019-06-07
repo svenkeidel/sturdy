@@ -1,0 +1,23 @@
+name:                sturdy-tutorial
+version:             0.2.0.0
+license:             BSD3
+maintainer:          Sven Keidel <svenkeidel@gmail.com>
+category:            Language
+
+dependencies:
+  - base
+  - hashable
+  - mtl
+  - profunctors
+  - sturdy-lib
+  - random
+  - text
+  - transformers
+  - containers
+  - unordered-containers
+
+library:
+  source-dirs:
+    - src
+
+  ghc-options: -Wall

@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE StandaloneDeriving #-}
-module IntervalSemantics where
+module IntervalAnalysis where
 
 import Prelude hiding (True,False)
 import qualified Prelude as P

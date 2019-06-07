@@ -1,5 +1,5 @@
 {-# LANGUAGE Arrows #-}
-module ArrowStyle where
+module ArrowStyle.ConcreteInterpreter where
 
 import           Control.Category
 import           Control.Arrow

@@ -1,4 +1,4 @@
-module DirectStyle where
+module DirectStyle.ConcreteInterpreter where
 
 import           Data.Map (Map)
 import qualified Data.Map as Store
@@ -33,7 +33,7 @@ eval st e = case e of
   Lt e1 e2 ->
     case (eval st e1,eval st e2) of
       (Right (NumVal n1), Right (NumVal n2)) -> Right (BoolVal (n1 < n2))
-      (Right _,Right _) -> Left "Expected two numbers as arguments for +"
+      (Right _,Right _) -> Left "Expected two numbers as arguments for <"
       (Left er, _) -> Left er
       (_, Left er) -> Left er
 
