@@ -27,9 +27,6 @@ class (Arrow c, Profunctor c) => ArrowExcept e c | c -> e where
   -- @g@, if it fails the original input is passed to @h@.
   try :: Join c (y,(x,e)) z => c x y -> c y z -> c (x,e) z -> c x z
 
-  -- | @'finally' f g@ executes @g@, no matter if @f@ throws an exception.
-  finally :: c x y -> c x u -> c x y
-
 -- | Simpler version of 'throw'.
 throw' :: ArrowExcept () c => c a b
 throw' = proc _ -> throw -< ()
@@ -49,6 +46,13 @@ catch f g = try f id g
 catch' :: (Join c (y,(x,e)) y, ArrowExcept e c) => c x y -> c e y -> c x y
 catch' f g = catch f (lmap snd g)
 {-# INLINE catch' #-}
+
+-- | @'finally' f g@ executes @g@, no matter if @f@ throws an exception.
+finally :: (Join c ((x,y),(x,e)) y, ArrowExcept e c) => c x y -> c x u -> c x y
+finally f g = try (id &&& f)
+                  (proc (x,y) -> do g -< x; returnA -< y)
+                  (proc (x,e) -> do g -< x; throw -< e)
+{-# INLINE finally #-}
 
 -- | Picks the first computation that does not throw an exception.
 (<+>) :: (Join c (y,(x,e)) y, ArrowExcept e c) => c x y -> c x y -> c x y

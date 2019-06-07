@@ -44,11 +44,6 @@ instance (ArrowChoice c, Profunctor c) => ArrowExcept e (ExceptT e c) where
       Success y -> unlift g -< y
       Fail er -> unlift h -< (x,er)
 
-  finally f g = lift $ proc x -> do
-    e <- unlift f -< x
-    unlift g -< x
-    returnA -< e
-
 deriving instance (ArrowChoice c, Profunctor c) => Profunctor (ExceptT e c)
 deriving instance (ArrowChoice c, Profunctor c) => Category (ExceptT e c)
 deriving instance (ArrowChoice c, Profunctor c) => Arrow (ExceptT e c)

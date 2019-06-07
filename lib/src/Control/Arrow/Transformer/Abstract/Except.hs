@@ -47,10 +47,6 @@ instance (ArrowChoice c, Complete e, ArrowJoin c) => ArrowExcept e (ExceptT e c)
       Success y          -> unlift g -< y
       Fail er            -> unlift h -< (x,er)
       SuccessOrFail er y -> joined (unlift g) (unlift h) -< (y,(x,er))
-  finally f g = lift $ proc x -> do
-    e <- unlift f -< x
-    unlift g -< x
-    returnA -< e
 
 instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where app = lift $ lmap (first unlift) app
 type instance Fix x y (ExceptT e c) = ExceptT e (Fix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c)

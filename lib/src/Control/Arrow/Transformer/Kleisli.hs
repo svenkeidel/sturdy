@@ -96,7 +96,6 @@ instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
   type Join (KleisliT f c) (y,(x,e)) z = Exc.Join c (Cod (KleisliT f) x y,Dom (KleisliT f) (x,e) z) (Cod (KleisliT f) x z)
   throw = lift' throw
   try f g h = lift $ try (unlift f) (mapJoinA (unlift g)) (unlift h)
-  finally f g = lift $ finally (unlift f) (unlift g)
 
 instance (ArrowMonad f c, ArrowFail e c) => ArrowFail e (KleisliT f c) where
   fail = lift' fail

@@ -86,7 +86,6 @@ instance (Monoid w, ArrowExcept e c) => ArrowExcept e (WriterT w c) where
   type Join (WriterT w c) (y,(x,e)) z = Exc.Join c (Cod (WriterT w) x y,Dom (WriterT w) (x,e) z) (Cod (WriterT w) x z)
   throw = lift' throw
   try f g h = lift $ try (unlift f) (rmap (\(w1,(w2,z)) -> (w1 <> w2,z)) (second (unlift g))) (unlift h)
-  finally f g = lift $ finally (unlift f) (unlift g)
 
 instance (Monoid w, ArrowReader r c) => ArrowReader r (WriterT w c) where
   ask = lift' ask

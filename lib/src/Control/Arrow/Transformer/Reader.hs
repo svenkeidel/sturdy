@@ -109,7 +109,6 @@ instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
   type instance Join (ReaderT r c) (y,(x,e)) z = Exc.Join c (Dom (ReaderT r) y z,(Dom (ReaderT r) x z,e)) (Cod (ReaderT r) x z)
   throw = lift' throw
   try f g h = lift $ try (lmap (\(r,x) -> (r,(r,x))) (second (unlift f))) (unlift g) (lmap assoc2 (unlift h))
-  finally f g = lift $ finally (unlift f) (unlift g)
 
 instance ArrowDeduplicate (r, x) y c => ArrowDeduplicate x y (ReaderT r c) where
   dedup f = lift (dedup (unlift f))

@@ -76,7 +76,6 @@ instance (Applicative f, ArrowExcept e c) => ArrowExcept e (StaticT f c) where
   type Join (StaticT f c) x y = Exc.Join c x y
   throw = lift' throw
   try (StaticT f) (StaticT g) (StaticT h) = StaticT $ try <$> f <*> g <*> h
-  finally (StaticT f) (StaticT g) = StaticT $ finally <$> f <*> g
 
 instance (Applicative f, ArrowEnv var val env c) => ArrowEnv var val env (StaticT f c) where
   type Join (StaticT f c) x y = Env.Join c x y

@@ -120,7 +120,6 @@ instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
   type instance Join (StateT s c) (y,(x,e)) z = Exc.Join c (Cod (StateT s) x y,(Dom (StateT s) x z,e)) (Cod (StateT s) x z)
   throw = lift' throw
   try f g h = lift $ try (unlift f) (unlift g) (lmap assoc2 (unlift h))
-  finally f g = lift $ finally (unlift f) (unlift g)
 
 instance (Eq s, Hashable s, ArrowDeduplicate (Dom (StateT s) x y) (Cod (StateT s) x y) c) => ArrowDeduplicate x y (StateT s c) where
   dedup f = lift (dedup (unlift f))
