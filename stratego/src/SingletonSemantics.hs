@@ -57,15 +57,14 @@ liftConcrete (ValueT f) = Single ^<< ValueT f
 instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowFail e c, ArrowExcept () c, IsString e, LowerBounded (c () Term))
     => IsTerm Term (ValueT Term c) where
   matchCons matchSubterms = proc (c,ps,t) -> case t of
-    Single ct -> case ct of
-      C.Cons c' ts | c == c' && eqLength ps ts -> do
-        ts' <- matchSubterms -< (ps,map Single ts)
-        case allSingle ts' of
-          Nothing -> returnA -< Any
-          Just cts' -> returnA -< Single $ C.Cons c cts'
-      _ -> throw -< ()
+    Single (C.Cons c' ts) | c == c' && eqLength ps ts -> do
+      ts' <- matchSubterms -< (ps,map Single ts)
+      case allSingle ts' of
+        Nothing -> returnA -< Any
+        Just cts' -> returnA -< Single $ C.Cons c cts'
+    Single _ -> throw -< ()
     Any -> do
-      matchSubterms -< (ps,[ Any | _ <- [1..(length ps)] ])
+      matchSubterms -< (ps, replicate (length ps) Any)
       (returnA -< Any) <⊔> (throw -< ())
 
   matchString = proc (s,t) -> case t of 
@@ -77,17 +76,16 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
     Any -> (returnA -< Any) <⊔> (throw -< ())
 
   matchExplode matchCons' matchSubterms = proc t -> case t of
-    Single ct -> case ct of
-      C.Cons (Constructor c) ts -> do
-        matchCons' -< Single $ C.StringLiteral c
-        matchSubterms -< Single $ convertToList ts
-        returnA -< t
-      C.StringLiteral _ -> do
-        matchSubterms -< Single $ convertToList []
-        returnA -< t
-      C.NumberLiteral _ -> do
-        matchSubterms -< Single $ convertToList []
-        returnA -< t
+    Single (C.Cons (Constructor c) ts) -> do
+      matchCons' -< Single $ C.StringLiteral c
+      matchSubterms -< Single $ convertToList ts
+      returnA -< t
+    Single (C.StringLiteral _) -> do
+      matchSubterms -< Single $ convertToList []
+      returnA -< t
+    Single (C.NumberLiteral _) -> do
+      matchSubterms -< Single $ convertToList []
+      returnA -< t
     Any -> do
       matchCons' -< Any
       matchSubterms -< Any
