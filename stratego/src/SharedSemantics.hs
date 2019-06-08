@@ -34,9 +34,9 @@ import           Data.Text(Text)
 import           Text.Printf
 import           GHC.Exts(IsString(..))
 
--- import Debug.Trace
-trace a b = b
-traceShow = trace
+import Debug.Trace
+-- trace a b = b
+-- traceShow = trace
 
 -- | Shared interpreter for Stratego
 eval' :: (Show env,Show t,ArrowChoice c, ArrowFail e c, ArrowExcept () c,
@@ -112,16 +112,17 @@ all :: ArrowChoice c => c x y -> c [x] [y]
 all = mapA
 
 scope :: (Show env,IsTermEnv env t c, ArrowExcept e c, Env.Join c ((t, env), env) env, Exc.Join c (((x, env), y), ((x, env), e)) y) => [TermVar] -> c x y -> c x y
+scope [] s = s
 scope vars s = proc t -> do
   oldEnv <- getTermEnv -< ()
   scopedEnv <- deleteTermVars -< (vars, oldEnv)
-  putTermEnv -< scopedEnv
+  putTermEnv -< trace ("scope start " ++ show vars ++ "\n    old    " ++ show oldEnv ++ "\n    scoped " ++ show scopedEnv) scopedEnv
   finally
     (proc (t,_) -> s -< t)
     (proc (_,oldEnv) -> do
       newEnv <- getTermEnv -< ()
       restoredEnv <- restoreEnv vars -< (oldEnv, newEnv)
-      putTermEnv -< trace ("scope " ++ show vars ++ " restored.\n    old " ++ show oldEnv ++ "\n    new " ++ show newEnv ++ "\n    res " ++ show restoredEnv) restoredEnv)
+      putTermEnv -< trace ("scope end   " ++ show vars ++ "\n    old " ++ show oldEnv ++ "\n    scoped " ++ show newEnv ++ "\n    new " ++ show restoredEnv) restoredEnv)
     -< (t, oldEnv)
 
   where restoreEnv []     = proc (_, env) -> returnA -< env
@@ -130,7 +131,8 @@ scope vars s = proc t -> do
             (proc (t, env) -> insertTerm -< (v, t, env))
             (proc env      -> deleteTermVars -< ([v], env))
               -< (v, oldEnv, env)
-          restoreEnv vs -< traceShow (v, oldEnv, env, env') (oldEnv, env')
+          restoreEnv vs -< -- trace ("restored " ++ show (v, oldEnv, env, env'))
+            (oldEnv, env')
 
 
 localTermEnv :: (IsTermEnv env t c, ArrowExcept e c,  Exc.Join c (((x, env), y), ((x, env), e)) y) => c x y -> c (env,x) y
