@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
-module SortSemanticsSpec(main, spec) where
+module SortSemanticsStrongMapSpec(main, spec) where
 
 import Prelude hiding (exp)
 
@@ -10,7 +10,7 @@ import Prelude hiding (exp)
 -- import           Sort (SortId(..))
 import           Syntax hiding (Fail)
 import           Syntax as T
-import           SortSemantics -- hiding (sortContext)
+import           SortSemanticsStrongMap -- hiding (sortContext)
 import           SortContext(Context,Sort(..))
 import qualified SortContext as Ctx
 
@@ -21,7 +21,7 @@ import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as A
 -- import qualified Data.Abstract.Maybe as M
-import qualified Data.Abstract.WeakMap as S
+import qualified Data.Abstract.Map as S
 import           Data.Abstract.There
 -- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
@@ -509,13 +509,12 @@ spec = do
     termEnv :: [(TermVar, Term)] -> TermEnv
     termEnv = S.fromList
 
-    termEnv' = S.fromList'
-    -- termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
-    -- termEnv' = S.fromThereList . concatMap (\(v,mt) -> case mt of
-    --   A.Nothing -> []
-    --   A.Just t -> [(v,(Must, t))]
-    --   A.JustNothing t -> [(v,(May, t))]
-    --  )
+    termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
+    termEnv' = S.fromThereList . concatMap (\(v,mt) -> case mt of
+      A.Nothing -> []
+      A.Just t -> [(v,(Must, t))]
+      A.JustNothing t -> [(v,(May, t))]
+     )
 
     termEnv''  :: [(TermVar, Term)] -> [TermVar] -> TermEnv
     termEnv'' bound notBound = foldr S.delete (S.fromList bound) notBound

@@ -34,8 +34,12 @@ import           Data.Text(Text)
 import           Text.Printf
 import           GHC.Exts(IsString(..))
 
+-- import Debug.Trace
+trace a b = b
+traceShow = trace
+
 -- | Shared interpreter for Stratego
-eval' :: (ArrowChoice c, ArrowFail e c, ArrowExcept () c,
+eval' :: (Show env,Show t,ArrowChoice c, ArrowFail e c, ArrowExcept () c,
           ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Eq t, Hashable t,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c, IsString e,
           Exc.Join c (t,(t,())) t, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t]), Exc.Join c (((t, env), t), ((t, env), ())) t,
@@ -54,13 +58,16 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Match f -> proc t -> match -< (f,t)
     Build f -> proc _ -> build -< f
     Let bnds body -> let_ bnds body eval'
-    Call f ss ts -> proc t -> do
+    c@(Call f ss ts) -> proc t -> do
       senv <- readStratEnv -< ()
       case M.lookup f senv of
         Just (Closure strat@(Strategy _ termParams _) senv') -> do
           let senv'' = if M.null senv' then senv else senv'
+          env <- getTermEnv -< ()
           args <- mapA (proc v -> ev (S.Build (S.Var v)) -<< t) -<< ts
-          scope termParams (invoke ss args ev) -<< (strat, senv'', t)
+          t' <- scope (trace ("##### scope before " ++ show c ++ " is " ++ show env) termParams) (invoke ss args ev) -<< (strat, senv'', t)
+          env' <- getTermEnv -< ()
+          returnA -< trace ("##### scope after " ++ show c ++ " is " ++ show env') t'
         Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
     Prim {} -> undefined
     Apply body -> ev body
@@ -104,7 +111,7 @@ some f = go
 all :: ArrowChoice c => c x y -> c [x] [y]
 all = mapA
 
-scope :: (IsTermEnv env t c, ArrowExcept e c, Env.Join c ((t, env), env) env, Exc.Join c (((x, env), y), ((x, env), e)) y) => [TermVar] -> c x y -> c x y
+scope :: (Show env,IsTermEnv env t c, ArrowExcept e c, Env.Join c ((t, env), env) env, Exc.Join c (((x, env), y), ((x, env), e)) y) => [TermVar] -> c x y -> c x y
 scope vars s = proc t -> do
   oldEnv <- getTermEnv -< ()
   scopedEnv <- deleteTermVars -< (vars, oldEnv)
@@ -114,7 +121,7 @@ scope vars s = proc t -> do
     (proc (_,oldEnv) -> do
       newEnv <- getTermEnv -< ()
       restoredEnv <- restoreEnv vars -< (oldEnv, newEnv)
-      putTermEnv -< restoredEnv)
+      putTermEnv -< trace ("scope " ++ show vars ++ " restored.\n    old " ++ show oldEnv ++ "\n    new " ++ show newEnv ++ "\n    res " ++ show restoredEnv) restoredEnv)
     -< (t, oldEnv)
 
   where restoreEnv []     = proc (_, env) -> returnA -< env
@@ -123,7 +130,7 @@ scope vars s = proc t -> do
             (proc (t, env) -> insertTerm -< (v, t, env))
             (proc env      -> deleteTermVars -< ([v], env))
               -< (v, oldEnv, env)
-          restoreEnv vs -< (oldEnv, env')
+          restoreEnv vs -< traceShow (v, oldEnv, env, env') (oldEnv, env')
 
 
 localTermEnv :: (IsTermEnv env t c, ArrowExcept e c,  Exc.Join c (((x, env), y), ((x, env), e)) y) => c x y -> c (env,x) y
@@ -166,7 +173,7 @@ invoke actualStratArgs actualTermArgs ev = proc (Strategy formalStratArgs formal
 
 -- | Matches a pattern against the current term. Pattern variables are
 -- bound in the term environment.
-match :: (ArrowChoice c, ArrowApply c, ArrowExcept () c, IsTerm t c, IsTermEnv env t c, Env.Join c ((t, ()), ()) t)
+match :: (Show env, Show t,ArrowChoice c, ArrowApply c, ArrowExcept () c, IsTerm t c, IsTermEnv env t c, Env.Join c ((t, ()), ()) t)
       => c (TermPattern,t) t
 match = proc (p,t) -> case p of
   S.As v p2 -> do
@@ -174,16 +181,17 @@ match = proc (p,t) -> case p of
     match -< (p2,t')
   S.Var "_" ->
     returnA -< t
-  S.Var x ->
+  S.Var x -> do
     -- Stratego implements linear pattern matching, i.e., if a
     -- variable appears multiple times in a term pattern, the terms at
     -- these positions are compared for equality.
-    lookupTermVar'
+    env <- getTermEnv -< ()
+    lookupTermVar
       (proc (t',_) -> do t'' <- equal -< (t,t')
                          insertTerm' -< (x,t'')
                          returnA -< t'')
       (proc _ -> do insertTerm' -< (x,t)
-                    returnA -< t) -<< (x,())
+                    returnA -< t) -<< (x,env,())
   S.Cons c ts ->
     matchTermAgainstConstructor (zipWithA match) -< (c,ts,t)
   S.Explode c ts ->
@@ -197,12 +205,12 @@ match = proc (p,t) -> case p of
 
 -- | Build a new term from a pattern. Variables are pattern are
 -- replaced by terms in the current term environment.
-build :: (ArrowChoice c, ArrowFail e c, IsString e, ArrowExcept () c, IsTerm t c, IsTermEnv env t c, Env.Join c ((t, ()), ()) t)
+build :: (ArrowChoice c, ArrowFail e c, IsString e, IsTerm t c, IsTermEnv env t c, Env.Join c ((t, e), e) t)
       => c TermPattern t
 build = proc p -> case p of
   S.As _ _ -> fail -< "As-pattern in build is disallowed"
   S.Var x ->
-    lookupTermVar' (fst ^>> returnA) throw -< (x,())
+    lookupTermVar' (fst ^>> returnA) fail -< (x,fromString ("unbound term variable " ++ show x ++ " in build statement " ++ show (Build p)))
   S.Cons c ts -> do
     ts' <- mapA build -< ts
     cons -< (c,ts')
