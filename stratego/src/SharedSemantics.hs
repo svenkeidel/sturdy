@@ -65,9 +65,11 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
           let senv'' = if M.null senv' then senv else senv'
           env <- getTermEnv -< ()
           args <- mapA (proc v -> ev (S.Build (S.Var v)) -<< t) -<< ts
-          t' <- scope (trace ("##### scope before " ++ show c ++ " is " ++ show env) termParams) (invoke ss args ev) -<< (strat, senv'', t)
+          t' <- scope
+            (trace ("##### scope before " ++ show c ++ " is " ++ show env ++ " with " ++ show t) termParams)
+            (invoke ss args ev) -<< (strat, senv'', t)
           env' <- getTermEnv -< ()
-          returnA -< trace ("##### scope after " ++ show c ++ " is " ++ show env') t'
+          returnA -< trace ("##### scope after " ++ show c ++ " is " ++ show env' ++ " with " ++ show t') t'
         Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
     Prim {} -> undefined
     Apply body -> ev body
@@ -153,14 +155,14 @@ let_ ss body interp = proc a -> do
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a
 
 -- | Strategy calls bind strategy variables and term variables.
-invoke :: (ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c, Env.Join c ((t, ()), ()) t)
+invoke :: (Show t,Show env,ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c, Env.Join c ((t, ()), ()) t)
      => [Strat]
      -> [t]
      -> (Strat -> c t t)
      -> c (Strategy, StratEnv, t) t
 invoke actualStratArgs actualTermArgs ev = proc (Strategy formalStratArgs formalTermArgs body, senv, t) -> do
     tenv <- getTermEnv -< ()
-    putTermEnv . bindings -< (zip formalTermArgs actualTermArgs, tenv)
+    putTermEnv . arr (\e -> trace ("invoke env " ++ show e) e) . bindings -< trace ("invoke arg bindings: " ++ show (zip formalTermArgs actualTermArgs, tenv)) (zip formalTermArgs actualTermArgs, tenv)
     let senv' = bindStratArgs (zip formalStratArgs actualStratArgs) senv
     localStratEnv senv' (ev (Apply body)) -<< t
   where
