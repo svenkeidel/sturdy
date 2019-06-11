@@ -18,7 +18,19 @@ import           Data.Maybe (mapMaybe)
 
 import           Text.Printf
 
-newtype Map a b = Map (HashMap a (A.Maybe b)) deriving (Eq,Hashable,NFData)
+newtype Map a b = Map (HashMap a (A.Maybe b)) deriving (NFData)
+
+instance (Eq a, Eq b, Hashable a, UpperBounded b) => Eq (Map a b) where
+  m1 == m2 = let Map m1' = normalize m1
+                 Map m2' = normalize m2
+             in m1' == m2'
+
+instance (Eq a, Eq b, Hashable a, UpperBounded b, Hashable b) => Hashable (Map a b) where
+  hashWithSalt s m = let Map m' =(normalize m) in hashWithSalt s m'
+
+
+normalize :: (UpperBounded b, Eq b) => Map a b -> Map a b
+normalize (Map m) = Map (M.filter (\v -> v /= A.JustNothing top) m)
 
 instance (Identifiable a, PreOrd b) => PreOrd (Map a b) where
   (⊑) = withMap2 $ \m1 m2 -> all (\(k,v) -> M.lookup k m1 ⊑ Just v) (M.toList m2)

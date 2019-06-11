@@ -379,7 +379,7 @@ spec = do
             val  = term "Val"
         in do
           seval'' 2 10 (Call "lookup_0_0" [] []) senv emptyEnv prog `shouldBe`
-            successOrFail () (delete (senv M.! "lookup_0_0") emptyEnv, val)
+            successOrFail () (emptyEnv, val)
 
       it "eval: Env * Exp -> Val" $ \pcf ->
         let ?ctx = signature pcf in

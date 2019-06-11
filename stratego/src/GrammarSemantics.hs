@@ -82,6 +82,10 @@ type TermEnv = Map TermVar Term
 
 type Stack = SW.Groups StratVar SW.Stack
 
+instance UpperBounded Term where
+  top = undefined
+
+
 type Interp s a b =
   Fix (Strat,Term) Term
     (GrammarT

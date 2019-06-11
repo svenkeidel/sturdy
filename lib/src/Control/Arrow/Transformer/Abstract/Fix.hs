@@ -35,6 +35,7 @@ import qualified Data.HashMap.Lazy as M
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
 import           Data.Profunctor
+import           Debug.Trace
 
 newtype FixT s a b c x y = FixT { unFixT :: ConstT (Constant s a b) (ReaderT (s a) (StateT (Cache a b, Component a) c)) x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice)
@@ -54,6 +55,10 @@ runFixT = runFixT' (error "use runFixT'") (error "use runFixT'")
 
 runFixT' :: (Identifiable a, PreOrd b, Monoid (s a),ArrowChoice c, Profunctor c) => Print (a,a) -> Print b -> StackWidening s a -> Widening b -> FixT s a b c x y -> c x y
 runFixT' pa pb sw w f = dimap (\x -> ((M.empty,H.empty),(mempty,x))) snd $ runStateT $ runReaderT $ runConstT (Constant pa pb sw w) $ unFixT f
+
+traceA :: Arrow c => c String ()
+traceA = proc msg -> returnA -< trace msg ()
+{-# NOINLINE traceA #-}
 
 type instance Fix x y (FixT s () () c) = FixT s x y c
 instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c,ArrowApply c) => ArrowFix a b (FixT s a b c) where
@@ -77,7 +82,9 @@ instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c,ArrowApply 
         -- afterwards if the cached value has stabilized, otherwise keep
         -- iterating.
         let iterate = proc () -> do
+               () <- traceA -< "Push"
                y <- local (unFixT (f (fix f))) -< (stack',x')
+               () <- traceA -< "Pop"
                member <- inComponent -< x'
                if member
                  then do
@@ -99,6 +106,8 @@ instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c,ArrowApply 
       Loop -> do
          -- If we are in a loop, return the cached value or bottom otherwise.
          -- Furthermore, add x' to the current component.
+
+         () <- traceA -< "Loop"
          addToComponent -< x'
          initializeCache -< x'
 

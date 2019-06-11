@@ -1,11 +1,9 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 module SharedSemantics where
 
@@ -14,7 +12,6 @@ import           Prelude hiding ((.),id,all,sequence,curry, uncurry,fail)
 import           Syntax hiding (Fail,TermPattern(..))
 import           Syntax (TermPattern)
 import qualified Syntax as S
-import           TermEnv
 import           TermEnv as Env
 import           Utils
 
@@ -38,6 +35,10 @@ import Debug.Trace
 -- trace a b = b
 -- traceShow = trace
 
+traceA :: Arrow c => c String ()
+traceA = proc msg -> returnA -< trace msg ()
+{-# NOINLINE traceA #-}
+
 -- | Shared interpreter for Stratego
 eval' :: (Show env,Show t,ArrowChoice c, ArrowFail e c, ArrowExcept () c,
           ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Eq t, Hashable t,
@@ -54,7 +55,7 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     One s -> mapSubterms (one (ev s))
     Some s -> mapSubterms (some (ev s))
     All s -> mapSubterms (all (ev s))
-    Scope xs s -> scope xs (ev s)
+    Scope xs s -> scope xs (ev (Apply s))
     Match f -> proc t -> match -< (f,t)
     Build f -> proc _ -> build -< f
     Let bnds body -> let_ bnds body eval'
@@ -65,11 +66,11 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
           let senv'' = if M.null senv' then senv else senv'
           env <- getTermEnv -< ()
           args <- mapA (proc v -> ev (S.Build (S.Var v)) -<< t) -<< ts
-          t' <- scope
-            (trace ("##### scope before " ++ show c ++ " is " ++ show env ++ " with " ++ show t) termParams)
-            (invoke ss args ev) -<< (strat, senv'', t)
+          () <- traceA -< "##### scope before " ++ show c ++ " is " ++ show env ++ " with " ++ show t 
+          t' <- scope termParams (invoke ss args ev) -<< (strat, senv'', t)
           env' <- getTermEnv -< ()
-          returnA -< trace ("##### scope after " ++ show c ++ " is " ++ show env' ++ " with " ++ show t') t'
+          () <- traceA -< "##### scope after " ++ show c ++ " is " ++ show env' ++ " with " ++ show t'
+          returnA -< t'
         Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
     Prim {} -> undefined
     Apply body -> ev body
@@ -118,14 +119,25 @@ scope [] s = s
 scope vars s = proc t -> do
   oldEnv <- getTermEnv -< ()
   scopedEnv <- deleteTermVars -< (vars, oldEnv)
-  putTermEnv -< trace ("scope start " ++ show vars ++ "\n    old    " ++ show oldEnv ++ "\n    scoped " ++ show scopedEnv) scopedEnv
-  finally
-    (proc (t,_) -> s -< t)
-    (proc (_,oldEnv) -> do
-      newEnv <- getTermEnv -< ()
-      restoredEnv <- restoreEnv vars -< (oldEnv, newEnv)
-      putTermEnv -< trace ("scope end   " ++ show vars ++ "\n    old " ++ show oldEnv ++ "\n    scoped " ++ show newEnv ++ "\n    new " ++ show restoredEnv) restoredEnv)
-    -< (t, oldEnv)
+  putTermEnv -< scopedEnv
+  () <- traceA -< "scope start " ++ show vars ++ "\n    old    " ++ show oldEnv ++ "\n    scoped " ++ show scopedEnv
+  t' <- s -< t
+  newEnv <- getTermEnv -< ()
+  restoredEnv <- restoreEnv vars -< (oldEnv, newEnv)
+  () <- traceA -< "scope end   " ++ show vars ++ "\n    old " ++ show oldEnv ++ "\n    scoped " ++ show newEnv ++ "\n    new " ++ show restoredEnv
+  putTermEnv -< restoredEnv
+  returnA -< t'
+       
+
+  -- finally
+  --   (proc (t,_) -> s -< t)
+  --   (proc (_,oldEnv) -> do
+  --     newEnv <- getTermEnv -< ()
+  --     restoredEnv <- restoreEnv vars -< (oldEnv, newEnv)
+  --     () <- traceA -< "scope end   " ++ show vars ++ "\n    old " ++ show oldEnv ++ "\n    scoped " ++ show newEnv ++ "\n    new " ++ show restoredEnv
+  --     putTermEnv -< restoredEnv
+  --   )
+  --   -< (t, oldEnv)
 
   where restoreEnv []     = proc (_, env) -> returnA -< env
         restoreEnv (v:vs) = proc (oldEnv, env) -> do
@@ -162,9 +174,12 @@ invoke :: (Show t,Show env,ArrowChoice c, ArrowFail e c, ArrowApply c, IsString 
      -> c (Strategy, StratEnv, t) t
 invoke actualStratArgs actualTermArgs ev = proc (Strategy formalStratArgs formalTermArgs body, senv, t) -> do
     tenv <- getTermEnv -< ()
-    putTermEnv . arr (\e -> trace ("invoke env " ++ show e) e) . bindings -< trace ("invoke arg bindings: " ++ show (zip formalTermArgs actualTermArgs, tenv)) (zip formalTermArgs actualTermArgs, tenv)
+    traceA -< "invoke arg bindings: " ++ show (zip formalTermArgs actualTermArgs, tenv)
+    putTermEnv . bindings -< (zip formalTermArgs actualTermArgs, tenv)
     let senv' = bindStratArgs (zip formalStratArgs actualStratArgs) senv
-    localStratEnv senv' (ev (Apply body)) -<< t
+    case body of
+      Scope vars b -> localStratEnv senv' (ev (Scope vars (Apply b))) -<< t
+      b -> localStratEnv senv' (ev b) -<< t
   where
     bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
     bindStratArgs [] senv = senv

@@ -94,6 +94,9 @@ type Interp s x y =
              (FixT s () ()
               (->)))))))))) x y
 
+instance UpperBounded Term where
+  top = Term Top undefined
+
 runInterp :: forall x y. Interp _ x y -> Int -> Int -> StratEnv -> Context -> TermEnv -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv,y))))
 runInterp f k l senv0 ctx tenv0 a =
   if not $ M.null (Ctx.filterInconsistentConstructors ctx)
