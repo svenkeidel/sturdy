@@ -121,23 +121,17 @@ scope vars s = proc t -> do
   scopedEnv <- deleteTermVars -< (vars, oldEnv)
   putTermEnv -< scopedEnv
   () <- traceA -< "scope start " ++ show vars ++ "\n    old    " ++ show oldEnv ++ "\n    scoped " ++ show scopedEnv
-  t' <- s -< t
-  newEnv <- getTermEnv -< ()
-  restoredEnv <- restoreEnv vars -< (oldEnv, newEnv)
-  () <- traceA -< "scope end   " ++ show vars ++ "\n    old " ++ show oldEnv ++ "\n    scoped " ++ show newEnv ++ "\n    new " ++ show restoredEnv
-  putTermEnv -< restoredEnv
-  returnA -< t'
+  finally
+    (proc (t,_) -> s -< t)
+    (proc (_,oldEnv) -> do
+      newEnv <- getTermEnv -< ()
+      restoredEnv <- restoreEnv vars -< (oldEnv, newEnv)
+      () <- traceA -< "scope end   " ++ show vars ++ "\n    old " ++ show oldEnv ++ "\n    scoped " ++ show newEnv ++ "\n    new " ++ show restoredEnv
+      putTermEnv -< restoredEnv
+    )
+    -< (t, oldEnv)
        
 
-  -- finally
-  --   (proc (t,_) -> s -< t)
-  --   (proc (_,oldEnv) -> do
-  --     newEnv <- getTermEnv -< ()
-  --     restoredEnv <- restoreEnv vars -< (oldEnv, newEnv)
-  --     () <- traceA -< "scope end   " ++ show vars ++ "\n    old " ++ show oldEnv ++ "\n    scoped " ++ show newEnv ++ "\n    new " ++ show restoredEnv
-  --     putTermEnv -< restoredEnv
-  --   )
-  --   -< (t, oldEnv)
 
   where restoreEnv []     = proc (_, env) -> returnA -< env
         restoreEnv (v:vs) = proc (oldEnv, env) -> do
