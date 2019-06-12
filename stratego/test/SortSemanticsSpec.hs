@@ -270,7 +270,7 @@ spec = do
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
           tenv = termEnv' [("l", atop), ("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop)]
-      in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) t
+      in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"]))) t
         `shouldBe` success (tenv, term (List Numerical))
 
   describe "Call" $ do
@@ -286,7 +286,7 @@ spec = do
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [] ?ctx
           tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should support a singleton list in recursive applications" $
@@ -294,7 +294,7 @@ spec = do
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [numerical] ?ctx
           tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should support recursion on a list of numbers" $
@@ -303,13 +303,13 @@ spec = do
           c = Ctx.empty
           t = convertToList [numerical, numerical, numerical] c
           tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should terminate and not produce infinite sorts" $
       let ?ctx = Ctx.empty in
-      let senv = M.fromList [("map",Closure map' M.empty),
-                             ("foo",Closure (Strategy [] [] (Scope ["x"] (Match "x" `Seq` Call "map" ["foo"] ["x"]))) M.empty)]
+      let senv = M.fromList [("map",Closure (T.liftStrategyScopes map') M.empty),
+                             ("foo",Closure (T.liftStrategyScopes $ Strategy [] [] (Scope ["x"] (Match "x" `Seq` Call "map" ["foo"] ["x"]))) M.empty)]
           c = Ctx.empty
           t = Term Top c
           tenv = termEnv []

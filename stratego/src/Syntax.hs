@@ -10,6 +10,7 @@ import           SortContext (Context,Sort,Signature)
 import qualified SortContext as I
 
 import           Control.Monad.Except
+import           Control.Monad.Writer (Writer, tell, censor, runWriter)
 import           Control.DeepSeq
 
 import           Data.ATerm
@@ -85,6 +86,59 @@ instance Hashable Closure where
 type StratEnv = HashMap StratVar Closure
 newtype TermVar = TermVar Text deriving (Eq,Ord,Hashable,NFData)
 newtype StratVar = StratVar Text deriving (Eq,Ord,IsString,Hashable,NFData)
+
+liftStrategyScopes :: Strategy -> Strategy
+liftStrategyScopes (Strategy svs tvs s) = Strategy svs tvs (liftStratScopes s)
+
+liftStratScopes :: Strat -> Strat
+liftStratScopes s =
+  let (s', vs) = runWriter (liftScopes s) in
+  if length vs == S.size (S.fromList vs)
+    then if null vs
+      then s'
+      else Scope vs s'
+    else error $ "found duplicate scope vars " ++ show vs
+
+liftScopes :: Strat -> Writer [TermVar] Strat
+liftScopes strat = case strat of
+    Id -> return Id
+    Fail -> return Fail
+    Seq s1 s2 -> do
+      s1' <- liftScopes s1
+      s2' <- liftScopes s2
+      return $ Seq s1' s2'
+    GuardedChoice s1 s2 s3 -> do
+      s1' <- liftScopes s1
+      s2' <- liftScopes s2
+      s3' <- liftScopes s3
+      return $ GuardedChoice s1' s2' s3'
+    One s -> One <$> liftScopes s
+    Some s -> Some <$> liftScopes s
+    All s -> All <$> liftScopes s
+    Scope xs s -> do
+      tell xs
+      liftScopes s
+    Match f -> return $ Match f
+    Build f -> return $ Build f
+    Let bnds body -> do
+      let bnds' = map (\(v,s) -> (v,liftStrategyScopes s)) bnds
+      body' <- liftScopes body
+      return $ Let bnds' body'
+    Call f ss ts -> do
+      let ss' = map liftStratScopes ss
+      return $ Call f ss' ts
+    Prim f ss ts -> do
+      let ss' = map liftStratScopes ss
+      return $ Prim f ss' ts
+    Apply body -> Apply <$> liftScopes body
+
+-- instance Monoid TermVarSet where
+--   mempty = TermVarSet mempty
+--   mappend (TermVarSet s1) (TermVarSet s2) =
+--     if S.null (S.intersection s1 s2)
+--       then TermVarSet $ S.union s1 s2
+--       else error $ "non-unique scope vars " ++ show (s1,s2)
+
 
 leftChoice :: Strat -> Strat -> Strat
 leftChoice f = GuardedChoice f Id
@@ -171,12 +225,12 @@ parseStrategy strat = case strat of
     str <- Strategy <$> parseStratVars stratVars
                     <*> parseTermVars ts
                     <*> parseStrat body
-    return (StratVar name, str)
+    return (StratVar name, liftStrategyScopes str)
   ATerm "ExtSDef" [String name, List ts, List stratVars] -> do
     str <- Strategy <$> parseStratVars stratVars
                     <*> parseTermVars ts
                     <*> return Id
-    return (StratVar name, str)
+    return (StratVar name, liftStrategyScopes str)
   _ -> throwError $ "unexpected input while parsing strategy from aterm: " ++ show strat
 
 parseStratVars :: MonadError String m => [ATerm] -> m [StratVar]

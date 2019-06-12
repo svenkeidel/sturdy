@@ -31,9 +31,9 @@ import           Data.Text(Text)
 import           Text.Printf
 import           GHC.Exts(IsString(..))
 
-import Debug.Trace
--- trace a b = b
--- traceShow = trace
+-- import Debug.Trace
+trace a b = b
+traceShow = trace
 
 traceA :: Arrow c => c String ()
 traceA = proc msg -> returnA -< trace msg ()
@@ -179,7 +179,8 @@ invoke actualStratArgs actualTermArgs ev = proc (Strategy formalStratArgs formal
     let senv' = bindStratArgs (zip formalStratArgs actualStratArgs) senv
     case body of
       Scope vars b -> localStratEnv senv' (ev (Scope vars (Apply b))) -<< t
-      b -> localStratEnv senv' (ev b) -<< t
+      b -> localStratEnv senv' (ev (Apply b)) -<< t
+--      b -> fail -< fromString $ "Missing stratgegy scope " ++ show b -- localStratEnv senv' (ev b) -<< t
   where
     bindStratArgs :: [(StratVar,Strat)] -> StratEnv -> StratEnv
     bindStratArgs [] senv = senv
