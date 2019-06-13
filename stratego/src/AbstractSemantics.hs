@@ -60,7 +60,7 @@ type Interp t s x y =
            (FixT s () ()
             (->)))))))))) x y
 
-runInterp :: forall t x y. (Show t, Complete t, Identifiable t) => Interp t _ x y -> Int -> Widening t -> StratEnv -> Context -> TermEnv t -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,y))))
+runInterp :: forall t x y. (Show t, Complete t, UpperBounded t, Identifiable t) => Interp t _ x y -> Int -> Widening t -> StratEnv -> Context -> TermEnv t -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,y))))
 runInterp f k termWidening senv0 ctx tenv0 a =
   runFixT stackWidening (T.widening resultWidening)
    (runTerminatingT
@@ -84,4 +84,3 @@ runInterp f k termWidening senv0 ctx tenv0 a =
 
     resultWidening :: Widening (FreeCompletion (Error TypeError (Except () (TermEnv t,t))))
     resultWidening = Free.widening (F.widening P.widening (E.widening (\_ _ -> (Stable,())) (S.widening termWidening W.** termWidening)))
-

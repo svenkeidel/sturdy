@@ -28,14 +28,17 @@ import           Data.Identifiable
 import           Data.Order
 import           Data.Monoidal
 import           Data.Profunctor (Profunctor(..))
+import           Data.Coerce
 
 newtype KleisliT f c x y = KleisliT { runKleisliT :: c x (f y) }
 
 instance ArrowTrans (KleisliT f) where
   type Dom (KleisliT f) x y = x
   type Cod (KleisliT f) x y = f y
-  lift = KleisliT
-  unlift = runKleisliT
+  lift = coerce
+  {-# INLINE lift #-}
+  unlift = coerce
+  {-# INLINE unlift #-}
 
 instance Monad f => ArrowLift (KleisliT f) where
   lift' f = lift $ rmap return f
@@ -83,17 +86,16 @@ instance (ArrowMonad f c, ArrowEnv x y env c) => ArrowEnv x y env (KleisliT f c)
 instance (ArrowMonad f c, ArrowStore var val c) => ArrowStore var val (KleisliT f c) where
   type Join (KleisliT f c) x y = Store.Join c (Dom (KleisliT f) x y) (Cod (KleisliT f) x y)
   read f g = lift $ read (unlift f) (unlift g)
-  write = lift' $ write
+  write = lift' write
 
 type instance Fix x y (KleisliT f c) = KleisliT f (Fix (Dom (KleisliT f) x y) (Cod (KleisliT f) x y) c)
 instance (ArrowMonad f c, ArrowFix (Dom (KleisliT f) x y) (Cod (KleisliT f) x y) c) => ArrowFix x y (KleisliT f c) where
   fix = liftFix
 
 instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
-  type Join (KleisliT f c) x y = Exc.Join c (Dom (KleisliT f) x y) (Cod (KleisliT f) x y)
+  type Join (KleisliT f c) (y,(x,e)) z = Exc.Join c (Cod (KleisliT f) x y,Dom (KleisliT f) (x,e) z) (Cod (KleisliT f) x z)
   throw = lift' throw
-  catch f g = lift $ catch (unlift f) (unlift g)
-  finally f g = lift $ finally (unlift f) (unlift g)
+  try f g h = lift $ try (unlift f) (mapJoinA (unlift g)) (unlift h)
 
 instance (ArrowMonad f c, ArrowFail e c) => ArrowFail e (KleisliT f c) where
   fail = lift' fail

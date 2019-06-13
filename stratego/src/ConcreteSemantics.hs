@@ -19,6 +19,7 @@ import           SharedSemantics
 import           Syntax (TermPattern)
 import qualified Syntax as S
 import           Syntax hiding (Fail,TermPattern(..))
+import           TermEnv
 import           Utils
 import           ValueT
 
@@ -84,19 +85,19 @@ deriving instance ArrowFail String Interp
 instance ArrowApply Interp where app = Interp (lmap (first (\(Interp f) -> f)) app)
 
 instance IsTermEnv TermEnv Term Interp where
+  type Join Interp x y = ()
+
   getTermEnv = get
   putTermEnv = put
   emptyTermEnv = lmap (\() -> TermEnv M.empty) put
   lookupTermVar f g = proc (v,TermEnv env,exc) ->
     case M.lookup v env of
-      Just t -> f -< t
+      Just t -> f -< (t, exc)
       Nothing -> g -< exc
   insertTerm = arr $ \(v,t,TermEnv env) ->
     TermEnv (M.insert v t env)
   deleteTermVars = arr $ \(vars,TermEnv env) ->
     TermEnv (foldr' M.delete env vars)
-  unionTermEnvs = arr (\(vars, TermEnv e1, TermEnv e2) ->
-    TermEnv (M.union e1 (foldr' M.delete e2 vars)))
 
 instance (ArrowChoice c, ArrowApply c, ArrowExcept () c) => IsTerm Term (ValueT Term c) where
   matchCons matchSubterms = proc (c,ts,t) -> case t of

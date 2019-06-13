@@ -1,4 +1,3 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -41,7 +40,9 @@ instance ArrowTrans (WriterT w) where
   type Dom (WriterT w) x y = x
   type Cod (WriterT w) x y = (w,y)
   lift = coerce
+  {-# INLINE lift #-}
   unlift = coerce
+  {-# INLINE unlift #-}
 
 instance Monoid w => ArrowLift (WriterT w) where
   lift' f = lift (rmap (\y -> (mempty,y)) f)
@@ -82,10 +83,9 @@ instance (Monoid w, ArrowFail e c) => ArrowFail e (WriterT w c) where
   fail = lift' fail
 
 instance (Monoid w, ArrowExcept e c) => ArrowExcept e (WriterT w c) where
-  type Join (WriterT w c) x y = Exc.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
+  type Join (WriterT w c) (y,(x,e)) z = Exc.Join c (Cod (WriterT w) x y,Dom (WriterT w) (x,e) z) (Cod (WriterT w) x z)
   throw = lift' throw
-  catch f g = lift $ catch (unlift f) (unlift g)
-  finally f g = lift $ finally (unlift f) (unlift g)
+  try f g h = lift $ try (unlift f) (rmap (\(w1,(w2,z)) -> (w1 <> w2,z)) (second (unlift g))) (unlift h)
 
 instance (Monoid w, ArrowReader r c) => ArrowReader r (WriterT w c) where
   ask = lift' ask

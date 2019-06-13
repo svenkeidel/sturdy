@@ -13,7 +13,6 @@ import           Prelude hiding ((.))
 
 import           Syntax
 import qualified ConcreteSemantics as C
-import           SharedSemantics
 
 import           Control.Category
 import           Control.Arrow
@@ -39,6 +38,8 @@ import           Data.Identifiable
 import           Data.Coerce
 import           Data.GaloisConnection
 
+import           TermEnv
+
 type TermEnv t = Map TermVar t
 
 type instance Fix x y (EnvironmentT t c) = EnvironmentT t (Fix (Dom (EnvironmentT t) x y) (Cod (EnvironmentT t) x y) c)
@@ -46,7 +47,7 @@ newtype EnvironmentT t c x y = EnvironmentT (StateT (TermEnv t) c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowTrans,ArrowLift,ArrowFail e,ArrowExcept e,ArrowConst r)
 
 deriving instance ArrowFix (Dom (EnvironmentT t) x y) (Cod (EnvironmentT t) x y) c => ArrowFix x y (EnvironmentT t c)
-deriving instance (Identifiable t, ArrowDeduplicate (Dom (EnvironmentT t) x y) (Cod (EnvironmentT t) x y) c) => ArrowDeduplicate x y (EnvironmentT t c)
+deriving instance (Identifiable t, UpperBounded t, ArrowDeduplicate (Dom (EnvironmentT t) x y) (Cod (EnvironmentT t) x y) c) => ArrowDeduplicate x y (EnvironmentT t c)
 deriving instance (PreOrd (c (Dom (EnvironmentT t) x y) (Cod (EnvironmentT t) x y))) => PreOrd (EnvironmentT t c x y)
 deriving instance (LowerBounded (c (Dom (EnvironmentT t) x y) (Cod (EnvironmentT t) x y))) => LowerBounded (EnvironmentT t c x y)
 deriving instance (Complete (c (Dom (EnvironmentT t) x y) (Cod (EnvironmentT t) x y))) => Complete (EnvironmentT t c x y)
@@ -63,18 +64,18 @@ instance Complete t => Complete (FreeCompletion (TermEnv t)) where
 
 instance (Complete t, ArrowChoice c, ArrowJoin c, ArrowTop t (EnvironmentT t c))
   => IsTermEnv (TermEnv t) t (EnvironmentT t c) where
+  type Join (EnvironmentT t c) ((t,e),e) x = Complete x
   getTermEnv = EnvironmentT get
   putTermEnv = EnvironmentT put
   emptyTermEnv = EnvironmentT $ lmap (\() -> S.empty) put
   lookupTermVar f g = proc (v,env,ex) -> do
     topTerm <- topA -< ()
     case S.lookup v topTerm env of
-      A.Just t        -> f -< t
+      A.Just t        -> f -< (t,ex)
       A.Nothing       -> g -< ex
-      A.JustNothing t -> (f -< t) <⊔> (g -< ex)
+      A.JustNothing t -> (f -< (t,ex)) <⊔> (g -< ex)
   insertTerm = arr $ \(v,t,env) -> S.insert v t env
   deleteTermVars = arr $ \(vars,env) -> S.delete' vars env
-  unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (S.delete' vars e2))
 
 instance (Galois (C.Pow C.Term) t, Complete t) => Galois (C.Pow C.TermEnv) (TermEnv t) where
   alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (LM.toList (fmap alphaSing e)))

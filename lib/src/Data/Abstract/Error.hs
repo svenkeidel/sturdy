@@ -20,7 +20,6 @@ import Data.Order
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
 import Data.GaloisConnection
-import Data.Abstract.DiscretePowerset (Pow)
 import Data.Concrete.Powerset as C
 import Data.Identifiable
 import qualified Data.Concrete.Error as C

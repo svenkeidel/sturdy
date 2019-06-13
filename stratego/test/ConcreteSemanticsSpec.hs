@@ -32,8 +32,8 @@ spec = do
   describe "scope" $ do
     it "should hide declare variables" $ do
       let tenv = termEnv [("x", term1)]
-      eval (Scope ["x"] (Build "x")) M.empty tenv term2 
-        `shouldBe` error "unbound term variable x in build statement !x"
+      -- eval (Scope ["x"] (Build "x")) M.empty tenv term2 
+      --   `shouldBe` error "unbound term variable x in build statement !x"
       eval (Scope ["x"] (Match "x")) M.empty tenv term2
         `shouldBe` success (tenv,term2)
 

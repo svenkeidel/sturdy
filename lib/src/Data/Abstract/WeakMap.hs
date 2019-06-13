@@ -9,11 +9,8 @@ import           Data.Identifiable
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 
-import           Data.Maybe
 import           Data.Order
-import qualified Data.Abstract.Map as StrongMap
 import qualified Data.Abstract.Maybe as A
-import qualified Data.Abstract.There as T
 import           Data.Abstract.Widening
 import           Data.Coerce
 import           Data.Hashable
@@ -21,7 +18,18 @@ import           Data.Maybe (mapMaybe)
 
 import           Text.Printf
 
-newtype Map a b = Map (HashMap a (A.Maybe b)) deriving (Eq,Hashable,NFData)
+newtype Map a b = Map (HashMap a (A.Maybe b)) deriving (NFData)
+
+instance (Eq a, Eq b, Hashable a, UpperBounded b) => Eq (Map a b) where
+  m1 == m2 = let Map m1' = normalize m1
+                 Map m2' = normalize m2
+             in m1' == m2'
+
+instance (Eq a, Eq b, Hashable a, UpperBounded b, Hashable b) => Hashable (Map a b) where
+  hashWithSalt s m = let Map m' = normalize m in hashWithSalt s m'
+
+normalize :: (UpperBounded b, Eq b) => Map a b -> Map a b
+normalize (Map m) = Map (M.filter (\v -> v /= A.JustNothing top) m)
 
 instance (Identifiable a, PreOrd b) => PreOrd (Map a b) where
   (⊑) = withMap2 $ \m1 m2 -> all (\(k,v) -> M.lookup k m1 ⊑ Just v) (M.toList m2)
@@ -38,6 +46,9 @@ instance (Show a,Show b) => Show (Map a b) where
         A.Just x -> printf "%s -> %s," (show k) (show x)
         A.Nothing -> printf "%s❌," (show k)
         A.JustNothing x -> printf "%s? -> %s," (show k) (show x)
+
+instance Identifiable a => Functor (Map a) where
+  fmap f = withMap (fmap (fmap f))
 
 widening :: Identifiable a => Widening b -> Widening (Map a b)
 widening w = withMap2 $ \m1 m2 -> sequenceA $ M.intersectionWith (A.widening w) m1 m2
@@ -97,7 +108,7 @@ withMap = coerce
 dropNegativeBindings :: Identifiable a => Map a b -> Map a b
 dropNegativeBindings (Map m) = Map (M.filter noNothing m)
   where
-    noNothing m = case m of
+    noNothing x = case x of
       A.Just _ -> True
       A.JustNothing _ -> True
       A.Nothing -> False

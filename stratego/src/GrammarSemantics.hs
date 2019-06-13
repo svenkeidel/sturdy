@@ -127,6 +127,9 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
       NumLit _ -> returnA -< Term g
       Top -> fail -< "cannot map over the subterms of Top"
 
+instance UpperBounded Term where
+  top = error "top"
+
 instance Complete (FreeCompletion Term) where
   Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
   _ ⊔ _ = Free.Top

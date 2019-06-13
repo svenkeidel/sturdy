@@ -50,6 +50,8 @@ import           Data.Abstract.Constructor(Constr)
 import qualified Data.Abstract.Constructor as Constr
 import           Data.Coerce
 
+import           ValueT
+
 import           Text.Printf
 import           GHC.Exts(IsList(..),IsString(..))
 
@@ -238,6 +240,9 @@ instance CoComplete Term where
     | otherwise = IllSorted (fromList (lookupSort ctx s1) ⊓ cs2)
   IllSorted cs1 ⊓ Sorted s2 ctx = Sorted s2 ctx ⊓ IllSorted cs1
 
+instance UpperBounded Term where
+  top = Sorted S.Top Ctx.empty
+
 instance Show Term where
   show (Sorted s _) = show s
   show (IllSorted c) = show c
@@ -249,6 +254,12 @@ instance Hashable Term where
 instance NFData Term where
   rnf (Sorted s _) = rnf s
   rnf (IllSorted cs) = rnf cs
+
+instance IsList Term where
+  type Item Term = Item (Constr Term)
+  fromList l = IllSorted (fromList l)
+  toList (IllSorted l) = toList l
+  toList (Sorted s ctx) = lookupSort ctx s
 
 -- termWidening ctx k t1 t2 = let t3 = go ctx k t1 t2
 --                            in trace (printf "%s ▽ %s = %s" (show t1) (show t2) (show t3)) () `seq` t3
@@ -277,6 +288,9 @@ typecheck ctx t = case t of
           _ -> S.Top
         "" -> S.Tuple ss
         _ -> getSort $ glb (Sorted S.Top ctx) [ Sorted s ctx | Signature ss' s <- Ctx.lookupCons ctx c, map (`Sorted` ctx) ss ⊑ sortsToTerms ss' ctx ]
+
+typecheck' :: Context -> Term -> Term
+typecheck' ctx t = Sorted (typecheck ctx t) ctx
 
 getSort :: Term -> Sort
 getSort (Sorted s _) = s

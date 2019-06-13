@@ -34,7 +34,9 @@ import qualified Data.HashMap.Lazy as M
 -- import qualified Data.Set as Set
 -- import qualified Data.Term as C
 import           Data.Set (Set)
-    
+
+import Data.Order
+
 import           Test.Hspec hiding (context)
 -- import           Test.Hspec.QuickCheck
 -- import           Test.QuickCheck hiding (Success)
@@ -240,10 +242,10 @@ spec = do
 
     it "should make non-declared variables available" $
       let ?ctx = Ctx.empty in
-      let tenv = termEnv [ ("x",numerical) ]
-      in do
+      let tenv = termEnv'' [ ("x",numerical) ] ["y"] in
+      do
          seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe`
-           success (S.delete' ["y"] $ termEnv [("x", numerical)], numerical)
+           success (tenv, numerical)
          seval' 0 (Scope ["y"] (Match "z")) (S.delete' ["z"] tenv) numerical `shouldBe`
            success (S.delete' ["y"] $ termEnv [ ("x",numerical), ("z",numerical)], numerical)
 
@@ -261,16 +263,16 @@ spec = do
       let ?ctx = Ctx.empty in
       let t = term (Tuple ["Exp","Exp"])
           -- tenv = termEnv [("x",t)]
-          tenv = termEnv []
+          tenv = termEnv'' [] ["x","y"]
       in seval' 2 (Let [("swap", swap)] (Scope ["x"] (Match "x" `Seq` Call "swap" [] ["x"]))) tenv t
-           `shouldBe` success (delete swap tenv, t)
+           `shouldBe` success (tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
-          tenv = termEnv []
-      in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) t
-        `shouldBe` success (delete map' tenv, term (List Numerical))
+          tenv = termEnv' [("l", atop), ("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop)]
+      in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"]))) t
+        `shouldBe` success (tenv, term (List Numerical))
 
   describe "Call" $ do
     it "should apply a single function call" $
@@ -278,23 +280,23 @@ spec = do
       let senv = M.singleton "swap" (Closure swap M.empty)
           t = term (Tuple ["Exp","Exp"])
           tenv = termEnv []
-      in seval'' 1 10 (Scope ["x"] (Match "x" `Seq` Call "swap" [] [])) senv emptyEnv t `shouldBe` success (delete swap tenv, t)
+      in seval'' 1 10 (Scope ["x"] (Match "x" `Seq` Call "swap" [] [])) senv emptyEnv t `shouldBe` success (tenv, t)
 
     it "should support an empty list in recursive applications" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [] ?ctx
           tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
-           success (delete map' tenv, term (List Numerical))
+      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+           success (tenv, term (List Numerical))
 
     it "should support a singleton list in recursive applications" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [numerical] ?ctx
           tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
-           success (delete map' tenv, term (List Numerical))
+      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+           success (tenv, term (List Numerical))
 
     it "should support recursion on a list of numbers" $
       let ?ctx = Ctx.empty in
@@ -302,17 +304,18 @@ spec = do
           c = Ctx.empty
           t = convertToList [numerical, numerical, numerical] c
           tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
-           success (delete map' tenv, term (List Numerical))
+      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+           success (tenv, term (List Numerical))
 
-    it "should terminate and not produce infinite sorts" $ do
-      let senv = M.fromList [("map",Closure map' M.empty),
-                             ("foo",Closure (Strategy [] [] (Scope ["x"] (Match "x" `Seq` Call "map" ["foo"] ["x"]))) M.empty)]
+    it "should terminate and not produce infinite sorts" $
+      let ?ctx = Ctx.empty in
+      let senv = M.fromList [("map",Closure (T.liftStrategyScopes map') M.empty),
+                             ("foo",Closure (T.liftStrategyScopes $ Strategy [] [] (Scope ["x"] (Match "x" `Seq` Call "map" ["foo"] ["x"]))) M.empty)]
           c = Ctx.empty
           t = Term Top c
           tenv = termEnv []
-      seval'' 10 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
-        success (delete map' tenv, Term (List (List (List Top))) c)
+      in seval'' 10 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
+           success (tenv, Term (List (List (List Top))) c)
 
   describe "simplify arithmetics" $ do
     it "reduce Add(Zero,y)" $
@@ -374,6 +377,7 @@ spec = do
         let ?ctx = signature balg in
         let senv = stratEnv balg
         in do
+          pendingWith "The sort semantics is too imprecise to check this traversal"
           seval'' 2 10 (Call "trans__bottomup_0_0" [] []) senv emptyEnv (term "BExp") `shouldBe`
             successOrFail () (emptyEnv, term "Exp")
 
@@ -386,7 +390,7 @@ spec = do
             val  = term "Val"
         in do
           seval'' 2 10 (Call "lookup_0_0" [] []) senv emptyEnv prog `shouldBe`
-            successOrFail () (delete (senv M.! "lookup_0_0") emptyEnv, val)
+            successOrFail () (emptyEnv, val)
 
       it "eval: Env * Exp -> Val" $ \pcf ->
         let ?ctx = signature pcf in
@@ -477,6 +481,7 @@ spec = do
             val  = term "Exp"
             env = termEnv [("vars-list", term $ List "Var")]
         in do
+          pendingWith "weak term environments are too imprecise to check this example"
           sevalNoNeg'' 4 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
             successOrFail () (env, val)
 
@@ -518,6 +523,15 @@ spec = do
     -- termEnv' = S.fromThereList
     termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv Term
     termEnv' = S.fromList'
+    -- termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
+    -- termEnv' = S.fromThereList . concatMap (\(v,mt) -> case mt of
+    --   A.Nothing -> []
+    --   A.Just t -> [(v,(Must, t))]
+    --   A.JustNothing t -> [(v,(May, t))]
+    --  )
+
+    termEnv''  :: [(TermVar, Term)] -> [TermVar] -> TermEnv Term
+    termEnv'' bound notBound = foldr S.delete (S.fromList bound) notBound
 
     delete :: TermVars s => s -> TermEnv Term -> TermEnv Term
     delete s = S.delete' (termVars s :: Set TermVar)
@@ -576,6 +590,9 @@ spec = do
 
     -- top :: (?ctx :: Context) => Term
     -- top = term Top
+
+    atop :: (?ctx :: Context) => A.Maybe Term
+    atop = A.JustNothing top
 
     may :: k -> v -> (k,A.Maybe v)
     may k v = (k,A.JustNothing v)

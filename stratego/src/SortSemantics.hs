@@ -204,6 +204,9 @@ instance Complete Term where
 instance CoComplete Term where
   Term t1 ctx ⊓ Term t2 _ = Term (Ctx.glb ctx t1 t2) ctx
 
+instance UpperBounded Term where
+  top = Term Top Ctx.empty
+
 convertToList :: [Term] -> Context -> Term
 convertToList [] ctx = Term (List Bottom) ctx
 convertToList ts ctx = Term (List (sort $ lub ts)) ctx

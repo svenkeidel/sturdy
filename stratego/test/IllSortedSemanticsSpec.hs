@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
 module IllSortedSemanticsSpec(main, spec) where
@@ -12,6 +13,8 @@ import           AbstractSemantics
 import           SortContext(Context,Sort(..))
 import qualified SortContext as Ctx
 
+import           Control.Arrow
+
 import           Data.TermEnvironment
 import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.Except as E
@@ -24,7 +27,7 @@ import           Data.Set (Set)
 
 import           Test.Hspec hiding (context)
 
-import           GHC.Exts(IsString(..))
+import           GHC.Exts(IsString(..),IsList(..))
 
 import qualified CaseStudy
 
@@ -75,7 +78,7 @@ spec = do
     it "should match a PCF expression" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp")] in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Zero" [])) t `shouldBe` success (emptyEnv, t)
+      in seval 0 (Match (Cons "Zero" [])) t `shouldBe` success (emptyEnv,t)
 
     it "should match a nested PCF expression" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
@@ -225,12 +228,12 @@ spec = do
 
     it "should make non-declared variables available" $
       let ?ctx = Ctx.empty in
-      let tenv = termEnv [ ("x",numerical) ]
+      let tenv = termEnv'' [ ("x",numerical) ] ["y"]
       in do
          seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe`
-           success (S.delete' ["y"] $ termEnv [("x", numerical)], numerical)
-         seval' 0 (Scope ["y"] (Match "z")) (S.delete' ["z"] tenv) numerical `shouldBe`
-           success (S.delete' ["y"] $ termEnv [ ("x",numerical), ("z",numerical)], numerical)
+           success (S.delete' (["y"] :: [TermVar]) $ termEnv [("x", numerical)], numerical)
+         seval' 0 (Scope ["y"] (Match "z")) (S.delete' (["z"] :: [TermVar]) tenv) numerical `shouldBe`
+           success (S.delete' (["y"] :: [TermVar]) $ termEnv [ ("x",numerical), ("z",numerical)], numerical)
 
     it "should hide variables bound in a choice's test from the else branch" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp"), ("One",[],"Exp")] in
@@ -246,15 +249,15 @@ spec = do
       let ?ctx = Ctx.empty in
       let t = term (Tuple ["Exp","Exp"])
           -- tenv = termEnv [("x",t)]
-          tenv = termEnv []
+          tenv = delete swap (termEnv [])
       in seval' 2 (Let [("swap", swap)] (Scope ["x"] (Match "x" `Seq` Call "swap" [] ["x"]))) tenv t
-           `shouldBe` success (delete swap tenv, t)
+           `shouldBe` success (tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
           tenv = termEnv []
-      in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) t
+      in seval 0 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) t
         `shouldBe` success (delete map' tenv, term (List Numerical))
 
   describe "Call" $ do
@@ -318,20 +321,20 @@ spec = do
       let exp = term "Exp"
           reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
           reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
-      in seval' 0 (reduce1 `leftChoice` reduce2) (S.delete' ["x", "y"] emptyEnv) exp
+      in seval' 0 (reduce1 `leftChoice` reduce2) (S.delete' (["x", "y"] :: [TermVar]) emptyEnv) exp
            `shouldBe` successOrFail () (termEnv' [may "x" exp, may "y" exp], exp)
 
     it "reduce Add(x,y); !x; ?Zero()" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
       let exp = term "Exp"
           reduce = Match (Cons "Add" ["x", "y"]) `Seq` Build "x" `Seq` Match (Cons "Zero" []) `Seq` Build "y"
-      in seval' 0 reduce (S.delete' ["x", "y"] emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp),("y", exp)], exp)
+      in seval' 0 reduce (S.delete' (["x", "y"] :: [TermVar]) emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp),("y", exp)], exp)
 
     it "reduce Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp"),("Double",["Exp"],"Exp")] in
       let exp = term "Exp"
           reduce = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"])
-      in seval' 0 reduce (S.delete' ["x"] emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+      in seval' 0 reduce (S.delete' (["x"] :: [TermVar]) emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
 
     it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
@@ -339,7 +342,7 @@ spec = do
           reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
           reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
           reduce3 = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"])
-      in seval' 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) (S.delete' ["x","y"] emptyEnv) exp
+      in seval' 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) (S.delete' (["x","y"] :: [TermVar]) emptyEnv) exp
            `shouldBe` successOrFail () (termEnv' [may "x" exp, may "y" exp], exp)
 
     -- prop "should be sound" $ do
@@ -548,6 +551,7 @@ spec = do
 
     seval'' :: (?ctx :: Context) => Int -> Int -> Strat -> StratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
     seval'' i j s senv tenv t =
+      fmap (fmap (fmap (typecheck' ?ctx) *** typecheck' ?ctx)) $ 
       fromCompletion (error "top element")
         (fromTerminating (error "sort semantics does not terminate")
            (eval i j s senv ?ctx tenv t))
@@ -559,6 +563,9 @@ spec = do
     dropNegativeBindings (F.Success (E.Success (env,a))) = (F.Success (E.Success (S.dropNegativeBindings env,a)))
     dropNegativeBindings (F.Success (E.SuccessOrFail e (env,a))) = (F.Success (E.SuccessOrFail e (S.dropNegativeBindings env,a)))
     dropNegativeBindings res = res
+
+    termEnv''  :: [(TermVar, Term)] -> [TermVar] -> TermEnv Term
+    termEnv'' bound notBound = foldr S.delete (S.fromList bound) notBound
 
     term :: (?ctx :: Context) => Sort -> Term
     term s = Sorted s ?ctx

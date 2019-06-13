@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Abstract.StrongMap(Map,widening,empty,insert,lookup,lookup',fromList,toList) where
+module Data.Abstract.StrongMap(Map,widening,empty,insert,lookup,lookup',delete,delete',fromList,toList) where
 
 import           Prelude hiding (lookup)
 
@@ -32,6 +32,9 @@ instance (Identifiable a, Complete b) => Complete (Map a b) where
   Map m1 ⊔ Map m2 | M.keys m1 == M.keys m2 = Map $ M.unionWith (⊔) m1 m2
                   | otherwise              = Top
 
+instance (Identifiable a, PreOrd b) => UpperBounded (Map a b) where
+  top = Top
+
 widening :: Identifiable a => Widening b -> Widening (Map a b)
 widening _ Top Top = (Stable,Top)
 widening w (Map m1) (Map m2) | M.keys m1 == M.keys m2 = second Map $ sequenceA $ M.intersectionWith w m1 m2
@@ -53,6 +56,13 @@ lookup a _ (Map m) = case M.lookup a m of
 
 lookup' :: (Identifiable a, UpperBounded b) => a -> Map a b -> A.Maybe b
 lookup' a = lookup a top
+
+delete :: Identifiable a => a -> Map a b -> Map a b
+delete _ Top = Top
+delete a (Map m) = Map (M.delete a m)
+
+delete' :: (Foldable f, Identifiable a) => f a -> Map a b -> Map a b
+delete' l m = foldl (flip delete) m l
 
 fromList :: Identifiable a => [(a,b)] -> Map a b
 fromList l = Map (M.fromList l)

@@ -16,8 +16,6 @@ module ValueT where
 
 import           Prelude hiding ((.),fail)
 
-import           SharedSemantics as Shared
-
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -29,11 +27,12 @@ import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Trans
 import           Control.Arrow.Abstract.Join
+
 import           Data.Order
 import           Data.Profunctor
 import           Data.Coerce
 
-
+import           TermEnv
 
 type instance Fix x y (ValueT t c) = ValueT t (Fix (Dom (ValueT t) x y) (Cod (ValueT t) x y) c)
 newtype ValueT t c x y = ValueT { runValueT :: c x y }

@@ -99,6 +99,7 @@ instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c,ArrowApply 
       Loop -> do
          -- If we are in a loop, return the cached value or bottom otherwise.
          -- Furthermore, add x' to the current component.
+
          addToComponent -< x'
          initializeCache -< x'
 
