@@ -58,42 +58,6 @@ data AbsVal = BoolVal AbsBool | NumVal Interval | TopVal deriving (Eq,Generic)
 data AbsBool = True | False | TopBool deriving (Eq,Generic)
 data Interval = Interval Int Int deriving (Eq,Generic)
 
-run :: [LStatement] -> Terminating (Error (Pow String) (M.Map Addr AbsVal))
-run stmts = fmap fst <$>
-  runFixT stackWiden widenResult
-    (runTerminatingT
-      (runErrorT
-        (runStoreT
-          (runEnvT
-            (runAbstractT
-              (Generic.run ::
-                Fix [Statement] ()
-                  (AbstractT
-                    (EnvT String Addr
-                      (StoreT Addr AbsVal
-                        (ErrorT (Pow String)
-                          (TerminatingT
-                            (FixT _ () () (->))))))) [Statement] ()))))))
-      (M.empty,(SM.empty,generate <$> stmts))
-  where
-
-    widenResult = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
-
-    stackWiden = S.filter' (L.second (L.second whileLoops))
-               $ S.groupBy (L.iso (\(store,(ev,stmt)) -> (stmt,(ev,store))) (\(stmt,(ev,store)) -> (store,(ev,stmt))))
-               $ S.stack
-               $ S.maxSize 1
-               $ S.reuseFirst
-               $ S.fromWidening (SM.widening W.finite W.** M.widening widenVal)
-
-newtype AbstractT c x y = AbstractT { runAbstractT :: c x y }
-  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowFail e,ArrowEnv var addr env,ArrowStore addr val)
-deriving instance ArrowFix x y c => ArrowFix x y (AbstractT c)
-type instance Fix x y (AbstractT c) = AbstractT (Fix x y c)
-
-instance (Profunctor c, Arrow c) => ArrowAlloc (String, AbsVal, Label) Addr (AbstractT c) where
-  alloc = proc (_,_,l) -> returnA -< return l
-           
 instance (IsString e, ArrowChoice c, ArrowJoin c, ArrowFail e c) => IsValue AbsVal (AbstractT c) where
   numLit = arr $ \n -> NumVal (Interval n n)
 
@@ -148,7 +112,6 @@ instance (IsString e, ArrowChoice c, ArrowJoin c, ArrowFail e c) => IsValue AbsV
     NumVal _ -> fail -< "Expected a boolean expression as condition for an if"
     TopVal -> (f -< s1) <⊔> (g -< s2) <⊔> (fail -< "Expected a boolean expression as condition for an if")
 
-
 -- The ordering on abstract values defines which values are more
 -- precise than others.
 instance PreOrd AbsVal where
@@ -190,6 +153,43 @@ widenVal (BoolVal b1) (BoolVal b2) = if b1 == b2 then (W.Stable,BoolVal b1) else
 widenVal v1 v2
   | v1 == v2 = (W.Stable,v1)
   | otherwise = (W.Instable,TopVal)
+
+instance (Profunctor c, Arrow c) => ArrowAlloc (String, AbsVal, Label) Addr (AbstractT c) where
+  alloc = proc (_,_,l) -> returnA -< return l
+run :: [LStatement] -> Terminating (Error (Pow String) (M.Map Addr AbsVal))
+run stmts = fmap fst <$>
+  runFixT stackWiden widenResult
+    (runTerminatingT
+      (runErrorT
+        (runStoreT
+          (runEnvT
+            (runAbstractT
+              (Generic.run ::
+                Fix [Statement] ()
+                  (AbstractT
+                    (EnvT String Addr
+                      (StoreT Addr AbsVal
+                        (ErrorT (Pow String)
+                          (TerminatingT
+                            (FixT _ () () (->))))))) [Statement] ()))))))
+      (M.empty,(SM.empty,generate <$> stmts))
+  where
+
+    widenResult = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
+
+    stackWiden = S.filter' (L.second (L.second whileLoops))
+               $ S.groupBy (L.iso (\(store,(ev,stmt)) -> (stmt,(ev,store))) (\(stmt,(ev,store)) -> (store,(ev,stmt))))
+               $ S.stack
+               $ S.maxSize 1
+               $ S.reuseFirst
+               $ S.fromWidening (SM.widening W.finite W.** M.widening widenVal)
+
+newtype AbstractT c x y = AbstractT { runAbstractT :: c x y }
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowFail e,ArrowEnv var addr env,ArrowStore addr val)
+deriving instance ArrowFix x y c => ArrowFix x y (AbstractT c)
+type instance Fix x y (AbstractT c) = AbstractT (Fix x y c)
+           
+
 
 
 instance Hashable AbsVal

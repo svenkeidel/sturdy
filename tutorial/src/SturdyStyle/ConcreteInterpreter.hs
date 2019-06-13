@@ -34,28 +34,6 @@ import           Syntax
 type Addr = Label
 data Val = BoolVal Bool | NumVal Int
 
-run :: [LStatement] -> Error String (HashMap Addr Val)
-run stmts = fst <$>
-  runFailureT
-    (runStoreT
-      (runEnvT
-        (runConcreteT
-          (Generic.run ::
-            ConcreteT
-              (EnvT String Addr
-                (StoreT Addr Val
-                  (FailureT String
-                   (->)))) [Statement] ()))))
-      (M.empty,(M.empty,generate <$> stmts))
-
-newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
-  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var addr env,ArrowStore addr val)
-deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
-type instance Fix x y (ConcreteT c) = ConcreteT (Fix x y c)
-
-instance (Profunctor c, Arrow c) => ArrowAlloc (String, Val, Label) Label (ConcreteT c) where
-  alloc = proc (_,_,l) -> returnA -< l
-           
 instance (ArrowChoice c, ArrowFail String c) => IsValue Val (ConcreteT c) where
   numLit = proc n -> returnA -< NumVal n
   add = proc (v1,v2) -> case (v1,v2) of
@@ -76,3 +54,26 @@ instance (ArrowChoice c, ArrowFail String c) => IsValue Val (ConcreteT c) where
     BoolVal True -> f -< x
     BoolVal False -> g -< y
     _ -> fail -< "Expected a boolean expression as condition for an if"
+
+instance (Profunctor c, Arrow c) => ArrowAlloc (String, Val, Label) Label (ConcreteT c) where
+  alloc = proc (_,_,l) -> returnA -< l
+
+run :: [LStatement] -> Error String (HashMap Addr Val)
+run stmts = fst <$>
+  runFailureT
+    (runStoreT
+      (runEnvT
+        (runConcreteT
+          (Generic.run ::
+            ConcreteT
+              (EnvT String Addr
+                (StoreT Addr Val
+                  (FailureT String
+                   (->)))) [Statement] ()))))
+      (M.empty,(M.empty,generate <$> stmts))
+
+newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var addr env,ArrowStore addr val)
+deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
+type instance Fix x y (ConcreteT c) = ConcreteT (Fix x y c)
+
