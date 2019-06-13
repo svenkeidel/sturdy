@@ -66,7 +66,7 @@ instance Functor Maybe where
   fmap f m = case m of
     Just a -> Just (f a)
     Nothing -> Nothing
-    JustNothing a -> Just (f a)
+    JustNothing a -> JustNothing (f a)
 
 instance Applicative Maybe where
   pure = return
