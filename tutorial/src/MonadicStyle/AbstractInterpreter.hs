@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE StandaloneDeriving #-}
-module IntervalAnalysis where
+module MonadicStyle.AbstractInterpreter where
 
 import Prelude hiding (True,False)
 import qualified Prelude as P
@@ -22,23 +22,23 @@ eval :: Expr -> M Val
 newtype M a = M {runM :: Store -> Either String (Store,a)}
 
 eval e = case e of
-  Var x -> do
+  Var x _ -> do
     st <- get
     case Store.lookup x st of
       Just v -> return v
       Nothing -> throw "Variable not in scope"
-  NumLit n -> return (NumVal (Interval n n))
-  Add e1 e2 -> do
+  NumLit n _ -> return (NumVal (Interval n n))
+  Add e1 e2 _ -> do
     v1 <- eval e1
     v2 <- eval e2
     case (v1,v2) of
       (NumVal (Interval i1 j1), NumVal (Interval i2 j2)) ->
         return (NumVal (Interval (i1 + i2) (j1 + j2)))
       (_,_) -> throw "Expected two numbers as arguments for +"
-  BoolLit b -> case b of
+  BoolLit b _ -> case b of
     P.True -> return (BoolVal True)
     P.False -> return (BoolVal False)
-  And e1 e2 -> do
+  And e1 e2 _ -> do
     v1 <- eval e1
     v2 <- eval e2
     case (v1,v2) of
@@ -47,12 +47,11 @@ eval e = case e of
         (_,False) -> False
         (True,_) -> b2
         (_,True) -> b1
-        (TopBool,_) -> TopBool
-        (_,TopBool) -> TopBool
+        (_,_) -> TopBool
       (TopVal, _) -> return TopVal
       (_,TopVal) -> return TopVal
       (_,_) -> throw "Expected two booleans as arguments for &&"
-  Lt e1 e2 -> do
+  Lt e1 e2 _ -> do
     v1 <- eval e1
     v2 <- eval e2
     case (v1,v2) of
@@ -76,12 +75,12 @@ throw er = M (\_ -> Left er)
 -- run :: Store -> [Statement] -> Either String Store
 run :: [Statement] -> M ()
 run stmts = case stmts of
-  (Assign x e : rest) -> do
+  (Assign x e _ : rest) -> do
     v <- eval e
     st <- get
     put (Store.insert x v st)
     run rest
-  (If cond ifBranch elseBranch : rest) -> do
+  (If cond ifBranch elseBranch _ : rest) -> do
     v <- eval cond
     case v of
       BoolVal True -> run ifBranch
@@ -90,8 +89,8 @@ run stmts = case stmts of
       TopVal -> top
       NumVal _ -> throw "Expected a boolean expression as condition for an if"
     run rest
-  (While cond body : rest) ->
-    run (If cond (body ++ [While cond body]) [] : rest)
+  (While cond body l : rest) ->
+    run (If cond (body ++ [While cond body l]) [] l : rest)
   [] ->
     return ()
 
