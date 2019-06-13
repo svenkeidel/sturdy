@@ -471,6 +471,9 @@ arbitraryTermPattern h w var
 class TermVars s where
   termVars :: (IsList (f TermVar), Item (f TermVar) ~ TermVar, Monoid (f TermVar)) => s -> f TermVar
 
+instance TermVars Module where
+  termVars (Module _ strats) = termVars strats
+
 instance (TermVars x,TermVars y) => TermVars (HashMap x y) where
   termVars = termVars . M.toList
 
