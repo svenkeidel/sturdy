@@ -368,21 +368,21 @@ spec = do
           seval'' 1 1 (Build (Cons "Num" [NumberLiteral 1])) senv tenv (term "BExp") `shouldBe`
              success (tenv, term "Exp")
 
-      it "trans_bottomup: BExp -> Exp" $ \balg ->
+      it "trans_bottomup: BExp -> NExp" $ \balg ->
         let ?ctx = signature balg in
         let senv = stratEnv balg
             tenv = delete balg $ emptyEnv
         in do
           seval'' 0 0 (Call "trans__bottomup_0_0" [] []) senv tenv (term "BExp") `shouldBe`
-            successOrFail () (tenv, term "Exp")
+            successOrFail () (tenv, term "NExp")
 
-      it "trans_topdown: BExp -> Exp" $ \balg ->
+      it "trans_topdown: BExp -> NExp" $ \balg ->
         let ?ctx = signature balg in
         let senv = stratEnv balg
-            tenv = delete balg $ emptyEnv
+            tenv = emptyEnv
         in do
-          seval'' 1 1 (Call "trans__topdown_0_0" [] []) senv tenv (term "BExp") `shouldBe`
-            successOrFail () (tenv, term "Exp")
+          seval'' 5 0 (Call "trans__topdown_0_0" [] []) senv tenv (term "BExp") `shouldBe`
+            successOrFail () (tenv, term "NExp")
 
   describe "PCF" $
     beforeAll CaseStudy.pcf $ do

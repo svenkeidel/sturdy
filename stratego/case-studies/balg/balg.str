@@ -2,9 +2,10 @@ module balg
 
 signature
   constructors
-    Num : Int -> Exp
-    Max : Exp * Exp -> Exp
-    Min : Exp * Exp -> Exp
+    Zero : NExp
+    One : NExp
+    Max : NExp * NExp -> NExp
+    Min : NExp * NExp -> NExp
 
     True  : BExp
     False : BExp
@@ -19,8 +20,8 @@ signature
          : a * b * c -> (a, b, c)
 
 strategies
-  trans: True()     -> Num(1)
-  trans: False()    -> Num(0)
+  trans: True()     -> One()
+  trans: False()    -> Zero()
   trans: And(e1,e2) -> Min(e1,e2)
   trans: Or(e1,e2)  -> Max(e1,e2)
 
