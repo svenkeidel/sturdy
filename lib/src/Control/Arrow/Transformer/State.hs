@@ -129,7 +129,7 @@ instance (ArrowJoin c, Complete s) => ArrowJoin (StateT s c) where
     lift $ joinWith (\(s1,z1) (s2,z2) -> (s1⊔s2,lub z1 z2)) (unlift f) (unlift g)
 
 instance ArrowConst x c => ArrowConst x (StateT s c) where
-  askConst = lift' askConst
+  askConst f = lift (askConst (unlift . f))
 
 instance ArrowAlloc x y c => ArrowAlloc x y (StateT s c) where
   alloc = lift' alloc

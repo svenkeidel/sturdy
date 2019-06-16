@@ -117,7 +117,7 @@ instance ArrowJoin c => ArrowJoin (ReaderT r c) where
   joinWith lub f g = lift $ joinWith lub (unlift f) (unlift g)
 
 instance ArrowConst x c => ArrowConst x (ReaderT r c) where
-  askConst = lift' askConst
+  askConst f = lift (askConst (unlift . f))
 
 instance ArrowCond v c => ArrowCond v (ReaderT r c) where
   type instance Join (ReaderT r c) (x,y) z = Cond.Join c (Dom (ReaderT r) x z,Dom (ReaderT r) y z) (Cod (ReaderT r) (x,y) z)

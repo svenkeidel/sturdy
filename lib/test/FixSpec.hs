@@ -28,6 +28,8 @@ import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.StackWidening (StackWidening)
 import qualified Data.Abstract.StackWidening as SW
+import           Data.Abstract.Cache (Cache)
+import qualified Data.Abstract.Cache as C
 
 import           Data.Order
 import           Data.Hashable
@@ -41,7 +43,7 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Arr s x y  = Fix x y (TerminatingT (FixT s () () (->))) x y
+type Arr s x y  = Fix x y (TerminatingT (FixT s Cache () () (->))) x y
 type IV = Interval (InfiniteNumber Int)
 
 spec :: Spec
@@ -152,7 +154,7 @@ spec = do
 
   where
     run :: (Identifiable a, Complete b, Monoid (s a), ?stackWiden :: StackWidening s a, ?widen :: Widening b) => Arr s a b -> a -> Terminating b
-    run f a = runFixT ?stackWiden (T.widening ?widen) (runTerminatingT f) a
+    run f a = runFixT ?stackWiden C.stabilized (T.widening ?widen) (runTerminatingT f) a
 
     ifLowerThan :: (Num n, Ord n, ArrowChoice c, Profunctor c, Complete (c (Interval n, Interval n) x)) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
     ifLowerThan l f g = proc x -> case x of

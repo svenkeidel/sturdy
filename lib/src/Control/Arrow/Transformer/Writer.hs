@@ -11,6 +11,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Alloc
+import Control.Arrow.Const
 import Control.Arrow.Random
 import Control.Arrow.Conditional as Cond
 import Control.Arrow.State
@@ -119,6 +120,9 @@ instance (Monoid w, ArrowCond v c) => ArrowCond v (WriterT w c) where
 
 instance (Monoid w, ArrowRand v c) => ArrowRand v (WriterT w c) where
   random = lift' random
+
+instance (Monoid w, ArrowConst x c) => ArrowConst x (WriterT w c) where
+  askConst f = lift (askConst (unlift . f))
 
 deriving instance PreOrd (c x (w,y)) => PreOrd (WriterT w c x y)
 deriving instance LowerBounded (c x (w,y)) => LowerBounded (WriterT w c x y)
