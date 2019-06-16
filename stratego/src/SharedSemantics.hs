@@ -126,8 +126,6 @@ scope vars s = proc t -> do
       putTermEnv <<< restoreEnv vars -< (oldEnv, newEnv)
     )
     -< (t, oldEnv)
-       
-
 
   where restoreEnv []     = proc (_, env) -> returnA -< env
         restoreEnv (v:vs) = proc (oldEnv, env) -> do
@@ -188,7 +186,7 @@ match = proc (p,t) -> case p of
   S.Var "_" ->
     returnA -< t
   S.Var x -> do
-    -- Stratego implements linear pattern matching, i.e., if a
+    -- Stratego implements non-linear pattern matching, i.e., if a
     -- variable appears multiple times in a term pattern, the terms at
     -- these positions are compared for equality.
     env <- getTermEnv -< ()
