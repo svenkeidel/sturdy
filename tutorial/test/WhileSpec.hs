@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module WhileSpec where
 
-import           ArrowStyle
+import           SturdyStyle.ConcreteInterpreter
 import           Syntax
 
-import qualified Data.Map as Store
+import           Data.Concrete.Error
+import qualified Data.HashMap.Lazy as M
 
 import           Test.Hspec
 
@@ -21,5 +22,5 @@ spec =
                     Assign "x" (Add (Var "x") (NumLit 1))
                   ]
                 ]
-    run' stmts Store.empty `shouldBe`
-      Right (Store.fromList [("x", NumVal 10), ("y", NumVal 36)])
+    run stmts `shouldBe`
+      Success (M.fromList [("x", NumVal 10), ("y", NumVal 36)])
