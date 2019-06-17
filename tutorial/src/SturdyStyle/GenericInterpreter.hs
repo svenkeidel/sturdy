@@ -2,6 +2,17 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+-- | To show that an abstract interpreter produces correct results, we
+-- have to prove that it soundly approximates the concrete interpreter.
+-- However, with the previous styles, it is not explicit which parts
+-- of the abstract interpreter we should relate to the concrete
+-- interpreter. In contrast, this file contains a /generic interpreter/,
+-- which makes it explicit which parts of the abstract and concrete
+-- interpreter are related. It is parameterized by an interface, which
+-- abstracts over the effects and values of the language. We implement
+-- this interface with different types to instantiate the generic
+-- interpreter for the concrete and abstract language semantics.
+-- types.
 module SturdyStyle.GenericInterpreter where
 
 import           Prelude hiding (lookup,and,fail)
@@ -21,26 +32,21 @@ import           Syntax
 import           GHC.Exts
 
 -- | This interface abstracts over the values of the language.
--- The concrete and abstract interpreter implement this interface with
--- different types.
 class Arrow c => IsValue v c | c -> v where
   numLit :: c Int v
   boolLit :: c Bool v
   add :: c (v,v) v
   and :: c (v,v) v
   lt :: c (v,v) v
-  if_ :: c [Statement] () -> c [Statement] () -> c (v,[Statement],[Statement]) ()
+  if_ :: c x () -> c y () -> c (v,x,y) ()
 
 
+-- | The generic interpreter uses other language-independent
+-- interfaces for environments, stores, failure and fixpoints from the
+-- Sturdy standard library. These `Join` constraints are needed to
+-- allow the abstract interpreter to join two arrow computations.
 eval :: ( Show addr, IsString e, IsValue v c, ArrowChoice c,
-
-          -- The generic interpreter uses other language-independent
-          -- interfaces for environments, stores, failure and
-          -- fixpoints from the Sturdy standard library.
           ArrowEnv String addr env c, ArrowStore addr v c, ArrowFail e c,
-
-          -- These @Join@ constraints are needed to allow the abstract
-          -- interpreter to join two arrow computations.
           Env.Join c ((addr, String),String) v, Store.Join c ((v, addr),addr) v
         ) => c Expr v
 eval = proc e -> case e of

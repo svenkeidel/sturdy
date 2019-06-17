@@ -21,12 +21,3 @@ library:
     - src
 
   ghc-options: -Wall
-
-tests:
-  spec:
-    main: Spec.hs
-    source-dirs:
-      - test
-    dependencies:
-      - hspec
-      - sturdy-tutorial

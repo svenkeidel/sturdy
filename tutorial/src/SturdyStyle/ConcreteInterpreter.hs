@@ -6,6 +6,10 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+-- | This file instantiates the generic interpreter with concrete
+-- values to implement the concrete interpreter.  All we have to do is
+-- to implement the `IsValue` interface, everything else is provided
+-- by the sturdy standard library.
 module SturdyStyle.ConcreteInterpreter where
 
 import           Prelude hiding (lookup,and,fail)
@@ -31,8 +35,8 @@ import           SturdyStyle.GenericInterpreter(IsValue(..))
 import qualified SturdyStyle.GenericInterpreter as Generic
 import           Syntax
 
-type Addr = Label
 data Val = BoolVal Bool | NumVal Int
+type Addr = Label
 
 instance (ArrowChoice c, ArrowFail String c) => IsValue Val (ConcreteT c) where
   numLit = proc n -> returnA -< NumVal n

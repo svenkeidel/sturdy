@@ -9,6 +9,11 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
+-- | This file instantiates the generic interpreter with abstract
+-- values to implement the abstract interpreter.  All we have to do is
+-- to implement the `IsValue` interface, everything else is provided
+-- by the sturdy standard library.
 module SturdyStyle.AbstractInterpreter where
 
 import           Prelude hiding (Bool(..),lookup,and,fail)
@@ -51,7 +56,6 @@ import           GHC.Generics
 import           SturdyStyle.GenericInterpreter(IsValue(..))
 import qualified SturdyStyle.GenericInterpreter as Generic
 import           Syntax
-
 
 type Addr = FreeCompletion Label
 data AbsVal = BoolVal AbsBool | NumVal Interval | TopVal deriving (Eq,Generic)
@@ -112,6 +116,40 @@ instance (IsString e, ArrowChoice c, ArrowJoin c, ArrowFail e c) => IsValue AbsV
     NumVal _ -> fail -< "Expected a boolean expression as condition for an if"
     TopVal -> (f -< s1) <⊔> (g -< s2) <⊔> (fail -< "Expected a boolean expression as condition for an if")
 
+instance (Profunctor c, Arrow c) => ArrowAlloc (String, AbsVal, Label) Addr (AbstractT c) where
+  alloc = proc (_,_,l) -> returnA -< return l
+
+
+run :: [LStatement] -> Terminating (Error (Pow String) (M.Map Addr AbsVal))
+run stmts = fmap fst <$>
+  runFixT stackWiden widenResult
+    (runTerminatingT
+      (runErrorT
+        (runStoreT
+          (runEnvT
+            (runAbstractT
+              (Generic.run ::
+                Fix [Statement] ()
+                  (AbstractT
+                    (EnvT String Addr
+                      (StoreT Addr AbsVal
+                        (ErrorT (Pow String)
+                          (TerminatingT
+                            (FixT _ () () (->))))))) [Statement] ()))))))
+      (M.empty,(SM.empty,generate <$> stmts))
+  where
+
+    widenResult = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
+
+    stackWiden = S.filter' (L.second (L.second whileLoops))
+               $ S.groupBy (L.iso (\(store,(ev,stmt)) -> (stmt,(ev,store))) (\(stmt,(ev,store)) -> (store,(ev,stmt))))
+               $ S.stack
+               $ S.maxSize 1
+               $ S.reuseFirst
+               $ S.fromWidening (SM.widening W.finite W.** M.widening widenVal)
+
+
+-- Orderings ------------------------------------------------------------
 -- The ordering on abstract values defines which values are more
 -- precise than others.
 instance PreOrd AbsVal where
@@ -154,36 +192,8 @@ widenVal v1 v2
   | v1 == v2 = (W.Stable,v1)
   | otherwise = (W.Instable,TopVal)
 
-instance (Profunctor c, Arrow c) => ArrowAlloc (String, AbsVal, Label) Addr (AbstractT c) where
-  alloc = proc (_,_,l) -> returnA -< return l
-run :: [LStatement] -> Terminating (Error (Pow String) (M.Map Addr AbsVal))
-run stmts = fmap fst <$>
-  runFixT stackWiden widenResult
-    (runTerminatingT
-      (runErrorT
-        (runStoreT
-          (runEnvT
-            (runAbstractT
-              (Generic.run ::
-                Fix [Statement] ()
-                  (AbstractT
-                    (EnvT String Addr
-                      (StoreT Addr AbsVal
-                        (ErrorT (Pow String)
-                          (TerminatingT
-                            (FixT _ () () (->))))))) [Statement] ()))))))
-      (M.empty,(SM.empty,generate <$> stmts))
-  where
 
-    widenResult = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
-
-    stackWiden = S.filter' (L.second (L.second whileLoops))
-               $ S.groupBy (L.iso (\(store,(ev,stmt)) -> (stmt,(ev,store))) (\(stmt,(ev,store)) -> (store,(ev,stmt))))
-               $ S.stack
-               $ S.maxSize 1
-               $ S.reuseFirst
-               $ S.fromWidening (SM.widening W.finite W.** M.widening widenVal)
-
+-- Arrow Instances ------------------------------------------------------
 newtype AbstractT c x y = AbstractT { runAbstractT :: c x y }
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowFail e,ArrowEnv var addr env,ArrowStore addr val)
 deriving instance ArrowFix x y c => ArrowFix x y (AbstractT c)

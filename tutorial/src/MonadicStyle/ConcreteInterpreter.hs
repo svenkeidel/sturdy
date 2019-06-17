@@ -1,27 +1,35 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE StandaloneDeriving #-}
+-- | This is an interpreter in monadic-style. The effects of the
+-- programming language such as store passing and error propagation
+-- are handled implicitly by the monad `M`.
 module MonadicStyle.ConcreteInterpreter where
+
+import           Prelude hiding (lookup)
 
 import           Control.Monad
 
 import           Data.Map (Map)
-import qualified Data.Map as Store
+import qualified Data.Map as M
+import           Data.Label
 
 import           Syntax
 
 data Val = BoolVal Bool | NumVal Int deriving (Show,Eq)
-type Store = Map String Val
+type Addr = Label
+type Env = Map String Addr
+type Store = Map Addr Val
 
-newtype M a = M {runM :: Store -> Either String (Store,a)}
+newtype M a = M {runM :: Env -> Store -> Either String (Store,a)}
 
 -- eval :: Store -> Expr -> Either String Val
 eval :: Expr -> M Val
 eval e = case e of
   Var x _ -> do
+    env <- ask
     st <- get
-    case Store.lookup x st of
-      Just v -> return v
-      Nothing -> throw "Variable not in scope"
+    addr <- lookup x env
+    lookup addr st
   NumLit n _ -> return (NumVal n)
   Add e1 e2 _ -> do
     v1 <- eval e1
@@ -43,23 +51,16 @@ eval e = case e of
       (NumVal n1, NumVal n2) -> return (BoolVal (n1 < n2))
       (_,_) -> throw "Expected two numbers as arguments for +"
 
-get :: M Store
-get = M (\st -> Right (st,st))
-
-put :: Store -> M ()
-put st = M (\_ -> Right (st,()))
-
-throw :: String -> M a
-throw er = M (\_ -> Left er)
-
--- run :: Store -> [Statement] -> Either String Store
+-- run :: Env -> Store -> [Statement] -> Either String Store
 run :: [Statement] -> M ()
 run stmts = case stmts of
-  (Assign x e _ : rest) -> do
+  (Assign x e l : rest) -> do
     v <- eval e
-    st <- get
-    put (Store.insert x v st)
-    run rest
+    env <- ask
+    store <- get
+    let addr = l
+    put (M.insert addr v store)
+    local (run rest) (M.insert x addr env)
   (If cond ifBranch elseBranch _ : rest) -> do
     v <- eval cond
     case v of
@@ -72,8 +73,29 @@ run stmts = case stmts of
   [] ->
     return ()
 
-deriving instance Functor M
+-- Monadic helper functions ---------------------------------------------
+lookup :: Ord a => a -> Map a b -> M b
+lookup a m = case M.lookup a m of
+  Just b -> return b
+  Nothing -> throw "Variable not in scope"
 
+ask :: M Env
+ask = M (\env st -> Right (st,env))
+
+local :: M a -> Env -> M a
+local (M f) env = M (\_ st -> f env st)
+
+get :: M Store
+get = M (\_ st -> Right (st,st))
+
+put :: Store -> M ()
+put st = M (\_ _ -> Right (st,()))
+
+throw :: String -> M a
+throw er = M (\_ _ -> Left er)
+
+-- Monad Instances ------------------------------------------------------
+deriving instance Functor M
 
 -- do
 --  v1 <- eval e1
@@ -84,11 +106,11 @@ deriving instance Functor M
 
 -- (>>=) :: M a -> (a -> M b) -> M b
 instance Monad M where
-  return a = M (\st -> Right (st,a))
-  M m >>= k = M $ \st ->
-    case m st of
+  return a = M (\_ st -> Right (st,a))
+  M m >>= k = M $ \env st ->
+    case m env st of
       Left er -> Left er
-      Right (st',x) -> runM (k x) st'
+      Right (st',x) -> runM (k x) env st'
 
 instance Applicative M where
   pure = return

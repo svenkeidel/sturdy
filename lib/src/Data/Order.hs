@@ -29,7 +29,7 @@ class PreOrd x where
 -- | Order with all least upper bounds
 class PreOrd x => Complete x where
   (⊔) :: x -> x -> x
-  infix 5 ⊔
+  infixr 5 ⊔
 
 -- | Order with a least element
 class PreOrd x => LowerBounded x where
