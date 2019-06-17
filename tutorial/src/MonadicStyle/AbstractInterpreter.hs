@@ -16,7 +16,8 @@ import           Data.Order
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Label
-import           Data.Abstract.DiscretePowerset
+import           Data.Maybe
+import           Data.Abstract.DiscretePowerset(Pow)
 
 import           GHC.Exts
 
@@ -80,7 +81,7 @@ run stmts = case stmts of
     v <- eval e
     env <- ask
     st <- get
-    let addr = l
+    let addr = fromMaybe l (M.lookup x env)
     put (M.insert addr v st)
     local (run rest) (M.insert x addr env)
   (If cond ifBranch elseBranch _ : rest) -> do

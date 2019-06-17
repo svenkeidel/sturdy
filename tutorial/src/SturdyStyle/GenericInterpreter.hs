@@ -28,7 +28,7 @@ import           Control.Arrow.Alloc
 
 import           Data.Label
 
-import           Syntax
+import           Syntax (Expr(..),Statement(..))
 import           GHC.Exts
 
 -- | This interface abstracts over the values of the language.
@@ -66,7 +66,7 @@ eval = proc e -> case e of
     v2 <- eval -< e2
     lt -< (v1,v2)
 
-run :: (Show addr, IsString e, IsValue v c, ArrowChoice c,
+run :: (Show addr, Show env, Show v, IsString e, IsValue v c, ArrowChoice c,
         ArrowEnv String addr env c, ArrowStore addr v c, ArrowAlloc (String,v,Label) addr c,
         ArrowFail e c, ArrowFix [Statement] () c,
         Env.Join c ((addr, String),String) v, Env.Join c ((addr, (String,v,Label)), (String,v,Label)) addr,
@@ -74,7 +74,7 @@ run :: (Show addr, IsString e, IsValue v c, ArrowChoice c,
 run = fix $ \run' -> proc stmts -> case stmts of
   (Assign x e l : rest) -> do
     v <- eval -< e
-    addr <- lookup (proc (a,_) -> returnA -< a) alloc -< (x,(x,v,l))
+    addr <- lookup (proc (a,_) -> returnA -< a) (proc l -> alloc -< l) -< (x,(x,v,l))
     write -< (addr,v)
     extendEnv' run' -< (x,addr,rest)
   (If cond ifBranch elseBranch _ : rest) -> do

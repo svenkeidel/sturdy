@@ -9,6 +9,7 @@ module DirectStyle.ConcreteInterpreter where
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Label
+import           Data.Maybe
 
 import           Syntax
 
@@ -51,7 +52,8 @@ run :: Env -> Store -> [Statement] -> Either String Store
 run env store stmts = case stmts of
   (Assign x e l : rest) ->
     case eval env store e of
-      Right v -> let addr = l in run (M.insert x addr env) (M.insert addr v store) rest
+      Right v -> let addr = fromMaybe l (M.lookup x env)
+                 in run (M.insert x addr env) (M.insert addr v store) rest
       Left er -> Left er
   (If cond ifBranch elseBranch _ : rest) ->
     case eval env store cond of

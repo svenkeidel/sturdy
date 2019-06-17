@@ -58,9 +58,9 @@ import qualified SturdyStyle.GenericInterpreter as Generic
 import           Syntax
 
 type Addr = FreeCompletion Label
-data AbsVal = BoolVal AbsBool | NumVal Interval | TopVal deriving (Eq,Generic)
-data AbsBool = True | False | TopBool deriving (Eq,Generic)
-data Interval = Interval Int Int deriving (Eq,Generic)
+data AbsVal = BoolVal AbsBool | NumVal Interval | TopVal deriving (Show, Eq,Generic)
+data AbsBool = True | False | TopBool deriving (Show,Eq,Generic)
+data Interval = Interval Int Int deriving (Show,Eq,Generic)
 
 instance (IsString e, ArrowChoice c, ArrowJoin c, ArrowFail e c) => IsValue AbsVal (AbstractT c) where
   numLit = arr $ \n -> NumVal (Interval n n)
@@ -136,7 +136,7 @@ run stmts = fmap fst <$>
                         (ErrorT (Pow String)
                           (TerminatingT
                             (FixT _ () () (->))))))) [Statement] ()))))))
-      (M.empty,(SM.empty,generate <$> stmts))
+      (M.empty,(SM.empty,generate (sequence stmts)))
   where
 
     widenResult = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)

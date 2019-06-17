@@ -35,7 +35,7 @@ import           SturdyStyle.GenericInterpreter(IsValue(..))
 import qualified SturdyStyle.GenericInterpreter as Generic
 import           Syntax
 
-data Val = BoolVal Bool | NumVal Int
+data Val = BoolVal Bool | NumVal Int deriving (Eq,Show)
 type Addr = Label
 
 instance (ArrowChoice c, ArrowFail String c) => IsValue Val (ConcreteT c) where
@@ -74,7 +74,7 @@ run stmts = fst <$>
                 (StoreT Addr Val
                   (FailureT String
                    (->)))) [Statement] ()))))
-      (M.empty,(M.empty,generate <$> stmts))
+      (M.empty,(M.empty,generate (sequence stmts)))
 
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var addr env,ArrowStore addr val)

@@ -9,6 +9,7 @@ import           Control.Arrow
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Label
+import           Data.Maybe
 
 import           Syntax
 
@@ -55,7 +56,7 @@ run = proc stmts -> case stmts of
     v <- eval -< e
     env <- ask -< ()
     store <- get -< ()
-    let addr = l
+    let addr = fromMaybe l (M.lookup x env)
     put -< (M.insert addr v store)
     local run -< (rest,M.insert x addr env)
   (If cond ifBranch elseBranch _ : rest) -> do

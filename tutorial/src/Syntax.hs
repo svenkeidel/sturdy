@@ -22,7 +22,36 @@ data Statement
   | While Expr [Statement] Label          -- while(x < 10) {x:=1}
   deriving (Show,Eq,Generic)
 
------------- Instances --------------
+
+-- Helper functions to generate labled expressions and statements -------
+var :: String -> LExpr
+var x = Var x <$> fresh
+
+boolLit :: Bool -> LExpr
+boolLit b = BoolLit b <$> fresh
+
+and :: LExpr -> LExpr -> LExpr
+and e1 e2 = And <$> e1 <*> e2 <*> fresh
+
+numLit :: Int -> LExpr
+numLit n = NumLit n <$> fresh
+
+add :: LExpr -> LExpr -> LExpr
+add e1 e2 = Add <$> e1 <*> e2 <*> fresh
+
+lt :: LExpr -> LExpr -> LExpr
+lt e1 e2 = Lt <$> e1 <*> e2 <*> fresh
+
+assign :: String -> LExpr -> LStatement
+assign x e = Assign x <$> e <*> fresh
+
+if' :: LExpr -> [LStatement] -> [LStatement] -> LStatement
+if' e s1 s2 = If <$> e <*> sequence s1 <*> sequence s2 <*> fresh
+
+while :: LExpr -> [LStatement] -> LStatement
+while e body = While <$> e <*> sequence body <*> fresh
+
+-- Instances ------------------------------------------------------------
 
 type LExpr = State Label Expr
 instance HasLabel Expr Label where
