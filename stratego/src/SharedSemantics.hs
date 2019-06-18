@@ -60,9 +60,9 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
       case M.lookup f senv of
         Just (Closure strat@(Strategy _ params _) senv') -> do
           let senv'' = if M.null senv' then senv else senv'
-          args <- mapA lookupTermVarOrFail -<< ts
+          args <- mapA lookupTermVarOrFail -< ts
           scope params (invoke ev) -<< (strat, senv'', ss, args, t)
-        Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
+        Nothing -> failString -< printf "strategy %s not in scope" (show f)
     Prim {} -> undefined
     Apply body -> ev body
   -- where
