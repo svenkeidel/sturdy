@@ -17,6 +17,7 @@ import           Prelude hiding ((.),id,all,sequence,curry, uncurry,fail)
 import           Syntax hiding (Fail,TermPattern(..))
 
 import           Control.Arrow hiding ((<+>))
+import           Control.Arrow.Fail
 import           Control.Arrow.Trans
 import           Control.Arrow.Utils
 import           Control.Arrow.Transformer.Const
@@ -26,6 +27,7 @@ import           Control.Arrow.Transformer.Reader
 import           Data.Profunctor
 
 import           GHC.Exts(Constraint)
+import           GHC.Exts(IsString(..))
 
 
 -- | Arrow-based interface for term environments. Because of the
@@ -58,6 +60,11 @@ lookupTermVar' :: (IsTermEnv env t c, Join c ((t,e),e) x) => c (t,e) x -> c e x 
 lookupTermVar' f g = proc (v,exc) -> do
   env <- getTermEnv -< ()
   lookupTermVar f g -< (v,env,exc)
+
+lookupTermVarOrFail :: (IsTermEnv env t c, ArrowFail e c, IsString e, Join c ((t,e),e) t) => c TermVar t
+lookupTermVarOrFail = proc v -> do
+  env <- getTermEnv -< ()
+  lookupTermVar (fst ^>> returnA) fail -< (v, env, fromString $ "Unbound variable " ++ show v)
 
 insertTerm' :: IsTermEnv env t c => c (TermVar,t) ()
 insertTerm' = proc (v,t) -> do

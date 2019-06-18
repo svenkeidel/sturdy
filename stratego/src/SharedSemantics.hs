@@ -35,15 +35,13 @@ import           Data.Identifiable
 import           Text.Printf
 import           GHC.Exts(IsString(..))
 
-import qualified Debug.Trace as Debug
-
 -- | Shared interpreter for Stratego
 eval' :: (ArrowChoice c, ArrowFail e c, ArrowExcept () c,
           ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Identifiable t, Show t, Show env,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c, IsString e,
           Exc.Join c (t,(t,())) t, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t]), Exc.Join c (((t, env), t), ((t, env), ())) t,
           Env.Join c ((t, env), env) env, Env.Join c ((t, ()), ()) t, Env.Join c ((t, e), e) t,
-          Exc.Join c ((((Strategy, StratEnv, t), env), t), (((Strategy, StratEnv, t), env), ())) t)
+          Exc.Join c ((((Strategy, StratEnv, [Strat], [t], t), env), t), (((Strategy, StratEnv, [Strat], [t], t), env), ())) t)
       => (Strat -> c t t)
 eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Id -> id
@@ -60,10 +58,10 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
     Call f ss ts -> proc t -> do
       senv <- readStratEnv -< ()
       case M.lookup f senv of
-        Just (Closure strat@(Strategy _ termParams _) senv') -> do
+        Just (Closure strat@(Strategy _ params _) senv') -> do
           let senv'' = if M.null senv' then senv else senv'
-          args <- mapA (proc v -> ev (S.Build (S.Var v)) -<< t) -<< ts
-          scope termParams (invoke ss args ev) -<< (strat, senv'', t)
+          args <- mapA lookupTermVarOrFail -<< ts
+          scope params (invoke ev) -<< (strat, senv'', ss, args, t)
         Nothing -> fail -< fromString $ printf "strategy %s not in scope" (show f)
     Prim {} -> undefined
     Apply body -> ev body
@@ -153,12 +151,12 @@ let_ ss body interp = proc a -> do
   localStratEnv (M.union (M.fromList ss') senv) (interp body) -<< a
 
 -- | Strategy calls bind strategy variables and term variables.
-invoke :: (Show t,Show env,ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c, Env.Join c ((t, ()), ()) t)
-     => [Strat]
-     -> [t]
-     -> (Strat -> c t t)
-     -> c (Strategy, StratEnv, t) t
-invoke actualStratArgs actualTermArgs ev = proc (Strategy formalStratArgs formalTermArgs body, senv, t) -> do
+invoke :: (
+  ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c,
+  Env.Join c ((t, ()), ()) t)
+     => (Strat -> c t t)
+     -> c (Strategy, StratEnv, [Strat], [t], t) t
+invoke ev = proc (Strategy formalStratArgs formalTermArgs body, senv, actualStratArgs, actualTermArgs, t) -> do
     tenv <- getTermEnv -< ()
     putTermEnv . bindings -< (zip formalTermArgs actualTermArgs, tenv)
     let senv' = bindStratArgs (zip formalStratArgs actualStratArgs) senv
