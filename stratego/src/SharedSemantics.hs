@@ -34,6 +34,7 @@ import           Data.Identifiable
 
 import           Text.Printf
 import           GHC.Exts(IsString(..))
+import qualified Debug.Trace as Debug
 
 -- | Shared interpreter for Stratego
 eval' :: (ArrowChoice c, ArrowFail e c, ArrowExcept () c,
