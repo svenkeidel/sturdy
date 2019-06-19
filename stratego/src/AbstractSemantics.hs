@@ -36,7 +36,7 @@ import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.DiscretePowerset as P
-import qualified Data.Abstract.WeakMap as S
+import qualified Data.Abstract.Map as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T

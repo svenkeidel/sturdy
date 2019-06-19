@@ -29,8 +29,8 @@ import           Control.Arrow.Abstract.Join
 import           Data.Order
 import qualified Data.Concrete.Powerset as C
 import           Data.Abstract.FreeCompletion as Free
-import           Data.Abstract.WeakMap (Map)
-import qualified Data.Abstract.WeakMap as S
+import           Data.Abstract.Map (Map)
+import qualified Data.Abstract.Map as S
 import qualified Data.Abstract.Maybe as A
 import qualified Data.HashMap.Lazy as LM
 import           Data.Profunctor
@@ -69,8 +69,7 @@ instance (Complete t, ArrowChoice c, ArrowJoin c, ArrowTop t (EnvironmentT t c))
   putTermEnv = EnvironmentT put
   emptyTermEnv = EnvironmentT $ lmap (\() -> S.empty) put
   lookupTermVar f g = proc (v,env,ex) -> do
-    topTerm <- topA -< ()
-    case S.lookup v topTerm env of
+    case S.lookup v env of
       A.Just t        -> f -< (t,ex)
       A.Nothing       -> g -< ex
       A.JustNothing t -> (f -< (t,ex)) <⊔> (g -< ex)

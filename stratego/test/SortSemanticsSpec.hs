@@ -22,8 +22,9 @@ import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as A
+import           Data.Abstract.There
 -- import qualified Data.Abstract.Maybe as M
-import qualified Data.Abstract.WeakMap as S
+import qualified Data.Abstract.Map as S
 -- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
 -- import qualified Data.Concrete.Powerset as C
@@ -270,7 +271,7 @@ spec = do
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
-          tenv = termEnv' [("l", atop), ("xs", atop), ("xs'", atop), ("x'", atop), ("x", atop)]
+          tenv = termEnv' []
       in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"]))) t
         `shouldBe` success (tenv, term (List Numerical))
 
@@ -522,13 +523,13 @@ spec = do
 
     -- termEnv' = S.fromThereList
     termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv Term
-    termEnv' = S.fromList'
+    -- termEnv' ts = termEnv (filter (\(_,)))
     -- termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
-    -- termEnv' = S.fromThereList . concatMap (\(v,mt) -> case mt of
-    --   A.Nothing -> []
-    --   A.Just t -> [(v,(Must, t))]
-    --   A.JustNothing t -> [(v,(May, t))]
-    --  )
+    termEnv' = S.fromThereList . concatMap (\(v,mt) -> case mt of
+      A.Nothing -> []
+      A.Just t -> [(v,(Must, t))]
+      A.JustNothing t -> [(v,(May, t))]
+     )
 
     termEnv''  :: [(TermVar, Term)] -> [TermVar] -> TermEnv Term
     termEnv'' bound notBound = foldr S.delete (S.fromList bound) notBound
@@ -572,8 +573,8 @@ spec = do
     sevalNoNeg'' i j s senv tenv t = dropNegativeBindings $ seval'' i j s senv tenv t
     
     dropNegativeBindings :: Error TypeError (Except () (TermEnv Term,a)) -> Error TypeError (Except () (TermEnv Term,a))
-    dropNegativeBindings (F.Success (E.Success (env,a))) = (F.Success (E.Success (S.dropNegativeBindings env,a)))
-    dropNegativeBindings (F.Success (E.SuccessOrFail e (env,a))) = (F.Success (E.SuccessOrFail e (S.dropNegativeBindings env,a)))
+    -- dropNegativeBindings (F.Success (E.Success (env,a))) = (F.Success (E.Success (S.dropNegativeBindings env,a)))
+    -- dropNegativeBindings (F.Success (E.SuccessOrFail e (env,a))) = (F.Success (E.SuccessOrFail e (S.dropNegativeBindings env,a)))
     dropNegativeBindings res = res
     
     term :: (?ctx :: Context) => Sort -> Term
