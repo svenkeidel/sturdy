@@ -92,5 +92,11 @@ instance Traversable Maybe where
 
 fromConcreteMaybe :: Con.Maybe a -> Maybe a
 fromConcreteMaybe m = case m of
-    Con.Just a -> Just a
-    Con.Nothing -> Nothing
+  Con.Just a -> Just a
+  Con.Nothing -> Nothing
+
+toConcreteMaybe :: Maybe a -> Con.Maybe a
+toConcreteMaybe m = case m of
+  Just a -> Con.Just a
+  JustNothing a -> Con.Just a
+  Nothing -> Con.Nothing

@@ -400,7 +400,7 @@ spec = do
         in seval'' 10 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
              successOrFail () (emptyEnv, val)
 
-  describe "Arrow desugaring in Stratego" $
+  describe "Arrow desugaring" $
     beforeAll CaseStudy.arrows $ do
       it "tuple-pat: List Var -> APat" $ \desugar ->
         let ?ctx = signature desugar in
@@ -481,7 +481,7 @@ spec = do
             val  = term "Exp"
             env = termEnv [("vars-list", term $ List "Var")]
         in do
-          pendingWith "weak term environments are too imprecise to check this example"
+          -- pendingWith "weak term environments are too imprecise to check this example"
           sevalNoNeg'' 4 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
             successOrFail () (env, val)
 

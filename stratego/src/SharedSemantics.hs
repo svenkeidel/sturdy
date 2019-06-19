@@ -43,7 +43,7 @@ eval' :: (ArrowChoice c, ArrowFail e c, ArrowExcept () c,
           Env.Join c ((t, env), env) env, Env.Join c ((t, ()), ()) t, Env.Join c ((t, e), e) t,
           Exc.Join c ((((Strategy, StratEnv, [Strat], [t], t), env), t), (((Strategy, StratEnv, [Strat], [t], t), env), ())) t)
       => (Strat -> c t t)
-eval' = fixA' $ \ev s0 -> dedup $ case s0 of
+eval' = fixA' $ \ev s0 -> trace s0 $ dedup $ case s0 of
     Id -> id
     S.Fail -> proc _ -> throw -< ()
     Seq s1 s2 -> sequence (ev s1) (ev s2)
@@ -65,12 +65,15 @@ eval' = fixA' $ \ev s0 -> dedup $ case s0 of
         Nothing -> failString -< printf "strategy %s not in scope" (show f)
     Prim {} -> undefined
     Apply body -> ev body
-  -- where
-  --   trace :: (Show t, Arrow c, IsTermEnv env t c, Show env) => Strat -> c t t -> c t t
-  --   trace s f = proc t -> do
-  --      env <- getTermEnv -< ()
-  --      t' <- f -< Debug.trace (printf "%s -< %s, %s" (show s) (show t) (show env)) () `seq` t
-  --      returnA -< Debug.trace (printf "%s <- %s -< %s, %s" (show t') (show s) (show t) (show env)) () `seq` t'
+  where
+    trace :: (Show t, Arrow c, IsTermEnv env t c, Show env) => Strat -> c t t -> c t t
+    trace s f = proc t -> do
+       env <- getTermEnv -< ()
+       () <- returnA -< Debug.trace (printf "%s: %s, %s" (show s) (show t) (show env)) ()
+       t' <- f -< t
+       env' <- getTermEnv -< ()
+       () <- returnA -< Debug.trace (printf "%s: %s, %s ---> %s, %s" (show s) (show t) (show env) (show t') (show env')) ()
+       returnA -< t'
 
 -- | Guarded choice executes the first strategy, if it succeeds the
 -- result is passed to the second strategy, if it fails the original
@@ -115,8 +118,7 @@ scope :: (Show env,IsTermEnv env t c, ArrowExcept e c, Env.Join c ((t, env), env
 scope [] s = s
 scope vars s = proc t -> do
   oldEnv <- getTermEnv -< ()
-  scopedEnv <- deleteTermVars -< (vars, oldEnv)
-  putTermEnv -< scopedEnv
+  putTermEnv <<< deleteTermVars -< (vars, oldEnv)
   finally
     (proc (t,_) -> s -< t)
     (proc (_,oldEnv) -> do
@@ -131,8 +133,7 @@ scope vars s = proc t -> do
             (proc (t, env) -> insertTerm -< (v, t, env))
             (proc env      -> deleteTermVars -< ([v], env))
               -< (v, oldEnv, env)
-          restoreEnv vs -< -- trace ("restored " ++ show (v, oldEnv, env, env'))
-            (oldEnv, env')
+          restoreEnv vs -< (oldEnv, env')
 
 
 localTermEnv :: (IsTermEnv env t c, ArrowExcept e c,  Exc.Join c (((x, env), y), ((x, env), e)) y) => c x y -> c (env,x) y

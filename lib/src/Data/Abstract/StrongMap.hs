@@ -35,6 +35,10 @@ instance (Identifiable a, Complete b) => Complete (Map a b) where
 instance (Identifiable a, PreOrd b) => UpperBounded (Map a b) where
   top = Top
 
+instance Identifiable a => Functor (Map a) where
+  fmap _ Top = Top
+  fmap f (Map m) = Map (M.map f m)
+
 widening :: Identifiable a => Widening b -> Widening (Map a b)
 widening _ Top Top = (Stable,Top)
 widening w (Map m1) (Map m2) | M.keys m1 == M.keys m2 = second Map $ sequenceA $ M.intersectionWith w m1 m2
