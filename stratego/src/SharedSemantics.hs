@@ -19,7 +19,6 @@ import           TermEnv as Env
 import           Utils
 
 import           Control.Arrow hiding ((<+>))
-import           Control.Arrow.Deduplicate
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Except
@@ -38,13 +37,13 @@ import qualified Debug.Trace as Debug
 
 -- | Shared interpreter for Stratego
 eval' :: (ArrowChoice c, ArrowFail e c, ArrowExcept () c,
-          ArrowApply c, ArrowFix (Strat,t) t c, ArrowDeduplicate t t c, Identifiable t, Show t, Show env,
+          ArrowApply c, ArrowFix (Strat,t) t c, Identifiable t, Show t, Show env,
           HasStratEnv c, IsTerm t c, IsTermEnv env t c, IsString e,
           Exc.Join c (t,(t,())) t, Exc.Join c ((t,[t]),((t,[t]),())) (t,[t]), Exc.Join c (((t, env), t), ((t, env), ())) t,
           Env.Join c ((t, env), env) env, Env.Join c ((t, ()), ()) t, Env.Join c ((t, e), e) t,
           Exc.Join c ((((Strategy, StratEnv, [Strat], [t], t), env), t), (((Strategy, StratEnv, [Strat], [t], t), env), ())) t)
       => (Strat -> c t t)
-eval' = fixA' $ \ev s0 -> trace s0 $ dedup $ case s0 of
+eval' = fixA' $ \ev s0 -> case s0 of
     Id -> id
     S.Fail -> proc _ -> throw -< ()
     Seq s1 s2 -> sequence (ev s1) (ev s2)

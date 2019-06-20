@@ -57,8 +57,8 @@ import           GHC.Exts(IsList(..),IsString(..))
 
 data Term = Sorted Sort Context | IllSorted (Constr Term) deriving (Eq)
 
-eval :: Int -> Int -> Strat -> StratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
-eval i j strat senv ctx  = runInterp (Shared.eval' strat) i (termWidening ctx j) senv ctx
+eval :: Int -> Int -> Int -> Strat -> StratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
+eval i j k strat senv ctx = runInterp (Shared.eval' strat) i (termWidening ctx j k) senv ctx
 
 -- Instances -----------------------------------------------------------------------------------------
 instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowFail e c, ArrowExcept () c,
@@ -95,7 +95,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
 
     where
       matchCons' = proc (c,ps,cs) ->
-        (| joinList (typeError -< printf "encountered empty set of constructors while matching %s" (show c)) (\(c',ts) ->
+        (| joinList (bottom -< ()) (\(c',ts) ->
             if Constructor c' == c && eqLength ps ts
             then do
               ts' <- matchSubterms -< (ps,ts)
@@ -139,28 +139,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
       returnA -< t
 
 
-  buildCons = proc (c,ts) ->
-    returnA -< illSorted [(c,ts)]
-    -- case allSorted ts of
-    -- Nothing -> returnA -< illSorted [(c,ts)]
-    -- Just ss -> do
-    --   ctx <- askConst -< ()
-    --   case c of
-    --     "Cons" -> case ss of
-    --       [a,s] ->
-    --         if Ctx.isList ctx s
-    --           then returnA -< Sorted (S.List a) ctx ⊔ Sorted s ctx
-    --           else typeMismatch -< ("List(_)",show s)
-    --       _ -> typeMismatch -< ("a * List(b)",show ss)
-    --     "Nil" -> case ss of
-    --       [] -> returnA -< Sorted (S.List S.Bottom) ctx
-    --       _ -> typeMismatch -< ("List(a)",show ss)
-    --     "" -> returnA -< Sorted (S.Tuple ss) ctx
-    --     _ -> let t = glb (Sorted S.Bottom ctx) [ Sorted s ctx | Signature ss' s <- Ctx.lookupCons ctx c, map (`Sorted` ctx) ss ⊑ sortsToTerms ss' ctx ]
-    --          in if t == Sorted S.Bottom ctx
-    --             -- In case suitable signature could be found in the context, return an ill-sorted term instead.
-    --             then returnA -< illSorted [(c,ts)]
-    --             else returnA -< t
+  buildCons = proc (c,ts) -> returnA -< illSorted [(c,ts)]
 
   buildNum = proc _ -> do
     ctx <- askConst -< ()
@@ -192,7 +171,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
     Sorted s ctx -> mapSubterms' -< lookupSort ctx s
     where
       mapSubterms' = proc l ->
-        (| joinList (typeError -< printf "encountered empty set of constructors") (\(c',ts) -> do
+        (| joinList (bottom -< ()) (\(c',ts) -> do
           ts' <- f -< ts
           buildCons -< (Constructor c',ts')
         ) |) l
@@ -212,9 +191,8 @@ instance PreOrd Term where
   Sorted s1 ctx ⊑ Sorted s2 _  = Ctx.subtype ctx s1 s2
   IllSorted cs1 ⊑ IllSorted cs2 = cs1 ⊑ cs2
   IllSorted cs ⊑ Sorted _ _ = Constr.isEmpty cs
-  Sorted s ctx ⊑ IllSorted cs
-    | Ctx.isLexical ctx s || Ctx.isNumerical ctx s = False
-    | otherwise = IllSorted (fromList (lookupSort ctx s)) ⊑ IllSorted cs
+  Sorted S.Top ctx ⊑ IllSorted _ = False
+  Sorted s ctx ⊑ IllSorted cs = IllSorted (fromList (lookupSort ctx s)) ⊑ IllSorted cs
 
 instance Complete Term where
   Sorted S.Top ctx ⊔ _ = Sorted S.Top ctx
@@ -223,9 +201,7 @@ instance Complete Term where
   t ⊔ Sorted S.Bottom _ = t
   Sorted s1 ctx ⊔ Sorted s2 _ = Sorted (Ctx.lub ctx s1 s2) ctx
   IllSorted cs1 ⊔ IllSorted cs2 = IllSorted (cs1 ⊔ cs2)
-  Sorted s1 ctx ⊔ IllSorted cs2
-    | Ctx.isLexical ctx s1 || Ctx.isNumerical ctx s1 = Sorted S.Top ctx
-    | otherwise = IllSorted (fromList (lookupSort ctx s1) ⊔ cs2)
+  Sorted s1 ctx ⊔ IllSorted cs2 = IllSorted (fromList (lookupSort ctx s1) ⊔ cs2)
   IllSorted cs1 ⊔ Sorted s2 ctx = Sorted s2 ctx ⊔ IllSorted cs1
 
 instance CoComplete Term where
@@ -235,9 +211,7 @@ instance CoComplete Term where
   _ ⊓ Sorted S.Bottom ctx = Sorted S.Bottom ctx
   Sorted s1 ctx ⊓ Sorted s2 _ = Sorted (Ctx.glb ctx s1 s2) ctx
   IllSorted cs1 ⊓ IllSorted cs2 = IllSorted (cs1 ⊓ cs2)
-  Sorted s1 ctx ⊓ IllSorted cs2
-    | Ctx.isLexical ctx s1 || Ctx.isNumerical ctx s1 = Sorted S.Bottom ctx
-    | otherwise = IllSorted (fromList (lookupSort ctx s1) ⊓ cs2)
+  Sorted s1 ctx ⊓ IllSorted cs2 = IllSorted (fromList (lookupSort ctx s1) ⊓ cs2)
   IllSorted cs1 ⊓ Sorted s2 ctx = Sorted s2 ctx ⊓ IllSorted cs1
 
 instance UpperBounded Term where
@@ -261,16 +235,18 @@ instance IsList Term where
   toList (IllSorted l) = toList l
   toList (Sorted s ctx) = lookupSort ctx s
 
--- termWidening ctx k t1 t2 = let t3 = go ctx k t1 t2
---                            in trace (printf "%s ▽ %s = %s" (show t1) (show t2) (show t3)) () `seq` t3
+instance IsString Term where
+  fromString s = Sorted (fromString s) Ctx.empty
 
-termWidening :: Context -> Int -> Widening Term
-termWidening ctx k (Sorted s1 _) (Sorted s2 _) = (`Sorted` ctx) <$> S.widening k s1 s2
-termWidening ctx k (IllSorted cs1) (IllSorted cs2)
+termWidening :: Context -> Int -> Int -> Widening Term
+termWidening ctx _ j (Sorted s1 _) (Sorted s2 _) = (`Sorted` ctx) <$> S.widening j s1 s2
+termWidening ctx k j (IllSorted cs1) (IllSorted cs2)
   | k == 0    = let s = Sorted (typecheck ctx (IllSorted (cs1 ⊔ cs2))) ctx in (if s ⊑ IllSorted (cs1 ⊔ cs2) then Stable else Instable, s)
-  | otherwise = IllSorted <$> Constr.widening (termWidening ctx (k-1)) cs1 cs2
-termWidening ctx k (Sorted s1 _) (IllSorted cs2) = termWidening ctx k (IllSorted (fromList (lookupSort ctx s1))) (IllSorted cs2)
-termWidening ctx k (IllSorted cs1) (Sorted s2 _) = termWidening ctx k (IllSorted cs1) (IllSorted (fromList (lookupSort ctx s2)))
+  | otherwise = IllSorted <$> Constr.widening (termWidening ctx (k-1) j) cs1 cs2
+termWidening ctx _ _ (Sorted S.Top _) (IllSorted _) = (Stable,Sorted S.Top ctx)
+termWidening ctx k j (Sorted s1 _) (IllSorted cs2) = termWidening ctx k j (IllSorted (fromList (lookupSort ctx s1))) (IllSorted cs2)
+termWidening ctx _ _ (IllSorted _) (Sorted S.Top _) = (Stable,Sorted S.Top ctx)
+termWidening ctx k j (IllSorted cs1) (Sorted s2 _) = termWidening ctx k j (IllSorted cs1) (IllSorted (fromList (lookupSort ctx s2)))
 
 typecheck :: Context -> Term -> Sort
 typecheck ctx t = case t of
@@ -279,14 +255,14 @@ typecheck ctx t = case t of
   where
     checkCons :: Constructor -> [Sort] -> Sort
     checkCons c ss =
-      case c of
-        "Cons" -> case ss of
-          [a,s] | Ctx.isList ctx s -> Ctx.lub ctx (S.List a) s
-          _ -> S.Top
-        "Nil" -> case ss of
-          [] -> S.List S.Bottom
-          _ -> S.Top
-        "" -> S.Tuple ss
+      case (c,ss) of
+        ("Cons",[a,s])
+          | Ctx.isList ctx s -> Ctx.lub ctx (S.List a) s
+          | otherwise -> S.Top
+        ("Nil",[]) -> S.List S.Bottom
+        ("",[S.Lexical]) -> S.Lexical
+        ("",[S.Numerical]) -> S.Numerical
+        ("",_) -> S.Tuple ss
         _ -> getSort $ glb (Sorted S.Top ctx) [ Sorted s ctx | Signature ss' s <- Ctx.lookupCons ctx c, map (`Sorted` ctx) ss ⊑ sortsToTerms ss' ctx ]
 
 typecheck' :: Context -> Term -> Term

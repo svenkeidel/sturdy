@@ -69,8 +69,8 @@ lookupSort Context {..} s0 = do
     List a -> [("Cons", Signature [a, List a] (List a)), ("Nil", Signature [] (List a))]
     Option a -> [("Some", Signature [a] (Option a)), ("None", Signature [] (Option a))]
     Tuple as -> [("", Signature as (Tuple as))]
-    Lexical -> [("", Signature [] Lexical)]
-    Numerical -> [("", Signature [] Numerical)]
+    Lexical -> [("", Signature [Lexical] Lexical)]
+    Numerical -> [("", Signature [Numerical] Numerical)]
     Sort _ -> fromMaybe [] (M.lookup s sorts)
               
 isLexical :: Context -> Sort -> Bool
