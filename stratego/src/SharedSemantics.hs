@@ -68,13 +68,14 @@ eval' = fixA' $ \ev s0 -> trace s0 $ dedup $ case s0 of
     Apply body -> ev body
   where
     trace :: (Show t, Arrow c, IsTermEnv env t c, Show env) => Strat -> c t t -> c t t
-    trace s f = proc t -> do
-       env <- getTermEnv -< ()
-       () <- returnA -< Debug.trace (printf "%s: %s, %s" (show s) (show t) (show env)) ()
-       t' <- f -< t
-       env' <- getTermEnv -< ()
-       () <- returnA -< Debug.trace (printf "%s: %s, %s ---> %s, %s" (show s) (show t) (show env) (show t') (show env')) ()
-       returnA -< t'
+    trace _ f = f
+    -- trace s f = proc t -> do
+       -- env <- getTermEnv -< ()
+       -- () <- returnA -< Debug.trace (printf "%s: %s, %s" (show s) (show t) (show env)) ()
+       -- t' <- f -< t
+       -- env' <- getTermEnv -< ()
+       -- () <- returnA -< Debug.trace (printf "%s: %s, %s ---> %s, %s" (show s) (show t) (show env) (show t') (show env')) ()
+       -- returnA -< t'
 
 -- | Guarded choice executes the first strategy, if it succeeds the
 -- result is passed to the second strategy, if it fails the original
