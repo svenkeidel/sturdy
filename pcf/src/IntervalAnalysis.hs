@@ -57,6 +57,8 @@ import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Closure (Closure)
 import qualified Data.Abstract.Closure as C
 import           Data.Abstract.DiscretePowerset (Pow)
+import           Data.Abstract.Cache (Cache)
+import qualified Data.Abstract.Cache as Cache
     
 import           GHC.Generics(Generic)
 import           GHC.Exts(IsString(..))
@@ -78,7 +80,7 @@ type Addr = (Text,CallString Label)
 -- an environment, and the input of the computation.
 evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
 evalInterval k env0 e = -- runInterp eval ?bound k env (generate e)
-  runFixT stackWiden (T.widening (E.widening W.finite widenVal))
+  runFixT stackWiden Cache.stabilized (T.widening (E.widening W.finite widenVal))
     (runTerminatingT
       (runErrorT
         (runContourT k
@@ -91,7 +93,7 @@ evalInterval k env0 e = -- runInterp eval ?bound k env (generate e)
                       (ContourT Label
                         (ErrorT (Pow String)
                           (TerminatingT
-                            (FixT _ () () (->))))))) Expr Val))))))
+                            (FixT _ Cache () () (->))))))) Expr Val))))))
     (env0,generate e)
   where
     widenVal = widening (W.bounded ?bound I.widening)

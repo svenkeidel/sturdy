@@ -41,6 +41,8 @@ import qualified Data.Abstract.Widening as W
 import qualified Data.Abstract.StackWidening as S
 import qualified Data.Abstract.Ordering as O
 import qualified Data.Abstract.Equality as E
+import           Data.Abstract.Cache (Cache)
+import qualified Data.Abstract.Cache as Cache
 
 import qualified Data.Lens as L
 import           Data.Profunctor
@@ -78,7 +80,7 @@ data Val = BoolVal Bool | NumVal IV | Top deriving (Eq,Generic)
 run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
 run k env ss =
   fmap fst <$>
-    runFixT stackWiden widenTerm
+    runFixT stackWiden Cache.stabilized widenTerm
       (runTerminatingT
         (runErrorT
            (runStoreT
@@ -91,7 +93,7 @@ run k env ss =
                          (StoreT Addr Val
                            (ErrorT (Pow String)
                              (TerminatingT
-                               (FixT _ () () (->))))))) [Statement] ()))))))
+                               (FixT _ Cache () () (->))))))) [Statement] ()))))))
       (M.empty,(SM.fromList env, generate <$> ss))
 
   where

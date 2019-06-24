@@ -26,6 +26,8 @@ import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Widening as W
+import           Data.Abstract.Cache(Cache)
+import qualified Data.Abstract.Cache as Cache
 
 import           Data.Order
 import           Data.Label
@@ -56,7 +58,7 @@ type Val = ()
 run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
 run env ss =
   fmap fst <$>
-    runFixT SW.finite W.finite
+    runFixT SW.finite Cache.stabilized W.finite
       (runTerminatingT
          (runErrorT
            (runStoreT
@@ -69,7 +71,7 @@ run env ss =
                          (StoreT Addr Val
                            (ErrorT (Pow String)
                              (TerminatingT
-                               (FixT _ () () (->))))))) [Statement] ()))))))
+                               (FixT _ Cache () () (->))))))) [Statement] ()))))))
       (M.empty,(SM.fromList env,generate <$> ss))
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }

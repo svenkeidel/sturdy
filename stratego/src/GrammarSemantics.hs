@@ -68,6 +68,8 @@ import           Data.Abstract.Widening as W
 import           Data.Abstract.DiscretePowerset(Pow)
 import           Data.Abstract.TreeGrammar
 import qualified Data.Abstract.TreeGrammar.Terminal as Term
+import           Data.Abstract.Cache
+import qualified Data.Abstract.Cache as Cache
 
 import qualified Test.QuickCheck as Q
 import           Text.Printf
@@ -90,12 +92,12 @@ type Interp s a b =
             (ErrorT (Pow String)
               (CompletionT
                 (TerminatingT
-                  (FixT s () ()
+                  (FixT s Cache () ()
                     (->))))))))) a b
 
 runInterp :: Interp _ a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv, b))))
 runInterp f i senv0 tenv0 a =
-  runFixT stackWidening (T.widening grammarWidening)
+  runFixT stackWidening Cache.stabilized (T.widening grammarWidening)
     (runTerminatingT
       (runCompletionT
         (runErrorT

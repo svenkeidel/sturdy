@@ -28,73 +28,59 @@ import           Control.Arrow.Transformer.State
 
 import           Data.Identifiable
 import           Data.Order
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as H
 import           Data.Profunctor
 import           Data.Coerce
 
-import           Data.Abstract.Cache (IsCache,CachingStrategy,RecomputeOrCached(..))
-import qualified Data.Abstract.Cache as Cache
-import           Data.Abstract.StackWidening (StackWidening,Loop(..))
-import           Data.Abstract.Widening (Stable(..),Widening)
+import           Data.Abstract.IterationStrategy
 
-type Component a = HashSet a
 newtype FixT stack cache a b c x y = FixT { unFixT ::
-  ConstT (StackWidening stack a,CachingStrategy cache a b,Widening b)
-    (ReaderT (stack a) (StateT (Component a,cache a b) c)) x y }
+  ConstT (IterationStrategy stack cache a b)
+    (ReaderT (stack a b) (StateT (cache a b) c)) x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice)
 
 
-runFixT :: (Identifiable a,PreOrd b,Monoid (stack a),IsCache cache a b,ArrowChoice c, Profunctor c)
-  => StackWidening stack a -> CachingStrategy cache a b -> Widening b -> FixT stack cache a b c x y -> c x y
-runFixT stackWiden cachingStrat widen (FixT f) =
-  dimap (\x -> ((H.empty,Cache.empty),(mempty,x))) snd $
-    runStateT $ runReaderT $ runConstT (stackWiden,cachingStrat,widen) f
+runFixT :: (Identifiable a, PreOrd b, IsEmpty (stack a b), IsEmpty (cache a b), ArrowChoice c, Profunctor c)
+  => IterationStrategy stack cache a b -> FixT stack cache a b c x y -> c x y
+runFixT iterationStrat (FixT f) =
+  dimap (\x -> (empty,(empty,x))) snd $
+    runStateT $ runReaderT $ runConstT (iterationStrat) f
 
 type instance Fix x y (FixT stack cache () () c) = FixT stack cache x y c
-instance (Identifiable a, LowerBounded b, Profunctor c,IsCache cache a b,ArrowChoice c,ArrowApply c) => ArrowFix a b (FixT stack cache a b c) where
-  fix f = cached $ stackWidening $ proc (loop,x) -> do
-    -- Apply a stack widening operator to the input value.
-    -- The stack widening operator ensures that the abstract
-    -- interpreter does not recurse infinitely deep and detects
-    -- signals if the interpreter is in a loop. See
-    -- `Data.Abstract.StackWidening` for details.
+instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c,ArrowApply c) => ArrowFix a b (FixT stack cache a b c) where
+  fix f =
+    -- The iteration strategy ensures that the abstract interpreter
+    -- terminates, soundly approximates the fixpoint and avoids
+    -- unnecessary computation.
+    iterationStrategy $ proc strat -> do
                              
-    case loop of
-      NoLoop ->
-        -- If there is no loop, keep recursing.
+    case strat of
+      -- The evaluation of some expressions, such as arithmetic
+      -- expressions, always terminates. In this case, we simply keep
+      -- recursing.
+      Compute x ->
         f (fix f) -< x
 
-      MaybeLoop ->
-        -- If we may be in a loop, continue recursing and check
-        -- afterwards if the cached value has stabilized, otherwise keep
-        -- iterating.
+      -- The evaluation of some other expressions, such as loops, may
+      -- may not terminate. Because these expressions may recursively
+      -- depend on themselves, we need to iterate on these
+      -- expressions, until the result stabilized.
+      ComputeAndIterate x upd ->
         let iterate = proc () -> do
-               y <- f (fix f) -< x
-               member <- inComponent -< x
-               deleteFromComponent -< x
-               if member
-                 then do
-                   -- Updates the cached value by applying a widening
-                   -- operator on the old and the new `y` value. The
-                   -- widening operator also signals if the cached
-                   -- value stabilized, i.e., did not grow.
-                   (stable,yNew) <- update -< (x,y)
-                   
-                   -- If we did not reach a fixpoint of f(x'), keep iterating.
-                   case stable of
-                     Instable -> iterate -< ()
-                     Stable   -> returnA -< yNew
-
-                 else returnA -< y
+              y <- f (fix f) -< x
+              r <- update -< (y,upd)
+              case r of
+                Return y' -> returnA -< y'
+                Iterate -> iterate -< ()
 
          in iterate -<< ()
 
-      Loop -> do
-         -- If we are in a loop, return the cached value or bottom otherwise.
-         -- Furthermore, add x' to the current component.
-         addToComponent -< x
-         lookupInit -< x
+      -- We may return an unstable result to avoid non-termination
+      -- when evaluating an recursive program, Of course this is only
+      -- sound if we iterate on the result until it stabilized.
+      -- Alternatively, we can avoid redundant evaluation by
+      -- returning a cached value instead of recomputing it.
+      Cached _ y -> returnA -< y
+
 
 instance (Identifiable a, ArrowJoin c, ArrowChoice c) => ArrowJoin (FixT stack cache a b c) where
   -- | The join operation of the 'FixT' arrow *does not* join the
@@ -123,32 +109,16 @@ instance (Arrow c, Profunctor c) => ArrowDeduplicate x y (FixT stack cache a b c
   dedup f = f
 
 ----- Helper functions -----
-cached :: (ArrowChoice c,Profunctor c) => FixT stack cache a b c a b -> FixT stack cache a b c a b
-cached (FixT f) = FixT $ askConst $ \(_,cachingStrat,_) -> proc a -> do
-  r <- modify' (\(a,(comp,cache)) -> let (r,cache') = cachingStrat a cache in (r,(comp,cache'))) -< a
-  case r of
-    Recompute a' -> f -< a'
-    Cached b -> returnA -< b
+iterationStrategy :: (Arrow c,Profunctor c) => FixT stack cache a b c (Compute cache a b) b -> FixT stack cache a b c a b
+iterationStrategy (FixT f) = FixT $ askConst $ \iterationStrat ->
+  modify (proc (x,cache) -> do
+    stack <- ask -< ()
+    let (strat,(stack',cache')) = iterationStrat x (stack,cache)
+    returnA -< ((stack',strat),cache')
+  )
+  >>>
+  local f
 
-stackWidening :: (Arrow c,Profunctor c) => FixT stack cache a b c (Loop,a) b -> FixT stack cache a b c a b
-stackWidening (FixT f) = FixT $ askConst $ \(stackWiden,_,_) -> proc x -> do
-  stack <- ask -< ()
-  let (stack',(loop,x')) = stackWiden stack x
-  local f -< (stack',(loop,x'))
-
-update :: (Identifiable a, IsCache cache a b, Arrow c, Profunctor c) => FixT stack cache a b c (a,b) (Stable,b)
-update = FixT $ askConst $ \(_,_,widening) -> modify' $ \((a,b),(comp,cache)) -> let ((st,b'),cache') = Cache.update widening a b cache in ((st,b'),(comp,cache'))
-
-lookupInit :: (Identifiable a, IsCache cache a b, Arrow c, Profunctor c) => FixT stack cache a b c a b
-lookupInit = FixT $ modify' $ \(a,(comp,cache)) -> let (b,cache') = Cache.lookupInit a cache in (b,(comp,cache'))
-
-inComponent :: (Identifiable a, Arrow c, Profunctor c) => FixT stack cache a b c a Bool
-inComponent = FixT $ proc x -> do
-  (comp,_) <- get -< ()
-  returnA -< not (H.null comp) && H.member x comp
-
-deleteFromComponent :: (Identifiable a, Arrow c, Profunctor c) => FixT stack chache a b c a ()
-deleteFromComponent = FixT $ modify' $ \(x,(comp,cache)) -> ((),(H.delete x comp,cache))
-
-addToComponent :: (Identifiable a, Arrow c, Profunctor c) => FixT stack cache a b c a ()
-addToComponent = FixT $ modify' $ \(x,(comp,cache)) -> ((),(H.insert x comp,cache))
+update :: (Identifiable a, Arrow c, Profunctor c) => FixT stack cache a b c (b,Update cache a b) (Iterate b)
+update = FixT $ modify' $ \((b,upd),cache) -> upd b cache
+{-# INLINE update #-}
