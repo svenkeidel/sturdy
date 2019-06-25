@@ -70,7 +70,8 @@ run :: (Show addr, Show env, Show v, IsString e, IsValue v c, ArrowChoice c,
         ArrowEnv String addr env c, ArrowStore addr v c, ArrowAlloc (String,v,Label) addr c,
         ArrowFail e c, ArrowFix [Statement] () c,
         Env.Join c ((addr, String),String) v, Env.Join c ((addr, (String,v,Label)), (String,v,Label)) addr,
-        Store.Join c ((v, addr),addr) v) => c [Statement] ()
+        Store.Join c ((v, addr),addr) v)
+    => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
   (Assign x e l : rest) -> do
     v <- eval -< e

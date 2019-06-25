@@ -91,7 +91,7 @@ run stmts = case stmts of
       BoolVal False -> run elseBranch
       BoolVal TopBool -> run ifBranch ⊔ run elseBranch
       NumVal _ -> throw "Expected a boolean expression as condition for an if"
-      TopVal -> run ifBranch ⊔ run elseBranch ⊔ throw "Expected a boolean expression as condition for an if"
+      TopVal -> (run ifBranch ⊔ run elseBranch) ⊔ throw "Expected a boolean expression as condition for an if"
     run rest
   (While cond body l : rest) ->
     run (If cond (body ++ [While cond body l]) [] l : rest)
@@ -155,7 +155,7 @@ instance Complete AbsVal where
   _ ⊔ _ = TopVal
 
 instance Complete Interval where
-  Interval x1 y1 ⊔ Interval x2 y2 = Interval (min x1 y1) (max x2 y2)
+  Interval x1 y1 ⊔ Interval x2 y2 = Interval (min x1 x2) (max y1 y2)
 
 instance Complete AbsBool where
   b1 ⊔ b2 = if b1 == b2 then b1 else TopBool
