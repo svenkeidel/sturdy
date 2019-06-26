@@ -24,6 +24,7 @@ import qualified Data.Abstract.StrongMap as SM
 import           Data.Abstract.Terminating
 import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Abstract.DiscretePowerset(Pow)
+import qualified Data.Abstract.IterationStrategy as S
 import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Widening as W
 
@@ -31,6 +32,7 @@ import           Data.Order
 import           Data.Label
 import           Data.Text (Text)
 import           Data.Profunctor
+import qualified Data.Lens as L
 
 import           Control.Category
 import           Control.Arrow
@@ -56,7 +58,7 @@ type Val = ()
 run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
 run env ss =
   fmap fst <$>
-    runFixT SW.finite W.finite
+    runFixT iterationStrategy
       (runTerminatingT
          (runErrorT
            (runStoreT
@@ -69,8 +71,11 @@ run env ss =
                          (StoreT Addr Val
                            (ErrorT (Pow String)
                              (TerminatingT
-                               (FixT _ () () (->))))))) [Statement] ()))))))
+                               (FixT _ _ () () (->))))))) [Statement] ()))))))
       (M.empty,(SM.fromList env,generate <$> ss))
+  where
+    iterationStrategy = S.filter (L.second (L.second whileLoops))
+                      $ S.chaotic SW.finite W.finite
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)

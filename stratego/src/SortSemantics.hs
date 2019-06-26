@@ -53,6 +53,8 @@ import           Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as A
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.DiscretePowerset as P
+import           Data.Abstract.Cache(Cache)
+import qualified Data.Abstract.Cache as Cache
 -- import qualified Data.Concrete.Powerset as C
 -- import qualified Data.Concrete.Error as CE
 -- import qualified Data.Concrete.Failure as CF
@@ -90,7 +92,7 @@ type Interp s x y =
           (ErrorT TypeError
            (CompletionT
             (TerminatingT
-             (FixT s () ()
+             (FixT s Cache () ()
               (->)))))))))) x y
 
 runInterp :: forall x y. Interp _ x y -> Int -> Int -> StratEnv -> Context -> TermEnv -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv,y))))
@@ -98,10 +100,7 @@ runInterp f k l senv0 ctx tenv0 a =
   if not $ M.null (Ctx.filterInconsistentConstructors ctx)
   then error $ printf "Invalid constructor singnatures %s" (show $ Ctx.filterInconsistentConstructors ctx)
   else
-    runFixT' (\((te,(_,(s,t))),(te',(_,(s',t')))) -> printf "strat = %s -> %s, sort = %s -> %s, env = %s -> %s" (show s) (show s') (show t) (show t') (show te) (show te'))
-             show
-             stackWidening
-             (T.widening resultWidening)
+    runFixT stackWidening Cache.recompute (T.widening resultWidening)
      (runTerminatingT
       (runCompletionT
        (runErrorT
@@ -225,8 +224,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
       then (returnA -< Term Top (context t)) <⊔> (throw -< ()) -- cannot deduct target sort from sort Lexical
       else throw -< ()
 
-  mapSubterms f = proc s -> do
-    ctx <- askConst -< ()
+  mapSubterms f = askConst $ \ctx -> proc s -> do
     (| joinList
       (typeError -< printf "Sort %s not found in context." (show s))
       (\(c,ts) -> do
@@ -234,8 +232,7 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
         cons -< (c,ts')) |)
       ([ (c',sortsToTerms ss ctx) | (c',Signature ss _) <- (Ctx.lookupSort ctx (sort s))])
 
-  cons = proc (c, ss) -> do
-    ctx <- askConst -< ()
+  cons = askConst $ \ctx -> proc (c, ss) -> do
     case c of
       "Cons" -> case ss of
         [Term a _,Term s _] ->
@@ -252,13 +249,8 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
               then typeError -< printf "Could not construct term %s. Could not find the constructor %s in the context." (show (c,ss)) (show c)
               else returnA   -< t
 
-  numberLiteral = proc _ -> do
-    ctx <- askConst -< ()
-    returnA -< Term Numerical ctx
-
-  stringLiteral = proc _ -> do
-    ctx <- askConst -< ()
-    returnA -< Term Lexical ctx
+  numberLiteral = askConst $ \ctx -> arr $ \_ -> Term Numerical ctx
+  stringLiteral = askConst $ \ctx -> arr $ \_ -> Term Lexical ctx
 
 instance ArrowTrans SortT where
   type Dom SortT x y = x
@@ -284,8 +276,7 @@ instance (ArrowChoice c, ArrowJoin c, ArrowState TermEnv c, ArrowConst Context c
   getTermEnv = get
   putTermEnv = put
   emptyTermEnv = lmap (\() -> S.empty) put
-  lookupTermVar f g = proc (v,env,ex) -> do
-    ctx <- askConst -< ()
+  lookupTermVar f g = askConst $ \ctx -> proc (v,env,ex) ->
     case S.lookup v (Term Top ctx) env of
       A.Just t        -> f -< t
       A.Nothing       -> g -< ex

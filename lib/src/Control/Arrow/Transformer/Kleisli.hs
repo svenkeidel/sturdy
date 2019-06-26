@@ -104,7 +104,7 @@ instance (Identifiable (f y), ArrowMonad f c, Arrow c, ArrowDeduplicate (Dom (Kl
   dedup f = lift (dedup (unlift f))
 
 instance (ArrowMonad f c, ArrowConst r c) => ArrowConst r (KleisliT f c) where
-  askConst = lift' askConst
+  askConst f = lift (askConst (unlift . f))
 
 deriving instance PreOrd (c x (f y)) => PreOrd (KleisliT f c x y)
 deriving instance LowerBounded (c x (f y)) => LowerBounded (KleisliT f c x y)

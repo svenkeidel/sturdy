@@ -9,4 +9,4 @@ import Data.Profunctor
 class (Arrow c, Profunctor c) => ArrowConst r c | c -> r where
 
   -- | Retrieve the constant value.
-  askConst :: c () r
+  askConst :: (r -> c x y) -> c x y

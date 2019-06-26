@@ -51,17 +51,20 @@ import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import qualified Data.Abstract.Widening as W
+import           Data.Abstract.StackWidening(StackWidening)
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating(Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Closure (Closure)
 import qualified Data.Abstract.Closure as C
 import           Data.Abstract.DiscretePowerset (Pow)
+import           Data.Abstract.IterationStrategy(IterationStrategy)
+import qualified Data.Abstract.IterationStrategy as S
     
 import           GHC.Generics(Generic)
 import           GHC.Exts(IsString(..))
 
-import           Syntax (Expr(..))
+import           Syntax (Expr(..),apply)
 import           GenericInterpreter
 
 type Env = F.Map Text (Text, CallString Label) Val
@@ -77,8 +80,8 @@ type Addr = (Text,CallString Label)
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
 evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
-evalInterval k env0 e = -- runInterp eval ?bound k env (generate e)
-  runFixT stackWiden (T.widening (E.widening W.finite widenVal))
+evalInterval k env0 e =
+  runFixT iterationStrategy
     (runTerminatingT
       (runErrorT
         (runContourT k
@@ -91,17 +94,21 @@ evalInterval k env0 e = -- runInterp eval ?bound k env (generate e)
                       (ContourT Label
                         (ErrorT (Pow String)
                           (TerminatingT
-                            (FixT _ () () (->))))))) Expr Val))))))
+                            (FixT _ _ () () (->))))))) Expr Val))))))
     (env0,generate e)
   where
-    widenVal = widening (W.bounded ?bound I.widening)
-    stackWiden :: SW.StackWidening _ (Env,Expr)
-    stackWiden = SW.filter (\(_,ex) -> case ex of Apply {} -> True; _ -> False)
-               $ SW.groupBy (L.iso' (\(env,exp) -> (exp,env)) (\(exp,env) -> (env,exp)))
-               $ SW.stack
+    iterationStrategy :: IterationStrategy _ _ (Env,Expr) _
+    iterationStrategy = S.filter apply
+                      $ S.chaotic stackWiden (T.widening (E.widening W.finite widenVal))
+
+    stackWiden :: StackWidening _ (Env,(Expr,Label))
+    stackWiden = SW.groupBy (L.iso' (\(env,exp) -> (exp,env)) (\(exp,env) -> (env,exp)))
                $ SW.reuseFirst
                $ SW.maxSize 3
                $ SW.fromWidening (F.widening widenVal)
+               $ SW.finite
+
+    widenVal = widening (W.bounded ?bound I.widening)
 
 newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowJoin)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)

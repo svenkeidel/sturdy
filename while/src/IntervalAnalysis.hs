@@ -38,7 +38,8 @@ import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.DiscretePowerset (Pow)
 import qualified Data.Abstract.Widening as W
-import qualified Data.Abstract.StackWidening as S
+import qualified Data.Abstract.IterationStrategy as S
+import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Ordering as O
 import qualified Data.Abstract.Equality as E
 
@@ -78,7 +79,7 @@ data Val = BoolVal Bool | NumVal IV | Top deriving (Eq,Generic)
 run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
 run k env ss =
   fmap fst <$>
-    runFixT stackWiden widenTerm
+    runFixT iterationStrategy
       (runTerminatingT
         (runErrorT
            (runStoreT
@@ -90,21 +91,22 @@ run k env ss =
                        (EnvT Text Addr
                          (StoreT Addr Val
                            (ErrorT (Pow String)
-                             (TerminatingT
-                               (FixT _ () () (->))))))) [Statement] ()))))))
+                            (TerminatingT
+                               (FixT _ _ () () (->))))))) [Statement] ()))))))
       (M.empty,(SM.fromList env, generate <$> ss))
 
   where
+    iterationStrategy = S.filter (L.second (L.second whileLoops))
+                      $ S.chaotic stackWiden widenResult
+
+    stackWiden = SW.groupBy (L.iso (\(store,(ev,stmts)) -> (stmts,(ev,store))) (\(stmts,(ev,store)) -> (store,(ev,stmts))))
+               $ SW.maxSize k
+               $ SW.reuseFirst
+               $ SW.fromWidening (SM.widening W.finite W.** M.widening widenVal)
+               $ SW.finite
+    
     widenVal = widening (W.bounded ?bound I.widening)
-
-    widenTerm = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
-
-    stackWiden = S.filter' (L.second (L.second whileLoops))
-               $ S.groupBy (L.iso (\(store,(ev,stmts)) -> (stmts,(ev,store))) (\(stmts,(ev,store)) -> (store,(ev,stmts))))
-               $ S.stack
-               $ S.maxSize k
-               $ S.reuseFirst
-               $ S.fromWidening (SM.widening W.finite W.** M.widening widenVal)
+    widenResult = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
 
 newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)

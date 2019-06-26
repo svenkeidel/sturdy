@@ -7,10 +7,13 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Set (Set)
 import qualified Data.Set as S
+import           Data.HashSet(HashSet)
+import qualified Data.HashSet as HS
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import           Data.Text (Text)
+import           Data.Identifiable
 import           Data.Profunctor
 
 import           Control.Arrow
@@ -185,6 +188,12 @@ instance PreOrd a => LowerBounded (Maybe a) where
 
 instance PreOrd a => LowerBounded (Set a) where
   bottom = S.empty
+
+instance Identifiable a => PreOrd (HashSet a) where
+  xs ⊑ ys = all (\x -> HS.member x ys) xs
+
+instance Identifiable a => Complete (HashSet a) where
+  xs ⊔ ys = HS.union xs ys
 
 instance (Ord k, PreOrd v) => LowerBounded (Map k v) where
   bottom = M.empty
