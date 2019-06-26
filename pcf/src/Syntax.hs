@@ -3,10 +3,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Syntax where
 
-import Data.Text(Text,unpack)
-import Data.Hashable
-import Data.Label
-import Data.String
+import           Data.Text(Text,unpack)
+import           Data.Hashable
+import           Data.Label
+import           Data.String
+import           Data.Lens (Prism')
+import qualified Data.Lens as L
 
 import Control.Monad.State
 
@@ -104,3 +106,9 @@ instance Hashable Expr where
   hashWithSalt s (IfZero e1 e2 e3 _) = s `hashWithSalt` (6::Int) `hashWithSalt` e1 `hashWithSalt` e2 `hashWithSalt` e3
   hashWithSalt s (Y e _) = s `hashWithSalt` (7::Int) `hashWithSalt` e
   hashWithSalt s (Apply e _) = s `hashWithSalt` (8::Int) `hashWithSalt` e
+
+apply :: Prism' (env,Expr) (env,(Expr,Label))
+apply = L.prism' (\(env,(e',l)) -> (env,Apply e' l))
+                 (\(env,e) -> case e of
+                      Apply e' l -> Just (env,(e',l))
+                      _ -> Nothing)
