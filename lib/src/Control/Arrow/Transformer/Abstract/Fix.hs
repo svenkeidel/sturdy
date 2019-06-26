@@ -27,6 +27,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 
 import           Data.Identifiable
+import           Data.Empty
 import           Data.Order
 import           Data.Profunctor
 import           Data.Coerce
@@ -35,11 +36,11 @@ import           Data.Abstract.IterationStrategy
 
 newtype FixT stack cache a b c x y = FixT { unFixT ::
   ConstT (IterationStrategy stack cache a b)
-    (ReaderT (stack a b) (StateT (cache a b) c)) x y }
+    (ReaderT (stack a) (StateT (cache a b) c)) x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice)
 
 
-runFixT :: (Identifiable a, PreOrd b, IsEmpty (stack a b), IsEmpty (cache a b), ArrowChoice c, Profunctor c)
+runFixT :: (Identifiable a, PreOrd b, IsEmpty (stack a), IsEmpty (cache a b), ArrowChoice c, Profunctor c)
   => IterationStrategy stack cache a b -> FixT stack cache a b c x y -> c x y
 runFixT iterationStrat (FixT f) =
   dimap (\x -> (empty,(empty,x))) snd $
