@@ -55,9 +55,10 @@ spec = do
 
 type Arr s c x y  = Fix x y (TerminatingT (FixT s c () () (->))) x y
 type IV = Interval (InfiniteNumber Int)
-type Strat cache = (forall a b s. (Show a, Show b, Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> S.IterationStrategy (Stack ** s) cache a b)
+type Strat cache = (forall a b s. (Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> S.IterationStrategy (Stack ** s) cache a b)
 
-sharedSpec :: forall cache. (forall a b. IsEmpty (cache a b)) => Strat cache -> Spec
+sharedSpec :: forall cache. (forall a b. IsEmpty (cache a b), forall a b. (Show a, Show b) => Show (cache a b))
+           => Strat cache -> Spec
 sharedSpec strat = do
   describe "fibonacci" $
     let fib :: Arr s c IV IV
@@ -160,7 +161,7 @@ sharedSpec strat = do
          run diverge 5 `shouldBe` bottom
 
   where
-    run :: (Show a, Show b, Identifiable a, Complete b, IsEmpty (stack a), IsEmpty (cache a (Terminating b)), ?stackWiden :: StackWidening stack a, ?widen :: Widening b)
+    run :: (Show a, Show b, Identifiable a, Complete b, Show (stack a), IsEmpty (stack a), IsEmpty (cache a (Terminating b)), ?stackWiden :: StackWidening stack a, ?widen :: Widening b)
       => Arr (Stack ** stack) cache a b -> a -> Terminating b
     run f a = runFixT (strat ?stackWiden (T.widening ?widen)) (runTerminatingT f) a
     

@@ -62,7 +62,7 @@ import qualified Debug.Trace as Debug
 type IterationStrategy stack cache a b = a -> (stack a,cache a b) -> (Compute cache a b,(stack a,cache a b))
 data Compute cache a b = Compute a | ComputeAndIterate a (Update cache a b) | Cached a b
 type Update cache a b = b -> cache a b -> (Iterate b, cache a b)
-data Iterate b = Iterate | Return b
+data Iterate b = Iterate | Return b deriving (Show)
 
 data Unit a b = Unit
 
@@ -74,8 +74,12 @@ trace :: (Show a, Show b, Show (stack a), Show (cache a b))
       => IterationStrategy stack cache a b -> IterationStrategy stack cache a b
 trace strat a (s,c) =
   let (r,(s',c')) = strat a (s,c)
-  in Debug.trace (printf "x: %s\nstrat: %s\nstack: %s\ncache: %s\nstack: %s\ncache': %s\n\n"
-                 (show a) (show r) (show s) (show c) (show s') (show c')) (r,(s',c'))
+      r' = map id (\upd b ca ->
+                     let (i,ca') = upd b ca
+                     in Debug.trace (printf "UPDATE\nx: %s\ny: %s\niterate: %s\nstack: %s\ncache: %s\ncache': %s\n\n"
+                          (show a) (show b) (show i) (show s) (show ca) (show ca')) (i,ca')) r
+  in Debug.trace (printf "CALL\nx: %s\nstrat: %s\nstack: %s\ncache: %s\nstack: %s\ncache': %s\n\n"
+                 (show a) (show r) (show s) (show c) (show s') (show c')) (r',(s',c'))
 
 
 newtype Const c a' b' a b = Const { getConst :: c a' b' }
@@ -90,7 +94,7 @@ filter pred strat a sc@(Stack.Const s, Const c) = case getMaybe pred a of
 
 data ParallelCache a b = ParallelCache { old :: HashMap a b, new :: HashMap a b }
 
-parallel :: (Show a, Show b, Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> IterationStrategy (Stack ** s) ParallelCache a b
+parallel :: (Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> IterationStrategy (Stack ** s) ParallelCache a b
 parallel stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (new c) of
   Just b | H.member a xs -> (Cached a b,(s',c))
   _ -> 
@@ -117,7 +121,7 @@ data ChaoticCache a b = ChaoticCache
   , componentBody :: HashSet a
   }
 
-chaotic :: (Show a, Show b, Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> IterationStrategy (Stack ** s) ChaoticCache a b
+chaotic :: (Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> IterationStrategy (Stack ** s) ChaoticCache a b
 chaotic stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (store c) of
   Just (b,Stable) -> (Cached a b,(s',c))
   Just (b,Instable) | H.member a xs -> let c' = c { componentHead = H.insert a (componentHead c) } in (Cached a b,(s',c'))
@@ -130,8 +134,7 @@ chaotic stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (stor
       -- The call did not depend on any unstable calls. This means we are done and don't need to iterate.
       | H.null (componentHead cache) =
           let cache' = cache { store = M.insert a (b,Stable) (store cache)}
-          in -- Debug.trace (printf "update stable\nx: %s\nyNew: %s\nstack: %s\ncache: %s\ncache': %s\n\n" (show a) (show b) (show (H.toList xs)) (show cache) (show cache'))
-             (Return b,cache')
+          in (Return b,cache')
 
       -- We are at the head of a fixpoint component. This means, we have to iterate until the head stabilized.
       | componentHead cache == H.singleton a =
@@ -145,21 +148,17 @@ chaotic stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (stor
              -- If the head of a fixpoint component is stable, flag all elements in the body of the component as stable too and return.
              Stable   ->
                let cache'' = cache' { store = foldl (\st a' -> M.adjust (second (\_ -> Stable)) a' st) (store cache') (componentBody cache)}
-               in -- Debug.trace (printf "update head stable\nx: %s\nyOld: %s\nyNew: %s\nyWiden: %s\nstack: %s\ncache: %s\ncache': %s\n\n" (show a) (show bOld) (show b) (show bNew) (show (H.toList xs)) (show cache) (show cache''))
-                  (Return bNew,cache'')
+               in (Return bNew,cache'')
 
              -- If the head of a fixpoint component is not stable, keep iterating.
-             Instable ->
-               -- Debug.trace (printf "update head iterate\nx: %s\nyOld: %s\nyNew: %s\nyWiden: %s\nstack: %s\ncache: %s\ncache': %s\n\n" (show a) (show bOld) (show b) (show bNew) (show (H.toList xs)) (show cache) (show cache'))
-                  (Iterate,cache')
+             Instable -> (Iterate,cache')
 
       -- We are in an unstable fixpoint component, but not at its head. This means, we have to wait until the head stabilized.
       | otherwise =
         let cache' = cache { componentHead = H.delete a (componentHead cache),
                              componentBody = H.insert a (componentBody cache),
                              store = M.insert a (b,Instable) (store cache) }
-        in -- Debug.trace (printf "update inside\nx: %s\nyNew: %s\nstack: %s\ncache: %s\ncache': %s\n\n" (show a) (show b) (show (H.toList xs)) (show cache) (show cache'))
-           (Return b,cache')
+        in (Return b,cache')
 
     
 
