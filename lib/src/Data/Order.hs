@@ -7,6 +7,8 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Set (Set)
 import qualified Data.Set as S
+import           Data.HashMap.Lazy(HashMap)
+import qualified Data.HashMap.Lazy as HM
 import           Data.HashSet(HashSet)
 import qualified Data.HashSet as HS
 import           Data.IntMap (IntMap)
@@ -194,6 +196,9 @@ instance Identifiable a => PreOrd (HashSet a) where
 
 instance Identifiable a => Complete (HashSet a) where
   xs ⊔ ys = HS.union xs ys
+            
+instance (Identifiable a, PreOrd b) => PreOrd (HashMap a b) where
+  m1 ⊑ m2 = HM.keys m1 == HM.keys m2 && and (HM.intersectionWith (⊑) m1 m2)
 
 instance (Ord k, PreOrd v) => LowerBounded (Map k v) where
   bottom = M.empty

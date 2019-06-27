@@ -7,6 +7,11 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module FixSpec where
 
 import           Prelude hiding (lookup,Bounded,Bool(..),fail)
@@ -29,7 +34,6 @@ import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
 
 import           Data.Abstract.StackWidening (StackWidening,Stack,type (**),finite,reuseFirst,fromWidening,maxSize)
-import           Data.Abstract.IterationStrategy (Cache)
 import qualified Data.Abstract.IterationStrategy as S
 
 import           Data.Empty
@@ -44,11 +48,17 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
-type Arr s c x y  = Fix x y (TerminatingT (FixT s c () () (->))) x y
-type IV = Interval (InfiniteNumber Int)
-
 spec :: Spec
 spec = do
+  describe "Parallel" (sharedSpec S.parallel)
+  describe "Chaotic"  (sharedSpec S.chaotic)
+
+type Arr s c x y  = Fix x y (TerminatingT (FixT s c () () (->))) x y
+type IV = Interval (InfiniteNumber Int)
+type Strat cache = (forall a b s. (Show a, Show b, Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> S.IterationStrategy (Stack ** s) cache a b)
+
+sharedSpec :: forall cache. (forall a b. IsEmpty (cache a b)) => Strat cache -> Spec
+sharedSpec strat = do
   describe "fibonacci" $
     let fib :: Arr s c IV IV
         fib = fix $ \f ->
@@ -88,7 +98,7 @@ spec = do
          let ?widen = W.finite in
          run fact (iv 5 10) `shouldBe` return (iv 120 3628800)
 
-      it "fact[10,15] with stack size 3 should be [1,∞] * [8,13] * [9,14] * [10,15] = [720,∞]" $
+      it "fact[10,15] with stack size 3 should be [10,15] * [9,14] * [8,13] * [1,∞] = [720,∞]" $
          let ?stackWiden = maxSize 3 $ fromWidening I.widening $ finite in 
          let ?widen = I.widening in
          run fact (iv 10 15) `shouldBe` return (iv 720 Infinity)
@@ -150,9 +160,9 @@ spec = do
          run diverge 5 `shouldBe` bottom
 
   where
-    run :: (Show a, Show b, Identifiable a, Complete b, IsEmpty (stack a), ?stackWiden :: StackWidening stack a, ?widen :: Widening b)
-        => Arr (Stack ** stack) Cache a b -> a -> Terminating b
-    run f a = runFixT (S.chaotic ?stackWiden (T.widening ?widen)) (runTerminatingT f) a
+    run :: (Show a, Show b, Identifiable a, Complete b, IsEmpty (stack a), IsEmpty (cache a (Terminating b)), ?stackWiden :: StackWidening stack a, ?widen :: Widening b)
+      => Arr (Stack ** stack) cache a b -> a -> Terminating b
+    run f a = runFixT (strat ?stackWiden (T.widening ?widen)) (runTerminatingT f) a
     
     ifLowerThan :: (Num n, Ord n, ArrowChoice c, Profunctor c, Complete (c (Interval n, Interval n) x)) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
     ifLowerThan l f g = proc x -> case x of

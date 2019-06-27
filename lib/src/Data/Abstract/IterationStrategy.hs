@@ -22,6 +22,7 @@ import qualified Data.HashSet as H
 import           Data.Identifiable
 import           Data.Lens (Prism',getMaybe,set)
 import           Data.Empty
+import           Data.Maybe
 
 import           Data.Abstract.StackWidening(StackWidening,Stack(..),type (**)(..))
 import qualified Data.Abstract.StackWidening as Stack
@@ -63,8 +64,11 @@ data Compute cache a b = Compute a | ComputeAndIterate a (Update cache a b) | Ca
 type Update cache a b = b -> cache a b -> (Iterate b, cache a b)
 data Iterate b = Iterate | Return b
 
+data Unit a b = Unit
+
 finite :: IterationStrategy Stack.Unit Unit a b
 finite a sc = (Compute a,sc)
+
 
 trace :: (Show a, Show b, Show (stack a), Show (cache a b))
       => IterationStrategy stack cache a b -> IterationStrategy stack cache a b
@@ -73,6 +77,9 @@ trace strat a (s,c) =
   in Debug.trace (printf "x: %s\nstrat: %s\nstack: %s\ncache: %s\nstack: %s\ncache': %s\n\n"
                  (show a) (show r) (show s) (show c) (show s') (show c')) (r,(s',c'))
 
+
+newtype Const c a' b' a b = Const { getConst :: c a' b' }
+
 filter :: Prism' a a' -> IterationStrategy stack cache a' b -> IterationStrategy (Stack.Const stack a') (Const cache a' b) a b
 filter pred strat a sc@(Stack.Const s, Const c) = case getMaybe pred a of
   Just a' ->
@@ -80,11 +87,41 @@ filter pred strat a sc@(Stack.Const s, Const c) = case getMaybe pred a of
     in (map' (\x -> set pred x a) Const getConst r,(Stack.Const s',Const c'))
   Nothing -> (Compute a,sc)
 
-chaotic :: (Show a, Show b, Identifiable a,LowerBounded b) => StackWidening s a -> Widening b -> IterationStrategy (Stack ** s) Cache a b
+
+data ParallelCache a b = ParallelCache { old :: HashMap a b, new :: HashMap a b }
+
+parallel :: (Show a, Show b, Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> IterationStrategy (Stack ** s) ParallelCache a b
+parallel stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (new c) of
+  Just b | H.member a xs -> (Cached a b,(s',c))
+  _ -> 
+    let bold = fromMaybe bottom (M.lookup a (old c))
+        c' = c { new = M.insertWith (\_ o -> o) a bold (new c) }
+    in (ComputeAndIterate a update,(s',c'))
+  where
+    (a,stack') = stackWiden a0 stack
+    s' = Product (Stack (H.insert a xs)) stack'
+
+    update b cache
+      | null xs =
+        if new cache ⊑ old cache
+          then (Return b, cache)
+          else (Iterate, cache { old = new cache, new = M.empty })
+      | otherwise =
+          let c' = cache { new = M.insertWith (\bNew bOld -> snd (widen bOld bNew)) a b (new cache) }
+          in (Return b, c')
+
+
+data ChaoticCache a b = ChaoticCache
+  { store :: HashMap a (b,Stable)
+  , componentHead :: HashSet a
+  , componentBody :: HashSet a
+  }
+
+chaotic :: (Show a, Show b, Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> IterationStrategy (Stack ** s) ChaoticCache a b
 chaotic stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (store c) of
   Just (b,Stable) -> (Cached a b,(s',c))
   Just (b,Instable) | H.member a xs -> let c' = c { componentHead = H.insert a (componentHead c) } in (Cached a b,(s',c'))
-  _ -> let c' = c { store = M.insertWith (\_ old -> old) a (bottom,Instable) (store c) } in (ComputeAndIterate a update,(s',c'))
+  _ -> let c' = c { store = M.insertWith (\_ o -> o) a (bottom,Instable) (store c) } in (ComputeAndIterate a update,(s',c'))
   where
     (a,stack') = stackWiden a0 stack
     s' = Product (Stack (H.insert a xs)) stack'
@@ -97,7 +134,7 @@ chaotic stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (stor
              (Return b,cache')
 
       -- We are at the head of a fixpoint component. This means, we have to iterate until the head stabilized.
-      | H.singleton a == componentHead cache =
+      | componentHead cache == H.singleton a =
         let (bOld,_) = M.lookupDefault (bottom,Instable) a (store cache)
             (stable,bNew) = widen bOld b
             cache' = cache { componentHead = H.empty, componentBody = H.empty
@@ -124,34 +161,31 @@ chaotic stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (stor
         in -- Debug.trace (printf "update inside\nx: %s\nyNew: %s\nstack: %s\ncache: %s\ncache': %s\n\n" (show a) (show b) (show (H.toList xs)) (show cache) (show cache'))
            (Return b,cache')
 
+    
 
 
 -- Helper Types & Functions ---------------------------------------
-data Unit a b = Unit
 
-instance IsEmpty (Unit a b) where
-  empty = Unit
+instance IsEmpty (Unit a b) where empty = Unit
 
-newtype Const c a' b' a b = Const { getConst :: c a' b' }
+instance IsEmpty (c a' b') => IsEmpty (Const c a' b' a b) where empty = Const empty
 
-instance IsEmpty (c a' b') => IsEmpty (Const c a' b' a b) where
-  empty = Const empty
+instance IsEmpty (ParallelCache a b) where
+  empty = ParallelCache { old = M.empty, new = M.empty }
 
-data Cache a b = Cache
-  { store :: HashMap a (b,Stable)
-  , componentHead :: HashSet a
-  , componentBody :: HashSet a
-  }
+instance (Show a, Show b) => Show (ParallelCache a b) where
+  show cache = printf "{new: %s, old: %s}"
+               (show (M.toList (new cache)))
+               (show (M.toList (old cache)))
 
-instance (Show a, Show b) => Show (Cache a b) where
+instance (Show a, Show b) => Show (ChaoticCache a b) where
   show cache = printf "{store: %s, componentHead: %s, componentBody: %s}"
                (show (M.toList (store cache)))
                (show (H.toList (componentHead cache)))
                (show (H.toList (componentBody cache)))
 
-instance (Show a, Show b, Identifiable a, LowerBounded b) => IsEmpty (Cache a b) where
-  empty = Cache { store = M.empty, componentHead = H.empty, componentBody = H.empty }
-
+instance IsEmpty (ChaoticCache a b) where
+  empty = ChaoticCache { store = M.empty, componentHead = H.empty, componentBody = H.empty }
 
 instance (Show a,Show b) => Show (Compute cache a b) where
   show (Compute a) = printf "Compute %s" (show a)
