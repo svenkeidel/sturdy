@@ -5,15 +5,28 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE Arrows #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Data.Abstract.IterationStrategy where
 
-import           Prelude hiding (pred,lookup,map)
+import           Prelude hiding (pred,lookup,map,head,iterate,(.))
 
-import           Control.Arrow(second)
+import           Control.Category
+import           Control.Arrow
+import           Control.Arrow.Reader
+import           Control.Arrow.Abstract.Join
+import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Writer
 
+import           Data.Profunctor
 import           Data.Order
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
@@ -23,13 +36,10 @@ import           Data.Identifiable
 import           Data.Lens (Prism',getMaybe,set)
 import           Data.Empty
 import           Data.Maybe
+import           Data.Coerce
 
-import           Data.Abstract.StackWidening(StackWidening,Stack(..),type (**)(..))
-import qualified Data.Abstract.StackWidening as Stack
+import           Data.Abstract.StackWidening(StackWidening,Stack(..))
 import           Data.Abstract.Widening(Widening,Stable(..))
-
-import           Text.Printf
-import qualified Debug.Trace as Debug
 
 -- | The iteration strategy @▽@ ensures that a recursive computation
 -- terminates, soundly approximates the fixed point and avoids
@@ -59,143 +69,121 @@ import qualified Debug.Trace as Debug
 -- The iteration strategy can also avoid redundant computation by
 -- returning cached results instead of recomputing them.
 
-type IterationStrategy stack cache a b = a -> (stack a,cache a b) -> (Compute cache a b,(stack a,cache a b))
-data Compute cache a b = Compute a | ComputeAndIterate a (Update cache a b) | Cached a b
-type Update cache a b = b -> cache a b -> (Iterate b, cache a b)
-data Iterate b = Iterate | Return b deriving (Show)
+type IterationStrategy c a b = c a b -> c a b
 
-data Unit a b = Unit
+class ArrowRun t where
+  run :: Profunctor c => t c a b -> c a b
 
-finite :: IterationStrategy Stack.Unit Unit a b
-finite a sc = (Compute a,sc)
+-- data Unit a b = Unit
+
+-- finite :: IterationStrategy (->) a b
+-- finite a = Compute a
+
+-- trace :: (Show a, Show b, Show (stack a), Show (cache a b))
+--       => IterationStrategy stack cache a b -> IterationStrategy stack cache a b
+-- trace strat a (s,c) =
+--   let (r,(s',c')) = strat a (s,c)
+--       r' = map id (\upd b ca ->
+--                      let (i,ca') = upd b ca
+--                      in Debug.trace (printf "UPDATE\nx: %s\ny: %s\niterate: %s\nstack: %s\ncache: %s\ncache': %s\n\n"
+--                           (show a) (show b) (show i) (show s) (show ca) (show ca')) (i,ca')) r
+--   in Debug.trace (printf "CALL\nx: %s\nstrat: %s\nstack: %s\ncache: %s\nstack: %s\ncache': %s\n\n"
+--                  (show a) (show r) (show s) (show c) (show s') (show c')) (r',(s',c'))
 
 
-trace :: (Show a, Show b, Show (stack a), Show (cache a b))
-      => IterationStrategy stack cache a b -> IterationStrategy stack cache a b
-trace strat a (s,c) =
-  let (r,(s',c')) = strat a (s,c)
-      r' = map id (\upd b ca ->
-                     let (i,ca') = upd b ca
-                     in Debug.trace (printf "UPDATE\nx: %s\ny: %s\niterate: %s\nstack: %s\ncache: %s\ncache': %s\n\n"
-                          (show a) (show b) (show i) (show s) (show ca) (show ca')) (i,ca')) r
-  in Debug.trace (printf "CALL\nx: %s\nstrat: %s\nstack: %s\ncache: %s\nstack: %s\ncache': %s\n\n"
-                 (show a) (show r) (show s) (show c) (show s') (show c')) (r',(s',c'))
+-- newtype Const c a' b' a b = Const { getConst :: c a' b' }Stack.Unit Unit
 
-
-newtype Const c a' b' a b = Const { getConst :: c a' b' }
-
-filter :: Prism' a a' -> IterationStrategy stack cache a' b -> IterationStrategy (Stack.Const stack a') (Const cache a' b) a b
-filter pred strat a sc@(Stack.Const s, Const c) = case getMaybe pred a of
+filter :: (Profunctor c, ArrowChoice c, ArrowApply c) => Prism' a a' -> IterationStrategy c a' b -> IterationStrategy c a b
+filter pred strat f = proc a -> case getMaybe pred a of
   Just a' ->
-    let (r,(s',c')) = strat a' (s,c)
-    in (map' (\x -> set pred x a) Const getConst r,(Stack.Const s',Const c'))
-  Nothing -> (Compute a,sc)
+    strat (lmap (\x -> set pred x a) f) -<< a'
+  Nothing -> do
+    f -< a
 
 
-data ParallelCache a b = ParallelCache { old :: HashMap a b, new :: HashMap a b }
+data Cache a b = Cache { old :: HashMap a b, new :: HashMap a b }
+newtype ParallelT s a b c x y = ParallelT (StateT (Cache a b) (ReaderT (Stack a,s a) c) x y) deriving (Profunctor,Category,Arrow,ArrowChoice)
+instance (Profunctor c,ArrowApply c) => ArrowApply (ParallelT s a b c) where app = ParallelT (lmap (first coerce) app)
+instance IsEmpty (Cache a b) where empty = Cache M.empty M.empty
+instance (Profunctor c,Arrow c) => ArrowJoin (ParallelT s a b c) where
+  joinWith _lub (ParallelT f) (ParallelT g) = ParallelT $ rmap (uncurry _lub) (f &&& g)
+instance (IsEmpty (s a)) => ArrowRun (ParallelT s a b) where
+  run (ParallelT f) = dimap (\a -> (empty,(empty,a))) snd (runReaderT (runStateT f))
 
-parallel :: (Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> IterationStrategy (Stack ** s) ParallelCache a b
-parallel stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (new c) of
-  Just b | H.member a xs -> (Cached a b,(s',c))
-  _ -> 
-    let bold = fromMaybe bottom (M.lookup a (old c))
-        c' = c { new = M.insertWith (\_ o -> o) a bold (new c) }
-    in (ComputeAndIterate a update,(s',c'))
+
+parallel :: (Identifiable a, LowerBounded b, Profunctor c, ArrowChoice c) => StackWidening s a -> Widening b -> IterationStrategy (ParallelT s a b c) a b
+parallel stackWiden widen (ParallelT (StateT f)) = ParallelT $ StateT $ stackWidening $ proc (xs,cache,a) -> case M.lookup a (new cache) of
+  Just b | H.member a xs -> returnA -< (cache,b)
+  _ -> iterate -< (xs,cache,a)
   where
-    (a,stack') = stackWiden a0 stack
-    s' = Product (Stack (H.insert a xs)) stack'
-
-    update b cache
-      | null xs =
-        if new cache ⊑ old cache
-          then (Return b, cache)
-          else (Iterate, cache { old = new cache, new = M.empty })
-      | otherwise =
-          let c' = cache { new = M.insertWith (\bNew bOld -> snd (widen bOld bNew)) a b (new cache) }
-          in (Return b, c')
-
-
-data ChaoticCache a b = ChaoticCache
-  { store :: HashMap a (b,Stable)
-  , componentHead :: HashSet a
-  , componentBody :: HashSet a
-  }
-
-chaotic :: (Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> IterationStrategy (Stack ** s) ChaoticCache a b
-chaotic stackWiden widen a0 (Product (Stack xs) stack,c) = case M.lookup a (store c) of
-  Just (b,Stable) -> (Cached a b,(s',c))
-  Just (b,Instable) | H.member a xs -> let c' = c { componentHead = H.insert a (componentHead c) } in (Cached a b,(s',c'))
-  _ -> let c' = c { store = M.insertWith (\_ o -> o) a (bottom,Instable) (store c) } in (ComputeAndIterate a update,(s',c'))
-  where
-    (a,stack') = stackWiden a0 stack
-    s' = Product (Stack (H.insert a xs)) stack'
-  
-    update b cache
-      -- The call did not depend on any unstable calls. This means we are done and don't need to iterate.
-      | H.null (componentHead cache) =
-          let cache' = cache { store = M.insert a (b,Stable) (store cache)}
-          in (Return b,cache')
-
-      -- We are at the head of a fixpoint component. This means, we have to iterate until the head stabilized.
-      | componentHead cache == H.singleton a =
-        let (bOld,_) = M.lookupDefault (bottom,Instable) a (store cache)
-            (stable,bNew) = widen bOld b
-            cache' = cache { componentHead = H.empty, componentBody = H.empty
-                           , store = M.insert a (bNew,stable) (store cache)
-                           }
-        
-        in case stable of
-             -- If the head of a fixpoint component is stable, flag all elements in the body of the component as stable too and return.
-             Stable   ->
-               let cache'' = cache' { store = foldl (\st a' -> M.adjust (second (\_ -> Stable)) a' st) (store cache') (componentBody cache)}
-               in (Return bNew,cache'')
-
-             -- If the head of a fixpoint component is not stable, keep iterating.
-             Instable -> (Iterate,cache')
-
-      -- We are in an unstable fixpoint component, but not at its head. This means, we have to wait until the head stabilized.
-      | otherwise =
-        let cache' = cache { componentHead = H.delete a (componentHead cache),
-                             componentBody = H.insert a (componentBody cache),
-                             store = M.insert a (b,Instable) (store cache) }
-        in (Return b,cache')
-
+    iterate = proc (xs,cache,a) -> do
+      let bold = fromMaybe bottom (M.lookup a (old cache))
+      (cache',b) <- f -< (cache { new = M.insertWith (\_ o -> o) a bold (new cache) },a)
+      let cache'' = cache' {new = M.insertWith (\bNew bOld -> snd (widen bOld bNew)) a b (new cache')}
+      if not (H.null xs) || new cache'' ⊑ old cache''
+      then returnA -< (cache'',b)
+      else iterate -< (xs,cache'' { new = M.empty, old = new cache'' },a)
     
+    stackWidening g = proc (cache,a) -> do
+      (Stack xs,s2) <- ask -< ()
+      let (a',s2') = stackWiden a s2
+      local g -< ((Stack (H.insert a' xs),s2'),(xs,cache,a'))
 
+data Component a = Component { head :: HashSet a, body :: HashSet a }
+instance Identifiable a => Semigroup (Component a) where
+  (<>) = mappend
+instance Identifiable a => Monoid (Component a) where
+  mempty = Component { head = H.empty, body = H.empty }
+  c1 `mappend` c2 = Component { head = head c1 <> head c2, body = body c1 <> body c2 }
 
--- Helper Types & Functions ---------------------------------------
+newtype ChaoticT s a b c x y = ChaoticT (WriterT (Component a) (StateT (HashMap a (b,Stable)) (ReaderT (Stack a,s a) c)) x y) deriving (Profunctor,Category,Arrow,ArrowChoice)
+instance (Identifiable a,Profunctor c,ArrowApply c) => ArrowApply (ChaoticT s a b c) where app = ChaoticT (lmap (first coerce) app)
+instance (Identifiable a,Profunctor c,Arrow c) => ArrowJoin (ChaoticT s a b c) where
+  joinWith _lub (ChaoticT f) (ChaoticT g) = ChaoticT $ rmap (uncurry _lub) (f &&& g)
+instance (IsEmpty (s a)) => ArrowRun (ChaoticT s a b) where
+  run (ChaoticT f) = dimap (\a -> (empty,(M.empty,a))) (snd . snd) (runReaderT (runStateT (runWriterT f)))
 
-instance IsEmpty (Unit a b) where empty = Unit
+chaotic :: (Identifiable a, LowerBounded b, Profunctor c, ArrowChoice c, ArrowApply c) => StackWidening s a -> Widening b -> IterationStrategy (ChaoticT s a b c) a b
+chaotic stackWiden widen (ChaoticT (WriterT (StateT f))) = ChaoticT $ WriterT $ StateT $ stackWidening $ proc (stack,cache,a) -> do
+  case M.lookup a cache of
+    Just (b,Stable) ->
+      returnA -< (cache,(mempty,b))
 
-instance IsEmpty (c a' b') => IsEmpty (Const c a' b' a b) where empty = Const empty
+    Just (b,Instable) | H.member a stack -> do
+      returnA -< (cache,(Component {head = H.singleton a, body = H.empty},b))
 
-instance IsEmpty (ParallelCache a b) where
-  empty = ParallelCache { old = M.empty, new = M.empty }
+    _ ->
+      iterate -<< (M.insertWith (\_ o -> o) a (bottom,Instable) cache,a)
 
-instance (Show a, Show b) => Show (ParallelCache a b) where
-  show cache = printf "{new: %s, old: %s}"
-               (show (M.toList (new cache)))
-               (show (M.toList (old cache)))
+  where
+    iterate = proc (cache,a) -> do
+      (cache',(component,b)) <- f -< (cache,a)
 
-instance (Show a, Show b) => Show (ChaoticCache a b) where
-  show cache = printf "{store: %s, componentHead: %s, componentBody: %s}"
-               (show (M.toList (store cache)))
-               (show (H.toList (componentHead cache)))
-               (show (H.toList (componentBody cache)))
+      case () of
+        -- The call did not depend on any unstable calls. This means we are done and don't need to iterate.
+        () | H.null (head component) -> do
+             returnA -< (M.insert a (b,Stable) cache',(mempty,b))
 
-instance IsEmpty (ChaoticCache a b) where
-  empty = ChaoticCache { store = M.empty, componentHead = H.empty, componentBody = H.empty }
+        -- We are at the head of a fixpoint component. This means, we have to iterate until the head stabilized.
+           | head component == H.singleton a -> do
+             let (bOld,_) = M.lookupDefault (bottom,Instable) a cache
+                 (stable,bNew) = widen bOld b
+             
+             let cache'' = M.insert a (bNew,stable) cache'
+             case stable of
+               -- If the head of a fixpoint component is stable, flag all elements in the body of the component as stable too and return.
+               Stable -> do
+                 returnA -< (foldr (M.adjust (second (\_ -> Stable))) cache'' (body component),(mempty,bNew))
 
-instance (Show a,Show b) => Show (Compute cache a b) where
-  show (Compute a) = printf "Compute %s" (show a)
-  show (ComputeAndIterate a _) = printf "ComputeAndIterate %s" (show a)
-  show (Cached a b) = printf "Cached %s %s" (show a) (show b)
+               -- If the head of a fixpoint component is not stable, keep iterating.
+               Instable ->
+                 iterate -<< (cache'',a)
 
-map :: (a -> a') -> (Update cache a b -> Update cache' a' b) -> Compute cache a b -> Compute cache' a' b
-map f g c = case c of
-  Compute a -> Compute (f a)
-  ComputeAndIterate a upd -> ComputeAndIterate (f a) (g upd)
-  Cached a b -> Cached (f a) b
+        -- We are in an unstable fixpoint component, but not at its head. This means, we have to wait until the head stabilized.
+           | otherwise -> do
+             returnA -< (M.insert a (b,Instable) cache,(Component {head = H.delete a (head component), body = H.insert a (body component)}, b)) 
 
-map' :: (a -> a') -> (cache a b -> cache' a' b) -> (cache' a' b -> cache a b) -> Compute cache a b -> Compute cache' a' b
-map' f g h = map f (\upd b c -> let (i,c') = upd b (h c) in (i,g c'))
+    stackWidening g = proc (cache,a) -> do
+      (Stack xs,s2) <- ask -< ()
+      let (a',s2') = stackWiden a s2
+      local g -< ((Stack (H.insert a' xs),s2'),(xs,cache,a'))

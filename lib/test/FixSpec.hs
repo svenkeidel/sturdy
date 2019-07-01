@@ -11,6 +11,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module FixSpec where
 
@@ -18,6 +19,7 @@ import           Prelude hiding (lookup,Bounded,Bool(..),fail)
 
 import           Control.Arrow
 import           Control.Arrow.Fix
+import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Terminating
 
@@ -53,15 +55,16 @@ spec = do
   describe "Parallel" (sharedSpec S.parallel)
   describe "Chaotic"  (sharedSpec S.chaotic)
 
-type Arr s c x y  = Fix x y (TerminatingT (FixT s c () () (->))) x y
+type Arr t s x y = IsEmpty (s x) => Fix x y (TerminatingT (FixT () () (t s x (Terminating y) (->)))) x y
 type IV = Interval (InfiniteNumber Int)
-type Strat cache = (forall a b s. (Identifiable a, LowerBounded b) => StackWidening s a -> Widening b -> S.IterationStrategy (Stack ** s) cache a b)
+type Strat t s a b = StackWidening s a -> Widening b -> S.IterationStrategy (t s a b (->)) a b
 
-sharedSpec :: forall cache. (forall a b. IsEmpty (cache a b), forall a b. (Show a, Show b) => Show (cache a b))
-           => Strat cache -> Spec
-sharedSpec strat = do
+sharedSpec :: forall t. (forall s a b. (Identifiable a, LowerBounded b, IsEmpty (s a)) => (Profunctor (t s a b (->)), ArrowChoice (t s a b (->)), ArrowJoin (t s a b (->)), ArrowApply (t s a b (->)), S.ArrowRun (t s a b)))
+           => (forall a b s. (Identifiable a, LowerBounded b) => Strat t s a b) -> Spec
+sharedSpec strat =
+                   do
   describe "fibonacci" $
-    let fib :: Arr s c IV IV
+    let fib :: Arr t s IV IV
         fib = fix $ \f ->
           ifLowerThan 0
             (proc _ -> returnA -< I.Interval 0 0)
@@ -88,7 +91,7 @@ sharedSpec strat = do
          run fib (iv 0 Infinity) `shouldBe` return (iv 0 Infinity)
 
   describe "factorial" $
-    let fact :: Arr s c IV IV
+    let fact :: Arr t s IV IV
         fact = fix $ \f ->
           ifLowerThan 1 (proc _ -> returnA -< iv 1 1)
                         (proc n -> do x <- f -< (n - iv 1 1)
@@ -110,7 +113,7 @@ sharedSpec strat = do
          run fact (iv 0 Infinity) `shouldBe` return (iv 1 Infinity)
 
   describe "ackermann" $
-    let ackermann :: Arr s c (IV,IV) IV
+    let ackermann :: IsEmpty (s (IV,IV)) => Arr t s (IV,IV) IV
         ackermann = fix $ \f -> proc (m,n) ->
           ifLowerThan 0
             (proc _ -> returnA -< n + iv 1 1)
@@ -136,7 +139,7 @@ sharedSpec strat = do
          run ackermann (iv 0 Infinity, iv 0 Infinity) `shouldBe` return (iv 1 Infinity)
 
   describe "mutual recursive functions" $
-    let evenOdd :: Arr s c (EvenOdd,IV) Bool
+    let evenOdd :: Arr t s (EvenOdd,IV) Bool
         evenOdd = fix $ \f -> proc (e,x) -> case e of
           Even -> ifLowerThan 0 (proc _ -> returnA -< true)
                                 (ifLowerThan 1 (proc _ -> returnA -< false)
@@ -151,7 +154,7 @@ sharedSpec strat = do
          run evenOdd (Even,iv 0 Infinity) `shouldBe` top
 
   describe "non-terminating function" $
-    let diverge :: Arr s c Int Sign
+    let diverge :: Arr t s Int Sign
         diverge = fix $ \f -> proc n -> case n of
           0 -> f -< 0
           _ -> f -< (n-1)
@@ -161,20 +164,20 @@ sharedSpec strat = do
          run diverge 5 `shouldBe` bottom
 
   where
-    run :: (Show a, Show b, Identifiable a, Complete b, Show (stack a), IsEmpty (stack a), IsEmpty (cache a (Terminating b)), ?stackWiden :: StackWidening stack a, ?widen :: Widening b)
-      => Arr (Stack ** stack) cache a b -> a -> Terminating b
+    run :: (Show a, Show b, Identifiable a, Complete b, ?stackWiden :: StackWidening s a, ?widen :: Widening b, IsEmpty (s a))
+      => Arr t s a b -> a -> Terminating b
     run f a = runFixT (strat ?stackWiden (T.widening ?widen)) (runTerminatingT f) a
     
-    ifLowerThan :: (Num n, Ord n, ArrowChoice c, Profunctor c, Complete (c (Interval n, Interval n) x)) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
-    ifLowerThan l f g = proc x -> case x of
-      I.Interval m n
-        | n <= l -> f -< x
-        | l < m -> g -< x
-        | m <= l && l+1 <= n -> joined f g -< (I.Interval m l, I.Interval (l+1) n)
-        | otherwise -> f -< I.Interval m l
-
     iv :: InfiniteNumber Int -> InfiniteNumber Int -> IV
     iv n m = I.Interval n m
+
+ifLowerThan :: (Num n, Ord n, ArrowChoice c, Profunctor c, ArrowJoin c, Complete x) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
+ifLowerThan l f g = proc x -> case x of
+  I.Interval m n
+    | n <= l -> f -< x
+    | l < m -> g -< x
+    | m <= l && l+1 <= n -> (f -< I.Interval m l) <⊔> (g -< I.Interval (l+1) n)
+    | otherwise -> f -< I.Interval m l
 
 data EvenOdd = Even | Odd deriving (Eq,Generic,Show)
 instance Hashable EvenOdd
