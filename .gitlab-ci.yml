@@ -6,6 +6,14 @@ before_script:
   - stack setup
   - stack update
 
+cache:
+  # Enable per branch caching
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+  - .stack
+  - .stack-work
+  - target
+
 stages:
   - build
   - test
