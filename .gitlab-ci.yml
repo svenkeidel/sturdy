@@ -1,14 +1,21 @@
-image: haskell:latest
+image: fpco/stack-build:latest
 
 before_script:
   - apt-get update -qq && apt-get install xz-utils make
   - git submodule update --init --recursive
   - stack setup
+  - stack update
 
 stages:
+  - build
   - test
+
+stack-build:
+  stage: build
+  script:
+    - stack build --fast -j1
 
 stack-test:
   stage: test
   script:
-    - stack test
+    - stack test --fast -j1
