@@ -21,7 +21,6 @@ import           Prelude hiding ((.),read,id)
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Alloc
-import           Control.Arrow.Conditional
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
@@ -34,7 +33,6 @@ import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Reader
 
 import           Data.Identifiable
-import           Data.Order
 import           Data.Label
 import           Data.Profunctor
 import           Data.Abstract.DiscretePowerset(Pow)
@@ -43,7 +41,7 @@ import qualified Data.Abstract.DiscretePowerset as P
 newtype ReachingDefsT lab c x y = ReachingDefsT (ReaderT (Maybe lab) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
             ArrowFail e,ArrowExcept e,ArrowState s,ArrowEnv var val env,
-            ArrowCond val,ArrowJoin)
+            ArrowJoin)
 
 reachingDefsT :: (Arrow c,Profunctor c) => c (Maybe lab,x) y -> ReachingDefsT lab c x y
 reachingDefsT = lift
@@ -75,9 +73,3 @@ instance ArrowReader r c => ArrowReader r (ReachingDefsT lab c) where
 
 instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefsT lab c) where
   alloc = lift' alloc
-
-deriving instance PreOrd (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => PreOrd (ReachingDefsT lab c x y)
-deriving instance LowerBounded (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => LowerBounded (ReachingDefsT lab c x y)
-deriving instance Complete (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => Complete (ReachingDefsT lab c x y)
-deriving instance CoComplete (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => CoComplete (ReachingDefsT lab c x y)
-deriving instance UpperBounded (c (Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)) => UpperBounded (ReachingDefsT lab c x y)

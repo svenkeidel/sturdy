@@ -140,6 +140,7 @@ newtype ChaoticT s a b c x y = ChaoticT (WriterT (Component a) (StateT (HashMap 
 instance (Identifiable a,Profunctor c,ArrowApply c) => ArrowApply (ChaoticT s a b c) where app = ChaoticT (lmap (first coerce) app)
 instance (Identifiable a,Profunctor c,Arrow c) => ArrowJoin (ChaoticT s a b c) where
   joinWith _lub (ChaoticT f) (ChaoticT g) = ChaoticT $ rmap (uncurry _lub) (f &&& g)
+-- deriving instance PreOrd (ChaoticT s a b c)
 instance (IsEmpty (s a)) => ArrowRun (ChaoticT s a b) where
   run (ChaoticT f) = dimap (\a -> (empty,(M.empty,a))) (snd . snd) (runReaderT (runStateT (runWriterT f)))
 

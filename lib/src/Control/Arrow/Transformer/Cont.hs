@@ -17,7 +17,6 @@ import Control.Arrow.Trans
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Writer
--- import Control.Arrow.Conditional
 import Data.Profunctor
 
 newtype ContT c x y = ContT { runContT :: forall r. c y r -> c x r }
@@ -71,7 +70,3 @@ instance (ArrowApply c, ArrowWriter w c) => ArrowWriter w (ContT c) where
 
 instance (ArrowApply c, ArrowFail e c) => ArrowFail e (ContT c) where
   fail = lift' fail
-
--- instance (ArrowApply c, ArrowCond v c) => ArrowCond v (ContT c) where
---   type Join (ContT c) x y = Cond.Join c (Dom1 ContT x y) (Cod1 ContT x y)
---   if_ (ContT f) (ContT g) = ContT $ \k -> if_ (f k) (g k)

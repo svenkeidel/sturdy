@@ -25,7 +25,6 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Category
 
 import           Data.Label
-import           Data.Order
 import           Data.CallString
 import           Data.Profunctor
 
@@ -64,9 +63,3 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (ContourT lab c) where
 instance ArrowReader r c => ArrowReader r (ContourT lab c) where
   ask = lift' ask
   local (ContourT (ReaderT f)) = ContourT $ ReaderT $ ((\(c,(r,x)) -> (r,(c,x))) ^>> local f)
-
-deriving instance PreOrd (c (CallString lab,x) y) => PreOrd (ContourT lab c x y)
-deriving instance LowerBounded (c (CallString lab,x) y) => LowerBounded (ContourT lab c x y)
-deriving instance Complete (c (CallString lab,x) y) => Complete (ContourT lab c x y)
-deriving instance CoComplete (c (CallString lab,x) y) => CoComplete (ContourT lab c x y)
-deriving instance UpperBounded (c (CallString lab,x) y) => UpperBounded (ContourT lab c x y)

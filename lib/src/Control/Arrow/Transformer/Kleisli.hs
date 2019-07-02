@@ -25,7 +25,6 @@ import           Control.Arrow.Trans
 import           Control.Category
 
 import           Data.Identifiable
-import           Data.Order
 import           Data.Monoidal
 import           Data.Profunctor (Profunctor(..))
 import           Data.Coerce
@@ -105,10 +104,4 @@ instance (Identifiable (f y), ArrowMonad f c, Arrow c, ArrowDeduplicate (Dom (Kl
 
 instance (ArrowMonad f c, ArrowConst r c) => ArrowConst r (KleisliT f c) where
   askConst f = lift (askConst (unlift . f))
-
-deriving instance PreOrd (c x (f y)) => PreOrd (KleisliT f c x y)
-deriving instance LowerBounded (c x (f y)) => LowerBounded (KleisliT f c x y)
-deriving instance Complete (c x (f y)) => Complete (KleisliT f c x y)
-deriving instance CoComplete (c x (f y)) => CoComplete (KleisliT f c x y)
-deriving instance UpperBounded (c x (f y)) => UpperBounded (KleisliT f c x y)
 

@@ -46,12 +46,6 @@ type instance Fix x y (ErrorT e c) = ErrorT e (Fix (Dom (ErrorT e) x y) (Cod (Er
 deriving instance (ArrowChoice c, ArrowFix (Dom (ErrorT e) x y) (Cod (ErrorT e) x y) c) => ArrowFix x y (ErrorT e c)
 deriving instance (Identifiable (Cod (ErrorT e) x y), ArrowChoice c, ArrowDeduplicate (Dom (ErrorT e) x y) (Cod (ErrorT e) x y) c) => ArrowDeduplicate x y (ErrorT e c)
 
-deriving instance PreOrd (c x (Cod (ErrorT e) x y)) => PreOrd (ErrorT e c x y)
-deriving instance LowerBounded (c (Dom (ErrorT e) x y) (Cod (ErrorT e) x y)) => LowerBounded (ErrorT e c x y)
-deriving instance Complete (c (Dom (ErrorT e) x y) (Cod (ErrorT e) x y)) => Complete (ErrorT e c x y)
-deriving instance CoComplete (c (Dom (ErrorT e) x y) (Cod (ErrorT e) x y)) => CoComplete (ErrorT e c x y)
-deriving instance UpperBounded (c (Dom (ErrorT e) x y) (Cod (ErrorT e) x y)) => UpperBounded (ErrorT e c x y)
-
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowJoin (ErrorT e c) where
   joinWith lub' f g = lift $ joinWith (toJoin2 widening (⊔) lub') (unlift f) (unlift g)
 

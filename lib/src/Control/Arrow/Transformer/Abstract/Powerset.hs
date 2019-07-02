@@ -25,7 +25,6 @@ import           Control.Arrow.Transformer.Kleisli
 import           Control.Category
 
 import qualified Data.Abstract.Powerset as A
-import           Data.Order
 import           Data.Identifiable
 import           Data.Profunctor
 
@@ -43,12 +42,6 @@ instance (ArrowChoice c, ArrowDeduplicate x y c, Identifiable y) => ArrowDedupli
 instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (PowT c) where app = lift $ lmap (first unlift) app
 type instance Fix x y (PowT c) = PowT (Fix (Dom PowT x y) (Cod PowT x y) c)
 deriving instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (PowT c)
-
-deriving instance PreOrd (c x (A.Pow y)) => PreOrd (PowT c x y)
-deriving instance LowerBounded (c x (A.Pow y)) => LowerBounded (PowT c x y)
-deriving instance Complete (c x (A.Pow y)) => Complete (PowT c x y)
-deriving instance CoComplete (c x (A.Pow y)) => CoComplete (PowT c x y)
-deriving instance UpperBounded (c x (A.Pow y)) => UpperBounded (PowT c x y)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
   joinWith _ f g = lift $ joinWith A.union (unlift f) (unlift g)

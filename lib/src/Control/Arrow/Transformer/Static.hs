@@ -26,11 +26,9 @@ import Control.Arrow.Writer
 import Control.Arrow.Abstract.Join
 
 import Data.Profunctor
-import Data.Order hiding (lub)
 
 -- Due to https://hackage.haskell.org/package/arrows/docs/Control-Arrow-Transformer-StaticT.html
 newtype StaticT f c x y = StaticT { runStaticT :: f (c x y) }
-  deriving (PreOrd,Complete,CoComplete,UpperBounded,LowerBounded)
 
 instance (Applicative f, Profunctor c) => Profunctor (StaticT f c) where
   dimap f g (StaticT h) = StaticT $ dimap f g <$> h

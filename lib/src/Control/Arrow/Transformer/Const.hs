@@ -28,7 +28,6 @@ import Control.Arrow.Abstract.Join
 
 import Control.Arrow.Transformer.Static
 
-import Data.Order
 import Data.Profunctor
 
 -- | Passes along constant data.
@@ -36,8 +35,7 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowLift,
             ArrowState s,ArrowReader r',ArrowWriter w,
             ArrowEnv var val env, ArrowStore var val,
-            ArrowFail e, ArrowExcept e,
-            PreOrd, Complete, CoComplete, UpperBounded, LowerBounded)
+            ArrowFail e, ArrowExcept e)
 
 runConstT :: r -> ConstT r c x y -> c x y
 runConstT r (ConstT (StaticT f)) = f r

@@ -69,13 +69,13 @@ instance ArrowLift (EnvT var addr val) where
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c) =>
   ArrowEnv var val (Map var addr val) (EnvT var addr val c) where
-  type Join (EnvT var addr val c) x y = Complete (c (Map var addr val,x) y)
+  type Join (EnvT var addr val c) x y = (ArrowJoin c, Complete y)
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- ask -< ()
     case do M.lookup var env of
-      Just val        -> f          -< (val,x)
-      JustNothing val -> joined f g -< ((val,x),x)
-      Nothing         -> g          -< x
+      Just val        -> f -< (val,x)
+      Nothing         -> g -< x
+      JustNothing val -> (f -< (val,x)) <⊔> (g -< x)
   getEnv = EnvT ask
   extendEnv = EnvT $ ConstT $ StaticT $ \alloc -> lift' $ M.insertBy alloc
   localEnv (EnvT f) = EnvT $ local f
@@ -90,9 +90,3 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var addr val c) where
 
 type instance Fix x y (EnvT var addr val c) = EnvT var addr val (Fix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c)
 deriving instance ArrowFix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c => ArrowFix x y (EnvT var addr val c)
-
-deriving instance PreOrd (c ((Map var addr val),x) y) => PreOrd (EnvT var addr val c x y)
-deriving instance Complete (c ((Map var addr val),x) y) => Complete (EnvT var addr val c x y)
-deriving instance CoComplete (c ((Map var addr val),x) y) => CoComplete (EnvT var addr val c x y)
-deriving instance LowerBounded (c ((Map var addr val),x) y) => LowerBounded (EnvT var addr val c x y)
-deriving instance UpperBounded (c ((Map var addr val),x) y) => UpperBounded (EnvT var addr val c x y)

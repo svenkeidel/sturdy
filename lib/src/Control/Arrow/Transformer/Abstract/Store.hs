@@ -47,14 +47,14 @@ evalStoreT f = runStoreT f >>> pi2
 execStoreT :: Arrow c => StoreT var val c x y -> c (Map var val, x) (Map var val)
 execStoreT f = runStoreT f >>> pi1
 
-instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT var val c) where
-  type Join (StoreT var val c) ((val,x),x) y = Complete (c (Map var val, ((val, x), x)) (Map var val, y))
+instance (Identifiable var, ArrowChoice c, Profunctor c, Complete val) => ArrowStore var val (StoreT var val c) where
+  type Join (StoreT var val c) ((val,x),x) y = (ArrowJoin c, Complete y)
   read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
     s <- get -< ()
     case M.lookup var s of
-      Just val        -> f          -< (val,x)
-      JustNothing val -> joined f g -< ((val,x),x)
-      Nothing         -> g          -< x
+      Just val        -> f -< (val,x)
+      JustNothing val -> (f -< (val,x)) <⊔> (g -< x)
+      Nothing         -> g -< x
   write = StoreT $ modify $ arr $ \((var,val),st) -> ((),M.insert var val st)
 
 instance ArrowState s c => ArrowState s (StoreT var val c) where
@@ -66,9 +66,3 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT var val c) where app
 
 type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c)
 deriving instance ArrowFix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c => ArrowFix x y (StoreT var val c)
-
-deriving instance PreOrd (c (Map var val,x) (Map var val,y)) => PreOrd (StoreT var val c x y)
-deriving instance Complete (c (Map var val,x) (Map var val,y)) => Complete (StoreT var val c x y)
-deriving instance CoComplete (c (Map var val,x) (Map var val,y)) => CoComplete (StoreT var val c x y)
-deriving instance UpperBounded (c (Map var val,x) (Map var val,y)) => UpperBounded (StoreT var val c x y)
-deriving instance LowerBounded (c (Map var val,x) (Map var val,y)) => LowerBounded (StoreT var val c x y)

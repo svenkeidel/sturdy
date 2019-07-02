@@ -13,7 +13,6 @@ import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
 import Control.Arrow.Const
-import Control.Arrow.Conditional as Cond
 import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -29,7 +28,6 @@ import Control.Arrow.Abstract.Join
 import Control.Category
 
 import Data.Profunctor
-import Data.Order hiding (lub)
 import Data.Monoidal
 import Data.Coerce
 
@@ -118,14 +116,3 @@ instance ArrowJoin c => ArrowJoin (ReaderT r c) where
 
 instance ArrowConst x c => ArrowConst x (ReaderT r c) where
   askConst f = lift (askConst (unlift . f))
-
-instance ArrowCond v c => ArrowCond v (ReaderT r c) where
-  type instance Join (ReaderT r c) (x,y) z = Cond.Join c (Dom (ReaderT r) x z,Dom (ReaderT r) y z) (Cod (ReaderT r) (x,y) z)
-  if_ f g = lift $ lmap (\(r,(v,(x,y))) -> (v,((r,x),(r,y))))
-                 $ if_ (unlift f) (unlift g)
-
-deriving instance PreOrd (c (r,x) y) => PreOrd (ReaderT r c x y)
-deriving instance LowerBounded (c (r,x) y) => LowerBounded (ReaderT r c x y)
-deriving instance Complete (c (r,x) y) => Complete (ReaderT r c x y)
-deriving instance CoComplete (c (r,x) y) => CoComplete (ReaderT r c x y)
-deriving instance UpperBounded (c (r,x) y) => UpperBounded (ReaderT r c x y)

@@ -27,7 +27,6 @@ import Control.Category
 import Data.Profunctor
 import Data.Abstract.FreeCompletion
 import Data.Identifiable
-import Data.Order hiding (lub)
 
 -- | Allows to describe computations over non-completely ordered types.
 -- E.g. allows to join a computation of type 'c x [y]'.
@@ -42,12 +41,6 @@ instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (CompletionT 
 type instance Fix x y (CompletionT c) = CompletionT (Fix (Dom (CompletionT) x y) (Cod (CompletionT) x y) c)
 deriving instance (ArrowChoice c, ArrowFix (Dom (CompletionT) x y) (Cod (CompletionT) x y) c) => ArrowFix x y (CompletionT c)
 deriving instance (Identifiable (Cod CompletionT x y), ArrowChoice c, ArrowDeduplicate (Dom CompletionT x y) (Cod CompletionT x y) c) => ArrowDeduplicate x y (CompletionT c)
-
-deriving instance PreOrd (c x (Cod CompletionT x y)) => PreOrd (CompletionT c x y)
-deriving instance LowerBounded (c (Dom CompletionT x y) (Cod CompletionT x y)) => LowerBounded (CompletionT c x y)
-deriving instance Complete (c (Dom CompletionT x y) (Cod CompletionT x y)) => Complete (CompletionT c x y)
-deriving instance CoComplete (c (Dom CompletionT x y) (Cod CompletionT x y)) => CoComplete (CompletionT c x y)
-deriving instance UpperBounded (c (Dom CompletionT x y) (Cod CompletionT x y)) => UpperBounded (CompletionT c x y)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where
   joinWith lub f g = lift $ joinWith join (unlift f) (unlift g)

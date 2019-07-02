@@ -25,7 +25,6 @@ import Control.Arrow.Except as Exc
 import Control.Arrow.Abstract.Join
 import Control.Arrow.Transformer.Kleisli
 
-import Data.Order
 import Data.Identifiable
 import Data.Profunctor
 import Data.Abstract.Failure
@@ -46,12 +45,6 @@ instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FailureT e c
 type instance Fix x y (FailureT e c) = FailureT e (Fix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c)
 deriving instance (ArrowChoice c, ArrowFix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c) => ArrowFix x y (FailureT e c)
 deriving instance (Identifiable (Cod (FailureT e) x y), ArrowChoice c, ArrowDeduplicate (Dom (FailureT e) x y) (Cod (FailureT e) x y) c) => ArrowDeduplicate x y (FailureT e c)
-
-deriving instance PreOrd (c x (Cod (FailureT e) x y)) => PreOrd (FailureT e c x y)
-deriving instance LowerBounded (c (Dom (FailureT e) x y) (Cod (FailureT e) x y)) => LowerBounded (FailureT e c x y)
-deriving instance Complete (c (Dom (FailureT e) x y) (Cod (FailureT e) x y)) => Complete (FailureT e c x y)
-deriving instance CoComplete (c (Dom (FailureT e) x y) (Cod (FailureT e) x y)) => CoComplete (FailureT e c x y)
-deriving instance UpperBounded (c (Dom (FailureT e) x y) (Cod (FailureT e) x y)) => UpperBounded (FailureT e c x y)
 
 instance (ArrowJoin c, ArrowChoice c) => ArrowJoin (FailureT e c) where
   joinWith lub' f g = lift $ joinWith (toJoin widening lub') (unlift f) (unlift g)

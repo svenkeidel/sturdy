@@ -16,7 +16,6 @@ import Control.Arrow
 import Control.Arrow.Fail
 import Control.Arrow.Environment
 import Control.Arrow.Fix
-import Control.Arrow.Conditional
 import Control.Arrow.Transformer.Concrete.Environment
 import Control.Arrow.Transformer.Concrete.Failure
 import Control.Monad.State hiding (fail)
@@ -55,6 +54,7 @@ deriving instance ArrowEnv var Val env c => ArrowEnv var Val env (ConcreteT c)
 
 -- | Concrete instance of the interface for value operations.
 instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
+  type Join (ConcreteT c) x y = ()
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal (n + 1)
     _ -> fail -< "Expected a number as argument for 'succ'"
@@ -63,19 +63,17 @@ instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
     _ -> fail -< "Expected a number as argument for 'pred'"
   zero = arr $ const (NumVal 0)
 
+  if_ f g = proc (v1, (x, y)) -> case v1 of
+    NumVal 0 -> f -< x
+    NumVal _ -> g -< y
+
+    _ -> fail -< "Expected a number as condition for 'ifZero'"
 -- | Concrete instance of the interface for closure operations.
 instance (ArrowChoice c, ArrowFail String c) => IsClosure Val (HashMap Text Val) (ConcreteT c) where
   closure = arr $ \(e, env) -> ClosureVal $ Closure e env
   applyClosure f = proc (fun, arg) -> case fun of
     ClosureVal (Closure e env) -> f -< ((e,env),arg)
     NumVal _ -> fail -< "Expected a closure"
-
-instance (ArrowChoice c, ArrowFail String c) => ArrowCond Val (ConcreteT c) where
-  type Join (ConcreteT c) x y = ()
-  if_ f g = proc (v1, (x, y)) -> case v1 of
-    NumVal 0 -> f -< x
-    NumVal _ -> g -< y
-    _ -> fail -< "Expected a number as condition for 'ifZero'"
 
 instance Hashable Closure
 instance Hashable Val

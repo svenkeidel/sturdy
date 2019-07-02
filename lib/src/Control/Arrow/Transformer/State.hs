@@ -12,7 +12,6 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Arrow
 import Control.Arrow.Alloc
 import Control.Arrow.Const
-import Control.Arrow.Conditional as Cond
 import Control.Arrow.Deduplicate
 import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
@@ -134,15 +133,5 @@ instance ArrowConst x c => ArrowConst x (StateT s c) where
 instance ArrowAlloc x y c => ArrowAlloc x y (StateT s c) where
   alloc = lift' alloc
 
-instance (ArrowCond v c) => ArrowCond v (StateT s c) where
-  type instance Join (StateT s c) (x,y) z = Cond.Join c ((s,x),(s,y)) (s,z)
-  if_ f g = lift $ lmap (\(s,(v,(x,y))) -> (v,((s,x),(s,y)))) (if_ (unlift f) (unlift g))
-
 instance ArrowRand v c => ArrowRand v (StateT s c) where
   random = lift' random
-
-deriving instance PreOrd (c (s,x) (s,y)) => PreOrd (StateT s c x y)
-deriving instance LowerBounded (c (s,x) (s,y)) => LowerBounded (StateT s c x y)
-deriving instance Complete (c (s,x) (s,y)) => Complete (StateT s c x y)
-deriving instance CoComplete (c (s,x) (s,y)) => CoComplete (StateT s c x y)
-deriving instance UpperBounded (c (s,x) (s,y)) => UpperBounded (StateT s c x y)

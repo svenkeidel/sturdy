@@ -10,7 +10,6 @@ module Control.Arrow.Transformer.Concrete.Random where
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Alloc
-import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
 import           Control.Arrow.Trans
@@ -31,7 +30,7 @@ import qualified System.Random as R
 newtype RandomT c x y = RandomT (StateT StdGen c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
             ArrowReader r, ArrowFail e, ArrowExcept e,
-            ArrowEnv var val env, ArrowStore var val, ArrowCond val)
+            ArrowEnv var val env, ArrowStore var val)
 
 runRandomT :: RandomT c x y -> c (StdGen,x) (StdGen,y)
 runRandomT (RandomT (StateT f)) = f

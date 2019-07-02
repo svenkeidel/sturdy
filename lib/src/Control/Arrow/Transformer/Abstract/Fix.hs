@@ -40,9 +40,6 @@ instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c,ArrowApply 
   fix f = iterationStrategy (f (fix f))
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (FixT a b c) where app = FixT (lmap (first coerce) app)
-deriving instance PreOrd (c x y) => PreOrd (FixT a b c x y)
-deriving instance Complete (c x y) => Complete (FixT a b c x y)
-deriving instance LowerBounded (c x y) => LowerBounded (FixT a b c x y)
 
 instance ArrowLift (FixT a b) where
   lift' = FixT . lift'

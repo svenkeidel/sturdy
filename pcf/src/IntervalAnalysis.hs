@@ -27,7 +27,6 @@ import           Control.Arrow.Alloc
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
-import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Environment
 import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Abstract.Contour
@@ -94,10 +93,10 @@ evalInterval k env0 e =
                       (ContourT Label
                         (ErrorT (Pow String)
                           (TerminatingT
-                            (FixT _ _ () () (->))))))) Expr Val))))))
+                            (FixT () () _)))))) Expr Val))))))
     (env0,generate e)
   where
-    iterationStrategy :: IterationStrategy _ _ (Env,Expr) _
+    iterationStrategy :: IterationStrategy _ (Env,Expr) _
     iterationStrategy = S.filter apply
                       $ S.chaotic stackWiden (T.widening (E.widening W.finite widenVal))
 
@@ -122,18 +121,20 @@ instance ArrowTrans IntervalT where
   unlift = runIntervalT
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (IntervalT c) where
+  type Join (IntervalT c) x y = Complete y
+
   succ = proc x -> case x of
     Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected a number as argument for 'succ'")
     NumVal n -> returnA -< NumVal $ n + 1 -- uses the `Num` instance of intervals
     ClosureVal _ -> fail -< "Expected a number as argument for 'succ'"
+
   pred = proc x -> case x of
     Top -> (returnA -< NumVal top) <⊔> (fail -< "Expected a number as argument for 'pred'")
     NumVal n -> returnA -< NumVal $ n - 1
     ClosureVal _ -> fail -< "Expected a number as argument for 'pred'"
+
   zero = proc _ -> returnA -< (NumVal 0)
 
-instance (IsString e, ArrowChoice c, ArrowJoin c, ArrowFail e c) => ArrowCond Val (IntervalT c) where
-  type Join (IntervalT c) x y = Complete y
   if_ f g = proc v -> case v of
     (Top, (x,y)) -> (f -< x) <⊔> (g -< y) <⊔> (fail -< "Expected a number as condition for 'ifZero'")
     (NumVal (I.Interval i1 i2), (x, y))

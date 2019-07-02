@@ -54,12 +54,6 @@ type instance Fix x y (ExceptT e c) = ExceptT e (Fix (Dom (ExceptT e) x y) (Cod 
 deriving instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c)
 deriving instance (Complete e, ArrowJoin c, Identifiable (Cod (ExceptT e) x y), ArrowChoice c, ArrowDeduplicate (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowDeduplicate x y (ExceptT e c)
 
-deriving instance PreOrd (c x (Cod (ExceptT e) x y)) => PreOrd (ExceptT e c x y)
-deriving instance LowerBounded (c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)) => LowerBounded (ExceptT e c x y)
-deriving instance Complete (c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)) => Complete (ExceptT e c x y)
-deriving instance CoComplete (c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)) => CoComplete (ExceptT e c x y)
-deriving instance UpperBounded (c (Dom (ExceptT e) x y) (Cod (ExceptT e) x y)) => UpperBounded (ExceptT e c x y)
-
 instance (Complete e, ArrowJoin c, ArrowChoice c) => ArrowJoin (ExceptT e c) where
   joinWith lub' f g = lift $ joinWith (toJoin2 widening (⊔) lub') (unlift f) (unlift g)
 
