@@ -49,6 +49,7 @@ import           Data.Abstract.Widening(Widening)
 import qualified Data.Abstract.Widening as W
 import qualified Data.Abstract.Terminating as T
 import qualified Data.Abstract.StackWidening as S
+import           Data.Abstract.InfiniteNumbers
 
 import           GHC.Exts
 import           GHC.Generics
@@ -57,13 +58,16 @@ import           SturdyStyle.GenericInterpreter(IsValue(..))
 import qualified SturdyStyle.GenericInterpreter as Generic
 import           Syntax
 
+import           Debug.Trace
+
 type Addr = FreeCompletion Label
 data AbsVal = BoolVal AbsBool | NumVal Interval | TopVal deriving (Show, Eq,Generic)
 data AbsBool = True | False | TopBool deriving (Show,Eq,Generic)
-data Interval = Interval Int Int deriving (Show,Eq,Generic)
+data Interval = Interval (InfiniteNumber Int) (InfiniteNumber Int) deriving (Show,Eq, Generic)
+
 
 instance (IsString e, ArrowChoice c, ArrowJoin c, ArrowFail e c) => IsValue AbsVal (AbstractT c) where
-  numLit = arr $ \n -> NumVal (Interval n n)
+  numLit = arr $ \n -> NumVal (Interval (fromIntegral n) (fromIntegral n))
 
   add = proc (v1,v2) -> case (v1,v2) of
     -- When adding all numbers within two intervals, the smallest
@@ -120,8 +124,8 @@ instance (Profunctor c, Arrow c) => ArrowAlloc (String, AbsVal, Label) Addr (Abs
   alloc = proc (_,_,l) -> returnA -< return l
 
 
-run :: [LStatement] -> Terminating (Error (Pow String) (M.Map Addr AbsVal))
-run stmts = fmap fst <$>
+run :: Int -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr AbsVal))
+run n stmts = fmap fst <$>
   runFixT stackWiden widenResult
     (runTerminatingT
       (runErrorT
@@ -144,7 +148,7 @@ run stmts = fmap fst <$>
     stackWiden = S.filter' (L.second (L.second whileLoops))
                $ S.groupBy (L.iso (\(store,(ev,stmt)) -> (stmt,(ev,store))) (\(stmt,(ev,store)) -> (store,(ev,stmt))))
                $ S.stack
-               $ S.maxSize 1
+               $ S.maxSize n
                $ S.reuseFirst
                $ S.fromWidening (SM.widening W.finite W.** M.widening widenVal)
 
@@ -185,7 +189,7 @@ instance Complete AbsBool where
 -- becomes finite.
 widenVal :: Widening AbsVal
 widenVal (NumVal (Interval x1 y1)) (NumVal (Interval x2 y2))
-  | x2 < x1 || y1 < y2 = (W.Instable,TopVal)
+  | x2 < x1 || y1 < y2 = (W.Instable,NumVal (Interval NegInfinity Infinity))
   | otherwise = (W.Stable,NumVal (Interval x2 y2))
 widenVal (BoolVal b1) (BoolVal b2) = if b1 == b2 then (W.Stable,BoolVal b1) else (W.Instable,BoolVal TopBool)
 widenVal v1 v2

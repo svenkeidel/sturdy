@@ -7,6 +7,7 @@ import           Syntax
 import           Data.Abstract.Error
 import qualified Data.Abstract.Map as M
 import           Data.Abstract.Terminating
+import           Data.Abstract.InfiniteNumbers
 
 import           Test.Hspec
 
@@ -23,4 +24,4 @@ spec =
                     assign "x" (add (var "x") (numLit 1))
                   ]
                 ]
-    run stmts `shouldBe` Terminating (Success (M.fromList [(1, NumVal (Interval 10 10)), (3, NumVal (Interval 47 47))]))
+    run 20 stmts `shouldBe` Terminating (Success (M.fromList [(1, NumVal (Interval 11 11)), (3, NumVal (Interval 57 57))]))
