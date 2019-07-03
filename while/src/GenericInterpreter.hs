@@ -2,26 +2,29 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 module GenericInterpreter where
 
-import Prelude hiding (lookup, and, or, not, div, read)
+import           Prelude hiding (lookup, and, or, not, div, read)
 
-import Data.Label
+import           Data.Label
 
-import Control.Arrow
-import Control.Arrow.Alloc
-import Control.Arrow.Conditional as Cond
-import Control.Arrow.Fail
-import Control.Arrow.Fix
-import Control.Arrow.Environment as Env
-import Control.Arrow.Random
-import Control.Arrow.Store as Store
-import Control.Arrow.Utils
+import           Control.Arrow
+import           Control.Arrow.Alloc
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Environment(ArrowEnv,lookup,lookup'',extendEnv')
+import qualified Control.Arrow.Environment as Env
+import           Control.Arrow.Random
+import           Control.Arrow.Store(ArrowStore,read',write)
+import qualified Control.Arrow.Store as Store
+import           Control.Arrow.Utils
 
-import Data.Text (Text)
-import Data.String
+import           Data.Text (Text)
+import           Data.String
 
-import Syntax
+import           Syntax
+import           GHC.Exts
 
 type Prog = [Statement]
   
@@ -76,11 +79,11 @@ eval = proc e -> case e of
 run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
         ArrowEnv Text addr env c, ArrowStore addr v c,
         ArrowAlloc (Text,v,Label) addr c, ArrowFail e c,
-        ArrowCond v c, ArrowRand v c, IsString e, IsVal v c,
+        ArrowRand v c, IsString e, IsVal v c,
         Env.Join c ((addr, Text),Text) v,
         Env.Join c ((addr, (Text,v,Label)), (Text,v,Label)) addr,
         Store.Join c ((v, addr),addr) v,
-        Cond.Join c ([Statement],[Statement]) ()
+        Join c ([Statement],[Statement]) ()
        )
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
@@ -102,6 +105,8 @@ run = fix $ \run' -> proc stmts -> case stmts of
     returnA -< ()
 
 class Arrow c => IsVal v c | c -> v where
+  type family Join (c :: * -> * -> *) x y :: Constraint
+
   boolLit :: c (Bool,Label) v
   and :: c (v,v,Label) v
   or :: c (v,v,Label) v
@@ -113,4 +118,5 @@ class Arrow c => IsVal v c | c -> v where
   div :: c (v,v,Label) v
   eq :: c (v,v,Label) v
   lt :: c (v,v,Label) v
- 
+  if_ :: Join c (x,y) z => c x z -> c y z -> c (v, (x, y)) z
+

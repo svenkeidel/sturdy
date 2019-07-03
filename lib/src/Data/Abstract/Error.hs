@@ -26,8 +26,7 @@ import qualified Data.Concrete.Error as C
 
 import GHC.Generics (Generic, Generic1)
 
--- | Failure is an Either-like type with the special ordering Failure ⊑ Success.
--- Left and Right of the regular Either type, on the other hand are incomparable.
+-- | Error is an Either-like type with the ordering Success ⊑ Failure.
 data Error e a = Fail e | Success a
   deriving (Eq, Functor, Generic, Generic1, NFData, NFData1)
 

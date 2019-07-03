@@ -52,7 +52,7 @@ spec = do
   it "x := 1; y := 1; while(x < 3){x:= x + 1; i := 1, while(i < 2) {y := y + 1}}" $ do
     let ?bound = I.Interval (-500) 500
     let res = run 10 [("x",0),("y",1)] ["x" =: 1, "y" =: 1, while ("x" < 3) ["x" =: "x" + 1, "i" =: 1, while ("i" < 2) ["i" =: "i" + 1, "y" =: "y" + 1 ]]]
-    res `shouldBe` Terminating (Success [(0, num 3 3),(1,num 3 3),(9,num 2 2)])
+    res `shouldBe` Terminating (Success [(0, num 3 3),(1,num 3 3),(14,num 2 2)])
 
   where
     num i j = NumVal (I.Interval i j)

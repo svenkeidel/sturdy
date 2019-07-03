@@ -41,7 +41,6 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
-import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Random
 import           Control.Arrow.Abstract.Join
 
@@ -71,7 +70,7 @@ run env ss =
                          (StoreT Addr Val
                            (ErrorT (Pow String)
                              (TerminatingT
-                               (FixT _ _ () () (->))))))) [Statement] ()))))))
+                               (FixT () () _)))))) [Statement] ()))))))
       (M.empty,(SM.fromList env,generate <$> ss))
   where
     iterationStrategy = S.filter (L.second (L.second whileLoops))
@@ -85,7 +84,8 @@ deriving instance ArrowFix x y c => ArrowFix x y (UnitT c)
 instance (ArrowChoice c,Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (UnitT c) where
   alloc = arr $ \(_,_,l) -> return l
 
-instance ArrowChoice c => IsVal Val (UnitT c) where
+instance (ArrowChoice c, ArrowJoin c) => IsVal Val (UnitT c) where
+  type Join (UnitT c) x y = Complete y
   boolLit = arr (const ())
   and = arr (const ())
   or = arr (const ())
@@ -97,10 +97,7 @@ instance ArrowChoice c => IsVal Val (UnitT c) where
   div = arr (const ())
   eq = arr (const ())
   lt = arr (const ())
+  if_ f1 f2 = proc (_,(x,y)) -> (f1 -< x) <⊔> (f2 -< y)
 
 instance (ArrowChoice c,Profunctor c) => ArrowRand Val (UnitT c) where
   random = arr (const ())
-
-instance (ArrowChoice c, ArrowJoin c) => ArrowCond Val (UnitT c) where
-  type Join (UnitT c) x y = Complete y
-  if_ f1 f2 = proc (_,(x,y)) -> (f1 -< x) <⊔> (f2 -< y)

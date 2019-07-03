@@ -136,13 +136,15 @@ instance Identifiable a => Monoid (Component a) where
   mempty = Component { head = H.empty, body = H.empty }
   c1 `mappend` c2 = Component { head = head c1 <> head c2, body = body c1 <> body c2 }
 
-newtype ChaoticT s a b c x y = ChaoticT (WriterT (Component a) (StateT (HashMap a (b,Stable)) (ReaderT (Stack a,s a) c)) x y) deriving (Profunctor,Category,Arrow,ArrowChoice)
+newtype ChaoticT s a b c x y = ChaoticT (WriterT (Component a) (StateT (HashMap a (b,Stable)) (ReaderT (Stack a,s a) c)) x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice)
+runChaoticT :: (IsEmpty (s a), Profunctor c) => ChaoticT s a b c x y -> c x (HashMap a (b,Stable),y)
+runChaoticT (ChaoticT f) = dimap (\a -> (empty,(M.empty,a))) (second snd) (runReaderT (runStateT (runWriterT f)))
 instance (Identifiable a,Profunctor c,ArrowApply c) => ArrowApply (ChaoticT s a b c) where app = ChaoticT (lmap (first coerce) app)
-instance (Identifiable a,Profunctor c,Arrow c) => ArrowJoin (ChaoticT s a b c) where
-  joinWith _lub (ChaoticT f) (ChaoticT g) = ChaoticT $ rmap (uncurry _lub) (f &&& g)
--- deriving instance PreOrd (ChaoticT s a b c)
 instance (IsEmpty (s a)) => ArrowRun (ChaoticT s a b) where
   run (ChaoticT f) = dimap (\a -> (empty,(M.empty,a))) (snd . snd) (runReaderT (runStateT (runWriterT f)))
+instance (Identifiable a,Profunctor c,Arrow c) => ArrowJoin (ChaoticT s a b c) where
+  joinWith _lub (ChaoticT f) (ChaoticT g) = ChaoticT $ rmap (uncurry _lub) (f &&& g)
 
 chaotic :: (Identifiable a, LowerBounded b, Profunctor c, ArrowChoice c, ArrowApply c) => StackWidening s a -> Widening b -> IterationStrategy (ChaoticT s a b c) a b
 chaotic stackWiden widen (ChaoticT (WriterT (StateT f))) = ChaoticT $ WriterT $ StateT $ stackWidening $ proc (stack,cache,a) -> do

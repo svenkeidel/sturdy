@@ -31,7 +31,6 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
 import           Control.Arrow.Alloc
-import           Control.Arrow.Conditional as Cond
 import           Control.Arrow.Random
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Environment
@@ -71,6 +70,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (Conc
   alloc = arr $ \(_,_,l) -> l
 
 instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
+  type Join (ConcreteT c) x y = ()
+
   boolLit = arr (\(b,_) -> BoolVal b)
   and = proc (v1,v2,_) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 && b2)
@@ -101,9 +102,6 @@ instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
   lt = proc (v1,v2,_) -> case (v1,v2) of
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.< n2)
     _ -> fail -< "Expected two numbers as arguments for 'lt'"
-
-instance (ArrowChoice c, ArrowFail String c) => ArrowCond Val (ConcreteT c) where
-  type Join (ConcreteT c) x y = ()
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y

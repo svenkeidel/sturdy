@@ -49,7 +49,7 @@ import           Data.Profunctor
 newtype EnvT var addr val c x y = EnvT ( ConstT (c (var,val,Map var addr val) addr) (ReaderT (Map var addr val) c) x y )
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowState s, ArrowFail e, ArrowExcept e, ArrowJoin)
 
-runEnvT :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c)
+runEnvT :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowJoin c, ArrowChoice c, Profunctor c)
                => c (var,val,Map var addr val) addr -> EnvT var addr val c x y -> c ([(var,val)],x) y
 runEnvT alloc f =
   let EnvT f' = proc (bs,x) -> do
@@ -67,9 +67,9 @@ instance ArrowTrans (EnvT var addr val) where
 instance ArrowLift (EnvT var addr val) where
   lift' f = EnvT (lift' (lift' f))
 
-instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c) =>
+instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowJoin c, Profunctor c) =>
   ArrowEnv var val (Map var addr val) (EnvT var addr val c) where
-  type Join (EnvT var addr val c) x y = (ArrowJoin c, Complete y)
+  type Join (EnvT var addr val c) x y = (Complete y)
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- ask -< ()
     case do M.lookup var env of

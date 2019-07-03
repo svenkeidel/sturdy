@@ -135,10 +135,10 @@ data Statement
 
 instance Show Statement where
   showsPrec _ e0 = case e0 of
-    Assign x e _ -> showString (unpack x) . showString " := " . shows e
-    While e body _ -> showString "while" . showParen True (shows e) . showString " " . shows body
-    If e ifB elseB _ -> showString "if" . showParen True (shows e) . showString " " . shows ifB . showString " " . shows elseB
-    Begin ss _ -> shows ss
+    Assign x e l     -> shows l . showString ": " . showString (unpack x) . showString " := " . shows e
+    While e body l   -> shows l . showString ": " . showString "while" . showParen True (shows e) . showString " " . shows body
+    If e ifB elseB l -> shows l . showString ": " . showString "if" . showParen True (shows e) . showString " " . shows ifB . showString " " . shows elseB
+    Begin ss l       -> shows l . showString ": " . showString "{" . shows ss . showString "}"
 
 type LStatement = State Label Statement
 
@@ -154,10 +154,14 @@ whileLoops = L.prism' (\((c,b,l),ss) -> While c b l:ss)
                    _ -> Nothing)
 
 ifExpr :: State Label Expr -> [State Label Statement] -> [State Label Statement] -> State Label Statement
-ifExpr cond ifBranch elseBranch = If <$> cond <*> begin ifBranch <*> begin elseBranch <*> fresh
+ifExpr cond ifBranch elseBranch = do
+  l <- fresh
+  If <$> cond <*> begin ifBranch <*> begin elseBranch <*> pure l
 
 begin :: [LStatement] -> LStatement
-begin ss = Begin <$> sequence ss <*> fresh
+begin ss = do
+  l <- fresh
+  Begin <$> sequence ss <*> pure l
 
 (=:) :: Text -> State Label Expr -> State Label Statement
 x =: e = Assign x <$> e <*> fresh

@@ -47,8 +47,8 @@ evalStoreT f = runStoreT f >>> pi2
 execStoreT :: Arrow c => StoreT var val c x y -> c (Map var val, x) (Map var val)
 execStoreT f = runStoreT f >>> pi1
 
-instance (Identifiable var, ArrowChoice c, Profunctor c, Complete val) => ArrowStore var val (StoreT var val c) where
-  type Join (StoreT var val c) ((val,x),x) y = (ArrowJoin c, Complete y)
+instance (Identifiable var, ArrowChoice c, ArrowJoin c, Profunctor c, Complete val) => ArrowStore var val (StoreT var val c) where
+  type Join (StoreT var val c) ((val,x),x) y = Complete y
   read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
     s <- get -< ()
     case M.lookup var s of

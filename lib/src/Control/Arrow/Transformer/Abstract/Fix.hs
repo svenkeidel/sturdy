@@ -9,7 +9,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
-module Control.Arrow.Transformer.Abstract.Fix(FixT,runFixT) where
+module Control.Arrow.Transformer.Abstract.Fix(FixT,runFixT,runFixT') where
 
 import           Prelude hiding (id,(.),const,head,iterate,lookup)
 
@@ -33,7 +33,11 @@ newtype FixT a b c x y = FixT { unFixT :: ConstT (IterationStrategy c a b) c x y
 
 runFixT :: (Identifiable a, PreOrd b, Profunctor c, ArrowRun t)
   => IterationStrategy (t c) a b -> FixT a b (t c) x y -> c x y
-runFixT iterationStrat (FixT f) = run (runConstT (iterationStrat) f)
+runFixT iterationStrat f = run (runFixT' iterationStrat f)
+
+runFixT' :: (Identifiable a, PreOrd b)
+  => IterationStrategy c a b -> FixT a b c x y -> c x y
+runFixT' iterationStrat (FixT f) = (runConstT iterationStrat f)
 
 type instance Fix x y (FixT () () c) = FixT x y c
 instance (Identifiable a, LowerBounded b, Profunctor c,ArrowChoice c,ArrowApply c) => ArrowFix a b (FixT a b c) where

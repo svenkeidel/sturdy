@@ -55,7 +55,6 @@ import           Data.Text (Text)
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Alloc
-import           Control.Arrow.Conditional
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
@@ -92,8 +91,8 @@ run k env ss =
                          (StoreT Addr Val
                            (ErrorT (Pow String)
                             (TerminatingT
-                               (FixT _ _ () () (->))))))) [Statement] ()))))))
-      (M.empty,(SM.fromList env, generate <$> ss))
+                               (FixT () () _)))))) [Statement] ()))))))
+      (M.empty,(SM.fromList env, generate (sequence ss)))
 
   where
     iterationStrategy = S.filter (L.second (L.second whileLoops))
@@ -116,6 +115,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (Inte
   alloc = arr $ \(_,_,l) -> return l
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (IntervalT c) where
+  type Join (IntervalT c) (x,y) z = Complete z
+
   boolLit = arr $ \(b,_) -> case b of
     P.True -> BoolVal B.True
     P.False -> BoolVal B.False
@@ -159,9 +160,6 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (I
     (NumVal n1,NumVal n2)      -> returnA -< BoolVal (n1 O.< n2)
     _ | v1 == Top || v2 == Top -> (returnA -< BoolVal top) <⊔> (fail -< "Expected two numbers as arguments for 'lt'")
     _                          -> fail -< "Expected two numbers as arguments for 'lt'"
-
-instance (IsString e, ArrowChoice c,ArrowFail e c, ArrowJoin c) => ArrowCond Val (IntervalT c) where
-  type Join (IntervalT c) (x,y) z = Complete z
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True  -> f1 -< x
     BoolVal B.False -> f2 -< y
