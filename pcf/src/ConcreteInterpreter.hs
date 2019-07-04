@@ -53,7 +53,7 @@ deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
 deriving instance ArrowEnv var Val env c => ArrowEnv var Val env (ConcreteT c)
 
 -- | Concrete instance of the interface for value operations.
-instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
+instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ConcreteT c) where
   type Join (ConcreteT c) x y = ()
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal (n + 1)

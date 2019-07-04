@@ -85,7 +85,7 @@ instance (ArrowChoice c,Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (UnitT
   alloc = arr $ \(_,_,l) -> return l
 
 instance (ArrowChoice c, ArrowJoin c) => IsVal Val (UnitT c) where
-  type Join (UnitT c) x y = Complete y
+  type JoinVal (UnitT c) x y = Complete y
   boolLit = arr (const ())
   and = arr (const ())
   or = arr (const ())

@@ -7,6 +7,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+-- | Concrete interpreter of the While language.
 module ConcreteInterpreter where
 
 import           Prelude hiding (read,fail,(.))
@@ -26,6 +27,7 @@ import           Data.Profunctor
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment
@@ -41,9 +43,13 @@ import qualified System.Random as R
 
 import           GHC.Generics (Generic)
 
+-- | Values of the While language can be booleans or numbers.
 data Val = BoolVal Bool | NumVal Int deriving (Eq, Show, Generic)
 type Addr = Label
 
+-- | The concrete interpreter of the while language instantiates
+-- 'Generic.run' with the concrete components for failure ('FailureT'), store ('StoreT'),
+-- environments ('EnvT'), random numbers ('RandomT'), and values ('ConcreteT').
 run :: [LStatement] -> Error String (HashMap Addr Val)
 run ss =
   fst <$>
@@ -61,8 +67,9 @@ run ss =
                           (->))))) [Statement] ())))))
       (M.empty,(M.empty,(R.mkStdGen 0, generate <$> ss)))
 
+-- | The 'ConcreteT' transformer defines the value operations for the While language.
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowEnv var addr env, ArrowStore addr val)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowEnv var addr env, ArrowStore addr val,ArrowExcept exc)
 deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
 deriving instance ArrowRand v c => ArrowRand v (ConcreteT c)
 
@@ -70,7 +77,7 @@ instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (Conc
   alloc = arr $ \(_,_,l) -> l
 
 instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
-  type Join (ConcreteT c) x y = ()
+  type JoinVal (ConcreteT c) x y = ()
 
   boolLit = arr (\(b,_) -> BoolVal b)
   and = proc (v1,v2,_) -> case (v1,v2) of

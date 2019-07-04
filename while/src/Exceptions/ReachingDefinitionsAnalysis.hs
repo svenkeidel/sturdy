@@ -5,13 +5,14 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 -- | Reaching Definition Analysis for the While language.
-module ReachingDefinitionsAnalysis where
+module Exceptions.ReachingDefinitionsAnalysis where
 
 import           Prelude hiding (pred)
 
-import           Syntax
-import qualified GenericInterpreter as Generic
+import           Exceptions.Syntax
+import qualified Exceptions.GenericInterpreter as Generic
 import           IntervalAnalysis
+import           Exceptions.IntervalAnalysis(Exception(..))
 
 import           Data.Text (Text)
 import           Data.Label
@@ -22,6 +23,7 @@ import qualified Data.Lens as L
 import           Data.Order
 import           Data.Maybe
 
+import qualified Data.Abstract.Except as Exc
 import qualified Data.Abstract.Error as E
 import qualified Data.Abstract.StrongMap as SM
 import qualified Data.Abstract.Map as M
@@ -34,6 +36,7 @@ import qualified Data.Abstract.Terminating as T
 import           Data.Identifiable
 
 import           Control.Arrow.Fix
+import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Store
@@ -57,7 +60,7 @@ run k lstmts =
   -- of the input program.
   joinOnKey (\(store,(env,st)) _ -> case st of
     stmt:_ | stmt `elem` blocks stmts ->
-      Just (label stmt, dropValues (combineMaps env store)) 
+      Just (label stmt, dropValues (combineMaps env store))
     _ -> Nothing) $
 
   -- get the fixpoint cache
@@ -68,23 +71,25 @@ run k lstmts =
     (runFixT' iterationStrategy
       (runTerminatingT
         (runErrorT
-          (runStoreT
-            (runReachingDefsT'
-              (runEnvT
-                (runIntervalT
-                  (Generic.run ::
-                    Fix [Statement] ()
-                     (IntervalT
-                       (EnvT Text Addr
-                         (ReachingDefsT Label
-                           (StoreT Addr (Val, Pow Label)
-                             (ErrorT (Pow String)
-                               (TerminatingT
-                                 (FixT () () _))))))) [Statement] ()))))))))
+          (runExceptT
+            (runStoreT
+              (runReachingDefsT'
+                (runEnvT
+                  (runIntervalT
+                    (Generic.run ::
+                      Fix [Statement] ()
+                       (IntervalT
+                         (EnvT Text Addr
+                           (ReachingDefsT Label
+                             (StoreT Addr (Val, Pow Label)
+                               (ExceptT Exception
+                                 (ErrorT (Pow String)
+                                   (TerminatingT
+                                     (FixT () () _)))))))) [Statement] ())))))))))
     (M.empty,(SM.empty,stmts))
 
   where
-                
+
 
     stmts = generate (sequence lstmts)
 
@@ -96,9 +101,10 @@ run k lstmts =
                $ SW.reuseFirst
                $ SW.fromWidening (SM.widening W.finite W.** M.widening (widenVal W.** W.finite))
                $ SW.finite
-    
+
     widenVal = widening (W.bounded ?bound I.widening)
-    widenResult = T.widening $ E.widening W.finite (M.widening (widenVal W.** W.finite) W.** W.finite)
+    widenExc (Exception m1) (Exception m2) = Exception <$> (M.widening widenVal m1 m2)
+    widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening (widenVal W.** W.finite) W.** W.finite))
 
 combineMaps :: (Identifiable k, Identifiable a) => SM.Map k a -> M.Map a v -> M.Map k v
 combineMaps env store = M.fromList [ (a,c) | (a,b) <- fromJust (SM.toList env)

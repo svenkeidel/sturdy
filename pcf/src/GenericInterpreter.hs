@@ -20,7 +20,7 @@ import           GHC.Exts (IsString(..),Constraint)
 
 -- | Shared interpreter for PCF.
 eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail e c, IsString e,
-         IsVal v c, IsClosure v env c, Env.Join c ((v,Text),Text) v, Join c (Expr,Expr) v)
+         IsNum v c, IsClosure v env c, Env.Join c ((v,Text),Text) v, Join c (Expr,Expr) v)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> lookup' -< x
@@ -59,7 +59,7 @@ eval = fix $ \ev -> proc e0 -> case e0 of
       _ -> fail -< fromString $ "found unexpected epxression in closure: " ++ show e
 
 -- | Interface for numeric operations
-class Arrow c => IsVal v c | c -> v where
+class Arrow c => IsNum v c | c -> v where
   type family Join (c :: * -> * -> *) x y :: Constraint
 
   -- | increments the given number value.

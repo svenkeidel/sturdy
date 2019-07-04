@@ -120,7 +120,7 @@ instance ArrowTrans IntervalT where
   lift = IntervalT
   unlift = runIntervalT
 
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (IntervalT c) where
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsNum Val (IntervalT c) where
   type Join (IntervalT c) x y = Complete y
 
   succ = proc x -> case x of
@@ -133,7 +133,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (I
     NumVal n -> returnA -< NumVal $ n - 1
     ClosureVal _ -> fail -< "Expected a number as argument for 'pred'"
 
-  zero = proc _ -> returnA -< (NumVal 0)
+  zero = proc _ -> returnA -< NumVal 0
 
   if_ f g = proc v -> case v of
     (Top, (x,y)) -> (f -< x) <⊔> (g -< y) <⊔> (fail -< "Expected a number as condition for 'ifZero'")

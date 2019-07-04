@@ -16,11 +16,9 @@ dependencies:
   - unordered-containers
 
 library:
+  ghc-options: -Wall
   source-dirs:
     - src
-
-  ghc-options: -Wall
-
 
 tests:
   spec:

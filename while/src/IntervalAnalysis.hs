@@ -13,6 +13,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
+-- | Interval Analysis for the While language.
 module IntervalAnalysis where
 
 import           Prelude hiding (Bool(..),Bounded(..),(/),fail)
@@ -56,6 +57,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Environment
+import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Random
@@ -71,10 +73,15 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 import           GHC.Exts(IsString(..))
 import           GHC.Generics
 
-type Addr = FreeCompletion Label
-type IV = Interval (InfiniteNumber Int)
+-- | Abstract values are either abstract booleans or intervals.
 data Val = BoolVal Bool | NumVal IV | Top deriving (Eq,Generic)
+type IV = Interval (InfiniteNumber Int)
+type Addr = FreeCompletion Label
 
+-- | The interval analysis instantiates the generic interpreter
+-- 'Generic.run' with the components for fixpoint computation
+-- ('FixT'), termination ('TerminatingT'), failure ('ErrorT'), store
+-- ('StoreT'), environments ('EnvT'), and values ('IntervalT').
 run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
 run k env ss =
   fmap fst <$>
@@ -98,7 +105,8 @@ run k env ss =
     iterationStrategy = S.filter (L.second (L.second whileLoops))
                       $ S.chaotic stackWiden widenResult
 
-    stackWiden = SW.groupBy (L.iso (\(store,(ev,stmts)) -> (stmts,(ev,store))) (\(stmts,(ev,store)) -> (store,(ev,stmts))))
+    stackWiden = SW.groupBy (L.iso (\(store,(ev,stmts)) -> (stmts,(ev,store)))
+                                   (\(stmts,(ev,store)) -> (store,(ev,stmts))))
                $ SW.maxSize k
                $ SW.reuseFirst
                $ SW.fromWidening (SM.widening W.finite W.** M.widening widenVal)
@@ -107,7 +115,7 @@ run k env ss =
     widenVal = widening (W.bounded ?bound I.widening)
     widenResult = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
 
-newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowExcept exc,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
 
@@ -115,7 +123,7 @@ instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (Inte
   alloc = arr $ \(_,_,l) -> return l
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (IntervalT c) where
-  type Join (IntervalT c) (x,y) z = Complete z
+  type JoinVal (IntervalT c) (x,y) z = Complete z
 
   boolLit = arr $ \(b,_) -> case b of
     P.True -> BoolVal B.True
