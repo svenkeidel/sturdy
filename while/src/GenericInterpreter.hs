@@ -119,8 +119,8 @@ run = fix $ \run' -> proc stmts -> case stmts of
 
 -- | Interface for value operations.
 class Arrow c => IsVal v c | c -> v where
-  -- | In case of the abstract interpreter allows to join the result
-  -- of an @if@ statement.
+  -- | This constraint allows the abstract interpreter to join the
+  -- results of an @if@ statement.
   type family JoinVal (c :: * -> * -> *) x y :: Constraint
 
   boolLit :: c (Bool,Label) v

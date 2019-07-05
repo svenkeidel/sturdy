@@ -11,21 +11,25 @@ import           Syntax (Expr(..))
 import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Fail
-import           Control.Arrow.Environment(ArrowEnv,lookup',getEnv,extendEnv,localEnv)
+import           Control.Arrow.Environment(ArrowEnv)
 import qualified Control.Arrow.Environment as Env
 
 import           Data.Text (Text)
 
 import           GHC.Exts (IsString(..),Constraint)
 
--- | Shared interpreter for PCF.
+-- | The Generic interpreter for PCF. It uses the 'IsNum' and
+-- 'IsClosure' interfaces to operate on numeric and closure
+-- values. Furthermore, it uses 'ArrowFix', 'ArrowEnv', and
+-- 'ArrowFail' to compute the fixpoint, operate on the environment,
+-- and fail with an error message.
 eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v env c, ArrowFail e c, IsString e,
          IsNum v c, IsClosure v env c, Env.Join c ((v,Text),Text) v, Join c (Expr,Expr) v)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
-  Var x _ -> lookup' -< x
+  Var x _ -> Env.lookup' -< x
   Lam x e l -> do
-    env <- getEnv -< ()
+    env <- Env.getEnv -< ()
     closure -< (Lam x e l, env)
   App e1 e2 _ -> do
     fun <- ev -< e1
@@ -43,7 +47,7 @@ eval = fix $ \ev -> proc e0 -> case e0 of
     if_ ev ev -< (v1, (e2, e3))
   Y e l -> do
     fun <- ev -< e
-    env <- getEnv -< ()
+    env <- Env.getEnv -< ()
     arg <- closure -< (Y e l, env)
     applyClosure' ev -< (fun, arg)
   Apply e _ -> ev -< e
@@ -51,10 +55,10 @@ eval = fix $ \ev -> proc e0 -> case e0 of
     -- Helper function used to apply closure or a suspended fixpoint computation to its argument.
     applyClosure' ev = applyClosure $ proc ((e,env),arg) -> case e of
       Lam x body l -> do
-        env' <- extendEnv -< (x,arg,env)
-        localEnv ev -< (env', Apply body l)
+        env' <- Env.extendEnv -< (x,arg,env)
+        Env.localEnv ev -< (env', Apply body l)
       Y e' l -> do
-        fun' <- localEnv ev -< (env, Y e' l)
+        fun' <- Env.localEnv ev -< (env, Y e' l)
         applyClosure' ev -< (fun',arg)
       _ -> fail -< fromString $ "found unexpected epxression in closure: " ++ show e
 

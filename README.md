@@ -24,14 +24,8 @@ To build, install the [Stack](https://www.haskellstack.org/) build tool and run 
 The sturdy project currently contains concrete and abstract and generic interpreters for the following languages:
 * _PCF_, a higher-order functional language with numbers
 * _While_, an imperative language with conditionals and while loops
-* _Stratego_, a language for program transformations
-* _Jimple_, a Java Bytecode suitable for static analysis
-* _LambdaJS_, an intermediate representation for JavaScript
 
-To run the tests of a particular language use `stack test sturdy-$(lang)`, e.g.,
-```
-stack test sturdy-stratego
-```
+To run the tests of a particular language use `stack test sturdy-$(lang)`, e.g., `stack test sturdy-pcf`.
 
 ## Publications
 

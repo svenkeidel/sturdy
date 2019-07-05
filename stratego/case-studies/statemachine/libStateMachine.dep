@@ -1,3 +1,0 @@
-libStateMachine: \
-	./SM-sig.str \
-	./StateMachine.str
