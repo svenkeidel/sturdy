@@ -32,7 +32,6 @@ library:
     - condition: flag(trace)
       cpp-options: -DTRACE
 
-
 tests:
   spec:
     main: Spec.hs
@@ -42,3 +41,12 @@ tests:
       - hspec
       - QuickCheck
       - sturdy-lib
+
+benchmarks:
+  arrow-transformers:
+    source-dirs:
+      - bench
+    main: ArrowTransformerBench.hs
+    dependencies:
+      - sturdy-lib
+      - criterion
