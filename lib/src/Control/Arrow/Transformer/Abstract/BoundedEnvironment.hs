@@ -20,23 +20,20 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
-import           Control.Arrow.Abstract.Join
+import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Static
 import           Control.Arrow.Transformer.Reader
 import           Control.Category
 
-import           Data.Order
+import           Data.Order (Complete)
 import           Data.Identifiable
 import           Data.Abstract.FiniteMap (Map)
 import qualified Data.Abstract.FiniteMap as M
 import           Data.Abstract.Maybe(Maybe(..))
 import           Data.Profunctor
-
--- | Abstract domain for environments in which concrete environments
--- are approximated by a mapping from variables to addresses and a
--- mapping from addresses to values. The number of allocated addresses
--- allows to tune the precision and performance of the analysis.
+import           Data.Profunctor.Unsafe((.#))
+import           Data.Coerce
 
 -- | Abstract domain for environments in which concrete environments
 -- are approximated by a mapping from variables to addresses and a
@@ -47,9 +44,9 @@ import           Data.Profunctor
 -- recursively. By only allowing a finite number of addresses, the
 -- abstract domain of closures and environments becomes finite.
 newtype EnvT var addr val c x y = EnvT ( ConstT (c (var,val,Map var addr val) addr) (ReaderT (Map var addr val) c) x y )
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowState s, ArrowFail e, ArrowExcept e, ArrowJoin)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowState s, ArrowFail e, ArrowExcept e, ArrowLowerBounded, ArrowComplete)
 
-runEnvT :: (Show var, Identifiable var, Identifiable addr, Complete val, ArrowJoin c, ArrowChoice c, Profunctor c)
+runEnvT :: (Identifiable var, Identifiable addr, Complete val, ArrowComplete c, ArrowChoice c, Profunctor c)
                => c (var,val,Map var addr val) addr -> EnvT var addr val c x y -> c ([(var,val)],x) y
 runEnvT alloc f =
   let EnvT f' = proc (bs,x) -> do
@@ -57,6 +54,10 @@ runEnvT alloc f =
        env' <- bindings -< (bs,env)
        localEnv f -< (env',x)
   in (const (M.empty) &&& id) ^>> runReaderT (runConstT alloc f')
+
+instance (Identifiable var, Identifiable addr, Complete val, ArrowComplete c, ArrowChoice c, ArrowRun c) => ArrowRun (EnvT var addr val c) where
+  type Rep (EnvT var addr val c) x y = c (var,val,Map var addr val) addr -> Rep c ([(var,val)],x) y
+  run f alloc = run (runEnvT alloc f)
 
 instance ArrowTrans (EnvT var addr val) where
   type Dom (EnvT var addr val) x y = Dom (ReaderT (Map var addr val)) x y
@@ -67,7 +68,7 @@ instance ArrowTrans (EnvT var addr val) where
 instance ArrowLift (EnvT var addr val) where
   lift' f = EnvT (lift' (lift' f))
 
-instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowJoin c, Profunctor c) =>
+instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowComplete c, Profunctor c) =>
   ArrowEnv var val (Map var addr val) (EnvT var addr val c) where
   type Join (EnvT var addr val c) x y = (Complete y)
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
@@ -86,7 +87,7 @@ instance ArrowReader r c => ArrowReader r (EnvT var addr val c) where
     EnvT $ ConstT $ StaticT $ \alloc -> ReaderT $ (\(env,(r,x)) -> (r,(env,x))) ^>> local (runReaderT (f alloc))
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var addr val c) where
-  app = EnvT $ lmap (\(EnvT f,x) -> (f,x)) app
+  app = EnvT (app .# first coerce)
 
 type instance Fix x y (EnvT var addr val c) = EnvT var addr val (Fix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c)
 deriving instance ArrowFix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c => ArrowFix x y (EnvT var addr val c)

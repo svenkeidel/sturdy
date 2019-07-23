@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DefaultSignatures #-}
-module Control.Arrow.Fix(ArrowFix(..),Fix,liftFix) where
+module Control.Arrow.Fix(ArrowFix(..),Fix,liftFix,IterationStrategy) where
 
 import Control.Arrow
 import Control.Arrow.Trans
@@ -25,3 +25,6 @@ instance ArrowFix x y (->) where
 
 liftFix :: (Arrow c, Profunctor c, ArrowFix (Dom t x y) (Cod t x y) c,ArrowTrans t) => (t c x y -> t c x y) -> t c x y
 liftFix f = lift $ fix (unlift . f . lift)
+{-# INLINE liftFix #-}
+
+type IterationStrategy c a b = c a b -> c a b

@@ -7,6 +7,8 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Random where
 
+import           Prelude hiding ((.))
+
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Alloc
@@ -23,6 +25,7 @@ import           Control.Arrow.Store
 import           Control.Arrow.Transformer.State
 
 import           Data.Profunctor
+import           Data.Coerce
 
 import           System.Random(StdGen,Random)
 import qualified System.Random as R
@@ -30,17 +33,14 @@ import qualified System.Random as R
 newtype RandomT c x y = RandomT (StateT StdGen c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
             ArrowReader r, ArrowFail e, ArrowExcept e,
-            ArrowEnv var val env, ArrowStore var val)
+            ArrowEnv var val env, ArrowStore var val, ArrowRun)
 
 runRandomT :: RandomT c x y -> c (StdGen,x) (StdGen,y)
-runRandomT (RandomT (StateT f)) = f
+runRandomT = coerce
+{-# INLINE runRandomT #-}
 
 instance (Random v, Arrow c, Profunctor c) => ArrowRand v (RandomT c) where
-  random = RandomT $ proc () -> do
-    gen <- get -< ()
-    let (v,gen') = R.random gen
-    put -< gen'
-    returnA -< v
+  random = RandomT $ modify' (\((),gen) -> R.random gen)
 
 type instance Fix x y (RandomT c) = RandomT (Fix (Dom RandomT x y) (Cod RandomT x y) c)
 deriving instance (Arrow c, ArrowFix (Dom RandomT x y) (Cod RandomT x y) c) => ArrowFix x y (RandomT c)

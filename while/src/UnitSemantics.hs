@@ -12,7 +12,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 module UnitSemantics where
 
-import           Prelude hiding (Bool(..),Bounded(..))
+import           Prelude hiding (Bool(..),Bounded(..),(.))
 
 import           Syntax
 import           GenericInterpreter
@@ -24,8 +24,6 @@ import qualified Data.Abstract.StrongMap as SM
 import           Data.Abstract.Terminating
 import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Abstract.DiscretePowerset(Pow)
-import qualified Data.Abstract.IterationStrategy as S
-import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Widening as W
 
 import           Data.Order
@@ -42,11 +40,13 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
 import           Control.Arrow.Random
-import           Control.Arrow.Abstract.Join
+import           Control.Arrow.Order
+import           Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
+import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
 
@@ -57,34 +57,32 @@ type Val = ()
 run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
 run env ss =
   fmap fst <$>
-    runFixT iterationStrategy
-      (runTerminatingT
-         (runErrorT
-           (runStoreT
-             (runEnvT
-               (runUnitT
-                 (Generic.run ::
-                   Fix [Statement] ()
-                     (UnitT
-                       (EnvT Text Addr
-                         (StoreT Addr Val
-                           (ErrorT (Pow String)
-                             (TerminatingT
-                               (FixT () () _)))))) [Statement] ()))))))
+    Trans.run
+      (Generic.run ::
+        Fix [Statement] ()
+          (UnitT
+            (EnvT Text Addr
+              (StoreT Addr Val
+                (ErrorT (Pow String)
+                  (TerminatingT
+                    (FixT _ _
+                      (S.ChaoticT _ _
+                        (->)))))))) [Statement] ())
+      iterationStrategy
       (M.empty,(SM.fromList env,generate <$> ss))
   where
     iterationStrategy = S.filter (L.second (L.second whileLoops))
-                      $ S.chaotic SW.finite W.finite
+                      $ S.chaotic W.finite
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowComplete)
 type instance Fix x y (UnitT c) = UnitT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (UnitT c)
 
 instance (ArrowChoice c,Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (UnitT c) where
   alloc = arr $ \(_,_,l) -> return l
 
-instance (ArrowChoice c, ArrowJoin c) => IsVal Val (UnitT c) where
+instance (ArrowChoice c, ArrowComplete c) => IsVal Val (UnitT c) where
   type JoinVal (UnitT c) x y = Complete y
   boolLit = arr (const ())
   and = arr (const ())
@@ -98,6 +96,10 @@ instance (ArrowChoice c, ArrowJoin c) => IsVal Val (UnitT c) where
   eq = arr (const ())
   lt = arr (const ())
   if_ f1 f2 = proc (_,(x,y)) -> (f1 -< x) <⊔> (f2 -< y)
+
+instance ArrowRun c => ArrowRun (UnitT c) where
+  type Rep (UnitT c) x y = Rep c x y
+  run = Trans.run . runUnitT
 
 instance (ArrowChoice c,Profunctor c) => ArrowRand Val (UnitT c) where
   random = arr (const ())

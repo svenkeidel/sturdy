@@ -28,12 +28,15 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Environment
-import           Control.Arrow.Abstract.Join
+import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Fix.IterationStrategy
+import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
 import           Control.Arrow.Transformer.Abstract.Terminating
+
 import           Control.Monad.State hiding (lift,fail)
 
 import           Data.Hashable
@@ -50,15 +53,12 @@ import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import qualified Data.Abstract.Widening as W
-import           Data.Abstract.StackWidening(StackWidening)
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating(Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Closure (Closure)
 import qualified Data.Abstract.Closure as C
 import           Data.Abstract.DiscretePowerset (Pow)
-import           Data.Abstract.IterationStrategy(IterationStrategy)
-import qualified Data.Abstract.IterationStrategy as S
     
 import           GHC.Generics(Generic)
 import           GHC.Exts(IsString(..))
@@ -80,27 +80,21 @@ type Addr = (Text,CallString Label)
 -- an environment, and the input of the computation.
 evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
 evalInterval k env0 e =
-  runFixT iterationStrategy
-    (runTerminatingT
-      (runErrorT
-        (runContourT k
-          (runEnvT alloc
-            (runIntervalT
-              (eval ::
-                Fix Expr Val
-                  (IntervalT
-                    (EnvT Text Addr Val
-                      (ContourT Label
-                        (ErrorT (Pow String)
-                          (TerminatingT
-                            (FixT () () _)))))) Expr Val))))))
-    (env0,generate e)
+  run (eval :: Fix Expr Val
+                (IntervalT
+                  (EnvT Text Addr Val
+                    (ContourT Label
+                      (ErrorT (Pow String)
+                        (TerminatingT
+                          (FixT _ _
+                            (StackWideningT _ _
+                               (ChaoticT _ _ (->))))))))) Expr Val)
+    alloc k iterationStrategy (env0,generate e)
   where
-    iterationStrategy :: IterationStrategy _ (Env,Expr) _
     iterationStrategy = S.filter apply
-                      $ S.chaotic stackWiden (T.widening (E.widening W.finite widenVal))
+                      $ S.stackWidening stackWiden
+                      $ S.chaotic (T.widening (E.widening W.finite widenVal))
 
-    stackWiden :: StackWidening _ (Env,(Expr,Label))
     stackWiden = SW.groupBy (L.iso' (\(env,exp) -> (exp,env)) (\(exp,env) -> (env,exp)))
                $ SW.reuseFirst
                $ SW.maxSize 3
@@ -109,18 +103,9 @@ evalInterval k env0 e =
 
     widenVal = widening (W.bounded ?bound I.widening)
 
-newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowJoin)
-type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
-deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
-deriving instance ArrowEnv var val env c => ArrowEnv var val env (IntervalT c)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowLowerBounded,ArrowComplete,ArrowEnv var val env)
 
-instance ArrowTrans IntervalT where
-  type Dom IntervalT x y = x
-  type Cod IntervalT x y = y
-  lift = IntervalT
-  unlift = runIntervalT
-
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsNum Val (IntervalT c) where
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete c) => IsNum Val (IntervalT c) where
   type Join (IntervalT c) x y = Complete y
 
   succ = proc x -> case x of
@@ -143,13 +128,26 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsNum Val (I
       | otherwise          -> (f -< x) <⊔> (g -< y) -- case the interval contains zero and other numbers.
     (ClosureVal _, _)      -> fail -< "Expected a number as condition for 'ifZero'"
 
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c)
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowLowerBounded c, ArrowComplete c)
     => IsClosure Val (F.Map Text Addr Val) (IntervalT c) where
   closure = arr $ \(e, env) -> ClosureVal (C.closure e env)
   applyClosure f = proc (fun, arg) -> case fun of
     Top -> (returnA -< Top) <⊔> (fail -< "Expected a closure")
     ClosureVal cls -> (| C.apply (\(e,env) -> f -< ((e,env),arg)) |) cls
     NumVal _ -> fail -< "Expected a closure"
+
+type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
+deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
+
+instance ArrowRun c => ArrowRun (IntervalT c) where
+  type Rep (IntervalT c) x y = Rep c x y
+  run = run . runIntervalT
+
+instance ArrowTrans IntervalT where
+  type Dom IntervalT x y = x
+  type Cod IntervalT x y = y
+  lift = IntervalT
+  unlift = runIntervalT
 
 instance PreOrd Val where
   _ ⊑ Top = True

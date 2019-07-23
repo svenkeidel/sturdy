@@ -27,23 +27,25 @@ import           Data.Profunctor
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as S
 import           Data.Identifiable
+import           Data.Coerce
 
 -- | Arrow transformer that adds a store to a computation.
 newtype StoreT var val c x y = StoreT (StateT (HashMap var val) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
-            ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e)
+            ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e, ArrowRun)
 
 -- | Execute a computation and only return the result value and store.
 runStoreT :: StoreT var val c x y -> c (HashMap var val, x) (HashMap var val, y)
-runStoreT (StoreT (StateT f)) = f
+runStoreT = coerce
+{-# INLINE runStoreT #-}
 
 -- | Execute a computation and only return the result value.
-evalStoreT :: Arrow c => StoreT var val c x y -> c (HashMap var val, x) y
-evalStoreT f = runStoreT f >>> pi2
+evalStoreT :: (Profunctor c,Arrow c) => StoreT var val c x y -> c (HashMap var val, x) y
+evalStoreT f = rmap pi2 (runStoreT f)
 
 -- | Execute a computation and only return the result store.
-execStoreT :: Arrow c => StoreT var val c x y -> c (HashMap var val, x) (HashMap var val)
-execStoreT f = runStoreT f >>> pi1
+execStoreT :: (Profunctor c, Arrow c) => StoreT var val c x y -> c (HashMap var val, x) (HashMap var val)
+execStoreT f = rmap pi1 (runStoreT f)
 
 instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT var val c) where
   type Join (StoreT var val c) x y = ()

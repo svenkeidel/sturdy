@@ -54,3 +54,4 @@ duplicate = arr (\x -> (x,x))
 -- | creates a computation that always returns the same value.
 const :: Profunctor c => c () x -> c y x
 const f = lmap (\_ -> ()) f
+

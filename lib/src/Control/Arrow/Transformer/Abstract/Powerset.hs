@@ -10,8 +10,7 @@ module Control.Arrow.Transformer.Abstract.Powerset(PowT,runPowT) where
 import           Prelude hiding (id,(.),lookup,fail)
 
 import           Control.Arrow
-import           Control.Arrow.Abstract.Join
-import           Control.Arrow.Deduplicate
+import           Control.Arrow.Order
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fail
 import           Control.Arrow.Trans
@@ -27,21 +26,27 @@ import           Control.Category
 import qualified Data.Abstract.Powerset as A
 import           Data.Identifiable
 import           Data.Profunctor
+import           Data.Profunctor.Unsafe((.#))
+import           Data.Coerce
 
 -- | Computation that produces a set of results.
-newtype PowT c x y = PowT { unPowT :: KleisliT A.Pow c x y}
+newtype PowT c x y = PowT (KleisliT A.Pow c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowState s, ArrowReader r,
-            ArrowConst r, ArrowEnv a b e', ArrowStore a b, ArrowFail e', ArrowExcept e')
+            ArrowConst r, ArrowEnv a b e', ArrowStore a b, ArrowFail e', ArrowExcept e', ArrowRun)
 
 runPowT :: PowT c x y -> c x (A.Pow y)
-runPowT = runKleisliT . unPowT
+runPowT = coerce
+{-# INLINE runPowT #-}
 
-instance (ArrowChoice c, ArrowDeduplicate x y c, Identifiable y) => ArrowDeduplicate x y (PowT c) where
-  dedup f = lift $ rmap A.dedup (unlift f)
+instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (PowT c) where
+  app = lift (app .# first coerce)
 
-instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (PowT c) where app = lift $ lmap (first unlift) app
 type instance Fix x y (PowT c) = PowT (Fix (Dom PowT x y) (Cod PowT x y) c)
-deriving instance (ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (PowT c)
+instance (Identifiable y, ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y (PowT c) where
+  fix f = lift $ rmap A.dedup (fix (coerce f))
 
-instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
-  joinWith _ f g = lift $ joinWith A.union (unlift f) (unlift g)
+instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (PowT c) where
+  bottom = lift $ arr (\_ -> A.empty)
+
+instance (ArrowChoice c, ArrowComplete c) => ArrowComplete (PowT c) where
+  join _ f g = lift $ join A.union (unlift f) (unlift g)

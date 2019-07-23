@@ -25,7 +25,7 @@ data Entry a b = Call a | Return b deriving (Show,Eq)
 type Log a b = Seq (Entry a b)
 
 newtype TraceT a b c x y = TraceT (WriterT (Log a b) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowRun)
 
 runTraceT :: TraceT a b c x y -> c x (Log a b,y)
 runTraceT (TraceT (WriterT f)) = f

@@ -35,7 +35,6 @@ import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.DiscretePowerset (Pow)
 import qualified Data.Abstract.Widening as W
-import qualified Data.Abstract.IterationStrategy as S
 import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Maybe as AM
 
@@ -46,7 +45,8 @@ import           Data.Text (Text)
 
 import           Control.Arrow
 import           Control.Arrow.Fix
-import           Control.Arrow.Abstract.Join
+import           Control.Arrow.Order
+import qualified Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
@@ -54,6 +54,7 @@ import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
+import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
 
 -- | Abstract values are either abstract booleans or intervals.
 newtype Exception = Exception (Map Text Val) deriving (PreOrd,Complete)
@@ -66,27 +67,25 @@ run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement]
     -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
 run k env ss =
   fmap (fmap fst) <$>
-    runFixT iterationStrategy
-      (runTerminatingT
-        (runErrorT
-          (runExceptT
-            (runStoreT
-              (runEnvT
-                (runIntervalT
-                  (Generic.run ::
-                    Fix [Statement] ()
-                      (IntervalT
-                        (EnvT Text Addr
-                          (StoreT Addr Val
-                            (ExceptT Exception
-                              (ErrorT (Pow String)
-                                (TerminatingT
-                                  (FixT () () _))))))) [Statement] ())))))))
+    Trans.run (Generic.run ::
+      Fix [Statement] ()
+        (IntervalT
+          (EnvT Text Addr
+            (StoreT Addr Val
+              (ExceptT Exception
+                (ErrorT (Pow String)
+                  (TerminatingT
+                    (FixT _ _
+                      (S.StackWideningT _ _
+                        (S.ChaoticT _ _
+                          (->)))))))))) [Statement] ())
+      iterationStrategy
       (M.empty,(SM.fromList env, generate (sequence ss)))
 
   where
     iterationStrategy = S.filter (L.second (L.second whileLoops))
-                      $ S.chaotic stackWiden widenResult
+                      $ S.stackWidening stackWiden 
+                      $ S.chaotic widenResult
 
     stackWiden = SW.groupBy (L.iso (\(store,(ev,stmts)) -> (stmts,(ev,store)))
                                    (\(stmts,(ev,store)) -> (store,(ev,stmts))))
@@ -99,7 +98,7 @@ run k env ss =
     widenExc (Exception m1) (Exception m2) = Exception <$> (M.widening widenVal m1 m2)
     widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening widenVal W.** W.finite))
 
-instance (ArrowChoice c, ArrowJoin c) => IsException Exception Val (IntervalT c) where
+instance (ArrowChoice c, ArrowComplete c) => IsException Exception Val (IntervalT c) where
   type JoinExc (IntervalT c) x y = Complete y
   namedException = proc (name,val) -> returnA -< Exception (M.singleton name val)
   matchException f g = proc (name,Exception m,x) -> case M.lookup name m of

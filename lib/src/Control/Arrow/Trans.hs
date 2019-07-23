@@ -4,6 +4,14 @@ module Control.Arrow.Trans where
 import Control.Arrow
 import Data.Profunctor
 
+class (Arrow c, Profunctor c) => ArrowRun c where
+  type Rep c x y
+  run :: c x y -> Rep c x y
+
+instance ArrowRun (->) where
+  type Rep (->) x y = x -> y
+  run = id
+
 class ArrowLift t where
   lift' :: (Arrow c, Profunctor c) => c x y -> t c x y
 

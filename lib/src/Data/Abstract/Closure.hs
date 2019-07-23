@@ -3,7 +3,7 @@ module Data.Abstract.Closure(Closure,closure,apply,widening) where
 
 import           Control.DeepSeq
 import           Control.Arrow
-import           Control.Arrow.Abstract.Join
+import qualified Control.Arrow.Order as O
 
 import           Data.Profunctor
 import           Data.HashMap.Lazy(HashMap)
@@ -34,9 +34,9 @@ instance (Show a,Show b) => Show (Closure a b) where
 closure :: Identifiable expr => expr -> env -> Closure expr env
 closure expr env = Closure $ M.singleton expr env
 
-apply :: (ArrowJoin c, ArrowChoice c, Profunctor c, Complete y)
+apply :: (O.ArrowComplete c, O.ArrowLowerBounded c, ArrowChoice c, Profunctor c, Complete y)
       => c (e,((expr,env),s)) y -> c (e,(Closure expr env,s)) y
-apply f = lmap (second $ first $ withCls M.toList) (joinList1 f)
+apply f = lmap (second $ first $ withCls M.toList) (O.joinList1 f)
 
 widening :: Identifiable expr => Widening env -> Widening (Closure expr env)
 widening w = withCls $ \m1 m2 ->

@@ -12,7 +12,7 @@ import Prelude hiding (id,(.))
 
 import Control.Arrow hiding (ArrowMonad)
 import Control.Arrow.Monad
-import Control.Arrow.Abstract.Join
+import qualified Control.Arrow.Order as O
 
 import Control.Monad
 import Control.DeepSeq
@@ -115,11 +115,11 @@ instance Complete e => Monad (Except e) where
       Fail e' -> Fail (e ⊔ e')
       SuccessOrFail e' z -> SuccessOrFail (e ⊔ e') z
 
-instance (ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c c where
-  mapA f = lmap toEither (arr Fail ||| rmap Success f ||| joinWith' (\(Fail e) (Success x) -> SuccessOrFail e x) (arr Fail) (rmap Success f))
+instance (O.ArrowComplete c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c c where
+  mapA f = lmap toEither (arr Fail ||| rmap Success f ||| O.join' (\(Fail e) (Success x) -> SuccessOrFail e x) (arr Fail) (rmap Success f))
 
-instance (Complete e, ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
-  mapJoinA f = lmap toEither (arr Fail ||| f ||| joinWith' lub (arr Fail) f)
+instance (Complete e, O.ArrowComplete c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
+  mapJoinA f = lmap toEither (arr Fail ||| f ||| O.join' lub (arr Fail) f)
     where 
       lub (Fail e) m = case m of
         Fail e' -> Fail (e ⊔ e')

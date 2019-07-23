@@ -28,7 +28,6 @@ import qualified Data.Abstract.Map as M
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Widening as W
-import qualified Data.Abstract.IterationStrategy as S
 import qualified Data.Abstract.Interval as I
 import qualified Data.Abstract.Terminating as T
 import           Data.Identifiable
@@ -40,6 +39,7 @@ import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
+import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
 
 -- | Calculates the entry sets of which definitions may be reached for
 -- each statment.  The analysis instantiates the generic interpreter
@@ -64,23 +64,27 @@ run k lstmts =
   fst $
 
   -- Run the computation
-  S.runChaoticT
-    (runFixT' iterationStrategy
-      (runTerminatingT
-        (runErrorT
-          (runStoreT
-            (runReachingDefsT'
-              (runEnvT
-                (runIntervalT
-                  (Generic.run ::
-                    Fix [Statement] ()
-                     (IntervalT
-                       (EnvT Text Addr
-                         (ReachingDefsT Label
-                           (StoreT Addr (Val, Pow Label)
-                             (ErrorT (Pow String)
-                               (TerminatingT
-                                 (FixT () () _))))))) [Statement] ()))))))))
+  S.runChaoticT'
+    (S.runStackWideningT
+      (runFixT iterationStrategy
+        (runTerminatingT
+          (runErrorT
+            (runStoreT
+              (runReachingDefsT'
+                (runEnvT
+                  (runIntervalT
+                    (Generic.run ::
+                      Fix [Statement] ()
+                       (IntervalT
+                         (EnvT Text Addr
+                           (ReachingDefsT Label
+                             (StoreT Addr (Val, Pow Label)
+                               (ErrorT (Pow String)
+                                 (TerminatingT
+                                   (FixT _ _
+                                     (S.StackWideningT _ _
+                                       (S.ChaoticT _ _
+                                         (->)))))))))) [Statement] ())))))))))
     (M.empty,(SM.empty,stmts))
 
   where
@@ -88,7 +92,8 @@ run k lstmts =
 
     stmts = generate (sequence lstmts)
 
-    iterationStrategy = S.chaotic stackWiden widenResult
+    iterationStrategy = S.stackWidening stackWiden
+                      $ S.chaotic widenResult
 
     stackWiden = SW.groupBy (L.iso (\(store,(ev,sts)) -> (sts,(ev,store)))
                                    (\(sts,(ev,store)) -> (store,(ev,sts))))

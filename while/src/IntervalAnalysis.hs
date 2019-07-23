@@ -16,7 +16,7 @@
 -- | Interval Analysis for the While language.
 module IntervalAnalysis where
 
-import           Prelude hiding (Bool(..),Bounded(..),(/),fail)
+import           Prelude hiding (Bool(..),Bounded(..),(/),fail,(.))
 import qualified Prelude as P
 
 import           Syntax
@@ -39,7 +39,6 @@ import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.DiscretePowerset (Pow)
 import qualified Data.Abstract.Widening as W
-import qualified Data.Abstract.IterationStrategy as S
 import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Ordering as O
 import qualified Data.Abstract.Equality as E
@@ -62,13 +61,16 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Random
 import           Control.Arrow.Store
-import           Control.Arrow.Abstract.Join
+import           Control.Arrow.Order
+import           Control.Arrow.Trans (ArrowRun)
+import qualified Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
+import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
 
 import           GHC.Exts(IsString(..))
 import           GHC.Generics
@@ -83,27 +85,26 @@ type Addr = FreeCompletion Label
 -- ('FixT'), termination ('TerminatingT'), failure ('ErrorT'), store
 -- ('StoreT'), environments ('EnvT'), and values ('IntervalT').
 run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
-run k env ss =
-  fmap fst <$>
-    runFixT iterationStrategy
-      (runTerminatingT
-        (runErrorT
-           (runStoreT
-             (runEnvT
-               (runIntervalT
-                 (Generic.run ::
-                   Fix [Statement] ()
-                     (IntervalT
-                       (EnvT Text Addr
-                         (StoreT Addr Val
-                           (ErrorT (Pow String)
-                            (TerminatingT
-                               (FixT () () _)))))) [Statement] ()))))))
+run k env ss = fmap fst <$>
+  Trans.run
+    (Generic.run ::
+      Fix [Statement] ()
+        (IntervalT
+          (EnvT Text Addr
+            (StoreT Addr Val
+              (ErrorT (Pow String)
+                (TerminatingT
+                  (FixT _ _
+                    (S.StackWideningT _ _
+                      (S.ChaoticT _ _
+                         (->))))))))) [Statement] ())
+      iterationStrategy
       (M.empty,(SM.fromList env, generate (sequence ss)))
 
   where
     iterationStrategy = S.filter (L.second (L.second whileLoops))
-                      $ S.chaotic stackWiden widenResult
+                      $ S.stackWidening stackWiden 
+                      $ S.chaotic widenResult
 
     stackWiden = SW.groupBy (L.iso (\(store,(ev,stmts)) -> (stmts,(ev,store)))
                                    (\(stmts,(ev,store)) -> (store,(ev,stmts))))
@@ -115,14 +116,18 @@ run k env ss =
     widenVal = widening (W.bounded ?bound I.widening)
     widenResult = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
 
-newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowExcept exc,ArrowEnv var val env,ArrowStore var val,ArrowJoin,PreOrd,Complete)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowExcept exc,ArrowEnv var val env,ArrowStore var val,ArrowComplete,PreOrd,Complete)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
+
+instance ArrowRun c => ArrowRun (IntervalT c) where
+  type Rep (IntervalT c) x y = Trans.Rep c x y
+  run = Trans.run . runIntervalT
 
 instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (IntervalT c) where
   alloc = arr $ \(_,_,l) -> return l
 
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowJoin c) => IsVal Val (IntervalT c) where
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete c) => IsVal Val (IntervalT c) where
   type JoinVal (IntervalT c) (x,y) z = Complete z
 
   boolLit = arr $ \(b,_) -> case b of

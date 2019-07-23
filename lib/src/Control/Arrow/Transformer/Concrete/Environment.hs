@@ -10,11 +10,6 @@ module Control.Arrow.Transformer.Concrete.Environment where
 
 import           Prelude hiding ((.),read)
 
-import           Data.Identifiable
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as M
-import           Data.Profunctor
-
 import           Control.Category
 
 import           Control.Arrow
@@ -29,17 +24,25 @@ import           Control.Arrow.Except
 import           Control.Arrow.Environment
 import           Control.Arrow.Fix
 
+import           Data.Identifiable
+import           Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as M
+import           Data.Profunctor
+import           Data.Profunctor.Unsafe
+import           Data.Coerce
+
 -- | Arrow transformer that adds an environment to a computation.
 newtype EnvT var val c x y = EnvT (ReaderT (HashMap var val) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,
             ArrowFail e,ArrowExcept e,ArrowState s,ArrowConst r,
-            ArrowStore var' val')
+            ArrowStore var' val', ArrowRun)
 
-runEnvT :: (Arrow c) => EnvT var val c x y -> c (HashMap var val,x) y
-runEnvT (EnvT (ReaderT f)) = f
+runEnvT :: EnvT var val c x y -> c (HashMap var val,x) y
+runEnvT = coerce
+{-# INLINE runEnvT #-}
 
-runEnvT' :: (Arrow c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
-runEnvT' f = first M.fromList ^>> runEnvT f
+runEnvT' :: (Profunctor c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
+runEnvT' f = lmap (first M.fromList) (runEnvT f)
 
 instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowEnv var val (HashMap var val) (EnvT var val c) where
   type Join (EnvT var val c) x y = ()
@@ -53,7 +56,7 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowEnv var val (Ha
   localEnv (EnvT f) = EnvT (local f)
 
 instance (ArrowApply c,Profunctor c) => ArrowApply (EnvT var val c) where
-  app = EnvT $ lmap (\(EnvT f,x) -> (f,x)) app
+  app = EnvT $ app .# first coerce
 
 instance ArrowReader r c => ArrowReader r (EnvT var val c) where
   ask = lift' ask

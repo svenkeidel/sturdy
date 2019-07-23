@@ -7,14 +7,15 @@ import           Prelude hiding (lookup)
 import           Control.Arrow
 import           Control.DeepSeq
 
+import qualified Data.Empty as Empty
+import           Data.Order
+import           Data.Hashable
 import           Data.Identifiable
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 
-import           Data.Order
 import qualified Data.Abstract.Maybe as A
 import           Data.Abstract.Widening
-import           Data.Hashable
 
 import           Text.Printf
 import           GHC.Generics(Generic)
@@ -31,6 +32,9 @@ instance (Identifiable a, Complete b) => Complete (Map a b) where
   _ ⊔ Top = Top
   Map m1 ⊔ Map m2 | M.keys m1 == M.keys m2 = Map $ M.unionWith (⊔) m1 m2
                   | otherwise              = Top
+
+instance Empty.IsEmpty (Map a b) where
+  empty = Map M.empty
 
 widening :: Identifiable a => Widening b -> Widening (Map a b)
 widening _ Top Top = (Stable,Top)

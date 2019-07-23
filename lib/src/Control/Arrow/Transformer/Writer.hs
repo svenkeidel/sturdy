@@ -23,30 +23,45 @@ import Control.Arrow.Except as Exc
 import Control.Arrow.Store as Store
 import Control.Arrow.Environment as Env
 import Control.Arrow.Writer
-import Control.Arrow.Abstract.Join
+import Control.Arrow.Order
 
-import Data.Profunctor
 import Data.Monoidal
-import Data.Order hiding (lub)
+import qualified Data.Order as O
+import Data.Profunctor
+import Data.Profunctor.Unsafe
 import Data.Coerce
+import Unsafe.Coerce
 
 newtype WriterT w c x y = WriterT { runWriterT :: c x (w,y) }
+
+instance (Monoid w,ArrowRun c) => ArrowRun (WriterT w c) where
+  type Rep (WriterT w c) x y = Rep c x (w,y)
+  run = run . runWriterT
+  {-# INLINE run #-}
 
 instance (Profunctor c, Arrow c) => Profunctor (WriterT w c) where
   dimap f g h = lift $ dimap f (second g) (unlift h)
   lmap f h = lift $ lmap f (unlift h)
   rmap g h = lift $ rmap (second g) (unlift h)
+  f .# _ = f `seq` unsafeCoerce f
+  _ #. g = g `seq` unsafeCoerce g
+  {-# INLINE dimap #-}
+  {-# INLINE lmap #-}
+  {-# INLINE rmap #-}
+  {-# INLINE (.#) #-}
+  {-# INLINE (#.) #-}
 
 instance ArrowTrans (WriterT w) where
   type Dom (WriterT w) x y = x
   type Cod (WriterT w) x y = (w,y)
   lift = coerce
-  {-# INLINE lift #-}
   unlift = coerce
+  {-# INLINE lift #-}
   {-# INLINE unlift #-}
 
 instance Monoid w => ArrowLift (WriterT w) where
   lift' f = lift (rmap (\y -> (mempty,y)) f)
+  {-# INLINE lift' #-}
 
 instance (Monoid w, Arrow c, Profunctor c) => Category (WriterT w c) where
   id = lift' id
@@ -55,42 +70,63 @@ instance (Monoid w, Arrow c, Profunctor c) => Category (WriterT w c) where
   --   (w1,y) <- f -< x
   --   (w2,z) <- g -< y
   --   returnA -< (w1 <> w2,z)
+  {-# INLINE id #-}
+  {-# INLINE (.) #-}
 
 instance (Monoid w, Arrow c, Profunctor c) => Arrow (WriterT w c) where
   arr f = lift' (arr f)
-  first f = lift $ rmap (\((w,b),d) -> (w,(b,d))) (first (unlift f)) 
-  second g = lift $ rmap (\(d,(w,b)) -> (w,(d,b))) (second (unlift g)) 
+  first f = lift $ rmap assoc2 (first (unlift f)) 
+  second g = lift $ rmap shuffle2 (second (unlift g)) 
   f *** g = lift $ rmap (\((w1,b),(w2,d)) -> (w1 <> w2,(b,d))) (unlift f *** unlift g) 
   f &&& g = lift $ rmap (\((w1,b),(w2,d)) -> (w1 <> w2,(b,d))) (unlift f &&& unlift g)
+  {-# INLINE arr #-}
+  {-# INLINE first #-}
+  {-# INLINE second #-}
+  {-# INLINE (&&&) #-}
+  {-# INLINE (***) #-}
 
 instance (Monoid w, ArrowChoice c, Profunctor c) => ArrowChoice (WriterT w c) where
   left f = lift $ rmap (\e -> case e of Left (w,x) -> (w,Left x); Right y -> (mempty,Right y)) (left (unlift f)) 
   right f = lift $ rmap (\e -> case e of Left x -> (mempty,Left x); Right (w,y) -> (w,Right y)) (right (unlift f))
   f ||| g = lift $ unlift f ||| unlift g
   f +++ g = lift $ rmap distribute2 (unlift f +++ unlift g) 
+  {-# INLINE left #-}
+  {-# INLINE right #-}
+  {-# INLINE (+++) #-}
+  {-# INLINE (|||) #-}
 
 instance (Monoid w, ArrowApply c, Profunctor c) => ArrowApply (WriterT w c) where
-  app = lift $ lmap (first unlift) app
+  app = lift (app .# first coerce)
+  {-# INLINE app #-}
 
 instance (Monoid w, ArrowState s c) => ArrowState s (WriterT w c) where
   get = lift' get
   put = lift' put
   modify f = lift $ modify (rmap assoc1 (unlift f))
+  {-# INLINE get #-}
+  {-# INLINE put #-}
+  {-# INLINE modify #-}
 
 instance (Monoid w, Arrow c, Profunctor c) => ArrowWriter w (WriterT w c) where
   tell = lift (arr (\w -> (w,())))
+  {-# INLINE tell #-}
 
 instance (Monoid w, ArrowFail e c) => ArrowFail e (WriterT w c) where
   fail = lift' fail
+  {-# INLINE fail #-}
 
 instance (Monoid w, ArrowExcept e c) => ArrowExcept e (WriterT w c) where
   type Join (WriterT w c) (y,(x,e)) z = Exc.Join c (Cod (WriterT w) x y,Dom (WriterT w) (x,e) z) (Cod (WriterT w) x z)
   throw = lift' throw
   try f g h = lift $ try (unlift f) (rmap (\(w1,(w2,z)) -> (w1 <> w2,z)) (second (unlift g))) (unlift h)
+  {-# INLINE throw #-}
+  {-# INLINE try #-}
 
 instance (Monoid w, ArrowReader r c) => ArrowReader r (WriterT w c) where
   ask = lift' ask
   local f = lift (local (unlift f))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}
 
 instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (WriterT w c) where
   type Join (WriterT w c) x y = Env.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
@@ -98,34 +134,44 @@ instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (WriterT w c) where
   getEnv = lift' getEnv
   extendEnv = lift' extendEnv
   localEnv f = lift (localEnv (unlift f))
+  {-# INLINE lookup #-}
+  {-# INLINE getEnv #-}
+  {-# INLINE extendEnv #-}
+  {-# INLINE localEnv #-}
 
 instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) where
   type Join (WriterT w c) x y = Store.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
   read f g = lift $ read (unlift f) (unlift g)
   write = lift' write
+  {-# INLINE read #-}
+  {-# INLINE write #-}
 
 type instance Fix x y (WriterT w c) = WriterT w (Fix (Dom (WriterT w) x y) (Cod (WriterT w) x y) c)
 instance (Monoid w, ArrowFix x (w,y) c) => ArrowFix x y (WriterT w c) where
   fix = liftFix
+  {-# INLINE fix #-}
 
-instance (Monoid w, Complete w, ArrowJoin c) => ArrowJoin (WriterT w c) where
-  joinWith lub f g = lift $ joinWith (\(w1,z1) (w2,z2) -> (w1 ⊔ w2, lub z1 z2)) (unlift f) (unlift g)
+instance (Monoid w, ArrowLowerBounded c) => ArrowLowerBounded (WriterT w c) where
+  bottom = lift bottom
+  {-# INLINE bottom #-}
+
+instance (Monoid w, O.Complete w, ArrowComplete c) => ArrowComplete (WriterT w c) where
+  join lub f g = lift $ join (\(w1,z1) (w2,z2) -> (w1 O.⊔ w2, lub z1 z2)) (unlift f) (unlift g)
+  {-# INLINE join #-}
 
 instance (Monoid w, ArrowAlloc x y c) => ArrowAlloc x y (WriterT w c) where
   alloc = lift' alloc
+  {-# INLINE alloc #-}
 
 instance (Monoid w, ArrowCond v c) => ArrowCond v (WriterT w c) where
   type Join (WriterT w c) x y = Cond.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
   if_ f g = lift $ if_ (unlift f) (unlift g)
+  {-# INLINE if_ #-}
 
 instance (Monoid w, ArrowRand v c) => ArrowRand v (WriterT w c) where
   random = lift' random
+  {-# INLINE random #-}
 
 instance (Monoid w, ArrowConst x c) => ArrowConst x (WriterT w c) where
   askConst f = lift (askConst (unlift . f))
-
-deriving instance PreOrd (c x (w,y)) => PreOrd (WriterT w c x y)
-deriving instance LowerBounded (c x (w,y)) => LowerBounded (WriterT w c x y)
-deriving instance Complete (c x (w,y)) => Complete (WriterT w c x y)
-deriving instance CoComplete (c x (w,y)) => CoComplete (WriterT w c x y)
-deriving instance UpperBounded (c x (w,y)) => UpperBounded (WriterT w c x y)
+  {-# INLINE askConst #-}

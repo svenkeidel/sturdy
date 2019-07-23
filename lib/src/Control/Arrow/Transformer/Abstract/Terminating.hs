@@ -11,34 +11,39 @@ import Prelude hiding (id,(.),lookup,fail)
 
 import Control.Arrow
 import Control.Arrow.Const
-import Control.Arrow.Deduplicate
+import Control.Arrow.Environment
 import Control.Arrow.Fix
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Trans
-import Control.Arrow.Abstract.Join
+import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
 import Control.Category
 
-import Data.Identifiable
-import Data.Profunctor
 import Data.Abstract.Terminating
 import Data.Abstract.Widening (toJoin)
 
+import Data.Profunctor
+import Data.Profunctor.Unsafe((.#))
+import Data.Coerce
+
 -- | Arrow that propagates non-terminating computations.
-newtype TerminatingT c x y = TerminatingT { unTerminatingT :: KleisliT Terminating c x y }
+newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y) 
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowState s, ArrowReader r,
-            ArrowConst r)
+            ArrowConst r, ArrowRun, ArrowEnv var val env)
 
 runTerminatingT :: TerminatingT c x y -> c x (Terminating y)
-runTerminatingT = runKleisliT . unTerminatingT
+runTerminatingT = coerce
+{-# INLINE runTerminatingT #-}
 
 instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (TerminatingT c) where
-  app = lift $ lmap (first unlift) app
+  app = lift (app .# first coerce)
 
 type instance Fix x y (TerminatingT c) = TerminatingT (Fix (Dom TerminatingT x y) (Cod TerminatingT x y) c)
 deriving instance (ArrowChoice c, ArrowFix (Dom TerminatingT x y) (Cod TerminatingT x y) c) => ArrowFix x y (TerminatingT c)
-deriving instance (Identifiable (Cod TerminatingT x y), ArrowChoice c, ArrowDeduplicate (Dom TerminatingT x y) (Cod TerminatingT x y) c) => ArrowDeduplicate x y (TerminatingT c)
 
-instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (TerminatingT c) where
-  joinWith lub' f g = lift $ joinWith (toJoin widening lub') (unlift f) (unlift g)
+instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (TerminatingT c) where
+  bottom = lift $ arr (\_ -> NonTerminating)
+
+instance (ArrowChoice c, ArrowComplete c) => ArrowComplete (TerminatingT c) where
+  join lub' f g = lift $ join (toJoin widening lub') (unlift f) (unlift g)

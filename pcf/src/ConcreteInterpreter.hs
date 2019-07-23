@@ -9,13 +9,14 @@
 -- | Concrete semantics of PCF.
 module ConcreteInterpreter where
 
-import Prelude hiding (fail)
+import Prelude hiding (fail,(.))
 
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Fail
 import Control.Arrow.Environment
 import Control.Arrow.Fix
+import Control.Arrow.Trans
 import Control.Arrow.Transformer.Concrete.Environment
 import Control.Arrow.Transformer.Concrete.Failure
 import Control.Monad.State hiding (fail)
@@ -23,11 +24,12 @@ import Control.Monad.State hiding (fail)
 import Data.Profunctor
 import Data.Concrete.Error
 import Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as M
 import Data.Hashable
 import Data.Text (Text)
 import Data.Label
 
-import GHC.Generics
+import GHC.Generics(Generic)
 
 import Syntax (Expr(..))
 import GenericInterpreter
@@ -39,18 +41,15 @@ data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
 -- implemented by instantiating the shared semantics with the concrete
 -- interpreter arrow `Interp`.
 evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
-evalConcrete env e =
-  runFailureT
-    (runEnvT'
-      (runConcreteT
-        eval))
-    (env,generate e)
+evalConcrete env e = run (eval :: ConcreteT (EnvT Text Val (FailureT String (->))) Expr Val) (M.fromList env,generate e)
 
 -- | Arrow transformer that implements the concrete value semantics
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e, ArrowEnv var val env)
 deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
-deriving instance ArrowEnv var Val env c => ArrowEnv var Val env (ConcreteT c)
+instance ArrowRun c => ArrowRun (ConcreteT c) where
+  type Rep (ConcreteT c) x y = Rep c x y
+  run = run . runConcreteT
 
 -- | Concrete instance of the interface for value operations.
 instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ConcreteT c) where

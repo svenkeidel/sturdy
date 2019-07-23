@@ -34,6 +34,7 @@ import           Control.Arrow.Environment
 import           Control.Arrow.Store
 import           Control.Arrow.Alloc
 import           Control.Arrow.Random
+import           Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Random
@@ -53,18 +54,14 @@ type Addr = Label
 run :: [LStatement] -> Error String (HashMap Addr Val)
 run ss =
   fst <$>
-    runFailureT
-      (runStoreT
-        (runEnvT
-          (runRandomT
-             (runConcreteT
-               (Generic.run ::
-                 ConcreteT
-                   (RandomT
-                     (EnvT Text Addr
-                       (StoreT Addr Val
-                         (FailureT String
-                          (->))))) [Statement] ())))))
+    Trans.run
+      (Generic.run ::
+        ConcreteT
+          (RandomT
+            (EnvT Text Addr
+              (StoreT Addr Val
+                (FailureT String
+                 (->))))) [Statement] ())
       (M.empty,(M.empty,(R.mkStdGen 0, generate <$> ss)))
 
 -- | The 'ConcreteT' transformer defines the value operations for the While language.
@@ -113,6 +110,10 @@ instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
     BoolVal True -> f1 -< x
     BoolVal False -> f2 -< y
     _ -> fail -< "Expected boolean as argument for 'if'"
+
+instance ArrowRun c => ArrowRun (ConcreteT c) where
+  type Rep (ConcreteT c) x y = Rep c x y
+  run = Trans.run . runConcreteT
 
 instance R.Random Val where
   randomR (NumVal x,NumVal y) = first NumVal . R.randomR (x,y)

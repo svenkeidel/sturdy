@@ -26,6 +26,7 @@ import           Data.Label
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Environment
@@ -43,20 +44,15 @@ type Exception = (Text,Val)
 run :: [LStatement] -> Error String (Error Exception (HashMap Addr Val))
 run ss =
   fmap (fmap fst) $
-    runFailureT
-      (runExceptT
-        (runStoreT
-          (runEnvT
-            (runRandomT
-               (runConcreteT
-                 (Generic.run ::
-                   ConcreteT
-                     (RandomT
-                       (EnvT Text Addr
-                         (StoreT Addr Val
-                           (ExceptT Exception
-                             (FailureT String
-                               (->)))))) [Statement] ()))))))
+    Trans.run
+       (Generic.run ::
+         ConcreteT
+           (RandomT
+             (EnvT Text Addr
+               (StoreT Addr Val
+                 (ExceptT Exception
+                   (FailureT String
+                     (->)))))) [Statement] ())
       (M.empty,(M.empty,(R.mkStdGen 0, generate <$> ss)))
 
 instance ArrowChoice c => IsException Exception Val (ConcreteT c) where

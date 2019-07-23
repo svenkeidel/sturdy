@@ -18,13 +18,26 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Writer
 import Data.Profunctor
+import Data.Profunctor.Unsafe
+import Unsafe.Coerce
 
 newtype ContT c x y = ContT { runContT :: forall r. c y r -> c x r }
+
+instance (ArrowApply c, ArrowRun c) => ArrowRun (ContT c) where
+  type Rep (ContT c) x y = c x y
+  run f = runContT f id
 
 instance Profunctor c => Profunctor (ContT c) where
   dimap f g (ContT h) = ContT $ \k -> lmap f (h (lmap g k))
   lmap f (ContT h) = ContT $ \k -> lmap f (h k)
   rmap g (ContT h) = ContT $ \k -> h (lmap g k)
+  f .# _ = f `seq` unsafeCoerce f
+  _ #. g = g `seq` unsafeCoerce g
+  {-# INLINE dimap #-}
+  {-# INLINE lmap #-}
+  {-# INLINE rmap #-}
+  {-# INLINE (.#) #-}
+  {-# INLINE (#.) #-}
 
 instance Category (ContT c) where
   id = ContT id

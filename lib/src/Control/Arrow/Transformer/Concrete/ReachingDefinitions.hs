@@ -30,17 +30,17 @@ import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Store as Store
 import           Control.Arrow.Environment
-import           Control.Arrow.Abstract.Join
 import           Control.Arrow.Transformer.Reader
 
 import           Data.Identifiable
 import           Data.Label
 import           Data.Profunctor
+import           Data.Profunctor.Unsafe((.#))
+import           Data.Coerce
 
 newtype ReachingDefsT lab c x y = ReachingDefsT (ReaderT (Maybe lab) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
-            ArrowFail e,ArrowExcept e,ArrowState s,ArrowEnv var val env,
-            ArrowJoin)
+            ArrowFail e,ArrowExcept e,ArrowState s,ArrowEnv var val env)
 
 reachingDefsT :: (Arrow c,Profunctor c) => c (Maybe lab,x) y -> ReachingDefsT lab c x y
 reachingDefsT = lift
@@ -50,6 +50,11 @@ runReachingDefsT = unlift
 
 runReachingDefsT' :: (Arrow c,Profunctor c) => ReachingDefsT lab c x y -> c x y
 runReachingDefsT' f = lmap (\x -> (Nothing,x)) (runReachingDefsT f)
+
+instance ArrowRun c => ArrowRun (ReachingDefsT lab c) where
+  type Rep (ReachingDefsT lab c) x y = Rep c x y
+  run = run . runReachingDefsT'
+  {-# INLINE run #-}
 
 instance (Identifiable var, Identifiable lab, ArrowStore var (val,Maybe lab) c) => ArrowStore var val (ReachingDefsT lab c) where
   type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Maybe lab),Dom (ReachingDefsT lab) x y), Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)
@@ -64,11 +69,11 @@ instance (HasLabel x lab, Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefs
       unwrap f' = (Just . label &&& id) ^>> runReachingDefsT f'
 
 instance (ArrowApply c,Profunctor c) => ArrowApply (ReachingDefsT lab c) where
-  app = ReachingDefsT (lmap (\(ReachingDefsT f,x) -> (f,x)) app)
+  app = ReachingDefsT (app .# first coerce)
 
 instance ArrowReader r c => ArrowReader r (ReachingDefsT lab c) where
   ask = lift' ask
-  local f = lift $ (\(m,(r,a)) -> (r,(m,a))) ^>> local (unlift f)
+  local f = lift $ lmap (\(m,(r,a)) -> (r,(m,a))) (local (unlift f))
 
 instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefsT lab c) where
   alloc = lift' alloc

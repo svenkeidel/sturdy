@@ -27,7 +27,6 @@ instance Semigroup Stable where (<>) = (⊔)
 instance Monoid Stable where
   mempty = Stable
   mappend = (⊔) 
-            
 
 instance PreOrd Stable where
   Stable ⊑ Stable = True
@@ -39,6 +38,9 @@ instance Complete Stable where
   Stable ⊔ a = a
   a ⊔ Stable = a
   Instable ⊔ Instable = Instable
+
+instance LowerBounded Stable where
+  bottom = Stable
 
 -- | For a preorder with no infinite ascending chains, (⊔) is a
 -- trivial widening operator.

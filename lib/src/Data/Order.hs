@@ -198,7 +198,10 @@ instance Identifiable a => Complete (HashSet a) where
   xs ⊔ ys = HS.union xs ys
             
 instance (Identifiable a, PreOrd b) => PreOrd (HashMap a b) where
-  m1 ⊑ m2 = HM.keys m1 == HM.keys m2 && and (HM.intersectionWith (⊑) m1 m2)
+  m1 ⊑ m2 = and (HM.intersectionWith (⊑) m1 m2)
+
+instance (Identifiable a, Complete b) => Complete (HashMap a b) where
+  (⊔) = HM.unionWith (⊔)
 
 instance (Ord k, PreOrd v) => LowerBounded (Map k v) where
   bottom = M.empty
