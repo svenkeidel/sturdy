@@ -27,7 +27,7 @@ import           Control.Arrow.Alloc
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
-import           Control.Arrow.Environment
+import           Control.Arrow.Environment as Env
 import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Abstract.Contour
 import           Control.Arrow.Transformer.Abstract.BoundedEnvironment
@@ -103,7 +103,8 @@ evalInterval k env0 e =
 
     widenVal = widening (W.bounded ?bound I.widening)
 
-newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowLowerBounded,ArrowComplete,ArrowEnv var val env)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y }
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowLowerBounded,ArrowComplete,ArrowEnv var val, ArrowClosure var val env)
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete c) => IsNum Val (IntervalT c) where
   type Join (IntervalT c) x y = Complete y
@@ -128,12 +129,14 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete c) => IsNum Va
       | otherwise          -> (f -< x) <⊔> (g -< y) -- case the interval contains zero and other numbers.
     (ClosureVal _, _)      -> fail -< "Expected a number as condition for 'ifZero'"
 
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowLowerBounded c, ArrowComplete c)
-    => IsClosure Val (F.Map Text Addr Val) (IntervalT c) where
-  closure = arr $ \(e, env) -> ClosureVal (C.closure e env)
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowLowerBounded c, ArrowComplete c, ArrowClosure var val Env c)
+    => IsClosure Val (IntervalT c) where
+  closure = proc e -> do
+    env <- Env.ask -< ()
+    returnA -< ClosureVal (C.closure e env)
   applyClosure f = proc (fun, arg) -> case fun of
     Top -> (returnA -< Top) <⊔> (fail -< "Expected a closure")
-    ClosureVal cls -> (| C.apply (\(e,env) -> f -< ((e,env),arg)) |) cls
+    ClosureVal cls -> (| C.apply (\(e,env) -> Env.local f -< (env,(e,arg))) |) cls
     NumVal _ -> fail -< "Expected a closure"
 
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)

@@ -16,9 +16,9 @@ import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Arrow.Reader
+import Control.Arrow.Reader as Reader
 import Control.Arrow.Store as Store
-import Control.Arrow.State
+import Control.Arrow.State as State
 import Control.Arrow.Except as Exc
 import Control.Arrow.Trans
 import Control.Arrow.Writer
@@ -101,8 +101,8 @@ instance (Arrow c, Profunctor c) => ArrowReader r (ReaderT r c) where
   {-# INLINE local #-}
 
 instance ArrowState s c => ArrowState s (ReaderT r c) where
-  get = lift' get
-  put = lift' put
+  get = lift' State.get
+  put = lift' State.put
   modify f = lift (modify (lmap assoc2 (unlift f)))
   {-# INLINE get #-}
   {-# INLINE put #-}
@@ -116,17 +116,19 @@ instance ArrowFail e c => ArrowFail e (ReaderT r c) where
   fail = lift' fail
   {-# INLINE fail #-}
 
-instance ArrowEnv var val env c => ArrowEnv var val env (ReaderT r c) where
+instance ArrowEnv var val c => ArrowEnv var val (ReaderT r c) where
   type instance Join (ReaderT r c) ((val,x),x) y = Env.Join c ((val,Dom (ReaderT r) x y),Dom (ReaderT r) x y) (Cod (ReaderT r) x y)
   lookup f g = lift $ lmap shuffle1
                     $ lookup (lmap shuffle1 (unlift f)) (unlift g)
-  getEnv     = lift' getEnv
-  extendEnv  = lift' extendEnv
-  localEnv f = lift $ lmap shuffle1 $ localEnv (unlift f)
+  extend f = lift $ lmap (\(r,(var,val,x)) -> (var,val,(r,x))) (Env.extend (unlift f))
   {-# INLINE lookup #-}
-  {-# INLINE getEnv #-}
-  {-# INLINE extendEnv #-}
-  {-# INLINE localEnv #-}
+  {-# INLINE extend #-}
+
+instance ArrowClosure var val env c => ArrowClosure var val env (ReaderT r c) where
+  ask     = lift' Env.ask
+  local f = lift $ lmap shuffle1 $ Env.local (unlift f)
+  {-# INLINE ask #-}
+  {-# INLINE local #-}
 
 instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
   type instance Join (ReaderT r c) ((val,x),x) y = Store.Join c ((val,Dom (ReaderT r) x y),Dom (ReaderT r) x y) (Cod (ReaderT r) x y)

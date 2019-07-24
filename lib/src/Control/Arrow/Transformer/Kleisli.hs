@@ -14,8 +14,8 @@ import Control.Arrow hiding (ArrowMonad)
 import Control.Arrow.Monad
 import Control.Arrow.Const
 import Control.Arrow.Fix
-import Control.Arrow.State
-import Control.Arrow.Reader
+import Control.Arrow.State as State
+import Control.Arrow.Reader as Reader
 import Control.Arrow.Environment as Env
 import Control.Arrow.Store as Store
 import Control.Arrow.Except as Exc
@@ -93,26 +93,29 @@ instance (ArrowMonad f c, ArrowApply c) => ArrowApply (KleisliT f c) where
   {-# INLINE app #-}
 
 instance (ArrowMonad f c, ArrowState s c) => ArrowState s (KleisliT f c) where
-  get = lift' get
-  put = lift' put
+  get = lift' State.get
+  put = lift' State.put
   {-# INLINE get #-}
   {-# INLINE put #-}
 
 instance (ArrowMonad f c, ArrowReader r c) => ArrowReader r (KleisliT f c) where
-  ask = lift' ask
-  local f = lift (local (unlift f))
+  ask = lift' Reader.ask
+  local f = lift (Reader.local (unlift f))
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
-instance (ArrowMonad f c, ArrowEnv x y env c) => ArrowEnv x y env (KleisliT f c) where
+instance (ArrowMonad f c, ArrowEnv x y c) => ArrowEnv x y (KleisliT f c) where
   type Join (KleisliT f c) x y = Env.Join c (Dom (KleisliT f) x y) (Cod (KleisliT f) x y)
-  lookup f g = lift $ lookup (unlift f) (unlift g)
-  getEnv = lift' getEnv
-  extendEnv = lift' extendEnv
-  localEnv f = lift (localEnv (unlift f))
+  lookup f g = lift $ Env.lookup (unlift f) (unlift g)
+  extend f = lift $ Env.extend (unlift f)
   {-# INLINE lookup #-}
-  {-# INLINE getEnv #-}
-  {-# INLINE extendEnv #-}
+  {-# INLINE extend #-}
+
+instance (ArrowMonad f c, ArrowClosure var val env c) => ArrowClosure var val env (KleisliT f c) where
+  ask = lift' Env.ask
+  local f = lift (Env.local (unlift f))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}
 
 instance (ArrowMonad f c, ArrowStore var val c) => ArrowStore var val (KleisliT f c) where
   type Join (KleisliT f c) x y = Store.Join c (Dom (KleisliT f) x y) (Cod (KleisliT f) x y)

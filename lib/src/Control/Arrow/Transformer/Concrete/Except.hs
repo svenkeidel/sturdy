@@ -29,9 +29,9 @@ import Data.Coerce
 
 -- | Arrow transformer that adds exceptions to the result of a computation
 newtype ExceptT e c x y = ExceptT (KleisliT (Error e) c x y) 
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
-            ArrowState s,ArrowReader r,ArrowFail err,ArrowEnv a b env,ArrowStore var val,ArrowConst r,
-            ArrowRun)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
+            ArrowConst r,ArrowState s,ArrowReader r,ArrowFail err,
+            ArrowEnv var val, ArrowClosure var val env,ArrowStore var val)
 
 runExceptT :: ExceptT e c x y -> c x (Error e y)
 runExceptT = coerce

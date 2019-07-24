@@ -38,8 +38,10 @@ import Data.Coerce
 
 newtype StoreT var val c x y = StoreT (StateT (Map var val) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
-            ArrowReader r, ArrowFail e, ArrowExcept e, ArrowEnv var val env,
-            ArrowConst r, ArrowLowerBounded, ArrowRun)
+            ArrowConst r, ArrowReader r,
+            ArrowEnv var' val', ArrowClosure var' val' env,
+            ArrowFail e, ArrowExcept e,
+            ArrowLowerBounded, ArrowRun)
 
 runStoreT :: StoreT var val c x y -> c (Map var val, x) (Map var val, y)
 runStoreT = coerce

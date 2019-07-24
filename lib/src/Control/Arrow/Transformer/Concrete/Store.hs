@@ -31,8 +31,8 @@ import           Data.Coerce
 
 -- | Arrow transformer that adds a store to a computation.
 newtype StoreT var val c x y = StoreT (StateT (HashMap var val) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
-            ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e, ArrowRun)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
+            ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e)
 
 -- | Execute a computation and only return the result value and store.
 runStoreT :: StoreT var val c x y -> c (HashMap var val, x) (HashMap var val, y)

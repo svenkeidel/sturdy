@@ -31,7 +31,8 @@ import Data.Coerce
 -- | Arrow transformer that adds failure to the result of a computation
 newtype FailureT e c x y = FailureT (KleisliT (Error e) c x y) 
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
-            ArrowState s,ArrowReader r,ArrowExcept exc,ArrowEnv a b env,ArrowStore var val,ArrowConst r)
+            ArrowConst r,ArrowState s,ArrowReader r,ArrowExcept exc,
+            ArrowEnv var val, ArrowClosure var val env,ArrowStore var val)
 
 runFailureT :: FailureT e c x y -> c x (Error e y)
 runFailureT = coerce

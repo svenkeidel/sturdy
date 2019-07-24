@@ -18,7 +18,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
-import           Control.Arrow.Reader
+import           Control.Arrow.Reader as Reader
 import           Control.Arrow.State
 import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Const
@@ -50,9 +50,7 @@ runEnvT :: (Identifiable var, Identifiable addr, Complete val, ArrowComplete c, 
                => c (var,val,Map var addr val) addr -> EnvT var addr val c x y -> c ([(var,val)],x) y
 runEnvT alloc f =
   let EnvT f' = proc (bs,x) -> do
-       env <- getEnv -< ()
-       env' <- bindings -< (bs,env)
-       localEnv f -< (env',x)
+       extend' f -< (bs,x)
   in (const (M.empty) &&& id) ^>> runReaderT (runConstT alloc f')
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowComplete c, ArrowChoice c, ArrowRun c) => ArrowRun (EnvT var addr val c) where
@@ -69,22 +67,27 @@ instance ArrowLift (EnvT var addr val) where
   lift' f = EnvT (lift' (lift' f))
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowComplete c, Profunctor c) =>
-  ArrowEnv var val (Map var addr val) (EnvT var addr val c) where
+  ArrowEnv var val (EnvT var addr val c) where
   type Join (EnvT var addr val c) x y = (Complete y)
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
-    env <- ask -< ()
+    env <- Reader.ask -< ()
     case do M.lookup var env of
       Just val        -> f -< (val,x)
       Nothing         -> g -< x
       JustNothing val -> (f -< (val,x)) <⊔> (g -< x)
-  getEnv = EnvT ask
-  extendEnv = EnvT $ ConstT $ StaticT $ \alloc -> lift' $ M.insertBy alloc
-  localEnv (EnvT f) = EnvT $ local f
+  extend (EnvT f) = EnvT $ ConstT $ StaticT $ \alloc -> ReaderT $ proc (env,(var,val,x)) -> do
+    env' <- M.insertBy alloc -< (var,val,env)
+    runReaderT (runConstT alloc f) -< (env',x)
+
+instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowComplete c, Profunctor c) =>
+  ArrowClosure var val (Map var addr val) (EnvT var addr val c) where
+  ask = EnvT Reader.ask
+  local (EnvT f) = EnvT $ Reader.local f
 
 instance ArrowReader r c => ArrowReader r (EnvT var addr val c) where
-  ask = lift' ask
+  ask = lift' Reader.ask
   local (EnvT (ConstT (StaticT f))) =
-    EnvT $ ConstT $ StaticT $ \alloc -> ReaderT $ (\(env,(r,x)) -> (r,(env,x))) ^>> local (runReaderT (f alloc))
+    EnvT $ ConstT $ StaticT $ \alloc -> ReaderT $ (\(env,(r,x)) -> (r,(env,x))) ^>> Reader.local (runReaderT (f alloc))
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var addr val c) where
   app = EnvT (app .# first coerce)

@@ -12,7 +12,6 @@ import Prelude hiding (lookup,fail,id)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Fail
-import Control.Arrow.Utils
 
 import Data.String
 import Data.Profunctor
@@ -23,7 +22,7 @@ import GHC.Exts (Constraint)
 
 
 -- | Arrow-based interface for interacting with environments.
-class (Arrow c, Profunctor c) => ArrowEnv var val env c | c -> var, c -> val, c -> env where
+class (Arrow c, Profunctor c) => ArrowEnv var val c | c -> var, c -> val where
   -- | Type class constraint used by the abstract instances to join arrow computations.
   type family Join (c :: * -> * -> *) x y :: Constraint
 
@@ -31,35 +30,30 @@ class (Arrow c, Profunctor c) => ArrowEnv var val env c | c -> var, c -> val, c 
   -- | Lookup a variable in the current environment. If the
   -- environment contains a binding of the variable, the first
   -- continuation is called and the second computation otherwise.
-  lookup :: (Join c ((val,x),x) y) => c (val,x) y -> c x y -> c (var,x) y
-
-  -- | Retrieve the current environment.
-  getEnv :: c () env
+  lookup :: Join c ((val,x),x) y => c (val,x) y -> c x y -> c (var,x) y
 
   -- | Extend an environment with a binding.
-  extendEnv :: c (var,val,env) env
+  extend :: c x y -> c (var,val,x) y
+
+class ArrowEnv var val c => ArrowClosure var val env c | c -> env where
+  -- | Retrieve the current environment.
+  ask :: c () env
 
   -- | Run a computation with a modified environment.
-  localEnv :: c x y -> c (env,x) y
+  local :: c x y -> c (env,x) y
 
 -- | Simpler version of environment lookup.
-lookup' :: (Join c ((val,var),var) val, Show var, IsString e, ArrowFail e c, ArrowEnv var val env c) => c var val
+lookup' :: (Join c ((val,var),var) val, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
 lookup' = lookup'' id
 
-lookup'' :: (Join c ((val,var),var) y, Show var, IsString e, ArrowFail e c, ArrowEnv var val env c) => c val y -> c var y
+lookup'' :: (Join c ((val,var),var) y, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c val y -> c var y
 lookup'' f = proc var ->
   lookup
     (proc (val,_) -> f     -< val)
     (proc var     -> fail  -< fromString $ printf "Variable %s not bound" (show var))
     -< (var,var)
 
--- | Run a computation in an extended environment.
-extendEnv' :: ArrowEnv var val env c => c a b -> c (var,val,a) b
-extendEnv' f = proc (x,y,a) -> do
-  env <- getEnv -< ()
-  env' <- extendEnv -< (x,y,env)
-  localEnv f -< (env',a)
-
--- | Add a list of bindings to the given environment.
-bindings :: (ArrowChoice c, ArrowEnv var val env c) => c ([(var,val)],env) env
-bindings = fold ((\(env,(x,y)) -> (x,y,env)) ^>> extendEnv)
+extend' :: (ArrowChoice c, ArrowEnv var val c) => c x y -> c ([(var,val)],x) y
+extend' f = proc (l,x) -> case l of
+  ((var,val):l') -> extend (extend' f) -< (var,val,(l',x))
+  [] -> f -< x

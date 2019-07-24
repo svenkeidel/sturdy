@@ -18,8 +18,8 @@ import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
 import Control.Arrow.Except as Exc
 import Control.Arrow.Trans
-import Control.Arrow.Reader
-import Control.Arrow.State
+import Control.Arrow.Reader as Reader
+import Control.Arrow.State as State
 import Control.Arrow.Store as Store
 import Control.Arrow.Writer
 import Control.Arrow.Order
@@ -81,16 +81,16 @@ instance (Applicative f, ArrowChoice c, Profunctor c) => ArrowChoice (StaticT f 
   {-# INLINE (|||) #-}
 
 instance (Applicative f, ArrowState s c) => ArrowState s (StaticT f c) where
-  get = lift' get
-  put = lift' put
-  modify (StaticT f) = StaticT $ modify <$> f
+  get = lift' State.get
+  put = lift' State.put
+  modify (StaticT f) = StaticT $ State.modify <$> f
   {-# INLINE get #-}
   {-# INLINE put #-}
   {-# INLINE modify #-}
 
 instance (Applicative f, ArrowReader r c) => ArrowReader r (StaticT f c) where
-  ask = lift' ask
-  local (StaticT f) = StaticT $ local <$> f
+  ask = lift' Reader.ask
+  local (StaticT f) = StaticT $ Reader.local <$> f
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
@@ -109,16 +109,18 @@ instance (Applicative f, ArrowExcept e c) => ArrowExcept e (StaticT f c) where
   {-# INLINE throw #-}
   {-# INLINE try #-}
 
-instance (Applicative f, ArrowEnv var val env c) => ArrowEnv var val env (StaticT f c) where
+instance (Applicative f, ArrowEnv var val c) => ArrowEnv var val (StaticT f c) where
   type Join (StaticT f c) x y = Env.Join c x y
-  lookup (StaticT f) (StaticT g) = StaticT $ lookup <$> f <*> g
-  getEnv = lift' getEnv
-  extendEnv = lift' extendEnv
-  localEnv (StaticT f) = StaticT $ localEnv <$> f
+  lookup (StaticT f) (StaticT g) = StaticT $ Env.lookup <$> f <*> g
+  extend (StaticT f) = StaticT $ Env.extend <$> f
   {-# INLINE lookup #-}
-  {-# INLINE getEnv #-}
-  {-# INLINE extendEnv #-}
-  {-# INLINE localEnv #-}
+  {-# INLINE extend #-}
+
+instance (Applicative f, ArrowClosure var val env c) => ArrowClosure var val env (StaticT f c) where
+  ask = lift' Env.ask
+  local (StaticT f) = StaticT $ Env.local <$> f
+  {-# INLINE ask #-}
+  {-# INLINE local #-}
 
 instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f c) where
   type Join (StaticT f c) x y = Store.Join c x y

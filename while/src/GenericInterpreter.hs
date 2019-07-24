@@ -14,11 +14,14 @@ import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Environment(ArrowEnv,lookup,lookup'',extendEnv')
+import           Control.Arrow.Environment(ArrowEnv)
 import qualified Control.Arrow.Environment as Env
+import           Control.Arrow.Except(ArrowExcept)
+import qualified Control.Arrow.Except as Except
 import           Control.Arrow.Random
 import           Control.Arrow.Store(ArrowStore,read',write)
 import qualified Control.Arrow.Store as Store
+import           Control.Arrow.Utils
 
 import           Data.Text (Text)
 import           Data.String
@@ -35,14 +38,15 @@ type Prog = [Statement]
 -- @c@. It uses the @IsVal@ interface to combine values and uses the
 -- @ArrowEnv@ and @ArrowStore@ interface to access the environment.
 eval :: (Show addr, ArrowChoice c, ArrowRand v c,
-         ArrowEnv Text addr env c, ArrowStore addr v c,
-         ArrowFail e c, IsString e, IsVal v c,
+         ArrowEnv Text addr c, ArrowStore addr v c,
+         ArrowExcept exc c, ArrowFail e c,
+         IsVal v c, IsException exc v c, IsString e,
          Env.Join c ((addr, Text),Text) v,
          Store.Join c ((v, addr),addr) v
         )
      => c Expr v
 eval = proc e -> case e of
-  Var x _ -> lookup'' read' -< x
+  Var x _ -> Env.lookup'' read' -< x
   BoolLit b l -> boolLit -< (b,l)
   And e1 e2 l -> do
     v1 <- eval -< e1
@@ -81,6 +85,9 @@ eval = proc e -> case e of
     v1 <- eval -< e1
     v2 <- eval -< e2
     lt -< (v1,v2,l)
+  Throw ex e1 _ -> do
+    v <- eval -< e1
+    Except.throw <<< namedException -< (ex,v)
 
 -- | Generic interpreter for statements of the While-language. It is
 -- an arrow computation @c [Statement] ()@ that consumes statements
@@ -88,23 +95,27 @@ eval = proc e -> case e of
 -- the type of values @v@, addresses @addr@, environment @env@ and
 -- arrow type @c@.
 run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
-        ArrowEnv Text addr env c, ArrowStore addr v c,
-        ArrowAlloc (Text,v,Label) addr c, ArrowFail e c,
-        ArrowRand v c, IsString e, IsVal v c,
+        ArrowEnv Text addr c, ArrowStore addr v c,
+        ArrowAlloc (Text,v,Label) addr c, ArrowFail err c,
+        ArrowExcept exc c, ArrowRand v c,
+        IsString err, IsVal v c, IsException exc v c,
         Env.Join c ((addr, Text),Text) v,
         Env.Join c ((addr, (Text,v,Label)), (Text,v,Label)) addr,
         Store.Join c ((v, addr),addr) v,
-        JoinVal c ([Statement],[Statement]) ()
+        Except.Join c ((), ((Statement, (Text, Text, Statement, Label)), exc)) (),
+        Except.Join c (((Statement, Statement), ()), ((Statement, Statement), exc)) (),
+        JoinVal c ([Statement],[Statement]) (),
+        JoinExc c ((v, (Text, Statement, Label)), (Text, Statement, Label)) ()
        )
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
   Assign x e l:ss -> do
     v <- eval -< e
-    addr <- lookup (proc (addr,_) -> returnA -< addr)
-                   (proc (x,v,l) -> alloc -< (x,v,l))
-                   -< (x,(x,v,l))
+    addr <- Env.lookup (proc (addr,_) -> returnA -< addr)
+                       (proc (x,v,l) -> alloc -< (x,v,l))
+              -< (x,(x,v,l))
     write -< (addr,v)
-    extendEnv' run' -< (x,addr,ss)
+    Env.extend run' -< (x,addr,ss)
   If cond s1 s2 _:ss -> do
     b <- eval -< cond
     if_ run' run' -< (b,([s1],[s2]))
@@ -114,6 +125,24 @@ run = fix $ \run' -> proc stmts -> case stmts of
   Begin ss _:ss' -> do
     run' -< ss
     run' -< ss'
+  TryCatch body ex x handler l:ss -> do
+    Except.catch
+      (proc (body,_) -> run' -< [body])
+      (proc ((_,(ex,x,handler,l)),e) ->
+        matchException
+          (proc (v,(x,handler,l)) -> do
+            addr <- Env.lookup pi1 alloc -< (x,(x,v,l))
+            write -< (addr,v)
+            Env.extend run' -< (x, addr, [handler]))
+          (proc _ -> returnA -< ())
+          -< (ex,e,(x,handler,l)))
+      -< (body,(ex,x,handler,l))
+    run' -< ss
+  Finally body fin _:ss -> do
+    Except.finally (proc (body,_) -> run' -< [body])
+            (proc (_,fin)  -> run' -< [fin])
+      -< (body,fin)
+    run' -< ss
   [] ->
     returnA -< ()
 
@@ -136,3 +165,7 @@ class Arrow c => IsVal v c | c -> v where
   lt :: c (v,v,Label) v
   if_ :: JoinVal c (x,y) z => c x z -> c y z -> c (v, (x, y)) z
 
+class IsException exc v c | c -> v where
+  type family JoinExc (c :: * -> * -> *) x y :: Constraint
+  namedException :: c (Text,v) exc
+  matchException :: JoinExc c ((v,x),x) y => c (v,x) y -> c x y -> c (Text,exc,x) y

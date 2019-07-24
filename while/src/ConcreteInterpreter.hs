@@ -10,7 +10,7 @@
 -- | Concrete interpreter of the While language.
 module ConcreteInterpreter where
 
-import           Prelude hiding (read,fail,(.))
+import           Prelude hiding (read,fail,(.),id)
 import qualified Prelude as P
 
 import           Syntax
@@ -39,6 +39,7 @@ import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Random
 import           Control.Arrow.Transformer.Concrete.Store
+import           Control.Arrow.Transformer.Concrete.Except
 
 import qualified System.Random as R
 
@@ -47,26 +48,28 @@ import           GHC.Generics (Generic)
 -- | Values of the While language can be booleans or numbers.
 data Val = BoolVal Bool | NumVal Int deriving (Eq, Show, Generic)
 type Addr = Label
+type Exception = (Text,Val)
 
 -- | The concrete interpreter of the while language instantiates
 -- 'Generic.run' with the concrete components for failure ('FailureT'), store ('StoreT'),
 -- environments ('EnvT'), random numbers ('RandomT'), and values ('ConcreteT').
-run :: [LStatement] -> Error String (HashMap Addr Val)
+run :: [LStatement] -> Error String (Error Exception (HashMap Addr Val))
 run ss =
-  fst <$>
+  fmap fst <$>
     Trans.run
       (Generic.run ::
         ConcreteT
           (RandomT
             (EnvT Text Addr
               (StoreT Addr Val
-                (FailureT String
-                 (->))))) [Statement] ())
+                (ExceptT Exception
+                  (FailureT String
+                    (->)))))) [Statement] ())
       (M.empty,(M.empty,(R.mkStdGen 0, generate <$> ss)))
 
 -- | The 'ConcreteT' transformer defines the value operations for the While language.
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowEnv var addr env, ArrowStore addr val,ArrowExcept exc)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowEnv var addr, ArrowStore addr val,ArrowExcept exc)
 deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
 deriving instance ArrowRand v c => ArrowRand v (ConcreteT c)
 
@@ -120,4 +123,13 @@ instance R.Random Val where
   randomR _ = error "random not defined for other values than numerical"
   random = first NumVal . R.random
 
+instance ArrowChoice c => IsException Exception Val (ConcreteT c) where
+  type JoinExc (ConcreteT c) x y = ()
+  namedException = id
+  matchException f g = proc (name,(name',v),x) ->
+    if (name == name')
+       then f -< (v,x)
+       else g -< x
+
 instance Hashable Val
+

@@ -12,12 +12,13 @@ import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
 import Control.Arrow.Alloc
+import Control.Arrow.Const
 import Control.Arrow.Environment
 import Control.Arrow.Fail
 import Control.Arrow.Except
 import Control.Arrow.Fix
 import Control.Arrow.Trans
-import Control.Arrow.Reader
+import Control.Arrow.Reader as Reader
 import Control.Arrow.State
 import Control.Arrow.Order
 import Control.Arrow.Transformer.Reader
@@ -33,8 +34,10 @@ import Data.Coerce
 -- | Records the k-bounded call string. Meant to be used in
 -- conjunction with 'Abstract.BoundedEnvironment'.
 newtype ContourT lab c a b = ContourT (ReaderT (CallString lab) c a b)
-  deriving (Profunctor,Category,Arrow,ArrowLift,ArrowChoice, ArrowState s,
-            ArrowEnv x y env, ArrowFail e, ArrowExcept e, ArrowLowerBounded, ArrowComplete)
+  deriving (Profunctor,Category,Arrow,ArrowLift,ArrowChoice,
+            ArrowConst r, ArrowState s,
+            ArrowEnv var val, ArrowClosure var val env,
+            ArrowFail e, ArrowExcept e, ArrowLowerBounded, ArrowComplete)
 
 -- | Runs a computation that records a call string. The argument 'k'
 -- specifies the maximum length of a call string. All larger call
@@ -69,5 +72,5 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (ContourT lab c) where
   app = ContourT (app .# first coerce)
 
 instance ArrowReader r c => ArrowReader r (ContourT lab c) where
-  ask = lift' ask
-  local (ContourT (ReaderT f)) = ContourT $ ReaderT $ ((\(c,(r,x)) -> (r,(c,x))) ^>> local f)
+  ask = lift' Reader.ask
+  local (ContourT (ReaderT f)) = ContourT $ ReaderT $ ((\(c,(r,x)) -> (r,(c,x))) ^>> Reader.local f)

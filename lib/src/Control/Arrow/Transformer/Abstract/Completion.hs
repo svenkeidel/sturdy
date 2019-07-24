@@ -32,8 +32,10 @@ import Data.Coerce
 -- | Allows to describe computations over non-completely ordered types.
 -- E.g. allows to join a computation of type 'c x [y]'.
 newtype CompletionT c x y = CompletionT (KleisliT FreeCompletion c x y) 
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowState s, ArrowReader r,
-            ArrowConst r, ArrowEnv a b e, ArrowStore a b, ArrowFail e, ArrowExcept e, ArrowRun)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, 
+            ArrowConst r, ArrowState s, ArrowReader r,
+            ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
+            ArrowFail e, ArrowExcept e)
 
 runCompletionT :: CompletionT c x y -> c x (FreeCompletion y)
 runCompletionT = coerce

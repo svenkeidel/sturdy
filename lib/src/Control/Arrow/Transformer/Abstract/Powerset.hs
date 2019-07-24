@@ -31,8 +31,10 @@ import           Data.Coerce
 
 -- | Computation that produces a set of results.
 newtype PowT c x y = PowT (KleisliT A.Pow c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowState s, ArrowReader r,
-            ArrowConst r, ArrowEnv a b e', ArrowStore a b, ArrowFail e', ArrowExcept e', ArrowRun)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, 
+            ArrowConst r, ArrowState s, ArrowReader r,
+            ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
+            ArrowFail e', ArrowExcept e')
 
 runPowT :: PowT c x y -> c x (A.Pow y)
 runPowT = coerce

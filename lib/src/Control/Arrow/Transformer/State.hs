@@ -18,8 +18,8 @@ import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Trans
 import Control.Arrow.Random
-import Control.Arrow.Reader
-import Control.Arrow.State
+import Control.Arrow.Reader as Reader
+import Control.Arrow.State as State
 import Control.Arrow.Store as Store
 import Control.Arrow.Except as Exc
 import Control.Arrow.Writer
@@ -120,8 +120,8 @@ instance (ArrowFail e c, Profunctor c) => ArrowFail e (StateT s c) where
   {-# INLINE fail #-}
 
 instance ArrowReader r c => ArrowReader r (StateT s c) where
-  ask = lift' ask
-  local f = lift $ lmap (\(s,(r,x)) -> (r,(s,x))) (local (unlift f))
+  ask = lift' Reader.ask
+  local f = lift $ lmap (\(s,(r,x)) -> (r,(s,x))) (Reader.local (unlift f))
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
@@ -129,18 +129,20 @@ instance ArrowWriter w c => ArrowWriter w (StateT s c) where
   tell = lift' tell
   {-# INLINE tell #-}
 
-instance (ArrowEnv var val env c) => ArrowEnv var val env (StateT s c) where
+instance (ArrowEnv var val c) => ArrowEnv var val (StateT s c) where
   type instance Join (StateT s c) ((val,x),x) y = Env.Join c ((val,Dom (StateT s) x y),Dom (StateT s) x y) (Cod (StateT s) x y)
   lookup f g = lift $ lmap (\(s,(v,a)) -> (v,(s,a)))
                     $ lookup (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
                              (unlift g)
-  getEnv = lift' getEnv
-  extendEnv = lift' extendEnv
-  localEnv f = lift $ lmap (\(r,(env,a)) -> (env,(r,a))) (localEnv (unlift f))
+  extend f = lift $ lmap (\(s,(var,val,x)) -> (var,val,(s,x))) (extend (unlift f))
   {-# INLINE lookup #-}
-  {-# INLINE getEnv #-}
-  {-# INLINE extendEnv #-}
-  {-# INLINE localEnv #-}
+  {-# INLINE extend #-}
+
+instance (ArrowClosure var val env c) => ArrowClosure var val env (StateT s c) where
+  ask = lift' Env.ask
+  local f = lift $ lmap (\(r,(env,a)) -> (env,(r,a))) (Env.local (unlift f))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}
 
 instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
   type instance Join (StateT s c) ((val,x),x) y = Store.Join c ((val,Dom (StateT s) x y),Dom (StateT s) x y) (Cod (StateT s) x y)

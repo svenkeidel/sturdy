@@ -16,7 +16,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
-import           Control.Arrow.Reader
+import           Control.Arrow.Reader as Reader
 import           Control.Arrow.State
 import           Control.Arrow.Transformer.Reader
 
@@ -31,7 +31,7 @@ import           Data.Coerce
 -- | Records the full call string.
 newtype ContourT lab c a b = ContourT (ReaderT [lab] c a b)
   deriving (Profunctor,Category,Arrow,ArrowLift,ArrowChoice, ArrowState s,
-            ArrowEnv x y env, ArrowFail e, ArrowExcept e)
+            ArrowEnv var val, ArrowClosure var val env, ArrowFail e, ArrowExcept e)
 
 -- | Runs a computation that records a the full call string of the interpreter.
 runContourT :: (Arrow c, Profunctor c) => ContourT lab c a b -> c a b
@@ -60,5 +60,5 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (ContourT lab c) where
   app = ContourT $ app .# first coerce
 
 instance ArrowReader r c => ArrowReader r (ContourT lab c) where
-  ask = lift' ask
-  local (ContourT (ReaderT f)) = ContourT $ ReaderT $ ((\(c,(r,x)) -> (r,(c,x))) ^>> local f)
+  ask = lift' Reader.ask
+  local (ContourT (ReaderT f)) = ContourT $ ReaderT $ ((\(c,(r,x)) -> (r,(c,x))) ^>> Reader.local f)

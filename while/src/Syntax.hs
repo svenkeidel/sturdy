@@ -34,7 +34,8 @@ data Expr
   | Div Expr Expr Label
   | Eq Expr Expr Label
   | Lt Expr Expr Label
-  deriving (Ord,Eq,Generic)
+  | Throw Text Expr Label
+ deriving (Ord,Eq,Generic)
 
 instance Show Expr where
   showsPrec d e0 = case e0 of
@@ -51,6 +52,7 @@ instance Show Expr where
     Div e1 e2 _ -> binOp " / " e1 e2
     Eq e1 e2 _ -> binOp " == " e1 e2
     Lt e1 e2 _ -> binOp " < " e1 e2
+    Throw exc e _ -> unOp ("throw " ++ unpack exc ++ " ") e
     where
       literal :: Show x => x -> ShowS
       literal = shows
@@ -124,7 +126,8 @@ instance HasLabel Expr Label where
     Div _ _ l -> l
     Eq _ _ l -> l
     Lt _ _ l -> l
-    
+    Throw _ _ l -> l
+   
 instance Hashable Expr where
 
 instance PreOrd Expr where
@@ -137,6 +140,8 @@ data Statement
   | If Expr Statement Statement Label
   | Assign Text Expr Label
   | Begin [Statement] Label
+  | TryCatch Statement Text Text Statement Label
+  | Finally Statement Statement Label
   deriving (Ord,Eq,Generic)
 
 instance Show Statement where
@@ -145,6 +150,11 @@ instance Show Statement where
     While e body l   -> shows l . showString ": " . showString "while" . showParen True (shows e) . showString " " . shows body
     If e ifB elseB l -> shows l . showString ": " . showString "if" . showParen True (shows e) . showString " " . shows ifB . showString " " . shows elseB
     Begin ss l       -> shows l . showString ": " . showString "{" . shows ss . showString "}"
+    TryCatch body ex x handler _ -> showString "try" . shows body
+                                  . showString "catch" . showParen True (
+                                      showString (unpack ex) . showParen True (showString (unpack x)))
+                                  . shows handler
+    Finally body fin _ -> showString "try" . shows body . showString "finally" . shows fin
 
 type LStatement = State Label Statement
 
@@ -169,6 +179,12 @@ begin ss = do
   l <- fresh
   Begin <$> sequence ss <*> pure l
 
+tryCatch :: LStatement -> Text -> Text -> LStatement -> LStatement
+tryCatch body ex x handler = TryCatch <$> body <*> pure ex <*> pure x <*> handler <*> fresh
+
+finally :: LStatement -> LStatement -> LStatement
+finally body fin = Finally <$> body <*> fin <*> fresh
+
 (=:) :: Text -> State Label Expr -> State Label Statement
 x =: e = Assign x <$> e <*> fresh
 infix 0 =:
@@ -179,6 +195,8 @@ instance HasLabel Statement Label where
     If _ _ _ l -> l
     Assign _ _ l -> l
     Begin _ l -> l
+    TryCatch _ _ _ _ l -> l
+    Finally _ _ l -> l
 
 instance Hashable Statement where
   hashWithSalt s e = s `hashWithSalt` (label e :: Label)
@@ -189,4 +207,6 @@ blocks ss = flip concatMap ss $ \s -> case s of
   If _ s1 s2 _ -> s : blocks [s1, s2]
   While _ body _ -> s : blocks [body]
   Begin ss' _ -> blocks ss'
+  TryCatch body _ _ handler _ -> s : blocks [body, handler]
+  Finally body fin _ -> s : blocks [body, fin]
 

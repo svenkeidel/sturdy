@@ -29,8 +29,9 @@ import Data.Coerce
 
 -- | Arrow that propagates non-terminating computations.
 newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y) 
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowState s, ArrowReader r,
-            ArrowConst r, ArrowRun, ArrowEnv var val env)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
+            ArrowConst r, ArrowState s, ArrowReader r,
+            ArrowEnv var val, ArrowClosure var val env)
 
 runTerminatingT :: TerminatingT c x y -> c x (Terminating y)
 runTerminatingT = coerce

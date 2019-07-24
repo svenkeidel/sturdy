@@ -28,10 +28,13 @@ import qualified Data.Abstract.Boolean as B
 import qualified Data.Abstract.Failure as F
 import           Data.Abstract.Error (Error(..))
 import qualified Data.Abstract.Error as E
+import           Data.Abstract.Except (Except(..))
+import qualified Data.Abstract.Except as Exc
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import qualified Data.Abstract.StrongMap as SM
 import qualified Data.Abstract.Map as M
+import           Data.Abstract.Map (Map)
 import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening (Widening)
@@ -42,6 +45,7 @@ import qualified Data.Abstract.Widening as W
 import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.Ordering as O
 import qualified Data.Abstract.Equality as E
+import qualified Data.Abstract.Maybe as AM
 
 import qualified Data.Lens as L
 import           Data.Profunctor
@@ -67,6 +71,7 @@ import qualified Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -79,25 +84,27 @@ import           GHC.Generics
 data Val = BoolVal Bool | NumVal IV | Top deriving (Eq,Generic)
 type IV = Interval (InfiniteNumber Int)
 type Addr = FreeCompletion Label
+newtype Exception = Exception (Map Text Val) deriving (PreOrd,Complete,Show,Eq)
 
 -- | The interval analysis instantiates the generic interpreter
 -- 'Generic.run' with the components for fixpoint computation
 -- ('FixT'), termination ('TerminatingT'), failure ('ErrorT'), store
 -- ('StoreT'), environments ('EnvT'), and values ('IntervalT').
-run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
-run k env ss = fmap fst <$>
+run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
+run k env ss = fmap (fmap fst) <$>
   Trans.run
     (Generic.run ::
       Fix [Statement] ()
         (IntervalT
           (EnvT Text Addr
             (StoreT Addr Val
-              (ErrorT (Pow String)
-                (TerminatingT
-                  (FixT _ _
-                    (S.StackWideningT _ _
-                      (S.ChaoticT _ _
-                         (->))))))))) [Statement] ())
+              (ExceptT Exception
+                (ErrorT (Pow String)
+                  (TerminatingT
+                    (FixT _ _
+                      (S.StackWideningT _ _
+                        (S.ChaoticT _ _
+                           (->)))))))))) [Statement] ())
       iterationStrategy
       (M.empty,(SM.fromList env, generate (sequence ss)))
 
@@ -114,9 +121,11 @@ run k env ss = fmap fst <$>
                $ SW.finite
     
     widenVal = widening (W.bounded ?bound I.widening)
-    widenResult = T.widening $ E.widening W.finite (M.widening widenVal W.** W.finite)
+    widenExc (Exception m1) (Exception m2) = Exception <$> (M.widening widenVal m1 m2)
+    widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening widenVal W.** W.finite))
 
-newtype IntervalT c x y = IntervalT { runIntervalT :: c x y } deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowExcept exc,ArrowEnv var val env,ArrowStore var val,ArrowComplete,PreOrd,Complete)
+newtype IntervalT c x y = IntervalT { runIntervalT :: c x y }
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowExcept exc,ArrowEnv var val,ArrowStore var val,ArrowComplete,PreOrd,Complete)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
 
@@ -180,6 +189,14 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete c) => IsVal Va
     NumVal _        -> fail -< "Expected boolean as argument for 'if'"
     Top             -> (f1 -< x) <⊔> (f2 -< y) <⊔> (fail -< "Expected boolean as argument for 'if'")
 
+instance (ArrowChoice c, ArrowComplete c) => IsException Exception Val (IntervalT c) where
+  type JoinExc (IntervalT c) x y = Complete y
+  namedException = proc (name,val) -> returnA -< Exception (M.singleton name val)
+  matchException f g = proc (name,Exception m,x) -> case M.lookup name m of
+    AM.Just v        -> f -< (v,x)
+    AM.Nothing       -> g -< x
+    AM.JustNothing v -> (f -< (v,x)) <⊔> (g -< x)
+
 instance (ArrowChoice c, Profunctor c) => ArrowRand Val (IntervalT c) where
   random = proc _ -> returnA -< NumVal top
 
@@ -201,6 +218,7 @@ widening w v1 v2 = case (v1,v2) of
   (NumVal n1,NumVal n2) -> second NumVal (n1 `w` n2)
   (Top,Top) -> (W.Stable,Top)
   (_,_) -> (W.Instable,Top)
+
 
 instance Show Val where
   show (NumVal iv) = show iv

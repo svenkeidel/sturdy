@@ -14,7 +14,7 @@ import Prelude hiding (fail,(.))
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Fail
-import Control.Arrow.Environment
+import Control.Arrow.Environment as Env
 import Control.Arrow.Fix
 import Control.Arrow.Trans
 import Control.Arrow.Transformer.Concrete.Environment
@@ -34,7 +34,8 @@ import GHC.Generics(Generic)
 import Syntax (Expr(..))
 import GenericInterpreter
 
-data Closure = Closure Expr (HashMap Text Val) deriving (Eq,Generic)
+type Env = HashMap Text Val
+data Closure = Closure Expr Env deriving (Eq,Generic)
 data Val = NumVal Int | ClosureVal Closure deriving (Eq,Generic)
 
 -- | The concrete interpreter function for PCF. The function is
@@ -45,11 +46,7 @@ evalConcrete env e = run (eval :: ConcreteT (EnvT Text Val (FailureT String (->)
 
 -- | Arrow transformer that implements the concrete value semantics
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e, ArrowEnv var val env)
-deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
-instance ArrowRun c => ArrowRun (ConcreteT c) where
-  type Rep (ConcreteT c) x y = Rep c x y
-  run = run . runConcreteT
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e, ArrowEnv var val, ArrowClosure var val env)
 
 -- | Concrete instance of the interface for value operations.
 instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ConcreteT c) where
@@ -68,13 +65,20 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ConcreteT c) where
 
     _ -> fail -< "Expected a number as condition for 'ifZero'"
 -- | Concrete instance of the interface for closure operations.
-instance (ArrowChoice c, ArrowFail String c) => IsClosure Val (HashMap Text Val) (ConcreteT c) where
-  closure = arr $ \(e, env) -> ClosureVal $ Closure e env
+instance (ArrowClosure var val Env c, ArrowChoice c, ArrowFail String c) => IsClosure Val (ConcreteT c) where
+  closure = proc e -> do
+    env <- Env.ask -< ()
+    returnA -< ClosureVal (Closure e env)
   applyClosure f = proc (fun, arg) -> case fun of
-    ClosureVal (Closure e env) -> f -< ((e,env),arg)
+    ClosureVal (Closure e env) -> Env.local f -< (env,(e,arg))
     NumVal _ -> fail -< "Expected a closure"
 
 instance Hashable Closure
+deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
+instance ArrowRun c => ArrowRun (ConcreteT c) where
+  type Rep (ConcreteT c) x y = Rep c x y
+  run = run . runConcreteT
+
 instance Hashable Val
 instance Show Closure where
   show (Closure e env) = show (e,env)

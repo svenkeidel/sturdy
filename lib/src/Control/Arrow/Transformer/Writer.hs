@@ -11,19 +11,19 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Alloc
-import Control.Arrow.Const
-import Control.Arrow.Random
 import Control.Arrow.Conditional as Cond
-import Control.Arrow.State
-import Control.Arrow.Reader
-import Control.Arrow.Fail
-import Control.Arrow.Trans
-import Control.Arrow.Fix
-import Control.Arrow.Except as Exc
-import Control.Arrow.Store as Store
+import Control.Arrow.Const
 import Control.Arrow.Environment as Env
-import Control.Arrow.Writer
+import Control.Arrow.Except as Exc
+import Control.Arrow.Fail
+import Control.Arrow.Fix
 import Control.Arrow.Order
+import Control.Arrow.Random
+import Control.Arrow.Reader as Reader
+import Control.Arrow.State as State
+import Control.Arrow.Store as Store
+import Control.Arrow.Trans
+import Control.Arrow.Writer
 
 import Data.Monoidal
 import qualified Data.Order as O
@@ -123,21 +123,23 @@ instance (Monoid w, ArrowExcept e c) => ArrowExcept e (WriterT w c) where
   {-# INLINE try #-}
 
 instance (Monoid w, ArrowReader r c) => ArrowReader r (WriterT w c) where
-  ask = lift' ask
-  local f = lift (local (unlift f))
+  ask = lift' Reader.ask
+  local f = lift (Reader.local (unlift f))
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
-instance (Monoid w, ArrowEnv x y env c) => ArrowEnv x y env (WriterT w c) where
+instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
   type Join (WriterT w c) x y = Env.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
   lookup f g = lift $ lookup (unlift f) (unlift g)
-  getEnv = lift' getEnv
-  extendEnv = lift' extendEnv
-  localEnv f = lift (localEnv (unlift f))
+  extend f = lift $ extend (unlift f)
   {-# INLINE lookup #-}
-  {-# INLINE getEnv #-}
-  {-# INLINE extendEnv #-}
-  {-# INLINE localEnv #-}
+  {-# INLINE extend #-}
+
+instance (Monoid w, ArrowClosure var val env c) => ArrowClosure var val env (WriterT w c) where
+  ask = lift' Env.ask
+  local f = lift (Env.local (unlift f))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}
 
 instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) where
   type Join (WriterT w c) x y = Store.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)

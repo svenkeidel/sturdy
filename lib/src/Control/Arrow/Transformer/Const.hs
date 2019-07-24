@@ -34,7 +34,7 @@ import Data.Coerce
 newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowComplete,ArrowLowerBounded,ArrowLift,
             ArrowState s,ArrowReader r',ArrowWriter w,
-            ArrowEnv var val env, ArrowStore var val,
+            ArrowEnv var val, ArrowClosure var val env, ArrowStore var val,
             ArrowFail e, ArrowExcept e)
 
 runConstT :: r -> ConstT r c x y -> c x y

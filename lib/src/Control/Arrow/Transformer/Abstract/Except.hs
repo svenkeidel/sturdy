@@ -34,8 +34,10 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 newtype ExceptT e c x y = ExceptT (KleisliT (Except e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowState s, ArrowReader r,
-            ArrowConst r, ArrowEnv a b e', ArrowStore a b, ArrowFail e', ArrowRun)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
+            ArrowConst r, ArrowState s, ArrowReader r,
+            ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
+            ArrowFail e')
 
 runExceptT :: ExceptT e c x y -> c x (Except e y)
 runExceptT = coerce

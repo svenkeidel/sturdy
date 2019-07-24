@@ -24,7 +24,7 @@ import           Control.Arrow.Alloc
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
-import           Control.Arrow.Reader
+import           Control.Arrow.Reader as Reader
 import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Store as Store
@@ -43,7 +43,9 @@ import           Data.Coerce
 
 newtype ReachingDefsT lab c x y = ReachingDefsT (ReaderT (Maybe lab) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
-            ArrowFail e,ArrowExcept e,ArrowState s,ArrowEnv var val env,
+            ArrowState s,
+            ArrowEnv var val, ArrowClosure var val env,
+            ArrowFail e,ArrowExcept e,
             ArrowLowerBounded, ArrowComplete)
 
 reachingDefsT :: (Arrow c,Profunctor c) => c (Maybe lab,x) y -> ReachingDefsT lab c x y
@@ -78,8 +80,8 @@ instance (ArrowApply c,Profunctor c) => ArrowApply (ReachingDefsT lab c) where
   app = ReachingDefsT (app .# first coerce)
 
 instance ArrowReader r c => ArrowReader r (ReachingDefsT lab c) where
-  ask = lift' ask
-  local f = lift $ lmap (\(m,(r,a)) -> (r,(m,a))) (local (unlift f))
+  ask = lift' Reader.ask
+  local f = lift $ lmap (\(m,(r,a)) -> (r,(m,a))) (Reader.local (unlift f))
 
 instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefsT lab c) where
   alloc = lift' alloc

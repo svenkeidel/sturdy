@@ -22,6 +22,7 @@ import qualified Data.Lens as L
 import           Data.Order
 import           Data.Maybe
 
+import qualified Data.Abstract.Except as Exc
 import qualified Data.Abstract.Error as E
 import qualified Data.Abstract.StrongMap as SM
 import qualified Data.Abstract.Map as M
@@ -33,6 +34,7 @@ import qualified Data.Abstract.Terminating as T
 import           Data.Identifiable
 
 import           Control.Arrow.Fix
+import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Store
@@ -69,22 +71,24 @@ run k lstmts =
       (runFixT iterationStrategy
         (runTerminatingT
           (runErrorT
-            (runStoreT
-              (runReachingDefsT'
-                (runEnvT
-                  (runIntervalT
-                    (Generic.run ::
-                      Fix [Statement] ()
-                       (IntervalT
-                         (EnvT Text Addr
-                           (ReachingDefsT Label
-                             (StoreT Addr (Val, Pow Label)
-                               (ErrorT (Pow String)
-                                 (TerminatingT
-                                   (FixT _ _
-                                     (S.StackWideningT _ _
-                                       (S.ChaoticT _ _
-                                         (->)))))))))) [Statement] ())))))))))
+            (runExceptT
+              (runStoreT
+                (runReachingDefsT'
+                  (runEnvT
+                    (runIntervalT
+                      (Generic.run ::
+                        Fix [Statement] ()
+                         (IntervalT
+                           (EnvT Text Addr
+                             (ReachingDefsT Label
+                               (StoreT Addr (Val, Pow Label)
+                                 (ExceptT Exception
+                                   (ErrorT (Pow String)
+                                     (TerminatingT
+                                       (FixT _ _
+                                         (S.StackWideningT _ _
+                                           (S.ChaoticT _ _
+                                             (->))))))))))) [Statement] ()))))))))))
     (M.empty,(SM.empty,stmts))
 
   where
@@ -103,7 +107,8 @@ run k lstmts =
                $ SW.finite
     
     widenVal = widening (W.bounded ?bound I.widening)
-    widenResult = T.widening $ E.widening W.finite (M.widening (widenVal W.** W.finite) W.** W.finite)
+    widenExc (Exception m1) (Exception m2) = Exception <$> (M.widening widenVal m1 m2)
+    widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening (widenVal W.** W.finite) W.** W.finite))
 
 combineMaps :: (Identifiable k, Identifiable a) => SM.Map k a -> M.Map a v -> M.Map k v
 combineMaps env store = M.fromList [ (a,c) | (a,b) <- fromJust (SM.toList env)

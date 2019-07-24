@@ -19,6 +19,7 @@ import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
 import           Data.Abstract.Error (Error(..))
+import           Data.Abstract.Except (Except(..))
 import qualified Data.Abstract.Map as M
 import qualified Data.Abstract.StrongMap as SM
 import           Data.Abstract.Terminating
@@ -37,6 +38,7 @@ import           Control.Arrow
 import           Control.Arrow.Alloc
 import           Control.Arrow.Fix
 import           Control.Arrow.Fail
+import           Control.Arrow.Except
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
 import           Control.Arrow.Random
@@ -45,6 +47,7 @@ import           Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
 import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
 import           Control.Arrow.Transformer.Abstract.Store
@@ -53,21 +56,23 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 -- Value semantics for the while language that does not approximate values at all.
 type Addr = FreeCompletion Label
 type Val = ()
+type Exception = ()
 
-run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (M.Map Addr Val))
+run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
 run env ss =
-  fmap fst <$>
+  fmap (fmap fst) <$>
     Trans.run
       (Generic.run ::
         Fix [Statement] ()
           (UnitT
             (EnvT Text Addr
               (StoreT Addr Val
-                (ErrorT (Pow String)
-                  (TerminatingT
-                    (FixT _ _
-                      (S.ChaoticT _ _
-                        (->)))))))) [Statement] ())
+                (ExceptT Exception
+                  (ErrorT (Pow String)
+                    (TerminatingT
+                      (FixT _ _
+                        (S.ChaoticT _ _
+                          (->))))))))) [Statement] ())
       iterationStrategy
       (M.empty,(SM.fromList env,generate <$> ss))
   where
@@ -75,7 +80,7 @@ run env ss =
                       $ S.chaotic W.finite
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val env,ArrowStore var val,ArrowComplete)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val,ArrowStore var val,ArrowExcept exc,ArrowComplete)
 type instance Fix x y (UnitT c) = UnitT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (UnitT c)
 
@@ -96,6 +101,11 @@ instance (ArrowChoice c, ArrowComplete c) => IsVal Val (UnitT c) where
   eq = arr (const ())
   lt = arr (const ())
   if_ f1 f2 = proc (_,(x,y)) -> (f1 -< x) <⊔> (f2 -< y)
+
+instance (ArrowChoice c, ArrowComplete c) => IsException Exception Val (UnitT c) where
+  type JoinExc (UnitT c) x y = Complete y
+  namedException = proc (_,_) -> returnA -< ()
+  matchException f g = proc (_,(),x) -> (f -< ((),x)) <⊔> (g -< x)
 
 instance ArrowRun c => ArrowRun (UnitT c) where
   type Rep (UnitT c) x y = Rep c x y

@@ -14,13 +14,13 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Transformer.Reader
-import Control.Arrow.Reader
+import Control.Arrow.Reader as Reader
 import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Fail
 import Control.Arrow.Except
 import Control.Arrow.Trans
-import Control.Arrow.Environment
+import Control.Arrow.Environment as Env
 import Control.Arrow.Fix
 import Control.Arrow.Order
 
@@ -45,24 +45,28 @@ runEnvT' :: (Arrow c, Profunctor c, Identifiable var) => EnvT var val c x y -> c
 runEnvT' f = lmap (first M.fromList) (runEnvT f)
 {-# INLINE runEnvT' #-}
 
-instance (Identifiable var, UpperBounded val, ArrowChoice c, ArrowComplete c, Profunctor c) => ArrowEnv var val (Map var val) (EnvT var val c) where
+instance (Identifiable var, UpperBounded val, ArrowChoice c, ArrowComplete c, Profunctor c) => ArrowEnv var val  (EnvT var val c) where
   type Join (EnvT var val c) x y = Complete y
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
-    env <- ask -< ()
+    env <- Reader.ask -< ()
     case M.lookup' var env of
       Just val        -> f -< (val,x)
       Nothing         -> g -< x
       JustNothing val -> (f -< (val,x)) <⊔> (g -< x)
-  getEnv = EnvT ask
-  extendEnv = arr $ \(x,y,env) -> M.insert x y env
-  localEnv (EnvT f) = EnvT (local f)
+  extend (EnvT f) = EnvT $ proc (var,val,x) -> do
+    env <- Reader.ask -< ()
+    Reader.local f -< (M.insert var val env,x)
+
+instance (Identifiable var, UpperBounded val, ArrowChoice c, ArrowComplete c, Profunctor c) => ArrowClosure var val (Map var val) (EnvT var val c) where
+  ask = EnvT Reader.ask
+  local (EnvT f) = EnvT (Reader.local f)
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var val c) where
   app = EnvT (app .# first coerce)
 
 instance ArrowReader r c => ArrowReader r (EnvT var val c) where
-  ask = lift' ask
-  local f = lift $ lmap (\(env,(r,x)) -> (r,(env,x))) (local (unlift f))
+  ask = lift' Reader.ask
+  local f = lift $ lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local (unlift f))
 
 type instance Fix x y (EnvT var val c) = EnvT var val (Fix (Dom (EnvT var val) x y) (Cod (EnvT var val) x y) c)
 deriving instance ArrowFix (Map var val,x) y c => ArrowFix x y (EnvT var val c)
