@@ -50,5 +50,5 @@ instance (Identifiable y, ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (PowT c) where
   bottom = lift $ arr (\_ -> A.empty)
 
-instance (ArrowChoice c, ArrowComplete c) => ArrowComplete (PowT c) where
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
   join _ f g = lift $ join A.union (unlift f) (unlift g)

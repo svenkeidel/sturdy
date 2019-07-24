@@ -20,7 +20,7 @@ import           GHC.Exts (IsString(..),Constraint)
 
 -- | Shared interpreter for PCF.
 eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v c, ArrowFail e c, IsString e,
-         IsNum v c, IsClosure v c, Env.Join c ((v,Text),Text) v, Join c (Expr,Expr) v)
+         IsNum v c, IsClosure v c, Env.Join v c, Join v c)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> Env.lookup' -< x
@@ -60,7 +60,7 @@ eval = fix $ \ev -> proc e0 -> case e0 of
 
 -- | Interface for numeric operations
 class Arrow c => IsNum v c | c -> v where
-  type family Join (c :: * -> * -> *) x y :: Constraint
+  type family Join y (c :: * -> * -> *) :: Constraint
 
   -- | increments the given number value.
   succ :: c v v
@@ -71,7 +71,7 @@ class Arrow c => IsNum v c | c -> v where
   -- | creates the numeric value zero.
   zero :: c () v
 
-  if_ :: Join c (x,y) z => c x z -> c y z -> c (v, (x, y)) z
+  if_ :: Join z c => c x z -> c y z -> c (v, (x, y)) z
 
 
 -- | Interface for closures

@@ -49,7 +49,7 @@ deriving instance (ArrowChoice c, ArrowFix (Dom (CompletionT) x y) (Cod (Complet
 instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (CompletionT c) where
   bottom = lift $ bottom
 
-instance (ArrowChoice c, ArrowComplete c) => ArrowComplete (CompletionT c) where
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where
   join lub f g = lift $ join joinVal (unlift f) (unlift g)
     where joinVal (Lower x) (Lower y) = Lower (lub x y)
           joinVal Top _ = Top

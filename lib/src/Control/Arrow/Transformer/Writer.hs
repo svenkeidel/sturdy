@@ -10,8 +10,6 @@ import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Category
 import Control.Arrow
-import Control.Arrow.Alloc
-import Control.Arrow.Conditional as Cond
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Except as Exc
@@ -116,7 +114,7 @@ instance (Monoid w, ArrowFail e c) => ArrowFail e (WriterT w c) where
   {-# INLINE fail #-}
 
 instance (Monoid w, ArrowExcept e c) => ArrowExcept e (WriterT w c) where
-  type Join (WriterT w c) (y,(x,e)) z = Exc.Join c (Cod (WriterT w) x y,Dom (WriterT w) (x,e) z) (Cod (WriterT w) x z)
+  type Join y (WriterT w c) = Exc.Join (w,y) c
   throw = lift' throw
   try f g h = lift $ try (unlift f) (rmap (\(w1,(w2,z)) -> (w1 <> w2,z)) (second (unlift g))) (unlift h)
   {-# INLINE throw #-}
@@ -129,7 +127,7 @@ instance (Monoid w, ArrowReader r c) => ArrowReader r (WriterT w c) where
   {-# INLINE local #-}
 
 instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
-  type Join (WriterT w c) x y = Env.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
+  type Join y (WriterT w c) = Env.Join (w,y) c
   lookup f g = lift $ lookup (unlift f) (unlift g)
   extend f = lift $ extend (unlift f)
   {-# INLINE lookup #-}
@@ -142,7 +140,7 @@ instance (Monoid w, ArrowClosure var val env c) => ArrowClosure var val env (Wri
   {-# INLINE local #-}
 
 instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) where
-  type Join (WriterT w c) x y = Store.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
+  type Join y (WriterT w c) = Store.Join (w,y) c
   read f g = lift $ read (unlift f) (unlift g)
   write = lift' write
   {-# INLINE read #-}
@@ -157,18 +155,13 @@ instance (Monoid w, ArrowLowerBounded c) => ArrowLowerBounded (WriterT w c) wher
   bottom = lift bottom
   {-# INLINE bottom #-}
 
-instance (Monoid w, O.Complete w, ArrowComplete c) => ArrowComplete (WriterT w c) where
+instance (Monoid w, O.Complete w, ArrowJoin c) => ArrowJoin (WriterT w c) where
   join lub f g = lift $ join (\(w1,z1) (w2,z2) -> (w1 O.⊔ w2, lub z1 z2)) (unlift f) (unlift g)
   {-# INLINE join #-}
 
-instance (Monoid w, ArrowAlloc x y c) => ArrowAlloc x y (WriterT w c) where
-  alloc = lift' alloc
-  {-# INLINE alloc #-}
-
-instance (Monoid w, ArrowCond v c) => ArrowCond v (WriterT w c) where
-  type Join (WriterT w c) x y = Cond.Join c (Dom (WriterT w) x y) (Cod (WriterT w) x y)
-  if_ f g = lift $ if_ (unlift f) (unlift g)
-  {-# INLINE if_ #-}
+instance (Monoid w, ArrowComplete (w,y) c) => ArrowComplete y (WriterT w c) where
+  f <⊔> g = lift $ unlift f <⊔> unlift g
+  {-# INLINE (<⊔>) #-}
 
 instance (Monoid w, ArrowRand v c) => ArrowRand v (WriterT w c) where
   random = lift' random

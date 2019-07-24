@@ -11,7 +11,6 @@ module Control.Arrow.Transformer.State(StateT(..),evalStateT,execStateT) where
 import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Arrow
-import Control.Arrow.Alloc
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Fail
@@ -130,7 +129,7 @@ instance ArrowWriter w c => ArrowWriter w (StateT s c) where
   {-# INLINE tell #-}
 
 instance (ArrowEnv var val c) => ArrowEnv var val (StateT s c) where
-  type instance Join (StateT s c) ((val,x),x) y = Env.Join c ((val,Dom (StateT s) x y),Dom (StateT s) x y) (Cod (StateT s) x y)
+  type instance Join y (StateT s c) = Env.Join (s,y) c 
   lookup f g = lift $ lmap (\(s,(v,a)) -> (v,(s,a)))
                     $ lookup (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
                              (unlift g)
@@ -145,7 +144,7 @@ instance (ArrowClosure var val env c) => ArrowClosure var val env (StateT s c) w
   {-# INLINE local #-}
 
 instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
-  type instance Join (StateT s c) ((val,x),x) y = Store.Join c ((val,Dom (StateT s) x y),Dom (StateT s) x y) (Cod (StateT s) x y)
+  type instance Join y (StateT s c) = Store.Join (s,y) c 
   read f g = lift $ lmap (\(s,(v,a)) -> (v,(s,a)))
                   $ read (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
                          (unlift g)
@@ -159,7 +158,7 @@ instance ArrowFix (s,x) (s,y) c => ArrowFix x y (StateT s c) where
   {-# INLINE fix #-}
 
 instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
-  type instance Join (StateT s c) (y,(x,e)) z = Exc.Join c (Cod (StateT s) x y,(Dom (StateT s) x z,e)) (Cod (StateT s) x z)
+  type instance Join y (StateT s c) = Exc.Join (s,y) c 
   throw = lift (lmap snd throw)
   try f g h = lift $ try (unlift f) (unlift g) (lmap assoc2 (unlift h))
   {-# INLINE throw #-}
@@ -169,17 +168,17 @@ instance (ArrowLowerBounded c) => ArrowLowerBounded (StateT s c) where
   bottom = lift $ bottom
   {-# INLINE bottom #-}
 
-instance (ArrowComplete c, O.Complete s) => ArrowComplete (StateT s c) where
+instance (ArrowJoin c, O.Complete s) => ArrowJoin (StateT s c) where
   join lub f g = lift $ join (\(s1,z1) (s2,z2) -> (s1 O.⊔ s2,lub z1 z2)) (unlift f) (unlift g)
   {-# INLINE join #-}
+
+instance (ArrowComplete (s,y) c) => ArrowComplete y (StateT s c) where
+  f <⊔> g = lift $ unlift f <⊔> unlift g
+  {-# INLINE (<⊔>) #-}
 
 instance ArrowConst x c => ArrowConst x (StateT s c) where
   askConst f = lift (askConst (unlift . f))
   {-# INLINE askConst #-}
-
-instance ArrowAlloc x y c => ArrowAlloc x y (StateT s c) where
-  alloc = lift' alloc
-  {-# INLINE alloc #-}
 
 instance ArrowRand v c => ArrowRand v (StateT s c) where
   random = lift' random

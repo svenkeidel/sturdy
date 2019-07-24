@@ -14,15 +14,16 @@ import           Control.Category
 
 import           Control.Arrow
 import           Control.Arrow.Const
-import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Reader as Reader
-import           Control.Arrow.Store
-import           Control.Arrow.State
-import           Control.Arrow.Fail
-import           Control.Arrow.Trans
-import           Control.Arrow.Except
 import           Control.Arrow.Environment as Env
+import           Control.Arrow.Except
+import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Reader as Reader
+import           Control.Arrow.State
+import           Control.Arrow.Store
+import           Control.Arrow.Trans
+
+import           Control.Arrow.Transformer.Reader
 
 import           Data.Identifiable
 import           Data.HashMap.Lazy (HashMap)
@@ -45,7 +46,7 @@ runEnvT' :: (Profunctor c, Identifiable var) => EnvT var val c x y -> c ([(var,v
 runEnvT' f = lmap (first M.fromList) (runEnvT f)
 
 instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT var val c) where
-  type Join (EnvT var val c) x y = ()
+  type Join y (EnvT var val c) = ()
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- Reader.ask -< ()
     case M.lookup var env of
@@ -67,3 +68,5 @@ instance ArrowReader r c => ArrowReader r (EnvT var val c) where
   local (EnvT (ReaderT f)) = EnvT (ReaderT (lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local f)))
 
 deriving instance ArrowFix (HashMap var val,x) y c => ArrowFix x y (EnvT var val c)
+
+type instance Fix x y (EnvT var val c) = EnvT var val (Fix (Dom (EnvT var val) x y) (Cod (EnvT var val) x y) c)

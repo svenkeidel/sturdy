@@ -103,14 +103,14 @@ instance (Applicative f, ArrowFail e c) => ArrowFail e (StaticT f c) where
   {-# INLINE fail #-}
 
 instance (Applicative f, ArrowExcept e c) => ArrowExcept e (StaticT f c) where
-  type Join (StaticT f c) x y = Exc.Join c x y
+  type Join y (StaticT f c) = Exc.Join y c
   throw = lift' throw
   try (StaticT f) (StaticT g) (StaticT h) = StaticT $ try <$> f <*> g <*> h
   {-# INLINE throw #-}
   {-# INLINE try #-}
 
 instance (Applicative f, ArrowEnv var val c) => ArrowEnv var val (StaticT f c) where
-  type Join (StaticT f c) x y = Env.Join c x y
+  type Join y (StaticT f c) = Env.Join y c
   lookup (StaticT f) (StaticT g) = StaticT $ Env.lookup <$> f <*> g
   extend (StaticT f) = StaticT $ Env.extend <$> f
   {-# INLINE lookup #-}
@@ -123,7 +123,7 @@ instance (Applicative f, ArrowClosure var val env c) => ArrowClosure var val env
   {-# INLINE local #-}
 
 instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f c) where
-  type Join (StaticT f c) x y = Store.Join c x y
+  type Join y (StaticT f c) = Store.Join y c
   read (StaticT f) (StaticT g) = StaticT $ read <$> f <*> g
   write = lift' write
   {-# INLINE read #-}
@@ -133,6 +133,9 @@ instance (Applicative f, ArrowLowerBounded c) => ArrowLowerBounded (StaticT f c)
   bottom = StaticT (pure bottom)
   {-# INLINE bottom #-}
 
-instance (Applicative f, ArrowComplete c) => ArrowComplete (StaticT f c) where
+instance (Applicative f, ArrowJoin c) => ArrowJoin (StaticT f c) where
   join lub (StaticT f) (StaticT g) = StaticT $ join lub <$> f <*> g
   {-# INLINE join #-}
+
+instance (Applicative f, ArrowComplete y c) => ArrowComplete y (StaticT f c) where
+  StaticT f <⊔> StaticT g = StaticT $ (<⊔>) <$> f <*> g 

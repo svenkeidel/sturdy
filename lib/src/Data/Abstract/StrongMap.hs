@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Abstract.StrongMap(Map,widening,empty,insert,lookup,lookup',fromList,toList) where
+module Data.Abstract.StrongMap(Map(..),widening,empty,insert,lookup,lookup',fromList,toList) where
 
 import           Prelude hiding (lookup)
 

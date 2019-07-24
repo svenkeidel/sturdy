@@ -159,13 +159,13 @@ sharedSpec run = do
          let ?widen = W.finite in
          run diverge 5 `shouldBe` bottom
 
-type Arr x y = forall c. (ArrowChoice c, ArrowApply c, Profunctor c, ArrowComplete c, ArrowFix x y c) => c x y
+type Arr x y = forall c. (ArrowChoice c, ArrowApply c, Profunctor c, ArrowComplete y c, ArrowFix x y c) => c x y
 type IV = Interval (InfiniteNumber Int)
 
 iv :: InfiniteNumber Int -> InfiniteNumber Int -> IV
 iv n m = I.Interval n m
 
-ifLowerThan :: (Num n, Ord n, ArrowChoice c, Profunctor c, ArrowComplete c, Complete x) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
+ifLowerThan :: (Num n, Ord n, ArrowChoice c, Profunctor c, ArrowComplete x c) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
 ifLowerThan l f g = proc x -> case x of
   I.Interval m n
     | n <= l -> f -< x

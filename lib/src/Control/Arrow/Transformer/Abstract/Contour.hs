@@ -11,7 +11,6 @@ module Control.Arrow.Transformer.Abstract.Contour(CallString,ContourT,runContour
 import Prelude hiding (id,(.),lookup)
 
 import Control.Arrow
-import Control.Arrow.Alloc
 import Control.Arrow.Const
 import Control.Arrow.Environment
 import Control.Arrow.Fail
@@ -37,7 +36,7 @@ newtype ContourT lab c a b = ContourT (ReaderT (CallString lab) c a b)
   deriving (Profunctor,Category,Arrow,ArrowLift,ArrowChoice,
             ArrowConst r, ArrowState s,
             ArrowEnv var val, ArrowClosure var val env,
-            ArrowFail e, ArrowExcept e, ArrowLowerBounded, ArrowComplete)
+            ArrowFail e, ArrowExcept e, ArrowLowerBounded, ArrowComplete z)
 
 -- | Runs a computation that records a call string. The argument 'k'
 -- specifies the maximum length of a call string. All larger call
@@ -63,10 +62,6 @@ instance (ArrowFix x y c, ArrowApply c, HasLabel x lab,Profunctor c) => ArrowFix
       unwrap c (ContourT (ReaderT f')) = proc x -> do
         y <- f' -< (push (label x) c,x)
         returnA -< y
-
-instance (Arrow c, Profunctor c) => ArrowAlloc (var,val,env) (var,CallString lab) (ContourT lab c) where
-  -- | Return the variable together with the current call string as address.
-  alloc = ContourT $ ReaderT $ arr $ \(l,(x,_,_)) -> (x,l)
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ContourT lab c) where
   app = ContourT (app .# first coerce)

@@ -52,5 +52,5 @@ type instance Fix x y (FailureT e c) = FailureT e (Fix (Dom (FailureT e) x y) (C
 deriving instance (ArrowChoice c, ArrowFix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c) =>
   ArrowFix x y (FailureT e c)
 
-instance (ArrowComplete c, ArrowChoice c) => ArrowComplete (FailureT e c) where
+instance (ArrowChoice c,ArrowJoin c) => ArrowJoin (FailureT e c) where
   join lub f g = lift $ join (toJoin widening lub) (unlift f) (unlift g)

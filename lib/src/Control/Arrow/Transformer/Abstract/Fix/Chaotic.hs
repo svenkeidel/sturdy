@@ -15,7 +15,7 @@ import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
 import           Control.Arrow.Trans
-import           Control.Arrow.Order(ArrowComplete(..))
+import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..))
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Writer
@@ -96,8 +96,10 @@ instance (Identifiable a, ArrowRun c) => ArrowRun (ChaoticT a b c) where
   run = run . runChaoticT
 
 instance (Identifiable a,Profunctor c,ArrowApply c) => ArrowApply (ChaoticT a b c) where app = ChaoticT (lmap (first coerce) app)
-instance (Identifiable a,Profunctor c,Arrow c) => ArrowComplete (ChaoticT a b c) where
+instance (Identifiable a,Profunctor c,Arrow c) => ArrowJoin (ChaoticT a b c) where
   join _lub (ChaoticT f) (ChaoticT g) = ChaoticT $ rmap (uncurry _lub) (f &&& g)
+instance (Identifiable a,Profunctor c,Arrow c, Complete y) => ArrowComplete y (ChaoticT a b c) where
+  ChaoticT f <⊔> ChaoticT g = ChaoticT $ rmap (uncurry (⊔)) (f &&& g)
 
 data Component a = Component { head :: HashSet a, body :: HashSet a }
 instance Identifiable a => Semigroup (Component a) where (<>) = mappend

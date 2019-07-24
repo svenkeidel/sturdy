@@ -43,8 +43,8 @@ runExceptT :: ExceptT e c x y -> c x (Except e y)
 runExceptT = coerce
 {-# INLINE runExceptT #-}
 
-instance (Complete e, ArrowChoice c, ArrowComplete c) => ArrowExcept e (ExceptT e c) where
-  type Join (ExceptT e c) (y,(x,e)) z = Complete (Except e z)
+instance (Complete e, ArrowChoice c, ArrowJoin c) => ArrowExcept e (ExceptT e c) where
+  type Join y (ExceptT e c) = ArrowComplete (Except e y) c
   throw = lift $ arr Fail
   try f g h = lift $ proc x -> do
     e <- unlift f -< x
@@ -53,12 +53,15 @@ instance (Complete e, ArrowChoice c, ArrowComplete c) => ArrowExcept e (ExceptT 
       Fail er            -> unlift h -< (x,er)
       SuccessOrFail er y -> (unlift g -< y) <⊔> (unlift h -< (x,er))
 
-instance (Complete e, ArrowComplete c, ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where
+instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where
   app = lift (app .# first coerce)
 
 type instance Fix x y (ExceptT e c) = ExceptT e (Fix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c)
-deriving instance (Complete e, ArrowComplete c, ArrowChoice c, ArrowFix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c)
+deriving instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowFix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c)
 
-instance (Complete e, ArrowComplete c, ArrowChoice c) => ArrowComplete (ExceptT e c) where
+instance (Complete e, ArrowChoice c, ArrowJoin c) => ArrowJoin (ExceptT e c) where
   join lub f g = lift $ join (toJoin2 widening (O.⊔) lub) (unlift f) (unlift g)
+
+deriving instance (Complete e, ArrowChoice c, ArrowJoin c, ArrowComplete (Except e y) c) => ArrowComplete y (ExceptT e c)
+
 

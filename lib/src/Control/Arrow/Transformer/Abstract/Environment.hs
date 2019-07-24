@@ -24,7 +24,7 @@ import Control.Arrow.Environment as Env
 import Control.Arrow.Fix
 import Control.Arrow.Order
 
-import Data.Order(UpperBounded, Complete)
+import Data.Order(UpperBounded)
 import Data.Identifiable
 import Data.Abstract.Maybe
 import Data.Abstract.StrongMap (Map)
@@ -34,7 +34,7 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 newtype EnvT var val c x y = EnvT (ReaderT (Map var val) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded, ArrowComplete,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded, ArrowComplete z,
             ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k, ArrowRun)
 
 runEnvT :: (Arrow c, Profunctor c) => EnvT var val c x y -> c (Map var val,x) y
@@ -45,8 +45,8 @@ runEnvT' :: (Arrow c, Profunctor c, Identifiable var) => EnvT var val c x y -> c
 runEnvT' f = lmap (first M.fromList) (runEnvT f)
 {-# INLINE runEnvT' #-}
 
-instance (Identifiable var, UpperBounded val, ArrowChoice c, ArrowComplete c, Profunctor c) => ArrowEnv var val  (EnvT var val c) where
-  type Join (EnvT var val c) x y = Complete y
+instance (Identifiable var, UpperBounded val, ArrowChoice c, Profunctor c) => ArrowEnv var val  (EnvT var val c) where
+  type Join y (EnvT var val c) = ArrowComplete y c
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- Reader.ask -< ()
     case M.lookup' var env of
@@ -57,7 +57,7 @@ instance (Identifiable var, UpperBounded val, ArrowChoice c, ArrowComplete c, Pr
     env <- Reader.ask -< ()
     Reader.local f -< (M.insert var val env,x)
 
-instance (Identifiable var, UpperBounded val, ArrowChoice c, ArrowComplete c, Profunctor c) => ArrowClosure var val (Map var val) (EnvT var val c) where
+instance (Identifiable var, UpperBounded val, ArrowChoice c, Profunctor c) => ArrowClosure var val (Map var val) (EnvT var val c) where
   ask = EnvT Reader.ask
   local (EnvT f) = EnvT (Reader.local f)
 

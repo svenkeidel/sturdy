@@ -33,7 +33,7 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 newtype ErrorT e c x y = ErrorT (KleisliT (Error e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, 
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
             ArrowExcept e')
@@ -54,6 +54,8 @@ deriving instance (ArrowChoice c, ArrowFix (Dom (ErrorT e) x y) (Cod (ErrorT e) 
 instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (ErrorT e c) where
   bottom = lift bottom
 
-instance (O.Complete e, ArrowComplete c, ArrowChoice c) => ArrowComplete (ErrorT e c) where
+instance (O.Complete e, ArrowJoin c, ArrowChoice c) => ArrowJoin (ErrorT e c) where
   join lub f g = lift $ join (toJoin2 widening (O.⊔) lub) (unlift f) (unlift g)
+
+deriving instance (ArrowChoice c, ArrowComplete (Error e y) c) => ArrowComplete y (ErrorT e c)
 

@@ -50,7 +50,7 @@ newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
 
 -- | Concrete instance of the interface for value operations.
 instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ConcreteT c) where
-  type Join (ConcreteT c) x y = ()
+  type Join y (ConcreteT c) = ()
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal (n + 1)
     _ -> fail -< "Expected a number as argument for 'succ'"

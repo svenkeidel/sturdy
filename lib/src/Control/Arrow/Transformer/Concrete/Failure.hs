@@ -10,18 +10,19 @@ module Control.Arrow.Transformer.Concrete.Failure(FailureT,runFailureT) where
 
 import Prelude hiding (id,(.),lookup,read,fail)
 
+import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
+import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Arrow.Trans
 import Control.Arrow.Reader
-import Control.Arrow.Store as Store
 import Control.Arrow.State
-import Control.Arrow.Except as Exc
+import Control.Arrow.Store as Store
+import Control.Arrow.Trans
+
 import Control.Arrow.Transformer.Kleisli
-import Control.Category
 
 import Data.Concrete.Error
 import Data.Profunctor
@@ -44,5 +45,6 @@ instance (ArrowChoice c, Profunctor c) => ArrowFail e (FailureT e c) where
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FailureT e c) where
   app = lift (app .# first coerce)
 
-type instance Fix x y (FailureT e c) = FailureT e (Fix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c)
 deriving instance (ArrowChoice c, ArrowFix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c) => ArrowFix x y (FailureT e c)
+
+type instance Fix x y (FailureT e c) = FailureT e (Fix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c)

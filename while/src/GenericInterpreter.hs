@@ -11,7 +11,6 @@ import           Prelude hiding (lookup, and, or, not, div, read)
 import           Data.Label
 
 import           Control.Arrow
-import           Control.Arrow.Alloc
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment(ArrowEnv)
@@ -41,8 +40,7 @@ eval :: (Show addr, ArrowChoice c, ArrowRand v c,
          ArrowEnv Text addr c, ArrowStore addr v c,
          ArrowExcept exc c, ArrowFail e c,
          IsVal v c, IsException exc v c, IsString e,
-         Env.Join c ((addr, Text),Text) v,
-         Store.Join c ((v, addr),addr) v
+         Env.Join v c, Store.Join v c
         )
      => c Expr v
 eval = proc e -> case e of
@@ -96,16 +94,12 @@ eval = proc e -> case e of
 -- arrow type @c@.
 run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
         ArrowEnv Text addr c, ArrowStore addr v c,
-        ArrowAlloc (Text,v,Label) addr c, ArrowFail err c,
+        ArrowAlloc addr c, ArrowFail err c,
         ArrowExcept exc c, ArrowRand v c,
         IsString err, IsVal v c, IsException exc v c,
-        Env.Join c ((addr, Text),Text) v,
-        Env.Join c ((addr, (Text,v,Label)), (Text,v,Label)) addr,
-        Store.Join c ((v, addr),addr) v,
-        Except.Join c ((), ((Statement, (Text, Text, Statement, Label)), exc)) (),
-        Except.Join c (((Statement, Statement), ()), ((Statement, Statement), exc)) (),
-        JoinVal c ([Statement],[Statement]) (),
-        JoinExc c ((v, (Text, Statement, Label)), (Text, Statement, Label)) ()
+        Env.Join v c, Env.Join addr c,
+        Store.Join v c, Except.Join () c,
+        JoinVal () c, JoinExc () c
        )
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
@@ -150,7 +144,7 @@ run = fix $ \run' -> proc stmts -> case stmts of
 class Arrow c => IsVal v c | c -> v where
   -- | In case of the abstract interpreter allows to join the result
   -- of an @if@ statement.
-  type family JoinVal (c :: * -> * -> *) x y :: Constraint
+  type family JoinVal x (c :: * -> * -> *) :: Constraint
 
   boolLit :: c (Bool,Label) v
   and :: c (v,v,Label) v
@@ -163,9 +157,12 @@ class Arrow c => IsVal v c | c -> v where
   div :: c (v,v,Label) v
   eq :: c (v,v,Label) v
   lt :: c (v,v,Label) v
-  if_ :: JoinVal c (x,y) z => c x z -> c y z -> c (v, (x, y)) z
+  if_ :: JoinVal z c => c x z -> c y z -> c (v, (x, y)) z
+
+class ArrowAlloc addr c where
+  alloc :: c (Text,v,Label) addr
 
 class IsException exc v c | c -> v where
-  type family JoinExc (c :: * -> * -> *) x y :: Constraint
+  type family JoinExc y (c :: * -> * -> *) :: Constraint
   namedException :: c (Text,v) exc
-  matchException :: JoinExc c ((v,x),x) y => c (v,x) y -> c x y -> c (Text,exc,x) y
+  matchException :: JoinExc y c => c (v,x) y -> c x y -> c (Text,exc,x) y

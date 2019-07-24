@@ -9,6 +9,7 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DerivingStrategies #-}
 module Control.Arrow.Transformer.Abstract.ReachingDefinitions(
   ReachingDefsT(..),
   reachingDefsT,
@@ -20,7 +21,6 @@ import           Prelude hiding ((.),read,id)
 
 import           Control.Category
 import           Control.Arrow
-import           Control.Arrow.Alloc
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
@@ -46,7 +46,7 @@ newtype ReachingDefsT lab c x y = ReachingDefsT (ReaderT (Maybe lab) c x y)
             ArrowState s,
             ArrowEnv var val, ArrowClosure var val env,
             ArrowFail e,ArrowExcept e,
-            ArrowLowerBounded, ArrowComplete)
+            ArrowLowerBounded, ArrowComplete z)
 
 reachingDefsT :: (Arrow c,Profunctor c) => c (Maybe lab,x) y -> ReachingDefsT lab c x y
 reachingDefsT = lift
@@ -65,7 +65,7 @@ instance ArrowRun c => ArrowRun (ReachingDefsT lab c) where
   run = run . runReachingDefsT'
 
 instance (Identifiable var, Identifiable lab, ArrowStore var (val,Pow lab) c) => ArrowStore var val (ReachingDefsT lab c) where
-  type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Pow lab),Dom (ReachingDefsT lab) x y), Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)
+  type Join y (ReachingDefsT lab c) = Store.Join y c
   read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read (lmap (\((v,_::Pow lab),x) -> (v,x)) f) g
   write = reachingDefsT $ lmap (\(lab,(var,val)) -> (var,(val,P.fromMaybe lab))) write
 
@@ -82,6 +82,3 @@ instance (ArrowApply c,Profunctor c) => ArrowApply (ReachingDefsT lab c) where
 instance ArrowReader r c => ArrowReader r (ReachingDefsT lab c) where
   ask = lift' Reader.ask
   local f = lift $ lmap (\(m,(r,a)) -> (r,(m,a))) (Reader.local (unlift f))
-
-instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefsT lab c) where
-  alloc = lift' alloc

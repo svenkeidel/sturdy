@@ -46,5 +46,7 @@ deriving instance (ArrowChoice c, ArrowFix (Dom TerminatingT x y) (Cod Terminati
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (TerminatingT c) where
   bottom = lift $ arr (\_ -> NonTerminating)
 
-instance (ArrowChoice c, ArrowComplete c) => ArrowComplete (TerminatingT c) where
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (TerminatingT c) where
   join lub' f g = lift $ join (toJoin widening lub') (unlift f) (unlift g)
+
+deriving instance (ArrowChoice c, ArrowComplete (Terminating y) c) => ArrowComplete y (TerminatingT c)

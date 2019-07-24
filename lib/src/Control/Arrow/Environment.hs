@@ -24,13 +24,13 @@ import GHC.Exts (Constraint)
 -- | Arrow-based interface for interacting with environments.
 class (Arrow c, Profunctor c) => ArrowEnv var val c | c -> var, c -> val where
   -- | Type class constraint used by the abstract instances to join arrow computations.
-  type family Join (c :: * -> * -> *) x y :: Constraint
+  type family Join y (c :: * -> * -> *) :: Constraint
 
   -- TODO: Change type to lookup (Join c x y) => c (e,(val,s)) y -> c (e,s) y -> c (e,(var,s)) y
   -- | Lookup a variable in the current environment. If the
   -- environment contains a binding of the variable, the first
   -- continuation is called and the second computation otherwise.
-  lookup :: Join c ((val,x),x) y => c (val,x) y -> c x y -> c (var,x) y
+  lookup :: Join y c => c (val,x) y -> c x y -> c (var,x) y
 
   -- | Extend an environment with a binding.
   extend :: c x y -> c (var,val,x) y
@@ -43,10 +43,10 @@ class ArrowEnv var val c => ArrowClosure var val env c | c -> env where
   local :: c x y -> c (env,x) y
 
 -- | Simpler version of environment lookup.
-lookup' :: (Join c ((val,var),var) val, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
+lookup' :: (Join val c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
 lookup' = lookup'' id
 
-lookup'' :: (Join c ((val,var),var) y, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c val y -> c var y
+lookup'' :: (Join y c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c val y -> c var y
 lookup'' f = proc var ->
   lookup
     (proc (val,_) -> f     -< val)

@@ -16,7 +16,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.State
 import           Control.Arrow.Reader
 import           Control.Arrow.Trans
-import           Control.Arrow.Order(ArrowComplete(..))
+import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..))
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
 
@@ -94,6 +94,10 @@ instance (ArrowRun c) => ArrowRun (ParallelT a b c) where
 type instance Fix x y (ParallelT _ _ c) = ParallelT x y c
 instance (Profunctor c,ArrowApply c) => ArrowApply (ParallelT a b c) where app = ParallelT (lmap (first coerce) app)
 instance IsEmpty (cache a b) => IsEmpty (Iteration cache a b) where empty = Iteration empty empty W.Stable
-instance (Profunctor c,Arrow c) => ArrowComplete (ParallelT a b c) where
+instance (Profunctor c,Arrow c) => ArrowJoin (ParallelT a b c) where
   join _lub (ParallelT f) (ParallelT g) = ParallelT $ rmap (uncurry _lub) (f &&& g)
+instance (Profunctor c,Arrow c, Complete y) => ArrowComplete y (ParallelT a b c) where
+  ParallelT f <⊔> ParallelT g = ParallelT $ rmap (uncurry (⊔)) (f &&& g)
+
+
 

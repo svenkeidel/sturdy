@@ -115,10 +115,10 @@ instance Complete e => Monad (Except e) where
       Fail e' -> Fail (e ⊔ e')
       SuccessOrFail e' z -> SuccessOrFail (e ⊔ e') z
 
-instance (O.ArrowComplete c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c c where
+instance (O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c c where
   mapA f = lmap toEither (arr Fail ||| rmap Success f ||| O.join' (\(Fail e) (Success x) -> SuccessOrFail e x) (arr Fail) (rmap Success f))
 
-instance (Complete e, O.ArrowComplete c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
+instance (Complete e, O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
   mapJoinA f = lmap toEither (arr Fail ||| f ||| O.join' lub (arr Fail) f)
     where 
       lub (Fail e) m = case m of

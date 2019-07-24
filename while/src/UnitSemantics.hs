@@ -27,7 +27,6 @@ import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.Widening as W
 
-import           Data.Order
 import           Data.Label
 import           Data.Text (Text)
 import           Data.Profunctor
@@ -35,7 +34,6 @@ import qualified Data.Lens as L
 
 import           Control.Category
 import           Control.Arrow
-import           Control.Arrow.Alloc
 import           Control.Arrow.Fix
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
@@ -80,15 +78,15 @@ run env ss =
                       $ S.chaotic W.finite
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val,ArrowStore var val,ArrowExcept exc,ArrowComplete)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val,ArrowStore var val,ArrowExcept exc,ArrowComplete z)
 type instance Fix x y (UnitT c) = UnitT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (UnitT c)
 
-instance (ArrowChoice c,Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (UnitT c) where
+instance (ArrowChoice c,Profunctor c) => ArrowAlloc Addr (UnitT c) where
   alloc = arr $ \(_,_,l) -> return l
 
-instance (ArrowChoice c, ArrowComplete c) => IsVal Val (UnitT c) where
-  type JoinVal (UnitT c) x y = Complete y
+instance (ArrowChoice c, ArrowComplete Val c) => IsVal Val (UnitT c) where
+  type JoinVal y (UnitT c) = ArrowComplete y c
   boolLit = arr (const ())
   and = arr (const ())
   or = arr (const ())
@@ -102,8 +100,8 @@ instance (ArrowChoice c, ArrowComplete c) => IsVal Val (UnitT c) where
   lt = arr (const ())
   if_ f1 f2 = proc (_,(x,y)) -> (f1 -< x) <⊔> (f2 -< y)
 
-instance (ArrowChoice c, ArrowComplete c) => IsException Exception Val (UnitT c) where
-  type JoinExc (UnitT c) x y = Complete y
+instance (ArrowChoice c) => IsException Exception Val (UnitT c) where
+  type JoinExc y (UnitT c) = ArrowComplete y c
   namedException = proc (_,_) -> returnA -< ()
   matchException f g = proc (_,(),x) -> (f -< ((),x)) <⊔> (g -< x)
 

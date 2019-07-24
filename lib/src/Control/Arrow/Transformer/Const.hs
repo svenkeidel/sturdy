@@ -32,7 +32,7 @@ import Data.Coerce
 
 -- | Passes along constant data.
 newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
-  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowComplete,ArrowLowerBounded,ArrowLift,
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded,ArrowLift,ArrowJoin,
             ArrowState s,ArrowReader r',ArrowWriter w,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore var val,
             ArrowFail e, ArrowExcept e)
@@ -47,9 +47,12 @@ instance ArrowRun c => ArrowRun (ConstT r c) where
 instance (Arrow c, Profunctor c) => ArrowConst r (ConstT r c) where
   askConst f = ConstT $ StaticT $ \r -> runConstT r (f r)
 
-type instance Fix x y (ConstT r c) = ConstT r (Fix x y c)
 instance ArrowFix x y c => ArrowFix x y (ConstT r c) where
   fix f = ConstT $ StaticT $ \r -> fix (runConstT r . f . lift')
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ConstT r c) where
   app = ConstT $ StaticT $ \r -> lmap (\(f,x) -> ((coerce f) r,x)) app
+
+deriving instance ArrowComplete y c =>  ArrowComplete y (ConstT r c)
+
+type instance Fix x y (ConstT r c) = ConstT r (Fix x y c)

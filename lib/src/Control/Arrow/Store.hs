@@ -19,16 +19,16 @@ import GHC.Exts(Constraint)
 -- The parameter `y` needs to be exposed, because abstract instances
 -- may need to join on `y`.
 class (Arrow c, Profunctor c) => ArrowStore var val c | c -> var, c -> val where
-  type family Join (c :: * -> * -> *) x y :: Constraint
+  type family Join y (c :: * -> * -> *) :: Constraint
 
   -- | Reads a value from the store. Fails if the binding is not in the current store.
-  read :: Join c ((val,x),x) y => c (val,x) y -> c x y -> c (var,x) y
+  read :: Join y c => c (val,x) y -> c x y -> c (var,x) y
   -- | Writes a value to the store.
   write :: c (var,val) ()
 
 
 -- | Simpler version of 'read'
-read' :: (Show var, Join c ((val,var),var) val, IsString e, ArrowFail e c, ArrowStore var val c) => c var val
+read' :: (Show var, Join val c, IsString e, ArrowFail e c, ArrowStore var val c) => c var val
 read' = proc var ->
   read (proc (val,_) -> returnA -< val)
        (proc var     -> fail    -< fromString $ printf "variable %s not bound" (show var))

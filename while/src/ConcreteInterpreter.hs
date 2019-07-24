@@ -32,7 +32,6 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
-import           Control.Arrow.Alloc
 import           Control.Arrow.Random
 import           Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Concrete.Failure
@@ -73,11 +72,11 @@ newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
 deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
 deriving instance ArrowRand v c => ArrowRand v (ConcreteT c)
 
-instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (ConcreteT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ConcreteT c) where
   alloc = arr $ \(_,_,l) -> l
 
 instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
-  type JoinVal (ConcreteT c) x y = ()
+  type JoinVal y (ConcreteT c) = ()
 
   boolLit = arr (\(b,_) -> BoolVal b)
   and = proc (v1,v2,_) -> case (v1,v2) of
@@ -124,7 +123,7 @@ instance R.Random Val where
   random = first NumVal . R.random
 
 instance ArrowChoice c => IsException Exception Val (ConcreteT c) where
-  type JoinExc (ConcreteT c) x y = ()
+  type JoinExc y (ConcreteT c) = ()
   namedException = id
   matchException f g = proc (name,(name',v),x) ->
     if (name == name')

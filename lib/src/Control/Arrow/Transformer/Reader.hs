@@ -117,7 +117,7 @@ instance ArrowFail e c => ArrowFail e (ReaderT r c) where
   {-# INLINE fail #-}
 
 instance ArrowEnv var val c => ArrowEnv var val (ReaderT r c) where
-  type instance Join (ReaderT r c) ((val,x),x) y = Env.Join c ((val,Dom (ReaderT r) x y),Dom (ReaderT r) x y) (Cod (ReaderT r) x y)
+  type instance Join y (ReaderT r c) = Env.Join y c
   lookup f g = lift $ lmap shuffle1
                     $ lookup (lmap shuffle1 (unlift f)) (unlift g)
   extend f = lift $ lmap (\(r,(var,val,x)) -> (var,val,(r,x))) (Env.extend (unlift f))
@@ -131,7 +131,7 @@ instance ArrowClosure var val env c => ArrowClosure var val env (ReaderT r c) wh
   {-# INLINE local #-}
 
 instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
-  type instance Join (ReaderT r c) ((val,x),x) y = Store.Join c ((val,Dom (ReaderT r) x y),Dom (ReaderT r) x y) (Cod (ReaderT r) x y)
+  type instance Join y (ReaderT r c) = Store.Join y c
   read f g = lift $ lmap shuffle1 
                   $ read (lmap shuffle1 (unlift f)) (unlift g)
   write = lift' write
@@ -144,7 +144,7 @@ instance ArrowFix (Dom (ReaderT r) x y) (Cod (ReaderT r) x y) c => ArrowFix x y 
   {-# INLINE fix #-}
 
 instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
-  type instance Join (ReaderT r c) (y,(x,e)) z = Exc.Join c (Dom (ReaderT r) y z,(Dom (ReaderT r) x z,e)) (Cod (ReaderT r) x z)
+  type instance Join z (ReaderT r c) = Exc.Join z c
   throw = lift' throw
   try f g h = lift $ try (lmap (\(r,x) -> (r,(r,x))) (second (unlift f))) (unlift g) (lmap assoc2 (unlift h))
   {-# INLINE throw #-}
@@ -154,9 +154,13 @@ instance ArrowLowerBounded c => ArrowLowerBounded (ReaderT r c) where
   bottom = ReaderT bottom
   {-# INLINE bottom #-}
 
-instance ArrowComplete c => ArrowComplete (ReaderT r c) where
+instance ArrowJoin c => ArrowJoin (ReaderT r c) where
   join lub f g = lift $ join lub (unlift f) (unlift g)
   {-# INLINE join #-}
+
+instance ArrowComplete y c => ArrowComplete y (ReaderT r c) where
+  f <⊔> g = lift $ unlift f <⊔> unlift g
+  {-# INLINE (<⊔>) #-}
 
 instance ArrowConst x c => ArrowConst x (ReaderT r c) where
   askConst f = lift (askConst (unlift . f))

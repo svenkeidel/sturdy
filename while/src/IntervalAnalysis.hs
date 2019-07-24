@@ -58,7 +58,6 @@ import           Data.Text (Text)
 
 import           Control.Category
 import           Control.Arrow
-import           Control.Arrow.Alloc
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
@@ -125,7 +124,7 @@ run k env ss = fmap (fmap fst) <$>
     widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening widenVal W.** W.finite))
 
 newtype IntervalT c x y = IntervalT { runIntervalT :: c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowExcept exc,ArrowEnv var val,ArrowStore var val,ArrowComplete,PreOrd,Complete)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowExcept exc,ArrowEnv var val,ArrowStore var val,ArrowComplete z,PreOrd,Complete)
 type instance Fix x y (IntervalT c) = IntervalT (Fix x y c)
 deriving instance ArrowFix x y c => ArrowFix x y (IntervalT c)
 
@@ -133,11 +132,11 @@ instance ArrowRun c => ArrowRun (IntervalT c) where
   type Rep (IntervalT c) x y = Trans.Rep c x y
   run = Trans.run . runIntervalT
 
-instance (ArrowChoice c, Profunctor c) => ArrowAlloc (Text,Val,Label) Addr (IntervalT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (IntervalT c) where
   alloc = arr $ \(_,_,l) -> return l
 
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete c) => IsVal Val (IntervalT c) where
-  type JoinVal (IntervalT c) (x,y) z = Complete z
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => IsVal Val (IntervalT c) where
+  type JoinVal z (IntervalT c) = ArrowComplete z c
 
   boolLit = arr $ \(b,_) -> case b of
     P.True -> BoolVal B.True
@@ -189,8 +188,8 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete c) => IsVal Va
     NumVal _        -> fail -< "Expected boolean as argument for 'if'"
     Top             -> (f1 -< x) <⊔> (f2 -< y) <⊔> (fail -< "Expected boolean as argument for 'if'")
 
-instance (ArrowChoice c, ArrowComplete c) => IsException Exception Val (IntervalT c) where
-  type JoinExc (IntervalT c) x y = Complete y
+instance ArrowChoice c => IsException Exception Val (IntervalT c) where
+  type JoinExc y (IntervalT c) = ArrowComplete y c
   namedException = proc (name,val) -> returnA -< Exception (M.singleton name val)
   matchException f g = proc (name,Exception m,x) -> case M.lookup name m of
     AM.Just v        -> f -< (v,x)

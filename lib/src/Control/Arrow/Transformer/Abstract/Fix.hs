@@ -28,7 +28,7 @@ import           Data.Profunctor.Unsafe((.#))
 import           Data.Coerce
 
 newtype FixT a b c x y = FixT { unFixT :: ConstT (IterationStrategy c a b) c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComplete)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComplete z, ArrowJoin)
 
 -- runFixT :: (Identifiable a, PreOrd b, Profunctor c, ArrowRun t)
 --   => IterationStrategy (t c) a b -> FixT a b (t c) x y -> c x y

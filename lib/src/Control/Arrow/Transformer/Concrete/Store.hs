@@ -10,18 +10,18 @@ module Control.Arrow.Transformer.Concrete.Store where
 
 import           Prelude hiding ((.))
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
-import           Control.Arrow.Fail
 import           Control.Arrow.Except
+import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Trans
 import           Control.Arrow.Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
+import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils
-import           Control.Category
 
 import           Data.Profunctor
 import           Data.HashMap.Lazy(HashMap)
@@ -48,7 +48,7 @@ execStoreT :: (Profunctor c, Arrow c) => StoreT var val c x y -> c (HashMap var 
 execStoreT f = rmap pi1 (runStoreT f)
 
 instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT var val c) where
-  type Join (StoreT var val c) x y = ()
+  type instance Join y (StoreT var val c) = ()
   read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
     s <- get -< ()
     case S.lookup var s of
@@ -62,5 +62,6 @@ instance ArrowState s c => ArrowState s (StoreT var val c) where
 
 instance (ArrowApply c,Profunctor c) => ArrowApply (StoreT var val c) where app = StoreT ((\(StoreT f,x) -> (f,x)) ^>> app)
 
-type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c)
 deriving instance ArrowFix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c => ArrowFix x y (StoreT var val c)
+
+type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c)

@@ -21,7 +21,8 @@ newtype Closure expr env = Closure (HashMap expr env)
   deriving (Eq,Hashable,NFData)
 
 instance (Identifiable expr, PreOrd env) => PreOrd (Closure expr env) where
-  (⊑) = withCls $ \m1 m2 -> and $ M.intersectionWith (⊑) m1 m2
+  (⊑) = withCls $ \m1 m2 -> M.keysSet m1 ⊑ M.keysSet m2
+                         && and (M.intersectionWith (⊑) m1 m2)
 
 instance (Identifiable expr, Complete env) => Complete (Closure expr env) where
   (⊔) = withCls $ M.unionWith (⊔)
@@ -34,7 +35,7 @@ instance (Show a,Show b) => Show (Closure a b) where
 closure :: Identifiable expr => expr -> env -> Closure expr env
 closure expr env = Closure $ M.singleton expr env
 
-apply :: (O.ArrowComplete c, O.ArrowLowerBounded c, ArrowChoice c, Profunctor c, Complete y)
+apply :: (O.ArrowComplete y c, O.ArrowLowerBounded c, ArrowChoice c, Profunctor c)
       => c (e,((expr,env),s)) y -> c (e,(Closure expr env,s)) y
 apply f = lmap (second $ first $ withCls M.toList) (O.joinList1 f)
 

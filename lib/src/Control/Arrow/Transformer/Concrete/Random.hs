@@ -11,7 +11,6 @@ import           Prelude hiding ((.))
 
 import           Control.Category
 import           Control.Arrow
-import           Control.Arrow.Alloc
 import           Control.Arrow.Const
 import           Control.Arrow.Environment
 import           Control.Arrow.Except
@@ -45,8 +44,6 @@ instance (Random v, Arrow c, Profunctor c) => ArrowRand v (RandomT c) where
 
 type instance Fix x y (RandomT c) = RandomT (Fix (Dom RandomT x y) (Cod RandomT x y) c)
 deriving instance (Arrow c, ArrowFix (Dom RandomT x y) (Cod RandomT x y) c) => ArrowFix x y (RandomT c)
-
-deriving instance ArrowAlloc x y c => ArrowAlloc x y (RandomT c)
 
 instance ArrowState s c => ArrowState s (RandomT c) where
   get = lift' get

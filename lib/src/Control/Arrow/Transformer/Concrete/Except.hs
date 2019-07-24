@@ -9,17 +9,18 @@ module Control.Arrow.Transformer.Concrete.Except(ExceptT,runExceptT) where
 
 import Prelude hiding (id,(.))
 
+import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
+import Control.Arrow.Except
 import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Arrow.Trans
 import Control.Arrow.Reader
-import Control.Arrow.Store as Store
 import Control.Arrow.State
-import Control.Arrow.Except
-import Control.Category
+import Control.Arrow.Store as Store
+import Control.Arrow.Trans
+
 import Control.Arrow.Transformer.Kleisli
 
 import Data.Concrete.Error
@@ -38,8 +39,7 @@ runExceptT = coerce
 {-# INLINE runExceptT #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowExcept e (ExceptT e c) where
-  type Join (ExceptT e c) x y = ()
-
+  type instance Join y (ExceptT e c) = ()
   throw = lift $ arr Fail
 
   try f g h = lift $ proc x -> do
@@ -51,5 +51,6 @@ instance (ArrowChoice c, Profunctor c) => ArrowExcept e (ExceptT e c) where
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where
   app = ExceptT $ app .# first coerce
 
-type instance Fix x y (ExceptT e c) = ExceptT e (Fix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c)
 deriving instance (ArrowChoice c, ArrowFix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c)
+
+type instance Fix x y (ExceptT e c) = ExceptT e (Fix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c)

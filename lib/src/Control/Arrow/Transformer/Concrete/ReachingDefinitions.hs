@@ -21,15 +21,15 @@ import           Prelude hiding ((.),read,id)
 
 import           Control.Category
 import           Control.Arrow
-import           Control.Arrow.Alloc
+import           Control.Arrow.Environment
 import           Control.Arrow.Except
+import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Trans
 import           Control.Arrow.Reader as Reader
 import           Control.Arrow.State
-import           Control.Arrow.Fail
 import           Control.Arrow.Store as Store
-import           Control.Arrow.Environment
+import           Control.Arrow.Trans
+
 import           Control.Arrow.Transformer.Reader
 
 import           Data.Identifiable
@@ -57,11 +57,10 @@ instance ArrowRun c => ArrowRun (ReachingDefsT lab c) where
   {-# INLINE run #-}
 
 instance (Identifiable var, Identifiable lab, ArrowStore var (val,Maybe lab) c) => ArrowStore var val (ReachingDefsT lab c) where
-  type Join (ReachingDefsT lab c) ((val,x),x) y = Store.Join c (((val,Maybe lab),Dom (ReachingDefsT lab) x y), Dom (ReachingDefsT lab) x y) (Cod (ReachingDefsT lab) x y)
+  type instance Join y (ReachingDefsT lab c) = Store.Join y c
   read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read (lmap (\((v,_),x) -> (v,x)) f) g
   write = reachingDefsT $ lmap (\(lab,(var,val)) -> (var,(val,lab))) write
 
-type instance Fix x y (ReachingDefsT lab c) = ReachingDefsT lab (Fix x y c)
 instance (HasLabel x lab, Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefsT lab c) where
   fix f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix (unwrap . f . lift') -< x
     where
@@ -75,5 +74,4 @@ instance ArrowReader r c => ArrowReader r (ReachingDefsT lab c) where
   ask = lift' Reader.ask
   local f = lift $ lmap (\(m,(r,a)) -> (r,(m,a))) (Reader.local (unlift f))
 
-instance ArrowAlloc x y c => ArrowAlloc x y (ReachingDefsT lab c) where
-  alloc = lift' alloc
+type instance Fix x y (ReachingDefsT lab c) = ReachingDefsT lab (Fix x y c)

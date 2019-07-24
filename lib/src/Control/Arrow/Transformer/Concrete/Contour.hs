@@ -10,17 +10,17 @@ module Control.Arrow.Transformer.Concrete.Contour(CallString,ContourT,runContour
 
 import           Prelude hiding (id,(.),lookup)
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Environment
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
 import           Control.Arrow.Fix
-import           Control.Arrow.Trans
 import           Control.Arrow.Reader as Reader
 import           Control.Arrow.State
-import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Trans
 
-import           Control.Category
+import           Control.Arrow.Transformer.Reader
 
 import           Data.Label
 import           Data.CallString

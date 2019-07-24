@@ -31,7 +31,6 @@ import qualified Data.Abstract.Map as M
 
 import Data.Order (Complete)
 import Data.Identifiable
-import Data.Hashable
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
@@ -53,8 +52,8 @@ evalStoreT f = rmap pi2 (runStoreT f)
 execStoreT :: Profunctor c => StoreT var val c x y -> c (Map var val, x) (Map var val)
 execStoreT f = rmap pi1 (runStoreT f)
 
-instance (Identifiable var, ArrowChoice c, ArrowComplete c, Profunctor c, Complete val) => ArrowStore var val (StoreT var val c) where
-  type Join (StoreT var val c) ((val,x),x) y = Complete y
+instance (Identifiable var, ArrowChoice c, Profunctor c, Complete val) => ArrowStore var val (StoreT var val c) where
+  type Join y (StoreT var val c) = ArrowComplete (Map var val,y) c
   read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
     s <- get -< ()
     case M.lookup var s of
@@ -67,7 +66,7 @@ instance ArrowState s c => ArrowState s (StoreT var val c) where
   get = lift' get
   put = lift' put
 
-deriving instance (Eq var,Hashable var,Complete val,ArrowComplete c) => ArrowComplete (StoreT var val c)
+deriving instance (ArrowComplete (Map var val,y) c) => ArrowComplete y (StoreT var val c)
 instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT var val c) where
   app = StoreT (app .# first coerce)
 

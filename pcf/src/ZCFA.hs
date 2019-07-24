@@ -74,7 +74,7 @@ eval0CFA e =
     iterationStrategy = S.filter apply
                       $ S.chaotic (W.finite)
 
-newtype ValueT c x y = ValueT {runValueT :: c x y}  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowComplete,ArrowEnv var val)
+newtype ValueT c x y = ValueT {runValueT :: c x y}  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val)
 
 instance ArrowRun c => ArrowRun (ValueT c) where
   type Rep (ValueT c) x y = Rep c x y
@@ -88,8 +88,9 @@ instance ArrowTrans ValueT where
 
 type instance Fix x y (ValueT c) = ValueT (Fix x y c)
 deriving instance ArrowFix (Dom ValueT x y) (Cod ValueT x y) c => ArrowFix x y (ValueT c)
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete c) => IsNum Val (ValueT c) where
-  type Join (ValueT c) x y = Complete y
+deriving instance ArrowComplete y c => ArrowComplete y (ValueT c)
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => IsNum Val (ValueT c) where
+  type Join y (ValueT c) = ArrowComplete y c
 
   succ = proc x -> case x of
     Top -> (returnA -< NumVal) <⊔> (fail -< "Expected a number as argument for 'succ'")
@@ -108,7 +109,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete c) => IsNum Va
     (NumVal, (x, y)) -> (f -< x) <⊔> (g -< y) -- case the interval contains zero and other numbers.
     (ClosureVal _, _)      -> fail -< "Expected a number as condition for 'ifZero'"
 
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowLowerBounded c, ArrowComplete c, ArrowEnv var val c)
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowLowerBounded c, ArrowComplete Val c, ArrowEnv var val c)
     => IsClosure Val (ValueT c) where
   closure = arr $ \e -> ClosureVal (singleton e)
   applyClosure (ValueT f) = ValueT $ proc (fun, arg) -> case fun of

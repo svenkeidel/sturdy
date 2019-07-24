@@ -14,7 +14,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
-import           Control.Arrow.Order(ArrowComplete(..))
+import           Control.Arrow.Order(ArrowJoin(..),ArrowComplete(..))
 import           Control.Arrow.Transformer.Reader
 
 import           Data.Profunctor
@@ -25,7 +25,7 @@ import           Data.Empty
 import           Data.Abstract.StackWidening(StackWidening)
 
 newtype StackWideningT stack a c x y = StackWideningT (ReaderT (stack a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComplete,ArrowTrans)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComplete z,ArrowJoin,ArrowTrans)
 
 runStackWideningT :: (IsEmpty (stack a), Profunctor c) => StackWideningT stack a c x y -> c x y
 runStackWideningT (StackWideningT f) = lmap (\x -> (empty,x)) (runReaderT f)
