@@ -24,7 +24,7 @@ eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v c, ArrowFail e c, IsS
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> Env.lookup' -< x
-  Lam x e l -> closure -< Lam x e l
+  Lam x e l -> closure ev -< Lam x e l
   App e1 e2 _ -> do
     fun <- ev -< e1
     arg <- ev -< e2
@@ -41,7 +41,7 @@ eval = fix $ \ev -> proc e0 -> case e0 of
     if_ ev ev -< (v1, (e2, e3))
   Y e l -> do
     fun <- ev -< e
-    arg <- closure -< Y e l
+    arg <- closure ev -< Y e l
     applyClosure' ev -< (fun, arg)
   Apply e _ -> ev -< e
   where
@@ -49,13 +49,9 @@ eval = fix $ \ev -> proc e0 -> case e0 of
     applyClosure' ev = applyClosure $ proc (e,arg) -> case e of
       Lam x body l -> do
         Env.extend ev -< (x,arg,Apply body l)
-        -- env' <- extendEnv -< (x,arg,env)
-        -- localEnv ev -< (env', Apply body l)
       Y e' l -> do
         fun <- ev -< Y e' l
         applyClosure' ev -< (fun,arg)
-        -- fun' <- localEnv ev -< (env, Y e' l)
-        -- applyClosure' ev -< (fun',arg)
       _ -> fail -< fromString $ "found unexpected epxression in closure: " ++ show e
 
 -- | Interface for numeric operations
@@ -77,7 +73,7 @@ class Arrow c => IsNum v c | c -> v where
 -- | Interface for closures
 class Arrow c => IsClosure v c | c -> v where
   -- | creates a closure from an expression and an environment.
-  closure :: c Expr v
+  closure :: c Expr v -> c Expr v
 
   -- | applies a closure to an argument. The given continuation
   -- describes how to evaluated the body of the closure.

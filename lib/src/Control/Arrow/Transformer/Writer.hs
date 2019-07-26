@@ -32,6 +32,9 @@ import Unsafe.Coerce
 
 newtype WriterT w c x y = WriterT { runWriterT :: c x (w,y) }
 
+censor :: (Arrow c,Profunctor c) => (x -> w -> w) -> WriterT w c x y -> WriterT w c x y
+censor f (WriterT g) = WriterT (dimap (\x -> (x,x)) (\(x,(w,y)) -> (f x w,y)) (second g))
+
 instance (Monoid w,ArrowRun c) => ArrowRun (WriterT w c) where
   type Rep (WriterT w c) x y = Rep c x (w,y)
   run = run . runWriterT

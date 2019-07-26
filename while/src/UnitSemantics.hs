@@ -58,7 +58,8 @@ type Exception = ()
 
 run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
 run env ss =
-  fmap (fmap fst) <$>
+  fmap (fmap (fmap fst)) <$>
+    snd $ 
     Trans.run
       (Generic.run ::
         Fix [Statement] ()

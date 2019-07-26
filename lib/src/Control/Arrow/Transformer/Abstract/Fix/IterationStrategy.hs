@@ -10,7 +10,8 @@ module Control.Arrow.Transformer.Abstract.Fix.IterationStrategy(
   IterationStrategy, trace, filter,
   module Control.Arrow.Transformer.Abstract.Fix.StackWidening,
   module Control.Arrow.Transformer.Abstract.Fix.Parallel,
-  module Control.Arrow.Transformer.Abstract.Fix.Chaotic
+  module Control.Arrow.Transformer.Abstract.Fix.Chaotic,
+  module Control.Arrow.Transformer.Abstract.Fix.Finite
 ) where
 
 import Prelude hiding (pred,filter)
@@ -20,6 +21,7 @@ import Control.Arrow.Fix
 import Control.Arrow.Transformer.Abstract.Fix.StackWidening
 import Control.Arrow.Transformer.Abstract.Fix.Parallel
 import Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import Control.Arrow.Transformer.Abstract.Fix.Finite
 
 import Data.Profunctor
 import Data.Lens (Prism',getMaybe,set)

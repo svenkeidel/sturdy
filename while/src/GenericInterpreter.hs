@@ -45,44 +45,44 @@ eval :: (Show addr, ArrowChoice c, ArrowRand v c,
      => c Expr v
 eval = proc e -> case e of
   Var x _ -> Env.lookup'' read' -< x
-  BoolLit b l -> boolLit -< (b,l)
-  And e1 e2 l -> do
+  BoolLit b _ -> boolLit -< b
+  And e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
-    and -< (v1,v2,l)
-  Or e1 e2 l -> do
+    and -< (v1,v2)
+  Or e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
-    or -< (v1,v2,l)
-  Not e1 l -> do
+    or -< (v1,v2)
+  Not e1 _ -> do
     v1 <- eval -< e1
-    not -< (v1,l)
-  NumLit n l -> numLit -< (n,l)
+    not -< (v1)
+  NumLit n _ -> numLit -< n
   RandomNum _ -> random -< ()
-  Add e1 e2 l -> do
+  Add e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
-    add -< (v1,v2,l)
-  Sub e1 e2 l -> do
+    add -< (v1,v2)
+  Sub e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
-    sub -< (v1,v2,l)
-  Mul e1 e2 l -> do
+    sub -< (v1,v2)
+  Mul e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
-    mul -< (v1,v2,l)
-  Div e1 e2 l -> do
+    mul -< (v1,v2)
+  Div e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
-    div -< (v1,v2,l)
-  Eq e1 e2 l -> do
+    div -< (v1,v2)
+  Eq e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
-    eq -< (v1,v2,l)
-  Lt e1 e2 l -> do
+    eq -< (v1,v2)
+  Lt e1 e2 _ -> do
     v1 <- eval -< e1
     v2 <- eval -< e2
-    lt -< (v1,v2,l)
+    lt -< (v1,v2)
   Throw ex e1 _ -> do
     v <- eval -< e1
     Except.throw <<< namedException -< (ex,v)
@@ -146,17 +146,17 @@ class Arrow c => IsVal v c | c -> v where
   -- of an @if@ statement.
   type family JoinVal x (c :: * -> * -> *) :: Constraint
 
-  boolLit :: c (Bool,Label) v
-  and :: c (v,v,Label) v
-  or :: c (v,v,Label) v
-  not :: c (v,Label) v
-  numLit :: c (Int,Label) v
-  add :: c (v,v,Label) v
-  sub :: c (v,v,Label) v
-  mul :: c (v,v,Label) v
-  div :: c (v,v,Label) v
-  eq :: c (v,v,Label) v
-  lt :: c (v,v,Label) v
+  boolLit :: c Bool v
+  and :: c (v,v) v
+  or :: c (v,v) v
+  not :: c v v
+  numLit :: c Int v
+  add :: c (v,v) v
+  sub :: c (v,v) v
+  mul :: c (v,v) v
+  div :: c (v,v) v
+  eq :: c (v,v) v
+  lt :: c (v,v) v
   if_ :: JoinVal z c => c x z -> c y z -> c (v, (x, y)) z
 
 class ArrowAlloc addr c where

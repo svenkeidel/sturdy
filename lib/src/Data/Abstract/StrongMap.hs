@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Abstract.StrongMap(Map(..),widening,empty,insert,lookup,lookup',fromList,toList) where
+module Data.Abstract.StrongMap(Map(..),widening,empty,insert,lookup,lookup',delete,filter,keys,fromList,toList) where
 
-import           Prelude hiding (lookup)
+import           Prelude hiding (lookup,pred,filter)
 
 import           Control.Arrow
 import           Control.DeepSeq
@@ -11,6 +11,7 @@ import qualified Data.Empty as Empty
 import           Data.Order
 import           Data.Hashable
 import           Data.Identifiable
+import           Data.HashSet(HashSet)
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 
@@ -36,6 +37,10 @@ instance (Identifiable a, Complete b) => Complete (Map a b) where
 instance Empty.IsEmpty (Map a b) where
   empty = Map M.empty
 
+keys :: Identifiable a => Map a b -> Maybe (HashSet a)
+keys Top = Nothing
+keys (Map m) = Just (M.keysSet m)
+
 widening :: Identifiable a => Widening b -> Widening (Map a b)
 widening _ Top Top = (Stable,Top)
 widening w (Map m1) (Map m2) | M.keys m1 == M.keys m2 = second Map $ sequenceA $ M.intersectionWith w m1 m2
@@ -57,6 +62,14 @@ lookup a _ (Map m) = case M.lookup a m of
 
 lookup' :: (Identifiable a, UpperBounded b) => a -> Map a b -> A.Maybe b
 lookup' a = lookup a top
+
+delete :: (Identifiable a, Foldable f) => f a -> Map a b -> Map a b
+delete _ Top = Top
+delete ks (Map m) = Map (foldr M.delete m ks)
+
+filter :: (a -> Bool) -> Map a b -> Map a b
+filter _ Top = Top
+filter pred (Map m) = Map (M.filterWithKey (\k _ -> pred k) m)
 
 fromList :: Identifiable a => [(a,b)] -> Map a b
 fromList l = Map (M.fromList l)

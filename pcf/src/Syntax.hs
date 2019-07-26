@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Syntax where
 
@@ -9,6 +10,10 @@ import           Data.Label
 import           Data.String
 import           Data.Lens (Prism')
 import qualified Data.Lens as L
+import           Data.HashMap.Lazy(HashMap)
+import qualified Data.HashMap.Lazy as M
+import           Data.HashSet(HashSet)
+import qualified Data.HashSet as H
 
 import Control.Monad.State
 
@@ -112,3 +117,27 @@ apply = L.prism' (\(env,(e',l)) -> (env,Apply e' l))
                  (\(env,e) -> case e of
                       Apply e' l -> Just (env,(e',l))
                       _ -> Nothing)
+
+freeVars :: Expr -> HashMap Expr (HashSet Text)
+freeVars e0 = execState (go e0) M.empty
+  where
+    go :: Expr -> State (HashMap Expr (HashSet Text)) (HashSet Text)
+    go e = case e of
+      Var x _ -> return (H.singleton x)
+      Lam x e1 _ -> save $ H.delete x <$> go e1
+      App e1 e2 _ -> H.union <$> go e1 <*> go e2
+      Zero _ -> return H.empty
+      Succ e1 _ -> go e1
+      Pred e1 _ -> go e1
+      IfZero e1 e2 e3 _ -> do
+          m1 <- go e1
+          m2 <- go e2
+          m3 <- go e3
+          return (m1 <> m2 <> m3)
+      Y e1 _ -> go e1
+      Apply e1 _ -> go e1
+      where
+        save m = do
+          fv <- m
+          modify (M.insert e fv)
+          return fv

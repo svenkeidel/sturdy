@@ -6,27 +6,27 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Concrete.Contour(CallString,ContourT,runContourT) where
+module Control.Arrow.Transformer.Concrete.Contour(ContourT,runContourT) where
 
-import           Prelude hiding (id,(.),lookup)
+import Prelude hiding (id,(.),lookup)
 
-import           Control.Category
-import           Control.Arrow
-import           Control.Arrow.Environment
-import           Control.Arrow.Fail
-import           Control.Arrow.Except
-import           Control.Arrow.Fix
-import           Control.Arrow.Reader as Reader
-import           Control.Arrow.State
-import           Control.Arrow.Trans
+import Control.Category
+import Control.Arrow
+import Control.Arrow.Environment
+import Control.Arrow.Fail
+import Control.Arrow.Except
+import Control.Arrow.Fix
+import Control.Arrow.Reader as Reader
+import Control.Arrow.State
+import Control.Arrow.Trans
 
-import           Control.Arrow.Transformer.Reader
+import Control.Arrow.Transformer.Reader
 
-import           Data.Label
-import           Data.CallString
-import           Data.Profunctor
-import           Data.Profunctor.Unsafe((.#))
-import           Data.Coerce
+import Data.Empty
+import Data.Label
+import Data.Profunctor
+import Data.Profunctor.Unsafe((.#))
+import Data.Coerce
 
 -- | Records the full call string.
 newtype ContourT lab c a b = ContourT (ReaderT [lab] c a b)
@@ -35,7 +35,7 @@ newtype ContourT lab c a b = ContourT (ReaderT [lab] c a b)
 
 -- | Runs a computation that records a the full call string of the interpreter.
 runContourT :: (Arrow c, Profunctor c) => ContourT lab c a b -> c a b
-runContourT (ContourT (ReaderT f)) = lmap (\a -> ([],a)) f
+runContourT (ContourT (ReaderT f)) = lmap (\a -> (empty,a)) f
 {-# INLINE runContourT #-}
 
 instance ArrowRun c => ArrowRun (ContourT lab c) where

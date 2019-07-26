@@ -27,66 +27,64 @@ import           Control.Arrow.Except
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Reader as Reader
-import           Control.Arrow.State as State
 import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Static
 import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Transformer.State
 import           Control.Category
 
 import           Data.Order (Complete(..))
 import           Data.Identifiable
-import           Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Lazy as HM
 import           Data.Profunctor
 import           Data.Profunctor.Unsafe((.#))
 import           Data.Coerce
 
 type Env var addr val = (HM.HashMap var addr,HM.HashMap addr val)
+type Alloc c var addr val = c (var,val,Env var addr val) addr
 
-newtype EnvT var addr val c x y = EnvT (ConstT (c (var,val,Env var addr val) addr) (ReaderT (HM.HashMap var addr) (StateT (HM.HashMap addr val) c)) x y )
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowLowerBounded)
+newtype EnvT var addr val c x y = EnvT (ConstT (Alloc c var addr val) (ReaderT (Env var addr val) c) x y )
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowComplete z, ArrowLowerBounded)
 
 deriving instance ArrowExcept e c => ArrowExcept e (EnvT var addr val c)
 
 runEnvT :: (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c)
-               => c (var,val,Env var addr val) addr -> EnvT var addr val c x y -> c x (HM.HashMap addr val,y)
-runEnvT alloc (EnvT f) =
-  lmap (\x -> (HM.empty,(HM.empty,x)))
-          (runStateT (runReaderT (runConstT alloc f)))
+        => Alloc c var addr val -> EnvT var addr val c x y -> c (Env var addr val,x) y
+runEnvT alloc (EnvT f) = runReaderT (runConstT alloc f)
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c) =>
   ArrowEnv var val (EnvT var addr val c) where
   type Join y (EnvT var addr val c) = ()
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
-    env <- Reader.ask -< ()
-    store <- State.get -< ()
+    (env,store) <- Reader.ask -< ()
     case do { addr <- HM.lookup var env; HM.lookup addr store } of
       Just val -> f -< (val,x)
       Nothing  -> g -< x
-  extend (EnvT f) = EnvT $ ConstT $ StaticT $ \alloc -> ReaderT $ StateT $ proc (store,(env,(var,val,x))) -> do
+  extend (EnvT f) = EnvT $ ConstT $ StaticT $ \alloc -> ReaderT $ proc ((env,store),(var,val,x)) -> do
     addr <- alloc -< (var,val,(env,store))
-    let env' = HM.insert var addr env
+    let env'   = HM.insert var addr env
         store' = HM.insertWith (⊔) addr val store
-    runStateT (runReaderT (runConstT alloc f)) -< (store',(env',x))
+    runReaderT (runConstT alloc f) -< ((env',store'),x)
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c) =>
   ArrowClosure var val (HM.HashMap var addr) (EnvT var addr val c) where
-  ask = EnvT Reader.ask
-  local (EnvT f) = EnvT $ Reader.local f
+  ask = EnvT (rmap fst Reader.ask)
+  local (EnvT f) = EnvT $ proc (env,x) -> do
+    (_,store) <- Reader.ask -< ()
+    Reader.local f -< ((env,store),x)
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowRun c) => ArrowRun (EnvT var addr val c) where
-  type Rep (EnvT var addr val c) x y = c (var,val,Env var addr val) addr -> Rep c x (HM.HashMap addr val,y)
+  type Rep (EnvT var addr val c) x y = Alloc c var addr val -> Rep c (Env var addr val,x) y
   run f alloc = run (runEnvT alloc f)
 
 instance ArrowTrans (EnvT var addr val) where
-  type Dom (EnvT var addr val) x y = (HM.HashMap addr val,(HM.HashMap var addr,x))
-  type Cod (EnvT var addr val) x y = (HM.HashMap addr val,y)
+  type Dom (EnvT var addr val) x y = (Env var addr val,x)
+  type Cod (EnvT var addr val) x y = y
   lift = undefined
   unlift = undefined
       
 instance ArrowLift (EnvT var addr val) where
-  lift' f = EnvT (lift' (lift' (lift' f)))
+  lift' f = EnvT (lift' (lift' f))
 
 instance ArrowReader r c => ArrowReader r (EnvT var addr val c) where
   ask = lift' Reader.ask

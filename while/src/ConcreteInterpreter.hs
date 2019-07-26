@@ -78,34 +78,34 @@ instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ConcreteT c) where
 instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
   type JoinVal y (ConcreteT c) = ()
 
-  boolLit = arr (\(b,_) -> BoolVal b)
-  and = proc (v1,v2,_) -> case (v1,v2) of
+  boolLit = arr (BoolVal)
+  and = proc (v1,v2) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 && b2)
     _ -> fail -< "Expected two booleans as arguments for 'and'"
-  or = proc (v1,v2,_) -> case (v1,v2) of
+  or = proc (v1,v2) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 || b2)
     _ -> fail -< "Expected two booleans as arguments for 'or'"
-  not = proc (v,_) -> case v of
+  not = proc v -> case v of
     BoolVal b -> returnA -< BoolVal (Prelude.not b)
     _ -> fail -< "Expected a boolean as argument for 'not'"
-  numLit = arr (\(d,_) -> NumVal d)
-  add = proc (v1,v2,_) -> case (v1,v2) of
+  numLit = arr (\d -> NumVal d)
+  add = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
     _ -> fail -< "Expected two numbers as arguments for 'add'"
-  sub = proc (v1,v2,_) -> case (v1,v2) of
+  sub = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
     _ -> fail -< "Expected two numbers as arguments for 'sub'"
-  mul = proc (v1,v2,_) -> case (v1,v2) of
+  mul = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
     _ -> fail -< "Expected two numbers as arguments for 'mul'"
-  div = proc (v1,v2,_) -> case (v1,v2) of
+  div = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 `Prelude.div` n2)
     _ -> fail -< "Expected two numbers as arguments for 'mul'"
-  eq = proc (v1,v2,_) -> case (v1,v2) of
+  eq = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.== n2)
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 P.== b2)
     _ -> fail -< "Expected two values of the same type as arguments for 'eq'"
-  lt = proc (v1,v2,_) -> case (v1,v2) of
+  lt = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2)   -> returnA -< BoolVal (n1 P.< n2)
     _ -> fail -< "Expected two numbers as arguments for 'lt'"
   if_ f1 f2 = proc (v,(x,y)) -> case v of

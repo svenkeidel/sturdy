@@ -17,6 +17,8 @@ import           Data.Abstract.FreeCompletion (FreeCompletion)
 import qualified Data.Abstract.FreeCompletion as F
 import           Data.GaloisConnection
 import qualified Data.Concrete.Powerset as C
+import qualified Data.Empty as E
+import qualified Data.Singleton as S
 
 import           GHC.Generics
 import           GHC.Exts
@@ -67,6 +69,16 @@ instance Identifiable x => PreOrd (Pow x) where
 
 instance Identifiable x => Complete (Pow x) where
   (⊔) = union
+
+instance Identifiable x => Semigroup (Pow x) where
+  (<>) = union
+
+instance E.IsEmpty (Pow x) where
+  empty = empty
+
+instance Identifiable x => S.IsSingleton (Pow x) where
+  type Elem (Pow x) = x
+  singleton = singleton
 
 widening :: Identifiable x => Widening (Pow x)
 widening (Pow xs) (Pow ys) = let zs = H.union xs ys in (if H.size zs == H.size xs then Stable else Instable,Pow zs)

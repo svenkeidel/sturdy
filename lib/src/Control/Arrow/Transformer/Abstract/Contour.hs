@@ -6,7 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Abstract.Contour(CallString,ContourT,runContourT) where
+module Control.Arrow.Transformer.Abstract.Contour(ContourT,runContourT,contour,CallString) where
 
 import Prelude hiding (id,(.),lookup)
 
@@ -44,6 +44,9 @@ newtype ContourT lab c a b = ContourT (ReaderT (CallString lab) c a b)
 runContourT :: (Arrow c, Profunctor c) => Int -> ContourT lab c a b -> c a b
 runContourT k (ContourT (ReaderT f)) = lmap (\a -> (empty k,a)) f
 {-# INLINE runContourT #-}
+
+contour :: (Arrow c, Profunctor c) => ContourT lab c () (CallString lab)
+contour = ContourT Reader.ask
 
 instance ArrowRun c => ArrowRun (ContourT lab c) where
   type Rep (ContourT lab c) x y = Int -> Rep c x y

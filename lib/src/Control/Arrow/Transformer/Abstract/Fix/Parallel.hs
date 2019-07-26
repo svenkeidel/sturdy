@@ -87,8 +87,8 @@ instance IsCache cache a b => IsCache (Iteration cache) a b where
     in ((st',b'),cache { new = new', stable = st' })
 
 instance (ArrowRun c) => ArrowRun (ParallelT a b c) where
-  type Rep (ParallelT a b c) x y = Rep c x y
-  run = run . evalParallelT
+  type Rep (ParallelT a b c) x y = Rep c x (Cache a b, y)
+  run = run . runParallelT
   {-# INLINE run #-}
 
 type instance Fix x y (ParallelT _ _ c) = ParallelT x y c

@@ -34,6 +34,8 @@ import qualified Data.Abstract.Terminating as T
 import           Data.Identifiable
 
 import           Control.Arrow.Fix
+import           Control.Arrow.Trans as Trans
+import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.ReachingDefinitions
 import           Control.Arrow.Transformer.Abstract.Environment
@@ -66,29 +68,21 @@ run k lstmts =
   fst $
 
   -- Run the computation
-  S.runChaoticT'
-    (S.runStackWideningT
-      (runFixT iterationStrategy
-        (runTerminatingT
-          (runErrorT
-            (runExceptT
-              (runStoreT
-                (runReachingDefsT'
-                  (runEnvT
-                    (runIntervalT
-                      (Generic.run ::
-                        Fix [Statement] ()
-                         (IntervalT
-                           (EnvT Text Addr
-                             (ReachingDefsT Label
-                               (StoreT Addr (Val, Pow Label)
-                                 (ExceptT Exception
-                                   (ErrorT (Pow String)
-                                     (TerminatingT
-                                       (FixT _ _
-                                         (S.StackWideningT _ _
-                                           (S.ChaoticT _ _
-                                             (->))))))))))) [Statement] ()))))))))))
+  Trans.run
+    (Generic.run ::
+      Fix [Statement] ()
+       (ValueT Val
+         (EnvT Text Addr
+           (ReachingDefsT
+             (StoreT Addr (Val, Pow Label)
+               (ExceptT Exception
+                 (ErrorT (Pow String)
+                   (TerminatingT
+                     (FixT _ _
+                       (S.StackWideningT _ _
+                         (S.ChaoticT _ _
+                           (->))))))))))) [Statement] ())
+    iterationStrategy
     (M.empty,(SM.empty,stmts))
 
   where

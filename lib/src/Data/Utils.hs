@@ -1,11 +1,18 @@
-module Data.Utils where
+{-# LANGUAGE GADTs #-}
+module Data.Utils
+  ( maybeHead
+  , fromMaybe
+  , module Data.Empty
+  , module Data.Singleton
+  )
+  where
 
-import Data.Maybe
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Empty
+import Data.Singleton
 
-lookupM :: (Ord k, Monoid v) => k -> Map k v -> v
-lookupM x m = fromMaybe mempty $ Map.lookup x m
+fromMaybe :: (IsEmpty (f a), IsSingleton (f a), Elem (f a) ~ a) => Maybe a -> f a
+fromMaybe (Just a) = singleton a
+fromMaybe Nothing  = empty
 
 maybeHead :: [a] -> Maybe a
 maybeHead (a:_) = Just a

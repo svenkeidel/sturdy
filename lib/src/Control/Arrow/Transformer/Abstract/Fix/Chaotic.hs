@@ -40,11 +40,11 @@ newtype ChaoticT a b c x y =
         (ReaderT (Stack a) c)) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice)
 
-runChaoticT :: Profunctor c => ChaoticT a b c x y -> c x y
-runChaoticT f = rmap snd (runChaoticT' f)
+runChaoticT :: Profunctor c => ChaoticT a b c x y -> c x (HashMap a (b,Stable),y)
+runChaoticT (ChaoticT f) = dimap (\a -> (empty,(M.empty,a))) (second snd) (runReaderT (runStateT (runWriterT f)))
 
-runChaoticT' :: Profunctor c => ChaoticT a b c x y -> c x (HashMap a (b,Stable),y)
-runChaoticT' (ChaoticT f) = dimap (\a -> (empty,(M.empty,a))) (second snd) (runReaderT (runStateT (runWriterT f)))
+runChaoticT' :: Profunctor c => ChaoticT a b c x y -> c x y
+runChaoticT' f = rmap snd (runChaoticT f)
 
 chaotic :: (Identifiable a, LowerBounded b, Profunctor c, ArrowChoice c, ArrowApply c) => Widening b -> IterationStrategy (ChaoticT a b c) a b
 chaotic widen (ChaoticT (WriterT (StateT f))) = ChaoticT $ WriterT $ StateT $ push $ proc (stack,cache,a) -> do
@@ -92,7 +92,7 @@ chaotic widen (ChaoticT (WriterT (StateT f))) = ChaoticT $ WriterT $ StateT $ pu
       local g -< (Stack (H.insert a xs),(xs,cache,a))
 
 instance (Identifiable a, ArrowRun c) => ArrowRun (ChaoticT a b c) where
-  type Rep (ChaoticT a b c) x y = Rep c x y
+  type Rep (ChaoticT a b c) x y = Rep c x (HashMap a (b,Stable),y)
   run = run . runChaoticT
 
 instance (Identifiable a,Profunctor c,ArrowApply c) => ArrowApply (ChaoticT a b c) where app = ChaoticT (lmap (first coerce) app)

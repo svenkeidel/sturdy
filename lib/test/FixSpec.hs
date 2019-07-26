@@ -54,8 +54,8 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "Parallel" (sharedSpec (\f -> Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (const (T.widening ?widen))))))
-  describe "Chaotic"  (sharedSpec (\f -> Arrow.run (toChaotic f) (S.stackWidening ?stackWiden (S.chaotic (T.widening ?widen)))))
+  describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (const (T.widening ?widen))))))
+  describe "Chaotic"  (sharedSpec (\f -> snd . Arrow.run (toChaotic f) (S.stackWidening ?stackWiden (S.chaotic (T.widening ?widen)))))
 
 sharedSpec :: (forall a b s. (Identifiable a, Complete b, IsEmpty (s a), ?stackWiden :: StackWidening s a, ?widen :: Widening b) => Arr a b -> a -> Terminating b) -> Spec
 sharedSpec run = do
