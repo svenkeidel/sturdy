@@ -18,6 +18,12 @@ import           Syntax
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
+import           Data.Label
+import           Data.Text (Text)
+import           Data.Profunctor
+import qualified Data.Lens as L
+
+import           Data.Abstract.Cache (Cache)
 import           Data.Abstract.Error (Error(..))
 import           Data.Abstract.Except (Except(..))
 import qualified Data.Abstract.Map as M
@@ -26,11 +32,6 @@ import           Data.Abstract.Terminating
 import           Data.Abstract.FreeCompletion(FreeCompletion)
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.Widening as W
-
-import           Data.Label
-import           Data.Text (Text)
-import           Data.Profunctor
-import qualified Data.Lens as L
 
 import           Control.Category
 import           Control.Arrow
@@ -70,7 +71,7 @@ run env ss =
                   (ErrorT (Pow String)
                     (TerminatingT
                       (FixT _ _
-                        (S.ChaoticT _ _
+                        (S.ChaoticT Cache _ _
                           (->))))))))) [Statement] ())
       iterationStrategy
       (M.empty,(SM.fromList env,generate <$> ss))

@@ -30,8 +30,8 @@ import Text.Printf
 
 trace :: (Show a, Show b, Arrow c) => IterationStrategy c a b -> IterationStrategy c a b
 trace strat f = proc x -> do
-  y <- strat f -< x 
-  returnA -< Debug.trace (printf "CALL\nx: %s\nf(x) = %s\n\n" (show x) (show y)) y
+  y <- strat f -< Debug.trace (printf "CALL\n%s\n\n" (show x)) x 
+  returnA -< Debug.trace (printf "RETURN\neval(%s)\n\t= %s\n\n" (show x) (show y)) y
 
 filter :: (Profunctor c, ArrowChoice c, ArrowApply c) => Prism' a a' -> IterationStrategy c a' b -> IterationStrategy c a b
 filter pred strat f = proc a -> case getMaybe pred a of

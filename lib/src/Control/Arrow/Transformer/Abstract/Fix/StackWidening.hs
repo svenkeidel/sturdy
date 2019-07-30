@@ -14,7 +14,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
-import           Control.Arrow.Order(ArrowJoin(..),ArrowComplete(..))
+import           Control.Arrow.Order(ArrowJoin(..),ArrowComplete(..),ArrowEffectCommutative)
 import           Control.Arrow.Transformer.Reader
 
 import           Data.Profunctor
@@ -41,3 +41,5 @@ instance (IsEmpty (stack a), ArrowRun c) => ArrowRun (StackWideningT stack a c) 
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (StackWideningT stack a c) where
   app = StackWideningT (app .# first coerce)
+
+instance ArrowEffectCommutative c => ArrowEffectCommutative (StackWideningT stack a c)

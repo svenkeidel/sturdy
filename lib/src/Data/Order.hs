@@ -200,6 +200,9 @@ instance Identifiable a => Complete (HashSet a) where
 instance (Identifiable a, PreOrd b) => PreOrd (HashMap a b) where
   m1 ⊑ m2 = and (HM.intersectionWith (⊑) m1 m2)
 
+instance (Identifiable a, PreOrd b) => LowerBounded (HashMap a b) where
+  bottom = HM.empty
+
 instance (Identifiable a, Complete b) => Complete (HashMap a b) where
   (⊔) = HM.unionWith (⊔)
 

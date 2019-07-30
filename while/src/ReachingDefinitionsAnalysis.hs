@@ -13,25 +13,27 @@ import           Syntax
 import qualified GenericInterpreter as Generic
 import           IntervalAnalysis
 
-import           Data.Text (Text)
-import           Data.Label
-import qualified Data.List as L
+import           Data.Coerce
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
-import qualified Data.Lens as L
-import           Data.Order
-import           Data.Maybe
-
-import qualified Data.Abstract.Except as Exc
-import qualified Data.Abstract.Error as E
-import qualified Data.Abstract.StrongMap as SM
-import qualified Data.Abstract.Map as M
-import           Data.Abstract.DiscretePowerset(Pow)
-import qualified Data.Abstract.StackWidening as SW
-import qualified Data.Abstract.Widening as W
-import qualified Data.Abstract.Interval as I
-import qualified Data.Abstract.Terminating as T
 import           Data.Identifiable
+import           Data.Label
+import qualified Data.Lens as L
+import qualified Data.List as L
+import           Data.Maybe
+import           Data.Order
+import           Data.Text (Text)
+
+import           Data.Abstract.Cache (Cache(..))
+import           Data.Abstract.DiscretePowerset(Pow)
+import qualified Data.Abstract.Error as E
+import qualified Data.Abstract.Except as Exc
+import qualified Data.Abstract.Interval as I
+import qualified Data.Abstract.Map as M
+import qualified Data.Abstract.StackWidening as SW
+import qualified Data.Abstract.StrongMap as SM
+import qualified Data.Abstract.Terminating as T
+import qualified Data.Abstract.Widening as W
 
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans as Trans
@@ -65,7 +67,7 @@ run k lstmts =
     _ -> Nothing) $
 
   -- get the fixpoint cache
-  fst $
+  toMap $ fst $
 
   -- Run the computation
   Trans.run
@@ -80,7 +82,7 @@ run k lstmts =
                    (TerminatingT
                      (FixT _ _
                        (S.StackWideningT _ _
-                         (S.ChaoticT _ _
+                         (S.ChaoticT Cache _ _
                            (->))))))))))) [Statement] ())
     iterationStrategy
     (M.empty,(SM.empty,stmts))
@@ -110,6 +112,9 @@ combineMaps env store = M.fromList [ (a,c) | (a,b) <- fromJust (SM.toList env)
 
 dropValues :: M.Map a (v,l) -> M.Map a l
 dropValues = M.map snd
+
+toMap :: Cache a b -> HashMap a (W.Stable,b)
+toMap = coerce
 
 joinOnKey :: (Identifiable k',Complete v') => (k -> v -> Maybe (k',v')) -> HashMap k v -> HashMap k' v'
 joinOnKey pred = Map.foldlWithKey' (\m k v -> case pred k v of

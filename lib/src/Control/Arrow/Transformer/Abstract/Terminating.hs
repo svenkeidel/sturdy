@@ -12,6 +12,7 @@ import Prelude hiding (id,(.),lookup,fail)
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment
+import Control.Arrow.Store
 import Control.Arrow.Fix
 import Control.Arrow.Reader
 import Control.Arrow.State
@@ -31,7 +32,7 @@ import Data.Coerce
 newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y) 
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowClosure var val env)
+            ArrowEnv var val, ArrowClosure var val env, ArrowStore addr val)
 
 runTerminatingT :: TerminatingT c x y -> c x (Terminating y)
 runTerminatingT = coerce

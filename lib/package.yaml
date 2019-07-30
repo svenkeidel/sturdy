@@ -18,12 +18,6 @@ dependencies:
   - deepseq
   - profunctors
 
-flags:
-  trace:
-    description: Enable tracing of the abstract intepreter
-    default:     False
-    manual:      True
-
 library:
   ghc-options: -Wall
   source-dirs:
@@ -38,9 +32,9 @@ tests:
     source-dirs:
       - test
     dependencies:
+      - sturdy-lib
       - hspec
       - QuickCheck
-      - sturdy-lib
 
 benchmarks:
   arrow-transformers:

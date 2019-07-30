@@ -6,32 +6,34 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE RoleAnnotations #-}
+{-# LANGUAGE DataKinds #-}
 module Control.Arrow.Transformer.State(StateT(..),evalStateT,execStateT) where
 
-import Prelude hiding (id,(.),lookup,read,fail)
+import           Prelude hiding (id,(.),lookup,read,fail)
 
-import Control.Arrow
-import Control.Arrow.Const
-import Control.Arrow.Environment as Env
-import Control.Arrow.Fail
-import Control.Arrow.Fix
-import Control.Arrow.Trans
-import Control.Arrow.Random
-import Control.Arrow.Reader as Reader
-import Control.Arrow.State as State
-import Control.Arrow.Store as Store
-import Control.Arrow.Except as Exc
-import Control.Arrow.Writer
-import Control.Arrow.Order
+import           Control.Category
+import           Control.Arrow
+import           Control.Arrow.Const
+import           Control.Arrow.Environment as Env
+import           Control.Arrow.Fail as Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Trans
+import           Control.Arrow.Random
+import           Control.Arrow.Reader as Reader
+import           Control.Arrow.State as State
+import           Control.Arrow.Store as Store
+import           Control.Arrow.Except as Exc
+import           Control.Arrow.Writer
+import           Control.Arrow.Order
 
-import Control.Category
-
+import           Data.Coerce
+import           Unsafe.Coerce
 import qualified Data.Order as O
-import Data.Monoidal
-import Data.Profunctor hiding (Strong(..))
-import Data.Profunctor.Unsafe
-import Data.Coerce
-import Unsafe.Coerce
+import           Data.Monoidal
+import           Data.Profunctor hiding (Strong(..))
+import           Data.Profunctor.Unsafe
+
+import           GHC.TypeLits
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype StateT s c x y = StateT { runStateT :: c (s,x) (s,y) }
@@ -183,6 +185,9 @@ instance ArrowConst x c => ArrowConst x (StateT s c) where
 instance ArrowRand v c => ArrowRand v (StateT s c) where
   random = lift' random
   {-# INLINE random #-}
+
+instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
+  => ArrowEffectCommutative (StateT s c)
 
 second' :: (x -> y) -> ((z,x) -> (z,y))
 second' f (x,y) = (x,f y)

@@ -23,42 +23,8 @@ import           Syntax
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
-import           Data.Abstract.Boolean (Bool)
-import qualified Data.Abstract.Boolean as B
-import qualified Data.Abstract.Failure as F
-import           Data.Abstract.Error (Error(..))
-import qualified Data.Abstract.Error as E
-import           Data.Abstract.Except (Except(..))
-import qualified Data.Abstract.Except as Exc
-import           Data.Abstract.Interval (Interval)
-import qualified Data.Abstract.Interval as I
-import qualified Data.Abstract.StrongMap as SM
-import qualified Data.Abstract.Map as M
-import           Data.Abstract.Map (Map)
-import           Data.Abstract.Terminating (Terminating)
-import qualified Data.Abstract.Terminating as T
-import           Data.Abstract.Widening (Widening)
-import           Data.Abstract.FreeCompletion(FreeCompletion)
-import           Data.Abstract.InfiniteNumbers
-import           Data.Abstract.DiscretePowerset (Pow)
-import qualified Data.Abstract.Widening as W
-import qualified Data.Abstract.StackWidening as SW
-import qualified Data.Abstract.Ordering as O
-import qualified Data.Abstract.Equality as E
-import qualified Data.Abstract.Maybe as AM
-
-import qualified Data.Lens as L
-import           Data.Profunctor
-import qualified Data.Boolean as B
-import           Data.Hashable
-import           Data.Numeric
-import           Data.Order
-import           Data.Label
-import           Data.Text (Text)
-import           Data.Utils
-
 import           Control.Arrow
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Random
 import           Control.Arrow.Order
@@ -72,6 +38,41 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
 import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
+
+import qualified Data.Lens as L
+import           Data.Profunctor
+import qualified Data.Boolean as B
+import           Data.Hashable
+import           Data.Numeric
+import           Data.Order
+import           Data.Label
+import           Data.Text (Text)
+import           Data.Utils
+
+import           Data.Abstract.Boolean (Bool)
+import qualified Data.Abstract.Boolean as B
+import           Data.Abstract.Cache(Cache)
+import           Data.Abstract.DiscretePowerset (Pow)
+import qualified Data.Abstract.Equality as E
+import           Data.Abstract.Error (Error(..))
+import qualified Data.Abstract.Error as E
+import           Data.Abstract.Except (Except(..))
+import qualified Data.Abstract.Except as Exc
+import qualified Data.Abstract.Failure as F
+import           Data.Abstract.FreeCompletion(FreeCompletion)
+import           Data.Abstract.InfiniteNumbers
+import           Data.Abstract.Interval (Interval)
+import qualified Data.Abstract.Interval as I
+import           Data.Abstract.Map (Map)
+import qualified Data.Abstract.Map as M
+import qualified Data.Abstract.Maybe as AM
+import qualified Data.Abstract.Ordering as O
+import qualified Data.Abstract.StackWidening as SW
+import qualified Data.Abstract.StrongMap as SM
+import           Data.Abstract.Terminating (Terminating)
+import qualified Data.Abstract.Terminating as T
+import           Data.Abstract.Widening (Widening)
+import qualified Data.Abstract.Widening as W
 
 import           GHC.Exts(IsString(..))
 import           GHC.Generics
@@ -100,7 +101,7 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
                   (TerminatingT
                     (FixT _ _
                       (S.StackWideningT _ _
-                        (S.ChaoticT _ _
+                        (S.ChaoticT Cache _ _
                            (->)))))))))) [Statement] ())
       iterationStrategy
       (M.empty,(SM.fromList env, generate (sequence ss)))

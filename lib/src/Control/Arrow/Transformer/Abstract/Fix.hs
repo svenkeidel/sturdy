@@ -54,6 +54,8 @@ instance (Profunctor c,ArrowApply c) => ArrowApply (FixT a b c) where
 instance ArrowLift (FixT a b) where
   lift' = FixT . lift'
 
+instance ArrowEffectCommutative c => ArrowEffectCommutative (FixT a b c)
+
 ----- Helper functions -----
 iterationStrategy :: FixT a b c a b -> FixT a b c a b
 iterationStrategy (FixT (ConstT (StaticT f))) = FixT $ ConstT $ StaticT $ \strat -> strat (f strat)

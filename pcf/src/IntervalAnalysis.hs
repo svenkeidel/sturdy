@@ -46,6 +46,7 @@ import           Data.Text (Text)
 import qualified Data.Lens as L
 import           Data.Utils
 
+import           Data.Abstract.Cache
 import           Data.Abstract.StrongMap(Map)
 import qualified Data.Abstract.StrongMap as SM
 import           Data.Abstract.Error (Error)
@@ -87,7 +88,7 @@ evalInterval k env0 e = snd $
                       (TerminatingT
                         (FixT _ _
                           (StackWideningT _ _
-                            (ChaoticT _ _ (->)))))))) Expr Val)
+                            (ChaoticT Cache _ _ (->)))))))) Expr Val)
     iterationStrategy
     (SM.fromList env0,e0)
   where

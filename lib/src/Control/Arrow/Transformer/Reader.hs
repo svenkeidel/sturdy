@@ -165,3 +165,5 @@ instance ArrowComplete y c => ArrowComplete y (ReaderT r c) where
 instance ArrowConst x c => ArrowConst x (ReaderT r c) where
   askConst f = lift (askConst (unlift . f))
   {-# INLINE askConst #-}
+
+instance ArrowEffectCommutative c => ArrowEffectCommutative (ReaderT r c)

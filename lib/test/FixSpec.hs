@@ -28,6 +28,7 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 import           Data.Identifiable
 import           Data.Boolean(Logic(..))
 import           Data.Abstract.Boolean(Bool)
+import           Data.Abstract.Cache(Cache)
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
@@ -54,7 +55,7 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (const (T.widening ?widen))))))
+  describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
   describe "Chaotic"  (sharedSpec (\f -> snd . Arrow.run (toChaotic f) (S.stackWidening ?stackWiden (S.chaotic (T.widening ?widen)))))
 
 sharedSpec :: (forall a b s. (Identifiable a, Complete b, IsEmpty (s a), ?stackWiden :: StackWidening s a, ?widen :: Widening b) => Arr a b -> a -> Terminating b) -> Spec
@@ -178,10 +179,10 @@ instance Hashable EvenOdd
 instance PreOrd EvenOdd where
   e1 ⊑ e2 = e1 == e2
 
-toParallel :: (Identifiable a, Complete b) => Arr a b -> Fix a b (TerminatingT (FixT a (Terminating b) (S.StackWideningT s a (S.ParallelT a (Terminating b) ((->)))))) a b
+toParallel :: (Identifiable a, Complete b) => Arr a b -> Fix a b (TerminatingT (FixT a (Terminating b) (S.StackWideningT s a (S.ParallelT Cache a (Terminating b) ((->)))))) a b
 toParallel x = x
 {-# INLINE toParallel #-}
 
-toChaotic :: (Identifiable a, Complete b) => Arr a b -> Fix a b (TerminatingT (FixT a (Terminating b) (S.StackWideningT s a (S.ChaoticT a (Terminating b) ((->)))))) a b
+toChaotic :: (Identifiable a, Complete b) => Arr a b -> Fix a b (TerminatingT (FixT a (Terminating b) (S.StackWideningT s a (S.ChaoticT Cache a (Terminating b) ((->)))))) a b
 toChaotic x = x
 {-# INLINE toChaotic #-}
