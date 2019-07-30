@@ -15,7 +15,7 @@ import Control.Arrow hiding (ArrowMonad)
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Monad
 import Control.Arrow.Order
@@ -132,12 +132,13 @@ instance (ArrowMonad f c, ArrowFix (Dom (KleisliT f) x y) (Cod (KleisliT f) x y)
 
 instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
   type Join y (KleisliT f c) = Exc.Join (f y) c
-  throw = lift' throw
+  throw = lift throw
   try f g h = lift $ try (unlift f) (mapJoinA (unlift g)) (unlift h)
   {-# INLINE throw #-}
   {-# INLINE try #-}
 
 instance (ArrowMonad f c, ArrowFail e c) => ArrowFail e (KleisliT f c) where
+  type Join y (KleisliT f c) = Fail.Join y c
   fail = lift' fail
   {-# INLINE fail #-}
 

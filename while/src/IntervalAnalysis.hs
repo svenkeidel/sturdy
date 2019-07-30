@@ -79,10 +79,10 @@ import           GHC.Generics
 import           Text.Printf
 
 -- | Abstract values are either abstract booleans or intervals.
-data Val = BoolVal Bool | NumVal IV | TypeError (Pow String) deriving (Eq,Generic)
+data Val = Bottom | BoolVal Bool | NumVal IV | TypeError (Pow String) deriving (Eq,Generic)
 type IV = Interval (InfiniteNumber Int)
 type Addr = FreeCompletion Label
-newtype Exception = Exception (Map Text Val) deriving (PreOrd,Complete,Show,Eq)
+newtype Exception = Exception (Map Text Val) deriving (PreOrd,Complete,LowerBounded,Show,Eq)
 
 -- | The interval analysis instantiates the generic interpreter
 -- 'Generic.run' with the components for fixpoint computation
@@ -127,50 +127,51 @@ deriving instance ArrowComplete () (c) => ArrowComplete () (ValueT Val c)
 instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = arr $ \(_,_,l) -> return l
 
-instance (IsString e, ArrowChoice c, ArrowFail e c) => IsVal Val (ValueT Val c) where
-  type JoinVal z (ValueT Val c) = ArrowComplete z (ValueT Val c)
+instance (ArrowChoice c, ArrowFail (Pow String) c, Fail.Join Val c) => IsVal Val (ValueT Val c) where
+  type JoinVal z (ValueT Val c) = (ArrowComplete z (ValueT Val c), Fail.Join z c)
 
   boolLit = arr $ \b -> case b of
     P.True -> BoolVal B.True
     P.False -> BoolVal B.False
-  and = proc (v1,v2) -> case (v1,v2) of
+  and = liftTopBottom2 $ proc (v1,v2) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.and` b2)
     _                       -> fail -< "Expected two booleans as arguments for 'and'"
-  or = proc (v1,v2) -> case (v1,v2) of
+  or = liftTopBottom2 $ proc (v1,v2) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.or` b2)
     _                       -> fail -< "Expected two booleans as arguments for 'or'"
-  not = proc v -> case v of
+  not = liftTopBottom $ proc v -> case v of
     BoolVal b -> returnA -< BoolVal (B.not b)
     _         -> fail -< "Expected a boolean as argument for 'not'"
   numLit = proc x -> returnA -< NumVal (I.Interval (Number x) (Number x))
-  add = proc (v1,v2) -> case (v1,v2) of
+  add = liftTopBottom2 $ proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
     _                     -> fail -< "Expected two numbers as arguments for 'add'"
-  sub = proc (v1,v2) -> case (v1,v2) of
+  sub = liftTopBottom2 $ proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
     _                     -> fail -< "Expected two numbers as arguments for 'sub'"
-  mul = proc (v1,v2) -> case (v1,v2) of
+  mul = liftTopBottom2 $ proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
     _                     -> fail -< "Expected two numbers as arguments for 'mul'"
-  div = proc (v1,v2) -> case (v1,v2) of
+  div = liftTopBottom2 $ proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> case n1 / n2 of
       F.Fail e     -> fail -< (fromString e)
       F.Success n3 -> returnA -< NumVal n3
     _              -> fail -< "Expected two numbers as arguments for 'mul'"
-  eq = proc (v1,v2) -> case (v1,v2) of
+  eq = liftTopBottom2 $ proc (v1,v2) -> case (v1,v2) of
     (NumVal x,NumVal y)     -> returnA -< BoolVal (x E.== y)
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 E.== b2)
     _                       -> fail -< "Expected two values of the same type as arguments for 'eq'"
-  lt = proc (v1,v2) -> case (v1,v2) of
+  lt = liftTopBottom2 $ proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< BoolVal (n1 O.< n2)
     _                     -> fail -< "Expected two numbers as arguments for 'lt'"
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True  -> f1 -< x
     BoolVal B.False -> f2 -< y
     BoolVal B.Top   -> (f1 -< x) <⊔> (f2 -< y)
+    Bottom          -> (f1 -< x) <⊔> (f2 -< y)
+    TypeError msg   -> (fail -< msg) <⊔> (f1 -< x) <⊔> (f2 -< y)
     _               -> fail -< "Expected boolean as argument for 'if'"
   
-             
 
 instance ArrowChoice c => IsException Exception Val (ValueT Val c) where
   type JoinExc y (ValueT Val c) = ArrowComplete y (ValueT Val c)
@@ -192,8 +193,14 @@ instance PreOrd Val where
 instance Complete Val where
   (⊔) = W.toJoin widening (⊔)
 
+instance LowerBounded Val where
+  bottom = Bottom
+
 widening :: Widening IV -> Widening Val
 widening w v1 v2 = case (v1,v2) of
+  (Bottom,Bottom) -> (W.Stable,Bottom)
+  (Bottom,_) -> (W.Instable,v2)
+  (_,Bottom) -> (W.Instable,v1)
   (BoolVal b1,BoolVal b2) -> second BoolVal (B.widening b1 b2)
   (NumVal n1,NumVal n2) -> second NumVal (n1 `w` n2)
   (NumVal _,BoolVal _) -> (W.Instable, TypeError (singleton "Cannot unify a number with a boolean"))
@@ -203,8 +210,24 @@ widening w v1 v2 = case (v1,v2) of
   (TypeError m1,_) -> (W.Instable,TypeError m1)
 
 instance Show Val where
+  show Bottom = "⊥"
   show (NumVal iv) = show iv
   show (BoolVal b) = show b
   show (TypeError m) = printf "TypeError: " (show m)
 
 instance Hashable Val
+
+liftTopBottom :: (ArrowChoice c, ArrowFail (Pow String) c, Fail.Join Val c) => c Val Val -> c Val Val
+liftTopBottom f = proc v -> case v of
+  TypeError msg -> fail -< msg
+  Bottom -> returnA -< Bottom
+  _ -> f -< v
+
+liftTopBottom2 :: (ArrowChoice c, ArrowFail (Pow String) c, Fail.Join Val c) => c (Val,Val) Val -> c (Val,Val) Val
+liftTopBottom2 f = proc (v1,v2) -> case (v1,v2) of
+  (TypeError msg1, TypeError msg2) -> fail -< msg1 <> msg2
+  (TypeError msg1, _) -> fail -< msg1
+  (_, TypeError msg2) -> fail -< msg2
+  (Bottom,_) -> returnA -< Bottom
+  (_,Bottom) -> returnA -< Bottom
+  _ -> f -< (v1,v2)

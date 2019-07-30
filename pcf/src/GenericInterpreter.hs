@@ -10,7 +10,8 @@ import           Syntax (Expr(..))
 
 import           Control.Arrow
 import           Control.Arrow.Fix
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail(ArrowFail(fail))
+import qualified Control.Arrow.Fail as Fail
 import           Control.Arrow.Environment(ArrowEnv)
 import qualified Control.Arrow.Environment as Env
 
@@ -20,7 +21,7 @@ import           GHC.Exts (IsString(..),Constraint)
 
 -- | Shared interpreter for PCF.
 eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v c, ArrowFail e c, IsString e,
-         IsNum v c, IsClosure v c, Env.Join v c, Join v c)
+         IsNum v c, IsClosure v c, Env.Join v c, Fail.Join v c, Join v c)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> Env.lookup' -< x

@@ -17,17 +17,17 @@ import GHC.Exts (Constraint)
 
 -- | Arrow-based interface for exception handling.
 class (Arrow c, Profunctor c) => ArrowExcept e c | c -> e where
-  type family Join y (c :: * -> * -> *) :: Constraint
+  type Join y c :: Constraint
 
   -- | Opertion that throws an exception that can be handled with 'catch'.
-  throw :: c e a
+  throw :: Join z c => c e z
 
   -- | @'try' f g h@ executes @f@, if it succeeds the result is passed to
   -- @g@, if it fails the original input is passed to @h@.
   try :: Join z c => c x y -> c y z -> c (x,e) z -> c x z
 
 -- | Simpler version of 'throw'.
-throw' :: ArrowExcept () c => c a b
+throw' :: (Join b c, ArrowExcept () c) => c a b
 throw' = proc _ -> throw -< ()
 {-# INLINE throw' #-}
 

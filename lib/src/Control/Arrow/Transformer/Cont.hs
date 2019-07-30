@@ -12,7 +12,7 @@ import Prelude hiding (id,(.),fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Fix
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Trans
 import Control.Arrow.Reader
 import Control.Arrow.State
@@ -82,4 +82,5 @@ instance (ArrowApply c, ArrowWriter w c) => ArrowWriter w (ContT c) where
   tell = lift' tell
 
 instance (ArrowApply c, ArrowFail e c) => ArrowFail e (ContT c) where
+  type Join y (ContT c) = Fail.Join y c
   fail = lift' fail

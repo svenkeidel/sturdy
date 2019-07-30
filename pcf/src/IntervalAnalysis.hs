@@ -22,7 +22,7 @@ module IntervalAnalysis where
 import           Prelude hiding (Bounded,fail,(.),exp)
 
 import           Control.Arrow
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Environment as Env
@@ -113,8 +113,8 @@ evalInterval k env0 e = snd $
         Just (scope,used) -> strat f -< (SM.delete (scope `H.difference` used) env,(exp,lab))
         Nothing -> strat f -< (env,(exp,lab))
 
-instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) where
-  type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)
+instance (IsString e, ArrowChoice c, ArrowFail e c, Fail.Join Val c) => IsNum Val (ValueT Val c) where
+  type Join y (ValueT Val c) = (ArrowComplete y (ValueT Val c), Fail.Join y c)
 
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal $ n + 1 -- uses the `Num` instance of intervals
@@ -133,7 +133,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
       | otherwise          -> (f -< x) <⊔> (g -< y) -- case the interval contains zero and other numbers.
     _ -> fail -< "Expected a number as condition for 'ifZero'"
 
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowLowerBounded c, ArrowComplete Val (ValueT Val c), ArrowClosure var Val Env c)
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowLowerBounded c, ArrowComplete Val (ValueT Val c), ArrowClosure var Val Env c, Fail.Join Val c)
     => IsClosure Val (ValueT Val c) where
   closure _ = proc e -> do
     env <- Env.ask -< ()
@@ -142,7 +142,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowLowerBounded c, ArrowCo
     ClosureVal cls -> (| C.apply (\(e,env) -> Env.local f -< (env,(e,arg))) |) cls
     _ -> fail -< "Expected a closure"
 
-instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c) => ArrowComplete Val (ValueT Val c) where
+instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c, Fail.Join Val c) => ArrowComplete Val (ValueT Val c) where
   ValueT f <⊔> ValueT g = ValueT $ proc x -> do
     v <- ((f -< x) <⊔> (g -< x))
     case v of

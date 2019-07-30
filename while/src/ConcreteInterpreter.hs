@@ -17,18 +17,10 @@ import           Syntax
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
-import           Data.Concrete.Error (Error)
-import           Data.Hashable
-import           Data.HashMap.Lazy(HashMap)
-import qualified Data.HashMap.Lazy as M
-import           Data.Text (Text)
-import           Data.Label
-import           Data.Profunctor
-
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Except
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment
 import           Control.Arrow.Store
@@ -39,6 +31,14 @@ import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Random
 import           Control.Arrow.Transformer.Concrete.Store
 import           Control.Arrow.Transformer.Concrete.Except
+
+import           Data.Concrete.Error (Error)
+import           Data.Hashable
+import           Data.HashMap.Lazy(HashMap)
+import qualified Data.HashMap.Lazy as M
+import           Data.Text (Text)
+import           Data.Label
+import           Data.Profunctor
 
 import qualified System.Random as R
 
@@ -75,8 +75,8 @@ deriving instance ArrowRand v c => ArrowRand v (ConcreteT c)
 instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ConcreteT c) where
   alloc = arr $ \(_,_,l) -> l
 
-instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
-  type JoinVal y (ConcreteT c) = ()
+instance (ArrowChoice c, ArrowFail String c, Fail.Join Val c) => IsVal Val (ConcreteT c) where
+  type JoinVal y (ConcreteT c) = (Fail.Join y c)
 
   boolLit = arr (BoolVal)
   and = proc (v1,v2) -> case (v1,v2) of

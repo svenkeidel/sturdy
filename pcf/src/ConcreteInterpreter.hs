@@ -12,7 +12,7 @@ module ConcreteInterpreter where
 import Prelude hiding (fail,(.))
 
 import Control.Arrow
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Environment as Env
 import Control.Arrow.Trans
 import Control.Arrow.Transformer.Value
@@ -43,8 +43,8 @@ evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
 evalConcrete env e = run (eval :: ValueT Val (EnvT Text Val (FailureT String (->))) Expr Val) (M.fromList env,generate e)
 
 -- | Concrete instance of the interface for value operations.
-instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
-  type Join y (ValueT Val c) = ()
+instance (Fail.Join Val c, ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
+  type Join y (ValueT Val c) = (Fail.Join y c)
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal (n + 1)
     _ -> fail -< "Expected a number as argument for 'succ'"
@@ -56,10 +56,10 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
   if_ f g = proc (v1, (x, y)) -> case v1 of
     NumVal 0 -> f -< x
     NumVal _ -> g -< y
-
     _ -> fail -< "Expected a number as condition for 'ifZero'"
+
 -- | Concrete instance of the interface for closure operations.
-instance (ArrowClosure var Val Env c, ArrowChoice c, ArrowFail String c) => IsClosure Val (ValueT Val c) where
+instance (ArrowClosure var Val Env c, ArrowChoice c, ArrowFail String c, Fail.Join Val c) => IsClosure Val (ValueT Val c) where
   closure _ = proc e -> do
     env <- Env.ask -< ()
     returnA -< ClosureVal (Closure e env)

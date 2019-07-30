@@ -15,7 +15,7 @@ import Control.Category
 
 import Control.Arrow
 import Control.Arrow.Environment as Env
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Except as Exc
 import Control.Arrow.Trans
 import Control.Arrow.Reader as Reader
@@ -99,6 +99,7 @@ instance (Applicative f, ArrowWriter w c) => ArrowWriter w (StaticT f c) where
   {-# INLINE tell #-}
 
 instance (Applicative f, ArrowFail e c) => ArrowFail e (StaticT f c) where
+  type Join y (StaticT f c) = Fail.Join y c
   fail = lift' fail
   {-# INLINE fail #-}
 

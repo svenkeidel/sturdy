@@ -7,18 +7,19 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Environment where
 
-import Prelude hiding (lookup,fail,id)
+import           Prelude hiding (lookup,fail,id)
 
-import Control.Category
-import Control.Arrow
-import Control.Arrow.Fail
+import           Control.Category
+import           Control.Arrow
+import           Control.Arrow.Fail (ArrowFail)
+import qualified Control.Arrow.Fail as Fail
 
-import Data.String
-import Data.Profunctor
+import           Data.String
+import           Data.Profunctor
 
-import Text.Printf
+import           Text.Printf
 
-import GHC.Exts (Constraint)
+import           GHC.Exts (Constraint)
 
 
 -- | Arrow-based interface for interacting with environments.
@@ -43,14 +44,14 @@ class ArrowEnv var val c => ArrowClosure var val env c | c -> env where
   local :: c x y -> c (env,x) y
 
 -- | Simpler version of environment lookup.
-lookup' :: (Join val c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
+lookup' :: (Fail.Join val c, Join val c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
 lookup' = lookup'' id
 
-lookup'' :: (Join y c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c val y -> c var y
+lookup'' :: (Fail.Join y c, Join y c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c val y -> c var y
 lookup'' f = proc var ->
   lookup
-    (proc (val,_) -> f     -< val)
-    (proc var     -> fail  -< fromString $ printf "Variable %s not bound" (show var))
+    (proc (val,_) -> f         -< val)
+    (proc var     -> Fail.fail -< fromString $ printf "Variable %s not bound" (show var))
     -< (var,var)
 
 extend' :: (ArrowChoice c, ArrowEnv var val c) => c x y -> c ([(var,val)],x) y

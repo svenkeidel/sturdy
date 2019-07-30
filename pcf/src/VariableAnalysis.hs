@@ -22,7 +22,7 @@ module VariableAnalysis where
 import           Prelude hiding (Bounded,fail,(.),exp)
 
 import           Control.Arrow
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Environment as Env
@@ -77,7 +77,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => IsNu
   zero = proc _ -> returnA -< ()
   if_ f g = proc ((),(x,y)) -> (f -< x) <⊔> (g -< y)
 
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowEnv Text () c) => IsClosure Val (ValueT Val c) where
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowEnv Text () c, Fail.Join () c) => IsClosure Val (ValueT Val c) where
   closure f = proc e0 -> case e0 of
     Lam x e _ -> Env.extend f -< (x,(),e)
     Y e _ -> f -< e

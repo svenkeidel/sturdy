@@ -14,7 +14,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader as Reader
 import Control.Arrow.Store as Store
@@ -113,6 +113,7 @@ instance ArrowWriter w c => ArrowWriter w (ReaderT r c) where
   {-# INLINE tell #-}
 
 instance ArrowFail e c => ArrowFail e (ReaderT r c) where
+  type Join y (ReaderT r c) = Fail.Join y c
   fail = lift' fail
   {-# INLINE fail #-}
 

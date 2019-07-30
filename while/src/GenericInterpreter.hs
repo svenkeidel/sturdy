@@ -11,7 +11,8 @@ import           Prelude hiding (lookup, and, or, not, div, read)
 import           Data.Label
 
 import           Control.Arrow
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail(ArrowFail)
+import qualified Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment(ArrowEnv)
 import qualified Control.Arrow.Environment as Env
@@ -40,7 +41,8 @@ eval :: (Show addr, ArrowChoice c, ArrowRand v c,
          ArrowEnv Text addr c, ArrowStore addr v c,
          ArrowExcept exc c, ArrowFail e c,
          IsVal v c, IsException exc v c, IsString e,
-         Env.Join v c, Store.Join v c
+         Except.Join v c, Env.Join v c, Store.Join v c,
+         Fail.Join v c
         )
      => c Expr v
 eval = proc e -> case e of
@@ -98,8 +100,8 @@ run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
         ArrowExcept exc c, ArrowRand v c,
         IsString err, IsVal v c, IsException exc v c,
         Env.Join v c, Env.Join addr c,
-        Store.Join v c, Except.Join () c,
-        JoinVal () c, JoinExc () c
+        Store.Join v c, Except.Join v c, Except.Join () c,
+        Fail.Join v c, JoinVal () c, JoinExc () c
        )
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of

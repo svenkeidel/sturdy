@@ -13,7 +13,7 @@ import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Order
 import Control.Arrow.Random
@@ -34,6 +34,9 @@ newtype WriterT w c x y = WriterT { runWriterT :: c x (w,y) }
 
 censor :: (Arrow c,Profunctor c) => (x -> w -> w) -> WriterT w c x y -> WriterT w c x y
 censor f (WriterT g) = WriterT (dimap (\x -> (x,x)) (\(x,(w,y)) -> (f x w,y)) (second g))
+
+listen :: Profunctor c => WriterT w c x y -> WriterT w c x (w,y)
+listen (WriterT f) = WriterT (rmap (\(w,y) -> (w,(w,y))) f)
 
 instance (Monoid w,ArrowRun c) => ArrowRun (WriterT w c) where
   type Rep (WriterT w c) x y = Rep c x (w,y)
@@ -113,12 +116,13 @@ instance (Monoid w, Arrow c, Profunctor c) => ArrowWriter w (WriterT w c) where
   {-# INLINE tell #-}
 
 instance (Monoid w, ArrowFail e c) => ArrowFail e (WriterT w c) where
+  type Join y (WriterT w c) = Fail.Join y c
   fail = lift' fail
   {-# INLINE fail #-}
 
 instance (Monoid w, ArrowExcept e c) => ArrowExcept e (WriterT w c) where
   type Join y (WriterT w c) = Exc.Join (w,y) c
-  throw = lift' throw
+  throw = lift throw
   try f g h = lift $ try (unlift f) (rmap (\(w1,(w2,z)) -> (w1 <> w2,z)) (second (unlift g))) (unlift h)
   {-# INLINE throw #-}
   {-# INLINE try #-}
