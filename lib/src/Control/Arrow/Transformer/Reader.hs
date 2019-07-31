@@ -155,8 +155,8 @@ instance ArrowLowerBounded c => ArrowLowerBounded (ReaderT r c) where
   {-# INLINE bottom #-}
 
 instance ArrowJoin c => ArrowJoin (ReaderT r c) where
-  join lub f g = lift $ join lub (unlift f) (unlift g)
-  {-# INLINE join #-}
+  joinSecond g = lift $ lmap shuffle1 (joinSecond (unlift g))
+  {-# INLINE joinSecond #-}
 
 instance ArrowComplete y c => ArrowComplete y (ReaderT r c) where
   f <⊔> g = lift $ unlift f <⊔> unlift g

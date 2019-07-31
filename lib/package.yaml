@@ -22,9 +22,6 @@ library:
   ghc-options: -Wall
   source-dirs:
     - src
-  when:
-    - condition: flag(trace)
-      cpp-options: -DTRACE
 
 tests:
   spec:
@@ -44,3 +41,5 @@ benchmarks:
     dependencies:
       - sturdy-lib
       - criterion
+      - dump-core
+    ghc-options: -fplugin=DumpCore -fplugin-opt DumpCore:core-html -O2

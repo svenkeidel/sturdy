@@ -171,8 +171,8 @@ instance (ArrowLowerBounded c) => ArrowLowerBounded (StateT s c) where
   {-# INLINE bottom #-}
 
 instance (ArrowJoin c, O.Complete s) => ArrowJoin (StateT s c) where
-  join lub f g = lift $ join (\(s1,z1) (s2,z2) -> (s1 O.⊔ s2,lub z1 z2)) (unlift f) (unlift g)
-  {-# INLINE join #-}
+  joinSecond g = lift $ dimap (\(s,(z,x)) -> ((s,z),(s,x))) (\((s,z),(s',x)) -> (s O.⊔ s',(z,x))) (joinSecond (unlift g))
+  {-# INLINE joinSecond #-}
 
 instance (ArrowComplete (s,y) c) => ArrowComplete y (StateT s c) where
   f <⊔> g = lift $ unlift f <⊔> unlift g

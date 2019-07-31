@@ -31,7 +31,7 @@ import           Data.Coerce
 
 -- | Computation that produces a set of results.
 newtype PowT c x y = PowT (KleisliT A.Pow c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, 
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
             ArrowFail e', ArrowExcept e')
@@ -49,6 +49,3 @@ instance (Identifiable y, ArrowChoice c, ArrowFix x (A.Pow y) c) => ArrowFix x y
 
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (PowT c) where
   bottom = lift $ arr (\_ -> A.empty)
-
-instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
-  join _ f g = lift $ join A.union (unlift f) (unlift g)

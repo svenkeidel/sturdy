@@ -85,11 +85,13 @@ instance Monad (Failure e) where
   Fail e >>= _ = Fail e
   Success a >>= k = k a
 
-instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Failure e) c c where
-  mapA f = lmap toEither (arr Fail ||| rmap Success f) 
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Failure e) c where
+  mapA f = lmap toEither (arr Fail ||| rmap Success f)
+  {-# INLINE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad (Failure e) c where
   mapJoinA f = lmap toEither (arr Fail ||| f) 
+  {-# INLINE mapJoinA #-}
 
 fromFailure :: a -> Failure e a -> a
 fromFailure _ (Success a) = a

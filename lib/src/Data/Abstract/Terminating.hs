@@ -38,11 +38,18 @@ instance Monad Terminating where
   Terminating x >>= k = k x
   NonTerminating >>= _ = NonTerminating
 
-instance (ArrowChoice c, Profunctor c) => ArrowFunctor Terminating c c where
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor Terminating c where
   mapA f = lmap toEither (arr (\_ -> NonTerminating) ||| rmap Terminating f)
+  {-# INLINEABLE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad Terminating c where
   mapJoinA f = lmap toEither (arr (\_ -> NonTerminating) ||| f)
+  {-# INLINEABLE mapJoinA #-}
+
+toEither :: Terminating a -> Either () a
+toEither (Terminating a) = Right a
+toEither NonTerminating = Left ()
+{-# INLINE toEither #-}
 
 instance PreOrd a => PreOrd (Terminating a) where
   NonTerminating ⊑ _ = True
@@ -94,7 +101,3 @@ fromTerminating a NonTerminating = a
 toMaybe :: Terminating a -> Maybe a
 toMaybe (Terminating a) = Just a
 toMaybe NonTerminating = Nothing
-
-toEither :: Terminating a -> Either () a
-toEither (Terminating a) = Right a
-toEither NonTerminating = Left ()

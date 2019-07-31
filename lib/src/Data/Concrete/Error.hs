@@ -23,11 +23,13 @@ instance Monad (Error e) where
   Fail e >>= _ = Fail e
   Success a >>= k = k a
 
-instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Error e) c c where
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Error e) c where
   mapA f = lmap toEither (arr Fail ||| rmap Success f)
+  {-# INLINE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad (Error e) c where
   mapJoinA f = lmap toEither (arr Fail ||| f)
+  {-# INLINE mapJoinA #-}
 
 instance (Show e,Show a) => Show (Error e a) where
   show (Fail e) = "Error " ++ show e

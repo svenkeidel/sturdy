@@ -25,7 +25,6 @@ import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
 
 import Data.Abstract.Failure
-import Data.Abstract.Widening (toJoin)
 
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
@@ -33,7 +32,7 @@ import Data.Coerce
 
 -- | Describes computations that can fail.
 newtype FailureT e c x y = FailureT (KleisliT (Failure e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, 
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
             ArrowExcept e')
@@ -51,6 +50,3 @@ instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FailureT e c
 type instance Fix x y (FailureT e c) = FailureT e (Fix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c)
 deriving instance (ArrowChoice c, ArrowFix (Dom (FailureT e) x y) (Cod (FailureT e) x y) c) =>
   ArrowFix x y (FailureT e c)
-
-instance (ArrowChoice c,ArrowJoin c) => ArrowJoin (FailureT e c) where
-  join lub f g = lift $ join (toJoin widening lub) (unlift f) (unlift g)

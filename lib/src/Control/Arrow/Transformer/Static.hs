@@ -35,6 +35,7 @@ instance (Applicative f, ArrowRun c) =>  ArrowRun (StaticT f c) where
   type Rep (StaticT f c) x y = f (Rep c x y)
   run = fmap run . runStaticT
   {-# INLINE run #-}
+  {-# SPECIALIZE instance (ArrowRun c) => ArrowRun (StaticT ((->) r) c) #-}
 
 instance (Applicative f, Profunctor c) => Profunctor (StaticT f c) where
   dimap f g (StaticT h) = StaticT $ dimap f g <$> h
@@ -47,16 +48,19 @@ instance (Applicative f, Profunctor c) => Profunctor (StaticT f c) where
   {-# INLINE rmap #-}
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
+  {-# SPECIALIZE instance (Profunctor c) => Profunctor (StaticT ((->) r) c) #-}
 
 instance Applicative f => ArrowLift (StaticT f) where
   lift' = StaticT . pure
   {-# INLINE lift' #-}
+  {-# SPECIALIZE instance ArrowLift (StaticT ((->) r)) #-}
 
-instance (Applicative f, Arrow c, Profunctor c) => Category (StaticT f c) where
-  id = lift' id
+instance (Applicative f, Category c, Profunctor c) => Category (StaticT f c) where
+  id = StaticT (pure id)
   StaticT f . StaticT g = StaticT $ (.) <$> f <*> g
   {-# INLINE id #-}
   {-# INLINE (.) #-}
+  {-# SPECIALIZE instance (Arrow c, Profunctor c) => Category (StaticT ((->) r) c) #-}
 
 instance (Applicative f, Arrow c, Profunctor c) => Arrow (StaticT f c) where
   arr = lift' . arr
@@ -69,6 +73,7 @@ instance (Applicative f, Arrow c, Profunctor c) => Arrow (StaticT f c) where
   {-# INLINE second #-}
   {-# INLINE (&&&) #-}
   {-# INLINE (***) #-}
+  {-# SPECIALIZE instance (Arrow c, Profunctor c) => Arrow (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowChoice c, Profunctor c) => ArrowChoice (StaticT f c) where
   left (StaticT f) = StaticT $ left <$> f
@@ -79,6 +84,7 @@ instance (Applicative f, ArrowChoice c, Profunctor c) => ArrowChoice (StaticT f 
   {-# INLINE right #-}
   {-# INLINE (+++) #-}
   {-# INLINE (|||) #-}
+  {-# SPECIALIZE instance (ArrowChoice c, Profunctor c) => ArrowChoice (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowState s c) => ArrowState s (StaticT f c) where
   get = lift' State.get
@@ -87,20 +93,24 @@ instance (Applicative f, ArrowState s c) => ArrowState s (StaticT f c) where
   {-# INLINE get #-}
   {-# INLINE put #-}
   {-# INLINE modify #-}
+  {-# SPECIALIZE instance ArrowState s c => ArrowState s (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowReader r c) => ArrowReader r (StaticT f c) where
   ask = lift' Reader.ask
   local (StaticT f) = StaticT $ Reader.local <$> f
   {-# INLINE ask #-}
   {-# INLINE local #-}
+  {-# SPECIALIZE instance ArrowReader r c => ArrowReader r (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowWriter w c) => ArrowWriter w (StaticT f c) where
   tell = lift' tell
   {-# INLINE tell #-}
+  {-# SPECIALIZE instance ArrowWriter e c => ArrowWriter e (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowFail e c) => ArrowFail e (StaticT f c) where
   fail = lift' fail
   {-# INLINE fail #-}
+  {-# SPECIALIZE instance ArrowFail e c => ArrowFail e (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowExcept e c) => ArrowExcept e (StaticT f c) where
   type Join y (StaticT f c) = Exc.Join y c
@@ -108,6 +118,7 @@ instance (Applicative f, ArrowExcept e c) => ArrowExcept e (StaticT f c) where
   try (StaticT f) (StaticT g) (StaticT h) = StaticT $ try <$> f <*> g <*> h
   {-# INLINE throw #-}
   {-# INLINE try #-}
+  {-# SPECIALIZE instance ArrowExcept e c => ArrowExcept e (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowEnv var val c) => ArrowEnv var val (StaticT f c) where
   type Join y (StaticT f c) = Env.Join y c
@@ -115,12 +126,14 @@ instance (Applicative f, ArrowEnv var val c) => ArrowEnv var val (StaticT f c) w
   extend (StaticT f) = StaticT $ Env.extend <$> f
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
+  {-# SPECIALIZE instance ArrowEnv var val c => ArrowEnv var val (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowClosure var val env c) => ArrowClosure var val env (StaticT f c) where
   ask = lift' Env.ask
   local (StaticT f) = StaticT $ Env.local <$> f
   {-# INLINE ask #-}
   {-# INLINE local #-}
+  {-# SPECIALIZE instance ArrowClosure var val env c => ArrowClosure var val env (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f c) where
   type Join y (StaticT f c) = Store.Join y c
@@ -128,14 +141,19 @@ instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f 
   write = lift' write
   {-# INLINE read #-}
   {-# INLINE write #-}
+  {-# SPECIALIZE instance ArrowStore var val c => ArrowStore var val (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowLowerBounded c) => ArrowLowerBounded (StaticT f c) where
   bottom = StaticT (pure bottom)
   {-# INLINE bottom #-}
+  {-# SPECIALIZE instance ArrowLowerBounded c => ArrowLowerBounded (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowJoin c) => ArrowJoin (StaticT f c) where
-  join lub (StaticT f) (StaticT g) = StaticT $ join lub <$> f <*> g
-  {-# INLINE join #-}
+  joinSecond (StaticT g) = StaticT $ joinSecond <$> g
+  {-# INLINE joinSecond #-}
+  {-# SPECIALIZE instance ArrowJoin c => ArrowJoin (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowComplete y c) => ArrowComplete y (StaticT f c) where
   StaticT f <⊔> StaticT g = StaticT $ (<⊔>) <$> f <*> g 
+  {-# INLINE (<⊔>) #-}
+  {-# SPECIALIZE instance ArrowComplete y c => ArrowComplete y (StaticT ((->) r) c) #-}

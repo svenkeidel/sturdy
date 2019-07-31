@@ -49,7 +49,7 @@ instance Show a => Show (Pow a) where
 instance (Eq a, Hashable a) => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
 
-instance (ArrowChoice c, Profunctor c) => ArrowFunctor Pow c c where
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor Pow c where
   mapA f = lmap toEither (arr (\_ -> empty) ||| rmap (\(y,Pow ys) -> Pow (y <| ys)) (f *** mapA f))
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad Pow c where

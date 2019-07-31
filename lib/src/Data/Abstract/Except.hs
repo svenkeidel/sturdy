@@ -37,6 +37,20 @@ data Except e x
   | SuccessOrFail e x
   deriving (Eq, Show, Generic, Generic1, NFData, NFData1)
 
+instance (O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c where
+  mapA f = lmap toEither (arr Fail ||| rmap Success f ||| rmap (\(e,y) -> SuccessOrFail e y) (O.joinSecond f))
+  {-# INLINABLE mapA #-}
+
+instance (Complete e, O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
+  mapJoinA f = lmap toEither (arr Fail ||| f ||| rmap lub (O.joinSecond f))
+    where 
+      lub (e,m) = case m of
+        Fail e' -> Fail (e ⊔ e')
+        Success y -> SuccessOrFail e y
+        SuccessOrFail e' y -> SuccessOrFail (e ⊔ e') y
+      {-# INLINE lub #-}
+  {-# INLINABLE mapJoinA #-}
+
 instance (Hashable e, Hashable x) => Hashable (Except e x) where
   hashWithSalt s (Success x) = s `hashWithSalt` (0::Int) `hashWithSalt` x
   hashWithSalt s (Fail e) = s `hashWithSalt` (1::Int) `hashWithSalt` e
@@ -53,6 +67,7 @@ instance (PreOrd e, PreOrd a) => PreOrd (Except e a) where
 
 instance (Complete e, Complete a) => Complete (Except e a) where
   (⊔) = toJoin2 widening (⊔) (⊔)
+  {-# INLINE (⊔) #-}
 
 widening :: Widening e -> Widening a -> Widening (Except e a)
 widening we wa m1 m2 = case (m1,m2) of
@@ -68,6 +83,7 @@ widening we wa m1 m2 = case (m1,m2) of
        let (s,e'') = e `we` e'
            (s',z)  = x `wa` y
        in (s ⊔ s',SuccessOrFail e'' z)
+{-# INLINE widening #-}
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeCompletion a)) => Complete (FreeCompletion (Except e a)) where
   Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of
@@ -115,17 +131,6 @@ instance Complete e => Monad (Except e) where
       Fail e' -> Fail (e ⊔ e')
       SuccessOrFail e' z -> SuccessOrFail (e ⊔ e') z
 
-instance (O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c c where
-  mapA f = lmap toEither (arr Fail ||| rmap Success f ||| O.join' (\(Fail e) (Success x) -> SuccessOrFail e x) (arr Fail) (rmap Success f))
-
-instance (Complete e, O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
-  mapJoinA f = lmap toEither (arr Fail ||| f ||| O.join' lub (arr Fail) f)
-    where 
-      lub (Fail e) m = case m of
-        Fail e' -> Fail (e ⊔ e')
-        Success y -> SuccessOrFail e y
-        SuccessOrFail e' y -> SuccessOrFail (e ⊔ e') y
-      lub _ _ = error "cannot happen"
 
 instance Foldable (Except e) where
   foldMap = foldMapDefault
@@ -139,7 +144,7 @@ toEither :: Except e a -> Either e (Either a (e,a))
 toEither (Fail e) = Left e
 toEither (Success a) = Right (Left a)
 toEither (SuccessOrFail e a) = Right (Right (e,a))
-
+{-# INLINE toEither #-}
 
 fromMaybe :: Maybe a -> Except () a
 fromMaybe m = case m of

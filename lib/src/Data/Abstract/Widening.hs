@@ -46,6 +46,7 @@ instance LowerBounded Stable where
 -- trivial widening operator.
 finite :: Complete a => Widening a
 finite a b = let x = a ⊔ b in (if x ⊑ a then Stable else Instable,x)
+{-# INLINE finite #-}
 
 toJoin :: (Widening a -> Widening b) -> (a -> a -> a) -> (b -> b -> b)
 toJoin f g a a' = snd (f (\b b' -> (Instable,g b b')) a a')

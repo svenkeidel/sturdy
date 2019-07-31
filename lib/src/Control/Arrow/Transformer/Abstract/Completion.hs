@@ -32,7 +32,7 @@ import Data.Coerce
 -- | Allows to describe computations over non-completely ordered types.
 -- E.g. allows to join a computation of type 'c x [y]'.
 newtype CompletionT c x y = CompletionT (KleisliT FreeCompletion c x y) 
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, 
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
             ArrowFail e, ArrowExcept e)
@@ -48,9 +48,3 @@ deriving instance (ArrowChoice c, ArrowFix (Dom (CompletionT) x y) (Cod (Complet
 
 instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (CompletionT c) where
   bottom = lift $ bottom
-
-instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where
-  join lub f g = lift $ join joinVal (unlift f) (unlift g)
-    where joinVal (Lower x) (Lower y) = Lower (lub x y)
-          joinVal Top _ = Top
-          joinVal _ Top = Top

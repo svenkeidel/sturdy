@@ -99,7 +99,7 @@ instance (IsCache cache a b, ArrowRun c) => ArrowRun (ParallelT cache a b c) whe
 instance (Profunctor c,ArrowApply c) => ArrowApply (ParallelT cache a b c) where app = ParallelT (lmap (first coerce) app)
 instance IsEmpty (cache a b) => IsEmpty (Iteration cache a b) where empty = Iteration empty empty W.Stable
 instance (ArrowEffectCommutative c) => ArrowJoin (ParallelT cache a b c) where
-  join _lub (ParallelT f) (ParallelT g) = ParallelT $ rmap (uncurry _lub) (f &&& g)
+  joinSecond (ParallelT g) = ParallelT $ second g
 instance (ArrowEffectCommutative c, Complete y) => ArrowComplete y (ParallelT cache a b c) where
   ParallelT f <⊔> ParallelT g = ParallelT $ rmap (uncurry (⊔)) (f &&& g)
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ParallelT cache a b c)

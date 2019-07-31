@@ -11,8 +11,8 @@ class Monoidal m where
 
 instance Monoidal (,) where
   mmap f g (x,y) = (f x,g y)
-  assoc1 (a,(b,c)) = ((a,b),c)
-  assoc2 ((a,b),c) = (a,(b,c))
+  assoc1 = \(a,(b,c)) -> ((a,b),c)
+  assoc2 = \((a,b),c) -> (a,(b,c))
   {-# INLINE mmap #-}
   {-# INLINE assoc1 #-}
   {-# INLINE assoc2 #-}

@@ -57,11 +57,13 @@ instance Monad (Error e) where
   Fail e >>= _ = Fail e
   Success a >>= k = k a
 
-instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Error e) c c where
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Error e) c where
   mapA f = lmap toEither (arr Fail ||| rmap Success f)
+  {-# INLINABLE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad (Error e) c where
   mapJoinA f = lmap toEither (arr Fail ||| f)
+  {-# INLINABLE mapJoinA #-}
 
 instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
   Success x ⊑ Success y = x ⊑ y
@@ -111,6 +113,7 @@ fromEither (Right a) = Success a
 toEither :: Error e a -> Either e a
 toEither (Fail e) = Left e
 toEither (Success a) = Right a
+{-# INLINE toEither #-}
 
 fromMaybe :: Maybe a -> Error () a
 fromMaybe Nothing = Fail ()

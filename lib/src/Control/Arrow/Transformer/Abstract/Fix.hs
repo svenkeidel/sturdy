@@ -30,10 +30,6 @@ import           Data.Coerce
 newtype FixT a b c x y = FixT { unFixT :: ConstT (IterationStrategy c a b) c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComplete z, ArrowJoin)
 
--- runFixT :: (Identifiable a, PreOrd b, Profunctor c, ArrowRun t)
---   => IterationStrategy (t c) a b -> FixT a b (t c) x y -> c x y
--- runFixT iterationStrat f = run (runFixT' iterationStrat f)
-
 runFixT :: (Identifiable a, PreOrd b)
   => IterationStrategy c a b -> FixT a b c x y -> c x y
 runFixT iterationStrat (FixT f) = runConstT iterationStrat f
@@ -50,12 +46,16 @@ instance (Profunctor c,ArrowChoice c,ArrowApply c) => ArrowFix a b (FixT a b c) 
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (FixT a b c) where
   app = FixT (app .# first coerce)
+  {-# INLINE app #-}
 
 instance ArrowLift (FixT a b) where
   lift' = FixT . lift'
+  {-# INLINE lift' #-}
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (FixT a b c)
 
 ----- Helper functions -----
 iterationStrategy :: FixT a b c a b -> FixT a b c a b
 iterationStrategy (FixT (ConstT (StaticT f))) = FixT $ ConstT $ StaticT $ \strat -> strat (f strat)
+{-# INLINE iterationStrategy #-}
+

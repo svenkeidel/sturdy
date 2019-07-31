@@ -159,8 +159,8 @@ instance (Monoid w, ArrowLowerBounded c) => ArrowLowerBounded (WriterT w c) wher
   {-# INLINE bottom #-}
 
 instance (Monoid w, O.Complete w, ArrowJoin c) => ArrowJoin (WriterT w c) where
-  join lub f g = lift $ join (\(w1,z1) (w2,z2) -> (w1 O.⊔ w2, lub z1 z2)) (unlift f) (unlift g)
-  {-# INLINE join #-}
+  joinSecond g = lift $ rmap shuffle1 (joinSecond (unlift g))
+  {-# INLINE joinSecond #-}
 
 instance (Monoid w, ArrowComplete (w,y) c) => ArrowComplete y (WriterT w c) where
   f <⊔> g = lift $ unlift f <⊔> unlift g

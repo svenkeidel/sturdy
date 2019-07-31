@@ -22,7 +22,6 @@ import Control.Arrow.Transformer.Kleisli
 import Control.Category
 
 import Data.Abstract.Terminating
-import Data.Abstract.Widening (toJoin)
 
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
@@ -30,7 +29,7 @@ import Data.Coerce
 
 -- | Arrow that propagates non-terminating computations.
 newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y) 
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore addr val)
 
@@ -40,14 +39,13 @@ runTerminatingT = coerce
 
 instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (TerminatingT c) where
   app = lift (app .# first coerce)
+  {-# INLINE app #-}
 
 type instance Fix x y (TerminatingT c) = TerminatingT (Fix (Dom TerminatingT x y) (Cod TerminatingT x y) c)
 deriving instance (ArrowChoice c, ArrowFix (Dom TerminatingT x y) (Cod TerminatingT x y) c) => ArrowFix x y (TerminatingT c)
 
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (TerminatingT c) where
   bottom = lift $ arr (\_ -> NonTerminating)
-
-instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (TerminatingT c) where
-  join lub' f g = lift $ join (toJoin widening lub') (unlift f) (unlift g)
+  {-# INLINE bottom #-}
 
 deriving instance (ArrowChoice c, ArrowComplete (Terminating y) c) => ArrowComplete y (TerminatingT c)

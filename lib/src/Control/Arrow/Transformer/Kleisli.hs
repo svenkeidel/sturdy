@@ -53,8 +53,8 @@ instance ArrowMonad f c => Profunctor (KleisliT f c) where
   dimap f g h = lift $ dimap f (fmap g) $ unlift h
   lmap f h = lift $ lmap f (unlift h)
   rmap g h = lift $ rmap (fmap g) (unlift h)
-  f .# _ = f `seq` unsafeCoerce f
-  _ #. g = g `seq` unsafeCoerce g
+  f .# _ = unsafeCoerce f
+  _ #. g = unsafeCoerce g
   {-# INLINE dimap #-}
   {-# INLINE lmap #-}
   {-# INLINE rmap #-}
@@ -148,3 +148,8 @@ instance (ArrowMonad f c, ArrowConst r c) => ArrowConst r (KleisliT f c) where
 instance (ArrowMonad f c, ArrowComplete (f y) c) => ArrowComplete y (KleisliT f c) where
   f <⊔> g = lift $ unlift f <⊔> unlift g
   {-# INLINE (<⊔>) #-}
+
+instance (ArrowMonad f c, ArrowJoin c) => ArrowJoin (KleisliT f c) where
+  joinSecond g = lift $ rmap strength2 (joinSecond (unlift g))
+  {-# INLINE joinSecond#-}
+  

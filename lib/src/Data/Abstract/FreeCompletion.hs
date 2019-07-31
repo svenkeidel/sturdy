@@ -43,11 +43,13 @@ instance Monad FreeCompletion where
   Lower x >>= k = k x
   Top >>= _ = Top
 
-instance (ArrowChoice c, Profunctor c) => ArrowFunctor FreeCompletion c c where
+instance (ArrowChoice c, Profunctor c) => ArrowFunctor FreeCompletion c where
   mapA f = lmap toEither (arr (const Top) ||| rmap Lower f)
+  {-# INLINE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad FreeCompletion c where
   mapJoinA f = lmap toEither (arr (const Top) ||| f)
+  {-# INLINE mapJoinA #-}
 
 instance PreOrd a => PreOrd (FreeCompletion a) where
   _ ⊑ Top = True

@@ -5,10 +5,10 @@ import Control.Arrow
 import Control.Monad (join)
 import Data.Profunctor
 
-class (Functor f, Arrow c, Profunctor c, Arrow d, Profunctor d) => ArrowFunctor f c d where
-  mapA :: c x y -> d (f x) (f y)
+class (Functor f, Arrow c, Profunctor c) => ArrowFunctor f c where
+  mapA :: c x y -> c (f x) (f y)
 
-class (Monad f, ArrowFunctor f c c) => ArrowMonad f c where
+class (Monad f, ArrowFunctor f c) => ArrowMonad f c where
   unitA :: c x (f x)
   unitA = arr return
 

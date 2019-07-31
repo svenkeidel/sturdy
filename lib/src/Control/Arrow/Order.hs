@@ -36,13 +36,11 @@ class (Arrow c, Profunctor c) => ArrowEffectCommutative c
 instance ArrowEffectCommutative (->)
 
 class (Arrow c, Profunctor c) => ArrowJoin c where
-  join :: (y -> y -> y) -> c x y -> c x y -> c x y
+  joinSecond :: c x y -> c (z,x) (z,y)
 
 instance ArrowJoin (->) where
-  join lub f g = \x -> f x `lub` g x
-
-join' :: (ArrowJoin c) => (y -> y -> y) -> c x y -> c x' y -> c (x,x') y
-join' lub f g = join lub (lmap fst f) (lmap snd g)
+  joinSecond g = \(z,x) -> (z,g x)
+  {-# INLINE joinSecond #-}
 
 -- | Joins a list of arguments. Use it with idiom brackets:
 -- @
