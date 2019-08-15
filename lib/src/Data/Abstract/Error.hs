@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -59,11 +60,19 @@ instance Monad (Error e) where
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Error e) c where
   mapA f = lmap toEither (arr Fail ||| rmap Success f)
+#ifdef _INLINE
   {-# INLINABLE mapA #-}
+#else
+  {-# NOINLINE mapA #-}
+#endif
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad (Error e) c where
   mapJoinA f = lmap toEither (arr Fail ||| f)
+#ifdef _INLINE
   {-# INLINABLE mapJoinA #-}
+#else
+  {-# NOINLINE mapJoinA #-}
+#endif
 
 instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
   Success x ⊑ Success y = x ⊑ y

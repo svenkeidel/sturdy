@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -42,30 +43,58 @@ instance ArrowTrans (KleisliT f) where
   type Cod (KleisliT f) x y = f y
   lift = coerce
   unlift = coerce
+#ifdef _INLINE
   {-# INLINE lift #-}
   {-# INLINE unlift #-}
+#else
+  {-# NOINLINE lift #-}
+  {-# NOINLINE unlift #-}
+#endif
 
 instance Monad f => ArrowLift (KleisliT f) where
   lift' f = lift $ rmap return f
+#ifdef _INLINE
   {-# INLINE lift' #-}
+#else
+  {-# NOINLINE lift' #-}
+#endif
 
 instance ArrowMonad f c => Profunctor (KleisliT f c) where
+#ifdef PROFUNCTOR
   dimap f g h = lift $ dimap f (fmap g) $ unlift h
   lmap f h = lift $ lmap f (unlift h)
   rmap g h = lift $ rmap (fmap g) (unlift h)
+#else
+  dimap f g h = f ^>> h >>^ g
+  lmap f h = f ^>> h
+  rmap g h = h >>^ g
+#endif
   f .# _ = unsafeCoerce f
   _ #. g = unsafeCoerce g
+#ifdef _INLINE
   {-# INLINE dimap #-}
   {-# INLINE lmap #-}
   {-# INLINE rmap #-}
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
+#else
+  {-# NOINLINE dimap #-}
+  {-# NOINLINE lmap #-}
+  {-# NOINLINE rmap #-}
+  {-# NOINLINE (.#) #-}
+  {-# NOINLINE (#.) #-}
+#endif
 
 instance ArrowMonad f c => Category (KleisliT f c) where
   id = lift unitA
   f . g = lift $ mapJoinA (unlift f) . unlift g
+#ifdef _INLINE
   {-# INLINE id #-}
   {-# INLINE (.) #-}
+#else
+  {-# NOINLINE id #-}
+  {-# NOINLINE (.) #-}
+#endif
 
 instance ArrowMonad f c => Arrow (KleisliT f c) where
   arr f = lift $ arr (return . f)
@@ -73,83 +102,151 @@ instance ArrowMonad f c => Arrow (KleisliT f c) where
   second f = lift $ rmap strength2 (second (unlift f))
   f &&& g = lmap (\x -> (x,x)) (f *** g)
   f *** g = first f >>> second g
+#ifdef _INLINE
   {-# INLINE arr #-}
   {-# INLINE first #-}
   {-# INLINE second #-}
   {-# INLINE (&&&) #-}
   {-# INLINE (***) #-}
+#else
+  {-# NOINLINE arr #-}
+  {-# NOINLINE first #-}
+  {-# NOINLINE second #-}
+  {-# NOINLINE (&&&) #-}
+  {-# NOINLINE (***) #-}
+#endif
 
 instance (ArrowMonad f c, ArrowChoice c) => ArrowChoice (KleisliT f c) where
   left f = lift $ rmap strength1 $ left (unlift f)
   right f = lift $ rmap strength2 $ right (unlift f)
   f ||| g = lift $ unlift f ||| unlift g
   f +++ g = left f >>> right g
+#ifdef _INLINE
   {-# INLINE left #-}
   {-# INLINE right #-}
   {-# INLINE (+++) #-}
   {-# INLINE (|||) #-}
+#else
+  {-# NOINLINE left #-}
+  {-# NOINLINE right #-}
+  {-# NOINLINE (+++) #-}
+  {-# NOINLINE (|||) #-}
+#endif
 
 instance (ArrowMonad f c, ArrowApply c) => ArrowApply (KleisliT f c) where
   app = lift (app .# first coerce)
+#ifdef _INLINE
   {-# INLINE app #-}
+#else
+  {-# NOINLINE app #-}
+#endif
 
 instance (ArrowMonad f c, ArrowState s c) => ArrowState s (KleisliT f c) where
   get = lift' State.get
   put = lift' State.put
+#ifdef _INLINE
   {-# INLINE get #-}
   {-# INLINE put #-}
+#else
+  {-# NOINLINE get #-}
+  {-# NOINLINE put #-}
+#endif
 
 instance (ArrowMonad f c, ArrowReader r c) => ArrowReader r (KleisliT f c) where
   ask = lift' Reader.ask
   local f = lift (Reader.local (unlift f))
+#ifdef _INLINE
   {-# INLINE ask #-}
   {-# INLINE local #-}
+#else
+  {-# NOINLINE ask #-}
+  {-# NOINLINE local #-}
+#endif
 
 instance (ArrowMonad f c, ArrowEnv x y c) => ArrowEnv x y (KleisliT f c) where
   type Join y (KleisliT f c) = Env.Join (f y) c
   lookup f g = lift $ Env.lookup (unlift f) (unlift g)
   extend f = lift $ Env.extend (unlift f)
+#ifdef _INLINE
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
+#else
+  {-# NOINLINE lookup #-}
+  {-# NOINLINE extend #-}
+#endif
 
 instance (ArrowMonad f c, ArrowClosure var val env c) => ArrowClosure var val env (KleisliT f c) where
   ask = lift' Env.ask
   local f = lift (Env.local (unlift f))
+#ifdef _INLINE
   {-# INLINE ask #-}
   {-# INLINE local #-}
+#else
+  {-# NOINLINE ask #-}
+  {-# NOINLINE local #-}
+#endif
 
 instance (ArrowMonad f c, ArrowStore var val c) => ArrowStore var val (KleisliT f c) where
   type Join y (KleisliT f c) = Store.Join (f y) c
   read f g = lift $ read (unlift f) (unlift g)
   write = lift' write
+#ifdef _INLINE
   {-# INLINE read #-}
   {-# INLINE write #-}
+#else
+  {-# NOINLINE read #-}
+  {-# NOINLINE write #-}
+#endif
 
 type instance Fix x y (KleisliT f c) = KleisliT f (Fix (Dom (KleisliT f) x y) (Cod (KleisliT f) x y) c)
 instance (ArrowMonad f c, ArrowFix (Dom (KleisliT f) x y) (Cod (KleisliT f) x y) c) => ArrowFix x y (KleisliT f c) where
   fix = liftFix
+#ifdef _INLINE
   {-# INLINE fix #-}
+#else
+  {-# NOINLINE fix #-}
+#endif
 
 instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
   type Join y (KleisliT f c) = Exc.Join (f y) c
   throw = lift' throw
   try f g h = lift $ try (unlift f) (mapJoinA (unlift g)) (unlift h)
+#ifdef _INLINE
   {-# INLINE throw #-}
   {-# INLINE try #-}
+#else
+  {-# NOINLINE throw #-}
+  {-# NOINLINE try #-}
+#endif
 
 instance (ArrowMonad f c, ArrowFail e c) => ArrowFail e (KleisliT f c) where
   fail = lift' fail
+#ifdef _INLINE
   {-# INLINE fail #-}
+#else
+  {-# NOINLINE fail #-}
+#endif
 
 instance (ArrowMonad f c, ArrowConst r c) => ArrowConst r (KleisliT f c) where
   askConst f = lift (askConst (unlift . f))
+#ifdef _INLINE
   {-# INLINE askConst #-}
+#else
+  {-# NOINLINE askConst #-}
+#endif
 
 instance (ArrowMonad f c, ArrowComplete (f y) c) => ArrowComplete y (KleisliT f c) where
   f <⊔> g = lift $ unlift f <⊔> unlift g
+#ifdef _INLINE
   {-# INLINE (<⊔>) #-}
+#else
+  {-# NOINLINE (<⊔>) #-}
+#endif
 
 instance (ArrowMonad f c, ArrowJoin c) => ArrowJoin (KleisliT f c) where
   joinSecond g = lift $ rmap strength2 (joinSecond (unlift g))
-  {-# INLINE joinSecond#-}
-  
+#ifdef _INLINE
+  {-# INLINE joinSecond #-}
+#else
+  {-# NOINLINE joinSecond #-}
+#endif

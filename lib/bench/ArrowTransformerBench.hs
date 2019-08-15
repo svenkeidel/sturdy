@@ -1,11 +1,16 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
+#ifdef _INLINE
 {-# OPTIONS_GHC -funfolding-use-threshold=1500 #-}
+#else
+{-# OPTIONS_GHC -fno-specialise #-}
+#endif
 module Main where
 
 import Prelude hiding (id,(.))
@@ -56,6 +61,7 @@ eval = proc e -> case e of
     Val n2 <- eval -< e2
     returnA -< Val (n1 * n2)
 
+#ifdef INLINE
 {-# SPECIALIZE eval :: ConstT () (->) Expr Val #-}
 {-# SPECIALIZE eval :: ConstT () (ConstT () (->)) Expr Val #-}
 {-# SPECIALIZE eval :: ConstT () (ConstT () (ConstT () (->))) Expr Val #-}
@@ -85,6 +91,7 @@ eval = proc e -> case e of
 {-# SPECIALIZE eval :: TerminatingT (TerminatingT (TerminatingT (->))) Expr Val #-}
 
 {-# SPECIALIZE eval :: ConstT () (ReaderT () (StateT () (ExceptT () (ErrorT () (TerminatingT (->)))))) Expr Val #-}
+#endif
 
 addN :: Int -> Expr -> Expr
 addN 0 e = e
@@ -99,40 +106,41 @@ main = do
         bench "eval (->)" $ nf eval expr
       ],
       bgroup "ConstT" [ 
-        bench "ConstT¹" $ nf (runConstT () eval) expr,
-        bench "ConstT²" $ nf (runConstT () (runConstT () eval)) expr,
-        bench "ConstT³" $ nf (runConstT () (runConstT () (runConstT () eval))) expr 
+        bench "ConstT¹" $ nf (runConstT () eval) expr
+        -- bench "ConstT²" $ nf (runConstT () (runConstT () eval)) expr,
+        -- bench "ConstT³" $ nf (runConstT () (runConstT () (runConstT () eval))) expr 
       ],
       bgroup "ReaderT" [ 
-        bench "ReaderT¹" $ nf (runReaderT' eval) expr,
-        bench "ReaderT²" $ nf (runReaderT' (runReaderT' eval)) expr,
-        bench "ReaderT³" $ nf (runReaderT' (runReaderT' (runReaderT' eval))) expr 
+        bench "ReaderT¹" $ nf (runReaderT' eval) expr
+        -- bench "ReaderT²" $ nf (runReaderT' (runReaderT' eval)) expr,
+        -- bench "ReaderT³" $ nf (runReaderT' (runReaderT' (runReaderT' eval))) expr 
       ],
       bgroup "StateT" [ 
-        bench "StateT¹" $ whnf (runStateT' eval) expr,
-        bench "StateT²" $ whnf (runStateT' (runStateT' eval)) expr,
-        bench "StateT³" $ whnf (runStateT' (runStateT' (runStateT' eval))) expr 
+        bench "StateT¹" $ whnf (runStateT' eval) expr
+        -- bench "StateT²" $ whnf (runStateT' (runStateT' eval)) expr,
+        -- bench "StateT³" $ whnf (runStateT' (runStateT' (runStateT' eval))) expr 
       ],
       bgroup "WriterT" [ 
-        bench "WriterT¹" $ nf (runWriterT' eval) expr,
-        bench "WriterT²" $ nf (runWriterT' (runWriterT' eval)) expr,
-        bench "WriterT³" $ nf (runWriterT' (runWriterT' (runWriterT' eval))) expr 
+        bench "WriterT¹" $ nf (runWriterT' eval) expr
+        -- bench "WriterT²" $ nf (runWriterT' (runWriterT' eval)) expr,
+        -- bench "WriterT³" $ nf (runWriterT' (runWriterT' (runWriterT' eval))) expr 
       ],
       bgroup "ErrorT" [ 
-        bench "ErrorT¹" $ nf (runErrorT' eval) expr,
-        bench "ErrorT²" $ nf (runErrorT' (runErrorT' eval)) expr,
-        bench "ErrorT³" $ nf (runErrorT' (runErrorT' (runErrorT' eval))) expr 
+        bench "ErrorT¹" $ nf (runErrorT' eval) expr
+        -- bench "ErrorT²" $ nf (runErrorT' (runErrorT' eval)) expr,
+        -- bench "ErrorT³" $ nf (runErrorT' (runErrorT' (runErrorT' eval))) expr 
       ],
       bgroup "ExceptT" [ 
-        bench "ExceptT¹" $ nf (runExceptT' eval) expr,
-        bench "ExceptT²" $ nf (runExceptT' (runExceptT' eval)) expr,
-        bench "ExceptT³" $ nf (runExceptT' (runExceptT' (runExceptT' eval))) expr 
+        bench "ExceptT¹" $ nf (runExceptT' eval) expr
+        -- bench "ExceptT²" $ nf (runExceptT' (runExceptT' eval)) expr,
+        -- bench "ExceptT³" $ nf (runExceptT' (runExceptT' (runExceptT' eval))) expr 
       ],
       bgroup "TerminatingT" [ 
-        bench "TerminatingT¹" $ nf (runTerminatingT eval) expr,
-        bench "TerminatingT²" $ nf (runTerminatingT (runTerminatingT eval)) expr,
-        bench "TerminatingT³" $ nf (runTerminatingT (runTerminatingT (runTerminatingT eval))) expr 
-      ],
+        bench "TerminatingT¹" $ nf (runTerminatingT eval) expr
+        -- bench "TerminatingT²" $ nf (runTerminatingT (runTerminatingT eval)) expr,
+        -- bench "TerminatingT³" $ nf (runTerminatingT (runTerminatingT (runTerminatingT eval))) expr 
+      ]
+    ,
       bgroup "Stack" [
         bench "ConstT (ReaderT (StateT (ExceptT (ErrorT (TerminatingT (->))))))" $
           nf (runTerminatingT (runErrorT' (runExceptT' (runStateT' (runReaderT' (runConstT' eval)))))) expr
@@ -167,7 +175,7 @@ main = do
     runChaoticT'' = runChaoticT'
     {-# INLINE runChaoticT'' #-}
 
-    expr = addN 20 (Num 1)
+    expr = addN 10 (Num 1)
 
 instance NFData Val where
   rnf (Val n) = rnf n

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -39,7 +40,11 @@ data Except e x
 
 instance (O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c where
   mapA f = lmap toEither (arr Fail ||| rmap Success f ||| rmap (\(e,y) -> SuccessOrFail e y) (O.joinSecond f))
+#ifdef _INLINE
   {-# INLINABLE mapA #-}
+#else
+  {-# NOINLINE mapA #-}
+#endif
 
 instance (Complete e, O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
   mapJoinA f = lmap toEither (arr Fail ||| f ||| rmap lub (O.joinSecond f))
@@ -49,7 +54,11 @@ instance (Complete e, O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad 
         Success y -> SuccessOrFail e y
         SuccessOrFail e' y -> SuccessOrFail (e ⊔ e') y
       {-# INLINE lub #-}
+#ifdef _INLINE
   {-# INLINABLE mapJoinA #-}
+#else
+  {-# NOINLINE mapJoinA #-}
+#endif
 
 instance (Hashable e, Hashable x) => Hashable (Except e x) where
   hashWithSalt s (Success x) = s `hashWithSalt` (0::Int) `hashWithSalt` x

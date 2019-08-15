@@ -19,7 +19,7 @@ dependencies:
   - profunctors
 
 library:
-  ghc-options: -Wall
+  ghc-options: -Wall -O2
   source-dirs:
     - src
 
