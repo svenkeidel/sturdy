@@ -29,7 +29,6 @@ import Data.Abstract.Maybe
 import Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as M
 
-import Data.Order (Complete)
 import Data.Identifiable
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
@@ -52,7 +51,7 @@ evalStoreT f = rmap pi2 (runStoreT f)
 execStoreT :: Profunctor c => StoreT var val c x y -> c (Map var val, x) (Map var val)
 execStoreT f = rmap pi1 (runStoreT f)
 
-instance (Identifiable var, ArrowChoice c, Profunctor c, Complete val) => ArrowStore var val (StoreT var val c) where
+instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT var val c) where
   type Join y (StoreT var val c) = ArrowComplete (Map var val,y) c
   read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
     s <- get -< ()
@@ -61,14 +60,18 @@ instance (Identifiable var, ArrowChoice c, Profunctor c, Complete val) => ArrowS
       Nothing         -> g -< x
       JustNothing val -> (f -< (val,x)) <⊔> (g -< x)
   write = StoreT $ modify $ arr $ \((var,val),st) -> ((),M.insert var val st)
+  {-# INLINE read #-}
+  {-# INLINE write #-}
 
 instance ArrowState s c => ArrowState s (StoreT var val c) where
   get = lift' get
   put = lift' put
+  {-# INLINE get #-}
+  {-# INLINE put #-}
 
 deriving instance (ArrowComplete (Map var val,y) c) => ArrowComplete y (StoreT var val c)
 instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT var val c) where
   app = StoreT (app .# first coerce)
 
-type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c)
-deriving instance ArrowFix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c => ArrowFix x y (StoreT var val c)
+type instance Fix (StoreT var val c) x y  = StoreT var val (Fix c (Map var val,x) (Map var val,y))
+deriving instance ArrowFix (Underlying (StoreT var val c) x y) => ArrowFix (StoreT var val c x y)

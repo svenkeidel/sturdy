@@ -19,11 +19,11 @@
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 module VariableAnalysis where
 
-import           Prelude hiding (Bounded,fail,(.),exp)
+import           Prelude hiding (Bounded,fail,(.),exp,filter)
 
 import           Control.Arrow
 import           Control.Arrow.Fail
-import           Control.Arrow.Fix
+import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Order hiding (bottom)
@@ -32,7 +32,7 @@ import           Control.Arrow.Transformer.FreeVars
 import           Control.Arrow.Transformer.Abstract.Environment(EnvT)
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
-import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
+import           Control.Arrow.Transformer.Abstract.Fix.Finite
 
 import           Data.Empty
 import           Data.HashMap.Lazy(HashMap)
@@ -63,12 +63,12 @@ variables e =
              (FreeVarsT Text
                (EnvT Text Val
                  (FixT _ _
-                   (S.FiniteT _ _ 
+                   (FiniteT _ _ 
                      (->))))))) Expr Val)
     iterationStrategy
     (empty,e)
   where
-    iterationStrategy = S.filter apply $ S.finite
+    iterationStrategy = Fix.filter apply $ finite
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => IsNum Val (ValueT Val c) where
   type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)

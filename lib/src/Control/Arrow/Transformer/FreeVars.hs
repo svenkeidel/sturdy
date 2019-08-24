@@ -33,12 +33,17 @@ import           Data.HashSet(HashSet)
 import qualified Data.HashSet as H
 
 newtype FreeVarsT var c x y = FreeVarsT (WriterT (HashSet var) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded,
-            ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k, ArrowRun)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowLowerBounded,
+            ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k)
 
-runFreeVarsT :: (Arrow c, Profunctor c) => FreeVarsT var c x y -> c x y
+runFreeVarsT :: Profunctor c => FreeVarsT var c x y -> c x y
 runFreeVarsT (FreeVarsT f) = rmap snd (runWriterT f)
 {-# INLINE runFreeVarsT #-}
+
+instance (Identifiable var, ArrowRun c) => ArrowRun (FreeVarsT var c) where
+  type Run (FreeVarsT var c) x y = Run c x y
+  run = run . runFreeVarsT
+  {-# INLINE run #-}
 
 instance (Identifiable var, ArrowEnv var val c, Profunctor c) => ArrowEnv var val (FreeVarsT var c) where
   type Join y (FreeVarsT var c) = Env.Join (HashSet var,y) c
@@ -51,6 +56,6 @@ instance (Identifiable var, ArrowEnv var val c, Profunctor c) => ArrowEnv var va
 instance (Identifiable var,ArrowApply c, Profunctor c) => ArrowApply (FreeVarsT var c) where
   app = FreeVarsT (app .# first coerce)
 
-type instance Fix x y (FreeVarsT var c) = FreeVarsT var (Fix (Dom (FreeVarsT var) x y) (Cod (FreeVarsT var) x y) c)
-deriving instance (Identifiable var,ArrowFix x (HashSet var,y) c) => ArrowFix x y (FreeVarsT var c)
+type instance Fix (FreeVarsT var c) x y = FreeVarsT var (Fix c x (HashSet var,y))
+instance (ArrowFix (Underlying (FreeVarsT var c) x y)) => ArrowFix (FreeVarsT var c x y)
 deriving instance (Identifiable var,ArrowComplete (HashSet var,y) c) => ArrowComplete y (FreeVarsT var c)

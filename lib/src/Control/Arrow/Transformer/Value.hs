@@ -34,26 +34,15 @@ import Control.Arrow.Store
 import Control.Arrow.Except
 
 import Data.Profunctor
-import Data.Coerce
 
-newtype ValueT val c x y = ValueT {runValueT :: c x y}
+newtype ValueT val c x y = ValueT { runValueT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowEnv var val',ArrowClosure var val' env,ArrowStore addr val',
             ArrowExcept exc,ArrowFail e,
             ArrowLowerBounded)
 
-instance ArrowRun c => ArrowRun (ValueT val c) where
-  type Rep (ValueT val c) x y = Rep c x y
-  run = run . runValueT
-
-instance ArrowTrans (ValueT val) where
-  type Dom (ValueT val) x y = x
-  type Cod (ValueT val) x y = y
-  lift = coerce
-  unlift = coerce
-  {-# INLINE lift #-}
-  {-# INLINE unlift #-}
-
-type instance Fix x y (ValueT val c) = ValueT val (Fix x y c)
-deriving instance ArrowFix x y c => ArrowFix x y (ValueT val c)
+instance ArrowRun c => ArrowRun (ValueT val c) where type Run (ValueT val c) x y = Run c x y
+instance ArrowTrans (ValueT val c) where type Underlying (ValueT val c) x y = c x y
+type instance Fix (ValueT val c) x y  = ValueT val (Fix c x y)
+instance ArrowFix (Underlying (ValueT val c) x y) => ArrowFix (ValueT val c x y)
 

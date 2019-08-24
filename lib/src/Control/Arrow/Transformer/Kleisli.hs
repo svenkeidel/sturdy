@@ -32,18 +32,8 @@ import Unsafe.Coerce
 
 newtype KleisliT f c x y = KleisliT { runKleisliT :: c x (f y) }
 
-instance (ArrowMonad f c, ArrowRun c) => ArrowRun (KleisliT f c) where
-  type Rep (KleisliT f c) x y = Rep c x (f y)
-  run = run . runKleisliT
-  {-# INLINE run #-}
-
-instance ArrowTrans (KleisliT f) where
-  type Dom (KleisliT f) x y = x
-  type Cod (KleisliT f) x y = f y
-  lift = coerce
-  unlift = coerce
-  {-# INLINE lift #-}
-  {-# INLINE unlift #-}
+instance (ArrowMonad f c, ArrowRun c) => ArrowRun (KleisliT f c) where type Run (KleisliT f c) x y = Run c x (f y)
+instance ArrowTrans (KleisliT f c) where type Underlying (KleisliT f c) x y = c x (f y)
 
 instance Monad f => ArrowLift (KleisliT f) where
   lift' f = lift $ rmap return f
@@ -125,10 +115,8 @@ instance (ArrowMonad f c, ArrowStore var val c) => ArrowStore var val (KleisliT 
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix x y (KleisliT f c) = KleisliT f (Fix (Dom (KleisliT f) x y) (Cod (KleisliT f) x y) c)
-instance (ArrowMonad f c, ArrowFix (Dom (KleisliT f) x y) (Cod (KleisliT f) x y) c) => ArrowFix x y (KleisliT f c) where
-  fix = liftFix
-  {-# INLINE fix #-}
+type instance Fix (KleisliT f c) x y = KleisliT f (Fix c y (f y))
+instance ArrowFix (c x (f y)) => ArrowFix (KleisliT f c x y) where
 
 instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
   type Join y (KleisliT f c) = Exc.Join (f y) c

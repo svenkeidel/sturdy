@@ -1,6 +1,12 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingStrategies #-}
 module Data.Abstract.Widening where
 
 import Data.Order
+import Data.Hashable
+
+import GHC.Generics
 
 -- | ▽ has to be an upper bound operator, i.e. x ⊑ x ▽ y and y ⊑ x ▽ y.
 -- Furthermore, iterating ▽ on an ascending chain has to stabilize:
@@ -21,12 +27,14 @@ import Data.Order
 type Widening a = a -> a -> (Stable,a)
 
 -- | Datatype that signals if the ascending chain stabilized.
-data Stable = Stable | Instable deriving (Eq,Show)
+data Stable = Stable | Instable
+  deriving stock (Eq,Show,Generic)
+  deriving anyclass (Hashable)
 
 instance Semigroup Stable where (<>) = (⊔)
 instance Monoid Stable where
   mempty = Stable
-  mappend = (⊔) 
+  mappend = (<>)
 
 instance PreOrd Stable where
   Stable ⊑ Stable = True

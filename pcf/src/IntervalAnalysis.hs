@@ -1,20 +1,20 @@
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module IntervalAnalysis where
@@ -23,7 +23,7 @@ import           Prelude hiding (Bounded,fail,(.),exp)
 
 import           Control.Arrow
 import           Control.Arrow.Fail
-import           Control.Arrow.Fix
+import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Order
@@ -31,8 +31,12 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.IterationStrategy
-import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
+import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Terminating
+
+import           Control.Monad.State hiding (lift,fail)
+
+import qualified Data.HashSet as H
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -67,7 +71,7 @@ import           GHC.Exts(IsString(..))
 import           Text.Printf
 
 import           Syntax (Expr(..),apply)
-import           GenericInterpreter
+import           GenericInterpreter as Generic
 import           VariableAnalysis(variables)
 
 type Env = Map Text Val
@@ -81,30 +85,31 @@ data Val = NumVal IV | ClosureVal (Closure Expr Env) | TypeError (Pow String) de
 -- an environment, and the input of the computation.
 evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
 evalInterval k env0 e = snd $
-    run (eval :: Fix Expr Val
+    run (Generic.eval :: Fix Expr Val
                 (ValueT Val
                   (EnvT Text Val
                     (ErrorT (Pow String)
                       (TerminatingT
                         (FixT _ _
-                          (StackWideningT _ _
-                            (ChaoticT Cache _ _ (->)))))))) Expr Val)
+                          (ChaoticT _ _
+                             (->))))))) Expr Val)
     iterationStrategy
+    _
+    _
+    _
     (SM.fromList env0,e0)
   where
     e0 = generate e
     vars = variables e0
     
-    iterationStrategy = S.filter apply
+    iterationStrategy = Fix.filter apply
                       $ tightenEnv
-                      $ S.stackWidening stackWiden
-                      $ S.chaotic (T.widening (E.widening W.finite widenVal))
+                      $ chaotic-- (T.widening (E.widening W.finite widenVal))
 
-    stackWiden = SW.groupBy (L.iso' (\(env,exp) -> (exp,env)) (\(exp,env) -> (env,exp)))
-               $ SW.reuseFirst
+    stackWiden = SW.groupBy _
+               $ SW.reuseMeasured
                $ SW.maxSize k
                $ SW.fromWidening (SM.widening widenVal)
-               $ SW.finite
 
     widenVal = widening (W.bounded ?bound I.widening)
 
@@ -170,9 +175,6 @@ widening _ (ClosureVal _) (NumVal _) = (W.Instable,TypeError (singleton "cannot 
 widening _ (TypeError m1) (TypeError m2) = (W.Stable,TypeError (m1 <> m2))
 widening _ _ (TypeError m2) = (W.Stable,TypeError m2)
 widening _ (TypeError m1) _ = (W.Stable,TypeError m1)
-
--- instance HasLabel (F.Map Text Addr Val,Expr) Label where
---   label (_,e) = label e
 
 instance Hashable Val
 instance Show Val where

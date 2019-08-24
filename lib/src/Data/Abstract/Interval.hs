@@ -7,6 +7,7 @@ import Prelude hiding (div,Bool(..),(==),(/),(<),Ordering)
 import qualified Prelude as P
 import Data.Hashable
 import Data.Order
+import Data.Measure
 import Data.Numeric
 
 import Data.Abstract.Boolean
@@ -30,6 +31,12 @@ instance Ord x => PreOrd (Interval x) where
 
 instance Ord x => Complete (Interval x) where
   Interval i1 i2 ⊔  Interval j1 j2 = Interval (min i1 j1) (max i2 j2)
+
+instance (Ord n, Num n) => Measurable (Interval (InfiniteNumber n)) (InfiniteNumber n) where
+  measure (Interval NegInfinity Infinity) = Infinity
+  -- the +1 ensures that the measure of unit intervals [n,n] does not become 0.
+  -- This works better with the product measure, which multiply two measures.
+  measure (Interval n m) = (m - n) + 1
 
 instance (Num n, Ord n) => Num (Interval n) where
   Interval i1 i2 + Interval j1 j2 = Interval (i1 + j1) (i2 + j2)

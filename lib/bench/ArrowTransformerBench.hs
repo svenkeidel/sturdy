@@ -17,8 +17,10 @@ import Data.Profunctor
 import Data.Abstract.Error
 import Data.Abstract.Except
 import Data.Abstract.Cache
+import qualified Data.Abstract.Widening as W
 
 import Control.DeepSeq
+import Control.Category
 import Control.Arrow
 import Control.Arrow.Transformer.Const
 import Control.Arrow.Transformer.Reader
@@ -164,7 +166,7 @@ main = do
     {-# INLINE runExceptT' #-}
 
     runChaoticT'' :: Profunctor c => ChaoticT Cache () () c x y -> c x y
-    runChaoticT'' = runChaoticT'
+    runChaoticT'' = runChaoticT' id W.finite
     {-# INLINE runChaoticT'' #-}
 
     expr = addN 20 (Num 1)

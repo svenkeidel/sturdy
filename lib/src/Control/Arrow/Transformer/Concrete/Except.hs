@@ -51,6 +51,5 @@ instance (ArrowChoice c, Profunctor c) => ArrowExcept e (ExceptT e c) where
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where
   app = ExceptT $ app .# first coerce
 
-deriving instance (ArrowChoice c, ArrowFix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c) => ArrowFix x y (ExceptT e c)
-
-type instance Fix x y (ExceptT e c) = ExceptT e (Fix (Dom (ExceptT e) x y) (Cod (ExceptT e) x y) c)
+type instance Fix (ExceptT e c) x y = ExceptT e (Fix c x (Error e y))
+instance (ArrowFix (Underlying (ExceptT e c) x y)) => ArrowFix (ExceptT e c x y)

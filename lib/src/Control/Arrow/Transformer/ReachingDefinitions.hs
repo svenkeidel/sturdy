@@ -41,20 +41,20 @@ newtype ReachingDefsT (f :: * -> *) lab c x y = ReachingDefsT (ReaderT (Maybe la
             ArrowState s, ArrowEnv var val, ArrowClosure var val env,
             ArrowFail e,ArrowExcept e, ArrowLowerBounded, ArrowComplete z)
 
-reachingDefsT :: (Arrow c,Profunctor c) => c (Maybe lab,x) y -> ReachingDefsT f lab c x y
+reachingDefsT :: c (Maybe lab,x) y -> ReachingDefsT f lab c x y
 reachingDefsT = lift
 {-# INLINE reachingDefsT #-}
 
-runReachingDefsT :: (Arrow c,Profunctor c) => ReachingDefsT f lab c x y -> c x y
+runReachingDefsT :: Profunctor c => ReachingDefsT f lab c x y -> c x y
 runReachingDefsT f = lmap (\x -> (Nothing,x)) (unlift f)
 {-# INLINE runReachingDefsT #-}
 
-runReachingDefsT' :: (Arrow c,Profunctor c) => ReachingDefsT f lab c x y -> c (Maybe lab,x) y
+runReachingDefsT' :: ReachingDefsT f lab c x y -> c (Maybe lab,x) y
 runReachingDefsT' = unlift
 {-# INLINE runReachingDefsT' #-}
 
 instance ArrowRun c => ArrowRun (ReachingDefsT f lab c) where
-  type Rep (ReachingDefsT f lab c) x y = Rep c x y
+  type Run (ReachingDefsT f lab c) x y = Run c x y
   run = run . runReachingDefsT
 
 instance (ArrowStore var (val,f lab) c, IsEmpty (f lab), IsSingleton (f lab), Elem (f lab) ~ lab) =>
@@ -63,11 +63,11 @@ instance (ArrowStore var (val,f lab) c, IsEmpty (f lab), IsSingleton (f lab), El
   read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read (lmap (\((v,_),x) -> (v,x)) f) g
   write = reachingDefsT $ lmap (\(lab,(var,val)) -> (var,(val,fromMaybe lab))) write
 
-type instance Fix x y (ReachingDefsT f lab c) = ReachingDefsT f lab (Fix x y c)
-instance (HasLabel x lab, Arrow c, ArrowFix x y c) => ArrowFix x y (ReachingDefsT f lab c) where
+type instance Fix (ReachingDefsT f lab c) x y = ReachingDefsT f lab (Fix c x y)
+instance (HasLabel x lab, Arrow c, ArrowFix (c x y), Profunctor c) => ArrowFix (ReachingDefsT f lab c x y) where
   fix f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix (unwrap . f . lift') -< x
     where
-      unwrap :: HasLabel x lab => ReachingDefsT f lab c x y -> c x y
+      unwrap :: ReachingDefsT f lab c x y -> c x y
       unwrap g = lmap (\x -> (Just (label x),x)) (runReachingDefsT' g)
 
 instance (ArrowApply c,Profunctor c) => ArrowApply (ReachingDefsT f lab c) where

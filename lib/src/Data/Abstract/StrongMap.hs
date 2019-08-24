@@ -1,5 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Data.Abstract.StrongMap(Map(..),widening,empty,insert,lookup,lookup',delete,filter,keys,fromList,toList) where
 
 import           Prelude hiding (lookup,pred,filter)
@@ -9,6 +12,7 @@ import           Control.DeepSeq
 
 import qualified Data.Empty as Empty
 import           Data.Order
+import           Data.Measure
 import           Data.Hashable
 import           Data.Identifiable
 import           Data.HashSet(HashSet)
@@ -34,10 +38,14 @@ instance (Identifiable a, Complete b) => Complete (Map a b) where
   Map m1 ⊔ Map m2 | M.keys m1 == M.keys m2 = Map $ M.unionWith (⊔) m1 m2
                   | otherwise              = Top
 
+instance (Identifiable a, Measurable a n, Measurable b n, Bounded n) => Measurable (Map a b) n where
+  measure (Map m) = foldl (\n ab -> n * measure ab) 1 (M.toList m)
+  measure Top = maxBound
+
 instance Empty.IsEmpty (Map a b) where
   empty = Map M.empty
 
-keys :: Identifiable a => Map a b -> Maybe (HashSet a)
+keys :: Map a b -> Maybe (HashSet a)
 keys Top = Nothing
 keys (Map m) = Just (M.keysSet m)
 

@@ -46,8 +46,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowFail e (ErrorT e c) where
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ErrorT e c) where
   app = lift (app .# first coerce)
 
-type instance Fix x y (ErrorT e c) = ErrorT e (Fix (Dom (ErrorT e) x y) (Cod (ErrorT e) x y) c)
-deriving instance (ArrowChoice c, ArrowFix (Dom (ErrorT e) x y) (Cod (ErrorT e) x y) c) => ArrowFix x y (ErrorT e c)
+type instance Fix (ErrorT e c) x y = ErrorT e (Fix c x (Error e y))
+deriving instance (ArrowFix (Underlying (ErrorT e c) x y)) => ArrowFix (ErrorT e c x y)
 
 instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (ErrorT e c) where
   bottom = lift bottom

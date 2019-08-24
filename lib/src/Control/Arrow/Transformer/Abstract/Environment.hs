@@ -37,11 +37,11 @@ newtype EnvT var val c x y = EnvT (ReaderT (Map var val) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded, ArrowComplete z,
             ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k, ArrowRun)
 
-runEnvT :: (Arrow c, Profunctor c) => EnvT var val c x y -> c (Map var val,x) y
+runEnvT :: EnvT var val c x y -> c (Map var val,x) y
 runEnvT = coerce
 {-# INLINE runEnvT #-}
 
-runEnvT' :: (Arrow c, Profunctor c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
+runEnvT' :: (Profunctor c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
 runEnvT' f = lmap (first M.fromList) (runEnvT f)
 {-# INLINE runEnvT' #-}
 
@@ -68,5 +68,5 @@ instance ArrowReader r c => ArrowReader r (EnvT var val c) where
   ask = lift' Reader.ask
   local f = lift $ lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local (unlift f))
 
-type instance Fix x y (EnvT var val c) = EnvT var val (Fix (Dom (EnvT var val) x y) (Cod (EnvT var val) x y) c)
-deriving instance ArrowFix (Map var val,x) y c => ArrowFix x y (EnvT var val c)
+type instance Fix (EnvT var val c) x y = EnvT var val (Fix c (Map var val,x) y)
+deriving instance ArrowFix (Underlying (EnvT var val c) x y) => ArrowFix (EnvT var val c x y)

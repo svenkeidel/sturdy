@@ -3,6 +3,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Control.Arrow.Transformer.Writer where
 
@@ -24,7 +26,6 @@ import Control.Arrow.Trans
 import Control.Arrow.Writer
 
 import Data.Monoidal
-import qualified Data.Order as O
 import Data.Profunctor
 import Data.Profunctor.Unsafe
 import Data.Coerce
@@ -36,11 +37,12 @@ censor :: (Arrow c,Profunctor c) => (x -> w -> w) -> WriterT w c x y -> WriterT 
 censor f (WriterT g) = WriterT (dimap (\x -> (x,x)) (\(x,(w,y)) -> (f x w,y)) (second g))
 
 instance (Monoid w,ArrowRun c) => ArrowRun (WriterT w c) where
-  type Rep (WriterT w c) x y = Rep c x (w,y)
-  run = run . runWriterT
-  {-# INLINE run #-}
+  type Run (WriterT w c) x y = Run c x (w,y)
 
-instance (Profunctor c, Arrow c) => Profunctor (WriterT w c) where
+instance ArrowTrans (WriterT w c) where
+  type Underlying (WriterT w c) x y = c x (w,y)
+
+instance (Profunctor c) => Profunctor (WriterT w c) where
   dimap f g h = lift $ dimap f (second g) (unlift h)
   lmap f h = lift $ lmap f (unlift h)
   rmap g h = lift $ rmap (second g) (unlift h)
@@ -51,14 +53,6 @@ instance (Profunctor c, Arrow c) => Profunctor (WriterT w c) where
   {-# INLINE rmap #-}
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
-
-instance ArrowTrans (WriterT w) where
-  type Dom (WriterT w) x y = x
-  type Cod (WriterT w) x y = (w,y)
-  lift = coerce
-  unlift = coerce
-  {-# INLINE lift #-}
-  {-# INLINE unlift #-}
 
 instance Monoid w => ArrowLift (WriterT w) where
   lift' f = lift (rmap (\y -> (mempty,y)) f)
@@ -149,16 +143,14 @@ instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) wh
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix x y (WriterT w c) = WriterT w (Fix (Dom (WriterT w) x y) (Cod (WriterT w) x y) c)
-instance (Monoid w, ArrowFix x (w,y) c) => ArrowFix x y (WriterT w c) where
-  fix = liftFix
-  {-# INLINE fix #-}
+type instance Fix (WriterT w c) x y  = WriterT w (Fix c x (w,y))
+deriving instance ArrowFix (Underlying (WriterT w c) x y) => ArrowFix (WriterT w c x y)
 
 instance (Monoid w, ArrowLowerBounded c) => ArrowLowerBounded (WriterT w c) where
   bottom = lift bottom
   {-# INLINE bottom #-}
 
-instance (Monoid w, O.Complete w, ArrowJoin c) => ArrowJoin (WriterT w c) where
+instance (Monoid w, ArrowJoin c) => ArrowJoin (WriterT w c) where
   joinSecond g = lift $ rmap shuffle1 (joinSecond (unlift g))
   {-# INLINE joinSecond #-}
 

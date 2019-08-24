@@ -44,12 +44,11 @@ type Env var addr val = (HM.HashMap var addr,HM.HashMap addr val)
 type Alloc c var addr val = c (var,val,Env var addr val) addr
 
 newtype EnvT var addr val c x y = EnvT (ConstT (Alloc c var addr val) (ReaderT (Env var addr val) c) x y )
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowComplete z, ArrowLowerBounded)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowComplete z, ArrowLowerBounded, ArrowTrans)
 
 deriving instance ArrowExcept e c => ArrowExcept e (EnvT var addr val c)
 
-runEnvT :: (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c)
-        => Alloc c var addr val -> EnvT var addr val c x y -> c (Env var addr val,x) y
+runEnvT :: Alloc c var addr val -> EnvT var addr val c x y -> c (Env var addr val,x) y
 runEnvT alloc (EnvT f) = runReaderT (runConstT alloc f)
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c) =>
@@ -73,16 +72,10 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Prof
     (_,store) <- Reader.ask -< ()
     Reader.local f -< ((env,store),x)
 
-instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, ArrowRun c) => ArrowRun (EnvT var addr val c) where
-  type Rep (EnvT var addr val c) x y = Alloc c var addr val -> Rep c (Env var addr val,x) y
+instance (ArrowChoice c, ArrowRun c) => ArrowRun (EnvT var addr val c) where
+  type Run (EnvT var addr val c) x y = Alloc c var addr val -> Run c (Env var addr val,x) y
   run f alloc = run (runEnvT alloc f)
 
-instance ArrowTrans (EnvT var addr val) where
-  type Dom (EnvT var addr val) x y = (Env var addr val,x)
-  type Cod (EnvT var addr val) x y = y
-  lift = undefined
-  unlift = undefined
-      
 instance ArrowLift (EnvT var addr val) where
   lift' f = EnvT (lift' (lift' f))
 
@@ -94,6 +87,5 @@ instance ArrowReader r c => ArrowReader r (EnvT var addr val c) where
 instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var addr val c) where
   app = EnvT (app .# first coerce)
 
-deriving instance ArrowFix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c => ArrowFix x y (EnvT var addr val c)
-
-type instance Fix x y (EnvT var addr val c) = EnvT var addr val (Fix (Dom (EnvT var addr val) x y) (Cod (EnvT var addr val) x y) c)
+type instance Fix (EnvT var addr val c) x y = EnvT var addr val (Fix c (Env var addr val,x) y)
+deriving instance (Arrow c, Profunctor c, ArrowFix (c (Env var addr val,x) y)) => ArrowFix (EnvT var addr val c x y)

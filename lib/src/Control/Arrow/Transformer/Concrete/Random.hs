@@ -42,8 +42,8 @@ runRandomT = coerce
 instance (Random v, Arrow c, Profunctor c) => ArrowRand v (RandomT c) where
   random = RandomT $ modify' (\((),gen) -> R.random gen)
 
-type instance Fix x y (RandomT c) = RandomT (Fix (Dom RandomT x y) (Cod RandomT x y) c)
-deriving instance (Arrow c, ArrowFix (Dom RandomT x y) (Cod RandomT x y) c) => ArrowFix x y (RandomT c)
+type instance Fix (RandomT c) x y  = RandomT (Fix c (StdGen,x) (StdGen,y))
+instance (Arrow c, ArrowFix (Underlying (RandomT c) x y)) => ArrowFix (RandomT c x y)
 
 instance ArrowState s c => ArrowState s (RandomT c) where
   get = lift' get

@@ -13,17 +13,17 @@ import Prelude hiding (id,(.),lookup,read)
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Environment
-import Control.Arrow.Fail
 import Control.Arrow.Except
+import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Arrow.Trans
+import Control.Arrow.Order
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store
-import Control.Arrow.Const
+import Control.Arrow.Trans
 import Control.Arrow.Writer
-import Control.Arrow.Order
 
 import Control.Arrow.Transformer.Static
 
@@ -39,20 +39,28 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
 
 runConstT :: r -> ConstT r c x y -> c x y
 runConstT r (ConstT (StaticT f)) = f r
+{-# INLINE runConstT #-}
+
+instance ArrowTrans (ConstT r c) where
+  type Underlying (ConstT r c) x y = r -> c x y
 
 instance ArrowRun c => ArrowRun (ConstT r c) where
-  type Rep (ConstT r c) x y = r -> Rep c x y
+  type Run (ConstT r c) x y = r -> Run c x y
   run f r = run (runConstT r f)
+  {-# INLINE run #-}
 
 instance (Arrow c, Profunctor c) => ArrowConst r (ConstT r c) where
   askConst f = ConstT $ StaticT $ \r -> runConstT r (f r)
+  {-# INLINE askConst #-}
 
-instance ArrowFix x y c => ArrowFix x y (ConstT r c) where
+instance (Arrow c, Profunctor c, ArrowFix (c x y)) => ArrowFix (ConstT r c x y) where
   fix f = ConstT $ StaticT $ \r -> fix (runConstT r . f . lift')
+  {-# INLINE fix #-}
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ConstT r c) where
   app = ConstT $ StaticT $ \r -> lmap (\(f,x) -> ((coerce f) r,x)) app
+  {-# INLINE app #-}
 
 deriving instance ArrowComplete y c =>  ArrowComplete y (ConstT r c)
 
-type instance Fix x y (ConstT r c) = ConstT r (Fix x y c)
+type instance Fix (ConstT r c) x y = ConstT r (Fix c x y)

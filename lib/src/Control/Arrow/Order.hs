@@ -19,6 +19,7 @@ class (Arrow c, Profunctor c) => ArrowComplete y c where
 
 instance Complete y => ArrowComplete y (->) where
   (<⊔>) f g = \x -> f x ⊔ g x
+  {-# INLINE (<⊔>) #-}
 
 -- | An arrow computation @c@ is effect commutative iff for all @f, g :: c x y@,
 --
