@@ -19,7 +19,7 @@ import           Data.Text (Text)
 import           GHC.Exts (IsString(..),Constraint)
 
 -- | Shared interpreter for PCF.
-eval :: (ArrowChoice c, ArrowFix Expr v c, ArrowEnv Text v c, ArrowFail e c, IsString e,
+eval :: (ArrowChoice c, ArrowFix (c Expr v), ArrowEnv Text v c, ArrowFail e c, IsString e,
          IsNum v c, IsClosure v c, Env.Join v c, Join v c)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of

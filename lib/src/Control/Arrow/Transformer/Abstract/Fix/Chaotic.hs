@@ -9,7 +9,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-module Control.Arrow.Transformer.Abstract.Fix.Chaotic(ChaoticT,runChaoticT,chaotic) where
+module Control.Arrow.Transformer.Abstract.Fix.Chaotic(ChaoticT,runChaoticT,iterateOuter,iterateInner) where
 
 import           Prelude hiding (pred,lookup,map,head,iterate,(.),elem)
 
@@ -22,8 +22,6 @@ import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..),ArrowEffect
 import           Control.Arrow.Utils
 
 import           Control.Arrow.Transformer.Writer
-import           Control.Arrow.Transformer.Const
-import           Control.Arrow.Transformer.Static
 
 import           Data.Profunctor
 import           Data.Order
@@ -35,21 +33,18 @@ import           Data.Coerce
 import           Data.Abstract.Widening(Stable(..))
 import           Text.Printf
 
-newtype ChaoticT a b c x y = ChaoticT (ConstT (IterationStrategy c a (Component a,b)) (WriterT (Component a) c) x y)
+newtype ChaoticT a b c x y = ChaoticT (WriterT (Component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice)
 
-runChaoticT :: Profunctor c => IterationStrategy c a (Component a,b) -> ChaoticT a b c x y -> c x y
-runChaoticT strat (ChaoticT f) = rmap snd (runWriterT (runConstT strat f))
-{-# INLINE runChaoticT #-}
-
 type instance Fix (ChaoticT _ _ c) x y = ChaoticT x y c
-instance (Identifiable a, ArrowCache a b c, ArrowChoice c) => ArrowFix (ChaoticT a b c a b) where
-  fix f = lift $ \strat -> strat (chaotic (unlift (f (fix f)) strat))
+instance (Identifiable a, ArrowCacheReuse a b c, ArrowChoice c) => ArrowFix (ChaoticT a b c a b) where
+  fix f = iterateOuter (f (fix f))
   {-# INLINABLE fix #-}
 
-{-# INLINE chaotic #-}
-chaotic :: (Identifiable a, ArrowCache a b c, ArrowChoice c) => IterationStrategy c a (Component a,b)
-chaotic f = Cache.memoize $ proc (a,r) -> do
+-- | Iterate on the outermost fixpoint component.
+iterateOuter :: (Identifiable a, ArrowCacheReuse a b c, ArrowChoice c) => IterationStrategy (ChaoticT a b c) a b
+{-# INLINE iterateOuter #-}
+iterateOuter f = lift $ Cache.reuse $ proc (a,r) -> do
     case r of
       -- If the cache contains a stable entry, just return it.
       Cached (Stable,b) -> returnA -< (mempty,b)
@@ -62,7 +57,7 @@ chaotic f = Cache.memoize $ proc (a,r) -> do
 
     where
       iterate = proc a -> do
-        (component,b) <- f -< a
+        (component,b) <- unlift f -< a
 
         case () of
           -- The call did not depend on any unstable calls. This means
@@ -94,13 +89,38 @@ chaotic f = Cache.memoize $ proc (a,r) -> do
                returnA -< (Component { head = H.delete a (head component),
                                        body = H.insert a (body component) }, b)
 
-instance ArrowTrans (ChaoticT a b c) where
-  type Underlying (ChaoticT a b c) x y = IterationStrategy c a (Component a,b) -> c x (Component a,y)
+-- | Iterate on the innermost fixpoint component.
+iterateInner :: (Identifiable a, ArrowCacheReuse a b c, ArrowChoice c) => IterationStrategy (ChaoticT a b c) a b
+{-# INLINE iterateInner #-}
+iterateInner f = lift $ Cache.reuse $ proc (a,r) -> do
+    case r of
+      Cached (Stable,b) -> returnA -< (mempty,b)
+      Cached (Instable,b) -> returnA -< (Component {head = H.singleton a, body = H.empty},b)
+      Compute -> iterate -< a
+    where
+      iterate = proc a -> do
+        (component,b) <- unlift f -< a
+        if H.null (head component)
+        then do
+          Cache.write -< (a,b,Stable)
+          returnA -< (mempty,b)
+        else do
+          (stable,bNew) <- Cache.update -< (a,b)
+          case stable of
+            Stable -> returnA -< (component { head = H.delete a (head component) },bNew)
+            Instable -> iterate -< a
+
+runChaoticT :: Profunctor c => ChaoticT a b c x y -> c x y
+runChaoticT (ChaoticT f) = rmap snd (runWriterT f)
+{-# INLINE runChaoticT #-}
 
 instance (Identifiable a, ArrowRun c) => ArrowRun (ChaoticT a b c) where
-  type Run (ChaoticT a b c) x y = IterationStrategy c a (Component a,b) -> Run c x y
-  run f strat = run (runChaoticT strat f)
+  type Run (ChaoticT a b c) x y = Run c x y
+  run f = run (runChaoticT f)
   {-# INLINE run #-}
+
+instance ArrowTrans (ChaoticT a b c) where
+  type Underlying (ChaoticT a b c) x y = c x (Component a,y)
 
 instance (Identifiable a, Profunctor c,ArrowApply c) => ArrowApply (ChaoticT a b c) where
   app = ChaoticT (lmap (first coerce) app)

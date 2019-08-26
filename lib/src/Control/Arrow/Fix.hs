@@ -8,7 +8,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Fix(Fix,ArrowFix(..),IterationStrategy,filter,trace) where
+module Control.Arrow.Fix(Fix,Fix',ArrowFix(..),IterationStrategy,filter,trace) where
 
 import           Prelude hiding (filter,pred)
 
@@ -23,6 +23,7 @@ import           Text.Printf
 
 -- | Type family that computes the type of the fixpoint.
 type family Fix (c :: * -> * -> *) x y :: * -> * -> *
+type Fix' c x y = Fix c x y x y
 
 -- | Interface for describing fixpoint computations.
 class ArrowFix c where

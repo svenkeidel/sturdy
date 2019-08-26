@@ -14,6 +14,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
+import Control.Arrow.Cache as Cache
 import Control.Arrow.Environment as Env
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
@@ -155,3 +156,13 @@ instance ArrowConst x c => ArrowConst x (ReaderT r c) where
   {-# INLINE askConst #-}
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ReaderT r c)
+
+instance (ArrowCache (r,a) b c) => ArrowCache a b (ReaderT r c) where
+  lookup = lift Cache.lookup
+  write = lift (lmap (\(st,(a,b,s)) -> ((st,a),b,s)) Cache.write)
+  update = lift (lmap (\(st,(a,b)) -> ((st,a),b)) Cache.update)
+  setStable = lift (lmap (\(st,(s,a)) -> (s,(st,a))) Cache.setStable)
+  {-# INLINE lookup #-}
+  {-# INLINE write #-}
+  {-# INLINE update #-}
+  {-# INLINE setStable #-}

@@ -56,8 +56,8 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
   if_ f g = proc (v1, (x, y)) -> case v1 of
     NumVal 0 -> f -< x
     NumVal _ -> g -< y
-
     _ -> fail -< "Expected a number as condition for 'ifZero'"
+
 -- | Concrete instance of the interface for closure operations.
 instance (ArrowClosure var Val Env c, ArrowChoice c, ArrowFail String c) => IsClosure Val (ValueT Val c) where
   closure _ = proc e -> do

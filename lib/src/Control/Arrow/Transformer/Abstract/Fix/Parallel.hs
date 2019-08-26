@@ -16,6 +16,7 @@ module Control.Arrow.Transformer.Abstract.Fix.Parallel where
 -- import           Control.Arrow.State
 -- import           Control.Arrow.Reader
 -- import           Control.Arrow.Trans
+-- import           Control.Arrow.Cache
 -- import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..),ArrowEffectCommutative)
 -- import           Control.Arrow.Transformer.Reader
 -- import           Control.Arrow.Transformer.State
@@ -26,30 +27,23 @@ module Control.Arrow.Transformer.Abstract.Fix.Parallel where
 -- import           Data.Identifiable
 -- import           Data.Empty
 -- import           Data.Coerce
+-- import           Data.HashMap.Lazy(HashMap)
+-- import qualified Data.HashMap.Lazy as M
 
--- import           Data.Abstract.Cache(IsCache)
--- import qualified Data.Abstract.Cache as Cache
 -- import           Data.Abstract.StackWidening(Stack(..))
 -- import           Data.Abstract.Widening(Stable(..))
 -- import qualified Data.Abstract.Widening as W
 
--- data Iteration cache a b = Iteration { old :: cache a b, new :: cache a b, stable :: Stable }
--- newtype ParallelT cache a b c x y = ParallelT (ReaderT (Stack a) (StateT (Iteration cache a b) c) x y)
+-- data Iteration a b = Iteration { old :: HashMap a b, new :: HashMap a b, stable :: Stable }
+-- newtype ParallelT a b c x y = ParallelT (StateT (Iteration a b) c x y)
 --   deriving (Profunctor,Category,Arrow,ArrowChoice)
 
--- runParallelT :: (IsCache cache a b, Profunctor c) => ParallelT cache a b c x y -> c x (cache a b,y)
--- runParallelT (ParallelT f) = dimap (\a -> (empty,(empty,a))) (first new) (runStateT (runReaderT f))
+-- runParallelT :: (Profunctor c) => ParallelT cache a b c x y -> c x (HashMap a b,y)
+-- runParallelT (ParallelT f) = dimap (\a -> (empty,a)) (first new) (runStateT f)
 
--- execParallelT :: (IsCache cache a b, Profunctor c) => ParallelT cache a b c x y -> c x (cache a b)
--- execParallelT f = rmap fst (runParallelT f)
-
--- evalParallelT :: (IsCache cache a b, Profunctor c) => ParallelT cache a b c x y -> c x y
--- evalParallelT f = rmap snd (runParallelT f)
-
--- parallel :: (Identifiable a, IsCache cache a b, Profunctor c, ArrowChoice c) => Cache.Widening (Iteration cache) a b -> IterationStrategy (ParallelT cache a b c) a b
--- parallel widen (ParallelT f) = ParallelT $ push $ proc (xs,a) -> do
---   cache <- get -< ()
---   case Cache.lookup a cache of
+-- parallel :: (Identifiable a, Profunctor c, ArrowChoice c) => W.Widening b -> IterationStrategy (ParallelT a b c) a b
+-- parallel widen (ParallelT f) = ParallelT $ push $ memoize $ proc (r,a) -> do
+--   case r of
 --     Just (_,b) | H.member a xs -> returnA -< b
 --     _ -> iterate -< (xs,a)
 --   where
@@ -69,17 +63,17 @@ module Control.Arrow.Transformer.Abstract.Fix.Parallel where
 --       Stack xs <- ask -< ()
 --       local g -< (Stack (H.insert a xs),(xs,a))
 
--- instance IsCache cache a b => IsCache (Iteration cache) a b where
---   type Widening (Iteration cache) a b = Cache.Widening cache a b
---   initialize a cache =
---     case (Cache.lookup a (old cache), Cache.lookup a (new cache)) of
---       (Just (st,b), Nothing) -> 
---         let new' = Cache.insert a b st (new cache)
---         in cache { new = new', stable = stable cache ⊔ st }
---       (Nothing, Nothing) ->
---         let new' = Cache.initialize a (new cache)
---         in cache { new = new', stable = Instable }
---       (_,_) -> cache
+-- initialize a cache =
+--   case (M.lookup a (old cache), M.lookup a (new cache)) of
+--     (Just b, Nothing) -> 
+--       let new' = M.insert a b (new cache)
+--       in cache { new = new', stable = stable cache ⊔ st }
+--     (Nothing, Nothing) ->
+--       let new' = M.insert a bottom (new cache)
+--       in cache { new = new', stable = Instable }
+--     (_,_) -> cache
+
+-- instance ArrowCache Iteration a b where
 --   insert a b st cache = cache { new = Cache.insert a b st (new cache)
 --                               , stable = stable cache ⊔ st }
 --   setStable a cache = cache { new = Cache.setStable a (new cache)}

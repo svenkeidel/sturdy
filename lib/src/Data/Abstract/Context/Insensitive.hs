@@ -11,7 +11,7 @@ import Data.Abstract.Context
 import GHC.Generics
 
 data ContextInsensitive lab = ContextInsensitive
-  deriving stock (Eq,Generic)
+  deriving stock (Show,Eq,Generic)
   deriving anyclass (Hashable)
 
 instance IsEmpty (ContextInsensitive lab) where

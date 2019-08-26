@@ -9,6 +9,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -32,11 +33,9 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
-import           Control.Arrow.Transformer.Abstract.Terminating
-
-import           Control.Monad.State hiding (lift,fail)
-
-import qualified Data.HashSet as H
+import           Control.Arrow.Transformer.Abstract.Fix.Trace
+import           Control.Arrow.Transformer.Abstract.Fix.ContextSensitive.CallSite
+import           Control.Arrow.Transformer.Abstract.Fix.ContextSensitive.Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -47,10 +46,9 @@ import           Data.Hashable
 import           Data.Label
 import           Data.Order
 import           Data.Text (Text)
-import qualified Data.Lens as L
 import           Data.Utils
+import           Data.Proxy
 
-import           Data.Abstract.Cache
 import           Data.Abstract.StrongMap(Map)
 import qualified Data.Abstract.StrongMap as SM
 import           Data.Abstract.Error (Error)
@@ -59,15 +57,15 @@ import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import qualified Data.Abstract.Widening as W
-import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating(Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Closure (Closure)
 import qualified Data.Abstract.Closure as C
 import           Data.Abstract.DiscretePowerset (Pow)
     
-import           GHC.Generics(Generic)
 import           GHC.Exts(IsString(..))
+import           GHC.Generics(Generic)
+import           GHC.TypeLits(KnownNat)
 import           Text.Printf
 
 import           Syntax (Expr(..),apply)
@@ -83,40 +81,39 @@ data Val = NumVal IV | ClosureVal (Closure Expr Env) | TypeError (Pow String) de
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?bound :: IV) => Int -> [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
-evalInterval k env0 e = snd $
-    run (Generic.eval :: Fix Expr Val
-                (ValueT Val
-                  (EnvT Text Val
-                    (ErrorT (Pow String)
-                      (TerminatingT
-                        (FixT _ _
-                          (ChaoticT _ _
-                             (->))))))) Expr Val)
+evalInterval :: forall k. (KnownNat k, ?bound :: IV) => Proxy k -> [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
+evalInterval _ env0 e = snd $
+    run (Generic.eval ::
+      Fix'
+        (ValueT Val
+          (EnvT Text Val
+            (ErrorT (Pow String)
+              (TerminatingT
+                (FixT _ _
+                  (ChaoticT _ _
+                    (CallSiteT k (Expr,Label)
+                      (TraceT
+                        (CacheT _ (Expr,Label) _ _ (->)))))))))) Expr Val)
     iterationStrategy
-    _
-    _
-    _
+    widenEnv
+    (T.widening (E.widening W.finite widenVal))
     (SM.fromList env0,e0)
   where
     e0 = generate e
     vars = variables e0
     
     iterationStrategy = Fix.filter apply
-                      $ tightenEnv
-                      $ chaotic-- (T.widening (E.widening W.finite widenVal))
+                      $ pruneEnv
+                      $ Fix.trace
+                      $ iterateInner
 
-    stackWiden = SW.groupBy _
-               $ SW.reuseMeasured
-               $ SW.maxSize k
-               $ SW.fromWidening (SM.widening widenVal)
-
+    widenEnv = SM.widening widenVal
     widenVal = widening (W.bounded ?bound I.widening)
 
-    tightenEnv strat f = proc (env,(exp,lab)) -> do
+    pruneEnv strat f = proc ((exp,lab),env) -> do
       case M.lookup exp vars of
-        Just (scope,used) -> strat f -< (SM.delete (scope `H.difference` used) env,(exp,lab))
-        Nothing -> strat f -< (env,(exp,lab))
+        Just (scope,used) -> strat f -< ((exp,lab),SM.delete (scope `H.difference` used) env)
+        Nothing -> strat f -< ((exp,lab),env)
 
 instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) where
   type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)

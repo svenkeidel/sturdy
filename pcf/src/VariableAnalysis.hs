@@ -24,6 +24,7 @@ import           Prelude hiding (Bounded,fail,(.),exp,filter)
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix as Fix
+import           Control.Arrow.State
 import           Control.Arrow.Trans
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Order hiding (bottom)
@@ -32,7 +33,7 @@ import           Control.Arrow.Transformer.FreeVars
 import           Control.Arrow.Transformer.Abstract.Environment(EnvT)
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Finite
+import           Control.Arrow.Transformer.Abstract.Fix.StackWidening.Cache
 
 import           Data.Empty
 import           Data.HashMap.Lazy(HashMap)
@@ -42,7 +43,10 @@ import           Data.Text (Text)
 
 import qualified Data.Abstract.StrongMap as SM
 import           Data.Abstract.DiscretePowerset (Pow)
+import           Data.Abstract.Widening as W
 import           Data.Maybe
+import           Data.Profunctor
+import           Data.Identifiable
     
 import           GHC.Exts(IsString(..))
 
@@ -54,21 +58,30 @@ type Val = ()
 variables :: Expr -> HashMap Expr (HashSet Text,HashSet Text)
 variables e =
   M.fromList
-  $ M.foldlWithKey' (\l (scope,(expr,_)) (used,_) -> (expr,(fromMaybe (error "top") (SM.keys scope),used)):l) []
+  $ M.foldlWithKey' (\l ((expr,_),scope) (_,(used,_)) -> (expr,(fromMaybe (error "top") (SM.keys scope),used)):l) []
+  $ getMap
   $ fst
   $ run (Generic.eval ::
-        Fix Expr Val
+        Fix'
          (ValueT Val
            (ErrorT (Pow String)
              (FreeVarsT Text
                (EnvT Text Val
                  (FixT _ _
-                   (FiniteT _ _ 
+                   (CacheT _ _ 
                      (->))))))) Expr Val)
     iterationStrategy
+    W.finite
     (empty,e)
   where
-    iterationStrategy = Fix.filter apply $ finite
+    iterationStrategy = Fix.filter apply $ record
+
+record :: (Identifiable a, Arrow c, Profunctor c) => IterationStrategy (CacheT a b c) a b
+record (CacheT f) = CacheT $ proc a -> do
+  b <- f -< a
+  modify' (\((a,b),Cache cache) -> ((),Cache (M.insert a (Stable,b) cache))) -< (a,b)
+  returnA -< b
+{-# INLINE record #-}
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => IsNum Val (ValueT Val c) where
   type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)

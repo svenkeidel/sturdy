@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -25,11 +26,12 @@ import           Control.Arrow.Fix as F
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Order hiding (bottom)
 import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
-import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.ContextSensitive.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.ContextSensitive.CallSite
+-- import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
-import           Data.Abstract.Context
-import           Data.Abstract.Context.Insensitive
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
@@ -39,13 +41,13 @@ import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
 
 import           Data.Identifiable
-import           Data.Empty
 import           Data.Order
 import           Data.Hashable
 import           Data.Profunctor
 import           Data.Proxy
 
 import           GHC.Generics
+import           GHC.TypeLits
 
 import           Test.Hspec
 
@@ -55,18 +57,22 @@ main = hspec spec
 spec :: Spec
 spec = do
   --describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
-  describe "Chaotic"  (sharedSpec (\f -> snd . Arrow.run (toChaotic f) id ?widenA (T.widening ?widenB)))
+  describe "Chaotic" $ do
+    describe "iterate inner component" $
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) ({-trace-} iterateInner) ?widenA (T.widening ?widenB) a)
+    describe "iterate outer component" $
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) ({-trace-} iterateOuter) ?widenA (T.widening ?widenB) a)
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)
 
-type Arr ctx x y = forall c. (ArrowChoice c, Profunctor c, ArrowComplete y c, ArrowFix (c x y)) => c x y
+type Arr x y = forall c. (ArrowChoice c, Profunctor c, ArrowComplete y c, ArrowFix (c x y)) => c x y
 
-sharedSpec :: (forall ctx lab a b.
-                 (Show a, Show b, Identifiable lab, Identifiable a, PreOrd a, Complete b, IsContext ctx lab, IsEmpty ctx,
-                  ?widenA :: Widening a, ?widenB :: Widening b, ?sensitivity :: Proxy ctx)
-                => Arr ctx (lab,a) b -> (lab,a) -> Terminating b) -> Spec
-sharedSpec run = do
-  let prog :: Arr ctx (Funs,Val) Val
+callsiteSpec :: (forall k lab a b.
+                 (KnownNat k, Show lab, Show a, Show b, Identifiable lab, Identifiable a, PreOrd a, Complete b,
+                  ?widenA :: Widening a, ?widenB :: Widening b, ?sensitivity :: Proxy (k :: Nat))
+                => Arr (lab,a) b -> (lab,a) -> Terminating b) -> Spec
+callsiteSpec run = do
+  let prog :: Arr (Funs,Val) Val
       prog = fix $ \call -> proc (e,x) -> case e of
         Main -> do
           call -< (Fun1,Unit)
@@ -78,12 +84,24 @@ sharedSpec run = do
         Id ->
           returnA -< x
 
-  it "context-insensitive" $
+  it "context insensitive" $
     let ?widenA = W.finite in 
     let ?widenB = W.finite in
-    let ?sensitivity = Proxy @(ContextInsensitive Funs) in
+    let ?sensitivity = Proxy @0 in
+    run prog (Main,Unit) `shouldBe` return Top
+
+  it "1-callsite sensitive" $
+    let ?widenA = W.finite in 
+    let ?widenB = W.finite in
+    let ?sensitivity = Proxy @1 in
     run prog (Main,Unit) `shouldBe` return (Num (iv 1 2))
-{-# INLINE sharedSpec #-}
+
+  it "2-callsite sensitive" $
+    let ?widenA = W.finite in 
+    let ?widenB = W.finite in
+    let ?sensitivity = Proxy @2 in
+    run prog (Main,Unit) `shouldBe` return (Num (iv 2 2))
+{-# INLINE callsiteSpec #-}
 
 instance PreOrd Val where
   _ ⊑ Top = True
@@ -107,12 +125,16 @@ type IV = Interval (InfiniteNumber Int)
 iv :: InfiniteNumber Int -> InfiniteNumber Int -> IV
 iv n m = I.Interval n m
 
-data Funs = Main | Fun1 | Fun2 | Id deriving (Eq,Generic)
+data Funs = Main | Fun1 | Fun2 | Id deriving (Show,Eq,Generic)
 instance Hashable Funs
 instance PreOrd Funs where
   e1 ⊑ e2 = e1 == e2
 
-toChaotic :: (?sensitivity :: Proxy ctx, IsContext ctx lab, Show a, Show b, Identifiable lab, Identifiable a, PreOrd a, Complete b)
-          => Arr ctx (lab,a) b -> TerminatingT (ChaoticT (lab,a) (Terminating b) (ContextT ctx lab a (Terminating b) (->))) (lab,a) b
+toChaotic :: (KnownNat k, ?sensitivity :: Proxy k, Show lab, Show a, Show b, Identifiable lab, Identifiable a, PreOrd a, Complete b)
+          => Arr (lab,a) b -> TerminatingT (FixT (lab,a) (Terminating b)
+                                              (ChaoticT (lab,a) (Terminating b)
+                                                (CallSiteT k lab
+                                                  (-- TraceT
+                                                    (CacheT _ lab a (Terminating b) (->)))))) (lab,a) b
 toChaotic x = x
 {-# INLINE toChaotic #-}
