@@ -19,12 +19,14 @@
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module ContextSensitivitySpec where
 
-import           Prelude hiding (lookup,Bounded,fail)
+import           Prelude hiding (lookup,Bounded,fail,Bool)
 
+import           TestPrograms
+
+import           Control.Monad(forM_)
 import           Control.Arrow
 import           Control.Arrow.Fix as F
 import qualified Control.Arrow.Trans as Arrow
-import           Control.Arrow.Order hiding (bottom)
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
@@ -32,18 +34,16 @@ import           Control.Arrow.Transformer.Abstract.Fix.ContextSensitive.Cache
 import           Control.Arrow.Transformer.Abstract.Fix.ContextSensitive.CallSite
 -- import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
-import           Data.Abstract.InfiniteNumbers
-import           Data.Abstract.Interval (Interval)
-import qualified Data.Abstract.Interval as I
+import qualified Data.Abstract.Boolean as Abs
 import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
 
+import           Data.Boolean
 import           Data.Identifiable
 import           Data.Order
 import           Data.Hashable
-import           Data.Profunctor
 import           Data.Proxy
 
 import           GHC.Generics
@@ -65,43 +65,71 @@ spec = do
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)
 
-type Arr x y = forall c. (ArrowChoice c, Profunctor c, ArrowComplete y c, ArrowFix (c x y)) => c x y
-
+{-# INLINE callsiteSpec #-}
 callsiteSpec :: (forall k lab a b.
                  (KnownNat k, Show lab, Show a, Show b, Identifiable lab, Identifiable a, PreOrd a, Complete b,
                   ?widenA :: Widening a, ?widenB :: Widening b, ?sensitivity :: Proxy (k :: Nat))
                 => Arr (lab,a) b -> (lab,a) -> Terminating b) -> Spec
 callsiteSpec run = do
-  let prog :: Arr (Funs,Val) Val
-      prog = fix $ \call -> proc (e,x) -> case e of
-        Main -> do
-          call -< (Fun1,Unit)
-          call -< (Fun2,Unit)
-        Fun1 ->
-          call -< (Id,Num (iv 1 1))
-        Fun2 ->
-          call -< (Id,Num (iv 2 2))
-        Id ->
-          returnA -< x
+  describe "diamond" $ do
+    let diamond :: Arr (Funs,Val) Val
+        diamond = fix $ \call -> proc (e,x) -> case e of
+          Main -> do
+            call -< (Fun1,Unit)
+            call -< (Fun2,Unit)
+          Fun1 ->
+            call -< (Id,Num (iv 1 1))
+          Fun2 ->
+            call -< (Id,Num (iv 2 2))
+          Id ->
+            returnA -< x
 
-  it "context insensitive" $
-    let ?widenA = W.finite in 
-    let ?widenB = W.finite in
-    let ?sensitivity = Proxy @0 in
-    run prog (Main,Unit) `shouldBe` return Top
+    let ?widenA = W.finite
+    let ?widenB = W.finite
 
-  it "1-callsite sensitive" $
-    let ?widenA = W.finite in 
-    let ?widenB = W.finite in
-    let ?sensitivity = Proxy @1 in
-    run prog (Main,Unit) `shouldBe` return (Num (iv 1 2))
+    it "context insensitive" $
+      let ?sensitivity = Proxy @0 in
+      run diamond (Main,Unit) `shouldBe` return Top
 
-  it "2-callsite sensitive" $
-    let ?widenA = W.finite in 
-    let ?widenB = W.finite in
-    let ?sensitivity = Proxy @2 in
-    run prog (Main,Unit) `shouldBe` return (Num (iv 2 2))
-{-# INLINE callsiteSpec #-}
+    it "1-callsite sensitive" $
+      let ?sensitivity = Proxy @1 in
+      run diamond (Main,Unit) `shouldBe` return (Num (iv 1 2))
+
+    it "2-callsite sensitive" $
+      let ?sensitivity = Proxy @2 in
+      run diamond (Main,Unit) `shouldBe` return (Num (iv 2 2))
+
+  describe "mutual recursive functions" $ do
+    let ?widenA = W.finite
+    let ?widenB = W.finite
+
+    let runTests :: (KnownNat k, ?sensitivity :: Proxy (k :: Nat)) => [(EvenOdd,Int,Abs.Bool)] -> IO ()
+        runTests l = forM_ l $ \(eo,arg,res) -> do
+          run evenOdd (eo,iv (fromIntegral arg) (fromIntegral arg)) `shouldBe` return res
+
+    it "context insensitive" $ do
+      let ?sensitivity = Proxy @0
+      runTests [
+        (Even,1,false), (Odd,1,true),
+        (Even,2,top),   (Odd,2,top)
+        ]
+
+    it "1-callsite sensitive" $ do
+      let ?sensitivity = Proxy @1
+      runTests [
+        (Even,1,false), (Odd,1,true),
+        (Even,2,true),  (Odd,2,false),
+        (Even,3,top),   (Odd,3,top)
+        ]
+
+    it "2-callsite sensitive" $ do
+      let ?sensitivity = Proxy @2
+      runTests [
+        (Even,1,false), (Odd,1,true),
+        (Even,2,true),  (Odd,2,false),
+        (Even,3,false), (Odd,3,true),
+        (Even,4,top),   (Odd,4,top)
+        ]
 
 instance PreOrd Val where
   _ ⊑ Top = True
@@ -119,11 +147,6 @@ instance Complete Val where
 -- widening (Num x) (Num y) = Num <$> (I.widening x y)
 -- widening Unit Unit = (Stable,Unit)
 -- widening _ _ = (Instable,Top)
-
-type IV = Interval (InfiniteNumber Int)
-
-iv :: InfiniteNumber Int -> InfiniteNumber Int -> IV
-iv n m = I.Interval n m
 
 data Funs = Main | Fun1 | Fun2 | Id deriving (Show,Eq,Generic)
 instance Hashable Funs
