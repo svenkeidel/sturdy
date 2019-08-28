@@ -5,7 +5,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Data.Abstract.CallString where
+module Data.Abstract.CallString(CallString) where
 
 import           Prelude hiding (truncate)
 

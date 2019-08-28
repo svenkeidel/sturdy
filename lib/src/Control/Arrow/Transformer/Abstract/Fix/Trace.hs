@@ -28,9 +28,9 @@ import Text.Printf
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,ArrowEffectCommutative)
 
-instance (Show a, Show b, ArrowReuse a b c) => ArrowReuse a b (TraceT c) where
-  reuse (TraceT f) = TraceT $ reuse $ proc (a,b) -> do
-    f -< Debug.trace (printf "REUSE\n\tx: %s\n\ty: %s\n\n" (show a) (show b)) (a,b)
+instance (Show a, Show b, ArrowRecurse a b c) => ArrowRecurse a b (TraceT c) where
+  recurse (TraceT f) = TraceT $ recurse $ proc (a,b) -> do
+    f -< Debug.trace (printf "RECURSE\n\tx: %s\n\ty: %s\n\n" (show a) (show b)) (a,b)
 
 instance (Show a, Show b, ArrowCache a b c) => ArrowCache a b (TraceT c) where
   lookup = TraceT $ proc a -> do

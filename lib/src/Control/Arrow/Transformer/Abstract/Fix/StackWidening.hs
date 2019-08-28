@@ -49,8 +49,8 @@ instance IsEmpty (Cache a b) where
   empty = Cache M.empty
   {-# INLINE empty #-}
 
-instance (LowerBounded b, ArrowChoice c, ArrowCache a b c) => ArrowReuse a b (StackT stack a c) where
-  reuse (StackT f) = StackT $ askConst $ \widen -> proc a -> do
+instance (LowerBounded b, ArrowChoice c, ArrowCache a b c) => ArrowRecurse a b (StackT stack a c) where
+  recurse (StackT f) = StackT $ askConst $ \widen -> proc a -> do
     m <- lookup' -< a
     case m of
       Just (Stable,b) -> f -< (a,Cached (Stable,b))
@@ -61,8 +61,8 @@ instance (LowerBounded b, ArrowChoice c, ArrowCache a b c) => ArrowReuse a b (St
         case m' of
           Just (Stable,b) -> f -< (a',Cached (Stable,b))
           b -> case l of
-                 NoLoop -> local f -< (stack',(a',Compute))
-                 Loop -> f -< (a',Cached (fromMaybe (Instable,bottom) b))
+            NoLoop -> local f -< (stack',(a',Compute))
+            Loop -> f -< (a',Cached (fromMaybe (Instable,bottom) b))
     where lookup' = lift' (lift' lookup)
 
 instance (ArrowCache a b c, ArrowChoice c, Profunctor c) => ArrowCache a b (StackT stack a c) where

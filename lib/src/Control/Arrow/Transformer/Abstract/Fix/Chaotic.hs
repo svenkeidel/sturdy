@@ -37,78 +37,77 @@ newtype ChaoticT a b c x y = ChaoticT (WriterT (Component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice)
 
 type instance Fix (ChaoticT _ _ c) x y = ChaoticT x y c
-instance (Identifiable a, ArrowCacheReuse a b c, ArrowChoice c) => ArrowFix (ChaoticT a b c a b) where
-  fix f = iterateOuter (f (fix f))
+instance (Identifiable a, ArrowCacheRecurse a b c, ArrowChoice c) => ArrowFix (ChaoticT a b c a b) where
+  fix f = iterateInner (f (fix f))
   {-# INLINABLE fix #-}
 
--- | Iterate on the outermost fixpoint component.
-iterateOuter :: (Identifiable a, ArrowCacheReuse a b c, ArrowChoice c) => IterationStrategy (ChaoticT a b c) a b
-{-# INLINE iterateOuter #-}
-iterateOuter f = lift $ Cache.reuse $ proc (a,r) -> do
-    case r of
-      -- If the cache contains a stable entry, just return it.
-      Cached (Stable,b) -> returnA -< (mempty,b)
-
-      -- If the cache contains an unstable entry, remember to iterate on this entry.
-      Cached (Instable,b) -> returnA -< (Component {head = H.singleton a, body = H.empty},b)
-
-      -- If we did not encounter the entry, register the entry and keep recursing.
-      Compute -> iterate -< a
-
-    where
-      iterate = proc a -> do
-        (component,b) <- unlift f -< a
-
-        case () of
-          -- The call did not depend on any unstable calls. This means
-          -- we are done and don't need to iterate.
-          () | H.null (head component) -> do
-               Cache.write -< (a,b,Stable)
-               returnA -< (mempty,b)
-
-          -- We are at the head of a fixpoint component. This means, we
-          -- have to iterate until the head stabilized.
-             | head component == H.singleton a -> do
-               (stable,bNew) <- Cache.update -< (a,b)
-
-               case stable of
-                 -- If the head of a fixpoint component is stable, set
-                 -- all elements in the body of the component as stable
-                 -- too and return.
-                 Stable -> do
-                   map Cache.setStable -< H.toList $ H.map (Stable,) (body component)
-                   returnA -< (mempty,bNew)
-
-                 -- If the head of a fixpoint component is not stable, keep iterating.
-                 Instable ->
-                   iterate -< a
-
-          -- We are inside an  fixpoint component, but its head has not stabilized.
-             | otherwise -> do
-               Cache.write -< (a,b,Instable)
-               returnA -< (Component { head = H.delete a (head component),
-                                       body = H.insert a (body component) }, b)
-
 -- | Iterate on the innermost fixpoint component.
-iterateInner :: (Identifiable a, ArrowCacheReuse a b c, ArrowChoice c) => IterationStrategy (ChaoticT a b c) a b
+iterateInner :: (Identifiable a, ArrowCacheRecurse a b c, ArrowChoice c) => IterationStrategy (ChaoticT a b c) a b
 {-# INLINE iterateInner #-}
-iterateInner f = lift $ Cache.reuse $ proc (a,r) -> do
-    case r of
-      Cached (Stable,b) -> returnA -< (mempty,b)
-      Cached (Instable,b) -> returnA -< (Component {head = H.singleton a, body = H.empty},b)
-      Compute -> iterate -< a
-    where
-      iterate = proc a -> do
-        (component,b) <- unlift f -< a
-        if H.null (head component)
-        then do
-          Cache.write -< (a,b,Stable)
-          returnA -< (mempty,b)
-        else do
-          (stable,bNew) <- Cache.update -< (a,b)
-          case stable of
-            Stable -> returnA -< (component { head = H.delete a (head component) },bNew)
-            Instable -> iterate -< a
+iterateInner f = lift $ recurse $ proc (a,r) -> do
+  case r of
+    Cached (Stable,b) -> returnA -< (mempty,b)
+    Cached (Instable,b) -> returnA -< (Component {head = H.singleton a, body = H.empty},b)
+    Compute -> iterate -< a
+  where
+    iterate = proc a -> do
+      (component,b) <- unlift f -< a
+      if H.null (head component)
+      then do
+        Cache.write -< (a,b,Stable)
+        returnA -< (mempty,b)
+      else do
+        (stable,bNew) <- Cache.update -< (a,b)
+        case stable of
+          Stable   -> returnA -< (component { head = H.delete a (head component) },bNew)
+          Instable -> iterate -< a
+
+-- | Iterate on the outermost fixpoint component.
+iterateOuter :: (Identifiable a, ArrowCacheRecurse a b c, ArrowChoice c) => IterationStrategy (ChaoticT a b c) a b
+{-# INLINE iterateOuter #-}
+iterateOuter f = lift $ recurse $ proc (a,r) -> case r of
+  -- If the cache contains a stable entry, just return it.
+  Cached (Stable,b) -> returnA -< (mempty,b)
+
+  -- If the cache contains an unstable entry, remember to iterate on this entry.
+  Cached (Instable,b) -> returnA -< (Component {head = H.singleton a, body = H.empty},b)
+
+  -- If we did not encounter the entry, register the entry and keep recursing.
+  Compute -> iterate -< a
+
+  where
+    iterate = proc a -> do
+      (component,b) <- unlift f -< a
+
+      case () of
+        -- The call did not depend on any unstable calls. This means
+        -- we are done and don't need to iterate.
+        () | H.null (head component) -> do
+             Cache.write -< (a,b,Stable)
+             returnA -< (mempty,b)
+
+        -- We are at the head of a fixpoint component. This means, we
+        -- have to iterate until the head stabilized.
+           | head component == H.singleton a -> do
+             (stable,bNew) <- Cache.update -< (a,b)
+
+             case stable of
+               -- If the head of a fixpoint component is stable, set
+               -- all elements in the body of the component as stable
+               -- too and return.
+               Stable -> do
+                 map Cache.setStable -< H.toList $ H.map (Stable,) (body component)
+                 returnA -< (mempty,bNew)
+
+               -- If the head of a fixpoint component is not stable, keep iterating.
+               Instable ->
+                 iterate -< a
+
+        -- We are inside an  fixpoint component, but its head has not stabilized.
+           | otherwise -> do
+             Cache.write -< (a,b,Instable)
+             returnA -< (Component { head = H.delete a (head component),
+                                     body = H.insert a (body component) }, b)
 
 runChaoticT :: Profunctor c => ChaoticT a b c x y -> c x y
 runChaoticT (ChaoticT f) = rmap snd (runWriterT f)

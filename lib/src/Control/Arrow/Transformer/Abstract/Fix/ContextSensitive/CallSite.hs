@@ -30,10 +30,11 @@ import GHC.TypeLits
 newtype CallSiteT k lab c x y = CallSiteT (ReaderT (CallString k lab) c x y)
   deriving (Category,Arrow,ArrowChoice,Profunctor)
 
-instance (Identifiable lab, KnownNat k, ArrowReuse (CallString k lab,(lab,a)) b c) => ArrowReuse (lab,a) b (CallSiteT k lab c) where
-  reuse f = lift $ proc (contour,(lab,a)) -> do
-    reuse (lmap assoc2 (unlift f)) -< (push lab contour,(lab,a))
-  {-# INLINE reuse #-}
+instance (Identifiable lab, KnownNat k, ArrowRecurse (CallString k lab,(lab,a)) b c) => ArrowRecurse (lab,a) b (CallSiteT k lab c) where
+  -- | Pushes the label on the call string and truncate the call string to 'k'.
+  recurse f = lift $ proc (callString,(lab,a)) -> do
+    recurse (lmap assoc2 (unlift f)) -< (push lab callString,(lab,a))
+  {-# INLINE recurse #-}
 
 instance ArrowCache (CallString k lab,(lab,a)) b c => ArrowCache (lab,a) b (CallSiteT k lab c) where
   lookup = lift $ lookup
@@ -45,19 +46,19 @@ instance ArrowCache (CallString k lab,(lab,a)) b c => ArrowCache (lab,a) b (Call
   {-# INLINE update #-}
   {-# INLINE setStable #-}
 
-instance ArrowTrans (CallSiteT k lab c) where
-  type Underlying (CallSiteT k lab c) x y = c (CallString k lab,x) y
-
 runCallSiteT :: (Profunctor c) => CallSiteT k lab c x y -> c x y
 runCallSiteT (CallSiteT f) = lmap (\x -> (empty,x)) (runReaderT f)
 {-# INLINE runCallSiteT #-}
-
-instance ArrowEffectCommutative c => ArrowEffectCommutative (CallSiteT k lab c)
 
 instance (ArrowRun c) => ArrowRun (CallSiteT k lab c) where
   type Run (CallSiteT k lab c) x y = Run c x y
   run f = run (runCallSiteT f)
   {-# INLINE run #-}
+
+instance ArrowTrans (CallSiteT k lab c) where
+  type Underlying (CallSiteT k lab c) x y = c (CallString k lab,x) y
+
+instance ArrowEffectCommutative c => ArrowEffectCommutative (CallSiteT k lab c)
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (CallSiteT k lab c) where
   app = CallSiteT (app .# first coerce)
