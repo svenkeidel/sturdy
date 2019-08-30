@@ -32,23 +32,23 @@ import           Syntax (Expr(..),Statement(..))
 import           GHC.Exts
 
 -- | This interface abstracts over the values of the language.
-class Arrow c => IsValue v c | c -> v where
-  numLit :: c Int v
-  boolLit :: c Bool v
-  add :: c (v,v) v
-  and :: c (v,v) v
-  lt :: c (v,v) v
-  if_ :: c x () -> c y () -> c (v,x,y) ()
+class Arrow c => IsValue val c | c -> val where
+  numLit :: c Int val
+  boolLit :: c Bool val
+  add :: c (val,val) val
+  and :: c (val,val) val
+  lt :: c (val,val) val
+  if_ :: c x () -> c y () -> c (val,x,y) ()
 
 
 -- | The generic interpreter uses other language-independent
 -- interfaces for environments, stores, failure and fixpoints from the
 -- Sturdy standard library. These `Join` constraints are needed to
 -- allow the abstract interpreter to join two arrow computations.
-eval :: ( Show addr, IsString e, IsValue v c, ArrowChoice c,
-          ArrowEnv String addr env c, ArrowStore addr v c, ArrowFail e c,
-          Env.Join c ((addr, String),String) v, Store.Join c ((v, addr),addr) v
-        ) => c Expr v
+eval :: ( Show addr, IsString err, IsValue val c, ArrowChoice c,
+          ArrowEnv String addr env c, ArrowStore addr val c, ArrowFail err c,
+          Env.Join c val, Store.Join c val
+        ) => c Expr val
 eval = proc e -> case e of
   Var x _ -> lookup'' read' -< x
   NumLit n _ -> numLit -< n
@@ -66,16 +66,16 @@ eval = proc e -> case e of
     v2 <- eval -< e2
     lt -< (v1,v2)
 
-run :: (Show addr, Show env, Show v, IsString e, IsValue v c, ArrowChoice c,
-        ArrowEnv String addr env c, ArrowStore addr v c, ArrowAlloc (String,v,Label) addr c,
+run :: (Show addr, Show env, Show val, IsString e, IsValue val c, ArrowChoice c,
+        ArrowEnv String addr env c, ArrowStore addr val c, ArrowAlloc (String,val,Label) addr c,
         ArrowFail e c, ArrowFix [Statement] () c,
-        Env.Join c ((addr, String),String) v, Env.Join c ((addr, (String,v,Label)), (String,v,Label)) addr,
-        Store.Join c ((v, addr),addr) v)
+        Env.Join c val, Env.Join c addr, Store.Join c ((val, addr),addr) val)
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of
   (Assign x e l : rest) -> do
     v <- eval -< e
-    addr <- lookup (proc (a,_) -> returnA -< a) (proc l -> alloc -< l) -< (x,(x,v,l))
+    addr <- lookup (proc (a,_) -> returnA -< a)
+                   (proc l -> alloc -< l) -< (x,(x,v,l))
     write -< (addr,v)
     extendEnv' run' -< (x,addr,rest)
   (If cond ifBranch elseBranch _ : rest) -> do

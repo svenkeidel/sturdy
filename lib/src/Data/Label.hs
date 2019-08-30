@@ -9,8 +9,8 @@ import Data.Abstract.FreeCompletion
 import Control.Monad.State
 
 -- Retrieves label from expression.
-class HasLabel x lab where
-  label :: x -> lab
+class HasLabel x where
+  label :: x -> Label
 
 newtype Label = Label { labelVal :: Int }
   deriving (Ord,Eq,Hashable,Num)

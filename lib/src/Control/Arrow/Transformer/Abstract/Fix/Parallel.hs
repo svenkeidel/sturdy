@@ -97,5 +97,3 @@ module Control.Arrow.Transformer.Abstract.Fix.Parallel where
 -- instance (ArrowEffectCommutative c, Complete y) => ArrowComplete y (ParallelT cache a b c) where
 --   ParallelT f <⊔> ParallelT g = ParallelT $ rmap (uncurry (⊔)) (f &&& g)
 -- instance ArrowEffectCommutative c => ArrowEffectCommutative (ParallelT cache a b c)
-
-

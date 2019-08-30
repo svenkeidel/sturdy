@@ -14,6 +14,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Fix.Context as Ctx
 import Control.Arrow.Environment as Env
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
@@ -160,3 +161,10 @@ instance (Applicative f, ArrowComplete y c) => ArrowComplete y (StaticT f c) whe
   StaticT f <⊔> StaticT g = StaticT $ (<⊔>) <$> f <*> g 
   {-# INLINE (<⊔>) #-}
   {-# SPECIALIZE instance ArrowComplete y c => ArrowComplete y (StaticT ((->) r) c) #-}
+
+instance (Applicative f, ArrowContext ctx c) => ArrowContext ctx (StaticT f c) where
+  askContext = StaticT (pure askContext)
+  localContext (StaticT f) = StaticT $ localContext <$> f
+  {-# INLINE askContext #-}
+  {-# INLINE localContext #-}
+  {-# SPECIALIZE instance ArrowContext ctx c => ArrowContext ctx (StaticT ((->) r) c) #-}

@@ -71,7 +71,6 @@ instance (IsString e, ArrowChoice c, ArrowJoin c, ArrowFail e c) => IsValue AbsV
     -- bounds and the largest number that can occur is the addition of
     -- the upper interval bounds.
     (NumVal (Interval x1 y1),NumVal (Interval x2 y2)) -> returnA -< NumVal (Interval (x1 + x2) (y1 + y2))
-    (TopVal,TopVal) -> (returnA -< TopVal) <⊔> (fail -< "Expected two numbers as arguments for 'add'")
     _ -> fail -< "Expected two numbers as arguments for 'add'"
 
 

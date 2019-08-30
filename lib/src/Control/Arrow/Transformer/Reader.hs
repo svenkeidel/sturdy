@@ -14,11 +14,12 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
-import Control.Arrow.Cache as Cache
 import Control.Arrow.Environment as Env
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
+import Control.Arrow.Fix.Cache as Cache
+import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Order
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
@@ -157,11 +158,17 @@ instance ArrowConst x c => ArrowConst x (ReaderT r c) where
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ReaderT r c)
 
-instance (ArrowCache (r,a) b c) => ArrowCache a b (ReaderT r c) where
-  lookup = lift Cache.lookup
-  write = lift (lmap (\(st,(a,b,s)) -> ((st,a),b,s)) Cache.write)
-  update = lift (lmap (\(st,(a,b)) -> ((st,a),b)) Cache.update)
-  setStable = lift (lmap (\(st,(s,a)) -> (s,(st,a))) Cache.setStable)
+instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
+  askContext = lift' Context.askContext
+  localContext f = lift $ lmap shuffle1 (localContext (unlift f)) 
+  {-# INLINE askContext #-}
+  {-# INLINE localContext #-}
+
+instance (ArrowCache a b c) => ArrowCache a b (ReaderT r c) where
+  lookup = lift' Cache.lookup
+  write = lift' Cache.write
+  update = lift' Cache.update
+  setStable = lift' Cache.setStable
   {-# INLINE lookup #-}
   {-# INLINE write #-}
   {-# INLINE update #-}

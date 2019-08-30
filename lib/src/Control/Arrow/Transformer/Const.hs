@@ -14,6 +14,7 @@ import Control.Category
 
 import Control.Arrow
 import Control.Arrow.Const
+import Control.Arrow.Fix.Context
 import Control.Arrow.Environment
 import Control.Arrow.Except
 import Control.Arrow.Fail
@@ -35,11 +36,19 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded,ArrowLift,ArrowJoin,
             ArrowState s,ArrowReader r',ArrowWriter w,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore var val,
-            ArrowFail e, ArrowExcept e)
+            ArrowFail e, ArrowExcept e,ArrowContext ctx)
+
+constT :: (r -> c x y) -> ConstT r c x y
+constT f = ConstT (StaticT f)
+{-# INLINE constT #-}
 
 runConstT :: r -> ConstT r c x y -> c x y
 runConstT r (ConstT (StaticT f)) = f r
 {-# INLINE runConstT #-}
+
+liftConstT :: (c x y -> c' x' y') -> ConstT r c x y -> ConstT r c' x' y'
+liftConstT f g = lift $ \r -> f (unlift g r)
+{-# INLINE liftConstT #-}
 
 instance ArrowTrans (ConstT r c) where
   type Underlying (ConstT r c) x y = r -> c x y
@@ -58,7 +67,7 @@ instance (Arrow c, Profunctor c, ArrowFix (c x y)) => ArrowFix (ConstT r c x y) 
   {-# INLINE fix #-}
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ConstT r c) where
-  app = ConstT $ StaticT $ \r -> lmap (\(f,x) -> ((coerce f) r,x)) app
+  app = ConstT $ StaticT $ \r -> lmap (\(f,x) -> (coerce f r,x)) app
   {-# INLINE app #-}
 
 deriving instance ArrowComplete y c =>  ArrowComplete y (ConstT r c)

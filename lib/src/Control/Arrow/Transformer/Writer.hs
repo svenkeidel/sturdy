@@ -3,7 +3,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Control.Arrow.Transformer.Writer where
@@ -13,6 +12,9 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
+import Control.Arrow.Fix.Cache as Cache
+import Control.Arrow.Fix.Stack as Stack
+import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Environment as Env
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
@@ -125,8 +127,8 @@ instance (Monoid w, ArrowReader r c) => ArrowReader r (WriterT w c) where
 
 instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
   type Join y (WriterT w c) = Env.Join (w,y) c
-  lookup f g = lift $ lookup (unlift f) (unlift g)
-  extend f = lift $ extend (unlift f)
+  lookup f g = lift $ Env.lookup (unlift f) (unlift g)
+  extend f = lift $ Env.extend (unlift f)
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -138,8 +140,8 @@ instance (Monoid w, ArrowClosure var val env c) => ArrowClosure var val env (Wri
 
 instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) where
   type Join y (WriterT w c) = Store.Join (w,y) c
-  read f g = lift $ read (unlift f) (unlift g)
-  write = lift' write
+  read f g = lift $ Store.read (unlift f) (unlift g)
+  write = lift' Store.write
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -165,3 +167,31 @@ instance (Monoid w, ArrowRand v c) => ArrowRand v (WriterT w c) where
 instance (Monoid w, ArrowConst x c) => ArrowConst x (WriterT w c) where
   askConst f = lift (askConst (unlift . f))
   {-# INLINE askConst #-}
+
+instance (Monoid w, ArrowStack a c) => ArrowStack a (WriterT w c) where
+  peek = lift' Stack.peek
+  push f = lift $ Stack.push (unlift f)
+  elem = lift' Stack.elem
+  elems = lift' Stack.elems
+  size = lift' Stack.size
+  {-# INLINE peek #-}
+  {-# INLINE push #-}
+  {-# INLINE elem #-}
+  {-# INLINE elems #-}
+  {-# INLINE size #-}
+
+instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
+  askContext = lift' Context.askContext
+  localContext f = lift (Context.localContext (unlift f))
+  {-# INLINE askContext #-}
+  {-# INLINE localContext #-}
+
+instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c) where
+  lookup = lift' Cache.lookup
+  write = lift' Cache.write
+  update = lift' Cache.update
+  setStable = lift' Cache.setStable
+  {-# INLINE lookup #-}
+  {-# INLINE write #-}
+  {-# INLINE update #-}
+  {-# INLINE setStable #-}

@@ -8,7 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE DataKinds #-}
-module Control.Arrow.Transformer.State(StateT(..),evalStateT,execStateT) where
+module Control.Arrow.Transformer.State(StateT(..),evalStateT,execStateT,withStateT) where
 
 import           Prelude hiding (id,(.),lookup,read,fail)
 
@@ -19,6 +19,8 @@ import           Control.Arrow.Environment as Env
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Context
+import           Control.Arrow.Fix.Widening
 import           Control.Arrow.Order
 import           Control.Arrow.Random
 import           Control.Arrow.Reader as Reader
@@ -45,6 +47,10 @@ evalStateT f = rmap snd $ runStateT f
 execStateT :: Profunctor c => StateT s c x y -> c (s,x) s
 execStateT f = rmap fst $ runStateT f
 {-# INLINE execStateT #-}
+
+withStateT :: Arrow c => StateT s' c x y -> StateT s c (s',x) (s',y)
+withStateT f = lift (second (unlift f))
+{-# INLINE withStateT #-}
 
 instance ArrowRun c => ArrowRun (StateT s c) where type Run (StateT s c) x y = Run c (s,x) (s,y)
 instance ArrowTrans (StateT s c) where type Underlying (StateT s c) x y = c (s,x) (s,y)
@@ -173,6 +179,16 @@ instance ArrowConst x c => ArrowConst x (StateT s c) where
 instance ArrowRand v c => ArrowRand v (StateT s c) where
   random = lift' random
   {-# INLINE random #-}
+
+instance ArrowContext ctx c => ArrowContext ctx (StateT s c) where
+  askContext = lift' askContext
+  localContext f = lift (lmap shuffle1 (localContext (unlift f)))
+  {-# INLINE askContext #-}
+  {-# INLINE localContext #-}
+
+instance ArrowWidening y c => ArrowWidening y (StateT s c) where
+  widening = lift' widening
+  {-# INLINE widening #-}
 
 instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
   => ArrowEffectCommutative (StateT s c)

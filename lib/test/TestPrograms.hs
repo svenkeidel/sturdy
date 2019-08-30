@@ -8,6 +8,9 @@ import           Prelude hiding (lookup,Bounded,Bool(..),fail)
 
 import           Control.Arrow
 import           Control.Arrow.Fix as F
+import           Control.Arrow.Fix.Cache
+import           Control.Arrow.Fix.Stack
+import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Order hiding (bottom)
 
 import           Data.Boolean(Logic(..))
@@ -15,6 +18,7 @@ import           Data.Abstract.Boolean(Bool)
 import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
+import           Data.Abstract.Terminating
 
 import           Data.Order
 import           Data.Hashable
@@ -64,12 +68,13 @@ diverge = fix $ \f -> proc n -> case n of
   _ -> f -< (n-1)
 
 type Arr x y = forall c. (ArrowChoice c, Profunctor c, ArrowApply c, ArrowComplete y c, ArrowFix (c x y)) => c x y
+newtype Strat x y = Strat { getStrat :: forall c. (ArrowChoice c, Profunctor c, ArrowApply c, ArrowComponent x c, ArrowComplete (Terminating y) c, ArrowStack x c, ArrowCache x (Terminating y) c, ArrowIterate x c, ArrowChoice c) => IterationStrategy c x (Terminating y)}
 type IV = Interval (InfiniteNumber Int)
 
 iv :: InfiniteNumber Int -> InfiniteNumber Int -> IV
 iv n m = I.Interval n m
 
-ifLowerThan :: (Num n, Ord n, ArrowChoice c, Profunctor c, ArrowComplete x c) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
+ifLowerThan :: (Num n, Ord n, ArrowChoice c, ArrowComplete x c) => n -> c (Interval n) x -> c (Interval n) x -> c (Interval n) x
 ifLowerThan l f g = proc x -> case x of
   I.Interval m n
     | n <= l -> f -< x
