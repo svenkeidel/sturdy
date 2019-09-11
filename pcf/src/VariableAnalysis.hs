@@ -3,9 +3,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -33,7 +30,8 @@ import           Control.Arrow.Transformer.FreeVars
 import           Control.Arrow.Transformer.Abstract.Environment(EnvT)
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.StackWidening.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Basic
 
 import           Data.Empty
 import           Data.HashMap.Lazy(HashMap)
@@ -47,7 +45,7 @@ import           Data.Abstract.Widening as W
 import           Data.Maybe
 import           Data.Profunctor
 import           Data.Identifiable
-    
+
 import           GHC.Exts(IsString(..))
 
 import           Syntax (Expr(..),apply)
@@ -68,15 +66,15 @@ variables e =
              (FreeVarsT Text
                (EnvT Text Val
                  (FixT _ _
-                   (CacheT _ _ 
+                   (CacheT Cache _ _
                      (->))))))) Expr Val)
     iterationStrategy
     W.finite
     (empty,e)
   where
-    iterationStrategy = Fix.filter apply $ record
+    iterationStrategy = Fix.filter apply record
 
-record :: (Identifiable a, Arrow c, Profunctor c) => IterationStrategy (CacheT a b c) a b
+record :: (Identifiable a, Arrow c, Profunctor c) => IterationStrategy (CacheT Cache a b c) a b
 record (CacheT f) = CacheT $ proc a -> do
   b <- f -< a
   modify' (\((a,b),Cache cache) -> ((),Cache (M.insert a (Stable,b) cache))) -< (a,b)

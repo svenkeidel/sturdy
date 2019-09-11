@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -17,7 +18,7 @@ class ArrowJoinContext cache a b c where
   type Widening cache a :: *
   joinContexts' :: Widening cache a -> IterationStrategy c (cache a b, a) b
 
-joinContexts :: (ArrowState (cache a b) c, ArrowJoinContext cache a b c) => Widening cache a -> IterationStrategy c a b
+joinContexts :: forall a cache b c. (ArrowState (cache a b) c, ArrowJoinContext cache a b c) => Widening cache a -> IterationStrategy c a b
 joinContexts widen f = proc a -> do
   cache <- get -< ()
   joinContexts' widen (proc (cache,a) -> do

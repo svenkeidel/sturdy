@@ -86,7 +86,7 @@ instance Show Expr where
       app_prec = 10
       lam_prec = 9
 
-instance HasLabel Expr Label where
+instance HasLabel Expr where
   label e = case e of
     Var _ l -> l
     Lam _ _ l -> l

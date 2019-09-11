@@ -22,9 +22,11 @@ module IntervalAnalysis where
 
 import           Prelude hiding (Bounded,fail,(.),exp)
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.Trans
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Order
@@ -33,9 +35,10 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
-import           Control.Arrow.Transformer.Abstract.Fix.ContextSensitive.CallSite
-import           Control.Arrow.Transformer.Abstract.Fix.ContextSensitive.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.Stack
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Group
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.ContextSensitive
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -47,7 +50,6 @@ import           Data.Label
 import           Data.Order
 import           Data.Text (Text)
 import           Data.Utils
-import           Data.Proxy
 
 import           Data.Abstract.StrongMap(Map)
 import qualified Data.Abstract.StrongMap as SM
@@ -62,10 +64,10 @@ import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Closure (Closure)
 import qualified Data.Abstract.Closure as C
 import           Data.Abstract.DiscretePowerset (Pow)
-    
+import           Data.Abstract.CallString(CallString)
+
 import           GHC.Exts(IsString(..))
 import           GHC.Generics(Generic)
-import           GHC.TypeLits(KnownNat)
 import           Text.Printf
 
 import           Syntax (Expr(..),apply)
@@ -81,39 +83,40 @@ data Val = NumVal IV | ClosureVal (Closure Expr Env) | TypeError (Pow String) de
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: forall k. (KnownNat k, ?bound :: IV) => Proxy k -> [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
-evalInterval _ env0 e = snd $
-    run (Generic.eval ::
+evalInterval :: (?sensitivity :: Int, ?bound :: IV) => [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
+evalInterval env0 e = snd $
+  run (Generic.eval ::
       Fix'
         (ValueT Val
           (EnvT Text Val
             (ErrorT (Pow String)
               (TerminatingT
                 (FixT _ _
-                  (ChaoticT _ _
-                    (CallSiteT k (Expr,Label)
-                      (TraceT
-                        (CacheT _ (Expr,Label) _ _ (->)))))))))) Expr Val)
+                  (ChaoticT _
+                    (StackT Stack _
+                      (CacheT (Group (Cache (CallString _))) _ _
+                        (ContextT (CallString _)
+                          (->)))))))))) Expr Val)
     iterationStrategy
-    widenEnv
     (T.widening (E.widening W.finite widenVal))
     (SM.fromList env0,e0)
   where
     e0 = generate e
     vars = variables e0
-    
+
     iterationStrategy = Fix.filter apply
                       $ pruneEnv
-                      $ Fix.trace
-                      $ iterateInner
+                      . joinContexts @((Expr,Label),Env) @(Group (Cache (CallString (Expr,Label)))) widenEnv
+                      . callsiteSensitive ?sensitivity fst
+                      . iterateInner
 
     widenEnv = SM.widening widenVal
     widenVal = widening (W.bounded ?bound I.widening)
 
-    pruneEnv strat f = proc ((exp,lab),env) -> do
+    pruneEnv f = proc ((exp,lab),env) -> do
       case M.lookup exp vars of
-        Just (scope,used) -> strat f -< ((exp,lab),SM.delete (scope `H.difference` used) env)
-        Nothing -> strat f -< ((exp,lab),env)
+        Just (scope,used) -> f -< ((exp,lab),SM.delete (scope `H.difference` used) env)
+        Nothing -> f -< ((exp,lab),env)
 
 instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) where
   type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)
