@@ -29,8 +29,6 @@ class PreOrd x where
   x ≈ y = x ⊑ y && y ⊑ x
   infix 4 ≈
 
-
-
 -- | Order with all least upper bounds
 class PreOrd x => Complete x where
   (⊔) :: x -> x -> x
@@ -43,7 +41,7 @@ class PreOrd x => LowerBounded x where
 lub :: (Foldable f, Complete x) => f x -> x
 lub = foldr1 (⊔)
 
-joined :: (Arrow c, Profunctor c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
+joined :: (Profunctor c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
 joined f1 f2 = (lmap fst f1) ⊔ (lmap snd f2)
 
 lubA :: (ArrowChoice c, Profunctor c, Complete (c (x,[x]) y), LowerBounded (c () y)) => c x y -> c [x] y

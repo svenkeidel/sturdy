@@ -22,8 +22,10 @@ import Data.Bifunctor (Bifunctor(bimap))
 import Data.Hashable
 import Data.Order hiding (lub)
 import Data.Traversable
+
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
+import Data.Abstract.Stable
 
 import GHC.Generics (Generic, Generic1)
 import GHC.TypeLits
@@ -64,6 +66,7 @@ instance (PreOrd e, PreOrd a) => PreOrd (Except e a) where
     (SuccessOrFail e a, SuccessOrFail e' b) -> e ⊑ e' && a ⊑ b
     (Fail e, SuccessOrFail e' _) -> e ⊑ e'
     (_, _) -> False
+  {-# INLINE (⊑) #-}
 
 instance (Complete e, Complete a) => Complete (Except e a) where
   (⊔) = toJoin2 widening (⊔) (⊔)
@@ -72,13 +75,13 @@ instance (Complete e, Complete a) => Complete (Except e a) where
 widening :: Widening e -> Widening a -> Widening (Except e a)
 widening we wa m1 m2 = case (m1,m2) of
     (Success x, Success y) -> second Success (x `wa` y)
-    (Success x, Fail e) -> (Instable,SuccessOrFail e x)
-    (Fail e, Success y) -> (Instable,SuccessOrFail e y)
+    (Success x, Fail e) -> (Unstable,SuccessOrFail e x)
+    (Fail e, Success y) -> (Unstable,SuccessOrFail e y)
     (Fail e, Fail e') -> second Fail (e `we` e')
-    (SuccessOrFail e x, Success y) -> (Instable,SuccessOrFail e (snd (x `wa` y)))
-    (Success x, SuccessOrFail e y) -> (Instable,SuccessOrFail e (snd (x `wa` y)))
-    (SuccessOrFail e x, Fail e') -> (Instable,SuccessOrFail (snd (e `we` e')) x)
-    (Fail e, SuccessOrFail e' y) -> (Instable,SuccessOrFail (snd (e `we` e')) y)
+    (SuccessOrFail e x, Success y) -> (Unstable,SuccessOrFail e (snd (x `wa` y)))
+    (Success x, SuccessOrFail e y) -> (Unstable,SuccessOrFail e (snd (x `wa` y)))
+    (SuccessOrFail e x, Fail e') -> (Unstable,SuccessOrFail (snd (e `we` e')) x)
+    (Fail e, SuccessOrFail e' y) -> (Unstable,SuccessOrFail (snd (e `we` e')) y)
     (SuccessOrFail e x, SuccessOrFail e' y) ->
        let (s,e'') = e `we` e'
            (s',z)  = x `wa` y
@@ -92,9 +95,11 @@ instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeComplet
     SuccessOrFail (Lower e) (Lower a) -> Lower (SuccessOrFail e a)
     _ -> Top
   _ ⊔ _ = Top
+  {-# INLINE (⊔) #-}
 
 instance (UpperBounded e, UpperBounded a) => UpperBounded (Except e a) where
   top = SuccessOrFail top top
+  {-# INLINE top #-}
 
 instance (TypeError ('Text "Except does not have a lower bound. You probably want to use bottom of Data.Abstract.Terminating"), PreOrd a, PreOrd e) => LowerBounded (Except e a) where
   bottom = error "do not implement"

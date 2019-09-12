@@ -4,10 +4,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE DataKinds #-}
-module Control.Arrow.Transformer.State(StateT(..),evalStateT,execStateT) where
+module Control.Arrow.Transformer.State(StateT(..),evalStateT,execStateT,withStateT) where
 
 import           Prelude hiding (id,(.),lookup,read,fail)
 
@@ -15,18 +16,19 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
 import           Control.Arrow.Environment as Env
+import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Trans
+import           Control.Arrow.Fix.Context
+import           Control.Arrow.Fix.Widening
+import           Control.Arrow.Order
 import           Control.Arrow.Random
 import           Control.Arrow.Reader as Reader
 import           Control.Arrow.State as State
 import           Control.Arrow.Store as Store
-import           Control.Arrow.Except as Exc
+import           Control.Arrow.Trans
 import           Control.Arrow.Writer
-import           Control.Arrow.Order
 
-import           Data.Coerce
 import           Unsafe.Coerce
 import qualified Data.Order as O
 import           Data.Monoidal
@@ -38,20 +40,22 @@ import           GHC.TypeLits
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype StateT s c x y = StateT { runStateT :: c (s,x) (s,y) }
 
-evalStateT :: (Arrow c, Profunctor c) => StateT s c x y -> c (s,x) y
+evalStateT :: Profunctor c => StateT s c x y -> c (s,x) y
 evalStateT f = rmap snd $ runStateT f
 {-# INLINE evalStateT #-}
 
-execStateT :: (Arrow c, Profunctor c) => StateT s c x y -> c (s,x) s
+execStateT :: Profunctor c => StateT s c x y -> c (s,x) s
 execStateT f = rmap fst $ runStateT f
 {-# INLINE execStateT #-}
 
-instance ArrowRun c => ArrowRun (StateT s c) where
-  type Rep (StateT s c) x y = Rep c (s,x) (s,y)
-  run = run . runStateT
-  {-# INLINE run #-}
+withStateT :: Arrow c => StateT s' c x y -> StateT s c (s',x) (s',y)
+withStateT f = lift (second (unlift f))
+{-# INLINE withStateT #-}
 
-instance (Profunctor c, Arrow c) => Profunctor (StateT s c) where
+instance ArrowRun c => ArrowRun (StateT s c) where type Run (StateT s c) x y = Run c (s,x) (s,y)
+instance ArrowTrans (StateT s c) where type Underlying (StateT s c) x y = c (s,x) (s,y)
+
+instance (Profunctor c) => Profunctor (StateT s c) where
   dimap f g h = lift $ dimap (second' f) (second' g) (unlift h)
   lmap f h = lift $ lmap (second' f) (unlift h)
   rmap g h = lift $ rmap (second' g) (unlift h)
@@ -63,19 +67,11 @@ instance (Profunctor c, Arrow c) => Profunctor (StateT s c) where
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
  
-instance ArrowTrans (StateT s) where
-  type Dom (StateT s) x y = (s,x)
-  type Cod (StateT s) x y = (s,y)
-  lift = coerce
-  unlift = coerce
-  {-# INLINE lift #-}
-  {-# INLINE unlift #-}
-
 instance ArrowLift (StateT s) where
   lift' f = lift (second f)
   {-# INLINE lift' #-}
 
-instance (Arrow c, Profunctor c) => Category (StateT s c) where
+instance (Arrow c) => Category (StateT s c) where
   id = lift id
   f . g = lift (unlift f . unlift g)
   {-# INLINE id #-}
@@ -154,10 +150,8 @@ instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix x y (StateT s c) = StateT s (Fix (Dom (StateT s) x y) (Cod (StateT s) x y) c)
-instance ArrowFix (s,x) (s,y) c => ArrowFix x y (StateT s c) where
-  fix = liftFix
-  {-# INLINE fix #-}
+type instance Fix (StateT s c) x y = StateT s (Fix c (s,x) (s,y))
+instance ArrowFix (Underlying (StateT s c) x y) => ArrowFix (StateT s c x y)
 
 instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
   type instance Join y (StateT s c) = Exc.Join (s,y) c 
@@ -185,6 +179,16 @@ instance ArrowConst x c => ArrowConst x (StateT s c) where
 instance ArrowRand v c => ArrowRand v (StateT s c) where
   random = lift' random
   {-# INLINE random #-}
+
+instance ArrowContext ctx c => ArrowContext ctx (StateT s c) where
+  askContext = lift' askContext
+  localContext f = lift (lmap shuffle1 (localContext (unlift f)))
+  {-# INLINE askContext #-}
+  {-# INLINE localContext #-}
+
+instance ArrowWidening y c => ArrowWidening y (StateT s c) where
+  widening = lift' widening
+  {-# INLINE widening #-}
 
 instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
   => ArrowEffectCommutative (StateT s c)

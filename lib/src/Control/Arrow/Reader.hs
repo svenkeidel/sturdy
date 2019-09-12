@@ -1,13 +1,9 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Control.Arrow.Reader where
 
-import           Control.Arrow
-import           Control.Monad.Reader (MonadReader)
-import qualified Control.Monad.Reader as M
-import           Data.Profunctor
+import Control.Arrow
+import Data.Profunctor
 
 -- | Arrow-based interface for read-only values.
 class (Arrow c, Profunctor c) => ArrowReader r c | c -> r where
@@ -15,7 +11,3 @@ class (Arrow c, Profunctor c) => ArrowReader r c | c -> r where
   ask :: c () r
   -- | Runs a computation with a new value.
   local :: c x y -> c (r,x) y
-
-instance MonadReader r m => ArrowReader r (Kleisli m) where
-  ask = Kleisli (const M.ask)
-  local (Kleisli f) = Kleisli (\(r,x) -> M.local (const r) (f x))

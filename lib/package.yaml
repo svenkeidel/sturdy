@@ -9,6 +9,7 @@ category:   Language
 dependencies:
   - base
   - containers
+  - comonad
   - hashable
   - mtl
   - random
@@ -19,7 +20,14 @@ dependencies:
   - profunctors
 
 library:
-  ghc-options: -Wall
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
   source-dirs:
     - src
 

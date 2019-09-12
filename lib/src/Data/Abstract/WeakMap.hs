@@ -91,7 +91,7 @@ withMap :: Coercible c c' => (HashMap a (A.Maybe b) -> c) -> Map a b -> c'
 withMap = coerce
 {-# INLINE withMap #-}
 
-dropNegativeBindings :: Identifiable a => Map a b -> Map a b
+dropNegativeBindings :: Map a b -> Map a b
 dropNegativeBindings (Map m) = Map (M.filter noNothing m)
   where
     noNothing x = case x of

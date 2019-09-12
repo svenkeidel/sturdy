@@ -40,11 +40,11 @@ runStoreT = coerce
 {-# INLINE runStoreT #-}
 
 -- | Execute a computation and only return the result value.
-evalStoreT :: (Profunctor c,Arrow c) => StoreT var val c x y -> c (HashMap var val, x) y
+evalStoreT :: (Profunctor c) => StoreT var val c x y -> c (HashMap var val, x) y
 evalStoreT f = rmap pi2 (runStoreT f)
 
 -- | Execute a computation and only return the result store.
-execStoreT :: (Profunctor c, Arrow c) => StoreT var val c x y -> c (HashMap var val, x) (HashMap var val)
+execStoreT :: (Profunctor c) => StoreT var val c x y -> c (HashMap var val, x) (HashMap var val)
 execStoreT f = rmap pi1 (runStoreT f)
 
 instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT var val c) where
@@ -62,6 +62,5 @@ instance ArrowState s c => ArrowState s (StoreT var val c) where
 
 instance (ArrowApply c,Profunctor c) => ArrowApply (StoreT var val c) where app = StoreT ((\(StoreT f,x) -> (f,x)) ^>> app)
 
-deriving instance ArrowFix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c => ArrowFix x y (StoreT var val c)
-
-type instance Fix x y (StoreT var val c) = StoreT var val (Fix (Dom (StoreT var val) x y) (Cod (StoreT var val) x y) c)
+instance ArrowFix (Underlying (StoreT var val c) x y) => ArrowFix (StoreT var val c x y)
+type instance Fix (StoreT var val c) x y  = StoreT var val (Fix c (HashMap var val,x) (HashMap var val,y))

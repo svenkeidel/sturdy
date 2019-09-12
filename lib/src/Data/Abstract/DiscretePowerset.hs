@@ -12,13 +12,15 @@ import qualified Data.HashSet as H
 import           Data.Hashable
 import           Data.Identifiable
 import           Data.List (intercalate)
-import           Data.Abstract.Widening
-import           Data.Abstract.FreeCompletion (FreeCompletion)
-import qualified Data.Abstract.FreeCompletion as F
 import           Data.GaloisConnection
 import qualified Data.Concrete.Powerset as C
 import qualified Data.Empty as E
 import qualified Data.Singleton as S
+
+import           Data.Abstract.Widening
+import           Data.Abstract.Stable
+import           Data.Abstract.FreeCompletion (FreeCompletion)
+import qualified Data.Abstract.FreeCompletion as F
 
 import           GHC.Generics
 import           GHC.Exts
@@ -44,7 +46,7 @@ unions Top = Top
 insert :: Identifiable x => x -> Pow x -> Pow x
 insert x (Pow xs) = Pow (H.insert x xs)
 insert _ Top = Top
-                    
+
 delete :: Identifiable x => x -> Pow x -> Pow x
 delete x (Pow xs) = Pow (H.delete x xs)
 delete _ Top = Top -- Less precise than it could be.
@@ -81,9 +83,9 @@ instance Identifiable x => S.IsSingleton (Pow x) where
   singleton = singleton
 
 widening :: Identifiable x => Widening (Pow x)
-widening (Pow xs) (Pow ys) = let zs = H.union xs ys in (if H.size zs == H.size xs then Stable else Instable,Pow zs)
-widening Top (Pow _) = (Instable,Top)
-widening (Pow _) Top = (Instable,Top)
+widening (Pow xs) (Pow ys) = let zs = H.union xs ys in (if H.size zs == H.size xs then Stable else Unstable,Pow zs)
+widening Top (Pow _) = (Unstable,Top)
+widening (Pow _) Top = (Unstable,Top)
 widening Top Top = (Stable,Top)
 
 instance Identifiable x => Complete (FreeCompletion (Pow x)) where
@@ -111,4 +113,4 @@ instance (IsString x, Identifiable x) => IsString (Pow x) where
 instance Identifiable a => Galois (C.Pow a) (Pow a) where
   alpha xs = Pow (C.toHashSet xs)
   gamma = fromList . toList
-  
+

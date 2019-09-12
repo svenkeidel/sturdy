@@ -35,7 +35,7 @@ instance (Show a,Show b) => Show (Closure a b) where
 closure :: Identifiable expr => expr -> env -> Closure expr env
 closure expr env = Closure $ M.singleton expr env
 
-apply :: (O.ArrowComplete y c, O.ArrowLowerBounded c, ArrowChoice c, Profunctor c)
+apply :: (O.ArrowComplete y c, O.ArrowLowerBounded c, ArrowChoice c)
       => c (e,((expr,env),s)) y -> c (e,(Closure expr env,s)) y
 apply f = lmap (second $ first $ withCls M.toList) (O.joinList1 f)
 

@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Control.Arrow.Transformer.Writer where
 
@@ -11,6 +12,10 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
+import Control.Arrow.Fix.Reuse as Reuse
+import Control.Arrow.Fix.Cache as Cache
+import Control.Arrow.Fix.Stack as Stack
+import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Environment as Env
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
@@ -24,7 +29,6 @@ import Control.Arrow.Trans
 import Control.Arrow.Writer
 
 import Data.Monoidal
-import qualified Data.Order as O
 import Data.Profunctor
 import Data.Profunctor.Unsafe
 import Data.Coerce
@@ -36,11 +40,12 @@ censor :: (Arrow c,Profunctor c) => (x -> w -> w) -> WriterT w c x y -> WriterT 
 censor f (WriterT g) = WriterT (dimap (\x -> (x,x)) (\(x,(w,y)) -> (f x w,y)) (second g))
 
 instance (Monoid w,ArrowRun c) => ArrowRun (WriterT w c) where
-  type Rep (WriterT w c) x y = Rep c x (w,y)
-  run = run . runWriterT
-  {-# INLINE run #-}
+  type Run (WriterT w c) x y = Run c x (w,y)
 
-instance (Profunctor c, Arrow c) => Profunctor (WriterT w c) where
+instance ArrowTrans (WriterT w c) where
+  type Underlying (WriterT w c) x y = c x (w,y)
+
+instance (Profunctor c) => Profunctor (WriterT w c) where
   dimap f g h = lift $ dimap f (second g) (unlift h)
   lmap f h = lift $ lmap f (unlift h)
   rmap g h = lift $ rmap (second g) (unlift h)
@@ -51,14 +56,6 @@ instance (Profunctor c, Arrow c) => Profunctor (WriterT w c) where
   {-# INLINE rmap #-}
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
-
-instance ArrowTrans (WriterT w) where
-  type Dom (WriterT w) x y = x
-  type Cod (WriterT w) x y = (w,y)
-  lift = coerce
-  unlift = coerce
-  {-# INLINE lift #-}
-  {-# INLINE unlift #-}
 
 instance Monoid w => ArrowLift (WriterT w) where
   lift' f = lift (rmap (\y -> (mempty,y)) f)
@@ -131,8 +128,8 @@ instance (Monoid w, ArrowReader r c) => ArrowReader r (WriterT w c) where
 
 instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
   type Join y (WriterT w c) = Env.Join (w,y) c
-  lookup f g = lift $ lookup (unlift f) (unlift g)
-  extend f = lift $ extend (unlift f)
+  lookup f g = lift $ Env.lookup (unlift f) (unlift g)
+  extend f = lift $ Env.extend (unlift f)
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -144,21 +141,19 @@ instance (Monoid w, ArrowClosure var val env c) => ArrowClosure var val env (Wri
 
 instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) where
   type Join y (WriterT w c) = Store.Join (w,y) c
-  read f g = lift $ read (unlift f) (unlift g)
-  write = lift' write
+  read f g = lift $ Store.read (unlift f) (unlift g)
+  write = lift' Store.write
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix x y (WriterT w c) = WriterT w (Fix (Dom (WriterT w) x y) (Cod (WriterT w) x y) c)
-instance (Monoid w, ArrowFix x (w,y) c) => ArrowFix x y (WriterT w c) where
-  fix = liftFix
-  {-# INLINE fix #-}
+type instance Fix (WriterT w c) x y  = WriterT w (Fix c x (w,y))
+deriving instance ArrowFix (Underlying (WriterT w c) x y) => ArrowFix (WriterT w c x y)
 
 instance (Monoid w, ArrowLowerBounded c) => ArrowLowerBounded (WriterT w c) where
   bottom = lift bottom
   {-# INLINE bottom #-}
 
-instance (Monoid w, O.Complete w, ArrowJoin c) => ArrowJoin (WriterT w c) where
+instance (Monoid w, ArrowJoin c) => ArrowJoin (WriterT w c) where
   joinSecond g = lift $ rmap shuffle1 (joinSecond (unlift g))
   {-# INLINE joinSecond #-}
 
@@ -173,3 +168,36 @@ instance (Monoid w, ArrowRand v c) => ArrowRand v (WriterT w c) where
 instance (Monoid w, ArrowConst x c) => ArrowConst x (WriterT w c) where
   askConst f = lift (askConst (unlift . f))
   {-# INLINE askConst #-}
+
+instance (Monoid w, ArrowStack a c) => ArrowStack a (WriterT w c) where
+  peek = lift' Stack.peek
+  push f = lift $ Stack.push (unlift f)
+  elem = lift' Stack.elem
+  elems = lift' Stack.elems
+  size = lift' Stack.size
+  {-# INLINE peek #-}
+  {-# INLINE push #-}
+  {-# INLINE elem #-}
+  {-# INLINE elems #-}
+  {-# INLINE size #-}
+
+instance (Monoid w, ArrowReuse a b c) => ArrowReuse a b (WriterT w c) where
+  type Dom (WriterT w c) = Dom c
+  reuse f = lift' (Reuse.reuse f)
+  {-# INLINE reuse #-}
+
+instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
+  askContext = lift' Context.askContext
+  localContext f = lift (Context.localContext (unlift f))
+  {-# INLINE askContext #-}
+  {-# INLINE localContext #-}
+
+instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c) where
+  lookup = lift' Cache.lookup
+  write = lift' Cache.write
+  update = lift' Cache.update
+  setStable = lift' Cache.setStable
+  {-# INLINE lookup #-}
+  {-# INLINE write #-}
+  {-# INLINE update #-}
+  {-# INLINE setStable #-}

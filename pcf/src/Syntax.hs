@@ -86,7 +86,7 @@ instance Show Expr where
       app_prec = 10
       lam_prec = 9
 
-instance HasLabel Expr Label where
+instance HasLabel Expr where
   label e = case e of
     Var _ l -> l
     Lam _ _ l -> l
@@ -112,10 +112,10 @@ instance Hashable Expr where
   hashWithSalt s (Y e _) = s `hashWithSalt` (7::Int) `hashWithSalt` e
   hashWithSalt s (Apply e _) = s `hashWithSalt` (8::Int) `hashWithSalt` e
 
-apply :: Prism' (env,Expr) (env,(Expr,Label))
-apply = L.prism' (\(env,(e',l)) -> (env,Apply e' l))
+apply :: Prism' (env,Expr) ((Expr,Label),env)
+apply = L.prism' (\((e',l),env) -> (env,Apply e' l))
                  (\(env,e) -> case e of
-                      Apply e' l -> Just (env,(e',l))
+                      Apply e' l -> Just ((e',l),env)
                       _ -> Nothing)
 
 freeVars :: Expr -> HashMap Expr (HashSet Text)

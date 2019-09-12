@@ -12,6 +12,7 @@ import           Data.Numeric
 
 import           Data.Abstract.Equality
 import           Data.Abstract.Widening
+import           Data.Abstract.Stable
 import           Data.Abstract.Failure
 import qualified Data.Abstract.Boolean as B
 
@@ -97,4 +98,4 @@ widening Negative Negative = (Stable,Negative)
 widening Zero Zero = (Stable,Zero)
 widening Positive Positive = (Stable,Positive)
 widening Top Top = (Stable,Positive)
-widening _ _ = (Instable,Top)
+widening _ _ = (Unstable,Top)

@@ -7,6 +7,7 @@ import Prelude hiding (div,Bool(..),(==),(/),(<),Ordering)
 import qualified Prelude as P
 import Data.Hashable
 import Data.Order
+import Data.Metric
 import Data.Numeric
 
 import Data.Abstract.Boolean
@@ -15,6 +16,7 @@ import Data.Abstract.Ordering
 import Data.Abstract.Failure
 import Data.Abstract.InfiniteNumbers
 import Data.Abstract.Widening
+import Data.Abstract.Stable
 
 import GHC.Generics
 
@@ -79,6 +81,10 @@ instance (Ord n, Bounded n) => UpperBounded (Interval n) where
 
 widening :: Ord n => Widening (Interval (InfiniteNumber n))
 widening (Interval i1 i2) (Interval j1 j2) =
-  (if j1 P.< i1 || j2 P.> i2 then Instable else Stable,
-    Interval (if j1 P.< i1 then NegInfinity else j1)
-             (if j2 P.> i2 then Infinity else i2))
+  (if j1 P./= i1 || j2 P./= i2 then Unstable else Stable,
+    Interval (if j1 P./= i1 then NegInfinity else j1)
+             (if j2 P./= i2 then Infinity else i2))
+
+metric :: Metric m n -> Metric (Interval m) (Product n n)
+metric m (Interval i1 i2) (Interval j1 j2) = Product (m i1 j1) (m i2 j2)
+{-# INLINE metric #-}

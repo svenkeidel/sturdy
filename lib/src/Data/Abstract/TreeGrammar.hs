@@ -162,7 +162,7 @@ union g1 g2 = generate $ do
               go (A.LeftRight n1 n2)
       
 
-intersection :: forall n1 n2 n' t. (IsGrammar n1 t, IsGrammar n2 t, Monoid (t n1), Monoid (t n2), IsGrammar n' t)
+intersection :: forall n1 n2 n' t. (IsGrammar n1 t, IsGrammar n2 t, IsGrammar n' t)
              => Grammar n1 t -> Grammar n2 t -> Grammar n' t
 intersection g1 g2 = generate $ do
   i <- get
@@ -342,7 +342,7 @@ equivalenceClasses g = flip evalState O.empty $ U.runUnionFind $ do
     where
       nonTerms = Map.keys (prods g)
 
-      lift' :: (Monad (t (State s)), MonadTrans t) => (s -> (b,s)) -> t (State s) b
+      lift' :: (MonadTrans t) => (s -> (b,s)) -> t (State s) b
       lift' f = lift (state f)
 
       triangle :: [x] -> [(x,x)]

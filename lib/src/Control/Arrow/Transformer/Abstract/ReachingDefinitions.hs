@@ -6,6 +6,5 @@ module Control.Arrow.Transformer.Abstract.ReachingDefinitions
 
 import qualified Control.Arrow.Transformer.ReachingDefinitions as R
 import           Data.Abstract.DiscretePowerset
-import           Data.Label
 
-type ReachingDefsT c = R.ReachingDefsT Pow Label c
+type ReachingDefsT c = R.ReachingDefsT Pow c

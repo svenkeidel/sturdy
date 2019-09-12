@@ -1,8 +1,10 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 -- | Reaching Definition Analysis for the While language.
 module ReachingDefinitionsAnalysis where
@@ -13,29 +15,30 @@ import           Syntax
 import qualified GenericInterpreter as Generic
 import           IntervalAnalysis
 
-import           Data.Coerce
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
 import           Data.Identifiable
 import           Data.Label
-import qualified Data.Lens as L
+import           Data.Lens (iso')
 import qualified Data.List as L
 import           Data.Maybe
 import           Data.Order
 import           Data.Text (Text)
 
-import           Data.Abstract.Cache (Cache(..))
 import           Data.Abstract.DiscretePowerset(Pow)
 import qualified Data.Abstract.Error as E
 import qualified Data.Abstract.Except as Exc
 import qualified Data.Abstract.Interval as I
 import qualified Data.Abstract.Map as M
-import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.StrongMap as SM
 import qualified Data.Abstract.Terminating as T
 import qualified Data.Abstract.Widening as W
+import           Data.Abstract.Stable
+import           Data.Abstract.CallString(CallString)
 
-import           Control.Arrow.Fix
+import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Reuse as Reuse
+import           Control.Arrow.Fix.Context(joinContexts)
 import           Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.Except
@@ -45,7 +48,12 @@ import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
-import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
+import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Group
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.ContextSensitive
+import           Control.Arrow.Transformer.Abstract.Fix.Stack
 
 -- | Calculates the entry sets of which definitions may be reached for
 -- each statment.  The analysis instantiates the generic interpreter
@@ -61,9 +69,9 @@ run k lstmts =
   -- Joins the reaching definitions for each statement for all call context.
   -- Filters out statements created during execution that are not part
   -- of the input program.
-  joinOnKey (\(store,(env,st)) _ -> case st of
+  joinOnKey (\(st,(env,store),_) _ -> case st of
     stmt:_ | stmt `elem` blocks stmts ->
-      Just (label stmt, dropValues (combineMaps env store)) 
+      Just (label stmt, dropValues (combineMaps env store))
     _ -> Nothing) $
 
   -- get the fixpoint cache
@@ -72,7 +80,7 @@ run k lstmts =
   -- Run the computation
   Trans.run
     (Generic.run ::
-      Fix [Statement] ()
+      Fix'
        (ValueT Val
          (EnvT Text Addr
            (ReachingDefsT
@@ -81,29 +89,28 @@ run k lstmts =
                  (ErrorT (Pow String)
                    (TerminatingT
                      (FixT _ _
-                       (S.StackWideningT _ _
-                         (S.ChaoticT Cache _ _
-                           (->))))))))))) [Statement] ())
+                       (ChaoticT _
+                        (StackT Stack _
+                          (CacheT (Group (Cache (CallString _))) _ _
+                            (ContextT (CallString _)
+                               (->))))))))))))) [Statement] ())
     iterationStrategy
+    widenResult
     (M.empty,(SM.empty,stmts))
 
   where
-                
-
     stmts = generate (sequence lstmts)
+    iterationStrategy = Fix.transform (iso' (\(store,(env,stmt)) -> (stmt,(env,store)))
+                                            (\(stmt,(env,store)) -> (store,(env,stmt))))
+                      $ joinContexts @([Statement],(_,_)) @(Group (Cache (CallString Label))) widenEnvStore
+                      . reuseExact
+                      . callsiteSensitive k (statementLabel . fst)
+                      . iterateInner
 
-    iterationStrategy = S.stackWidening stackWiden
-                      $ S.chaotic widenResult
-
-    stackWiden = SW.groupBy (L.iso (\(store,(ev,sts)) -> (sts,(ev,store)))
-                                   (\(sts,(ev,store)) -> (store,(ev,sts))))
-               $ SW.maxSize k
-               $ SW.reuseFirst
-               $ SW.fromWidening (SM.widening W.finite W.** M.widening (widenVal W.** W.finite))
-               $ SW.finite
-    
+    statementLabel st = case st of (s:_) -> label s; [] -> -1
+    widenEnvStore = SM.widening W.finite W.** M.widening (widenVal W.** W.finite)
     widenVal = widening (W.bounded ?bound I.widening)
-    widenExc (Exception m1) (Exception m2) = Exception <$> (M.widening widenVal m1 m2)
+    widenExc (Exception m1) (Exception m2) = Exception <$> M.widening widenVal m1 m2
     widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening (widenVal W.** W.finite) W.** W.finite))
 
 combineMaps :: (Identifiable k, Identifiable a) => SM.Map k a -> M.Map a v -> M.Map k v
@@ -113,8 +120,9 @@ combineMaps env store = M.fromList [ (a,c) | (a,b) <- fromJust (SM.toList env)
 dropValues :: M.Map a (v,l) -> M.Map a l
 dropValues = M.map snd
 
-toMap :: Cache a b -> HashMap a (W.Stable,b)
-toMap = coerce
+toMap :: (Identifiable k, Identifiable a, Identifiable ctx) => Group (Cache ctx) (k,a) b -> HashMap (k,a,ctx) (Stable,b)
+toMap (Groups groups) = Map.fromList [ ((k,a,ctx),(s,b)) | (k,Cache cache) <- Map.toList groups
+                                                         , (ctx,(a,b,s)) <- Map.toList cache ]
 
 joinOnKey :: (Identifiable k',Complete v') => (k -> v -> Maybe (k',v')) -> HashMap k v -> HashMap k' v'
 joinOnKey pred = Map.foldlWithKey' (\m k v -> case pred k v of
@@ -122,5 +130,5 @@ joinOnKey pred = Map.foldlWithKey' (\m k v -> case pred k v of
                                               Nothing -> m
                                    ) Map.empty
 
-instance HasLabel (x,[Statement]) Label where
+instance HasLabel (x,[Statement]) where
   label (_,ss) = label (head ss)

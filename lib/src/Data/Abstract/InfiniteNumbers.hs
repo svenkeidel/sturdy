@@ -4,6 +4,8 @@ module Data.Abstract.InfiniteNumbers where
 
 import Data.Order
 import Data.Hashable
+import Data.Metric
+
 import GHC.Generics
 
 data InfiniteNumber a = NegInfinity | Number a | Infinity deriving (Eq,Ord,Generic)
@@ -15,18 +17,6 @@ instance Show a => Show (InfiniteNumber a) where
 
 isNegative :: (Eq a,Num a) => a -> Bool
 isNegative x = signum x == -1
-
-mult :: (Num a, Ord a) => a -> InfiniteNumber a -> InfiniteNumber a
-mult a e
-  | a < 0 = case e of
-      NegInfinity -> Infinity
-      Infinity -> NegInfinity
-      Number b -> Number (a * b)
-  | a == 0 = Number 0
-  | otherwise = case e of
-      NegInfinity -> NegInfinity
-      Infinity -> Infinity
-      Number b -> Number (a * b)
 
 instance (Num a, Ord a) => Num (InfiniteNumber a) where
   NegInfinity + Infinity = error "Addition of positive and negative infinity is undefined"
@@ -56,6 +46,18 @@ instance (Num a, Ord a) => Num (InfiniteNumber a) where
   negate Infinity = NegInfinity
   negate NegInfinity = Infinity
   negate (Number n) = Number (negate n)
+
+mult :: (Num a, Ord a) => a -> InfiniteNumber a -> InfiniteNumber a
+mult a e
+  | a < 0 = case e of
+      NegInfinity -> Infinity
+      Infinity -> NegInfinity
+      Number b -> Number (a * b)
+  | a == 0 = Number 0
+  | otherwise = case e of
+      NegInfinity -> NegInfinity
+      Infinity -> Infinity
+      Number b -> Number (a * b)
 
 divInf :: Integral n => InfiniteNumber n -> InfiniteNumber n -> InfiniteNumber n
 divInf n m = case (n,m) of
@@ -101,3 +103,7 @@ instance Bounded (InfiniteNumber n) where
   maxBound = Infinity
 
 instance Hashable a => Hashable (InfiniteNumber a)
+
+metric :: Metric m n -> Metric (InfiniteNumber m) (InfiniteNumber n)
+metric m (Number x) (Number y) = Number (m x y)
+metric _ _ _ = Infinity

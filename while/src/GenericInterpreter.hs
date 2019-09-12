@@ -92,7 +92,7 @@ eval = proc e -> case e of
 -- and does not produces a result. The interpreter is parameterized by
 -- the type of values @v@, addresses @addr@, environment @env@ and
 -- arrow type @c@.
-run :: (Show addr, ArrowChoice c, ArrowFix [Statement] () c,
+run :: (Show addr, ArrowChoice c, ArrowFix (c [Statement] ()),
         ArrowEnv Text addr c, ArrowStore addr v c,
         ArrowAlloc addr c, ArrowFail err c,
         ArrowExcept exc c, ArrowRand v c,

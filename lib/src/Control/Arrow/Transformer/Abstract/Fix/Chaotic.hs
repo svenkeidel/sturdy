@@ -5,126 +5,134 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Abstract.Fix.Chaotic where
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+module Control.Arrow.Transformer.Abstract.Fix.Chaotic(ChaoticT,runChaoticT,iterateOuter,iterateInner) where
 
-import           Prelude hiding (pred,lookup,map,head,iterate,(.))
+import           Prelude hiding (id,pred,lookup,map,head,iterate,(.),elem)
 
 import           Control.Category
-import           Control.Arrow
+import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix
-import           Control.Arrow.Reader
+import           Control.Arrow.Fix.Chaotic
+import           Control.Arrow.Fix.Reuse
+import           Control.Arrow.Fix.Cache as Cache
+import           Control.Arrow.Fix.Stack as Stack
+import           Control.Arrow.Fix.Context as Context
+import           Control.Arrow.State
 import           Control.Arrow.Trans
 import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..),ArrowEffectCommutative)
-import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Transformer.State
+import           Control.Arrow.Utils
+
 import           Control.Arrow.Transformer.Writer
 
-import           Data.Profunctor
+import           Data.Abstract.Stable
+
 import           Data.Order
-import           Data.HashSet(HashSet)
+import           Data.Profunctor
 import qualified Data.HashSet as H
 import           Data.Identifiable
-import           Data.Empty
 import           Data.Coerce
 
-import           Data.Abstract.Cache (IsCache)
-import qualified Data.Abstract.Cache as Cache
-import           Data.Abstract.StackWidening(Stack(..))
-import           Data.Abstract.Widening(Stable(..))
+-- | Iterate on the innermost fixpoint component.
+iterateInner :: (Identifiable a, LowerBounded b, ArrowStack a c, ArrowIterate a c, ArrowComponent a c, ArrowCache a b c, ArrowChoice c) => IterationStrategy c a b
+{-# INLINE iterateInner #-}
+iterateInner = detectLoop . go
+  where
+    go f = withComponent f $ proc (a,b,component) ->
+      -- The call did not depend on any unstable calls. This means
+      -- we are done and don't need to iterate.
+      if H.null (head component)
+      then do
+        Cache.write -< (a,b,Stable)
+        returnA -< b
+      else do
+        (stable,bNew) <- Cache.update -< (a,b)
+        case stable of
+          Stable   -> setComponent -< (component { head = H.delete a (head component) },bNew)
+          Unstable -> go f -< a
 
-newtype ChaoticT cache a b c x y =
-  ChaoticT (
-    WriterT (Component a)
-      (StateT (cache a b)
-        (ReaderT (Stack a) c)) x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice)
+-- | Iterate on the outermost fixpoint component.
+iterateOuter :: (Identifiable a, LowerBounded b, ArrowStack a c, ArrowIterate a c, ArrowComponent a c, ArrowCache a b c, ArrowChoice c) => IterationStrategy c a b
+{-# INLINE iterateOuter #-}
+iterateOuter = detectLoop . go
+  where
+    go f = withComponent f $ proc (a,b,component) -> case () of
+      -- The call did not depend on any unstable calls. This means
+      -- we are done and don't need to iterate.
+      () | H.null (head component) -> do
+           Cache.write -< (a,b,Stable)
+           setComponent -< (mempty,b)
 
-runChaoticT :: (IsCache cache a b, Profunctor c) => ChaoticT cache a b c x y -> c x (cache a b,y)
-runChaoticT (ChaoticT f) = dimap (\a -> (empty,(empty,a))) (second snd) (runReaderT (runStateT (runWriterT f)))
+      -- We are at the head of a fixpoint component. This means, we
+      -- have to iterate until the head stabilized.
+         | head component == H.singleton a -> do
+           (stable,bNew) <- Cache.update -< (a,b)
+
+           case stable of
+             -- If the head of a fixpoint component is stable, set
+             -- all elements in the body of the component as stable
+             -- too and return.
+             Stable -> do
+               map Cache.setStable -< H.toList $ H.map (Stable,) (body component)
+               setComponent -< (mempty, bNew)
+
+             -- If the head of a fixpoint component is not stable, keep iterating.
+             Unstable ->
+               go f -< a
+
+      -- We are inside an  fixpoint component, but its head has not stabilized.
+         | otherwise -> do
+           Cache.write -< (a,b,Unstable)
+           setComponent -< (Component { head = H.delete a (head component),
+                                        body = H.insert a (body component) }, b)
+
+detectLoop :: (LowerBounded b, ArrowStack a c, ArrowCache a b c, ArrowIterate a c, ArrowChoice c) => IterationStrategy c a b
+detectLoop f = proc a -> do
+  loop <- Stack.elem -< a
+  if loop
+  then do
+    m <- Cache.lookup -< a
+    case m of
+      Just (Stable,b) -> returnA -< b
+      Just (Unstable,b) -> iterate -< (a, b)
+      Nothing -> iterate -< (a, bottom)
+  else Stack.push f -< a
+{-# INLINE detectLoop #-}
+
+newtype ChaoticT a c x y = ChaoticT (WriterT (Component a) c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowCache a b,ArrowReuse a b,ArrowState s,ArrowContext ctx)
+
+instance (Identifiable a, Arrow c, Profunctor c) => ArrowIterate a (ChaoticT a c) where
+  iterate = lift (arr (first singleton))
+  {-# INLINE iterate #-}
+
+instance (Identifiable a, Arrow c, Profunctor c) => ArrowComponent a (ChaoticT a c) where
+  setComponent = lift id
+  withComponent f g = lift $ proc a -> do
+    (component,b) <- unlift f -< a
+    unlift g -< (a,b,component)
+  {-# INLINE setComponent #-}
+  {-# INLINE withComponent #-}
+
+runChaoticT :: Profunctor c => ChaoticT a c x y -> c x y
+runChaoticT (ChaoticT f) = rmap snd (runWriterT f)
 {-# INLINE runChaoticT #-}
 
-runChaoticT' :: (IsCache cache a b, Profunctor c) => ChaoticT cache a b c x y -> c x y
-runChaoticT' f = rmap snd (runChaoticT f)
-{-# INLINE runChaoticT' #-}
-
-chaotic :: (Identifiable a, IsCache cache a b, Profunctor c, ArrowChoice c, ArrowApply c) => Cache.Widening cache a b -> IterationStrategy (ChaoticT cache a b c) a b
-chaotic widen (ChaoticT (WriterT (StateT f))) = ChaoticT $ WriterT $ StateT $ push $ proc (stack,cache,a) -> do
-  case Cache.lookup a cache of
-    -- If the cache contains a stable entry, just return it.
-    Just (Stable,b) ->
-      returnA -< (cache,(mempty,b))
-
-    -- If the entry has appeared on the stack, stop recursion and
-    -- return the cached entry. Remember with the fixpoint component
-    -- set that we need to iterate on this entry.
-    Just (Instable,b) | H.member a stack ->
-      returnA -< (cache,(Component {head = H.singleton a, body = H.empty},b))
-
-    -- If we did not encounter the entry, register the entry and keep
-    -- recursing.
-    _ ->
-      iterate -<< (Cache.initialize a cache,a)
-
-  where
-    iterate = proc (cache,a) -> do
-      (cache',(component,b)) <- f -< (cache,a)
-
-      case () of
-        -- The call did not depend on any unstable calls. This means
-        -- we are done and don't need to iterate.
-        () | H.null (head component) -> do
-             returnA -< (Cache.insert a b Stable cache',(mempty,b))
-
-        -- We are at the head of a fixpoint component. This means, we
-        -- have to iterate until the head stabilized.
-           | head component == H.singleton a -> do
-             let ((stable,bNew),cache'') = Cache.update widen a b cache'
-
-             case stable of
-               -- If the head of a fixpoint component is stable, set
-               -- all elements in the body of the component as stable
-               -- too and return.
-               Stable -> do
-                 returnA -< (foldr Cache.setStable cache'' (body component),(mempty,bNew))
-
-               -- If the head of a fixpoint component is not stable, keep iterating.
-               Instable ->
-                 iterate -<< (cache'',a)
-
-        -- We are inside an  fixpoint component, but its head has not stabilized.
-           | otherwise -> do
-             returnA -< (Cache.insert a b Instable cache',
-                          (Component { head = H.delete a (head component),
-                                       body = H.insert a (body component) }, b)) 
-
-    push g = proc (cache,a) -> do
-      Stack xs <- ask -< ()
-      local g -< (Stack (H.insert a xs),(xs,cache,a))
-
-instance (Identifiable a,IsCache cache a b, ArrowRun c) => ArrowRun (ChaoticT cache a b c) where
-  type Rep (ChaoticT cache a b c) x y = Rep c x (cache a b,y)
-  run = run . runChaoticT
+instance (Identifiable a, ArrowRun c) => ArrowRun (ChaoticT a c) where
+  type Run (ChaoticT a c) x y = Run c x y
+  run f = run (runChaoticT f)
   {-# INLINE run #-}
 
-instance (Identifiable a,Profunctor c,ArrowApply c) => ArrowApply (ChaoticT cache a b c) where
+instance ArrowTrans (ChaoticT a c) where
+  type Underlying (ChaoticT a c) x y = c x (Component a,y)
+
+instance (Identifiable a, Profunctor c,ArrowApply c) => ArrowApply (ChaoticT a c) where
   app = ChaoticT (lmap (first coerce) app)
   {-# INLINE app #-}
 
-instance (Identifiable a,Profunctor c,Arrow c) => ArrowJoin (ChaoticT cache a b c) where
-  joinSecond g = second g
-  {-# INLINE joinSecond #-}
-
-instance (Identifiable a,Profunctor c,Arrow c, Complete y) => ArrowComplete y (ChaoticT cache a b c) where
-  ChaoticT f <⊔> ChaoticT g = ChaoticT $ rmap (uncurry (⊔)) (f &&& g)
-  {-# INLINE (<⊔>) #-}
-
-data Component a = Component { head :: HashSet a, body :: HashSet a }
-instance Identifiable a => Semigroup (Component a) where (<>) = mappend
-instance Identifiable a => Monoid (Component a) where
-  mempty = Component { head = H.empty, body = H.empty }
-  c1 `mappend` c2 = Component { head = head c1 <> head c2, body = body c1 <> body c2 }
-  {-# INLINE mempty #-}
-  {-# INLINE mappend #-}
-
-instance (Identifiable a, ArrowEffectCommutative c) => ArrowEffectCommutative (ChaoticT cache a b c) where
+deriving instance (Identifiable a, ArrowJoin c) => ArrowJoin (ChaoticT a c)
+deriving instance (Identifiable a, ArrowComplete (Component a,y) c) => ArrowComplete y (ChaoticT a c)
+instance (Identifiable a, ArrowEffectCommutative c) => ArrowEffectCommutative (ChaoticT a c)

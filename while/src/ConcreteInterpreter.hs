@@ -69,7 +69,7 @@ run ss =
 -- | The 'ConcreteT' transformer defines the value operations for the While language.
 newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowEnv var addr, ArrowStore addr val,ArrowExcept exc)
-deriving instance ArrowFix x y c => ArrowFix x y (ConcreteT c)
+deriving instance ArrowFix (c x y) => ArrowFix (ConcreteT c x y)
 deriving instance ArrowRand v c => ArrowRand v (ConcreteT c)
 
 instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ConcreteT c) where
@@ -114,7 +114,7 @@ instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
     _ -> fail -< "Expected boolean as argument for 'if'"
 
 instance ArrowRun c => ArrowRun (ConcreteT c) where
-  type Rep (ConcreteT c) x y = Rep c x y
+  type Run (ConcreteT c) x y = Run c x y
   run = Trans.run . runConcreteT
 
 instance R.Random Val where

@@ -14,15 +14,16 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Fix.Context as Ctx
 import Control.Arrow.Environment as Env
-import Control.Arrow.Fail
 import Control.Arrow.Except as Exc
-import Control.Arrow.Trans
+import Control.Arrow.Fail
+import Control.Arrow.Order
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
 import Control.Arrow.Store as Store
+import Control.Arrow.Trans
 import Control.Arrow.Writer
-import Control.Arrow.Order
 
 import Data.Profunctor
 import Data.Profunctor.Unsafe
@@ -32,10 +33,13 @@ import Unsafe.Coerce
 newtype StaticT f c x y = StaticT { runStaticT :: f (c x y) }
 
 instance (Applicative f, ArrowRun c) =>  ArrowRun (StaticT f c) where
-  type Rep (StaticT f c) x y = f (Rep c x y)
+  type Run (StaticT f c) x y = f (Run c x y)
   run = fmap run . runStaticT
   {-# INLINE run #-}
   {-# SPECIALIZE instance (ArrowRun c) => ArrowRun (StaticT ((->) r) c) #-}
+
+instance (Applicative f) =>  ArrowTrans (StaticT f c) where
+  type Underlying (StaticT f c) x y = f (c x y)
 
 instance (Applicative f, Profunctor c) => Profunctor (StaticT f c) where
   dimap f g (StaticT h) = StaticT $ dimap f g <$> h
@@ -55,12 +59,12 @@ instance Applicative f => ArrowLift (StaticT f) where
   {-# INLINE lift' #-}
   {-# SPECIALIZE instance ArrowLift (StaticT ((->) r)) #-}
 
-instance (Applicative f, Category c, Profunctor c) => Category (StaticT f c) where
+instance (Applicative f, Category c) => Category (StaticT f c) where
   id = StaticT (pure id)
   StaticT f . StaticT g = StaticT $ (.) <$> f <*> g
   {-# INLINE id #-}
   {-# INLINE (.) #-}
-  {-# SPECIALIZE instance (Arrow c, Profunctor c) => Category (StaticT ((->) r) c) #-}
+  {-# SPECIALIZE instance Arrow c => Category (StaticT ((->) r) c) #-}
 
 instance (Applicative f, Arrow c, Profunctor c) => Arrow (StaticT f c) where
   arr = lift' . arr
@@ -137,8 +141,8 @@ instance (Applicative f, ArrowClosure var val env c) => ArrowClosure var val env
 
 instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f c) where
   type Join y (StaticT f c) = Store.Join y c
-  read (StaticT f) (StaticT g) = StaticT $ read <$> f <*> g
-  write = lift' write
+  read (StaticT f) (StaticT g) = StaticT $ Store.read <$> f <*> g
+  write = lift' Store.write
   {-# INLINE read #-}
   {-# INLINE write #-}
   {-# SPECIALIZE instance ArrowStore var val c => ArrowStore var val (StaticT ((->) r) c) #-}
@@ -157,3 +161,10 @@ instance (Applicative f, ArrowComplete y c) => ArrowComplete y (StaticT f c) whe
   StaticT f <⊔> StaticT g = StaticT $ (<⊔>) <$> f <*> g 
   {-# INLINE (<⊔>) #-}
   {-# SPECIALIZE instance ArrowComplete y c => ArrowComplete y (StaticT ((->) r) c) #-}
+
+instance (Applicative f, ArrowContext ctx c) => ArrowContext ctx (StaticT f c) where
+  askContext = StaticT (pure askContext)
+  localContext (StaticT f) = StaticT $ localContext <$> f
+  {-# INLINE askContext #-}
+  {-# INLINE localContext #-}
+  {-# SPECIALIZE instance ArrowContext ctx c => ArrowContext ctx (StaticT ((->) r) c) #-}

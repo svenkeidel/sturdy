@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 module Data.OrdMap
 ( OrdMap
 , empty
@@ -45,7 +44,7 @@ instance Complete Ordering where
 
   NotLessThanEquals    ⊔ NotGreaterThanEquals = Incomparable
   NotGreaterThanEquals ⊔ NotLessThanEquals    = Incomparable
-                                                
+
   LessThanEquals       ⊔ NotGreaterThanEquals = StrictLessThan
   NotGreaterThanEquals ⊔ LessThanEquals       = StrictLessThan
 
@@ -72,7 +71,7 @@ compare n1 n2 o1 (OrdMap m) = case M.lookup (n1,n2) m of
 
 instance (Identifiable n1, Identifiable n2) => Semigroup (OrdMap n1 n2) where
   (OrdMap m1) <> (OrdMap m2) = OrdMap (M.unionWith (⊔) m1 m2)
-   
+
 instance (Identifiable n1, Identifiable n2) => Monoid (OrdMap n1 n2) where
   mempty = empty
   mappend = (<>)

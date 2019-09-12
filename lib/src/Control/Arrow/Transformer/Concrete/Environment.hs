@@ -67,6 +67,6 @@ instance ArrowReader r c => ArrowReader r (EnvT var val c) where
   ask = lift' Reader.ask
   local (EnvT (ReaderT f)) = EnvT (ReaderT (lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local f)))
 
-deriving instance ArrowFix (HashMap var val,x) y c => ArrowFix x y (EnvT var val c)
+deriving instance ArrowFix (Underlying (EnvT var val c) x y) => ArrowFix (EnvT var val c x y)
 
-type instance Fix x y (EnvT var val c) = EnvT var val (Fix (Dom (EnvT var val) x y) (Cod (EnvT var val) x y) c)
+type instance Fix (EnvT var val c) x y = EnvT var val (Fix c (HashMap var val,x) y)

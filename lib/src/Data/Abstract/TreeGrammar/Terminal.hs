@@ -5,6 +5,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Data.Abstract.TreeGrammar.Terminal(Terminal(..), map, Constr) where
 
 import           Prelude hiding (pred,traverse,map,Either(..))
@@ -40,7 +41,7 @@ class Terminal t where
   traverse :: (Identifiable n', Applicative f) => (n -> f n') -> t n -> f (t n')
   hashWithSalt :: (Identifiable n, Monad f) => (Int -> n -> f Int) -> Int -> t n -> f Int
 
-map :: (Identifiable n, Identifiable n', Terminal t) => (n -> n') -> t n -> t n'
+map :: (Identifiable n', Terminal t) => (n -> n') -> t n -> t n'
 map f t = runIdentity (traverse (Identity . f) t)
 
 newtype Constr n = Constr (HashMap Text (IntMap (HashSet [n]))) deriving (Eq)

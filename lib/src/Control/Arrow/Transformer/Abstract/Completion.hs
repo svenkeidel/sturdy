@@ -43,8 +43,8 @@ runCompletionT = coerce
 
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (CompletionT c) where
   app = lift (app .# first coerce)
-type instance Fix x y (CompletionT c) = CompletionT (Fix (Dom (CompletionT) x y) (Cod (CompletionT) x y) c)
-deriving instance (ArrowChoice c, ArrowFix (Dom (CompletionT) x y) (Cod (CompletionT) x y) c) => ArrowFix x y (CompletionT c)
+type instance Fix (CompletionT c) x y = CompletionT (Fix c x (FreeCompletion y))
+deriving instance (ArrowFix (Underlying (CompletionT c) x y)) => ArrowFix (CompletionT c x y)
 
 instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (CompletionT c) where
   bottom = lift $ bottom

@@ -21,8 +21,6 @@ import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Static
 
-import           Data.Identifiable
-import           Data.Order
 import           Data.Profunctor
 import           Data.Profunctor.Unsafe((.#))
 import           Data.Coerce
@@ -30,18 +28,17 @@ import           Data.Coerce
 newtype FixT a b c x y = FixT { unFixT :: ConstT (IterationStrategy c a b) c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComplete z, ArrowJoin)
 
-runFixT :: (Identifiable a, PreOrd b)
-  => IterationStrategy c a b -> FixT a b c x y -> c x y
+runFixT :: IterationStrategy c a b -> FixT a b c x y -> c x y
 runFixT iterationStrat (FixT f) = runConstT iterationStrat f
 {-# INLINE runFixT #-}
 
 instance ArrowRun c => ArrowRun (FixT a b c) where
-  type Rep (FixT a b c) x y = IterationStrategy c a b -> Rep c x y
+  type Run (FixT a b c) x y = IterationStrategy c a b -> Run c x y
   run (FixT f) iterationStrat = run (runConstT iterationStrat f)
   {-# INLINE run #-}
 
-type instance Fix x y (FixT _ _ c) = FixT x y c
-instance (Profunctor c,ArrowChoice c,ArrowApply c) => ArrowFix a b (FixT a b c) where
+type instance Fix (FixT _ _ c) x y = FixT x y c
+instance (Profunctor c,ArrowChoice c) => ArrowFix (FixT a b c a b) where
   fix f = iterationStrategy (f (fix f))
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (FixT a b c) where
