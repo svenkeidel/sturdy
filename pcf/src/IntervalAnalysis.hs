@@ -59,6 +59,7 @@ import           Data.Abstract.InfiniteNumbers
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
 import qualified Data.Abstract.Widening as W
+import           Data.Abstract.Stable
 import           Data.Abstract.Terminating(Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Closure (Closure)
@@ -170,11 +171,11 @@ instance UpperBounded Val where
 widening :: W.Widening IV -> W.Widening Val
 widening w (NumVal x) (NumVal y) = second NumVal (x `w` y)
 widening _ (ClosureVal cs) (ClosureVal cs') = second ClosureVal $ C.widening W.finite cs cs'
-widening _ (NumVal _) (ClosureVal _) = (W.Instable,TypeError (singleton "cannot unify a number with a closure"))
-widening _ (ClosureVal _) (NumVal _) = (W.Instable,TypeError (singleton "cannot unify a closure with a number"))
-widening _ (TypeError m1) (TypeError m2) = (W.Stable,TypeError (m1 <> m2))
-widening _ _ (TypeError m2) = (W.Stable,TypeError m2)
-widening _ (TypeError m1) _ = (W.Stable,TypeError m1)
+widening _ (NumVal _) (ClosureVal _) = (Unstable,TypeError (singleton "cannot unify a number with a closure"))
+widening _ (ClosureVal _) (NumVal _) = (Unstable,TypeError (singleton "cannot unify a closure with a number"))
+widening _ (TypeError m1) (TypeError m2) = (Stable,TypeError (m1 <> m2))
+widening _ _ (TypeError m2) = (Stable,TypeError m2)
+widening _ (TypeError m1) _ = (Stable,TypeError m1)
 
 instance Hashable Val
 instance Show Val where

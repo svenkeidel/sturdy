@@ -18,6 +18,7 @@ import Control.Arrow.Environment as Env
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
+import Control.Arrow.Fix.Reuse as Reuse
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Order
@@ -157,6 +158,11 @@ instance ArrowConst x c => ArrowConst x (ReaderT r c) where
   {-# INLINE askConst #-}
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ReaderT r c)
+
+instance ArrowReuse a b c => ArrowReuse a b (ReaderT r c) where
+  type Dom (ReaderT r c) = Dom c
+  reuse f = lift' $ reuse f
+  {-# INLINE reuse #-}
 
 instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
   askContext = lift' Context.askContext

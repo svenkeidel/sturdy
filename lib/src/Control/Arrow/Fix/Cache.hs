@@ -3,7 +3,7 @@ module Control.Arrow.Fix.Cache where
 
 import Control.Arrow
 import Data.Profunctor
-import Data.Abstract.Widening
+import Data.Abstract.Stable
 
 class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
   -- | Looks up if there is an entry in the cache.

@@ -42,6 +42,7 @@ import           Data.Text (Text)
 import qualified Data.Abstract.StrongMap as SM
 import           Data.Abstract.DiscretePowerset (Pow)
 import           Data.Abstract.Widening as W
+import           Data.Abstract.Stable
 import           Data.Maybe
 import           Data.Profunctor
 import           Data.Identifiable

@@ -13,12 +13,14 @@ import Control.Monad
 import Control.Monad.Except
 import Control.DeepSeq
 
+import Data.Abstract.FreeCompletion(FreeCompletion(..))
+import Data.Abstract.Widening
+import Data.Abstract.Stable
+
 import Data.Bifunctor (Bifunctor(bimap))
 import Data.Profunctor
 import Data.Hashable
 import Data.Order
-import Data.Abstract.FreeCompletion(FreeCompletion(..))
-import Data.Abstract.Widening
 
 import GHC.Generics (Generic, Generic1)
 
@@ -55,8 +57,8 @@ instance UpperBounded a => UpperBounded (Failure e a) where
 
 widening :: Widening a -> Widening (Failure e a)
 widening _ (Fail _) (Fail b) = (Stable,Fail b)
-widening _ (Fail _) (Success y) = (Instable ,Success y)
-widening _ (Success x) (Fail _) = (Instable ,Success x)
+widening _ (Fail _) (Success y) = (Unstable ,Success y)
+widening _ (Success x) (Fail _) = (Unstable ,Success x)
 widening w (Success x) (Success y) = second Success (x `w` y)
 
 instance (PreOrd a, Complete (FreeCompletion a)) => Complete (FreeCompletion (Failure e a)) where

@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -12,6 +13,7 @@ import Prelude hiding (pred,lookup,map,head,iterate,(.))
 import Control.Category
 import Control.Arrow hiding (loop)
 import Control.Arrow.Fix
+import Control.Arrow.Fix.Reuse as Reuse
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack(ArrowStack)
 import Control.Arrow.Fix.Context(ArrowContext)
@@ -59,7 +61,7 @@ instance IsEmpty (Stack a) where
   {-# INLINE empty #-}
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,ArrowCache a b,ArrowReuse a b,ArrowState s,ArrowTrans,ArrowContext ctx)
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
   peek = lift $ proc (stack,()) -> returnA -< top stack

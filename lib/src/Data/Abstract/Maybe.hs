@@ -14,6 +14,7 @@ import Control.Arrow(second)
 import Data.Order
 import Data.Hashable
 import Data.Traversable
+import Data.Abstract.Stable
 import Data.Abstract.Widening
 
 import GHC.Generics(Generic)
@@ -51,12 +52,12 @@ instance Complete a => Complete (Maybe a) where
 widening :: Widening a -> Widening (Maybe a)
 widening w (Just x) (Just y) = second Just (w x y)
 widening _ Nothing Nothing = (Stable,Nothing)
-widening _ (Just x) Nothing = (Instable,JustNothing x)
-widening _ Nothing (Just y) = (Instable,JustNothing y)
-widening w (Just x) (JustNothing y) = let (_,z) = w x y in (Instable,JustNothing z)
-widening _ Nothing (JustNothing y) = (Instable,JustNothing y)
-widening w (JustNothing x) (Just y) = let (_,z) = w x y in (Instable,JustNothing z)
-widening _ (JustNothing y) Nothing = (Instable,JustNothing y)
+widening _ (Just x) Nothing = (Unstable,JustNothing x)
+widening _ Nothing (Just y) = (Unstable,JustNothing y)
+widening w (Just x) (JustNothing y) = let (_,z) = w x y in (Unstable,JustNothing z)
+widening _ Nothing (JustNothing y) = (Unstable,JustNothing y)
+widening w (JustNothing x) (Just y) = let (_,z) = w x y in (Unstable,JustNothing z)
+widening _ (JustNothing y) Nothing = (Unstable,JustNothing y)
 widening w (JustNothing x) (JustNothing y) = second JustNothing (w x y)
 
 instance UpperBounded a => UpperBounded (Maybe a) where

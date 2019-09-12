@@ -12,6 +12,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
+import Control.Arrow.Fix.Reuse as Reuse
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
@@ -179,6 +180,11 @@ instance (Monoid w, ArrowStack a c) => ArrowStack a (WriterT w c) where
   {-# INLINE elem #-}
   {-# INLINE elems #-}
   {-# INLINE size #-}
+
+instance (Monoid w, ArrowReuse a b c) => ArrowReuse a b (WriterT w c) where
+  type Dom (WriterT w c) = Dom c
+  reuse f = lift' (Reuse.reuse f)
+  {-# INLINE reuse #-}
 
 instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
   askContext = lift' Context.askContext

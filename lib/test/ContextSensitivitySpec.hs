@@ -15,7 +15,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
+{-# OPTIONS_GHC -fsimpl-tick-factor=200 -fno-warn-partial-type-signatures #-}
 module ContextSensitivitySpec where
 
 import           Prelude hiding (lookup,Bounded,fail,Bool)
@@ -34,7 +34,6 @@ import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Group
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.ContextSensitive
 import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
 import qualified Data.Abstract.Boolean as Abs
 import           Data.Abstract.Terminating (Terminating)
@@ -149,12 +148,6 @@ instance Complete Val where
   Num x ⊔ Num y = Num (x ⊔ y)
   Unit ⊔ Unit = Unit
   _ ⊔ _ = Top
-
--- widening :: Widening Val
--- widening Top Top = (Stable,Top)
--- widening (Num x) (Num y) = Num <$> (I.widening x y)
--- widening Unit Unit = (Stable,Unit)
--- widening _ _ = (Instable,Top)
 
 data Fun = Main | Fun1 | Fun2 | Id deriving (Show,Eq,Generic)
 instance Hashable Fun

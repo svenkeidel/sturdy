@@ -13,7 +13,7 @@ module Control.Arrow.Transformer.Abstract.Fix.Cache.Group where
 import Prelude hiding (pred,lookup,map,head,iterate,(.))
 
 import Control.Arrow
--- import Control.Arrow.Fix.Reuse
+import Control.Arrow.Fix.Reuse
 import Control.Arrow.Fix.Context
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.State
@@ -60,11 +60,10 @@ instance (Identifiable k, Arrow c, Profunctor c, ArrowCache a b (CacheT cache a 
   {-# INLINE write #-}
   {-# INLINE setStable #-}
 
--- instance (PreOrd a, Arrow c, Profunctor c) => ArrowReuse a b (CacheT Cache a b c) where
---   reuseStable f = CacheT $ proc a -> do
---     Cache cache <- get -< ()
---     returnA -< M.foldlWithKey' (\m a' (s,b) -> if s == Stable && a ⊑ a' then m <> f a a' b else m) mempty cache
---   {-# INLINE reuseStable #-}
+instance (Identifiable k, IsEmpty (cache a b), Arrow c, Profunctor c, ArrowReuse a b (CacheT cache a b c)) => ArrowReuse (k,a) b (CacheT (Group cache) (k,a) b c) where
+  type Dom (CacheT (Group cache) (k,a) b c) = Dom (CacheT cache a b c)
+  reuse f = lmap (\((k,a),s) -> (k,(a,s))) (withCache (reuse f))
+  {-# INLINE reuse #-}
 
 withCache :: (Identifiable k, IsEmpty (cache a b), Arrow c, Profunctor c) => CacheT cache a b c x y -> CacheT (Group cache) (k,a) b c (k,x) y
 withCache f = CacheT $ modify $ proc ((k,x),g) -> do

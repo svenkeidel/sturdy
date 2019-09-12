@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -12,7 +11,6 @@ import           Control.DeepSeq
 
 import qualified Data.Empty as Empty
 import           Data.Order
-import           Data.Measure
 import           Data.Hashable
 import           Data.Identifiable
 import           Data.HashSet(HashSet)
@@ -20,6 +18,7 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 
 import qualified Data.Abstract.Maybe as A
+import           Data.Abstract.Stable
 import           Data.Abstract.Widening
 
 import           Text.Printf
@@ -38,10 +37,6 @@ instance (Identifiable a, Complete b) => Complete (Map a b) where
   Map m1 ⊔ Map m2 | M.keys m1 == M.keys m2 = Map $ M.unionWith (⊔) m1 m2
                   | otherwise              = Top
 
-instance (Identifiable a, Measurable a n, Measurable b n, Bounded n) => Measurable (Map a b) n where
-  measure (Map m) = foldl (\n ab -> n * measure ab) 1 (M.toList m)
-  measure Top = maxBound
-
 instance Empty.IsEmpty (Map a b) where
   empty = Map M.empty
 
@@ -52,8 +47,8 @@ keys (Map m) = Just (M.keysSet m)
 widening :: Identifiable a => Widening b -> Widening (Map a b)
 widening _ Top Top = (Stable,Top)
 widening w (Map m1) (Map m2) | M.keys m1 == M.keys m2 = second Map $ sequenceA $ M.intersectionWith w m1 m2
-                             | otherwise = (Instable,Top)
-widening _ _ _ = (Instable,Top)
+                             | otherwise = (Unstable,Top)
+widening _ _ _ = (Unstable,Top)
 
 empty :: Map a b
 empty = Map M.empty
@@ -92,4 +87,4 @@ instance (Show a,Show b) => Show (Map a b) where
   show Top = "⊤"
   show (Map h)
     | M.null h = "[]"
-    | otherwise = "[" ++ init (unwords ([printf "%s -> %s," (show k) (show x) | (k,x) <- M.toList h])) ++ "]"
+    | otherwise = "[" ++ init (unwords [printf "%s -> %s," (show k) (show x) | (k,x) <- M.toList h]) ++ "]"

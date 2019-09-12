@@ -8,6 +8,7 @@ import Prelude hiding (Either(..))
 
 import Control.Monad(ap)
 
+import Data.Abstract.Stable
 import Data.Abstract.Widening
 import Data.Bifunctor
 import Data.Hashable
@@ -22,6 +23,7 @@ instance (Hashable a, Hashable b) => Hashable (Either a b) where
   hashWithSalt s (Left a) = s `hashWithSalt` (1::Int) `hashWithSalt` a
   hashWithSalt s (Right b) = s `hashWithSalt` (2::Int) `hashWithSalt` b
   hashWithSalt s (LeftRight a b) = s `hashWithSalt` (3 ::Int) `hashWithSalt` a `hashWithSalt` b
+  {-# INLINE hashWithSalt #-}
 
 instance (PreOrd a, PreOrd b) => PreOrd (Either a b) where
   m1 ⊑ m2 = case (m1,m2) of
@@ -31,6 +33,7 @@ instance (PreOrd a, PreOrd b) => PreOrd (Either a b) where
     (Right b, LeftRight _ b') -> b ⊑ b'
     (Left a, LeftRight a' _) -> a ⊑ a'
     (_, _) -> False
+  {-# INLINE (⊑) #-}
 
 instance (Complete a, Complete b) => Complete (Either a b) where
   m1 ⊔ m2 = case (m1,m2) of
@@ -43,20 +46,22 @@ instance (Complete a, Complete b) => Complete (Either a b) where
     (LeftRight a b, Left a') -> LeftRight (a ⊔ a') b
     (Left a, LeftRight a' b') -> LeftRight (a ⊔ a') b'
     (LeftRight a b, LeftRight a' b') -> LeftRight (a ⊔ a') (b ⊔ b')
+  {-# INLINE (⊔) #-}
 
 widening :: Widening a -> Widening b -> Widening (Either a b)
 widening wa wb m1 m2 = case (m1,m2) of
     (Right b, Right b') -> second Right (b `wb` b')
-    (Right b, Left a') -> (Instable,LeftRight a' b)
-    (Left a, Right b') -> (Instable,LeftRight a b')
+    (Right b, Left a') -> (Unstable,LeftRight a' b)
+    (Left a, Right b') -> (Unstable,LeftRight a b')
     (Left a, Left a') -> second Left (a `wa` a')
-    (LeftRight a b, Right b') -> let (_,b'') = b `wb` b' in (Instable,LeftRight a b'') 
-    (Right b, LeftRight a' b') -> let (_,b'') = b `wb` b' in (Instable,LeftRight a' b'')
-    (LeftRight a b, Left a') -> let (_,a'') = a `wa` a' in (Instable,LeftRight a'' b)
-    (Left a, LeftRight a' b') -> let (_,a'') = a `wa` a' in (Instable,LeftRight a'' b')
+    (LeftRight a b, Right b') -> let (_,b'') = b `wb` b' in (Unstable,LeftRight a b'') 
+    (Right b, LeftRight a' b') -> let (_,b'') = b `wb` b' in (Unstable,LeftRight a' b'')
+    (LeftRight a b, Left a') -> let (_,a'') = a `wa` a' in (Unstable,LeftRight a'' b)
+    (Left a, LeftRight a' b') -> let (_,a'') = a `wa` a' in (Unstable,LeftRight a'' b')
     (LeftRight a b, LeftRight a' b') -> let (sa,a'') = a `wa` a'
                                             (sb,b'') = b `wb` b'
                                         in (sa ⊔ sb,LeftRight a'' b'')
+
 
 instance Bifunctor Either where
   bimap f g x = case x of
@@ -91,23 +96,3 @@ instance Traversable (Either a) where
   traverse _ (Left a) = pure (Left a)
   traverse f (Right b) = Right <$> f b
   traverse f (LeftRight a b) = LeftRight a <$> f b
-
--- instance PreOrd b => LowerBounded (Either () b) where
---   bottom = Left ()
-
--- instance (PreOrd a, PreOrd b, Complete (FreeCompletion a), Complete (FreeCompletion b)) => Complete (FreeCompletion (Either a b)) where
---   Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of
---     Left (Lower a) -> Lower (Left a)
---     Right (Lower b) -> Lower (Right b)
---     LeftRight (Lower a) (Lower b) -> Lower (LeftRight a b)
---     _ -> Top
---   _ ⊔ _ = Top
-
--- instance (UpperBounded e, UpperBounded a) => UpperBounded (Either e a) where
---   top = LeftRight top top
-
--- instance (PreOrd a, PreOrd b, UpperBounded (FreeCompletion a), UpperBounded (FreeCompletion b))
---   => UpperBounded (FreeCompletion (Either a b)) where
---   top = case (top,top) of
---     (Lower a,Lower b) -> Lower (LeftRight a b)
---     (_,_) -> Top

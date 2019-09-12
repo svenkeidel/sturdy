@@ -21,9 +21,7 @@ import qualified GenericInterpreter as Generic
 import           Data.Label
 import           Data.Text (Text)
 import           Data.Profunctor
-import qualified Data.Lens as L
 
-import           Data.Abstract.Cache (Cache)
 import           Data.Abstract.Error (Error(..))
 import           Data.Abstract.Except (Except(..))
 import qualified Data.Abstract.Map as M
@@ -35,7 +33,7 @@ import qualified Data.Abstract.Widening as W
 
 import           Control.Category
 import           Control.Arrow
-import           Control.Arrow.Fix
+import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
 import           Control.Arrow.Environment
@@ -48,7 +46,10 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
-import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
+import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Basic
+import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
 
@@ -63,7 +64,7 @@ run env ss =
     snd $ 
     Trans.run
       (Generic.run ::
-        Fix [Statement] ()
+        Fix'
           (UnitT
             (EnvT Text Addr
               (StoreT Addr Val
@@ -71,18 +72,21 @@ run env ss =
                   (ErrorT (Pow String)
                     (TerminatingT
                       (FixT _ _
-                        (S.ChaoticT Cache _ _
-                          (->))))))))) [Statement] ())
+                        (ChaoticT _
+                          (StackT Stack _
+                            (CacheT Cache _ _
+                               (->))))))))))) [Statement] ())
       iterationStrategy
+      W.finite
       (M.empty,(SM.fromList env,generate <$> ss))
   where
-    iterationStrategy = S.filter (L.second (L.second whileLoops))
-                      $ S.chaotic W.finite
+    iterationStrategy = Fix.filter whileLoops
+                      iterateInner
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val,ArrowStore var val,ArrowExcept exc,ArrowComplete z)
-type instance Fix x y (UnitT c) = UnitT (Fix x y c)
-deriving instance ArrowFix x y c => ArrowFix x y (UnitT c)
+type instance Fix (UnitT c) x y = UnitT (Fix c x y)
+deriving instance ArrowFix (c x y) => ArrowFix (UnitT c x y)
 
 instance (ArrowChoice c,Profunctor c) => ArrowAlloc Addr (UnitT c) where
   alloc = arr $ \(_,_,l) -> return l
@@ -108,7 +112,7 @@ instance (ArrowChoice c) => IsException Exception Val (UnitT c) where
   matchException f g = proc (_,(),x) -> (f -< ((),x)) <⊔> (g -< x)
 
 instance ArrowRun c => ArrowRun (UnitT c) where
-  type Rep (UnitT c) x y = Rep c x y
+  type Run (UnitT c) x y = Run c x y
   run = Trans.run . runUnitT
 
 instance (ArrowChoice c,Profunctor c) => ArrowRand Val (UnitT c) where

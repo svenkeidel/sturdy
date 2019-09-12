@@ -13,8 +13,10 @@ import Control.Applicative
 import Control.Monad
 import Control.DeepSeq
 
-import Data.Profunctor
 import Data.Abstract.Widening
+import Data.Abstract.Stable
+
+import Data.Profunctor
 import Data.Hashable
 import Data.Order
 import Data.Text(Text)
@@ -31,8 +33,9 @@ instance Show a => Show (FreeCompletion a) where
 instance NFData a => NFData (FreeCompletion a)
 
 instance Hashable a => Hashable (FreeCompletion a) where
-  hashWithSalt s (Lower a) = s `hashWithSalt` a
+  hashWithSalt s (Lower a) = s `hashWithSalt` (1::Int) `hashWithSalt` a
   hashWithSalt s Top = s `hashWithSalt` (2::Int)
+  {-# INLINE hashWithSalt #-}
 
 instance Applicative FreeCompletion where
   pure = return
@@ -59,6 +62,8 @@ instance PreOrd a => PreOrd (FreeCompletion a) where
   Top ≈ Top = True
   Lower a ≈ Lower b = a ≈ b
   _ ≈ _ = False
+  {-# INLINE (⊑) #-}
+  {-# INLINE (≈) #-}
 
 instance (PreOrd a, Complete (FreeCompletion a),
           PreOrd b, Complete (FreeCompletion b)) => Complete (FreeCompletion (a,b)) where
@@ -66,12 +71,14 @@ instance (PreOrd a, Complete (FreeCompletion a),
     (Lower a, Lower b) -> Lower (a,b)
     (_, _) -> Top
   _ ⊔ _ = Top
+  {-# INLINE (⊔) #-}
 
 instance (PreOrd a, UpperBounded (FreeCompletion a),
           PreOrd b, UpperBounded (FreeCompletion b)) => UpperBounded (FreeCompletion (a,b)) where
   top = case (top,top) of
     (Lower a, Lower b) -> Lower (a,b)
     (_,_) -> Top
+  {-# INLINE top #-}
 
 instance (PreOrd x, Complete (FreeCompletion x)) => Complete (FreeCompletion [x]) where
   Lower xs ⊔ Lower ys | eqLength xs ys = zipWithM (\x y -> Lower x ⊔ Lower y) xs ys
@@ -120,13 +127,16 @@ instance IsString s => IsString (FreeCompletion s) where
 toEither :: FreeCompletion a -> Either () a
 toEither Top = Left ()
 toEither (Lower a) = Right a
+{-# INLINE toEither #-}
 
 widening :: Widening a -> Widening (FreeCompletion a)
 widening wa (Lower a) (Lower a') = second Lower (a `wa` a')
 widening _ Top Top = (Stable,Top)
-widening _ (Lower _) Top = (Instable,Top)
-widening _ Top (Lower _) = (Instable,Top)
+widening _ (Lower _) Top = (Unstable,Top)
+widening _ Top (Lower _) = (Unstable,Top)
+{-# INLINE widening #-}
 
 fromCompletion :: a -> FreeCompletion a -> a
 fromCompletion a Top = a
 fromCompletion _ (Lower a) = a
+{-# INLINE fromCompletion #-}

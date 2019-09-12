@@ -8,6 +8,7 @@ import           Prelude hiding (id,(.),lookup,Bounded,Bool(..),fail)
 import           TestPrograms
 
 import           Control.Category
+import           Control.Arrow.Fix.Reuse
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
@@ -17,14 +18,13 @@ import           Control.Arrow.Transformer.Abstract.Fix.Cache.Basic
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 
 import           Data.Identifiable
+import qualified Data.Metric as M
 import           Data.Abstract.InfiniteNumbers
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
-
--- import           Data.Abstract.StackWidening (StackWidening,detectLoop,reuseMeasured,fromWidening,maxSize)
 
 import           Data.Order
 
@@ -42,22 +42,22 @@ spec = do
     describe "iterate outer component" $
       sharedSpec (\f -> snd . Arrow.run (toChaotic f) (getStrat ?strat . iterateOuter) (T.widening ?widen))
 
-sharedSpec :: (forall a b. (Show a, Show b, Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b)
+sharedSpec :: (forall a b. (Show a, Show b, Identifiable a, PreOrd a, Complete b, ?strat :: Strat a b, ?widen :: Widening b)
                 => Arr a b -> a -> Terminating b) -> Spec
 sharedSpec run = do
   describe "fibonacci" $ do
     it "fib[5,10] should be [5,55]" $
-       let ?strat = Strat id in
+       let ?strat = Strat (reuseExact) in
        let ?widen = W.finite in
        run fib (iv 5 10) `shouldBe` return (iv 5 55)
 
     it "fib[100,110] with widening should be [0,∞]" $
-       let ?strat = Strat (widenInput I.widening) in
+       let ?strat = Strat (reuseExact . widenInput I.widening) in
        let ?widen = I.widening in
        run fib (iv 100 110) `shouldBe` return (iv 0 Infinity)
 
     it "fib[1,∞] should be [0,∞]" $
-       let ?strat = Strat id in
+       let ?strat = Strat (reuseByMetric euclid) in
        let ?widen = I.widening in
        run fib (iv 0 Infinity) `shouldBe` return (iv 0 Infinity)
 
@@ -79,29 +79,24 @@ sharedSpec run = do
 
   describe "ackermann" $ do
     it "ack([0,3],[0,3]) should be [1,61] " $
-       let ?strat = Strat id in
+       let ?strat = Strat (reuseExact) in
        let ?widen = W.finite in
        run ackermann (iv 0 3, iv 0 3) `shouldBe` return (iv 1 61)
 
-    -- it "ack([0,3],[0,3]) with stack reuse should be [1,∞]" $
-    --    let ?strat = Strat (reuseMeasured . detectLoop) in
-    --    let ?widen = I.widening in
-    --    run ackermann (iv 0 3, iv 0 3) `shouldBe` return (iv 1 Infinity)
-
-    -- it "ack([0,∞],[0,∞]) should be [1,∞] " $
-    --    let ?strat = Strat (reuseMeasured . detectLoop) in
-    --    let ?widen = I.widening in
-    --    run ackermann (iv 0 Infinity, iv 0 Infinity) `shouldBe` return (iv 1 Infinity)
+    it "ack([0,∞],[0,∞]) with euclidian reuseByMetric should be [1,∞] " $
+       let ?strat = Strat (reuseByMetric (euclid M.** euclid)) in
+       let ?widen = I.widening in
+       run ackermann (iv 0 Infinity, iv 0 Infinity) `shouldBe` return (iv 1 Infinity)
 
   describe "even odd" $
     it "even([0,∞]) should be top" $
-       let ?strat = Strat id in
+       let ?strat = Strat (reuseByMetric (M.unit M.** euclid)) in
        let ?widen = W.finite in
        run evenOdd (Even,iv 0 Infinity) `shouldBe` top
 
   describe "diverge" $
     it "should terminate with bottom" $
-      let ?strat = Strat id in
+      let ?strat = Strat (reuseExact) in
       let ?widen = W.finite in
       run diverge 5 `shouldBe` bottom
 {-# INLINE sharedSpec #-}

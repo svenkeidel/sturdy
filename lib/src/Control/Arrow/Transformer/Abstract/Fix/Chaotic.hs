@@ -17,6 +17,7 @@ import           Control.Category
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Chaotic
+import           Control.Arrow.Fix.Reuse
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context as Context
@@ -27,14 +28,13 @@ import           Control.Arrow.Utils
 
 import           Control.Arrow.Transformer.Writer
 
+import           Data.Abstract.Stable
+
 import           Data.Order
 import           Data.Profunctor
 import qualified Data.HashSet as H
 import           Data.Identifiable
 import           Data.Coerce
-import           Data.Maybe(fromMaybe)
-
-import           Data.Abstract.Widening(Stable(..))
 
 -- | Iterate on the innermost fixpoint component.
 iterateInner :: (Identifiable a, LowerBounded b, ArrowStack a c, ArrowIterate a c, ArrowComponent a c, ArrowCache a b c, ArrowChoice c) => IterationStrategy c a b
@@ -52,7 +52,7 @@ iterateInner = detectLoop . go
         (stable,bNew) <- Cache.update -< (a,b)
         case stable of
           Stable   -> setComponent -< (component { head = H.delete a (head component) },bNew)
-          Instable -> go f -< a
+          Unstable -> go f -< a
 
 -- | Iterate on the outermost fixpoint component.
 iterateOuter :: (Identifiable a, LowerBounded b, ArrowStack a c, ArrowIterate a c, ArrowComponent a c, ArrowCache a b c, ArrowChoice c) => IterationStrategy c a b
@@ -80,29 +80,30 @@ iterateOuter = detectLoop . go
                setComponent -< (mempty, bNew)
 
              -- If the head of a fixpoint component is not stable, keep iterating.
-             Instable ->
+             Unstable ->
                go f -< a
 
       -- We are inside an  fixpoint component, but its head has not stabilized.
          | otherwise -> do
-           Cache.write -< (a,b,Instable)
+           Cache.write -< (a,b,Unstable)
            setComponent -< (Component { head = H.delete a (head component),
                                         body = H.insert a (body component) }, b)
 
 detectLoop :: (LowerBounded b, ArrowStack a c, ArrowCache a b c, ArrowIterate a c, ArrowChoice c) => IterationStrategy c a b
 detectLoop f = proc a -> do
-  m <- Cache.lookup -< a
-  case m of
-    Just (Stable,b) -> returnA -< b
-    _ -> do
-      loop <- Stack.elem -< a
-      if loop
-      then iterate -< (a, snd (fromMaybe bottom m))
-      else Stack.push f -< a
+  loop <- Stack.elem -< a
+  if loop
+  then do
+    m <- Cache.lookup -< a
+    case m of
+      Just (Stable,b) -> returnA -< b
+      Just (Unstable,b) -> iterate -< (a, b)
+      Nothing -> iterate -< (a, bottom)
+  else Stack.push f -< a
 {-# INLINE detectLoop #-}
 
 newtype ChaoticT a c x y = ChaoticT (WriterT (Component a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowCache a b,ArrowState s,ArrowContext ctx)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowCache a b,ArrowReuse a b,ArrowState s,ArrowContext ctx)
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowIterate a (ChaoticT a c) where
   iterate = lift (arr (first singleton))

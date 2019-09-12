@@ -4,6 +4,8 @@ module Data.Abstract.InfiniteNumbers where
 
 import Data.Order
 import Data.Hashable
+import Data.Metric
+
 import GHC.Generics
 
 data InfiniteNumber a = NegInfinity | Number a | Infinity deriving (Eq,Ord,Generic)
@@ -101,3 +103,7 @@ instance Bounded (InfiniteNumber n) where
   maxBound = Infinity
 
 instance Hashable a => Hashable (InfiniteNumber a)
+
+metric :: Metric m n -> Metric (InfiniteNumber m) (InfiniteNumber n)
+metric m (Number x) (Number y) = Number (m x y)
+metric _ _ _ = Infinity

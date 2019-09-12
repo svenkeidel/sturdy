@@ -10,6 +10,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
@@ -23,9 +24,11 @@ import           Syntax
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail as Fail
-import           Control.Arrow.Fix
+import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Context(joinContexts)
 import           Control.Arrow.Random
 import           Control.Arrow.Order
 import qualified Control.Arrow.Trans as Trans
@@ -35,11 +38,15 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Group
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.ContextSensitive
+import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
-import qualified Control.Arrow.Transformer.Abstract.Fix.IterationStrategy as S
 
-import qualified Data.Lens as L
 import           Data.Profunctor
 import qualified Data.Boolean as B
 import           Data.Hashable
@@ -51,7 +58,6 @@ import           Data.Utils
 
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
-import           Data.Abstract.Cache(Cache)
 import           Data.Abstract.DiscretePowerset (Pow)
 import qualified Data.Abstract.Equality as E
 import           Data.Abstract.Error (Error(..))
@@ -67,12 +73,13 @@ import           Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as M
 import qualified Data.Abstract.Maybe as AM
 import qualified Data.Abstract.Ordering as O
-import qualified Data.Abstract.StackWidening as SW
 import qualified Data.Abstract.StrongMap as SM
 import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
+import           Data.Abstract.Stable
 import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
+import           Data.Abstract.CallString (CallString)
 
 import           GHC.Exts(IsString(..))
 import           GHC.Generics
@@ -92,7 +99,7 @@ run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Er
 run k env ss = fmap (fmap (fmap fst)) <$> snd $
   Trans.run
     (Generic.run ::
-      Fix [Statement] ()
+      Fix'
         (ValueT Val
           (EnvT Text Addr
             (StoreT Addr Val
@@ -100,29 +107,27 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
                 (ErrorT (Pow String)
                   (TerminatingT
                     (FixT _ _
-                      (S.StackWideningT _ _
-                        (S.ChaoticT Cache _ _
-                           (->)))))))))) [Statement] ())
+                      (ChaoticT _
+                        (StackT Stack _
+                          (CacheT (Group (Cache (CallString _))) _ _
+                            (ContextT (CallString _)
+                               (->)))))))))))) [Statement] ())
       iterationStrategy
+      widenResult
       (M.empty,(SM.fromList env, generate (sequence ss)))
 
   where
-    iterationStrategy = S.filter (L.second (L.second whileLoops))
-                      $ S.stackWidening stackWiden 
-                      $ S.chaotic widenResult
+    iterationStrategy = Fix.filter whileLoops
+                      $ joinContexts @(((Expr,Statement,Label),[Statement]),(_,_)) @(Group (Cache (CallString _))) widenEnvStore
+                      . callsiteSensitive k fst
+                      . iterateInner
 
-    stackWiden = SW.groupBy (L.iso (\(store,(ev,stmts)) -> (stmts,(ev,store)))
-                                   (\(stmts,(ev,store)) -> (store,(ev,stmts))))
-               $ SW.maxSize k
-               $ SW.reuseFirst
-               $ SW.fromWidening (SM.widening W.finite W.** M.widening widenVal)
-               $ SW.finite
-    
+    widenEnvStore = M.widening widenVal W.** SM.widening W.finite
     widenVal = widening (W.bounded ?bound I.widening)
-    widenExc (Exception m1) (Exception m2) = Exception <$> (M.widening widenVal m1 m2)
+    widenExc (Exception m1) (Exception m2) = Exception <$> M.widening widenVal m1 m2
     widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening widenVal W.** W.finite))
 
-deriving instance ArrowComplete () (c) => ArrowComplete () (ValueT Val c)
+deriving instance ArrowComplete () c => ArrowComplete () (ValueT Val c)
 
 instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = arr $ \(_,_,l) -> return l
@@ -169,8 +174,6 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsVal Val (ValueT Val c) 
     BoolVal B.False -> f2 -< y
     BoolVal B.Top   -> (f1 -< x) <⊔> (f2 -< y)
     _               -> fail -< "Expected boolean as argument for 'if'"
-  
-             
 
 instance ArrowChoice c => IsException Exception Val (ValueT Val c) where
   type JoinExc y (ValueT Val c) = ArrowComplete y (ValueT Val c)
@@ -196,11 +199,11 @@ widening :: Widening IV -> Widening Val
 widening w v1 v2 = case (v1,v2) of
   (BoolVal b1,BoolVal b2) -> second BoolVal (B.widening b1 b2)
   (NumVal n1,NumVal n2) -> second NumVal (n1 `w` n2)
-  (NumVal _,BoolVal _) -> (W.Instable, TypeError (singleton "Cannot unify a number with a boolean"))
-  (BoolVal _,NumVal _) -> (W.Instable, TypeError (singleton "Cannot unify a boolean with a number"))
-  (TypeError m1,TypeError m2) -> (W.Stable,TypeError (m1 <> m2))
-  (_,TypeError m2) -> (W.Instable,TypeError m2)
-  (TypeError m1,_) -> (W.Instable,TypeError m1)
+  (NumVal _,BoolVal _) -> (Unstable, TypeError (singleton "Cannot unify a number with a boolean"))
+  (BoolVal _,NumVal _) -> (Unstable, TypeError (singleton "Cannot unify a boolean with a number"))
+  (TypeError m1,TypeError m2) -> (Stable,TypeError (m1 <> m2))
+  (_,TypeError m2) -> (Unstable,TypeError m2)
+  (TypeError m1,_) -> (Unstable,TypeError m1)
 
 instance Show Val where
   show (NumVal iv) = show iv

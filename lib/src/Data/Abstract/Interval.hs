@@ -7,7 +7,7 @@ import Prelude hiding (div,Bool(..),(==),(/),(<),Ordering)
 import qualified Prelude as P
 import Data.Hashable
 import Data.Order
-import Data.Measure
+import Data.Metric
 import Data.Numeric
 
 import Data.Abstract.Boolean
@@ -16,6 +16,7 @@ import Data.Abstract.Ordering
 import Data.Abstract.Failure
 import Data.Abstract.InfiniteNumbers
 import Data.Abstract.Widening
+import Data.Abstract.Stable
 
 import GHC.Generics
 
@@ -31,12 +32,6 @@ instance Ord x => PreOrd (Interval x) where
 
 instance Ord x => Complete (Interval x) where
   Interval i1 i2 ⊔  Interval j1 j2 = Interval (min i1 j1) (max i2 j2)
-
-instance (Ord n, Num n) => Measurable (Interval (InfiniteNumber n)) (InfiniteNumber n) where
-  measure (Interval NegInfinity Infinity) = Infinity
-  -- the +1 ensures that the measure of unit intervals [n,n] does not become 0.
-  -- This works better with the product measure, which multiply two measures.
-  measure (Interval n m) = (m - n) + 1
 
 instance (Num n, Ord n) => Num (Interval n) where
   Interval i1 i2 + Interval j1 j2 = Interval (i1 + j1) (i2 + j2)
@@ -86,6 +81,10 @@ instance (Ord n, Bounded n) => UpperBounded (Interval n) where
 
 widening :: Ord n => Widening (Interval (InfiniteNumber n))
 widening (Interval i1 i2) (Interval j1 j2) =
-  (if j1 P./= i1 || j2 P./= i2 then Instable else Stable,
+  (if j1 P./= i1 || j2 P./= i2 then Unstable else Stable,
     Interval (if j1 P./= i1 then NegInfinity else j1)
              (if j2 P./= i2 then Infinity else i2))
+
+metric :: Metric m n -> Metric (Interval m) (Product n n)
+metric m (Interval i1 i2) (Interval j1 j2) = Product (m i1 j1) (m i2 j2)
+{-# INLINE metric #-}

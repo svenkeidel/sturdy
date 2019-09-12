@@ -111,8 +111,8 @@ instance Num (State Label Expr) where
 -- (==) :: State Label Expr -> State Label Expr -> State Label Expr
 -- (==) e1 e2 = Eq <$> e1 <*> e2 <*> fresh
 
-instance HasLabel Expr Label where
-  label e = case e of 
+instance HasLabel Expr where
+  label e = case e of
     Var _ l -> l
     BoolLit _ l -> l
     And _ _ l -> l
@@ -127,7 +127,7 @@ instance HasLabel Expr Label where
     Eq _ _ l -> l
     Lt _ _ l -> l
     Throw _ _ l -> l
-   
+
 instance Hashable Expr where
 
 instance PreOrd Expr where
@@ -163,10 +163,10 @@ while cond body = do
   l <- fresh
   While <$> cond <*> begin body <*> pure l
 
-whileLoops :: Prism' [Statement] ((Expr,Statement,Label),[Statement])
-whileLoops = L.prism' (\((c,b,l),ss) -> While c b l:ss)
-                (\s -> case s of
-                   While c b l:ss -> Just ((c,b,l),ss)
+whileLoops :: Prism' (env,(store,[Statement])) (((Expr,Statement,Label),[Statement]),(env,store))
+whileLoops = L.prism' (\(((c,b,l),ss),(env,store)) -> (env,(store,While c b l:ss)))
+                (\(env,(store,s)) -> case s of
+                   While c b l:ss -> Just (((c,b,l),ss),(env,store))
                    _ -> Nothing)
 
 ifExpr :: State Label Expr -> [State Label Statement] -> [State Label Statement] -> State Label Statement
@@ -189,7 +189,7 @@ finally body fin = Finally <$> body <*> fin <*> fresh
 x =: e = Assign x <$> e <*> fresh
 infix 0 =:
 
-instance HasLabel Statement Label where
+instance HasLabel Statement where
   label s = case s of 
     While _ _ l -> l
     If _ _ _ l -> l

@@ -29,8 +29,6 @@ class PreOrd x where
   x ≈ y = x ⊑ y && y ⊑ x
   infix 4 ≈
 
-
-
 -- | Order with all least upper bounds
 class PreOrd x => Complete x where
   (⊔) :: x -> x -> x

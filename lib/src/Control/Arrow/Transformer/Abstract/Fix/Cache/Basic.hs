@@ -2,8 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Cache.Basic where
@@ -25,7 +23,7 @@ import Data.Empty
 import Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
 
-import Data.Abstract.Widening(Stable(..))
+import Data.Abstract.Stable
 
 newtype Cache a b = Cache { getMap :: HashMap a (Stable,b)}
 instance (Show a, Show b) => Show (Cache a b) where
@@ -47,8 +45,8 @@ instance (Identifiable a, ArrowChoice c, Profunctor c) => ArrowCache a b (CacheT
         put -< Cache (M.insert a b'' cache)
         returnA -< b''
       Nothing -> do
-        put -< Cache (M.insert a (Instable,b) cache)
-        returnA -< (Instable,b)
+        put -< Cache (M.insert a (Unstable,b) cache)
+        returnA -< (Unstable,b)
   write = CacheT $ modify' (\((a,b,s),Cache cache) -> ((),Cache (M.insert a (s,b) cache)))
   setStable = CacheT $ modify' $ \((s,a),Cache cache) -> ((),Cache (M.adjust (first (const s)) a cache))
   {-# INLINE lookup #-}
@@ -57,7 +55,8 @@ instance (Identifiable a, ArrowChoice c, Profunctor c) => ArrowCache a b (CacheT
   {-# INLINE setStable #-}
 
 instance (PreOrd a, Arrow c, Profunctor c) => ArrowReuse a b (CacheT Cache a b c) where
-  reuseStable f = CacheT $ proc a -> do
+  type Dom (CacheT Cache a b c) = a
+  reuse f = CacheT $ proc (a,s) -> do
     Cache cache <- get -< ()
-    returnA -< M.foldlWithKey' (\m a' (s,b) -> if s == Stable && a ⊑ a' then m <> f a a' b else m) mempty cache
-  {-# INLINE reuseStable #-}
+    returnA -< M.foldlWithKey' (\m a' (s',b') -> if s' ⊑ s && a ⊑ a' then m <> f a a' s' b' else m) mempty cache
+  {-# INLINE reuse #-}

@@ -7,7 +7,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Cache.ContextSensitive
   ( module Control.Arrow.Transformer.Abstract.Fix.Cache
-  , Cache
+  , Cache(..)
   ) where
 
 import           Prelude hiding (pred,lookup,map,head,iterate,(.),truncate,elem)
@@ -27,7 +27,7 @@ import           Data.Empty
 import           Data.Order
 
 import           Data.Abstract.Widening as W
-import           Data.Abstract.Widening (Stable(..))
+import           Data.Abstract.Stable
 
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
@@ -48,13 +48,13 @@ instance (Identifiable ctx, PreOrd a, LowerBounded b, ArrowChoice c, ArrowContex
       Just (a',b,s)
         | a ⊑ a' -> case s of
             Stable   -> Right b
-            Instable -> Left (Cache cache,a')
+            Unstable -> Left (Cache cache,a')
         | otherwise ->
           -- If there exists the actual input is not smaller than the cached
           -- input, widen the input and recompute.
           let (_,a'') = widen a' a
-          in Left (Cache (M.insert ctx (a'',b,Instable) cache), a'')
-      Nothing -> Left (Cache (M.insert ctx (a,bottom,Instable) cache), a)
+          in Left (Cache (M.insert ctx (a'',b,Unstable) cache), a'')
+      Nothing -> Left (Cache (M.insert ctx (a,bottom,Unstable) cache), a)
   {-# INLINE joinContexts' #-}
 
 instance (Identifiable ctx, PreOrd a, Eq a, Complete b, ArrowChoice c, Profunctor c, ArrowContext ctx c)
@@ -65,7 +65,7 @@ instance (Identifiable ctx, PreOrd a, Eq a, Complete b, ArrowChoice c, Profuncto
     case M.lookup ctx cache of
       Just (a',b,s)
         | a ⊑ a' -> returnA -< Just (s,b)
-        | otherwise -> returnA -< Just (Instable,b)
+        | otherwise -> returnA -< Just (Unstable,b)
       Nothing -> returnA -< Nothing
   update = CacheT $ askConst $ \widening -> proc (a,b) -> do
     ctx <- askContext -< ()
@@ -73,11 +73,11 @@ instance (Identifiable ctx, PreOrd a, Eq a, Complete b, ArrowChoice c, Profuncto
     case M.lookup ctx cache of
       Just (a',b',_) -> do
         let (s,b'') = widening b' b
-        put -< Cache (M.insert ctx (a',b'',if a == a' then s else Instable) cache)
+        put -< Cache (M.insert ctx (a',b'',if a == a' then s else Unstable) cache)
         returnA -< (s,b'')
       Nothing -> do
-        put -< Cache (M.insert ctx (a,b,Instable) cache)
-        returnA -< (Instable,b)
+        put -< Cache (M.insert ctx (a,b,Unstable) cache)
+        returnA -< (Unstable,b)
   write = CacheT $ proc (a,b,s) -> do
     ctx <- askContext -< ()
     Cache cache <- get -< ()
@@ -97,7 +97,8 @@ instance (Identifiable ctx, PreOrd a, Eq a, Complete b, ArrowChoice c, Profuncto
   {-# INLINE setStable #-}
 
 instance (PreOrd a, Arrow c, Profunctor c) => ArrowReuse a b (CacheT (Cache ctx) a b c) where
-  reuseStable f = CacheT $ proc a -> do
+  type Dom (CacheT (Cache ctx) a b c) = a
+  reuse f = CacheT $ proc (a,s) -> do
     Cache cache <- get -< ()
-    returnA -< M.foldl' (\m (a',b,s) -> if s == Stable && a ⊑ a' then m <> f a a' b else m) mempty cache
-  {-# INLINE reuseStable #-}
+    returnA -< M.foldl' (\m (a',b',s') -> if s' ⊑ s && a ⊑ a' then m <> f a a' s' b' else m) mempty cache
+  {-# INLINE reuse #-}

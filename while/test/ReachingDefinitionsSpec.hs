@@ -46,7 +46,7 @@ spec = do
 
 
   it "x:=5; y:=1; while(1<x){y:=x*y; x:=x-1}; z := y" $
-    let ?bound = I.Interval (-500) 500 in
+    let ?bound = I.Interval 0 10 in
     let stmts = ["x" =: 5,
                  "y" =: 1,
                  while (1 < "x") [
@@ -55,7 +55,7 @@ spec = do
                  ],
                  "z" =: "y"
                 ]
-    in run 10 stmts `shouldMatchList` [
+    in run 1 stmts `shouldMatchList` [
          -- Entry-Set
          (1, []),                          -- x:=5
          (3, [("x",[1])]),                 -- y:=1
@@ -68,7 +68,7 @@ spec = do
 
 
   it "x := 1; y := 1; while(x < 3){x:= x + 1; i := 1, while(i < 2) {y := y + 1}}; z:=y" $
-    let ?bound = I.Interval (-500) 500 in
+    let ?bound = I.Interval 0 10 in
     let stmts = [
                   "x" =: 1,
                   "y" =: 1,
@@ -82,7 +82,7 @@ spec = do
                   ],
                   "z" =: "y"
                 ]
-    in run 10 stmts `shouldMatchList` [
+    in run 1 stmts `shouldMatchList` [
          -- Entry-Set
          (1, []),                                          -- x := 1
          (3, [("x",[1])]),                                 -- y := 1
@@ -90,7 +90,7 @@ spec = do
          (12,[("x",[1,12]),("y",[3,27])]),                 --   x := x + 1
          (14,[("x",[12]),  ("y",[3,27])]),                 --   i := 1
          (15,[("x",[12]),  ("y",[3,27]), ("i",[23,14])]),  --   while(i < 2) {
-         (23,[("x",[12]),  ("y",[3,27]), ("i",[14])]),     --     i := i + 1
+         (23,[("x",[12]),  ("y",[3,27]), ("i",[23,14])]),  --     i := i + 1
          (27,[("x",[12]),  ("y",[3,27]), ("i",[23])]),     --     y := y + 1 } }
-         (29,[("x",[12]),  ("y",[27])])                    -- z := y
+         (29,[("x",[12]),  ("y",[3,27])])                  -- z := y
        ]

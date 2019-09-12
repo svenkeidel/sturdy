@@ -5,7 +5,8 @@ module Control.Arrow.Fix.Widening where
 import Control.Arrow
 import Data.Profunctor
 import Data.Order
-import Data.Abstract.Widening (Stable,finite)
+import Data.Abstract.Stable
+import Data.Abstract.Widening (finite)
 
 class (Arrow c, Profunctor c) => ArrowWidening a c where
   widening :: c (a,a) (Stable,a)

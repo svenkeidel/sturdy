@@ -17,12 +17,14 @@ import Data.Profunctor
 import Data.Bifunctor hiding (second)
 import Data.Hashable
 import Data.Order
-import Data.Abstract.FreeCompletion (FreeCompletion(..))
-import Data.Abstract.Widening
 import Data.GaloisConnection
 import Data.Concrete.Powerset as C
 import Data.Identifiable
 import qualified Data.Concrete.Error as C
+
+import Data.Abstract.FreeCompletion (FreeCompletion(..))
+import Data.Abstract.Widening
+import Data.Abstract.Stable
 
 import GHC.Generics (Generic, Generic1)
 
@@ -84,8 +86,8 @@ instance (PreOrd a, UpperBounded e) => UpperBounded (Error e a) where
 widening :: Widening e -> Widening a -> Widening (Error e a)
 widening we _ (Fail a) (Fail b) = second Fail (a `we` b)
 widening _ wa (Success a) (Success b) = second Success (a `wa` b)
-widening _ _ (Fail a) (Success _) = (Instable ,Fail a)
-widening _ _ (Success _) (Fail b) = (Instable ,Fail b)
+widening _ _ (Fail a) (Success _) = (Unstable ,Fail a)
+widening _ _ (Success _) (Fail b) = (Unstable ,Fail b)
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeCompletion a)) => Complete (FreeCompletion (Error e a)) where
   Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of

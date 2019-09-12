@@ -21,6 +21,7 @@ import           Data.Abstract.There (There(..))
 import qualified Data.Abstract.There as T
 
 import           Data.Abstract.Widening
+import           Data.Abstract.Stable
 
 import           GHC.Exts
 
@@ -54,8 +55,8 @@ widening w (Map m1) (Map m2) = second Map $ foldl (\(s,m) a -> let (s',b) = join
      keys = H.keys (H.union m1 m2)
      join k = case (H.lookup k m1,H.lookup k m2) of
        (Just (t1,b1),Just (t2,b2)) -> (T.widening ** w) (t1,b1) (t2,b2)
-       (Nothing,Just (_,b2)) -> (Instable,(May,b2))
-       (Just (_,b1),Nothing) -> (Instable,(May,b1))
+       (Nothing,Just (_,b2)) -> (Unstable,(May,b2))
+       (Just (_,b1),Nothing) -> (Unstable,(May,b1))
        (Nothing,Nothing) -> error "cannot happen"
 
 instance (Identifiable a, PreOrd b) => LowerBounded (Map a b) where
