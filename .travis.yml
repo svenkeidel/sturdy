@@ -23,8 +23,8 @@ before_install:
 
 install:
 # Build dependencies
-- stack --no-terminal --install-ghc test --only-dependencies -j1
+- stack test --no-terminal --fast --install-ghc --only-dependencies -j1
 
 script:
 # Build the package and run the tests
-- stack --no-terminal test -j1
+- stack test --no-terminal --fast -j1
