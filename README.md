@@ -1,10 +1,12 @@
 # Sturdy ![build-status](https://travis-ci.org/svenkeidel/sturdy.svg?branch=master)
 
+<img align="left" alt="Sturdy Logo" src="/logo.svg" width="30%" height="15%">
+
 Sturdy is a library to create sound static analyses in Haskell.
 Static analyses are tools that produce information about computer programs without actually running the program.
 Examples of static analyses are type checkers, bug finders (e.g. Java FindBugs), analyses for security (e.g. taint analyses), and analyses that are used for compiler optimizations.
 
-<img align="right" alt="Sturdy Overview" src="/sturdy-overview.png">
+<img align="right" alt="Sturdy Overview" src="/overview.png">
 
 This project focuses on _sound_ static analyses.
 A static analysis is sound if the results of the analysis reflect the actual runtime behavior of the program and users can rely on the results.
