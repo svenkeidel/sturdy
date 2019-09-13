@@ -37,6 +37,13 @@ stack test sturdy-stratego
 
 ## Publications
 
+**Sound and Reusable Components for Abstract Interpretation**  
+Sven Keidel and Sebastian Erdweg.  
+_Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)_.
+ACM, 2019
+[[pdf]](https://svenkeidel.de/papers/analysis-components.pdf)
+
+
 **Compositional Soundness Proofs of Abstract Interpreters**  
 Sven Keidel, Casper Bach Poulsen and Sebastian Erdweg.  
 _International Conference on Functional Programming (ICFP)_.
