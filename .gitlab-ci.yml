@@ -15,13 +15,19 @@ cache:
   - target
 
 stages:
+  - dependencies
   - build
   - test
+
+stack-dependencies:
+  stage: dependencies
+  script:
+    - stack test --no-terminal --fast --install-ghc --only-dependencies -j1
 
 stack-build:
   stage: build
   script:
-    - stack build --fast -j1
+    - stack build --no-terminal --fast -j1
 
 stack-test:
   stage: test
