@@ -67,7 +67,7 @@ instance Functor Maybe where
   fmap f m = case m of
     Just a -> Just (f a)
     Nothing -> Nothing
-    JustNothing a -> Just (f a)
+    JustNothing a -> JustNothing (f a)
 
 instance Applicative Maybe where
   pure = return
@@ -93,5 +93,11 @@ instance Traversable Maybe where
 
 fromConcreteMaybe :: Con.Maybe a -> Maybe a
 fromConcreteMaybe m = case m of
-    Con.Just a -> Just a
-    Con.Nothing -> Nothing
+  Con.Just a -> Just a
+  Con.Nothing -> Nothing
+
+toConcreteMaybe :: Maybe a -> Con.Maybe a
+toConcreteMaybe m = case m of
+  Just a -> Con.Just a
+  JustNothing a -> Con.Just a
+  Nothing -> Con.Nothing

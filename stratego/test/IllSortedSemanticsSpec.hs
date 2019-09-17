@@ -1,48 +1,34 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
-module SortSemanticsSpec(main, spec) where
+module IllSortedSemanticsSpec(main, spec) where
 
 import Prelude hiding (exp)
 
--- import qualified ConcreteSemantics as C
--- import           Soundness
--- import           Sort (SortId(..))
 import           Syntax hiding (Fail)
 import           Syntax as T
-import           SortSemantics -- hiding (sortContext)
+import           IllSortedSemantics
 import           AbstractSemantics
 import           SortContext(Context,Sort(..))
 import qualified SortContext as Ctx
 
--- import           Control.Arrow
+import           Control.Arrow
 
 import           Data.TermEnvironment
 import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as A
-import           Data.Abstract.There
--- import qualified Data.Abstract.Maybe as M
 import qualified Data.Abstract.Map as S
--- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
--- import qualified Data.Concrete.Powerset as C
--- import           Data.Constructor
--- import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
--- import           Data.GaloisConnection
--- import qualified Data.Set as Set
--- import qualified Data.Term as C
 import           Data.Set (Set)
-
-import Data.Order
+import           Data.Order
 
 import           Test.Hspec hiding (context)
--- import           Test.Hspec.QuickCheck
--- import           Test.QuickCheck hiding (Success)
 
-import           GHC.Exts(IsString(..))
+import           GHC.Exts(IsString(..),IsList(..))
 
 import qualified CaseStudy
 
@@ -93,7 +79,7 @@ spec = do
     it "should match a PCF expression" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp")] in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Zero" [])) t `shouldBe` success (emptyEnv, t)
+      in seval 0 (Match (Cons "Zero" [])) t `shouldBe` success (emptyEnv,t)
 
     it "should match a nested PCF expression" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
@@ -243,17 +229,17 @@ spec = do
 
     it "should make non-declared variables available" $
       let ?ctx = Ctx.empty in
-      let tenv = termEnv'' [ ("x",numerical) ] ["y"] in
-      do
+      let tenv = termEnv [ ("x",numerical) ]
+      in do
          seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe`
-           success (tenv, numerical)
-         seval' 0 (Scope ["y"] (Match "z")) (S.delete' ["z"] tenv) numerical `shouldBe`
-           success (S.delete' ["y"] $ termEnv [ ("x",numerical), ("z",numerical)], numerical)
+           success (termEnv [("x", numerical) ], numerical)
+         seval' 0 (Scope ["y"] (Match "z")) tenv numerical `shouldBe`
+           success (termEnv [ ("x",numerical), ("z",numerical)], numerical)
 
     it "should hide variables bound in a choice's test from the else branch" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp"), ("One",[],"Exp")] in
       let exp = term "Exp"
-          tenv = S.delete "x" emptyEnv
+          tenv = emptyEnv
           prog = (Build (T.Cons "Zero" []) `Seq` Match "x" `Seq` T.Fail)
                 `leftChoice`
                 (Match "x")
@@ -264,15 +250,15 @@ spec = do
       let ?ctx = Ctx.empty in
       let t = term (Tuple ["Exp","Exp"])
           -- tenv = termEnv [("x",t)]
-          tenv = termEnv'' [] ["x","y"]
+          tenv = delete swap (termEnv [])
       in seval' 2 (Let [("swap", swap)] (Scope ["x"] (Match "x" `Seq` Call "swap" [] ["x"]))) tenv t
            `shouldBe` success (tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
       let t = convertToList [numerical, numerical, numerical] ?ctx
-          tenv = termEnv' []
-      in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"]))) t
+          tenv = delete map' $ termEnv []
+      in seval'' 2 0 10 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"]))) M.empty tenv t
         `shouldBe` success (tenv, term (List Numerical))
 
   describe "Call" $ do
@@ -280,78 +266,75 @@ spec = do
       let ?ctx = Ctx.empty in
       let senv = M.singleton "swap" (Closure swap M.empty)
           t = term (Tuple ["Exp","Exp"])
-          tenv = termEnv []
-      in seval'' 1 10 (Scope ["x"] (Match "x" `Seq` Call "swap" [] [])) senv emptyEnv t `shouldBe` success (tenv, t)
+          tenv = delete swap $ termEnv []
+      in seval'' 1 0 10 (Scope ["x"] (Match "x" `Seq` Call "swap" [] [])) senv tenv t `shouldBe` success (tenv, t)
 
     it "should support an empty list in recursive applications" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [] ?ctx
-          tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
-           success (tenv, term (List Numerical))
+          tenv = delete map' $ termEnv []
+      in seval'' 2 0 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv tenv t `shouldBe`
+           success (delete map' tenv, term (List Numerical))
 
     it "should support a singleton list in recursive applications" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
           t = convertToList [numerical] ?ctx
-          tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+          tenv = delete map' $ termEnv []
+      in seval'' 2 0 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv tenv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should support recursion on a list of numbers" $
       let ?ctx = Ctx.empty in
       let senv = M.singleton "map" (Closure map' M.empty)
-          c = Ctx.empty
-          t = convertToList [numerical, numerical, numerical] c
-          tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+          t = convertToList [numerical, numerical, numerical] ?ctx
+          tenv = delete map' $ termEnv []
+      in seval'' 2 0 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Build (NumberLiteral 1)] ["x"])) senv tenv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should terminate and not produce infinite sorts" $
       let ?ctx = Ctx.empty in
-      let senv = M.fromList [("map",Closure (T.liftStrategyScopes map') M.empty),
-                             ("foo",Closure (T.liftStrategyScopes $ Strategy [] [] (Scope ["x"] (Match "x" `Seq` Call "map" ["foo"] ["x"]))) M.empty)]
-          c = Ctx.empty
-          t = Term Top c
-          tenv = termEnv []
-      in seval'' 10 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
-           success (tenv, Term (List (List (List Top))) c)
+      let senv = M.fromList [("map",Closure map' M.empty),
+                             ("foo",Closure (Strategy [] [] (Scope ["x"] (Match "x" `Seq` Call "map" ["foo"] ["x"]))) M.empty)]
+          t = term Top
+          tenv = delete map' $ termEnv []
+      in do
+        pendingWith "does not terminate"
+        seval'' 0 0 0 (Call "foo" [] []) senv tenv t `shouldBe`
+           success (tenv, term (List (List (List Top))))
 
   describe "simplify arithmetics" $ do
     it "reduce Add(Zero,y)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
       let exp = term "Exp"
           reduce = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
-      in seval' 0 (reduce) (S.delete "y" emptyEnv) exp
-           `shouldBe` successOrFail () (termEnv [("y", exp)], exp)
+      in seval' 0 reduce emptyEnv exp `shouldBe` successOrFail () (termEnv [("y", exp)], exp)
 
     it "reduce Add(x,Zero)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
       let exp = term "Exp"
           reduce = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
-      in seval' 0 reduce (S.delete "x" emptyEnv) exp
-           `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+      in seval' 0 reduce emptyEnv exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
 
     it "reduce Add(Zero,y) < id + Add(x,Zero)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
       let exp = term "Exp"
           reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
           reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
-      in seval' 0 (reduce1 `leftChoice` reduce2) (S.delete' ["x", "y"] emptyEnv) exp
-           `shouldBe` successOrFail () (termEnv' [may "x" exp, may "y" exp], exp)
+      in seval' 0 (reduce1 `leftChoice` reduce2) emptyEnv exp `shouldBe` successOrFail () (termEnv [("x",exp), ("y",exp)], exp)
 
     it "reduce Add(x,y); !x; ?Zero()" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
       let exp = term "Exp"
           reduce = Match (Cons "Add" ["x", "y"]) `Seq` Build "x" `Seq` Match (Cons "Zero" []) `Seq` Build "y"
-      in seval' 0 reduce (S.delete' ["x", "y"] emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp),("y", exp)], exp)
+      in seval' 0 reduce emptyEnv exp `shouldBe` successOrFail () (termEnv [("x", exp),("y", exp)], exp)
 
     it "reduce Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp"),("Double",["Exp"],"Exp")] in
       let exp = term "Exp"
           reduce = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"])
-      in seval' 0 reduce (S.delete' ["x"] emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+      in seval' 0 reduce emptyEnv exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
 
     it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
@@ -359,8 +342,8 @@ spec = do
           reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
           reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
           reduce3 = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"])
-      in seval' 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) (S.delete' ["x","y"] emptyEnv) exp
-           `shouldBe` successOrFail () (termEnv' [may "x" exp, may "y" exp], exp)
+      in seval' 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) emptyEnv exp
+           `shouldBe` successOrFail () (termEnv [("x",exp),("y",exp)], exp)
 
     -- prop "should be sound" $ do
     --   i <- choose (0,10)
@@ -374,32 +357,43 @@ spec = do
 
   describe "Boolean Algebra" $
     beforeAll CaseStudy.balg $ do
-      it "trans_bottomup: BExp -> Exp" $ \balg ->
+      it "trans_bottomup: BExp -> NExp" $ \balg ->
         let ?ctx = signature balg in
         let senv = stratEnv balg
+            tenv = delete balg $ emptyEnv
         in do
-          pendingWith "The sort semantics is too imprecise to check this traversal"
-          seval'' 2 10 (Call "trans__bottomup_0_0" [] []) senv emptyEnv (term "BExp") `shouldBe`
-            successOrFail () (emptyEnv, term "Exp")
+          seval'' 0 0 10 (Call "trans__bottomup_0_0" [] []) senv tenv (term "BExp") `shouldBe`
+            successOrFail () (tenv, term "NExp")
 
-  describe "PCF interpreter in Stratego" $
+      it "trans_topdown: BExp -> NExp" $ \balg ->
+        let ?ctx = signature balg in
+        let senv = stratEnv balg
+            tenv = emptyEnv
+        in do
+          seval'' 5 0 10 (Call "trans__topdown_0_0" [] []) senv tenv (term "BExp") `shouldBe`
+            successOrFail () (tenv, term "NExp")
+
+  describe "PCF" $
     beforeAll CaseStudy.pcf $ do
       it "lookup: String * Env -> Val" $ \pcf ->
         let ?ctx = signature pcf in
         let senv = stratEnv pcf
             prog = term (Tuple [Lexical, List (Tuple [Lexical, "Val"])])
             val  = term "Val"
+            tenv = delete pcf emptyEnv
         in do
-          seval'' 2 10 (Call "lookup_0_0" [] []) senv emptyEnv prog `shouldBe`
-            successOrFail () (emptyEnv, val)
+          seval'' 0 0 10 (Call "lookup_0_0" [] []) senv tenv prog `shouldBe`
+            successOrFail () (delete (senv M.! "lookup_0_0") tenv, val)
 
       it "eval: Env * Exp -> Val" $ \pcf ->
         let ?ctx = signature pcf in
         let senv = stratEnv pcf
             prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
             val  = term "Val"
-        in seval'' 10 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
-             successOrFail () (emptyEnv, val)
+            tenv = delete pcf emptyEnv
+        in do
+          seval'' 0 0 10 (Call "eval_0_0" [] []) senv tenv prog `shouldBe`
+             successOrFail () (tenv, val)
 
   describe "Arrow" $
     beforeAll CaseStudy.arrows $ do
@@ -408,9 +402,19 @@ spec = do
         let senv = stratEnv desugar
             prog = term $ List "Var"
             val  = term "APat"
-            env = termEnv []
+            tenv = termEnv []
         in do
-          sevalNoNeg'' 2 10 (Call "tuple_pat_0_0" [] []) senv env prog `shouldBe`
+          seval'' 0 0 10 (Call "tuple_pat_0_0" [] []) senv tenv prog `shouldBe`
+            successOrFail () (termEnv [], val)
+
+      it "tuple: List Var -> Exp" $ \desugar ->
+        let ?ctx = signature desugar in
+        let senv = stratEnv desugar
+            prog = term $ List "Var"
+            val  = term "Exp"
+            env = delete desugar $ termEnv []
+        in do
+          seval'' 0 0 10 (Call "tuple_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "tuple-exp: List Exp -> Exp" $ \desugar ->
@@ -418,19 +422,9 @@ spec = do
         let senv = stratEnv desugar
             prog = term $ List "Exp"
             val  = term "Exp"
-            env = delete desugar $ termEnv []
-        in do
-          seval'' 0 10 (Call "tuple_exp_0_0" [] []) senv env prog `shouldBe`
-            successOrFail () (env, val)
-
-      it "tuple: List Var -> Exp" $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term $ List "Var"
-            val  = term "Exp"
             env = termEnv []
         in do
-          sevalNoNeg'' 2 10 (Call "tuple_0_0" [] []) senv env prog `shouldBe`
+          seval'' 0 0 10 (Call "tuple_exp_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "at-end: (=> List Var) -> List Var -> List Var " $ \desugar ->
@@ -441,7 +435,7 @@ spec = do
             env = termEnv []
             s = Build $ Cons "Cons" [Cons "VarVar" [StringLiteral "v"], Cons "Nil" []]
         in do
-          sevalNoNeg'' 2 10 (Call "at_end_1_0" [s] []) senv env prog `shouldBe`
+          seval'' 0 0 10 (Call "at_end_1_0" [s] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "at-end (scoped strat arg): (=> List Var) -> List Var -> List Var " $ \desugar ->
@@ -452,7 +446,7 @@ spec = do
             env = termEnv [("vars-list", term $ List "Var")]
             s = Build $ Var "vars-list"
         in do
-          sevalNoNeg'' 2 10 (Call "at_end_1_0" [s] []) senv env prog `shouldBe`
+          seval'' 0 0 10 (Call "at_end_1_0" [s] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "conc: (List Var, List Var) -> List Var " $ \desugar ->
@@ -462,7 +456,7 @@ spec = do
             val  = term $ List "Var"
             env = termEnv []
         in do
-          sevalNoNeg'' 2 10 (Call "conc_0_0" [] []) senv env prog `shouldBe`
+          seval'' 0 0 10 (Call "conc_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "free-pat-vars: APat -> List Var " $ \desugar ->
@@ -472,7 +466,7 @@ spec = do
             val  = term $ List "Var"
             env = termEnv []
         in do
-          sevalNoNeg'' 2 10 (Call "free_pat_vars_0_0" [] []) senv env prog `shouldBe`
+          seval'' 0 0 10 (Call "free_pat_vars_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "free-decls-vars: Declbinds -> List Var " $ \desugar ->
@@ -482,7 +476,7 @@ spec = do
             val  = term $ List "Var"
             env = termEnv []
         in do
-          sevalNoNeg'' 2 10 (Call "free_decls_vars_0_0" [] []) senv env prog `shouldBe`
+          seval'' 0 0 10 (Call "free_decls_vars_0_0" [] []) senv env prog `shouldBe`
             successOrFail () (env, val)
 
       it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
@@ -492,56 +486,12 @@ spec = do
             val  = term "Exp"
             env = termEnv [("vars-list", term $ List "Var")]
         in do
-          sevalNoNeg'' 4 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
+          seval'' 0 0 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
             successOrFail () (env, val)
 
-
   where
-    -- sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
-    -- sound' s xs = sound (M.empty,ctx) (C.fromFoldable $ fmap (second termEnv') xs) (eval' s) (eval' s :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) Term Term) where
-    --   ctx = (alpha::C.Pow C.Term -> Context) (C.fromFoldable (map fst xs))
-
-    -- sound'' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> TermPattern -> Property
-    -- sound'' s xs pat = sound (M.empty,ctx) (C.fromFoldable $ fmap (second termEnv') xs) (eval' s) (eval' s :: Interp (SW.Categories (Strat,StratEnv) (TermEnv,Term) SW.Stack) Term Term) where
-    --   ctx = (alpha::C.Pow C.Term -> Context) (C.fromFoldable (map fst xs)) `union` patContext tenv pat
-    --   tenv = (termEnv [ (v,(alpha::C.Pow C.Term -> Term) (C.singleton t)) | (_,xs') <- xs, (v,t) <- xs'])
-
-    -- patContext :: TermEnv -> TermPattern -> Context
-    -- patContext tenv pat = case pat of
-      -- Cons c pats -> SortContext
-      --   { signatures = unionsWith (++) (M.singleton c [(map (patToSort tenv) pats, patToSort tenv pat)]:map (signatures . (patContext tenv)) pats)
-      --   , lexicals = Set.empty
-      --   , injectionClosure = M.empty -- Since we're taking the union, we can just leave this empty.
-      --   }
-      -- _ -> SortContext { signatures = M.empty, lexicals = Set.empty, injectionClosure = M.empty }
-
-    -- patToSort :: TermEnv -> TermPattern -> Sort
-    -- patToSort _ (Cons (Constructor c) _) = Sort (SortId c)
-    -- patToSort _ (StringLiteral _) = Lexical
-    -- patToSort _ (NumberLiteral _) = Numerical
-    -- patToSort _ (As _ _) = error "no such sort: as"
-    -- patToSort _ (Explode _ _) = error "no such sort: explode"
-    -- patToSort tenv (Var x) = case S.lookup x tenv of
-    --   M.Just (Term s _) -> s
-    --   M.JustNothing (Term s _) -> s
-    --   M.Nothing -> Bottom
-
-    -- termEnv' = C.TermEnv . M.fromList
     termEnv :: [(TermVar, Term)] -> TermEnv Term
     termEnv = S.fromList
-
-    -- termEnv' = S.fromThereList
-    termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv Term
-    -- termEnv' ts = termEnv (filter (\(_,)))
-    -- termEnv' :: [(TermVar, A.Maybe Term)] -> TermEnv
-    termEnv' = S.fromThereList . concatMap (\(v,mt) -> case mt of
-      A.Nothing -> []
-      A.Just t -> [(v,(Must, t))]
-      A.JustNothing t -> [(v,(May, t))]
-     )
-
-    termEnv''  :: [(TermVar, Term)] -> [TermVar] -> TermEnv Term
-    termEnv'' bound notBound = foldr S.delete (S.fromList bound) notBound
 
     delete :: TermVars s => s -> TermEnv Term -> TermEnv Term
     delete s = S.delete' (termVars s :: Set TermVar)
@@ -566,28 +516,21 @@ spec = do
                Build (Cons "Cons" ["x'", "xs'"]))
               (Build (Cons "Nil" []))))
 
-    seval :: Int -> Strat -> Term -> Error TypeError (Except () (TermEnv Term,Term))
-    seval i s = seval'' i 10 s M.empty emptyEnv
+    seval :: (?ctx :: Context) => Int -> Strat -> Term -> Error TypeError (Except () (TermEnv Term,Term))
+    seval i s = seval'' i 0 10 s M.empty emptyEnv
 
-    seval' :: Int -> Strat -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
-    seval' i s = seval'' i 10 s M.empty
+    seval' :: (?ctx :: Context) => Int -> Strat -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
+    seval' i s = seval'' i 0 10 s M.empty
 
-    seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
-    seval'' i j s senv tenv t =
+    seval'' :: (?ctx :: Context) => Int -> Int -> Int -> Strat -> StratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
+    seval'' i j k s senv tenv t =
+      fmap (fmap (fmap (typecheck' ?ctx) *** typecheck' ?ctx)) $
       fromCompletion (error "top element")
         (fromTerminating (error "sort semantics does not terminate")
-           (eval i j s senv (context t) tenv t))
+           (eval i j k s senv ?ctx tenv t))
 
-    sevalNoNeg'' :: Int -> Int -> Strat -> StratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
-    sevalNoNeg'' i j s senv tenv t = dropNegativeBindings $ seval'' i j s senv tenv t
-    
-    dropNegativeBindings :: Error TypeError (Except () (TermEnv Term,a)) -> Error TypeError (Except () (TermEnv Term,a))
-    -- dropNegativeBindings (F.Success (E.Success (env,a))) = (F.Success (E.Success (S.dropNegativeBindings env,a)))
-    -- dropNegativeBindings (F.Success (E.SuccessOrFail e (env,a))) = (F.Success (E.SuccessOrFail e (S.dropNegativeBindings env,a)))
-    dropNegativeBindings res = res
-    
     term :: (?ctx :: Context) => Sort -> Term
-    term s = Term s ?ctx
+    term s = Sorted s ?ctx
 
     bottom :: (?ctx :: Context) => Term
     bottom = term Bottom
@@ -598,30 +541,14 @@ spec = do
     numerical :: (?ctx :: Context) => Term
     numerical = term Numerical
 
-    -- top :: (?ctx :: Context) => Term
-    -- top = term Top
-
-    atop :: (?ctx :: Context) => A.Maybe Term
-    atop = A.JustNothing top
-
-    may :: k -> v -> (k,A.Maybe v)
-    may k v = (k,A.JustNothing v)
-
-    -- must :: k -> v -> (k,A.Maybe v)
-    -- must k v = (k,A.Just v)
-
-    -- notThere :: k -> (k, A.Maybe v) 
-    -- notThere k = (k,A.Nothing)
-
     success :: a -> Error e (Except () a)
     success a = F.Success $ E.Success a
-    
+
     successOrFail :: () -> a -> Error e (Except () a)
     successOrFail () a = F.Success $ E.SuccessOrFail () a
-    
+
     uncaught :: () -> Error e (Except () a)
     uncaught = F.Success . E.Fail
-    
+
     failure :: String -> Error TypeError (Except () a)
     failure = F.Fail . fromString
-

@@ -40,9 +40,16 @@ instance (Identifiable a, Complete b) => Complete (Map a b) where
 instance Empty.IsEmpty (Map a b) where
   empty = Map M.empty
 
+instance (Identifiable a, PreOrd b) => UpperBounded (Map a b) where
+  top = Top
+
 keys :: Map a b -> Maybe (HashSet a)
 keys Top = Nothing
 keys (Map m) = Just (M.keysSet m)
+
+instance Identifiable a => Functor (Map a) where
+  fmap _ Top = Top
+  fmap f (Map m) = Map (M.map f m)
 
 widening :: Identifiable a => Widening b -> Widening (Map a b)
 widening _ Top Top = (Stable,Top)
@@ -68,7 +75,7 @@ lookup' a = lookup a top
 
 delete :: (Identifiable a, Foldable f) => f a -> Map a b -> Map a b
 delete _ Top = Top
-delete ks (Map m) = Map (foldr M.delete m ks)
+delete as (Map m) = Map (foldr M.delete m as)
 
 filter :: (a -> Bool) -> Map a b -> Map a b
 filter _ Top = Top

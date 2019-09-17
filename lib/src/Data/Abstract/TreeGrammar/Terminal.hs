@@ -10,6 +10,7 @@ module Data.Abstract.TreeGrammar.Terminal(Terminal(..), map, Constr) where
 
 import           Prelude hiding (pred,traverse,map,Either(..))
 import           Control.Monad
+import           Control.DeepSeq
 
 import           Data.Text (Text)
 import           Data.IntMap (IntMap)
@@ -44,7 +45,10 @@ class Terminal t where
 map :: (Identifiable n', Terminal t) => (n -> n') -> t n -> t n'
 map f t = runIdentity (traverse (Identity . f) t)
 
-newtype Constr n = Constr (HashMap Text (IntMap (HashSet [n]))) deriving (Eq)
+newtype Constr n = Constr (HashMap Text (IntMap (HashSet [n]))) deriving (Eq,NFData)
+
+instance (Eq n, Hashable n) => Hashable (Constr n) where
+  hashWithSalt s t = runIdentity (hashWithSalt (\s' -> Identity . Hash.hashWithSalt s') s t)
 
 instance Identifiable n => IsList (Constr n) where
   type Item (Constr n) = (Text,[n])

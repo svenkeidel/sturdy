@@ -13,7 +13,7 @@ import qualified SortContext as Ctx
 
 import qualified Data.Abstract.Map as S
 import qualified Data.HashMap.Lazy as M
-
+import           Data.TermEnvironment
 
 import           Criterion
 import           Criterion.Main
@@ -21,6 +21,7 @@ import           Criterion.Main
 main :: IO ()
 main = do
   pcf <- CaseStudy.pcf
+  arrows <- CaseStudy.arrows
   defaultMain [
       bgroup "Sort Semantics" [
         bench "reduce Add(Zero,y)" $
@@ -39,6 +40,14 @@ main = do
           let ?ctx = signature pcf in
           let senv = stratEnv pcf
           in nf (eval 5 10 (Call "eval_0_0" [] []) senv ?ctx emptyEnv) (term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"]))
+        ,
+        bench "arrows" $
+          let ?ctx = signature arrows in
+          let senv = stratEnv arrows
+              input = term "ArrCommand"
+              val  = term "Exp"
+              env = termEnv [("vars-list", term $ List "Var")]
+          in nf (eval 4 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv ?ctx env) input
       ]
     ]
   where
@@ -48,8 +57,12 @@ main = do
     numerical :: (?ctx :: Context) => Term
     numerical = term Numerical
 
-    emptyEnv :: TermEnv
+    emptyEnv :: TermEnv Term
     emptyEnv = S.empty
+
+    termEnv :: [(TermVar, Term)] -> TermEnv Term
+    termEnv = S.fromList
+
 
     map' = Strategy ["f"] ["l"] (Scope ["x","xs","x'","xs'"] (
             Build "l" `Seq`

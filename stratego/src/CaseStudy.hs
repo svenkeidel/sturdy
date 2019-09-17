@@ -16,10 +16,13 @@ nnf = caseStudy "nnf"
 arrows :: IO Module
 arrows = caseStudy "arrows"
 
+balg :: IO Module
+balg = caseStudy "balg"
+
 caseStudy :: String -> IO Module
 caseStudy name = do
   file <- TIO.readFile =<< getDataFileName (printf "case-studies/%s/%s.aterm" name name)
   case parseModule =<< A.parseATerm file of
-    Left e -> fail (show e)
+    Left e -> fail (printf "parsing of case study %s failed: %s" name (show e))
     Right module_ -> return module_
 

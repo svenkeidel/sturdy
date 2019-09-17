@@ -14,56 +14,40 @@ module GrammarSemantics where
 import           Prelude hiding (fail)
 
 import qualified ConcreteSemantics as C
-import           SharedSemantics
+import           SharedSemantics as Shared
+import           AbstractSemantics
 import           SortContext(Context,Signature(..),Sort,sorts)
+import qualified SortContext as Ctx
 import           Syntax hiding (Fail)
 import           Utils
+import           ValueT
 
-import           Control.Category hiding ((.))
 import           Control.Arrow
-import           Control.Arrow.Deduplicate
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Reader
-import           Control.Arrow.State
 import           Control.Arrow.Const
 import           Control.Arrow.Abstract.Join
-import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Transformer.State
-import           Control.Arrow.Transformer.Abstract.Completion
-import           Control.Arrow.Transformer.Abstract.Except
-import           Control.Arrow.Transformer.Abstract.Error
-import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Terminating
 import qualified Control.Monad as M
 
 import           Data.Coerce
 import           Data.Identifiable
 import qualified Data.Concrete.Powerset as C
 import           Data.Constructor
-import           Data.Foldable (foldr')
 import           Data.GaloisConnection
 import qualified Data.HashMap.Lazy as LM
 import           Data.Hashable
 import           Data.Order
 import           Data.Term
+import           Data.TermEnvironment
 import           Data.Text (Text)
 import           Data.Profunctor
-import qualified Data.Lens as L
 import qualified Data.Abstract.Either as A
 import           Data.Abstract.FreeCompletion (FreeCompletion)
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except (Except)
-import qualified Data.Abstract.Except as E
 import           Data.Abstract.Error (Error)
-import qualified Data.Abstract.Error as F
-import qualified Data.Abstract.Maybe as AM
-import           Data.Abstract.WeakMap (Map)
-import qualified Data.Abstract.WeakMap as S
 import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (Terminating,fromTerminating)
-import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening as W
 import           Data.Abstract.DiscretePowerset(Pow)
 import           Data.Abstract.TreeGrammar
@@ -79,82 +63,16 @@ import           GHC.Exts
 data Constr n = Bot | Constr (Term.Constr n) | StringLit (FreeCompletion Text) | NumLit (FreeCompletion Int) | Top deriving (Eq)
 newtype Term = Term (Grammar Int Constr) deriving (Complete, Eq, Hashable, PreOrd)
 
-type TermEnv = Map TermVar Term
-
 type Stack = SW.Groups StratVar SW.Stack
 
-type Interp s a b =
-  Fix (Strat,Term) Term
-    (GrammarT
-      (ReaderT StratEnv
-        (StateT TermEnv
-          (ExceptT ()
-            (ErrorT (Pow String)
-              (CompletionT
-                (TerminatingT
-                  (FixT s Cache () ()
-                    (->))))))))) a b
+eval :: Int -> Int -> Strat -> StratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
+eval i _ strat senv ctx  = runInterp (Shared.eval' strat) i widening senv ctx
 
-runInterp :: Interp _ a b -> Int -> StratEnv -> TermEnv -> a -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv, b))))
-runInterp f i senv0 tenv0 a =
-  runFixT stackWidening Cache.stabilized (T.widening grammarWidening)
-    (runTerminatingT
-      (runCompletionT
-        (runErrorT
-          (runExceptT
-            (runStateT
-              (runReaderT
-                (runGrammarT f)))))))
-    (tenv0, (senv0, a))
-  where
-    stackWidening :: SW.StackWidening _ (TermEnv, (StratEnv, (Strat, Term)))
-    stackWidening = SW.filter' (L.second (L.second (L.first stratCall)))
-                  $ SW.groupBy (L.iso' (\(tenv,(senv,(strat,term))) -> ((strat,senv),(term,tenv)))
-                                       (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term)))))
-                  $ SW.stack
-                  $ SW.reuseFirst
-                  $ SW.maxSize i
-                  $ error "Top"
-                  -- SW.fromWidening (widening W.** S.widening widening)
-
-    grammarWidening = Free.widening (F.widening W.finite (E.widening (\_ _ -> (Stable,())) (S.widening widening W.** widening)))
-
-eval :: Int -> Strat -> StratEnv -> TermEnv -> Term -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv, Term))))
-eval i s = runInterp (eval' s) i
 
 -- Instances -----------------------------------------------------------------------------------------
-type instance Fix x y (GrammarT c) = GrammarT (Fix x y c)
-newtype GrammarT c x y = GrammarT { runGrammarT :: c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowExcept e,ArrowReader r,ArrowState s,ArrowFail e,ArrowJoin,ArrowConst ctx)
-instance (Profunctor c, ArrowApply c) => ArrowApply (GrammarT c) where app = GrammarT $ lmap (first runGrammarT) app
-
-deriving instance PreOrd (c x y) => PreOrd (GrammarT c x y)
-deriving instance Complete (c x y) => Complete (GrammarT c x y)
-deriving instance LowerBounded (c x y) => LowerBounded (GrammarT c x y)
-deriving instance ArrowFix x y c => ArrowFix x y (GrammarT c)
-
-instance (Arrow c, Profunctor c) => ArrowDeduplicate Term Term (GrammarT c) where
-  dedup f = f
-
-instance (Arrow c, Profunctor c, ArrowReader StratEnv c) => HasStratEnv (GrammarT c) where
-  readStratEnv = lmap (const ()) ask
-  localStratEnv senv f = proc a -> local f -< (senv,a)
-
-instance Complete (FreeCompletion Term) where
-  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
-  _ ⊔ _ = Free.Top
-
-instance Complete (FreeCompletion TermEnv) where
-  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
-  _ ⊔ _ = Free.Top
-
-instance Complete (FreeCompletion (Grammar Int Constr)) where
-  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
-  _ ⊔ _ = Free.Top
-
 instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice c, Profunctor c, LowerBounded (c () Term))
-   => IsTerm Term (GrammarT c) where
-  matchTermAgainstConstructor matchSubterms = proc (Constructor c,ps,Term g) ->
+   => IsTerm Term (ValueT Term c) where
+  matchCons matchSubterms = proc (Constructor c,ps,Term g) ->
     case toSubterms g of
       Bot -> bottom -< ()
       Constr cs ->
@@ -162,16 +80,16 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
             if c' == c && eqLength ps ts
             then do
               ts' <- matchSubterms -< (ps,ts)
-              cons -< (Constructor c,ts')
+              buildCons -< (Constructor c,ts')
             else throw -< ()) |) (coerce (toList cs))
       NumLit _ -> throw -< ()
       StringLit _ -> throw -< ()
-      Top -> (do ts' <- matchSubterms -< (ps,[ topGrammar | _ <- ps ]); cons -< (Constructor c,ts'))
+      Top -> (do ts' <- matchSubterms -< (ps,[ topGrammar | _ <- ps ]); buildCons -< (Constructor c,ts'))
          <⊔> (throw -< ())
 
-  matchTermAgainstExplode _ _ = error "unsupported"
+  matchExplode _ _ = error "unsupported"
 
-  matchTermAgainstNumber = proc (n,Term g) -> case toSubterms g of
+  matchNum = proc (n,Term g) -> case toSubterms g of
     Bot -> bottom -< ()
     NumLit (Free.Lower n')
       | n == n' -> returnA -< Term g
@@ -180,7 +98,7 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
     StringLit _ -> throw -< ()
     _ -> (returnA -< Term g) <⊔> (throw -< ())
 
-  matchTermAgainstString = proc (s,Term g) -> case toSubterms g of
+  matchString = proc (s,Term g) -> case toSubterms g of
     Bot -> bottom -< ()
     StringLit (Free.Lower s')
       | s == s' -> returnA -< Term g
@@ -189,13 +107,15 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
     NumLit _ -> throw -< ()
     _ -> (returnA -< Term g) <⊔> (throw -< ())
 
+  buildCons = arr $ \(Constructor c,ts) -> constr c ts
+  buildNum = arr numLit
+  buildString = arr stringLit
+  buildExplode = error "unsupported"
+
   equal = proc (Term g1, Term g2) -> case g1 ⊓ g2 of
     g | isEmpty g -> throw -< ()
       -- isSingleton g1 && isSingleton g2 -> returnA -< Term g
       | otherwise -> (returnA -< Term g) <⊔> (throw -< ())
-
-  convertFromList = error "unsupported"
-
 
   mapSubterms f = proc (Term g) ->
     case toSubterms g of
@@ -203,15 +123,22 @@ instance (IsString e, ArrowFail e c, ArrowJoin c, ArrowExcept () c, ArrowChoice 
       Constr cs -> 
         (| joinList (bottom -< ()) (\(c,ts) -> do
            ts' <- f -< ts
-           cons -< (Constructor c,ts')) |)
+           buildCons -< (Constructor c,ts')) |)
             (coerce (toList cs))
       StringLit _ -> returnA -< Term g
       NumLit _ -> returnA -< Term g
       Top -> fail -< "cannot map over the subterms of Top"
 
-  cons = arr $ \(Constructor c,ts) -> constr c ts
-  numberLiteral = arr numLit
-  stringLiteral = arr stringLit
+instance UpperBounded Term where
+  top = error "top"
+
+instance Complete (FreeCompletion Term) where
+  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
+  _ ⊔ _ = Free.Top
+
+instance Complete (FreeCompletion (Grammar Int Constr)) where
+  Free.Lower x ⊔ Free.Lower y = Free.Lower (x ⊔ y)
+  _ ⊔ _ = Free.Top
 
 instance TermUtils Term where
   convertToList ts = case ts of
@@ -219,19 +146,6 @@ instance TermUtils Term where
     [] -> constr "Nil" []
   size (Term _) = error "not implemented: TreeAutomata.size g"
   height (Term _) = error "not implemented: TreeAutomata.height g"
-
-instance (ArrowChoice c, ArrowJoin c, Profunctor c, ArrowState TermEnv c) => IsTermEnv TermEnv Term (GrammarT c) where
-  getTermEnv = get
-  putTermEnv = put
-  emptyTermEnv = lmap (\() -> S.empty) put
-  lookupTermVar f g = proc (v,env,ex) ->
-    case S.lookup v topGrammar env of
-      AM.Just t -> f -< t
-      AM.JustNothing t -> (f -< t) <⊔> (g -< ex)
-      AM.Nothing -> g -< ex
-  insertTerm = arr $ \(v,t,env) -> S.insert v t env
-  deleteTermVars = arr $ \(vars,env) -> foldr' S.delete env vars
-  unionTermEnvs = arr (\(vars,e1,e2) -> S.union e1 (foldr' S.delete e2 vars))
 
 instance Galois (C.Pow C.Term) Term where
   alpha = lub . fmap go
@@ -241,18 +155,14 @@ instance Galois (C.Pow C.Term) Term where
       go (C.NumberLiteral n) = numLit n
   gamma = error "Uncomputable"
 
-instance Galois (C.Pow C.TermEnv) TermEnv where
-  alpha = lub . fmap (\(C.TermEnv e) -> S.fromList (LM.toList (fmap alphaSing e)))
-  gamma = undefined
-
 sound :: (Identifiable b1, Show b2, Complete b2, Galois (C.Pow a1) a2, Galois (C.Pow b1) b2)
-      => Int -> StratEnv -> C.Pow (a1, C.TermEnv) -> C.Interp a1 b1 -> Interp _ a2 b2 -> Q.Property
+      => Int -> StratEnv -> C.Pow (a1, C.TermEnv) -> C.Interp a1 b1 -> Interp Term _ a2 b2 -> Q.Property
 sound i senv xs f g =
-  let con :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
+  let con :: FreeCompletion (Error (Pow String) (Except () (TermEnv Term,_)))
       con = Free.Lower (alpha (fmap (\(x,tenv) -> C.runInterp f senv tenv x) xs))
-      abst :: FreeCompletion (Error (Pow String) (Except () (TermEnv,_)))
+      abst :: FreeCompletion (Error (Pow String) (Except () (TermEnv Term,_)))
       -- TODO: using fromTerminating is a bit of a hack...
-      abst = fromTerminating Free.Top $ runInterp g i senv (alpha (fmap snd xs)) (alpha (fmap fst xs))
+      abst = fromTerminating Free.Top $ runInterp g i widening senv Ctx.empty (alpha (fmap snd xs)) (alpha (fmap fst xs))
   in Q.counterexample (printf "%s ⊑/ %s" (show con) (show abst)) $ con ⊑ abst
 
 -- Helpers -------------------------------------------------------------------------------------------
@@ -275,6 +185,9 @@ numLit n = Term (grammar "S" [("S",NumLit (return n))] [])
 
 topGrammar :: Term
 topGrammar = Term (grammar "S" [("S",Top)] [])
+
+instance ArrowConst Context c => ArrowTop Term (EnvironmentT Term c) where
+  topA = proc () -> returnA -< topGrammar
 
 instance Term.Terminal Constr where
   nonTerminals (Constr cs) = Term.nonTerminals cs

@@ -1,0 +1,32 @@
+module balg
+
+signature
+  constructors
+    Zero : NExp
+    One : NExp
+    Max : NExp * NExp -> NExp
+    Min : NExp * NExp -> NExp
+
+    True  : BExp
+    False : BExp
+    And   : BExp * BExp -> BExp
+    Or    : BExp * BExp -> BExp
+
+    Nil  : List(a)
+    Cons : a * List(a) -> List(a)
+         : ()
+         : a -> (a)
+         : a * b -> (a, b)
+         : a * b * c -> (a, b, c)
+
+strategies
+  trans: True()     -> One()
+  trans: False()    -> Zero()
+  trans: And(e1,e2) -> Min(e1,e2)
+  trans: Or(e1,e2)  -> Max(e1,e2)
+
+  topdown(s) = s; all(topdown(s))
+  bottomup(s) = all(bottomup(s)); s
+
+  trans_topdown  = topdown(trans)
+  trans_bottomup = bottomup(trans)

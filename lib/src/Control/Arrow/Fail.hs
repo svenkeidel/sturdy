@@ -12,6 +12,9 @@ import           Control.Monad.Except (MonadError)
 import qualified Control.Monad.Except as M
 import           Data.Profunctor
 
+import           GHC.Exts(IsString(..))
+
+
 -- | Arrow-based interface for computations that can fail.
 class (Arrow c, Profunctor c) => ArrowFail e c | c -> e where
 
@@ -25,3 +28,6 @@ instance MonadError e m => ArrowFail e (Kleisli m) where
 -- | Simpler version of 'fail'.
 fail' :: ArrowFail () c => c a b
 fail' = arr (const ()) >>> fail
+
+failString :: (ArrowFail e c, IsString e) => c String x
+failString = fromString ^>> fail

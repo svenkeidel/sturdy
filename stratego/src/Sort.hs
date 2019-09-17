@@ -10,7 +10,8 @@ import Data.Text(Text, unpack)
 import Data.String(IsString(..))
 import Data.Hashable(Hashable(..))
 import Data.List(intercalate)
-import Data.Abstract.Widening(Widening,Stable(..))
+import Data.Abstract.Widening(Widening)
+import Data.Abstract.Stable
 
 import GHC.Generics(Generic)
 
@@ -38,7 +39,7 @@ instance Show Sort where
   show x = case x of
     Bottom -> "Bottom"
     Top -> "Top"
-    Numerical -> "Int"
+    Numerical -> "Numerical"
     Lexical -> "Lexical"
     List s -> "List (" ++ show s ++ ")"
     Option s -> "Option (" ++ show s ++ ")"
@@ -67,7 +68,7 @@ getSortId s = case s of
   _ -> Nothing
 
 widening :: Int -> Widening Sort
-widening n0 s1 s2 = let s' = go n0 s2 in (if s' == s1 then Stable else Instable,s')
+widening n0 s1 s2 = let s' = go n0 s2 in (if s' == s1 then Stable else Unstable,s')
   where
     go 0 _ = Top
     go n s = case s of 

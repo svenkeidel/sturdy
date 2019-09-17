@@ -6,7 +6,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module SortContext(
   Context, HasContext(..), Sort(..), Signature(..), SortId(..), empty, signatures, sorts,
-  fromList, insertSignature, insertSubtype, subtype, lookupSort, lookupCons,
+  fromList, insertSignature, insertSubtype, subtype, lookupSort, lookupCons, numSorts,
   lub, glb, isLexical, isList, getListElem, isSingleton, isNumerical, isTuple, filterInconsistentConstructors
 ) where
 
@@ -31,6 +31,9 @@ data Context = Context
 
 empty :: Context
 empty = Context M.empty M.empty R.empty
+
+numSorts :: Context -> Int
+numSorts ctx = M.size (sorts ctx)
 
 fromList :: [(Constructor,[Sort],Sort)] -> Context
 fromList = foldl (\ctx (c,ss,s) -> insertSignature c (Signature ss s) ctx) empty
@@ -66,8 +69,8 @@ lookupSort Context {..} s0 = do
     List a -> [("Cons", Signature [a, List a] (List a)), ("Nil", Signature [] (List a))]
     Option a -> [("Some", Signature [a] (Option a)), ("None", Signature [] (Option a))]
     Tuple as -> [("", Signature as (Tuple as))]
-    Lexical -> [("", Signature [] Lexical)]
-    Numerical -> [("", Signature [] Numerical)]
+    Lexical -> [("", Signature [Lexical] Lexical)]
+    Numerical -> [("", Signature [Numerical] Numerical)]
     Sort _ -> fromMaybe [] (M.lookup s sorts)
               
 isLexical :: Context -> Sort -> Bool

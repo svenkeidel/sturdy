@@ -585,19 +585,13 @@ rules
     [p|ps] -> TuplePat(p, ps)
 
 
-  tuple = map(?VarVar(v);!Var(v)); tuple-exp
+  tuple = map(\ VarVar(v) -> Var(v) \); tuple-exp
 
-  tuple-exp :
-    [] -> Constr(Unit())
+  tuple-exp : []     -> Constr(Unit())
+  tuple-exp : [e]    -> e
+  tuple-exp : [e|es] -> Product(ECons(e, es))
 
-  tuple-exp :
-    [e] -> e
-
-  tuple-exp :
-    [e|es] -> Product(ECons(e, es))
-
-  free-pat-vars =
-    collect-all(?VarVar(_))
+  free-pat-vars = collect-all(?VarVar(_))
 
   free-decls-vars =
     collect-all(
@@ -621,11 +615,10 @@ rules
                                    , cs
                                    )
 
-  map(s) = 
-    rec x([] + [s | x]) 
+  map(s): []     -> []
+  map(s): [x|xs] -> [<s>(x) | <map(s)>(xs)]
 
-  collect-all(s) =
-    collect-all(s, union)
+  collect-all(s) = collect-all(s, union)
 
   collect-all(s,un) =
     rec x(
