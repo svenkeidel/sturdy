@@ -33,8 +33,8 @@ The sturdy project currently contains concrete and abstract and generic interpre
 * _PCF_, a higher-order functional language with numbers
 * _While_, an imperative language with conditionals and while loops
 * _Stratego_, a language for program transformations
-* _Jimple_, a Java Bytecode suitable for static analysis
 * _LambdaJS_, an intermediate representation for JavaScript
+* _Jimple_, a Java Bytecode suitable for static analysis (work in progress)
 
 To run the tests of a particular language use `stack test sturdy-$(lang)`, e.g.,
 ```
@@ -61,4 +61,9 @@ ACM, 2018
 
 I want to thank everyone that has contributed to this project (in alphabetical order):
 
-Matthijs Bijman, Sebastian Erdweg, Jente Hidskes, Wouter Raateland
+Casper Bach Poulsen,
+Jente Hidskes,
+Matthijs Bijman,
+Sarah Müller,
+Sebastian Erdweg,
+Wouter Raateland
