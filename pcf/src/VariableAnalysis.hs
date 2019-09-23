@@ -31,7 +31,6 @@ import           Control.Arrow.Transformer.Abstract.Environment(EnvT)
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Cache
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Basic
 
 import           Data.Empty
 import           Data.HashMap.Lazy(HashMap)

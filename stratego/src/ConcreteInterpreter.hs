@@ -1,4 +1,3 @@
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -7,50 +6,41 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-module ConcreteSemantics where
+module ConcreteInterpreter where
 
 import           Prelude hiding ((.),fail)
 
-import           SharedSemantics
+import           GenericInterpreter as Generic
 import           Syntax (TermPattern)
 import qualified Syntax as S
 import           Syntax hiding (Fail,TermPattern(..))
-import           TermEnv
 import           Utils
-import           ValueT
+import           Concrete.TermEnvironment (EnvT)
+import qualified Concrete.TermEnvironment as Env
 
 import           Control.Arrow
-import           Control.Arrow.Deduplicate
 import           Control.Arrow.Except
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Reader
-import           Control.Arrow.State
+import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Value
 import           Control.Category
 import           Control.Monad (join)
 import           Control.Monad.Reader (replicateM)
 
 import           Data.Concrete.Error (Error)
 import           Data.Constructor
-import           Data.Foldable (foldr')
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as M
 import           Data.Hashable
 import           Data.String (IsString(..))
 import           Data.Term (TermUtils(..))
 import           Data.Text (Text)
-import           Data.Profunctor
+import           Data.Label
 
-import           Test.QuickCheck
-import           GHC.Exts
+import           Test.QuickCheck hiding (generate)
 
 -- | Terms are either a constructor with subterms or a literal.
 data Term
@@ -59,47 +49,25 @@ data Term
   | NumberLiteral Int
   deriving (Eq)
 
-newtype TermEnv = TermEnv (HashMap TermVar Term) deriving (Show,Eq,Hashable)
+type TermEnv = Env.TermEnv Term
 
 -- | Concrete interpreter arrow give access to the strategy
 -- environment, term environment, and handles anonymous exceptions.
-newtype Interp a b = Interp (ValueT Term (ReaderT StratEnv (StateT TermEnv (ExceptT () (FailureT String (->))))) a b)
-  deriving (Profunctor,Category,Arrow,ArrowChoice)
+type Interp a b = ValueT Term (ReaderT StratEnv (EnvT Term (ExceptT () (FailureT String (->))))) a b
 
 -- | Executes a concrete interpreter computation.
 runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error String (Error () (TermEnv,b))
-runInterp (Interp f) senv tenv t = runFailureT (runExceptT (runStateT (runReaderT (runValueT f)))) (tenv, (senv, t))
+runInterp f senv tenv t = run f (tenv, (senv, t))
 
 -- | Concrete interpreter function.
-eval :: Strat -> StratEnv -> TermEnv -> Term -> Error String (Error () (TermEnv,Term))
-eval s = runInterp (eval' s)
+eval :: LStrat -> LStratEnv -> TermEnv -> Term -> Error String (Error () (TermEnv,Term))
+eval ls lsenv =
+  let (s,senv) = generate $ (,) <$> ls <*> lsenv
+  in runInterp (Generic.eval s) senv
 
 -- Instances -----------------------------------------------------------------------------------------
-deriving instance IsTerm Term Interp
-deriving instance ArrowState TermEnv Interp
-deriving instance ArrowReader StratEnv Interp
-deriving instance ArrowExcept () Interp
-deriving instance ArrowFix (Strat,Term) Term Interp
-deriving instance ArrowDeduplicate Term Term Interp
-deriving instance ArrowFail String Interp
-instance ArrowApply Interp where app = Interp (lmap (first (\(Interp f) -> f)) app)
 
-instance IsTermEnv TermEnv Term Interp where
-  type Join Interp x y = ()
-
-  getTermEnv = get
-  putTermEnv = put
-  emptyTermEnv = lmap (\() -> TermEnv M.empty) put
-  lookupTermVar f g = proc (v,TermEnv env,exc) ->
-    case M.lookup v env of
-      Just t -> f -< (t, exc)
-      Nothing -> g -< exc
-  insertTerm = arr $ \(v,t,TermEnv env) ->
-    TermEnv (M.insert v t env)
-  deleteTermVars = arr $ \(vars,TermEnv env) ->
-    TermEnv (foldr' M.delete env vars)
-
-instance (ArrowChoice c, ArrowApply c, ArrowExcept () c) => IsTerm Term (ValueT Term c) where
+instance (ArrowChoice c, ArrowExcept () c) => IsTerm Term (ValueT Term c) where
   matchCons matchSubterms = proc (c,ts,t) -> case t of
     Cons c' ts' | c == c' && eqLength ts ts' -> do
       ts'' <- matchSubterms -< (ts,ts')
@@ -163,11 +131,22 @@ instance (ArrowChoice c, ArrowApply c, ArrowExcept () c) => IsTerm Term (ValueT 
       StringLiteral {} -> returnA -< t
       NumberLiteral {} -> returnA -< t
 
+  {-# INLINE matchCons #-}
+  {-# INLINE matchString #-}
+  {-# INLINE matchNum #-}
+  {-# INLINE matchExplode #-}
+  {-# INLINE buildCons #-}
+  {-# INLINE buildString #-}
+  {-# INLINE buildNum #-}
+  {-# INLINE buildExplode #-}
+  {-# INLINE equal #-}
+  {-# INLINE mapSubterms #-}
+
 instance TermUtils Term where
   convertToList ts = case ts of
     (x:xs) -> Cons "Cons" [x,convertToList xs]
     []     -> Cons "Nil"  []
-    
+
   size (Cons _ ts) = sum (size <$> ts) + 1
   size (StringLiteral _) = 1
   size (NumberLiteral _) = 1
@@ -176,7 +155,7 @@ instance TermUtils Term where
   height (Cons _ ts) = maximum (height <$> ts) + 1
   height (StringLiteral _) = 1
   height (NumberLiteral _) = 1
-  
+
 instance Show Term where
   show (Cons c ts) = show c ++ if null ts then "" else show ts
   show (StringLiteral s) = show s
@@ -243,11 +222,6 @@ arbitraryTerm h w = do
   c <- arbitrary
   fmap (Cons c) $ vectorOf w' $ join $
     arbitraryTerm <$> choose (0,h-1) <*> pure w
-
-instance IsList TermEnv where
-  type Item TermEnv = (TermVar,Term)
-  fromList = TermEnv . fromList
-  toList (TermEnv m) = toList m
 
 -- prim f ps = proc _ -> case f of
 --   "strcat" -> do

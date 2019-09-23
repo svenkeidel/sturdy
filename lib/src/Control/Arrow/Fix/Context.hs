@@ -1,27 +1,22 @@
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Fix.Context where
 
+import Prelude hiding ((.))
+
+import Control.Category
 import Control.Arrow
 import Control.Arrow.Fix
-import Control.Arrow.State
 
 import Data.Profunctor
 
-class (Arrow c, Profunctor c) => ArrowContext ctx c | c -> ctx where
+class (Arrow c, Profunctor c) => ArrowContext ctx a c | c -> ctx, c -> a where
+  type Widening c a :: *
   askContext :: c () ctx
   localContext :: c x y -> c (ctx,x) y
+  joinByContext :: Widening c a -> c a a
 
-class ArrowJoinContext cache a b c where
-  type Widening cache a :: *
-  joinContexts' :: Widening cache a -> IterationStrategy c (cache a b, a) b
-
-joinContexts :: forall a cache b c. (ArrowState (cache a b) c, ArrowJoinContext cache a b c) => Widening cache a -> IterationStrategy c a b
-joinContexts widen f = proc a -> do
-  cache <- get -< ()
-  joinContexts' widen (proc (cache,a) -> do
-    put -< cache
-    f -< a) -< (cache,a)
-{-# INLINE joinContexts #-}
+joinByContext' :: ArrowContext ctx a c => Widening c a -> IterationStrategy c a b
+joinByContext' widen f = f . joinByContext widen
+{-# INLINE joinByContext' #-}

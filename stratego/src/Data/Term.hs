@@ -1,7 +1,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 module Data.Term where
 
-import SharedSemantics (IsTerm(..))
+import GenericInterpreter (IsTerm(..))
 
 class IsTerm t c => IsAbstractTerm t c where
   wildcard :: c () t

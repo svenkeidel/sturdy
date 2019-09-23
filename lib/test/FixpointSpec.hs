@@ -14,8 +14,8 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Cache
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Basic
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
+-- import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
 import           Data.Identifiable
 import qualified Data.Metric as M
@@ -47,7 +47,7 @@ sharedSpec :: (forall a b. (Show a, Show b, Identifiable a, PreOrd a, Complete b
 sharedSpec run = do
   describe "fibonacci" $ do
     it "fib[5,10] should be [5,55]" $
-       let ?strat = Strat (reuseExact) in
+       let ?strat = Strat reuseExact in
        let ?widen = W.finite in
        run fib (iv 5 10) `shouldBe` return (iv 5 55)
 
@@ -79,7 +79,7 @@ sharedSpec run = do
 
   describe "ackermann" $ do
     it "ack([0,3],[0,3]) should be [1,61] " $
-       let ?strat = Strat (reuseExact) in
+       let ?strat = Strat reuseExact in
        let ?widen = W.finite in
        run ackermann (iv 0 3, iv 0 3) `shouldBe` return (iv 1 61)
 
@@ -96,7 +96,7 @@ sharedSpec run = do
 
   describe "diverge" $
     it "should terminate with bottom" $
-      let ?strat = Strat (reuseExact) in
+      let ?strat = Strat reuseExact in
       let ?widen = W.finite in
       run diverge 5 `shouldBe` bottom
 {-# INLINE sharedSpec #-}

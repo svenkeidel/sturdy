@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -58,7 +59,7 @@ instance (Profunctor c) => Profunctor (WriterT w c) where
   {-# INLINE (#.) #-}
 
 instance Monoid w => ArrowLift (WriterT w) where
-  lift' f = lift (rmap (\y -> (mempty,y)) f)
+  lift' f = lift (rmap (mempty,) f)
   {-# INLINE lift' #-}
 
 instance (Monoid w, Arrow c, Profunctor c) => Category (WriterT w c) where
@@ -182,15 +183,17 @@ instance (Monoid w, ArrowStack a c) => ArrowStack a (WriterT w c) where
   {-# INLINE size #-}
 
 instance (Monoid w, ArrowReuse a b c) => ArrowReuse a b (WriterT w c) where
-  type Dom (WriterT w c) = Dom c
   reuse f = lift' (Reuse.reuse f)
   {-# INLINE reuse #-}
 
-instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
+instance (Monoid w, ArrowContext ctx a c) => ArrowContext ctx a (WriterT w c) where
+  type Widening (WriterT w c) a = Widening c a
   askContext = lift' Context.askContext
   localContext f = lift (Context.localContext (unlift f))
+  joinByContext widen = lift' (Context.joinByContext widen)
   {-# INLINE askContext #-}
   {-# INLINE localContext #-}
+  {-# INLINE joinByContext #-}
 
 instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c) where
   lookup = lift' Cache.lookup

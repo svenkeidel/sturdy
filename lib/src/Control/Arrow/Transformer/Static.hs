@@ -1,11 +1,7 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Static where
 
@@ -162,9 +158,12 @@ instance (Applicative f, ArrowComplete y c) => ArrowComplete y (StaticT f c) whe
   {-# INLINE (<⊔>) #-}
   {-# SPECIALIZE instance ArrowComplete y c => ArrowComplete y (StaticT ((->) r) c) #-}
 
-instance (Applicative f, ArrowContext ctx c) => ArrowContext ctx (StaticT f c) where
+instance (Applicative f, ArrowContext ctx a c) => ArrowContext ctx a (StaticT f c) where
+  type Widening (StaticT f c) a = Widening c a
   askContext = StaticT (pure askContext)
   localContext (StaticT f) = StaticT $ localContext <$> f
+  joinByContext widen = StaticT (pure (joinByContext widen))
   {-# INLINE askContext #-}
   {-# INLINE localContext #-}
-  {-# SPECIALIZE instance ArrowContext ctx c => ArrowContext ctx (StaticT ((->) r) c) #-}
+  {-# INLINE joinByContext #-}
+  {-# SPECIALIZE instance ArrowContext ctx a c => ArrowContext ctx a (StaticT ((->) r) c) #-}

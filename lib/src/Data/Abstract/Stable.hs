@@ -5,7 +5,7 @@ import Data.Hashable
 
 -- | Datatype that signals if the ascending chain stabilized.
 data Stable = Stable | Unstable
-  deriving (Eq,Show)
+  deriving (Ord,Eq,Show)
 
 instance Semigroup Stable where
   (<>) = (⊔)
@@ -23,14 +23,20 @@ instance PreOrd Stable where
   Unstable ⊑ Unstable = True
   _ ⊑ _ = False
   (≈) = (==)
-  {-# INLINE (⊑) #-}
-  {-# INLINE (≈) #-}
+  {-# INLINABLE (⊑) #-}
+  {-# INLINABLE (≈) #-}
 
 instance Complete Stable where
   Stable ⊔ a = a
   a ⊔ Stable = a
   Unstable ⊔ Unstable = Unstable
-  {-# INLINE (⊔) #-}
+  {-# INLINABLE (⊔) #-}
+
+instance CoComplete Stable where
+  Unstable ⊓ a = a
+  a ⊓ Unstable = a
+  Stable ⊓ Stable = Stable
+  {-# INLINABLE (⊓) #-}
 
 instance LowerBounded Stable where
   bottom = Stable
@@ -39,4 +45,4 @@ instance LowerBounded Stable where
 instance Hashable Stable where
   hashWithSalt s Stable = s `hashWithSalt` (1::Int)
   hashWithSalt s Unstable = s `hashWithSalt` (2::Int)
-  {-# INLINE hashWithSalt #-}
+  {-# INLINEABLE hashWithSalt #-}

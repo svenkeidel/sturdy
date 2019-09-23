@@ -25,6 +25,7 @@ import Prelude hiding ((.))
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Trans
@@ -32,14 +33,21 @@ import Control.Arrow.Order
 import Control.Arrow.Environment
 import Control.Arrow.Store
 import Control.Arrow.Except
+import Control.Arrow.Reader
+import Control.Arrow.State
 
-import Data.Profunctor
+import Data.Profunctor.Unsafe
+import Data.Coerce
 
 newtype ValueT val c x y = ValueT { runValueT :: c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,
+  deriving (Profunctor,Category,Arrow,ArrowChoice, ArrowConst r,
             ArrowEnv var val',ArrowClosure var val' env,ArrowStore addr val',
             ArrowExcept exc,ArrowFail e,
-            ArrowLowerBounded)
+            ArrowLowerBounded, ArrowReader r, ArrowState s)
+
+instance (ArrowApply c, Profunctor c) => ArrowApply (ValueT val c) where
+  app = lift (app .# first coerce)
+  {-# INLINE app #-}
 
 instance ArrowRun c => ArrowRun (ValueT val c) where type Run (ValueT val c) x y = Run c x y
 instance ArrowTrans (ValueT val c) where type Underlying (ValueT val c) x y = c x y

@@ -51,7 +51,15 @@ iterateInner = detectLoop . go
       else do
         (stable,bNew) <- Cache.update -< (a,b)
         case stable of
-          Stable   -> setComponent -< (component { head = H.delete a (head component) },bNew)
+          Stable ->
+            if head component == H.singleton a
+            then do
+              map Cache.setStable -< (Stable,) <$> H.toList (body component)
+              setComponent -< (mempty, bNew)
+            else do
+              setStable    -< (Unstable,a)
+              setComponent -< (component { head = H.delete a (head component)
+                                         , body = H.insert a (body component) }, bNew)
           Unstable -> go f -< a
 
 -- | Iterate on the outermost fixpoint component.
@@ -103,7 +111,7 @@ detectLoop f = proc a -> do
 {-# INLINE detectLoop #-}
 
 newtype ChaoticT a c x y = ChaoticT (WriterT (Component a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowCache a b,ArrowReuse a b,ArrowState s,ArrowContext ctx)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowCache a b,ArrowReuse a b,ArrowState s,ArrowContext ctx a)
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowIterate a (ChaoticT a c) where
   iterate = lift (arr (first singleton))

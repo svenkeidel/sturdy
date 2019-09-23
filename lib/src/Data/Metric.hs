@@ -32,3 +32,5 @@ instance (Num m, Num n) => Num (Product n m) where
   signum (Product x y) = Product (signum x) (signum y)
   fromInteger n = Product (fromInteger n) (fromInteger n)
 
+instance (Show n, Show m) => Show (Product n m) where
+  show (Product n m) = show (n,m)

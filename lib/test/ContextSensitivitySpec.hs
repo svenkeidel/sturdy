@@ -25,14 +25,12 @@ import           TestPrograms
 import           Control.Monad(forM_)
 import           Control.Arrow
 import           Control.Arrow.Fix as F
-import           Control.Arrow.Fix.Context(joinContexts)
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Group
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.ContextSensitive
+import           Control.Arrow.Transformer.Abstract.Fix.Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 
 import qualified Data.Abstract.Boolean as Abs
@@ -60,9 +58,9 @@ spec =
   --describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
   describe "Chaotic" $ do
     describe "iterate inner component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (joinContexts ?widenA . callsiteSensitive ?sensitivity fst . iterateInner) (T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst ?widenA . iterateInner) (T.widening ?widenB) a)
     describe "iterate outer component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (joinContexts ?widenA . callsiteSensitive ?sensitivity fst . iterateOuter) (T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst ?widenA . iterateOuter) (T.widening ?widenB) a)
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)
 
@@ -93,11 +91,11 @@ callsiteSpec run = do
 
     it "context insensitive" $
       let ?sensitivity = 0 in
-      run diamond ((0,Main),Unit) `shouldBe` return (Num (iv 1 3))
+      run diamond ((0,Main),Unit) `shouldBe` return Top
 
     it "1-callsite sensitive" $
       let ?sensitivity = 1 in
-      run diamond ((0,Main),Unit) `shouldBe` return (Num (iv 3 3))
+      run diamond ((0,Main),Unit) `shouldBe` return (Num (iv 1 3))
 
     it "2-callsite sensitive" $
       let ?sensitivity = 2 in
@@ -115,17 +113,15 @@ callsiteSpec run = do
       let ?sensitivity = 0
       runTests [
         (Even,1,false), (Odd,1,true),
-        (Even,2,true), (Odd,2,false),
-        (Even,3,top) , (Odd,3,top)
+        (Even,2,top),  (Odd,2,top)
         ]
 
     it "1-callsite sensitive" $ do
       let ?sensitivity = 1
       runTests [
         (Even,1,false), (Odd,1,true),
-        (Even,2,true),  (Odd,2,false),
-        (Even,3,false), (Odd,3,true),
-        (Even,4,top),   (Odd,4,top)
+        (Even,2,true), (Odd,2,false),
+        (Even,3,top) , (Odd,3,top)
         ]
 
     it "2-callsite sensitive" $ do
@@ -134,8 +130,7 @@ callsiteSpec run = do
         (Even,1,false), (Odd,1,true),
         (Even,2,true),  (Odd,2,false),
         (Even,3,false), (Odd,3,true),
-        (Even,4,true),  (Odd,4,false),
-        (Even,5,top),   (Odd,5,top)
+        (Even,4,top),   (Odd,4,top)
         ]
 
 instance PreOrd Val where
@@ -154,13 +149,13 @@ instance Hashable Fun
 instance PreOrd Fun where
   e1 ⊑ e2 = e1 == e2
 
-toChaotic :: (Show a, Show b, Identifiable lab, Identifiable a, PreOrd a, Complete b)
+toChaotic :: (Identifiable lab, Identifiable a, Complete b)
           => Arr (lab,a) b -> TerminatingT
                           (FixT (lab,a) (Terminating b)
                             (ChaoticT (lab,a)
                               (StackT Stack (lab,a)
-                                (CacheT (Group (Cache (CallString lab))) (lab,a) (Terminating b)
-                                  (ContextT (CallString lab)
+                                (CacheT (Group Cache) (lab,a) (Terminating b)
+                                  (ContextT (CallString lab) a
                                     (->)))))) (lab,a) b
 toChaotic x = x
 {-# INLINE toChaotic #-}

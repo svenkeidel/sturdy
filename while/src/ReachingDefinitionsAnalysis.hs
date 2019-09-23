@@ -38,7 +38,6 @@ import           Data.Abstract.CallString(CallString)
 
 import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Reuse as Reuse
-import           Control.Arrow.Fix.Context(joinContexts)
 import           Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.Except
@@ -51,8 +50,6 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Cache
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Group
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.ContextSensitive
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 
 -- | Calculates the entry sets of which definitions may be reached for
@@ -69,7 +66,7 @@ run k lstmts =
   -- Joins the reaching definitions for each statement for all call context.
   -- Filters out statements created during execution that are not part
   -- of the input program.
-  joinOnKey (\(st,(env,store),_) _ -> case st of
+  joinOnKey (\(st,(env,store)) _ -> case st of
     stmt:_ | stmt `elem` blocks stmts ->
       Just (label stmt, dropValues (combineMaps env store))
     _ -> Nothing) $
@@ -91,8 +88,8 @@ run k lstmts =
                      (FixT _ _
                        (ChaoticT _
                         (StackT Stack _
-                          (CacheT (Group (Cache (CallString _))) _ _
-                            (ContextT (CallString _)
+                          (CacheT (Group Cache) (_,_) _
+                            (ContextT (CallString _) _
                                (->))))))))))))) [Statement] ())
     iterationStrategy
     widenResult
@@ -102,12 +99,11 @@ run k lstmts =
     stmts = generate (sequence lstmts)
     iterationStrategy = Fix.transform (iso' (\(store,(env,stmt)) -> (stmt,(env,store)))
                                             (\(stmt,(env,store)) -> (store,(env,stmt))))
-                      $ joinContexts @([Statement],(_,_)) @(Group (Cache (CallString Label))) widenEnvStore
-                      . reuseExact
-                      . callsiteSensitive k (statementLabel . fst)
+                      $ reuseExact
+                      . callsiteSensitive' @([Statement],(_,_)) k (statementLabel . fst) widenEnvStore
                       . iterateInner
 
-    statementLabel st = case st of (s:_) -> label s; [] -> -1
+    statementLabel st = case st of (s:_) -> Just (label s); [] -> Nothing
     widenEnvStore = SM.widening W.finite W.** M.widening (widenVal W.** W.finite)
     widenVal = widening (W.bounded ?bound I.widening)
     widenExc (Exception m1) (Exception m2) = Exception <$> M.widening widenVal m1 m2
@@ -120,9 +116,9 @@ combineMaps env store = M.fromList [ (a,c) | (a,b) <- fromJust (SM.toList env)
 dropValues :: M.Map a (v,l) -> M.Map a l
 dropValues = M.map snd
 
-toMap :: (Identifiable k, Identifiable a, Identifiable ctx) => Group (Cache ctx) (k,a) b -> HashMap (k,a,ctx) (Stable,b)
-toMap (Groups groups) = Map.fromList [ ((k,a,ctx),(s,b)) | (k,Cache cache) <- Map.toList groups
-                                                         , (ctx,(a,b,s)) <- Map.toList cache ]
+toMap :: (Identifiable k, Identifiable a) => Group Cache (k,a) b -> HashMap (k,a) (Stable,b)
+toMap (Groups groups) = Map.fromList [ ((k,a),(s,b)) | (k,Cache cache) <- Map.toList groups
+                                                         , (a,(s,b)) <- Map.toList cache ]
 
 joinOnKey :: (Identifiable k',Complete v') => (k -> v -> Maybe (k',v')) -> HashMap k v -> HashMap k' v'
 joinOnKey pred = Map.foldlWithKey' (\m k v -> case pred k v of

@@ -2,7 +2,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 module Soundness where
 
-import ConcreteSemantics
+import ConcreteInterpreter
 
 import Data.Concrete.Powerset (Pow)
 import Data.GaloisConnection

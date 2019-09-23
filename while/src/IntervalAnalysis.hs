@@ -28,7 +28,6 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Context(joinContexts)
 import           Control.Arrow.Random
 import           Control.Arrow.Order
 import qualified Control.Arrow.Trans as Trans
@@ -41,8 +40,6 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Cache
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Group
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.ContextSensitive
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -109,8 +106,8 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
                     (FixT _ _
                       (ChaoticT _
                         (StackT Stack _
-                          (CacheT (Group (Cache (CallString _))) _ _
-                            (ContextT (CallString _)
+                          (CacheT (Group Cache) (_,_) _
+                            (ContextT (CallString _) _
                                (->)))))))))))) [Statement] ())
       iterationStrategy
       widenResult
@@ -118,14 +115,14 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
 
   where
     iterationStrategy = Fix.filter whileLoops
-                      $ joinContexts @(((Expr,Statement,Label),[Statement]),(_,_)) @(Group (Cache (CallString _))) widenEnvStore
-                      . callsiteSensitive k fst
+                      $ callsiteSensitive @(((Expr,Statement,Label),[Statement]),(_,_)) k (thrd . fst . fst) widenEnvStore
                       . iterateInner
 
     widenEnvStore = M.widening widenVal W.** SM.widening W.finite
     widenVal = widening (W.bounded ?bound I.widening)
     widenExc (Exception m1) (Exception m2) = Exception <$> M.widening widenVal m1 m2
     widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening widenVal W.** W.finite))
+    thrd (_,_,z) = z
 
 deriving instance ArrowComplete () c => ArrowComplete () (ValueT Val c)
 

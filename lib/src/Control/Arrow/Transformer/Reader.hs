@@ -110,7 +110,7 @@ instance ArrowFail e c => ArrowFail e (ReaderT r c) where
   {-# INLINE fail #-}
 
 instance ArrowEnv var val c => ArrowEnv var val (ReaderT r c) where
-  type instance Join y (ReaderT r c) = Env.Join y c
+  type Join y (ReaderT r c) = Env.Join y c
   lookup f g = lift $ lmap shuffle1
                     $ Env.lookup (lmap shuffle1 (unlift f)) (unlift g)
   extend f = lift $ lmap (\(r,(var,val,x)) -> (var,val,(r,x))) (Env.extend (unlift f))
@@ -124,7 +124,7 @@ instance ArrowClosure var val env c => ArrowClosure var val env (ReaderT r c) wh
   {-# INLINE local #-}
 
 instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
-  type instance Join y (ReaderT r c) = Store.Join y c
+  type Join y (ReaderT r c) = Store.Join y c
   read f g = lift $ lmap shuffle1 
                   $ Store.read (lmap shuffle1 (unlift f)) (unlift g)
   write = lift' Store.write
@@ -135,7 +135,7 @@ type instance Fix (ReaderT r c) x y = ReaderT r (Fix c (r,x) y)
 instance ArrowFix (Underlying (ReaderT r c) x y) => ArrowFix (ReaderT r c x y)
 
 instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
-  type instance Join z (ReaderT r c) = Exc.Join z c
+  type Join z (ReaderT r c) = Exc.Join z c
   throw = lift' throw
   try f g h = lift $ try (lmap (\(r,x) -> (r,(r,x))) (second (unlift f))) (unlift g) (lmap assoc2 (unlift h))
   {-# INLINE throw #-}
@@ -160,15 +160,17 @@ instance ArrowConst x c => ArrowConst x (ReaderT r c) where
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ReaderT r c)
 
 instance ArrowReuse a b c => ArrowReuse a b (ReaderT r c) where
-  type Dom (ReaderT r c) = Dom c
   reuse f = lift' $ reuse f
   {-# INLINE reuse #-}
 
-instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
+instance ArrowContext ctx a c => ArrowContext ctx a (ReaderT r c) where
+  type Widening (ReaderT r c) a = Widening c a
   askContext = lift' Context.askContext
   localContext f = lift $ lmap shuffle1 (localContext (unlift f)) 
+  joinByContext widen = lift' $ joinByContext widen
   {-# INLINE askContext #-}
   {-# INLINE localContext #-}
+  {-# INLINE joinByContext #-}
 
 instance (ArrowCache a b c) => ArrowCache a b (ReaderT r c) where
   lookup = lift' Cache.lookup

@@ -16,8 +16,8 @@ import Control.Arrow.Fix
 import Control.Arrow.Fix.Reuse as Reuse
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack(ArrowStack)
-import Control.Arrow.Fix.Context(ArrowContext)
 import qualified Control.Arrow.Fix.Stack as Stack
+import Control.Arrow.Fix.Context(ArrowContext)
 import Control.Arrow.State
 import Control.Arrow.Trans
 import Control.Arrow.Order(ArrowJoin(..),ArrowComplete(..),ArrowEffectCommutative)
@@ -33,6 +33,8 @@ import Data.Order hiding (top)
 import Data.Abstract.Widening (Widening)
 import Data.HashSet(HashSet)
 import qualified Data.HashSet as H
+import Data.Abstract.Stable
+import Data.Foldable
 
 maxSize :: (ArrowChoice c, ArrowStack a c) => Int -> IterationStrategy c a b -> IterationStrategy c a b
 maxSize limit strat f = proc a -> do
@@ -61,7 +63,16 @@ instance IsEmpty (Stack a) where
   {-# INLINE empty #-}
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,ArrowCache a b,ArrowReuse a b,ArrowState s,ArrowTrans,ArrowContext ctx)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx a)
+
+instance (PreOrd a, LowerBounded b, ArrowChoice c, ArrowReuse a b c, ArrowStack a (StackT stack a c)) => ArrowReuse a b (StackT stack a c) where
+  reuse f = proc (a,s) -> case s of
+    Unstable -> do
+      m0 <- StackT (reuse f) -< (a,Unstable)
+      stack <- Stack.elems -< ()
+      returnA -< foldl' (\m a' -> if a ⊑ a' then m <> f a a' Unstable bottom else m) m0 stack
+    Stable ->
+      StackT (reuse f) -< (a,Stable)
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
   peek = lift $ proc (stack,()) -> returnA -< top stack

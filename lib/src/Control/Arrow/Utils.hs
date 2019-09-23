@@ -68,6 +68,13 @@ duplicate = arr (\x -> (x,x))
 
 -- | creates a computation that always returns the same value.
 const :: Profunctor c => c () x -> c y x
-const f = lmap (\_ -> ()) f
+const = lmap (\_ -> ())
 {-# INLINE const #-}
 
+all :: (ArrowChoice c, Profunctor c) => c a Bool -> c [a] Bool
+all f = rmap and (map f)
+{-# INLINE all #-}
+
+any :: (ArrowChoice c, Profunctor c) => c a Bool -> c [a] Bool
+any f = rmap or (map f)
+{-# INLINE any #-}

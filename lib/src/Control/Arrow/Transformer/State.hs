@@ -1,10 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE DataKinds #-}
@@ -19,6 +16,7 @@ import           Control.Arrow.Environment as Env
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Widening
 import           Control.Arrow.Order
@@ -127,11 +125,11 @@ instance ArrowWriter w c => ArrowWriter w (StateT s c) where
   {-# INLINE tell #-}
 
 instance (ArrowEnv var val c) => ArrowEnv var val (StateT s c) where
-  type instance Join y (StateT s c) = Env.Join (s,y) c 
+  type Join y (StateT s c) = Env.Join (s,y) c
   lookup f g = lift $ lmap (\(s,(v,a)) -> (v,(s,a)))
-                    $ lookup (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
+                    $ Env.lookup (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
                              (unlift g)
-  extend f = lift $ lmap (\(s,(var,val,x)) -> (var,val,(s,x))) (extend (unlift f))
+  extend f = lift $ lmap (\(s,(var,val,x)) -> (var,val,(s,x))) (Env.extend (unlift f))
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -142,11 +140,11 @@ instance (ArrowClosure var val env c) => ArrowClosure var val env (StateT s c) w
   {-# INLINE local #-}
 
 instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
-  type instance Join y (StateT s c) = Store.Join (s,y) c 
+  type Join y (StateT s c) = Store.Join (s,y) c
   read f g = lift $ lmap (\(s,(v,a)) -> (v,(s,a)))
-                  $ read (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
-                         (unlift g)
-  write = lift' write
+                  $ Store.read (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
+                               (unlift g)
+  write = lift' Store.write
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -154,14 +152,14 @@ type instance Fix (StateT s c) x y = StateT s (Fix c (s,x) (s,y))
 instance ArrowFix (Underlying (StateT s c) x y) => ArrowFix (StateT s c x y)
 
 instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
-  type instance Join y (StateT s c) = Exc.Join (s,y) c 
+  type Join y (StateT s c) = Exc.Join (s,y) c
   throw = lift (lmap snd throw)
   try f g h = lift $ try (unlift f) (unlift g) (lmap assoc2 (unlift h))
   {-# INLINE throw #-}
   {-# INLINE try #-}
 
 instance (ArrowLowerBounded c) => ArrowLowerBounded (StateT s c) where
-  bottom = lift $ bottom
+  bottom = lift bottom
   {-# INLINE bottom #-}
 
 instance (ArrowJoin c, O.Complete s) => ArrowJoin (StateT s c) where
@@ -180,15 +178,28 @@ instance ArrowRand v c => ArrowRand v (StateT s c) where
   random = lift' random
   {-# INLINE random #-}
 
-instance ArrowContext ctx c => ArrowContext ctx (StateT s c) where
+instance ArrowContext ctx a c => ArrowContext ctx a (StateT s c) where
+  type Widening (StateT s c) a = Widening c a
   askContext = lift' askContext
   localContext f = lift (lmap shuffle1 (localContext (unlift f)))
+  joinByContext widen = lift' $ joinByContext widen
   {-# INLINE askContext #-}
   {-# INLINE localContext #-}
+  {-# INLINE joinByContext #-}
 
 instance ArrowWidening y c => ArrowWidening y (StateT s c) where
   widening = lift' widening
   {-# INLINE widening #-}
+
+instance (ArrowCache a b c) => ArrowCache a b (StateT s c) where
+  lookup = lift' Cache.lookup
+  write = lift' Cache.write
+  update = lift' Cache.update
+  setStable = lift' Cache.setStable
+  {-# INLINE lookup #-}
+  {-# INLINE write #-}
+  {-# INLINE update #-}
+  {-# INLINE setStable #-}
 
 instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
   => ArrowEffectCommutative (StateT s c)

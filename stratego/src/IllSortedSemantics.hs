@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -16,33 +17,35 @@ module IllSortedSemantics where
 
 import           Prelude hiding ((.),fail)
 
-import qualified SharedSemantics as Shared
-import           SharedSemantics (IsTerm(..))
-import           AbstractSemantics
+import qualified GenericInterpreter as Generic
+import           GenericInterpreter (IsTerm(..))
+import           AbstractInterpreter
 import           Sort (Sort)
 import qualified Sort as S
 import           SortContext (Context,Signature(..))
 import qualified SortContext as Ctx
-import           Syntax hiding (Fail,TermPattern(..))
+import           Syntax (Strat,StratEnv)
+import           Abstract.TermEnvironment
 import           Utils
-import           Data.TermEnvironment
 
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
-import           Control.Arrow.Abstract.Join
 import           Control.DeepSeq
+import           Control.Arrow.Transformer.Value
+import           Control.Arrow.Order
 
 import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import           Data.Abstract.Terminating (Terminating)
+import           Data.Abstract.Stable
 import           Data.Abstract.Widening as W
 import           Data.Hashable
-import           Data.Order
+import           Data.Order hiding (LowerBounded(..))
 import           Data.Profunctor
 import           Data.Text(Text)
 import           Data.Constructor
@@ -50,19 +53,17 @@ import           Data.Abstract.Constructor(Constr)
 import qualified Data.Abstract.Constructor as Constr
 import           Data.Coerce
 
-import           ValueT
-
 import           Text.Printf
 import           GHC.Exts(IsList(..),IsString(..))
 
 data Term = Sorted Sort Context | IllSorted (Constr Term) deriving (Eq)
 
-eval :: Int -> Int -> Int -> Strat -> StratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
-eval i j k strat senv ctx = runInterp (Shared.eval' strat) i (termWidening ctx j k) senv ctx
+eval :: (?sensitivity :: Int) => Int -> Int -> Strat -> StratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
+eval i j strat senv ctx = runInterp (Generic.eval strat) (termWidening ctx i j) senv ctx
 
 -- Instances -----------------------------------------------------------------------------------------
-instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowFail e c, ArrowExcept () c,
-          IsString e, LowerBounded (c () Term))
+instance (ArrowChoice c, ArrowApply c, ArrowComplete Term c, ArrowConst Context c,
+          ArrowFail e c, ArrowExcept () c, IsString e, ArrowLowerBounded c)
     => IsTerm Term (ValueT Term c) where
   matchCons matchSubterms = proc (c,ps,t) ->
     case t of
@@ -116,12 +117,12 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
       then (returnA -< t) <⊔> (throw -< ())
       else throw -< ()
 
-  matchExplode matchCons' matchSubterms = proc t -> case t of
-    Sorted (S.Tuple ss) ctx -> do
+  matchExplode matchCons' matchSubterms = askConst $ \ctx -> proc t -> case t of
+    Sorted (S.Tuple ss) _ -> do
         matchCons' -< Sorted S.Lexical ctx
         matchSubterms -< Sorted (S.List $ foldr (Ctx.lub ctx) S.Bottom ss) ctx
         returnA -< t
-    Sorted s ctx
+    Sorted s _
       | Ctx.isLexical ctx s -> do
         matchSubterms -< convertToList [] ctx
         returnA -< t
@@ -133,7 +134,6 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
         matchSubterms -< Sorted (S.List S.Top) ctx
         returnA -< t
     IllSorted cs -> do
-      ctx <- askConst -< ()
       matchCons' -< Sorted S.Lexical ctx
       matchSubterms -< convertToList (concatMap snd (toList cs)) ctx
       returnA -< t
@@ -141,12 +141,10 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
 
   buildCons = proc (c,ts) -> returnA -< illSorted [(c,ts)]
 
-  buildNum = proc _ -> do
-    ctx <- askConst -< ()
+  buildNum = askConst $ \ctx -> proc _ ->
     returnA -< Sorted S.Numerical ctx
 
-  buildString = proc _ -> do
-    ctx <- askConst -< ()
+  buildString = askConst $ \ctx -> proc _ ->
     returnA -< Sorted S.Lexical ctx
 
   buildExplode = proc (t,ts) -> case t of
@@ -176,10 +174,29 @@ instance (ArrowChoice c, ArrowApply c, ArrowJoin c, ArrowConst Context c, ArrowF
           buildCons -< (Constructor c',ts')
         ) |) l
 
-instance ArrowConst Context c => ArrowTop Term (EnvironmentT Term c) where
-  topA = proc () -> do
-    ctx <- askConst -< ()
-    returnA -< Sorted S.Top ctx
+  {-# INLINE matchCons #-}
+  {-# INLINE matchString #-}
+  {-# INLINE matchNum #-}
+  {-# INLINE matchExplode #-}
+  {-# INLINE buildCons #-}
+  {-# INLINE buildString #-}
+  {-# INLINE buildNum #-}
+  {-# INLINE buildExplode #-}
+  {-# INLINE equal #-}
+  {-# INLINE mapSubterms #-}
+
+-- instance ArrowConst Context c => ArrowTop Term (EnvironmentT Term c) where
+--   topA = proc () -> do
+--     ctx <- askConst -< ()
+--     returnA -< Sorted S.Top ctx
+
+instance (ArrowChoice c, ArrowComplete Term c, ArrowFail e c, IsString e)
+  => ArrowComplete Term (ValueT Term c) where
+  ValueT f <⊔> ValueT g = ValueT $ proc x -> do
+    v <- f <⊔> g -< x
+    case v of
+      Sorted S.Top _ -> fail -< "Encountered top while joining values."
+      _ -> returnA -< v
 
 instance Complete (FreeCompletion Term) where
   Lower x ⊔ Lower y = Lower (x ⊔ y)
@@ -191,7 +208,7 @@ instance PreOrd Term where
   Sorted s1 ctx ⊑ Sorted s2 _  = Ctx.subtype ctx s1 s2
   IllSorted cs1 ⊑ IllSorted cs2 = cs1 ⊑ cs2
   IllSorted cs ⊑ Sorted _ _ = Constr.isEmpty cs
-  Sorted S.Top ctx ⊑ IllSorted _ = False
+  Sorted S.Top _ ⊑ IllSorted _ = False
   Sorted s ctx ⊑ IllSorted cs = IllSorted (fromList (lookupSort ctx s)) ⊑ IllSorted cs
 
 instance Complete Term where
@@ -241,7 +258,7 @@ instance IsString Term where
 termWidening :: Context -> Int -> Int -> Widening Term
 termWidening ctx _ j (Sorted s1 _) (Sorted s2 _) = (`Sorted` ctx) <$> S.widening j s1 s2
 termWidening ctx k j (IllSorted cs1) (IllSorted cs2)
-  | k == 0    = let s = Sorted (typecheck ctx (IllSorted (cs1 ⊔ cs2))) ctx in (if s ⊑ IllSorted (cs1 ⊔ cs2) then Stable else Instable, s)
+  | k == 0    = let s = Sorted (typecheck ctx (IllSorted (cs1 ⊔ cs2))) ctx in (if s ⊑ IllSorted (cs1 ⊔ cs2) then Stable else Unstable, s)
   | otherwise = IllSorted <$> Constr.widening (termWidening ctx (k-1) j) cs1 cs2
 termWidening ctx _ _ (Sorted S.Top _) (IllSorted _) = (Stable,Sorted S.Top ctx)
 termWidening ctx k j (Sorted s1 _) (IllSorted cs2) = termWidening ctx k j (IllSorted (fromList (lookupSort ctx s1))) (IllSorted cs2)

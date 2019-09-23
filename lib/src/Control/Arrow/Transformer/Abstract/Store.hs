@@ -38,8 +38,8 @@ newtype StoreT var val c x y = StoreT (StateT (Map var val) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
             ArrowConst r, ArrowReader r,
             ArrowEnv var' val', ArrowClosure var' val' env,
-            ArrowFail e, ArrowExcept e,
-            ArrowLowerBounded, ArrowRun)
+            ArrowFail e, ArrowExcept e, ArrowState (Map var val),
+            ArrowLowerBounded, ArrowRun, ArrowJoin)
 
 runStoreT :: StoreT var val c x y -> c (Map var val, x) (Map var val, y)
 runStoreT = coerce
@@ -63,15 +63,10 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-instance ArrowState s c => ArrowState s (StoreT var val c) where
-  get = lift' get
-  put = lift' put
-  {-# INLINE get #-}
-  {-# INLINE put #-}
-
 deriving instance (ArrowComplete (Map var val,y) c) => ArrowComplete y (StoreT var val c)
 instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT var val c) where
   app = StoreT (app .# first coerce)
+  {-# INLINE app #-}
 
 type instance Fix (StoreT var val c) x y  = StoreT var val (Fix c (Map var val,x) (Map var val,y))
 deriving instance ArrowFix (Underlying (StoreT var val c) x y) => ArrowFix (StoreT var val c x y)

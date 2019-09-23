@@ -37,7 +37,12 @@ data Except e x
   = Success x
   | Fail e
   | SuccessOrFail e x
-  deriving (Eq, Show, Generic, Generic1, NFData, NFData1)
+  deriving (Eq, Generic, Generic1, NFData, NFData1)
+
+instance (Show x, Show e) => Show (Except e x) where
+  show (Success x) = show x
+  show (Fail e) = "Fail " ++ show e
+  show (SuccessOrFail e x) = "Success " ++ show x ++ " ⊔ Fail " ++ show e
 
 instance (O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c where
   mapA f = lmap toEither (arr Fail ||| rmap Success f ||| rmap (\(e,y) -> SuccessOrFail e y) (O.joinSecond f))

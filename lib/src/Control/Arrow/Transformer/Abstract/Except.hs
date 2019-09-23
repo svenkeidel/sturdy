@@ -32,7 +32,7 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 newtype ExceptT e c x y = ExceptT (KleisliT (Except e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin, ArrowLowerBounded,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
             ArrowFail e')
@@ -59,7 +59,4 @@ instance (Complete e, ArrowJoin c, ArrowChoice c, ArrowApply c, Profunctor c) =>
 
 type instance Fix (ExceptT e c) x y = ExceptT e (Fix c x (Except e y))
 instance ArrowFix (Underlying (ExceptT e c) x y) => ArrowFix (ExceptT e c x y)
-
 deriving instance (Complete e, ArrowChoice c, ArrowJoin c, ArrowComplete (Except e y) c) => ArrowComplete y (ExceptT e c)
-
-

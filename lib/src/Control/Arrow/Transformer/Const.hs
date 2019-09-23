@@ -1,4 +1,3 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -36,7 +35,7 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded,ArrowLift,ArrowJoin,
             ArrowState s,ArrowReader r',ArrowWriter w,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore var val,
-            ArrowFail e, ArrowExcept e,ArrowContext ctx)
+            ArrowFail e, ArrowExcept e,ArrowContext ctx a)
 
 constT :: (r -> c x y) -> ConstT r c x y
 constT f = ConstT (StaticT f)

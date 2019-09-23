@@ -26,7 +26,6 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.Trans
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Order
@@ -37,8 +36,7 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Group
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.ContextSensitive
+import           Control.Arrow.Transformer.Abstract.Fix.Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -95,8 +93,8 @@ evalInterval env0 e = snd $
                 (FixT _ _
                   (ChaoticT _
                     (StackT Stack _
-                      (CacheT (Group (Cache (CallString _))) _ _
-                        (ContextT (CallString _)
+                      (CacheT (Group Cache) (_,_) _
+                        (ContextT (CallString _) _
                           (->)))))))))) Expr Val)
     iterationStrategy
     (T.widening (E.widening W.finite widenVal))
@@ -107,8 +105,7 @@ evalInterval env0 e = snd $
 
     iterationStrategy = Fix.filter apply
                       $ pruneEnv
-                      . joinContexts @((Expr,Label),Env) @(Group (Cache (CallString (Expr,Label)))) widenEnv
-                      . callsiteSensitive ?sensitivity fst
+                      . callsiteSensitive @((Expr,Label),Env) ?sensitivity (snd . fst) widenEnv
                       . iterateInner
 
     widenEnv = SM.widening widenVal

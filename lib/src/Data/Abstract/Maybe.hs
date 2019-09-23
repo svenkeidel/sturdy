@@ -16,6 +16,7 @@ import Data.Hashable
 import Data.Traversable
 import Data.Abstract.Stable
 import Data.Abstract.Widening
+import Data.Empty
 
 import GHC.Generics(Generic)
 
@@ -27,7 +28,7 @@ instance NFData a => NFData (Maybe a)
 
 instance (Hashable a) => Hashable (Maybe a) where
   hashWithSalt s (Just a) = s `hashWithSalt` (1::Int) `hashWithSalt` a
-  hashWithSalt s (Nothing) = s `hashWithSalt` (2::Int)
+  hashWithSalt s Nothing = s `hashWithSalt` (2::Int)
   hashWithSalt s (JustNothing a) = s `hashWithSalt` (3 ::Int) `hashWithSalt` a
 
 instance PreOrd a => PreOrd (Maybe a) where
@@ -72,6 +73,9 @@ instance Functor Maybe where
 instance Applicative Maybe where
   pure = return
   (<*>) = ap
+
+instance IsEmpty (Maybe a) where
+  empty = Nothing
 
 instance Monad Maybe where
   return = Just

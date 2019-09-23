@@ -1,6 +1,8 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Data.ATerm where
 
 import           Control.Applicative
+import           Control.Monad.Except
 
 import           Data.Attoparsec.Text hiding (string,number)
 
@@ -22,11 +24,11 @@ instance Show ATerm where
     String s -> show s
     Number i -> show i
 
-parseATerm :: Text -> Either String ATerm
+parseATerm :: MonadError String m => Text -> m ATerm
 parseATerm t = case parse aterm t of
-  Done _ r -> Right r
-  Fail _ _ err -> Left err
-  Partial {} -> Left "Partial"
+  Done _ r -> return r
+  Fail _ _ err -> fail err
+  Partial {} -> fail "Partial"
 
 aterm :: Parser ATerm
 aterm = constructor <|> constant <|> list <|> string <|> number
@@ -35,7 +37,7 @@ constructor :: Parser ATerm
 constructor = do
   con <- many1 letter
   _ <- char '('
-  ts <- aterm `sepBy` char ','  
+  ts <- aterm `sepBy` char ','
   _ <- char ')'
   return $ ATerm (T.pack con) ts
 
@@ -59,7 +61,7 @@ string = String <$> (char '"' *> concatMany (normalString <|> quotedChar) <* cha
       e <- char '\\'
       c <- anyChar
       return $ T.pack [e,c]
-    
+
     normalString :: Parser Text
     normalString = takeWhile1 (\c -> c /= '"' && c /= '\\')
 

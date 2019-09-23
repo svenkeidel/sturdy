@@ -1,46 +1,28 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
 module SortSemanticsSpec(main, spec) where
 
-import Prelude hiding (exp)
+import Prelude hiding (exp,seq,fail)
 
--- import qualified ConcreteSemantics as C
--- import           Soundness
--- import           Sort (SortId(..))
-import           Syntax hiding (Fail)
+import           Syntax hiding (fail)
 import           Syntax as T
 import           SortSemantics -- hiding (sortContext)
-import           AbstractSemantics
+import           AbstractInterpreter
+import           Abstract.TermEnvironment
 import           SortContext(Context,Sort(..))
 import qualified SortContext as Ctx
 
--- import           Control.Arrow
-
-import           Data.TermEnvironment
 import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
 import qualified Data.Abstract.Maybe as A
 import           Data.Abstract.There
--- import qualified Data.Abstract.Maybe as M
 import qualified Data.Abstract.Map as S
--- import qualified Data.Abstract.StackWidening as SW
 import           Data.Abstract.Terminating (fromTerminating)
--- import qualified Data.Concrete.Powerset as C
--- import           Data.Constructor
--- import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as M
--- import           Data.GaloisConnection
--- import qualified Data.Set as Set
--- import qualified Data.Term as C
-import           Data.Set (Set)
-
-import Data.Order
 
 import           Test.Hspec hiding (context)
--- import           Test.Hspec.QuickCheck
--- import           Test.QuickCheck hiding (Success)
 
 import           GHC.Exts(IsString(..))
 
@@ -65,77 +47,91 @@ spec = do
       let ?ctx = Ctx.empty in
       convertToList [] ?ctx `shouldBe` term (List Bottom)
 
-  describe "Match" $ do
+  describe "match" $ do
     it "should match an identical builtin string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (StringLiteral "x")) lexical `shouldBe` successOrFail () (emptyEnv, lexical)
+      let ?sensitivity = 0 in
+      seval (match (StringLiteral "x")) lexical `shouldBe` successOrfail () (emptyEnv, lexical)
 
     it "should match another builtin string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (StringLiteral "y")) lexical `shouldBe` successOrFail () (emptyEnv, lexical)
+      let ?sensitivity = 0 in
+      seval (match (StringLiteral "y")) lexical `shouldBe` successOrfail () (emptyEnv, lexical)
 
     it "should match an equal builtin number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (NumberLiteral 42)) numerical `shouldBe` successOrFail () (emptyEnv, numerical)
+      let ?sensitivity = 0 in
+      seval (match (NumberLiteral 42)) numerical `shouldBe` successOrfail () (emptyEnv, numerical)
 
     it "should match another builtin number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (NumberLiteral 1)) numerical `shouldBe`  successOrFail () (emptyEnv, numerical)
+      let ?sensitivity = 0 in
+      seval (match (NumberLiteral 1)) numerical `shouldBe`  successOrfail () (emptyEnv, numerical)
 
     it "a string literal should not match a number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (NumberLiteral 1)) lexical `shouldBe` uncaught ()
+      let ?sensitivity = 0 in
+      seval (match (NumberLiteral 1)) lexical `shouldBe` uncaught ()
 
     it "a number literal should not match a string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (StringLiteral "x")) numerical `shouldBe` uncaught ()
+      let ?sensitivity = 0 in
+      seval (match (StringLiteral "x")) numerical `shouldBe` uncaught ()
 
     it "should match a PCF expression" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp")] in
+      let ?sensitivity = 0 in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Zero" [])) t `shouldBe` success (emptyEnv, t)
+      in seval (match (Cons "Zero" [])) t `shouldBe` success (emptyEnv, t)
 
     it "should match a nested PCF expression" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
+      let ?sensitivity = 0 in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Succ" [Cons "Zero" []])) t `shouldBe` successOrFail () (emptyEnv, t)
+      in seval (match (Cons "Succ" [Cons "Zero" []])) t `shouldBe` successOrfail () (emptyEnv, t)
 
     it "should match a constructor with more than one argument" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp") ,("Zero",[],"Exp") ,("Ifz",["Exp","Exp","Exp"],"Exp")] in
+      let ?sensitivity = 0 in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) t `shouldBe`
-        successOrFail () (emptyEnv, t)
+      in seval (match (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) t `shouldBe`
+        successOrfail () (emptyEnv, t)
 
     it "should introduce one variable" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
+      let ?sensitivity = 0 in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Succ" ["x"])) t `shouldBe` successOrFail () (termEnv [("x", t)], t)
+      in seval (match (Cons "Succ" ["x"])) t `shouldBe` successOrfail () (termEnv [("x", t)], t)
 
     it "should introduce one variable 2" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
+      let ?sensitivity = 0 in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Succ" ["x"])) t `shouldBe` successOrFail () (termEnv [("x", t)], t)
+      in seval (match (Cons "Succ" ["x"])) t `shouldBe` successOrfail () (termEnv [("x", t)], t)
 
     it "should introduce multiple variables and support linear pattern matching" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
+      let ?sensitivity = 0 in
       let t = term "Exp"
-      in seval 0 (Match (Cons "Succ" ["x"]) `Seq` Match (Cons "Succ" ["y"])) t `shouldBe`
-         successOrFail () (termEnv [("x", t), ("y", t)], t)
+      in seval (match (Cons "Succ" ["x"]) `seq` match (Cons "Succ" ["y"])) t `shouldBe`
+         successOrfail () (termEnv [("x", t), ("y", t)], t)
 
     it "should support linear pattern matching" $
       let ?ctx = Ctx.fromList [] in
+      let ?sensitivity = 0 in
       let t = term (Tuple [Lexical, Lexical])
-      in seval 0 (Match (Cons "" ["x", "x"])) t `shouldBe` successOrFail () (termEnv [("x",lexical)],t)
+      in seval (match (Cons "" ["x", "x"])) t `shouldBe` successOrfail () (termEnv [("x",lexical)],t)
 
     it "should succeed when exploding literals" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 0 in
       let tenv = termEnv [("x", term (List Bottom))]
-      in seval' 0 (Match (Explode "_" "x")) (S.delete "x" emptyEnv) numerical `shouldBe` success (tenv, numerical)
+      in seval' (match (Explode "_" "x")) (S.delete "x" emptyEnv) numerical `shouldBe` success (tenv, numerical)
 
     -- it "should handle inconsistent environments" $ do
     --   let t1 = C.Cons "f" []
     --       t2 = C.Cons "g" []
-    --   sound' (Match "x") [(t1, [("x", t1)]), (t2, [("y", t2)])]
+    --   sound' (match "x") [(t1, [("x", t1)]), (t2, [("y", t2)])]
 
     -- prop "should be sound" $ do
     --   [t1,t2,t3] <- C.similarTerms 3 7 2 10
@@ -144,82 +140,96 @@ spec = do
     --              (printf "pattern: %s\n %s ⊔ %s = %s"
     --                 (show matchPattern) (show t2) (show t3)
     --                 (showLub t2 t3))
-    --          $ sound' (Match matchPattern) [(t2,[]),(t3,[])]
+    --          $ sound' (match matchPattern) [(t2,[]),(t3,[])]
 
-  describe "Build" $ do
+  describe "build" $ do
     it "should build a builtin string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Build (StringLiteral "foo")) bottom `shouldBe` success (emptyEnv, lexical)
+      let ?sensitivity = 0 in
+      seval (build (StringLiteral "foo")) bottom `shouldBe` success (emptyEnv, lexical)
 
     it "should build a builtin number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Build (NumberLiteral 1)) bottom `shouldBe` success (emptyEnv, numerical)
+      let ?sensitivity = 0 in
+      seval (build (NumberLiteral 1)) bottom `shouldBe` success (emptyEnv, numerical)
 
     it "a string grammar should not be build on a number literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Build (NumberLiteral 1)) bottom `shouldNotBe` success (emptyEnv, lexical)
+      let ?sensitivity = 0 in
+      seval (build (NumberLiteral 1)) bottom `shouldNotBe` success (emptyEnv, lexical)
 
     it "a number grammar should not be build on a string literal" $
       let ?ctx = Ctx.empty in
-      seval 0 (Match (StringLiteral "x")) bottom `shouldNotBe` success (emptyEnv, numerical)
+      let ?sensitivity = 0 in
+      seval (match (StringLiteral "x")) bottom `shouldNotBe` success (emptyEnv, numerical)
 
     it "should build a simple constant PCF expression" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp")] in
+      let ?sensitivity = 0 in
       let t = bottom
           t' = term "Exp"
-      in seval 0 (Build (Cons "Zero" [])) t `shouldBe` success (emptyEnv, t')
+      in seval (build (Cons "Zero" [])) t `shouldBe` success (emptyEnv, t')
 
     it "should build a nested PCF expression" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")] in
+      let ?sensitivity = 0 in
       let t = bottom
           t' = term "Exp"
-      in seval 0 (Build (Cons "Succ" [Cons "Zero" []])) t `shouldBe` success (emptyEnv, t')
+      in seval (build (Cons "Succ" [Cons "Zero" []])) t `shouldBe` success (emptyEnv, t')
 
     it "should build a constructor with more than one argument" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp") ,("Zero",[],"Exp") ,("Ifz",["Exp","Exp","Exp"],"Exp")] in
+      let ?sensitivity = 0 in
       let t = term "Exp"
-      in seval 0 (Build (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) t `shouldBe`
+      in seval (build (Cons "Ifz" [Cons "Zero" [], Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) t `shouldBe`
         success (emptyEnv, t)
 
     it "build should be inverse to match" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 0 in
       let pat = NumberLiteral 1
-      in seval 0 (Match pat `Seq` Build pat) numerical `shouldBe` successOrFail () (emptyEnv, numerical)
+      in seval (match pat `seq` build pat) numerical `shouldBe` successOrfail () (emptyEnv, numerical)
 
     it "build should be inverse to match with a more complicated term" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 0 in
       let pat = Cons "Cons" [Var "x", Var "xs"]
           t = convertToList [numerical] ?ctx
           tenv = termEnv [("x", numerical), ("xs", term (List Numerical))]
-      in seval' 0 (Match pat `Seq` Build pat) tenv t `shouldBe` successOrFail () (tenv, t)
+      in seval' (match pat `seq` build pat) tenv t `shouldBe` successOrfail () (tenv, t)
 
     it "should throw away the current subject term if needed" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 0 in
       let tenv = termEnv [("x", numerical)]
-      in seval' 0 (Build (Var "x")) tenv lexical `shouldBe` success (tenv, numerical)
+      in seval' (build (Var "x")) tenv lexical `shouldBe` success (tenv, numerical)
 
     it "should lookup variables" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 0 in
       let tenv = termEnv [("x", numerical)]
-      in seval' 0 (Build (Var "x")) tenv bottom `shouldBe` success (tenv, numerical)
+      in seval' (build (Var "x")) tenv bottom `shouldBe` success (tenv, numerical)
 
     it "should merge two variables into one term" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 0 in
       let tenv = termEnv [("x", numerical), ("y", term (List Lexical))]
           t = bottom
-      in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` success (tenv, term (List Top))
+      in seval' (build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` success (tenv, term (List Top))
 
     it "should properly construct a list of the same type" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 0 in
       let tenv = termEnv [("x", numerical), ("y", term (List Numerical))]
           t = bottom
-      in seval' 0 (Build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` success (tenv, term (List Numerical))
+      in seval' (build (Cons "Cons" [Var "x", Var "y"])) tenv t `shouldBe` success (tenv, term (List Numerical))
 
     it "should merge a variable and the given subject term" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp") ,("Zero",[],"Exp") ,("Ifz",["Exp","Exp","Exp"],"Exp")] in
+      let ?sensitivity = 0 in
       let t = bottom
           tenv = termEnv [("x", term "Exp")]
-      in seval' 0 (Build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv t `shouldBe`
+      in seval' (build (Cons "Ifz" [Var "x", Cons "Succ" [Cons "Zero" []], Cons "Zero" []])) tenv t `shouldBe`
         success (tenv, term "Exp")
 
     -- prop "should be sound" $ do
@@ -231,136 +241,154 @@ spec = do
     --            (printf "match pattern: %s\nbuild pattern: %s\nt2: %s\nt3: %s\nlub t2 t3 = %s"
     --              (show matchPattern) (show buildPattern) (show t2) (show t3)
     --              (showLub t2 t3))
-    --          $ sound'' (Match matchPattern `Seq` Build buildPattern) [(t2,[]),(t3,[])] buildPattern
+    --          $ sound'' (match matchPattern `seq` build buildPattern) [(t2,[]),(t3,[])] buildPattern
 
-  describe "Scope" $ do
+  describe "scope" $ do
     it "should hide declared variables" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 0 in
       let tenv = termEnv [("x", numerical)]
       in do
-         seval' 0 (Scope ["x"] (Build "x")) tenv numerical `shouldBe` failure "unbound term variable x in build statement !x"
-         seval' 0 (Scope ["x"] (Match "x")) tenv numerical `shouldBe` success (tenv, numerical)
+         seval' (scope ["x"] (build "x")) tenv numerical `shouldBe` failure "unbound term variable x in build pattern !x"
+         seval' (scope ["x"] (match "x")) tenv numerical `shouldBe` success (tenv, numerical)
 
     it "should make non-declared variables available" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 0 in
       let tenv = termEnv'' [ ("x",numerical) ] ["y"] in
       do
-         seval' 0 (Scope ["y"] (Build "x")) tenv numerical `shouldBe`
+         seval' (scope ["y"] (build "x")) tenv numerical `shouldBe`
            success (tenv, numerical)
-         seval' 0 (Scope ["y"] (Match "z")) (S.delete' ["z"] tenv) numerical `shouldBe`
+         seval' (scope ["y"] (match "z")) (S.delete' ["z"] tenv) numerical `shouldBe`
            success (S.delete' ["y"] $ termEnv [ ("x",numerical), ("z",numerical)], numerical)
 
     it "should hide variables bound in a choice's test from the else branch" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp"), ("One",[],"Exp")] in
+      let ?sensitivity = 0 in
       let exp = term "Exp"
           tenv = S.delete "x" emptyEnv
-          prog = (Build (T.Cons "Zero" []) `Seq` Match "x" `Seq` T.Fail)
+          prog = (build (T.Cons "Zero" []) `seq` match "x" `seq` T.fail)
                 `leftChoice`
-                (Match "x")
-      in seval' 0 prog tenv exp `shouldBe` success (termEnv [("x", exp)], exp)
+                (match "x")
+      in seval' prog tenv exp `shouldBe` success (termEnv [("x", exp)], exp)
 
   describe "Let" $ do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 2 in
       let t = term (Tuple ["Exp","Exp"])
           -- tenv = termEnv [("x",t)]
           tenv = termEnv'' [] ["x","y"]
-      in seval' 2 (Let [("swap", swap)] (Scope ["x"] (Match "x" `Seq` Call "swap" [] ["x"]))) tenv t
+      in seval' (let_ [("swap", swap)] (scope ["x"] (match "x" `seq` call "swap" [] ["x"]))) tenv t
            `shouldBe` success (tenv, t)
 
     it "should support recursion" $
       let ?ctx = Ctx.empty in
+      let ?sensitivity = 2 in
       let t = convertToList [numerical, numerical, numerical] ?ctx
           tenv = termEnv' []
-      in seval 2 (Let [("map", map')] (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"]))) t
+      in seval (let_ [("map", map')] (scope ["x"] (match "x" `seq` call "map" [scope [] $ build (NumberLiteral 1)] ["x"]))) t
         `shouldBe` success (tenv, term (List Numerical))
 
-  describe "Call" $ do
+  describe "call" $ do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
-      let senv = M.singleton "swap" (Closure swap M.empty)
+      let ?sensitivity = 1 in
+      let senv = stratEnv [("swap",swap)]
           t = term (Tuple ["Exp","Exp"])
           tenv = termEnv []
-      in seval'' 1 10 (Scope ["x"] (Match "x" `Seq` Call "swap" [] [])) senv emptyEnv t `shouldBe` success (tenv, t)
+      in seval'' 10 (scope ["x"] (match "x" `seq` call "swap" [] [])) senv emptyEnv t `shouldBe` success (tenv, t)
 
     it "should support an empty list in recursive applications" $
       let ?ctx = Ctx.empty in
-      let senv = M.singleton "map" (Closure map' M.empty)
+      let ?sensitivity = 2 in
+      let senv = stratEnv [("map",map')]
           t = convertToList [] ?ctx
           tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+      in seval'' 10 (scope ["x"] (match "x" `seq` call "map" [scope [] $ build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should support a singleton list in recursive applications" $
       let ?ctx = Ctx.empty in
-      let senv = M.singleton "map" (Closure map' M.empty)
+      let ?sensitivity = 2 in
+      let senv = stratEnv [("map",map')]
           t = convertToList [numerical] ?ctx
           tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+      in seval'' 10 (scope ["x"] (match "x" `seq` call "map" [scope [] $ build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should support recursion on a list of numbers" $
       let ?ctx = Ctx.empty in
-      let senv = M.singleton "map" (Closure map' M.empty)
+      let ?sensitivity = 2 in
+      let senv = stratEnv [("map",map')]
           c = Ctx.empty
           t = convertToList [numerical, numerical, numerical] c
           tenv = termEnv []
-      in seval'' 2 10 (Scope ["x"] (Match "x" `Seq` Call "map" [Scope [] $ Build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
+      in seval'' 10 (scope ["x"] (match "x" `seq` call "map" [scope [] $ build (NumberLiteral 1)] ["x"])) senv emptyEnv t `shouldBe`
            success (tenv, term (List Numerical))
 
     it "should terminate and not produce infinite sorts" $
       let ?ctx = Ctx.empty in
-      let senv = M.fromList [("map",Closure (T.liftStrategyScopes map') M.empty),
-                             ("foo",Closure (T.liftStrategyScopes $ Strategy [] [] (Scope ["x"] (Match "x" `Seq` Call "map" ["foo"] ["x"]))) M.empty)]
+      let ?sensitivity = 10 in
+      let senv = -- stratEnv [("map",T.liftStrategyScopes map'),
+                 --          ("foo",T.liftStrategyScopes $ Strategy [] [] (scope ["x"] (match "x" `seq` call "map" ["foo"] ["x"])))]
+            stratEnv [("map",map'),
+                      ("foo",strategy [] [] (scope ["x"] (match "x" `seq` call "map" [call "foo" [] []] ["x"])))]
           c = Ctx.empty
           t = Term Top c
           tenv = termEnv []
-      in seval'' 10 3 (Call "foo" [] []) senv emptyEnv t `shouldBe`
+      in seval'' 3 (call "foo" [] []) senv emptyEnv t `shouldBe`
            success (tenv, Term (List (List (List Top))) c)
 
   describe "simplify arithmetics" $ do
     it "reduce Add(Zero,y)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let ?sensitivity = 0 in
       let exp = term "Exp"
-          reduce = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
-      in seval' 0 (reduce) (S.delete "y" emptyEnv) exp
-           `shouldBe` successOrFail () (termEnv [("y", exp)], exp)
+          reduce = match (Cons "Add" [Cons "Zero" [], "y"]) `seq` build "y"
+      in seval' (reduce) (S.delete "y" emptyEnv) exp
+           `shouldBe` successOrfail () (termEnv [("y", exp)], exp)
 
     it "reduce Add(x,Zero)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let ?sensitivity = 0 in
       let exp = term "Exp"
-          reduce = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
-      in seval' 0 reduce (S.delete "x" emptyEnv) exp
-           `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+          reduce = match (Cons "Add" ["x", Cons "Zero" []]) `seq` build "x"
+      in seval' reduce (S.delete "x" emptyEnv) exp
+           `shouldBe` successOrfail () (termEnv [("x", exp)], exp)
 
     it "reduce Add(Zero,y) < id + Add(x,Zero)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let ?sensitivity = 0 in
       let exp = term "Exp"
-          reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
-          reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
-      in seval' 0 (reduce1 `leftChoice` reduce2) (S.delete' ["x", "y"] emptyEnv) exp
-           `shouldBe` successOrFail () (termEnv' [may "x" exp, may "y" exp], exp)
+          reduce1 = match (Cons "Add" [Cons "Zero" [], "y"]) `seq` build "y"
+          reduce2 = match (Cons "Add" ["x", Cons "Zero" []]) `seq` build "x"
+      in seval' (reduce1 `leftChoice` reduce2) (S.delete' ["x", "y"] emptyEnv) exp
+           `shouldBe` successOrfail () (termEnv' [may "x" exp, may "y" exp], exp)
 
     it "reduce Add(x,y); !x; ?Zero()" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let ?sensitivity = 0 in
       let exp = term "Exp"
-          reduce = Match (Cons "Add" ["x", "y"]) `Seq` Build "x" `Seq` Match (Cons "Zero" []) `Seq` Build "y"
-      in seval' 0 reduce (S.delete' ["x", "y"] emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp),("y", exp)], exp)
+          reduce = match (Cons "Add" ["x", "y"]) `seq` build "x" `seq` match (Cons "Zero" []) `seq` build "y"
+      in seval' reduce (S.delete' ["x", "y"] emptyEnv) exp `shouldBe` successOrfail () (termEnv [("x", exp),("y", exp)], exp)
 
     it "reduce Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp"),("Double",["Exp"],"Exp")] in
+      let ?sensitivity = 0 in
       let exp = term "Exp"
-          reduce = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"])
-      in seval' 0 reduce (S.delete' ["x"] emptyEnv) exp `shouldBe` successOrFail () (termEnv [("x", exp)], exp)
+          reduce = match (Cons "Double" ["x"]) `seq` build (Cons "Add" ["x", "x"])
+      in seval' reduce (S.delete' ["x"] emptyEnv) exp `shouldBe` successOrfail () (termEnv [("x", exp)], exp)
 
     it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
+      let ?sensitivity = 0 in
       let exp = term "Exp"
-          reduce1 = Match (Cons "Add" [Cons "Zero" [], "y"]) `Seq` Build "y"
-          reduce2 = Match (Cons "Add" ["x", Cons "Zero" []]) `Seq` Build "x"
-          reduce3 = Match (Cons "Double" ["x"]) `Seq` Build (Cons "Add" ["x", "x"])
-      in seval' 0 (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) (S.delete' ["x","y"] emptyEnv) exp
-           `shouldBe` successOrFail () (termEnv' [may "x" exp, may "y" exp], exp)
+          reduce1 = match (Cons "Add" [Cons "Zero" [], "y"]) `seq` build "y"
+          reduce2 = match (Cons "Add" ["x", Cons "Zero" []]) `seq` build "x"
+          reduce3 = match (Cons "Double" ["x"]) `seq` build (Cons "Add" ["x", "x"])
+      in seval' (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) (S.delete' ["x","y"] emptyEnv) exp
+           `shouldBe` successOrfail () (termEnv' [may "x" exp, may "y" exp], exp)
 
     -- prop "should be sound" $ do
     --   i <- choose (0,10)
@@ -370,131 +398,108 @@ spec = do
     --   let t1 = C.convertToList l1
     --   let t2 = C.convertToList l2
     --   return $ counterexample (printf "t: %s\n" (showLub t1 t2))
-    --          $ sound' (Let [("map", map')] (Match "x" `Seq` Call "map" [Build 1] ["x"])) [(t1,[]),(t2,[])]
+    --          $ sound' (Let [("map", map')] (match "x" `seq` call "map" [build 1] ["x"])) [(t1,[]),(t2,[])]
 
   describe "Boolean Algebra" $
-    beforeAll CaseStudy.balg $ do
+    caseStudy CaseStudy.balg $
       it "trans_bottomup: BExp -> Exp" $ \balg ->
-        let ?ctx = signature balg in
-        let senv = stratEnv balg
-        in do
+        let ?sensitivity = 2 in do
           pendingWith "The sort semantics is too imprecise to check this traversal"
-          seval'' 2 10 (Call "trans__bottomup_0_0" [] []) senv emptyEnv (term "BExp") `shouldBe`
-            successOrFail () (emptyEnv, term "Exp")
+          seval'' 10 (call "trans__bottomup_0_0" [] []) balg emptyEnv (term "BExp") `shouldBe`
+            successOrfail () (emptyEnv, term "Exp")
 
   describe "PCF interpreter in Stratego" $
-    beforeAll CaseStudy.pcf $ do
+    caseStudy CaseStudy.pcf $ do
       it "lookup: String * Env -> Val" $ \pcf ->
-        let ?ctx = signature pcf in
-        let senv = stratEnv pcf
-            prog = term (Tuple [Lexical, List (Tuple [Lexical, "Val"])])
+        let ?sensitivity = 2 in
+        let prog = term (Tuple [Lexical, List (Tuple [Lexical, "Val"])])
             val  = term "Val"
-        in do
-          seval'' 2 10 (Call "lookup_0_0" [] []) senv emptyEnv prog `shouldBe`
-            successOrFail () (emptyEnv, val)
+        in seval'' 10 (call "lookup_0_0" [] []) pcf emptyEnv prog `shouldBe`
+            successOrfail () (emptyEnv, val)
 
       it "eval: Env * Exp -> Val" $ \pcf ->
-        let ?ctx = signature pcf in
-        let senv = stratEnv pcf
-            prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
+        let ?sensitivity = 10 in
+        let prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
             val  = term "Val"
-        in seval'' 10 10 (Call "eval_0_0" [] []) senv emptyEnv prog `shouldBe`
-             successOrFail () (emptyEnv, val)
+        in seval'' 10 (call "eval_0_0" [] []) pcf emptyEnv prog `shouldBe`
+             successOrfail () (emptyEnv, val)
 
   describe "Arrow" $
-    beforeAll CaseStudy.arrows $ do
+    caseStudy CaseStudy.arrows $ do
       it "tuple-pat: List Var -> APat" $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term $ List "Var"
+        let ?sensitivity = 2 in
+        let prog = term $ List "Var"
             val  = term "APat"
             env = termEnv []
-        in do
-          sevalNoNeg'' 2 10 (Call "tuple_pat_0_0" [] []) senv env prog `shouldBe`
-            successOrFail () (env, val)
+        in sevalNoNeg'' 10 (call "tuple_pat_0_0" [] []) desugar env prog `shouldBe`
+            successOrfail () (env, val)
 
       it "tuple-exp: List Exp -> Exp" $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term $ List "Exp"
+        let ?sensitivity = 0 in
+        let prog = term $ List "Exp"
             val  = term "Exp"
-            env = delete desugar $ termEnv []
-        in do
-          seval'' 0 10 (Call "tuple_exp_0_0" [] []) senv env prog `shouldBe`
-            successOrFail () (env, val)
+            env = termEnv [] -- delete desugar $ termEnv []
+        in seval'' 10 (call "tuple_exp_0_0" [] []) desugar env prog `shouldBe`
+            successOrfail () (env, val)
 
       it "tuple: List Var -> Exp" $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term $ List "Var"
+        let ?sensitivity = 2 in
+        let prog = term $ List "Var"
             val  = term "Exp"
             env = termEnv []
-        in do
-          sevalNoNeg'' 2 10 (Call "tuple_0_0" [] []) senv env prog `shouldBe`
-            successOrFail () (env, val)
+        in sevalNoNeg'' 10 (call "tuple_0_0" [] []) desugar env prog `shouldBe`
+            successOrfail () (env, val)
 
       it "at-end: (=> List Var) -> List Var -> List Var " $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term $ List "Var"
+        let ?sensitivity = 2 in
+        let prog = term $ List "Var"
             val  = term $ List "Var"
             env = termEnv []
-            s = Build $ Cons "Cons" [Cons "VarVar" [StringLiteral "v"], Cons "Nil" []]
-        in do
-          sevalNoNeg'' 2 10 (Call "at_end_1_0" [s] []) senv env prog `shouldBe`
-            successOrFail () (env, val)
+            s = build $ Cons "Cons" [Cons "VarVar" [StringLiteral "v"], Cons "Nil" []]
+        in sevalNoNeg'' 10 (call "at_end_1_0" [s] []) desugar env prog `shouldBe`
+            successOrfail () (env, val)
 
       it "at-end (scoped strat arg): (=> List Var) -> List Var -> List Var " $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term $ List "Var"
+        let ?sensitivity = 2 in
+        let prog = term $ List "Var"
             val  = term $ List "Var"
             env = termEnv [("vars-list", term $ List "Var")]
-            s = Build $ Var "vars-list"
-        in do
-          sevalNoNeg'' 2 10 (Call "at_end_1_0" [s] []) senv env prog `shouldBe`
-            successOrFail () (env, val)
+            s = build $ Var "vars-list"
+        in sevalNoNeg'' 10 (call "at_end_1_0" [s] []) desugar env prog `shouldBe`
+            successOrfail () (env, val)
 
       it "conc: (List Var, List Var) -> List Var " $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term $ Tuple [List "Var", List "Var"]
+        let ?sensitivity = 2 in
+        let prog = term $ Tuple [List "Var", List "Var"]
             val  = term $ List "Var"
             env = termEnv []
-        in do
-          sevalNoNeg'' 2 10 (Call "conc_0_0" [] []) senv env prog `shouldBe`
-            successOrFail () (env, val)
+        in sevalNoNeg'' 10 (call "conc_0_0" [] []) desugar env prog `shouldBe`
+            successOrfail () (env, val)
 
       it "free-pat-vars: APat -> List Var " $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term "APat"
+        let ?sensitivity = 2 in
+        let prog = term "APat"
             val  = term $ List "Var"
             env = termEnv []
-        in do
-          sevalNoNeg'' 2 10 (Call "free_pat_vars_0_0" [] []) senv env prog `shouldBe`
-            successOrFail () (env, val)
+        in sevalNoNeg'' 10 (call "free_pat_vars_0_0" [] []) desugar env prog `shouldBe`
+            successOrfail () (env, val)
 
       it "free-decls-vars: Declbinds -> List Var " $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term "Declbinds"
+        let ?sensitivity = 2 in
+        let prog = term "Declbinds"
             val  = term $ List "Var"
             env = termEnv []
-        in do
-          sevalNoNeg'' 2 10 (Call "free_decls_vars_0_0" [] []) senv env prog `shouldBe`
-            successOrFail () (env, val)
+        in sevalNoNeg'' 10 (call "free_decls_vars_0_0" [] []) desugar env prog `shouldBe`
+            successOrfail () (env, val)
 
       it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
-        let ?ctx = signature desugar in
-        let senv = stratEnv desugar
-            prog = term "ArrCommand"
+        let ?sensitivity = 4 in
+        let prog = term "ArrCommand"
             val  = term "Exp"
             env = termEnv [("vars-list", term $ List "Var")]
         in do
-          sevalNoNeg'' 4 10 (Call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) senv env prog `shouldBe`
-            successOrFail () (env, val)
-
+          sevalNoNeg'' 10 (call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) desugar env prog `shouldBe`
+            successOrfail () (env, val)
 
   where
     -- sound' :: Strat -> [(C.Term,[(TermVar,C.Term)])] -> Property
@@ -543,8 +548,8 @@ spec = do
     termEnv''  :: [(TermVar, Term)] -> [TermVar] -> TermEnv Term
     termEnv'' bound notBound = foldr S.delete (S.fromList bound) notBound
 
-    delete :: TermVars s => s -> TermEnv Term -> TermEnv Term
-    delete s = S.delete' (termVars s :: Set TermVar)
+    -- delete :: TermVars s => s -> TermEnv Term -> TermEnv Term
+    -- delete s = S.delete' (termVars s :: Set TermVar)
 
     emptyEnv :: TermEnv Term
     emptyEnv = S.empty
@@ -552,40 +557,40 @@ spec = do
     -- showLub :: C.Term -> C.Term -> String
     -- showLub t1 t2 = show (alpha (C.fromFoldable [t1,t2] :: C.Pow C.Term) :: Term)
 
-    swap = Strategy [] [] (Scope ["x","y"] (Match (Cons "" ["x","y"]) `Seq` Build (Cons "" ["y","x"])))
+    swap = strategy [] [] (scope ["x","y"] (match (Cons "" ["x","y"]) `seq` build (Cons "" ["y","x"])))
 
-    map' = Strategy ["f"] ["l"] (Scope ["x","xs","x'","xs'"] (
-            Build "l" `Seq`
-            GuardedChoice
-              (Match (Cons "Cons" ["x","xs"]))
-              (Build "x" `Seq`
-               Call "f" [] [] `Seq`
-               Match "x'" `Seq`
-               Call "map" ["f"] ["xs"] `Seq`
-               Match "xs'" `Seq`
-               Build (Cons "Cons" ["x'", "xs'"]))
-              (Build (Cons "Nil" []))))
+    map' = strategy ["f"] ["l"] (scope ["x","xs","x'","xs'"] (
+            build "l" `seq`
+            guardedChoice
+              (match (Cons "Cons" ["x","xs"]))
+              (build "x" `seq`
+               call "f" [] [] `seq`
+               match "x'" `seq`
+               call "map" [call "f" [] []] ["xs"] `seq`
+               match "xs'" `seq`
+               build (Cons "Cons" ["x'", "xs'"]))
+              (build (Cons "Nil" []))))
 
-    seval :: Int -> Strat -> Term -> Error TypeError (Except () (TermEnv Term,Term))
-    seval i s = seval'' i 10 s M.empty emptyEnv
+    seval :: (?sensitivity :: Int) => LStrat -> Term -> Error TypeError (Except () (TermEnv Term,Term))
+    seval s = seval'' 10 s (stratEnv []) emptyEnv
 
-    seval' :: Int -> Strat -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
-    seval' i s = seval'' i 10 s M.empty
+    seval' :: (?sensitivity :: Int) => LStrat -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
+    seval' s = seval'' 10 s (stratEnv [])
 
-    seval'' :: Int -> Int -> Strat -> StratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
-    seval'' i j s senv tenv t =
+    seval'' :: (?sensitivity :: Int) => Int -> LStrat -> LStratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
+    seval'' j s senv tenv t =
       fromCompletion (error "top element")
         (fromTerminating (error "sort semantics does not terminate")
-           (eval i j s senv (context t) tenv t))
+           (eval j s senv (context t) tenv t))
 
-    sevalNoNeg'' :: Int -> Int -> Strat -> StratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
-    sevalNoNeg'' i j s senv tenv t = dropNegativeBindings $ seval'' i j s senv tenv t
-    
+    sevalNoNeg'' :: (?sensitivity :: Int) => Int -> LStrat -> LStratEnv -> TermEnv Term -> Term -> Error TypeError (Except () (TermEnv Term,Term))
+    sevalNoNeg'' j s senv tenv t = dropNegativeBindings $ seval'' j s senv tenv t
+
     dropNegativeBindings :: Error TypeError (Except () (TermEnv Term,a)) -> Error TypeError (Except () (TermEnv Term,a))
     -- dropNegativeBindings (F.Success (E.Success (env,a))) = (F.Success (E.Success (S.dropNegativeBindings env,a)))
-    -- dropNegativeBindings (F.Success (E.SuccessOrFail e (env,a))) = (F.Success (E.SuccessOrFail e (S.dropNegativeBindings env,a)))
+    -- dropNegativeBindings (F.Success (E.SuccessOrfail e (env,a))) = (F.Success (E.SuccessOrfail e (S.dropNegativeBindings env,a)))
     dropNegativeBindings res = res
-    
+
     term :: (?ctx :: Context) => Sort -> Term
     term s = Term s ?ctx
 
@@ -601,8 +606,8 @@ spec = do
     -- top :: (?ctx :: Context) => Term
     -- top = term Top
 
-    atop :: (?ctx :: Context) => A.Maybe Term
-    atop = A.JustNothing top
+    -- atop :: (?ctx :: Context) => A.Maybe Term
+    -- atop = A.JustNothing top
 
     may :: k -> v -> (k,A.Maybe v)
     may k v = (k,A.JustNothing v)
@@ -615,13 +620,17 @@ spec = do
 
     success :: a -> Error e (Except () a)
     success a = F.Success $ E.Success a
-    
-    successOrFail :: () -> a -> Error e (Except () a)
-    successOrFail () a = F.Success $ E.SuccessOrFail () a
-    
+
+    successOrfail :: () -> a -> Error e (Except () a)
+    successOrfail () a = F.Success $ E.SuccessOrFail () a
+
     uncaught :: () -> Error e (Except () a)
     uncaught = F.Success . E.Fail
-    
+
     failure :: String -> Error TypeError (Except () a)
     failure = F.Fail . fromString
 
+    caseStudy :: IO (Context,LStratEnv) -> ((?ctx :: Context) => SpecWith LStratEnv) -> Spec
+    caseStudy loadCaseStudy spc = do
+      (cntx,senv) <- runIO loadCaseStudy
+      let ?ctx = cntx in beforeAll (return senv) spc
