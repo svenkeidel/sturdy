@@ -24,7 +24,6 @@ import qualified Data.Hashable as Hash
 import qualified Data.Traversable as T
 import qualified Data.List as L
 import           Data.Functor.Identity
-import qualified Data.Abstract.Either as A
 
 import           GHC.Exts (IsList(..))
 import           Text.Printf
@@ -36,11 +35,11 @@ class Terminal t where
   productive :: Identifiable n => HashSet n -> t n -> Bool
   filter :: (n -> Bool) -> t n -> t n
   determinize :: (Identifiable n, Identifiable n', Applicative f) => (HashSet n -> f n') -> t n -> f (t n')
-  subsetOf :: (Identifiable n, Identifiable n', MonadPlus f) => ([(n,n')] -> f ()) -> t n -> t n' -> f ()
+  subsetOf :: (Identifiable n, Identifiable n', MonadPlus f) => ((HashSet [n],HashSet [n']) -> f ()) -> t n -> t n' -> f ()
   intersection :: (Identifiable n1, Identifiable n2, Identifiable n', Applicative f) => ((n1,n2) -> f n') -> t n1 -> t n2 -> f (t n')
-  union :: (Identifiable n1, Identifiable n2, Identifiable n', Applicative f) => (A.Either n1 n2 -> f n') -> t n1 -> t n2 -> f (t n')
   traverse :: (Identifiable n', Applicative f) => (n -> f n') -> t n -> f (t n')
   hashWithSalt :: (Identifiable n, Monad f) => (Int -> n -> f Int) -> Int -> t n -> f Int
+  difference :: t n -> t n -> Int
 
 map :: (Identifiable n', Terminal t) => (n -> n') -> t n -> t n'
 map f t = runIdentity (traverse (Identity . f) t)
@@ -82,18 +81,8 @@ instance Terminal Constr where
     guard (m1 `subsetKeys` m2)
     forM_ (M.intersectionWith (,) m1 m2) $ \(a1,a2) -> do
       guard (a1 `subsetKeys'` a2)
-      forM_ (IM.intersectionWith (,) a1 a2) $ \(l1,l2)-> do
-        forM_ l1 $ \as ->
-          msum [ leq (zip as bs) | bs <- H.toList l2 ]
-
-  union f (Constr m1) (Constr m2) = fmap Constr
-                                  $ T.traverse (T.traverse (\u -> case u of
-                                      A.Left cs1 -> traverseHashSet (T.traverse (f . A.Left)) cs1
-                                      A.Right cs2 -> traverseHashSet (T.traverse (f . A.Right)) cs2
-                                      A.LeftRight cs1 cs2 -> H.fromList <$> T.traverse (T.traverse (f . uncurry A.LeftRight)) (cross cs1 cs2)))
-                                  $ M.unionWith (IM.unionWith (\(A.Left cs1) (A.Right cs2) -> A.LeftRight cs1 cs2))
-                                      (M.map (IM.map A.Left) m1)
-                                      (M.map (IM.map A.Right) m2)
+      forM_ (IM.intersectionWith (,) a1 a2) $ \(l1,l2) -> do
+        leq (l1, l2)
 
   intersection f (Constr m1) (Constr m2) = fmap Constr
                                          $ T.traverse (T.traverse (fmap H.fromList . T.traverse (T.traverse f)))
@@ -101,6 +90,8 @@ instance Terminal Constr where
 
   traverse f (Constr m) = Constr <$> T.traverse (T.traverse (traverseHashSet (T.traverse f))) m
   hashWithSalt f s m = foldM (\s' (c,ts) -> foldM f (s' `Hash.hashWithSalt` c) ts) s (toList m)
+
+  difference _ _ = 0
 
 traverseHashSet :: (Applicative f, Identifiable b) => (a -> f b) -> HashSet a -> f (HashSet b)
 traverseHashSet f h = H.fromList <$> T.traverse f (H.toList h)

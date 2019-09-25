@@ -9,7 +9,7 @@ import Data.Text(Text,pack,unpack)
 import Data.Hashable
 import Text.Printf
 
-class NonTerminal n where
+class Show n => NonTerminal n where
   type Gen n :: *
   fresh :: Maybe String -> State (Gen n) n
   generate :: forall (g :: * -> (* -> *) -> *) t.
