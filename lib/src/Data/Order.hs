@@ -228,3 +228,8 @@ instance LowerBounded a => LowerBounded (Identity a) where
 
 instance Complete a => Complete (Identity a) where
   Identity x ⊔ Identity y = Identity $ x ⊔ y
+
+newtype Discrete a = Discrete a deriving (Eq)
+instance Eq a => PreOrd (Discrete a) where
+  (⊑) = (==)
+  (≈) = (==)

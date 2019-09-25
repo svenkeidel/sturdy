@@ -1,7 +1,6 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Order where
 
@@ -18,7 +17,7 @@ class (Arrow c, Profunctor c) => ArrowComplete y c where
   (<⊔>) :: c x y -> c x y -> c x y
 
 instance Complete y => ArrowComplete y (->) where
-  (<⊔>) f g = \x -> f x ⊔ g x
+  (<⊔>) f g x = f x ⊔ g x
   {-# INLINE (<⊔>) #-}
 
 -- | An arrow computation @c@ is effect commutative iff for all @f, g :: c x y@,
@@ -26,8 +25,8 @@ instance Complete y => ArrowComplete y (->) where
 -- > (f ⊔ g) ⊑ (proc x -> do y1 <- f -< x
 -- >                         y2 <- g -< x
 -- >                         returnA -< y1 ⊔ y2)
--- 
--- and 
+--
+-- and
 --
 -- > (f ⊔ g) ⊑ (proc x -> do y1 <- g -< x
 -- >                         y2 <- f -< x
@@ -37,10 +36,10 @@ class (Arrow c, Profunctor c) => ArrowEffectCommutative c
 instance ArrowEffectCommutative (->)
 
 class (Arrow c, Profunctor c) => ArrowJoin c where
-  joinSecond :: c x y -> c (z,x) (z,y)
+  joinSecond :: (y -> y -> y) -> (x -> y) -> c x y -> c x y
 
 instance ArrowJoin (->) where
-  joinSecond g = \(z,x) -> (z,g x)
+  joinSecond lub f g x = f x `lub` g x
   {-# INLINE joinSecond #-}
 
 -- | Joins a list of arguments. Use it with idiom brackets:

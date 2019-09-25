@@ -10,7 +10,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Control.Arrow.Transformer.Abstract.Fix.Cache where
 
-import Prelude hiding (pred,lookup,map,head,iterate,(.),truncate,elem)
+import Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,elem)
 
 import Control.Category
 import Control.Arrow
@@ -27,7 +27,7 @@ import Control.Arrow.Transformer.State
 
 import Data.Profunctor.Unsafe
 import Data.Empty
-import Data.Order
+import Data.Order hiding (lub)
 import Data.Coerce
 import Data.Identifiable
 import Data.HashMap.Lazy(HashMap)
@@ -65,7 +65,7 @@ instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (CacheT cache
   {-# INLINE (<⊔>) #-}
 
 instance (Arrow c, Profunctor c) => ArrowJoin (CacheT cache a b c) where
-  joinSecond (CacheT f) = CacheT (second f)
+  joinSecond lub f (CacheT g) = CacheT (rmap (\(x,y) -> f x `lub` y) (id &&& g))
   {-# INLINE joinSecond #-}
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (CacheT cache a b c) where
@@ -75,7 +75,9 @@ instance (Profunctor c,ArrowApply c) => ArrowApply (CacheT cache a b c) where
 instance ArrowEffectCommutative c => ArrowEffectCommutative (CacheT cache a b c)
 
 ----- Basic Cache -----
+
 newtype Cache a b = Cache { getMap :: HashMap a (Stable,b)}
+
 instance (Show a, Show b) => Show (Cache a b) where
   show (Cache m) = show (M.toList m)
 
@@ -119,6 +121,10 @@ instance (PreOrd a, Arrow c, Profunctor c) => ArrowReuse a b (CacheT Cache a b c
     returnA -< M.foldlWithKey' (\m a' (s',b') -> if s' ⊑ s && a ⊑ a' then m <> f a a' s' b' else m) mempty cache
   {-# INLINE reuse #-}
 
+instance Identifiable a => IsList (Cache a b) where
+  type Item (Cache a b) = (a,b,Stable)
+  toList (Cache m) = [ (a,b,s) | (a,(s,b)) <- M.toList m]
+  fromList l = Cache $ M.fromList [ (a,(s,b)) | (a,b,s) <- l]
 
 ------ Group Cache ------
 data Group cache a b where

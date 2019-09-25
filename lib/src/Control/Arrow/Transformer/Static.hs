@@ -149,7 +149,7 @@ instance (Applicative f, ArrowLowerBounded c) => ArrowLowerBounded (StaticT f c)
   {-# SPECIALIZE instance ArrowLowerBounded c => ArrowLowerBounded (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowJoin c) => ArrowJoin (StaticT f c) where
-  joinSecond (StaticT g) = StaticT $ joinSecond <$> g
+  joinSecond lub f (StaticT g) = StaticT $ joinSecond lub f <$> g
   {-# INLINE joinSecond #-}
   {-# SPECIALIZE instance ArrowJoin c => ArrowJoin (StaticT ((->) r) c) #-}
 

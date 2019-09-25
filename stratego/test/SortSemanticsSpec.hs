@@ -1,13 +1,15 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE TypeApplications #-}
 module SortSemanticsSpec(main, spec) where
 
 import Prelude hiding (exp,seq,fail)
 
 import           Syntax hiding (fail)
-import           Syntax as T
+import qualified Syntax as T
 import           SortSemantics -- hiding (sortContext)
 import           AbstractInterpreter
 import           Abstract.TermEnvironment
@@ -21,6 +23,8 @@ import qualified Data.Abstract.Maybe as A
 import           Data.Abstract.There
 import qualified Data.Abstract.Map as S
 import           Data.Abstract.Terminating (fromTerminating)
+import qualified Data.HashMap.Lazy as M
+import qualified Data.HashSet as H
 
 import           Test.Hspec hiding (context)
 
@@ -259,8 +263,8 @@ spec = do
       do
          seval' (scope ["y"] (build "x")) tenv numerical `shouldBe`
            success (tenv, numerical)
-         seval' (scope ["y"] (match "z")) (S.delete' ["z"] tenv) numerical `shouldBe`
-           success (S.delete' ["y"] $ termEnv [ ("x",numerical), ("z",numerical)], numerical)
+         seval' (scope ["y"] (match "z")) (S.delete' @[] ["z"] tenv) numerical `shouldBe`
+           success (S.delete' @[] ["y"] $ termEnv [ ("x",numerical), ("z",numerical)], numerical)
 
     it "should hide variables bound in a choice's test from the else branch" $
       let ?ctx = Ctx.fromList [("Zero",[],"Exp"), ("One",[],"Exp")] in
@@ -363,7 +367,7 @@ spec = do
       let exp = term "Exp"
           reduce1 = match (Cons "Add" [Cons "Zero" [], "y"]) `seq` build "y"
           reduce2 = match (Cons "Add" ["x", Cons "Zero" []]) `seq` build "x"
-      in seval' (reduce1 `leftChoice` reduce2) (S.delete' ["x", "y"] emptyEnv) exp
+      in seval' (reduce1 `leftChoice` reduce2) (S.delete' @[] ["x", "y"] emptyEnv) exp
            `shouldBe` successOrfail () (termEnv' [may "x" exp, may "y" exp], exp)
 
     it "reduce Add(x,y); !x; ?Zero()" $
@@ -371,14 +375,14 @@ spec = do
       let ?sensitivity = 0 in
       let exp = term "Exp"
           reduce = match (Cons "Add" ["x", "y"]) `seq` build "x" `seq` match (Cons "Zero" []) `seq` build "y"
-      in seval' reduce (S.delete' ["x", "y"] emptyEnv) exp `shouldBe` successOrfail () (termEnv [("x", exp),("y", exp)], exp)
+      in seval' reduce (S.delete' @[] ["x", "y"] emptyEnv) exp `shouldBe` successOrfail () (termEnv [("x", exp),("y", exp)], exp)
 
     it "reduce Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp"),("Double",["Exp"],"Exp")] in
       let ?sensitivity = 0 in
       let exp = term "Exp"
           reduce = match (Cons "Double" ["x"]) `seq` build (Cons "Add" ["x", "x"])
-      in seval' reduce (S.delete' ["x"] emptyEnv) exp `shouldBe` successOrfail () (termEnv [("x", exp)], exp)
+      in seval' reduce (S.delete' @[] ["x"] emptyEnv) exp `shouldBe` successOrfail () (termEnv [("x", exp)], exp)
 
     it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")] in
@@ -387,7 +391,7 @@ spec = do
           reduce1 = match (Cons "Add" [Cons "Zero" [], "y"]) `seq` build "y"
           reduce2 = match (Cons "Add" ["x", Cons "Zero" []]) `seq` build "x"
           reduce3 = match (Cons "Double" ["x"]) `seq` build (Cons "Add" ["x", "x"])
-      in seval' (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) (S.delete' ["x","y"] emptyEnv) exp
+      in seval' (reduce1 `leftChoice` reduce2 `leftChoice` reduce3) (S.delete' @[] ["x","y"] emptyEnv) exp
            `shouldBe` successOrfail () (termEnv' [may "x" exp, may "y" exp], exp)
 
     -- prop "should be sound" $ do
@@ -469,7 +473,7 @@ spec = do
             successOrfail () (env, val)
 
       it "conc: (List Var, List Var) -> List Var " $ \desugar ->
-        let ?sensitivity = 2 in
+        let ?sensitivity = 3 in
         let prog = term $ Tuple [List "Var", List "Var"]
             val  = term $ List "Var"
             env = termEnv []
@@ -489,7 +493,9 @@ spec = do
         let prog = term "Declbinds"
             val  = term $ List "Var"
             env = termEnv []
-        in sevalNoNeg'' 10 (call "free_decls_vars_0_0" [] []) desugar env prog `shouldBe`
+            senv = filterStratEnv ["free_decls_vars_0_0", "collect_all_3_0",
+                                   "union_0_0", "crush_3_0", "foldr_3_0"] <$> desugar
+        in sevalNoNeg'' 10 (call "free_decls_vars_0_0" [] []) senv env prog `shouldBe`
             successOrfail () (env, val)
 
       it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
@@ -497,8 +503,7 @@ spec = do
         let prog = term "ArrCommand"
             val  = term "Exp"
             env = termEnv [("vars-list", term $ List "Var")]
-        in do
-          sevalNoNeg'' 10 (call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) desugar env prog `shouldBe`
+        in sevalNoNeg'' 10 (call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) desugar env prog `shouldBe`
             successOrfail () (env, val)
 
   where
@@ -546,7 +551,7 @@ spec = do
      )
 
     termEnv''  :: [(TermVar, Term)] -> [TermVar] -> TermEnv Term
-    termEnv'' bound notBound = foldr S.delete (S.fromList bound) notBound
+    termEnv'' bound = foldr S.delete (S.fromList bound)
 
     -- delete :: TermVars s => s -> TermEnv Term -> TermEnv Term
     -- delete s = S.delete' (termVars s :: Set TermVar)

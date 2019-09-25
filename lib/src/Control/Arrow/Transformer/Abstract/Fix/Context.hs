@@ -8,7 +8,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Context where
 
-import Prelude hiding (lookup,truncate,(.))
+import Prelude hiding (lookup,truncate,(.),id)
 
 import Control.Category
 import Control.Arrow
@@ -31,7 +31,7 @@ import qualified Data.HashMap.Lazy as M
 import Data.Profunctor.Unsafe
 import Data.Coerce
 import Data.Empty
-import Data.Order
+import Data.Order hiding (lub)
 import Data.Identifiable
 
 callsiteSensitive :: forall a lab b c. ArrowContext (CallString lab) a c => Int -> (a -> lab) -> Widening c a -> IterationStrategy c a b
@@ -97,7 +97,7 @@ instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (ContextT ctx
   {-# INLINE (<⊔>) #-}
 
 instance (Arrow c, Profunctor c) => ArrowJoin (ContextT ctx a c) where
-  joinSecond (ContextT f) = ContextT (second f)
+  joinSecond lub f (ContextT g) = ContextT (rmap (\(x,y) -> f x `lub` y) (id &&& g))
   {-# INLINE joinSecond #-}
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ContextT ctx a c)

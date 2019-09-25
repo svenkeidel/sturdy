@@ -22,14 +22,15 @@ import Control.Arrow.Transformer.Kleisli
 import Control.Category
 
 import Data.Abstract.Terminating
+import Data.Abstract.Widening
 
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 -- | Arrow that propagates non-terminating computations.
-newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y) 
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin,
+newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore addr val)
 
@@ -45,7 +46,11 @@ type instance Fix (TerminatingT c) x y = TerminatingT (Fix c x (Terminating y))
 deriving instance (ArrowFix (Underlying (TerminatingT c) x y)) => ArrowFix (TerminatingT c x y)
 
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (TerminatingT c) where
-  bottom = lift $ arr (\_ -> NonTerminating)
+  bottom = lift $ arr (const NonTerminating)
   {-# INLINE bottom #-}
 
 deriving instance (ArrowChoice c, ArrowComplete (Terminating y) c) => ArrowComplete y (TerminatingT c)
+
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (TerminatingT c) where
+  joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (return . f)(unlift g)
+  {-# INLINE joinSecond #-}

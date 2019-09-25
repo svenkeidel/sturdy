@@ -1,9 +1,8 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Completion(CompletionT,runCompletionT) where
 
@@ -24,6 +23,7 @@ import Control.Arrow.Transformer.Kleisli
 import Control.Category
 
 import Data.Abstract.FreeCompletion
+import Data.Abstract.Widening
 
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
@@ -32,7 +32,7 @@ import Data.Coerce
 -- | Allows to describe computations over non-completely ordered types.
 -- E.g. allows to join a computation of type 'c x [y]'.
 newtype CompletionT c x y = CompletionT (KleisliT FreeCompletion c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
             ArrowFail e, ArrowExcept e)
@@ -48,3 +48,7 @@ deriving instance (ArrowFix (Underlying (CompletionT c) x y)) => ArrowFix (Compl
 
 deriving instance (ArrowChoice c, ArrowComplete (FreeCompletion y) c) => ArrowComplete y (CompletionT c)
 deriving instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (CompletionT c)
+
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where
+  joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (return . f) (unlift g)
+  {-# INLINE joinSecond #-}

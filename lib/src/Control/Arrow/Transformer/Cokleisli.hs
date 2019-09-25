@@ -3,9 +3,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.Cokleisli where
 
 import Prelude hiding (id,(.),lookup,read,fail)
@@ -136,6 +133,6 @@ instance (ArrowComonad f c, ArrowComplete y c) => ArrowComplete y (CokleisliT f 
   {-# INLINE (<⊔>) #-}
 
 instance (ArrowComonad f c, ArrowJoin c) => ArrowJoin (CokleisliT f c) where
-  joinSecond g = lift $ lmap costrength2 (joinSecond (unlift g))
-  {-# INLINE joinSecond#-}
-  
+  joinSecond lub f g = lift $ joinSecond lub (f . extract) (unlift g)
+  {-# INLINE joinSecond #-}
+

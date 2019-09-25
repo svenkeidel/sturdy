@@ -1,9 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -146,7 +143,7 @@ instance ArrowLowerBounded c => ArrowLowerBounded (ReaderT r c) where
   {-# INLINE bottom #-}
 
 instance ArrowJoin c => ArrowJoin (ReaderT r c) where
-  joinSecond g = lift $ lmap shuffle1 (joinSecond (unlift g))
+  joinSecond lub f g = lift $ joinSecond lub (f . snd) (unlift g)
   {-# INLINE joinSecond #-}
 
 instance ArrowComplete y c => ArrowComplete y (ReaderT r c) where

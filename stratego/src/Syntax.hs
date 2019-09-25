@@ -1,4 +1,6 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -20,6 +22,8 @@ import           Data.ATerm
 import           Data.Constructor
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
+import           Data.HashSet (HashSet)
+import qualified Data.HashSet as H
 import           Data.Hashable
 import           Data.List (intercalate)
 import           Data.Set (Set)
@@ -31,10 +35,12 @@ import           Data.Lens(Prism')
 import qualified Data.Lens as L
 import           Data.Label
 import           Data.Empty
+import           Data.Order
 
 import           GHC.Generics(Generic)
 import           GHC.Exts(IsList(..))
 
+import           Text.Printf
 import           Text.Read (readMaybe)
 import           Test.QuickCheck (Arbitrary(..),Gen)
 import qualified Test.QuickCheck as Q
@@ -55,8 +61,12 @@ data Strat
   | Call StratVar [Strat] [TermVar] Label
   | Prim StratVar [Strat] [TermVar] Label
   | Apply Strat Label
-  deriving (Eq,Generic)
-instance NFData Strat
+  deriving stock (Generic)
+  deriving PreOrd via Discrete Strat
+  deriving anyclass NFData
+
+instance Eq Strat where
+  s1 == s2 = label s1 == label s2
 
 type LStrat = State Label Strat
 
@@ -110,12 +120,13 @@ data TermPattern
   | Var TermVar
   | StringLiteral Text
   | NumberLiteral Int
-  deriving (Eq,Generic)
-instance NFData TermPattern
+  deriving stock (Eq,Generic)
+  deriving anyclass (NFData,Hashable)
 
 -- | Stratego source code is organized in modules consisting of a
 -- signature describing possible shapes of terms and named strategies.
-data Module = Module Context Strategies deriving (Show,Eq)
+data Module = Module Context Strategies
+  deriving stock (Show,Eq)
 
 type Strategies = HashMap StratVar Strategy
 
@@ -123,17 +134,27 @@ type Strategies = HashMap StratVar Strategy
 -- refer to other named strategies and arguments that refer to terms.
 -- Additionally, a strategy takes and input term and eventually
 -- produces an output term.
-data Strategy = Strategy [StratVar] [TermVar] Strat Label deriving (Show,Eq,Generic)
-instance NFData Strategy
+data Strategy = Strategy { strategyStratArguments :: [StratVar]
+                         , strategyTermArguments :: [TermVar]
+                         , strategyBody :: Strat
+                         , strategyLabel :: Label
+                         }
+  deriving stock (Show,Generic)
+  deriving anyclass (NFData)
+
+instance HasLabel Strategy where
+  label = strategyLabel
+
+instance Eq Strategy where
+  s1 == s2 = label s1 == label s2
 
 strategy :: MonadState Label m => [StratVar] -> [TermVar] -> m Strat -> m Strategy
 strategy svs tvs body = Strategy svs tvs <$> body <*> fresh
 
-data Closure = Closure Strategy StratEnv deriving (Eq,Generic)
-instance NFData Closure
-
-instance Hashable Closure where
-  hashWithSalt s (Closure strat senv) = s `hashWithSalt` strat `hashWithSalt` senv
+data Closure = Closure Strategy StratEnv
+  deriving stock (Eq,Generic)
+  deriving PreOrd via Discrete Closure
+  deriving anyclass (NFData,Hashable)
 
 type StratEnv = HashMap StratVar Closure
 type LStratEnv = State Label StratEnv
@@ -144,8 +165,11 @@ instance IsEmpty LStratEnv where
 stratEnv :: MonadState Label m => [(StratVar,m Strategy)] -> m StratEnv
 stratEnv l = M.fromList <$> sequence [ (\s -> (sv,Closure s M.empty)) <$> strat | (sv,strat) <- l ]
 
-newtype TermVar = TermVar Text deriving (Eq,Ord,Hashable,NFData)
-newtype StratVar = StratVar Text deriving (Eq,Ord,IsString,Hashable,NFData)
+filterStratEnv :: HashSet StratVar -> StratEnv -> StratEnv
+filterStratEnv vars env = M.intersection env (H.toMap vars)
+
+newtype TermVar = TermVar Text   deriving newtype (Eq,Ord,Hashable,NFData)
+newtype StratVar = StratVar Text deriving newtype (Eq,Ord,IsString,Hashable,NFData)
 
 liftStrategyScopes :: Strategy -> Strategy
 liftStrategyScopes (Strategy svs tvs s l) = Strategy svs tvs (liftStratScopes s l) l
@@ -161,36 +185,36 @@ liftStratScopes s l =
 
 liftScopes :: Strat -> Writer [TermVar] Strat
 liftScopes strat = case strat of
-    Id l -> return (Id l)
-    Fail l -> return (Fail l)
-    Seq s1 s2 l -> do
-      s1' <- liftScopes s1
-      s2' <- liftScopes s2
-      return $ Seq s1' s2' l
-    GuardedChoice s1 s2 s3 l -> do
-      s1' <- liftScopes s1
-      s2' <- liftScopes s2
-      s3' <- liftScopes s3
-      return $ GuardedChoice s1' s2' s3' l
-    One s l -> One <$> liftScopes s <*> pure l
-    Some s l -> Some <$> liftScopes s <*> pure l
-    All s l -> All <$> liftScopes s <*> pure l
-    Scope xs s _ -> do
-      tell xs
-      liftScopes s
-    Match f l -> return $ Match f l
-    Build f l -> return $ Build f l
-    Let bnds body l -> do
-      let bnds' = map (\(v,s) -> (v,liftStrategyScopes s)) bnds
-      body' <- liftScopes body
-      return $ Let bnds' body' l
-    Call f ss ts l -> do
-      let ss' = map (\s -> liftStratScopes s l) ss
-      return $ Call f ss' ts l
-    Prim f ss ts l -> do
-      let ss' = map (\s -> liftStratScopes s l) ss
-      return $ Prim f ss' ts l
-    Apply body l -> Apply <$> liftScopes body <*> pure l
+  Id l -> return (Id l)
+  Fail l -> return (Fail l)
+  Seq s1 s2 l -> do
+    s1' <- liftScopes s1
+    s2' <- liftScopes s2
+    return $ Seq s1' s2' l
+  GuardedChoice s1 s2 s3 l -> do
+    s1' <- liftScopes s1
+    s2' <- liftScopes s2
+    s3' <- liftScopes s3
+    return $ GuardedChoice s1' s2' s3' l
+  One s l -> One <$> liftScopes s <*> pure l
+  Some s l -> Some <$> liftScopes s <*> pure l
+  All s l -> All <$> liftScopes s <*> pure l
+  Scope xs s _ -> do
+    tell xs
+    liftScopes s
+  Match f l -> return $ Match f l
+  Build f l -> return $ Build f l
+  Let bnds body l -> do
+    let bnds' = map (\(v,s) -> (v,liftStrategyScopes s)) bnds
+    body' <- liftScopes body
+    return $ Let bnds' body' l
+  Call f ss ts l -> do
+    let ss' = map (\s -> liftStratScopes s l) ss
+    return $ Call f ss' ts l
+  Prim f ss ts l -> do
+    let ss' = map (\s -> liftStratScopes s l) ss
+    return $ Prim f ss' ts l
+  Apply body l -> Apply <$> liftScopes body <*> pure l
 
 -- instance Monoid TermVarSet where
 --   mempty = TermVarSet mempty
@@ -273,16 +297,14 @@ parseSort t = case t of
 parseStrategy :: (MonadError String m, MonadState Label m) => ATerm -> m (StratVar,Strategy)
 parseStrategy strat = case strat of
   ATerm "SDefT" [String name, List stratVars, List ts, body] -> do
-    str <- Strategy <$> parseStratVars stratVars
-                    <*> parseTermVars ts
-                    <*> parseStrat body
-                    <*> fresh
+    svs <- parseStratVars stratVars
+    tvs <- parseTermVars ts
+    str <- strategy svs tvs (parseStrat body)
     return (StratVar name, liftStrategyScopes str)
   ATerm "ExtSDef" [String name, List ts, List stratVars] -> do
-    str <- Strategy <$> parseStratVars stratVars
-                    <*> parseTermVars ts
-                    <*> (Id <$> fresh)
-                    <*> fresh
+    svs <- parseStratVars stratVars
+    tvs <- parseTermVars ts
+    str <- strategy svs tvs id
     return (StratVar name, liftStrategyScopes str)
   _ -> throwError $ "unexpected input while parsing strategy from aterm: " ++ show strat
 
@@ -357,15 +379,6 @@ instance IsString TermVar where
 
 instance IsString TermPattern where
   fromString = Var . fromString
-
-instance Hashable TermPattern where
-  hashWithSalt s x = case x of
-    As v t -> s `hashWithSalt` (0::Int) `hashWithSalt` v `hashWithSalt` t
-    Cons c ts -> s `hashWithSalt` (1::Int) `hashWithSalt` c `hashWithSalt` ts
-    Explode t1 t2 -> s `hashWithSalt` (2::Int) `hashWithSalt` t1 `hashWithSalt` t2
-    Var tv -> s `hashWithSalt` (3::Int) `hashWithSalt` tv
-    StringLiteral l -> s `hashWithSalt` (4::Int) `hashWithSalt` l
-    NumberLiteral l -> s `hashWithSalt` (5::Int) `hashWithSalt` l
 
 instance Show TermPattern where
   show (As v t) = show v ++ "@(" ++ show t ++ ")"
@@ -468,10 +481,10 @@ instance Show Strat where
       choice_prec = 8
 
 instance Hashable Strategy where
-  hashWithSalt s (Strategy _ _ _ l) = s `hashWithSalt` l
+  hashWithSalt s strat = s `hashWithSalt` strategyLabel strat
 
 instance Show Closure where
-  show (Closure s _) = show s
+  show (Closure s senv) = printf "%s@%s" (show (hash s)) (show senv)
 
 instance Show StratVar where
   show (StratVar x) = unpack x
@@ -562,7 +575,7 @@ instance TermVars StratVar where
   termVars _ = mempty
 
 instance TermVars Strategy where
-  termVars (Strategy _ ts s _) = termVars ts <> termVars s
+  termVars strat = termVars (strategyTermArguments strat) <> termVars (strategyBody strat)
 
 instance TermVars TermPattern where
   termVars t = case t of

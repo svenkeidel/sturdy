@@ -2,8 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 module Control.Arrow.Transformer.Abstract.Failure(FailureT,runFailureT) where
@@ -25,6 +23,7 @@ import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
 
 import Data.Abstract.Failure
+import Data.Abstract.Widening
 
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
@@ -32,7 +31,7 @@ import Data.Coerce
 
 -- | Describes computations that can fail.
 newtype FailureT e c x y = FailureT (KleisliT (Failure e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
             ArrowExcept e')
@@ -49,3 +48,7 @@ instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FailureT e c
 
 type instance Fix (FailureT e c) x y = FailureT e (Fix c x y)
 instance (ArrowChoice c, ArrowFix (Underlying (FailureT e c) x y)) => ArrowFix (FailureT e c x y)
+
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (FailureT e c) where
+  joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (Success . f) (unlift g)
+  {-# INLINE joinSecond #-}

@@ -29,6 +29,7 @@ import Control.Arrow.Store as Store
 import Control.Arrow.Trans
 import Control.Arrow.Writer
 
+import qualified Data.Order as O
 import Data.Monoidal
 import Data.Profunctor
 import Data.Profunctor.Unsafe
@@ -154,8 +155,8 @@ instance (Monoid w, ArrowLowerBounded c) => ArrowLowerBounded (WriterT w c) wher
   bottom = lift bottom
   {-# INLINE bottom #-}
 
-instance (Monoid w, ArrowJoin c) => ArrowJoin (WriterT w c) where
-  joinSecond g = lift $ rmap shuffle1 (joinSecond (unlift g))
+instance (Monoid w, O.Complete w, ArrowJoin c) => ArrowJoin (WriterT w c) where
+  joinSecond lub f g = lift $ joinSecond (\(w1,y1) (w2,y2) -> (w1 O.⊔ w2, lub y1 y2) ) (\x -> (mempty,f x)) (unlift g)
   {-# INLINE joinSecond #-}
 
 instance (Monoid w, ArrowComplete (w,y) c) => ArrowComplete y (WriterT w c) where

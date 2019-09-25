@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
 module Data.Abstract.Except where
 
 import Prelude hiding (id,(.))
@@ -45,13 +46,13 @@ instance (Show x, Show e) => Show (Except e x) where
   show (SuccessOrFail e x) = "Success " ++ show x ++ " ⊔ Fail " ++ show e
 
 instance (O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c where
-  mapA f = lmap toEither (arr Fail ||| rmap Success f ||| rmap (\(e,y) -> SuccessOrFail e y) (O.joinSecond f))
+  mapA f = lmap toEither (arr Fail ||| rmap Success f ||| O.joinSecond (\(Fail e) (Success y) -> SuccessOrFail e y) (\(e,_) -> Fail e) (proc (_,x) -> rmap Success f -< x))
   {-# INLINABLE mapA #-}
 
 instance (Complete e, O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
-  mapJoinA f = lmap toEither (arr Fail ||| f ||| rmap lub (O.joinSecond f))
-    where 
-      lub (e,m) = case m of
+  mapJoinA f = lmap toEither (arr Fail ||| f ||| O.joinSecond lub (\(e,_) -> Fail e) (proc (_,x) -> f -< x))
+    where
+      lub (Fail e) m = case m of
         Fail e' -> Fail (e ⊔ e')
         Success y -> SuccessOrFail e y
         SuccessOrFail e' y -> SuccessOrFail (e ⊔ e') y
@@ -94,7 +95,7 @@ widening we wa m1 m2 = case (m1,m2) of
 {-# INLINE widening #-}
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeCompletion a)) => Complete (FreeCompletion (Except e a)) where
-  Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of
+  Lower m1 ⊔ Lower m2 = case bimap Lower Lower m1 ⊔ bimap Lower Lower m2 of
     Fail (Lower e) -> Lower (Fail e)
     Success (Lower a) -> Lower (Success a)
     SuccessOrFail (Lower e) (Lower a) -> Lower (SuccessOrFail e a)

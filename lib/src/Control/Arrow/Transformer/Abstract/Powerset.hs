@@ -3,8 +3,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE Arrows #-}
 module Control.Arrow.Transformer.Abstract.Powerset(PowT,runPowT) where
 
 import           Prelude hiding (id,(.),lookup,fail)
@@ -31,7 +29,7 @@ import           Data.Coerce
 
 -- | Computation that produces a set of results.
 newtype PowT c x y = PowT (KleisliT A.Pow c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowJoin,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
             ArrowFail e', ArrowExcept e')
@@ -48,4 +46,8 @@ instance (Identifiable y, Profunctor c, ArrowFix (Underlying (PowT c) x y)) => A
   fix f = lift $ rmap A.dedup (fix (coerce f))
 
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (PowT c) where
-  bottom = lift $ arr (\_ -> A.empty)
+  bottom = lift $ arr (const A.empty)
+
+instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
+  joinSecond _ f g = lift $ joinSecond A.union (return . f) (unlift g)
+  {-# INLINE joinSecond #-}

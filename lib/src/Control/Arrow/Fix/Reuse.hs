@@ -27,9 +27,9 @@ import Text.Printf
 class (Arrow c, Profunctor c) => ArrowReuse a b c where
 
   -- | Reuse cached results at the cost of precision.
-  reuse :: (Show m, Monoid m) => (a -> a -> Stable -> b -> m) -> c (a,Stable) m
+  reuse :: (Monoid m) => (a -> a -> Stable -> b -> m) -> c (a,Stable) m
 
-reuseFirst :: (ArrowChoice c, ArrowReuse a b c, Show a, Show b) => Stable -> IterationStrategy c a b
+reuseFirst :: (ArrowChoice c, ArrowReuse a b c) => Stable -> IterationStrategy c a b
 reuseFirst st f = proc a -> do
   m <- reuse (\_ a' s' b' -> First (Just (a',b',s'))) -< (a,st)
   case getFirst m of
@@ -46,15 +46,15 @@ reuseExact f = proc a -> do
     _ -> f -< a
 {-# INLINE reuseExact #-}
 
-reuseByMetric :: (Show a, Show b, Show n, Ord n, ArrowChoice c, ArrowReuse a b c) => Metric a n -> IterationStrategy c a b
+reuseByMetric :: (Ord n, ArrowChoice c, ArrowReuse a b c) => Metric a n -> IterationStrategy c a b
 reuseByMetric metric = reuseByMetric_ (\s a a' -> Product s (metric a a')) Unstable
 {-# INLINE reuseByMetric #-}
 
-reuseStableByMetric :: (Show a, Show b, Show n, Ord n, ArrowChoice c, ArrowReuse a b c) => Metric a n -> IterationStrategy c a b
+reuseStableByMetric :: (Ord n, ArrowChoice c, ArrowReuse a b c) => Metric a n -> IterationStrategy c a b
 reuseStableByMetric metric = reuseByMetric_ (const metric) Stable
 {-# INLINE reuseStableByMetric #-}
 
-reuseByMetric_ :: (Show a, Show b, Show n, Ord n, ArrowChoice c, ArrowReuse a b c) => (Stable -> Metric a n) -> Stable -> IterationStrategy c a b
+reuseByMetric_ :: (Ord n, ArrowChoice c, ArrowReuse a b c) => (Stable -> Metric a n) -> Stable -> IterationStrategy c a b
 reuseByMetric_ metric st f = proc a -> do
   m <- reuse (\a a' s' b' -> Just (Measured { input = a', output = b', stable = s', measured = metric s' a a' })) -< (a,st)
   case m of

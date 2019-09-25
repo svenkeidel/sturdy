@@ -18,6 +18,7 @@ import           Abstract.TermEnvironment
 
 import           Control.Category
 import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Reuse
 import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Value
@@ -34,6 +35,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
+import           Data.Hashable
 import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except as E
@@ -51,6 +53,7 @@ import           Data.Identifiable
 import           Data.Label
 
 import           Text.Printf
+import           GHC.Exts
 
 type TypeError = Pow String
 
@@ -67,7 +70,7 @@ type Interp t x y =
          (CompletionT
           (TerminatingT
            (FixT () ()
-            (--TraceT
+            (-- TraceT
              (ChaoticT (Dom t)
               (StackT Stack (Dom t)
                (CacheT (Group Cache) (Dom t) (Cod t)
@@ -75,19 +78,21 @@ type Interp t x y =
                  (->)))))))))))))))
    (Strat,t) t x y
 
-runInterp :: forall t x y. (Show t, Complete t, Complete (FreeCompletion t), Identifiable t, ?sensitivity :: Int) =>
+runInterp :: forall t x y. (Show t, Complete t, Identifiable t, ?sensitivity :: Int) =>
   Interp t x y -> W.Widening t -> StratEnv -> Context -> TermEnv t -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,y))))
-runInterp f termWidening senv0 ctx tenv0 a =
-  snd (run f ctx iterationStrategy resultWidening (tenv0, (senv0, a)))
+runInterp f termWidening senv0 ctx0 tenv0 a0 =
+  snd (run f ctx0 iterationStrategy resultWidening (tenv0, (senv0, a0)))
   where
     iterationStrategy
-      = trace (\(tenv,(_senv,(strat,term))) -> printf "STRAT %s\nTERM  %s\nENV   %s" (show strat) (show term) (show tenv))
+      = traceCtx
+              (\(tenv,(senv,(strat,term))) -> printf "STRAT %s\nTERM  %s\nENV   %s\nSENV  %s\n" (show strat) (show term) (show tenv) (show (hash senv)))
               (printf "RET   %s" . show . fmap (fmap (fmap (fmap snd))))
-              -- (\cx -> printf "CTX   %s" (show cx))
-              -- (\cache -> printf "CACHE %s" (show [ (strat,ctx,a,b,s) | ((strat,_),cache') <- toList cache, (ctx,(a,_),b,s) <- toList cache']))
+              (\cx -> printf "CTX   %s" (show cx))
+              (\cache -> printf "CACHE %s" (show [ (strat,a,tenv,b,s,senv) | ((strat,senv),cache') <- toList cache, ((a,tenv),b,s) <- toList cache']))
       . Fix.filter stratCall (recordCallsite ?sensitivity (\((strat,_),_) -> Just (label strat)))
       . Fix.filter stratApply
         ( joinByContext' (termWidening W.** S.widening termWidening)
+        -- . reuseFirst Unstable
         . iterateInner
         )
 

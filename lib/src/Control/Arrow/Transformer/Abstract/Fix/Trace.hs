@@ -34,7 +34,7 @@ trace showA showB f = proc x -> do
   returnA -< Debug.trace (printf "RETURN\n%s\n%s\n\n" (showA x) (showB y)) y
 {-# INLINE trace #-}
 
-traceCtx :: (ArrowContext ctx a c,ArrowState cache c) => (a -> String) -> (b -> String) -> (ctx -> String) -> (cache -> String) -> IterationStrategy c a b
+traceCtx :: (ArrowContext ctx a' c,ArrowState cache c) => (a -> String) -> (b -> String) -> (ctx -> String) -> (cache -> String) -> IterationStrategy c a b
 traceCtx showA showB showCtx showCache f = proc x -> do
   ctx <- askContext -< ()
   cache <- get -< ()
@@ -47,19 +47,20 @@ traceShow = trace show show
 {-# INLINE traceShow #-}
 
 newtype TraceT c x y = TraceT (c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx a,ArrowState s)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,
+            ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx a,ArrowState s, ArrowReuse a b)
 
-instance (Show a, ArrowReuse a b c) => ArrowReuse a b (TraceT c) where
-  -- | Reuse cached results at the cost of precision.
-  reuse f = TraceT $ proc (a,s) -> do
-    m <- Reuse.reuse f -< (a,s)
-    returnA -< Debug.trace (printf "REUSE\nx: %s\n%s\n\n" (show a) (show m)) m
+-- instance (Show a, ArrowReuse a b c) => ArrowReuse a b (TraceT c) where
+--   -- | Reuse cached results at the cost of precision.
+--   reuse f = TraceT $ proc (a,s) -> do
+--     m <- Reuse.reuse f -< (a,s)
+--     returnA -< Debug.trace (printf "REUSE\nx: %s\n%s\n\n" (show a) (show m)) m
 
 instance (Show a, ArrowIterate a c) => ArrowIterate a (TraceT c) where
   iterate = TraceT $ proc (a,b) ->
     iterate -< Debug.trace (printf "ITERATE\n\tx: %s\n\n" (show a)) (a,b)
 
-instance (Show a, Show b, Show cache, ArrowState cache c, ArrowCache a b c) => ArrowCache a b (TraceT c) where
+instance (Show a, Show b, ArrowCache a b c) => ArrowCache a b (TraceT c) where
   lookup = TraceT $ proc a -> do
     b  <- lookup -< a
     returnA -< Debug.trace (printf "LOOKUP\n\tx: %s\n\ty: %s\n\n" (show a) (show b)) b
@@ -68,10 +69,9 @@ instance (Show a, Show b, Show cache, ArrowState cache c, ArrowCache a b c) => A
     (s,b') <- update -< (a,b)
     returnA -< Debug.trace (printf "UPDATE\n\tx: %s\n\ty: %s -> %s, %s\n\n" (show a) (show bOld) (show b') (show s))  (s,b')
   write = TraceT $ proc (a,b,s) -> do
-    cache <- get -< ()
-    write -< Debug.trace (printf "WRITE\n\tx: %s\n\ty: %s\n\t%s\n\tcache: %s\n\n" (show a) (show b) (show s) (show cache)) (a,b,s)
+    write -< Debug.trace (printf "WRITE\n\tx: %s\n\ty: %s\n\t%s\n\t\n\n" (show a) (show b) (show s)) (a,b,s)
   setStable = TraceT $ proc (s,a) ->
-    setStable -< Debug.trace (printf "STABLE: %s\n\n" (show s)) (s,a)
+    setStable -< Debug.trace (printf "STABLE\n\tx: %s\n\t%s\n\n" (show a) (show s)) (s,a)
   {-# INLINE lookup #-}
   {-# INLINE update #-}
   {-# INLINE write #-}

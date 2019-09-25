@@ -56,10 +56,11 @@ eval = fix' $ \ev s0 -> case s0 of
     Call f ss ts _ -> proc t -> do
       senv <- readStratEnv -< ()
       case M.lookup f senv of
-        Just (Closure strat@(Strategy _ params _ _) senv') -> do
+        Just (Closure strat senv') -> do
           let senv'' = if M.null senv' then senv else senv'
           args <- map lookupTermVarOrFail -< ts
-          scope params (invoke ev) -<< (strat, senv'', ss, args, t)
+          scope (strategyTermArguments strat)
+                (invoke ev) -<< (strat, senv'', ss, args, t)
         Nothing -> failString -< printf "strategy %s not in scope" (show f)
     Apply body _ -> ev body
 
@@ -122,7 +123,12 @@ let_ ss body interp = proc a -> do
 -- | Strategy calls bind strategy variables and term variables.
 invoke :: (ArrowChoice c, ArrowFail e c, ArrowApply c, IsString e, IsTermEnv env t c, HasStratEnv c, Env.Join t c)
        => (Strat -> c t t) -> c (Strategy, StratEnv, [Strat], [t], t) t
-invoke ev = proc (Strategy formalStratArgs formalTermArgs body l, senv, actualStratArgs, actualTermArgs, t) -> do
+invoke ev = proc (Strategy { strategyStratArguments = formalStratArgs
+                           , strategyTermArguments = formalTermArgs
+                           , strategyBody = body
+                           , strategyLabel = l
+                           },
+                  senv, actualStratArgs, actualTermArgs, t) -> do
     bindings -< zip formalTermArgs actualTermArgs
     let senv' = bindStratArgs (zip formalStratArgs actualStratArgs) senv
     case body of
@@ -136,7 +142,7 @@ invoke ev = proc (Strategy formalStratArgs formalTermArgs body l, senv, actualSt
         Just s -> M.insert v s (bindStratArgs ss senv)
         _ -> error $ "unknown strategy: " ++ show v'
     bindStratArgs ((v,s) : ss) senv =
-        M.insert v (Closure (Strategy [] [] s (label s)) senv) (bindStratArgs ss senv)
+        M.insert v (Closure (Strategy [] [] s (label s) (S.freeStratVars s)) senv) (bindStratArgs ss senv)
 {-# INLINE invoke #-}
 
 -- | Matches a pattern against the current term. Pattern variables are

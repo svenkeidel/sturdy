@@ -140,7 +140,3 @@ instance (ArrowMonad f c, ArrowComplete (f y) c) => ArrowComplete y (KleisliT f 
 instance (ArrowMonad f c, ArrowLowerBounded c) => ArrowLowerBounded (KleisliT f c) where
   bottom = lift bottom
 
-instance (ArrowMonad f c, ArrowJoin c) => ArrowJoin (KleisliT f c) where
-  joinSecond g = lift $ rmap strength2 (joinSecond (unlift g))
-  {-# INLINE joinSecond#-}
-  
