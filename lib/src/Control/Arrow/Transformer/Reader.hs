@@ -12,6 +12,7 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
+import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -114,11 +115,10 @@ instance ArrowEnv var val c => ArrowEnv var val (ReaderT r c) where
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance ArrowClosure var val env c => ArrowClosure var val env (ReaderT r c) where
-  ask     = lift' Env.ask
-  local f = lift $ lmap shuffle1 $ Env.local (unlift f)
-  {-# INLINE ask #-}
-  {-# INLINE local #-}
+instance ArrowClosure expr cls c => ArrowClosure expr cls (ReaderT r c) where
+  type Join y (ReaderT r c) = Cls.Join y c
+  apply f = lift $ lmap shuffle1 $ Cls.apply (lmap shuffle1 (unlift f))
+  {-# INLINE apply #-}
 
 instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
   type Join y (ReaderT r c) = Store.Join y c

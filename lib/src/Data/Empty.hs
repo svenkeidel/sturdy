@@ -9,6 +9,9 @@ class IsEmpty a where
 instance (IsEmpty a, IsEmpty b) => IsEmpty (a,b) where
   empty = (empty,empty)
 
+instance IsEmpty Int where
+  empty = 0
+
 instance IsEmpty (H.HashSet a) where
   empty = H.empty
 

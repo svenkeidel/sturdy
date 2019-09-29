@@ -65,8 +65,8 @@ run env ss =
       (Generic.run ::
         Fix'
           (UnitT
-            (EnvT Text Addr
-              (StoreT Addr Val
+            (EnvT SM.Map Text Addr
+              (StoreT M.Map Addr Val
                 (ExceptT Exception
                   (ErrorT (Pow String)
                     (TerminatingT

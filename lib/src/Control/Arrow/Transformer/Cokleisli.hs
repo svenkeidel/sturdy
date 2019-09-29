@@ -11,6 +11,7 @@ import Control.Category
 import Control.Arrow hiding (ArrowMonad)
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
+import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -97,11 +98,10 @@ instance (ArrowComonad f c, ArrowEnv x y c) => ArrowEnv x y (CokleisliT f c) whe
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (ArrowComonad f c, ArrowClosure var val env c) => ArrowClosure var val env (CokleisliT f c) where
-  ask = lift' Env.ask
-  local f = lift (lmap costrength2 (Env.local (unlift f)))
-  {-# INLINE ask #-}
-  {-# INLINE local #-}
+instance (ArrowComonad f c, ArrowClosure expr cls c) => ArrowClosure expr cls (CokleisliT f c) where
+  type Join y (CokleisliT f c) = Cls.Join y c
+  apply f = lift (lmap costrength2 (Cls.apply (lmap strength2 (unlift f))))
+  {-# INLINE apply #-}
 
 instance (ArrowComonad f c, ArrowStore var val c) => ArrowStore var val (CokleisliT f c) where
   type Join y (CokleisliT f c) = Store.Join y c

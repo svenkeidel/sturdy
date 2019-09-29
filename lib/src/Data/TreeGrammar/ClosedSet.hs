@@ -1,6 +1,6 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
-module Data.Abstract.TreeGrammar.ClosedSet where
+module Data.TreeGrammar.ClosedSet where
 
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M

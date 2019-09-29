@@ -13,6 +13,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
 import           Control.Arrow.Environment as Env
+import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
@@ -133,11 +134,10 @@ instance (ArrowEnv var val c) => ArrowEnv var val (StateT s c) where
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (ArrowClosure var val env c) => ArrowClosure var val env (StateT s c) where
-  ask = lift' Env.ask
-  local f = lift $ lmap (\(r,(env,a)) -> (env,(r,a))) (Env.local (unlift f))
-  {-# INLINE ask #-}
-  {-# INLINE local #-}
+instance ArrowClosure expr cls c => ArrowClosure expr cls (StateT s c) where
+  type Join y (StateT s c) = Cls.Join (s,y) c
+  apply f = lift $ lmap shuffle1 (Cls.apply (lmap shuffle1 (unlift f)))
+  {-# INLINE apply #-}
 
 instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
   type Join y (StateT s c) = Store.Join (s,y) c

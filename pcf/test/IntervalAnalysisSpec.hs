@@ -44,22 +44,22 @@ spec = do
       let ?bound = I.Interval 0 5
           ?sensitivity = 2
       in do
-        evalInterval [] (app (app add zero) two) `shouldBe` Terminating (Success (num 2 2))
-        evalInterval [] (app (app add one) two) `shouldBe` Terminating (Success (num 3 3))
+        evalInterval [] (let_ [("add",add)] (app "add" [zero,two])) `shouldBe` Terminating (Success (num 2 2))
 
-        pendingWith "This test bad: Addition is not defined for negative numbers."
-        evalInterval [("x", num 0 1)] (app (app add "x") two) `shouldBe` Terminating (Success (num 2 3))
+        pendingWith "Flat environments are imprecise: they are widened immediately and not with a widening operator."
+        evalInterval [] (let_ [("add",add)] (app "add" [one,two])) `shouldBe` Terminating (Success (num 3 3))
+        evalInterval [("x", num 0 1)] (let_ [("add",add)] (app "add" ["x",two])) `shouldBe` Terminating (Success (num 2 3))
 
     it "should terminate for the non-terminating program" $
       let ?bound = I.Interval 0 5
           ?sensitivity = 2
-      in do evalInterval [] (fix (lam "x" "x")) `shouldSatisfy`
-              \c -> case c of Terminating (Success (ClosureVal _)) -> True; _ -> False
-            evalInterval [] (fix (lam "f" (lam "x" (app "f" "x")))) `shouldSatisfy`
-              \c -> case c of Terminating (Success (ClosureVal _)) -> True; _ -> False
+      in evalInterval [] (let_ [("id", lam ["x"] "x"),
+                                ("fix",lam ["x"] (app "fix" ["x"]))]
+                         (app "fix" ["id"]))
+           `shouldBe` NonTerminating
 
   where
-    add = fix $ lam "add" $ lam "x" $ lam "y" $ ifZero "x" "y" (succ (app (app "add" (pred "x")) "y"))
+    add = lam ["x","y"] $ ifZero "x" "y" (succ (app "add" [pred "x","y"]))
 
     one = succ zero
     two = succ one

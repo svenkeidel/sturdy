@@ -18,6 +18,7 @@ import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Environment as Env
+import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -135,11 +136,10 @@ instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (Monoid w, ArrowClosure var val env c) => ArrowClosure var val env (WriterT w c) where
-  ask = lift' Env.ask
-  local f = lift (Env.local (unlift f))
-  {-# INLINE ask #-}
-  {-# INLINE local #-}
+instance (Monoid w, ArrowClosure expr cls c) => ArrowClosure expr cls (WriterT w c) where
+  type Join y (WriterT w c) = Cls.Join (w,y) c
+  apply f = lift (Cls.apply (unlift f))
+  {-# INLINE apply #-}
 
 instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) where
   type Join y (WriterT w c) = Store.Join (w,y) c

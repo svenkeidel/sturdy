@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -21,13 +22,13 @@ import Control.Monad.State
 -- expression can be uniquely identified.
 data Expr
   = Var Text Label
-  | Lam Text Expr Label
-  | App Expr Expr Label
+  | Lam [Text] Expr Label
+  | App Expr [Expr] Label
   | Zero Label
   | Succ Expr Label
   | Pred Expr Label
   | IfZero Expr Expr Expr Label
-  | Y Expr Label
+  | Let [(Text,Expr)] Expr Label
   | Apply Expr Label
   deriving (Eq)
 
@@ -36,11 +37,11 @@ data Expr
 var :: Text -> State Label Expr
 var x = Var x <$> fresh
 
-lam :: Text -> State Label Expr -> State Label Expr
-lam x e = Lam x <$> e <*> fresh
+lam :: [Text] -> State Label Expr -> State Label Expr
+lam xs e = Lam xs <$> e <*> fresh
 
-app :: State Label Expr -> State Label Expr -> State Label Expr
-app e1 e2 = App <$> e1 <*> e2 <*> fresh
+app :: State Label Expr -> [State Label Expr] -> State Label Expr
+app e1 e2 = App <$> e1 <*> sequence e2 <*> fresh
 
 zero :: State Label Expr
 zero = Zero <$> fresh
@@ -54,8 +55,8 @@ pred e = Pred <$> e <*> fresh
 ifZero :: State Label Expr -> State Label Expr -> State Label Expr -> State Label Expr
 ifZero e1 e2 e3 = IfZero <$> e1 <*> e2 <*> e3 <*> fresh
 
-fix :: State Label Expr -> State Label Expr
-fix e = Y <$> e <*> fresh
+let_ :: [(Text, State Label Expr)] -> State Label Expr -> State Label Expr
+let_ bnds body = Let <$> sequence [ (v,) <$> e | (v,e) <- bnds ] <*> body <*> fresh
 
 
 instance Show Expr where
@@ -64,7 +65,7 @@ instance Show Expr where
     Zero _ -> showString "zero"
     Succ e _ -> showParen (d > app_prec) $ showString "succ " . showsPrec (app_prec + 1) e
     Pred e _ -> showParen (d > app_prec) $ showString "pred " . showsPrec (app_prec + 1) e
-    Y e _ -> showParen (d > app_prec) $ showString "Y " . showsPrec (app_prec + 1) e
+    Let bnds e _ -> showParen (d > app_prec) $ showString "let " . shows bnds . showString " in " . showsPrec (app_prec + 1) e
     Apply e _ -> showParen (d > app_prec) $ showsPrec (app_prec + 1) e
     IfZero e1 e2 e3 _ -> showParen (d > app_prec)
       $ showString "ifZero "
@@ -79,7 +80,7 @@ instance Show Expr where
       . showsPrec (app_prec + 1) e2
     Lam x e2 _ -> showParen (d > lam_prec)
       $ showString "λ"
-      . showString (unpack x)
+      . showString (unwords (map unpack x))
       . showString ". "
       . shows e2
     where
@@ -95,22 +96,14 @@ instance HasLabel Expr where
     Succ _ l -> l
     Pred _ l -> l
     IfZero _ _ _ l -> l
-    Y _ l -> l
+    Let _ _ l -> l
     Apply _ l -> l
 
 instance IsString (State Label Expr) where
   fromString = var . fromString
 
 instance Hashable Expr where
-  hashWithSalt s (Var x _) = s `hashWithSalt` (0::Int) `hashWithSalt` x
-  hashWithSalt s (Lam x e _) = s `hashWithSalt` (1::Int) `hashWithSalt` x `hashWithSalt` e
-  hashWithSalt s (App e1 e2 _) = s `hashWithSalt` (2::Int) `hashWithSalt` e1 `hashWithSalt` e2
-  hashWithSalt s (Zero _) = s `hashWithSalt` (3::Int)
-  hashWithSalt s (Succ e _) = s `hashWithSalt` (4::Int) `hashWithSalt` e
-  hashWithSalt s (Pred e _) = s `hashWithSalt` (5::Int) `hashWithSalt` e
-  hashWithSalt s (IfZero e1 e2 e3 _) = s `hashWithSalt` (6::Int) `hashWithSalt` e1 `hashWithSalt` e2 `hashWithSalt` e3
-  hashWithSalt s (Y e _) = s `hashWithSalt` (7::Int) `hashWithSalt` e
-  hashWithSalt s (Apply e _) = s `hashWithSalt` (8::Int) `hashWithSalt` e
+  hashWithSalt s e = s `hashWithSalt` label e
 
 apply :: Prism' (env,Expr) ((Expr,Label),env)
 apply = L.prism' (\((e',l),env) -> (env,Apply e' l))
@@ -124,8 +117,8 @@ freeVars e0 = execState (go e0) M.empty
     go :: Expr -> State (HashMap Expr (HashSet Text)) (HashSet Text)
     go e = case e of
       Var x _ -> return (H.singleton x)
-      Lam x e1 _ -> save $ H.delete x <$> go e1
-      App e1 e2 _ -> H.union <$> go e1 <*> go e2
+      Lam xs e1 _ -> save $ flip (foldr H.delete) xs <$> go e1
+      App e1 e2 _ -> H.union <$> go e1 <*> (H.unions <$> mapM go e2)
       Zero _ -> return H.empty
       Succ e1 _ -> go e1
       Pred e1 _ -> go e1
@@ -134,7 +127,9 @@ freeVars e0 = execState (go e0) M.empty
           m2 <- go e2
           m3 <- go e3
           return (m1 <> m2 <> m3)
-      Y e1 _ -> go e1
+      Let bnds e1 _ -> do
+        vars <- go e1
+        return (vars `H.difference` H.fromList [ v | (v,_) <- bnds])
       Apply e1 _ -> go e1
       where
         save m = do

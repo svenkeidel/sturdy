@@ -3,8 +3,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Failure(FailureT,runFailureT) where
 
@@ -14,6 +12,7 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
+import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -33,7 +32,7 @@ import Data.Coerce
 newtype FailureT e c x y = FailureT (KleisliT (Error e) c x y) 
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
             ArrowConst r,ArrowState s,ArrowReader r,ArrowExcept exc,
-            ArrowEnv var val, ArrowClosure var val env,ArrowStore var val)
+            ArrowEnv var val, ArrowClosure expr cls,ArrowStore var val)
 
 runFailureT :: FailureT e c x y -> c x (Error e y)
 runFailureT = coerce

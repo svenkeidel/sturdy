@@ -2,7 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Concrete.Except(ExceptT,runExceptT) where
@@ -13,6 +12,7 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
+import Control.Arrow.Closure as Cls
 import Control.Arrow.Except
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -29,17 +29,17 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 -- | Arrow transformer that adds exceptions to the result of a computation
-newtype ExceptT e c x y = ExceptT (KleisliT (Error e) c x y) 
+newtype ExceptT e c x y = ExceptT (KleisliT (Error e) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
             ArrowConst r,ArrowState s,ArrowReader r,ArrowFail err,
-            ArrowEnv var val, ArrowClosure var val env,ArrowStore var val)
+            ArrowEnv var val, ArrowClosure expr cls,ArrowStore var val)
 
 runExceptT :: ExceptT e c x y -> c x (Error e y)
 runExceptT = coerce
 {-# INLINE runExceptT #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowExcept e (ExceptT e c) where
-  type instance Join y (ExceptT e c) = ()
+  type Join y (ExceptT e c) = ()
   throw = lift $ arr Fail
 
   try f g h = lift $ proc x -> do

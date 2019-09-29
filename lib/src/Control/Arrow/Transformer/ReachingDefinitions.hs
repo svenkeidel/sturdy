@@ -27,6 +27,7 @@ import           Control.Arrow.State
 import           Control.Arrow.Fail
 import           Control.Arrow.Store as Store
 import           Control.Arrow.Environment
+import           Control.Arrow.Closure
 import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Reader
 
@@ -38,7 +39,7 @@ import           Data.Utils
 
 newtype ReachingDefsT (f :: * -> *) c x y = ReachingDefsT (ReaderT (Maybe Label) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
-            ArrowState s, ArrowEnv var val, ArrowClosure var val env,
+            ArrowState s, ArrowEnv var val, ArrowClosure expr cls,
             ArrowFail e,ArrowExcept e, ArrowLowerBounded, ArrowComplete z)
 
 reachingDefsT :: c (Maybe Label,x) y -> ReachingDefsT f c x y

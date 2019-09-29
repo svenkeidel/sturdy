@@ -79,9 +79,9 @@ run k lstmts =
     (Generic.run ::
       Fix'
        (ValueT Val
-         (EnvT Text Addr
+         (EnvT SM.Map Text Addr
            (ReachingDefsT
-             (StoreT Addr (Val, Pow Label)
+             (StoreT M.Map Addr (Val, Pow Label)
                (ExceptT Exception
                  (ErrorT (Pow String)
                    (TerminatingT

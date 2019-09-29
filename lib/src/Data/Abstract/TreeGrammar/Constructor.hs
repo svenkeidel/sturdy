@@ -1,17 +1,12 @@
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-module Data.Abstract.TreeGrammar.Terminal(Terminal(..), map, Constr) where
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+module Data.Abstract.TreeGrammar.Constructor(Constr) where
 
 import           Prelude hiding (pred,traverse,map,Either(..))
 import           Control.Monad
 import           Control.DeepSeq
 
+import           Data.TreeGrammar.Terminal
 import           Data.Text (Text)
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
@@ -24,25 +19,10 @@ import qualified Data.Hashable as Hash
 import qualified Data.Traversable as T
 import qualified Data.List as L
 import           Data.Functor.Identity
+import           Data.Identifiable
 
 import           GHC.Exts (IsList(..))
 import           Text.Printf
-
-type Identifiable a = (Hashable a, Eq a)
-
-class Terminal t where
-  nonTerminals :: Identifiable n => t n -> HashSet n
-  productive :: Identifiable n => HashSet n -> t n -> Bool
-  filter :: (n -> Bool) -> t n -> t n
-  determinize :: (Identifiable n, Identifiable n', Applicative f) => (HashSet n -> f n') -> t n -> f (t n')
-  subsetOf :: (Identifiable n, Identifiable n', MonadPlus f) => ((HashSet [n],HashSet [n']) -> f ()) -> t n -> t n' -> f ()
-  intersection :: (Identifiable n1, Identifiable n2, Identifiable n', Applicative f) => ((n1,n2) -> f n') -> t n1 -> t n2 -> f (t n')
-  traverse :: (Identifiable n', Applicative f) => (n -> f n') -> t n -> f (t n')
-  hashWithSalt :: (Identifiable n, Monad f) => (Int -> n -> f Int) -> Int -> t n -> f Int
-  difference :: t n -> t n -> Int
-
-map :: (Identifiable n', Terminal t) => (n -> n') -> t n -> t n'
-map f t = runIdentity (traverse (Identity . f) t)
 
 newtype Constr n = Constr (HashMap Text (IntMap (HashSet [n]))) deriving (Eq,NFData)
 
@@ -81,7 +61,7 @@ instance Terminal Constr where
     guard (m1 `subsetKeys` m2)
     forM_ (M.intersectionWith (,) m1 m2) $ \(a1,a2) -> do
       guard (a1 `subsetKeys'` a2)
-      forM_ (IM.intersectionWith (,) a1 a2) $ \(l1,l2) -> do
+      forM_ (IM.intersectionWith (,) a1 a2) $ \(l1,l2) ->
         leq (l1, l2)
 
   intersection f (Constr m1) (Constr m2) = fmap Constr
@@ -89,9 +69,9 @@ instance Terminal Constr where
                                          $ M.intersectionWith (IM.intersectionWith cross) m1 m2
 
   traverse f (Constr m) = Constr <$> T.traverse (T.traverse (traverseHashSet (T.traverse f))) m
-  hashWithSalt f s m = foldM (\s' (c,ts) -> foldM f (s' `Hash.hashWithSalt` c) ts) s (toList m)
-
-  difference _ _ = 0
+  hashWithSalt f s (Constr n)
+    = foldM (\s' (c,ts) -> foldM f (s' `Hash.hashWithSalt` c) ts) s
+      [ (c,t) | (c,tss) <- M.toList n, ts <- IM.elems tss, t <- H.toList ts ]
 
 traverseHashSet :: (Applicative f, Identifiable b) => (a -> f b) -> HashSet a -> f (HashSet b)
 traverseHashSet f h = H.fromList <$> T.traverse f (H.toList h)
@@ -106,4 +86,4 @@ transpose :: Identifiable n => HashSet [n] -> [HashSet n]
 transpose = fmap H.fromList . L.transpose . H.toList
 
 cross :: HashSet [a] -> HashSet [b] -> [[(a,b)]]
-cross t1 t2 = [ zip as bs | as <- (H.toList t1), bs <- (H.toList t2)]
+cross t1 t2 = [ zip as bs | as <- H.toList t1, bs <- H.toList t2]

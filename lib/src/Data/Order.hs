@@ -49,7 +49,7 @@ lubA f = proc l -> case l of
   [] -> bottom -< ()
   -- (x:xs) -> (f -< x) ⊔ (lubA f -< xs) causes an type error.
   (x:xs) -> joined f (lubA f) -< (x, xs)
-{-# DEPRECATED lubA "Use Control.Arrow.Abstract.ArrowJoin.joinList" #-}
+{-# DEPRECATED lubA "Use Control.Arrow.Order.joinList" #-}
 
 -- | Order with all greatest lower bounds
 class PreOrd x => CoComplete x where
@@ -198,7 +198,7 @@ instance Identifiable a => PreOrd (HashSet a) where
 
 instance Identifiable a => Complete (HashSet a) where
   xs ⊔ ys = HS.union xs ys
-            
+
 instance (Identifiable a, PreOrd b) => PreOrd (HashMap a b) where
   m1 ⊑ m2 = and (HM.intersectionWith (⊑) m1 m2)
 
@@ -233,3 +233,6 @@ newtype Discrete a = Discrete a deriving (Eq)
 instance Eq a => PreOrd (Discrete a) where
   (⊑) = (==)
   (≈) = (==)
+
+instance Show a => Show (Discrete a) where
+  show (Discrete a) = show a

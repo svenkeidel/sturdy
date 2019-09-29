@@ -98,8 +98,8 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
     (Generic.run ::
       Fix'
         (ValueT Val
-          (EnvT Text Addr
-            (StoreT Addr Val
+          (EnvT SM.Map Text Addr
+            (StoreT Map Addr Val
               (ExceptT Exception
                 (ErrorT (Pow String)
                   (TerminatingT

@@ -10,6 +10,7 @@ import           Prelude hiding (id,(.),lookup,fail)
 import           Control.Arrow
 import           Control.Arrow.Order
 import           Control.Arrow.Environment as Env
+import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Fail
 import           Control.Arrow.Trans
 import           Control.Arrow.Reader
@@ -31,7 +32,7 @@ import           Data.Coerce
 newtype PowT c x y = PowT (KleisliT A.Pow c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
+            ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
             ArrowFail e', ArrowExcept e')
 
 runPowT :: PowT c x y -> c x (A.Pow y)

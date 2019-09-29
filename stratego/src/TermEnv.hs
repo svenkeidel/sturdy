@@ -80,8 +80,10 @@ lookupTermVarOrFail = proc var ->
 {-# INLINE lookupTermVarOrFail #-}
 
 -- | Add a list of bindings to the given environment.
-bindings :: (Profunctor c, ArrowChoice c, IsTermEnv env t c) => c [(TermVar,t)] ()
-bindings = void (map insertTerm)
+bindings :: (Profunctor c, ArrowChoice c, IsTermEnv env t c) => c x y -> c ([(TermVar,t)],x) y
+bindings f = proc (terms,x) -> do
+  map insertTerm -< terms
+  f -< x
 {-# INLINE bindings #-}
 
 deriving instance (Profunctor c, IsTermEnv env t c) => IsTermEnv env t (ConstT r c)

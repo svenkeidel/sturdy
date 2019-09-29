@@ -35,12 +35,12 @@ import           TermEnv
 
 type TermEnv t = Map TermVar t
 
-newtype EnvT t c x y = EnvT (StoreT TermVar t c x y)
+newtype EnvT t c x y = EnvT (StoreT Map TermVar t c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowTrans,ArrowLift, ArrowRun, ArrowLowerBounded,
             ArrowFail e,ArrowExcept e,ArrowConst r, ArrowState (TermEnv t), ArrowStore TermVar t)
 
 instance (Complete t, ArrowChoice c, ArrowJoin c) => IsTermEnv (TermEnv t) t (EnvT t c) where
-  type Join y (EnvT t c) = Store.Join y (StoreT TermVar t c)
+  type Join y (EnvT t c) = Store.Join y (StoreT Map TermVar t c)
   deleteTermVars = EnvT $ modify' $ \(vars,env) -> ((), S.delete' vars env)
   unionTermEnvs = EnvT $ modify' $ \((vars,oldEnv),newEnv) -> ((), S.delete' vars newEnv `S.unsafeUnion` oldEnv)
   {-# INLINE deleteTermVars #-}

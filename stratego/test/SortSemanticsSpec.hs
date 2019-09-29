@@ -253,7 +253,7 @@ spec = do
       let ?sensitivity = 0 in
       let tenv = termEnv [("x", numerical)]
       in do
-         seval' (scope ["x"] (build "x")) tenv numerical `shouldBe` failure "unbound term variable x in build pattern !x"
+         seval' (scope ["x"] (build "x")) tenv numerical `shouldBe` failure "unbound term variable x in build pattern x"
          seval' (scope ["x"] (match "x")) tenv numerical `shouldBe` success (tenv, numerical)
 
     it "should make non-declared variables available" $
@@ -276,7 +276,7 @@ spec = do
                 (match "x")
       in seval' prog tenv exp `shouldBe` success (termEnv [("x", exp)], exp)
 
-  describe "Let" $ do
+  describe "let" $ do
     it "should apply a single function call" $
       let ?ctx = Ctx.empty in
       let ?sensitivity = 2 in
@@ -477,7 +477,8 @@ spec = do
         let prog = term $ Tuple [List "Var", List "Var"]
             val  = term $ List "Var"
             env = termEnv []
-        in sevalNoNeg'' 10 (call "conc_0_0" [] []) desugar env prog `shouldBe`
+            senv = filterStratEnv ["conc_0_0", "at_end_1_0", "concat_0_0"] <$> desugar
+        in sevalNoNeg'' 10 (call "conc_0_0" [] []) senv env prog `shouldBe`
             successOrfail () (env, val)
 
       it "free-pat-vars: APat -> List Var " $ \desugar ->

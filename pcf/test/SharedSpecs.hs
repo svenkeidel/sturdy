@@ -20,19 +20,19 @@ sharedSpec eval fromInt = describe "shared language behavior" $ do
     eval [] "x" `shouldBe` Left "Variable \"x\" not bound"
 
   it "should apply a function" $
-    eval [] (app (lam "x" (succ "x")) zero) `shouldBe` Right (fromInt 1)
+    eval [] (app (lam ["x"] (succ "x")) [zero]) `shouldBe` Right (fromInt 1)
 
   it "should fail when applying something other than a function" $
-    eval [] (app zero zero) `shouldBe` Left "Expected a closure"
+    eval [] (app zero [zero]) `shouldBe` Left "Expected a closure"
 
   it "should compute 0 + 1 + 1 = 2" $
     eval [] (succ (succ zero)) `shouldBe` Right (fromInt 2)
 
   it "should fail when using succ on something other than a number" $
-    eval [] (succ (lam "x" zero)) `shouldBe` Left "Expected a number as argument for 'succ'"
+    eval [] (succ (lam ["x"] zero)) `shouldBe` Left "Expected a number as argument for 'succ'"
 
   it "should fail when using pred on something other than a number" $
-    eval [] (pred (lam "x" zero)) `shouldBe` Left "Expected a number as argument for 'pred'"
+    eval [] (pred (lam ["x"] zero)) `shouldBe` Left "Expected a number as argument for 'pred'"
 
   it "should execute the then branch on IfZero on zero" $
     eval [] (ifZero zero (succ zero) zero)
@@ -43,4 +43,4 @@ sharedSpec eval fromInt = describe "shared language behavior" $ do
       `shouldBe` Right (fromInt 0)
 
   it "should fail when using a non-number condition for IfZero" $
-    eval [] (ifZero (lam "x" zero) zero zero) `shouldBe` Left "Expected a number as condition for 'ifZero'"
+    eval [] (ifZero (lam ["x"] zero) zero zero) `shouldBe` Left "Expected a number as condition for 'ifZero'"

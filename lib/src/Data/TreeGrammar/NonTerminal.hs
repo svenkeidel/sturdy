@@ -2,7 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
-module Data.Abstract.TreeGrammar.NonTerminal(NonTerminal(..),fresh',Named,getName) where
+module Data.TreeGrammar.NonTerminal(NonTerminal(..),fresh',Named,getName) where
 
 import Control.Monad.State
 import Data.Text(Text,pack,unpack)

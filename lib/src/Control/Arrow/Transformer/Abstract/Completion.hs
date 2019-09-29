@@ -10,6 +10,7 @@ import Prelude hiding ((.),id,lookup,fail)
 
 import Control.Arrow
 import Control.Arrow.Environment
+import Control.Arrow.Closure
 import Control.Arrow.Except
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -34,7 +35,7 @@ import Data.Coerce
 newtype CompletionT c x y = CompletionT (KleisliT FreeCompletion c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
+            ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
             ArrowFail e, ArrowExcept e)
 
 runCompletionT :: CompletionT c x y -> c x (FreeCompletion y)

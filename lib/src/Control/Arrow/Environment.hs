@@ -26,7 +26,6 @@ class (Arrow c, Profunctor c) => ArrowEnv var val c | c -> var, c -> val where
   -- | Type class constraint used by the abstract instances to join arrow computations.
   type family Join y (c :: * -> * -> *) :: Constraint
 
-  -- TODO: Change type to lookup (Join c x y) => c (e,(val,s)) y -> c (e,s) y -> c (e,(var,s)) y
   -- | Lookup a variable in the current environment. If the
   -- environment contains a binding of the variable, the first
   -- continuation is called and the second computation otherwise.
@@ -35,12 +34,9 @@ class (Arrow c, Profunctor c) => ArrowEnv var val c | c -> var, c -> val where
   -- | Extend an environment with a binding.
   extend :: c x y -> c (var,val,x) y
 
-class ArrowEnv var val c => ArrowClosure var val env c | c -> env where
-  -- | Retrieve the current environment.
-  ask :: c () env
-
-  -- | Run a computation with a modified environment.
-  local :: c x y -> c (env,x) y
+class ArrowEnv var val c => ArrowLetRec var val c where
+  -- | creates a list of bindings that mutual recursively refer to each other.
+  letRec :: c x y -> c ([(var,val)],x) y
 
 -- | Simpler version of environment lookup.
 lookup' :: (Join val c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
@@ -57,3 +53,4 @@ extend' :: (ArrowChoice c, ArrowEnv var val c) => c x y -> c ([(var,val)],x) y
 extend' f = proc (l,x) -> case l of
   ((var,val):l') -> extend (extend' f) -< (var,val,(l',x))
   [] -> f -< x
+{-# INLINABLE extend' #-}

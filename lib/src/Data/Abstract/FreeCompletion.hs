@@ -124,6 +124,13 @@ instance Complete (FreeCompletion ()) where
 instance IsString s => IsString (FreeCompletion s) where
   fromString = Lower . fromString
 
+instance Eq a => Complete (FreeCompletion (Discrete a)) where
+  Top ⊔ _ = Top
+  _ ⊔ Top = Top
+  Lower a ⊔ Lower b
+    | a == b = Lower a
+    | otherwise = Top
+
 toEither :: FreeCompletion a -> Either () a
 toEither Top = Left ()
 toEither (Lower a) = Right a

@@ -1,7 +1,5 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -13,6 +11,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
 import           Control.Arrow.Environment
+import           Control.Arrow.Closure
 import           Control.Arrow.Except
 import           Control.Arrow.Trans
 import           Control.Arrow.Fail
@@ -33,7 +32,7 @@ import qualified System.Random as R
 newtype RandomT c x y = RandomT (StateT StdGen c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
             ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e,
-            ArrowEnv var val, ArrowClosure var val env, ArrowStore var val)
+            ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val)
 
 runRandomT :: RandomT c x y -> c (StdGen,x) (StdGen,y)
 runRandomT = coerce

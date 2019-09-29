@@ -15,6 +15,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Const
 import           Control.Arrow.Environment as Env
+import           Control.Arrow.Closure as Closure
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
@@ -25,6 +26,7 @@ import           Control.Arrow.Trans
 
 import           Control.Arrow.Transformer.Reader
 
+import           Data.Concrete.Closure
 import           Data.Identifiable
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
@@ -56,9 +58,20 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowEnv var val (En
     env <- Reader.ask -< ()
     Reader.local f -< (M.insert var val env, x)
 
-instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowClosure var val (HashMap var val) (EnvT var val c) where
-  ask = EnvT Reader.ask
-  local (EnvT f) = EnvT (Reader.local f)
+instance (ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr (HashMap var val)) (EnvT var val c) where
+  type Join y (EnvT var val c) = ()
+  closure = EnvT $ proc expr -> do
+    env <- Reader.ask -< ()
+    returnA -< Closure expr env
+  apply (EnvT f) = EnvT $ proc (Closure expr env, x) ->
+    Reader.local f -< (env,(expr,x))
+
+instance (Identifiable var, IsClosure val (HashMap var val), ArrowChoice c, Profunctor c)
+  => ArrowLetRec var val (EnvT var val c) where
+  letRec (EnvT f) = EnvT $ proc (ls,x) -> do
+    env <- Reader.ask -< ()
+    let env' = foldr (\(var,val) -> M.insert var (setEnvironment env' val)) env ls
+    Reader.local f -< (env',x)
 
 instance (ArrowApply c,Profunctor c) => ArrowApply (EnvT var val c) where
   app = EnvT $ app .# first coerce

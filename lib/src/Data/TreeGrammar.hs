@@ -39,10 +39,10 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
-module Data.Abstract.TreeGrammar
+module Data.TreeGrammar
 ( Grammar(..)
 , Rhs(..)
-, ProdMap
+, Productions
 , IsGrammar
 , grammar
 , lookup
@@ -60,7 +60,10 @@ module Data.Abstract.TreeGrammar
 , fromSubterms
 , isEmpty
 , minimize
+, identical
 , equivalenceClasses
+, hashTerminals
+, hashDepth
 )
 where
 
@@ -84,31 +87,33 @@ import           Data.Sequence (Seq)
 import qualified Data.Abstract.Either as A
 import qualified Data.Abstract.Boolean as A
 import           Data.Utils(powComplementPick,forAll,exists)
+import           Data.Functor.Identity
 
-import           Data.Abstract.TreeGrammar.OrdMap(OrdMap)
-import qualified Data.Abstract.TreeGrammar.OrdMap as O
-import           Data.Abstract.TreeGrammar.NonTerminal
-import           Data.Abstract.TreeGrammar.Terminal (Terminal)
-import qualified Data.Abstract.TreeGrammar.Terminal as T
+import           Data.TreeGrammar.OrdMap(OrdMap)
+import qualified Data.TreeGrammar.OrdMap as O
+import           Data.TreeGrammar.NonTerminal
+import           Data.TreeGrammar.Terminal (Terminal)
+import qualified Data.TreeGrammar.Terminal as T
+import           Data.Empty
 
 import           Text.Printf
 
-
 type Identifiable a = (Hashable a, Eq a)
 
-data Grammar n t = Grammar { start :: n, productions :: ProdMap n t }
-type ProdMap n t = HashMap n (Rhs n t)
-data Rhs n t = Rhs { cons :: t n, eps :: HashSet n }
+data Grammar n t = Grammar { start :: n, productions :: Productions n t }
+type Productions n t = HashMap n (Rhs n t)
+data Rhs n t = Rhs { cons :: t n, eps :: HashSet n } deriving (Eq)
 type IsGrammar n t = (Terminal t, Monoid (t n), NonTerminal n, Identifiable n)
 
 grammar :: (IsGrammar n t, Monoid (t String))
         => String -> [(String,t String)] -> [(String,[String])] -> Grammar n t
-grammar s prods epsilon = generate
-                    $ rename
-                    $ Grammar s
-                    $ Map.fromListWith (<>)
-                    $ [ (n,Rhs c mempty) | (n,c) <- prods ]
-                   ++ [ (n,Rhs mempty (Set.fromList es)) | (n,es) <- epsilon]
+grammar s prods epsilon
+  =  generate
+  $  rename
+  $  Grammar s
+  $  Map.fromListWith (<>)
+  $  [ (n,Rhs c mempty) | (n,c) <- prods ]
+  ++ [ (n,Rhs mempty (Set.fromList es)) | (n,es) <- epsilon]
 
 
 rename :: (Identifiable n, IsGrammar n' t) => Grammar n t -> State (Gen n') (Grammar n' t)
@@ -185,7 +190,7 @@ intersection g1 g2 = generate $ do
   let (s',(_,(ps,_))) = runState (go (A.LeftRight (start g1) (start g2))) (i,(mempty,emptyRenameMap))
   return $ Grammar s' ps
   where
-    go :: A.Either n1 n2 -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) n'
+    go :: A.Either n1 n2 -> State (Gen n', (Productions n' t, RenameMap n1 n2 n')) n'
     go n =
       case n of
         A.Left  n1 -> addProduction n $ T.traverse (go . A.Left) (lookup n1 g1)
@@ -216,7 +221,7 @@ lookup n = lookup' ([n] :: [n])
 lookup' :: (Foldable f, IsGrammar n t) => f n -> Grammar n t -> t n
 lookup' n g@(Grammar _ p) = cons $ foldMap (\k -> fold (Map.lookup k p)) $ epsilonReachable n g
 
--- Computes the set of non-terminals reachable via epsilon rules.
+-- | Computes the set of non-terminals reachable via epsilon rules.
 epsilonReachable :: (Foldable f, IsGrammar n t) => f n -> Grammar n t -> HashSet n
 epsilonReachable ns (Grammar _ p) = foldl' go Set.empty ns
   where
@@ -284,7 +289,7 @@ determinize' g = generate $ do
    --      ...
    --    ]
    -- = [ N1 U N2 U N3 -> foo(A1 U A2 U A3, B1 U B2 U B3) | bar(B1 U B2) | biz(B3) ... ]
-   go :: HashSet n -> State (Gen n', (ProdMap n' t,HashMap (HashSet n) n')) n'
+   go :: HashSet n -> State (Gen n', (Productions n' t,HashMap (HashSet n) n')) n'
    go ns = do
      rmap <- getRenameMap
      case Map.lookup ns rmap of
@@ -347,8 +352,7 @@ equivalenceClasses g = flip evalState O.empty $ U.runUnionFind $ do
      triangle (x:xs) = (x,x) : fmap (x,) xs ++ triangle xs
 
 toSubterms :: (IsGrammar n t, Monoid (t Int)) => Grammar n t -> t (Grammar n t)
-toSubterms g = T.map (\n -> dropUnreachable (g {start = n}))
-                     (lookup (start g) g)
+toSubterms g = T.map (\n -> dropUnreachable (g {start = n})) (lookup (start g) g)
 
 -- OPT: deduplicate grammar.
 fromSubterms :: forall n n' t. (IsGrammar n t, IsGrammar n' t) => t (Grammar n t) -> Grammar n' t
@@ -361,20 +365,40 @@ fromSubterms t = generate $ do
             ) t
   return $ Grammar s $ Map.insert s (Rhs t' mempty) p
 
+identical :: (Eq n, Eq (t n)) => Grammar n t -> Grammar n t -> Bool
+identical (Grammar s1 ps1) (Grammar s2 ps2) = s1 == s2 && ps1 == ps2
+
 instance IsGrammar n t => Eq (Grammar n t) where
+  -- First check if the grammars are identical. If this is not the case, perform
+  -- the slower subset checks.
   b1 == b2 = subsetOf b1 b2 && subsetOf b2 b1
 
+type Salt = Int
+
+hashTerminals :: (IsGrammar n t, Monoid (t Int)) => Salt -> Grammar n t -> Int
+hashTerminals s (dropUnreachable -> Grammar _ prods) = runIdentity
+  $ T.hashWithSalt (\h _ -> return h) s
+  $ mconcat
+  $ T.map (const (0 :: Int)) . cons <$> Map.elems prods
+
+type Depth = Int
+
+hashDepth ::  forall n t. (IsGrammar n t, Monoid (t Int)) => Depth -> Salt -> Grammar n t -> Int
+hashDepth depth s0 b =
+  let g = determinize' b :: Grammar Int t
+  in runReader (go g s0 (start g)) depth
+  where
+    go :: forall n' t'. IsGrammar n' t' => Grammar n' t' -> Int -> n' -> Reader Int Int
+    go g s n = do
+      fuel <- ask
+      if fuel <= 0
+      then return $ hashWithSalt s (0 :: Int)
+      else local (\f -> f - 1) (T.hashWithSalt (go g) s (lookup n g))
+
 instance forall n t. (IsGrammar n t, Monoid (t Int)) => Hashable (Grammar n t) where
-  hashWithSalt s0 b =
-    let g = determinize' b :: Grammar Int t
-    in runReader (go g s0 (start g)) 3
-    where
-      go :: forall n' t'. IsGrammar n' t' => Grammar n' t' -> Int -> n' -> Reader Int Int
-      go g s n = do
-        fuel <- ask
-        if fuel <= 0
-        then return $ hashWithSalt s (0 :: Int)
-        else local (\f -> f - 1) (T.hashWithSalt (go g) s (lookup n g))
+  hashWithSalt =
+    hashTerminals
+    -- hashDepth 3
 
 instance IsGrammar n t => PreOrd (Grammar n t) where
   (⊑) = subsetOf
@@ -401,6 +425,12 @@ instance (Show n, Show (t n)) => Show (Grammar n t) where
 instance (Show n, Show (t n)) => Show (Rhs n t) where
   show rhs = L.intercalate " | " $ show (cons rhs) : map show (Set.toList (eps rhs))
 
+instance (Identifiable n, IsEmpty n, IsEmpty (t n)) => IsEmpty (Grammar n t) where
+  empty = Grammar empty (Map.singleton empty empty)
+
+instance IsEmpty (t n) => IsEmpty (Rhs n t) where
+  empty = Rhs { cons = empty, eps = empty }
+
 ----- Helper Functions -----
 
 data RenameMap n1 n2 n' = RenameMap
@@ -421,7 +451,7 @@ putRenameMap r = modify (second (second (const r)))
 result :: (res -> res) -> State (a,(res,rmap)) ()
 result f = modify (second (first f))
 
-addProduction :: (NonTerminal n', Identifiable n1, Identifiable n2, Identifiable n') => A.Either n1 n2 -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) (t n') -> State (Gen n', (ProdMap n' t, RenameMap n1 n2 n')) n'
+addProduction :: (NonTerminal n', Identifiable n1, Identifiable n2, Identifiable n') => A.Either n1 n2 -> State (Gen n', (Productions n' t, RenameMap n1 n2 n')) (t n') -> State (Gen n', (Productions n' t, RenameMap n1 n2 n')) n'
 addProduction n g = do
   m <- getRenameMap
   case Map.lookup n (renameMap m) of

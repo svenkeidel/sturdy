@@ -12,6 +12,7 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
+import Control.Arrow.Closure as Cls
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Trans
@@ -33,7 +34,7 @@ import Data.Coerce
 newtype FailureT e c x y = FailureT (KleisliT (Failure e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
+            ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
             ArrowExcept e')
 
 runFailureT :: FailureT e c x y -> c x (Failure e y)

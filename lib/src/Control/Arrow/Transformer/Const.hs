@@ -15,6 +15,7 @@ import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Fix.Context
 import Control.Arrow.Environment
+import Control.Arrow.Closure
 import Control.Arrow.Except
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -34,7 +35,7 @@ import Data.Coerce
 newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded,ArrowLift,ArrowJoin,
             ArrowState s,ArrowReader r',ArrowWriter w,
-            ArrowEnv var val, ArrowClosure var val env, ArrowStore var val,
+            ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val,
             ArrowFail e, ArrowExcept e,ArrowContext ctx a)
 
 constT :: (r -> c x y) -> ConstT r c x y

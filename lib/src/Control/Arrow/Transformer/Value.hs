@@ -1,18 +1,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 -- | Arrow Transformer that can be used to define value operations:
--- 
+--
 -- > instance IsVal Val (ValueT Val c) where ...
--- 
+--
 -- ATTENTION: 'ArrowComplete' should be defined on a case by case basis.
 -- For example, we could define a 'ArrowComplete' instance for values
 -- that turns @Top@ into an error:
--- 
+--
 -- > instance ArrowComplete Val c => ArrowComplete Val (ValueT Val c) where
 -- >   ValueT f <⊔> ValueT g = ValueT $ proc x -> do
 -- >     v <- f <⊔> g -< x
@@ -41,7 +40,7 @@ import Data.Coerce
 
 newtype ValueT val c x y = ValueT { runValueT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice, ArrowConst r,
-            ArrowEnv var val',ArrowClosure var val' env,ArrowStore addr val',
+            ArrowEnv var val', ArrowLetRec var val', ArrowStore addr val',
             ArrowExcept exc,ArrowFail e,
             ArrowLowerBounded, ArrowReader r, ArrowState s)
 

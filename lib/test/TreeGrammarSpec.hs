@@ -17,9 +17,9 @@ import           Data.Utils
 import           Data.List(transpose)
 import           Data.Identifiable
 
-import           Data.Abstract.TreeGrammar
-import           Data.Abstract.TreeGrammar.Terminal(Constr)
-import qualified Data.Abstract.TreeGrammar.OrdMap as O
+import           Data.TreeGrammar
+import           Data.Abstract.TreeGrammar.Constructor(Constr)
+import qualified Data.TreeGrammar.OrdMap as O
 import qualified Data.Abstract.Boolean as A
 
 import           System.Timeout
@@ -79,16 +79,15 @@ spec = do
              ]
 
       it "should compare non-terminals in conjunctive normal form" $ do
-        (forM_ (powComplementPick (transpose [["S2" :: String]])) $ \l ->
+        forM_ (powComplementPick (transpose [["S2" :: String]])) (\l ->
           msum [ guard True | _ <- zip ["S1" :: String] l ])
           `shouldBe` Just ()
 
-        let o = O.insertLeq ("X" :: String) [("A1" :: String)]
+        let o = O.insertLeq ("X" :: String) ["A1" :: String]
               $ O.insertLeq "X" ["A2"]
-              $ O.insertLeq "Y" ["B1","B2"]
-              $ O.empty
+              $ O.insertLeq "Y" ["B1","B2"] O.empty
 
-        (forM_ (powComplementPick (transpose [["A1","B1"],["A2","B2"]])) $ \l ->
+        forM_ (powComplementPick (transpose [["A1","B1"],["A2","B2"]])) (\l ->
           msum [ guard (O.leq x (H.fromList xs) o == A.True) | (x,xs) <- zip ["X","Y"] l ])
           `shouldBe` Just ()
 
@@ -206,8 +205,7 @@ spec = do
 
   describe "Hashing" $
     prop "unequal hashes imply inequality" $
-      \(g1 :: Grammar Int Constr) ->
-      \(g2 :: Grammar Int Constr) ->
+      \(g1 :: Grammar Int Constr) (g2 :: Grammar Int Constr) ->
       hash g1 /= hash g2 ==> g1 `shouldNotBe` g2
 
   describe "Subterms" $ do
@@ -457,6 +455,7 @@ spec = do
                          , ("F", [ ("f",[ "G", "G" ]) ])
                          ]
                          [ ("S", [ "F" ])]
+
     pcf :: Grammar Int Constr
     pcf = grammar "PStart" [ ("Exp", [ ("App",["Exp", "Exp"])
                                      , ("Abs",["String", "Type", "Exp"])
@@ -470,8 +469,8 @@ spec = do
                                       ])
                            , ("String", [ ("String",[]) ])
                            ]
-
                            [ ("PStart", [ "Exp" , "Type" ]) ]
+
     pcf_sub :: Grammar Int Constr
     pcf_sub = grammar "PSStart" [ ("Exp", [ ("Succ",[ "Exp" ])
                                           , ("Pred",[ "Exp" ])
@@ -479,6 +478,7 @@ spec = do
                                 , ("Type", [ ("Num",[])
                                            , ("Fun",["Type", "Type"])])]
                                 [ ("PSStart", [ "Exp" , "Type" ]) ]
+
     pcf_nondet :: Grammar Int Constr
     pcf_nondet = grammar "Start" [ ("A", [ ("a",[]) ])
                                  , ("G", [ ("g",[ "G" ])
@@ -496,11 +496,11 @@ spec = do
 
                                  [ ("Start", [ "Exp" , "Type", "F" ]) ]
 
-    shouldBeSubsetOf :: (Show n, Show (t n), IsGrammar n t) => Grammar n t -> Grammar n t -> Expectation
+    shouldBeSubsetOf :: (Show (t n), IsGrammar n t) => Grammar n t -> Grammar n t -> Expectation
     shouldBeSubsetOf b1 b2 = unless (b1 `subsetOf` b2) $
       expectationFailure (printf "Grammar %s is not subset of %s" (show b1) (show b2))
 
-    shouldNotBeSubsetOf :: (Show n, Show (t n), IsGrammar n t) => Grammar n t -> Grammar n t -> Expectation
+    shouldNotBeSubsetOf :: (Show (t n), IsGrammar n t) => Grammar n t -> Grammar n t -> Expectation
     shouldNotBeSubsetOf b1 b2 = when (b1 `subsetOf` b2) $
       expectationFailure (printf "Grammar %s is subset of %s" (show b1) (show b2))
 
@@ -522,7 +522,7 @@ instance Arbitrary (Grammar Int Constr) where
   shrink g = [ g { productions = prods }
              | prods <- shrinkHashMap shrinkRhs (productions g)]
 
-shrinkHashMap :: (Arbitrary n, Identifiable n, Ord n) => (t -> [t]) -> HashMap n t -> [HashMap n t]
+shrinkHashMap :: (Identifiable n) => (t -> [t]) -> HashMap n t -> [HashMap n t]
 shrinkHashMap shrinkT = go . toList
   where
     go ((n,t):xs) = do
@@ -535,7 +535,7 @@ shrinkRhs :: (Identifiable n, Arbitrary (t n)) => Rhs n t -> [Rhs n t]
 shrinkRhs (Rhs c e) = [ Rhs c' (H.fromList e') | c' <- shrink c, e' <- shrinkList shrinkNothing (H.toList e) ]
 
 arbitraryGrammar :: NonTerminals -> Alphabet -> Gen (Grammar Int Constr)
-arbitraryGrammar ns alph = do
+arbitraryGrammar ns alph =
   grammar <$> elements ns <*> genCons <*> genEps
   where
 

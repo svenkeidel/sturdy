@@ -3,9 +3,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
 module Control.Arrow.Transformer.Kleisli where
 
 import Prelude hiding (id,(.),lookup,read,fail)
@@ -14,6 +11,7 @@ import Control.Category
 import Control.Arrow hiding (ArrowMonad)
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
+import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -102,11 +100,10 @@ instance (ArrowMonad f c, ArrowEnv x y c) => ArrowEnv x y (KleisliT f c) where
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (ArrowMonad f c, ArrowClosure var val env c) => ArrowClosure var val env (KleisliT f c) where
-  ask = lift' Env.ask
-  local f = lift (Env.local (unlift f))
-  {-# INLINE ask #-}
-  {-# INLINE local #-}
+instance (ArrowMonad f c, ArrowClosure expr cls c) => ArrowClosure expr cls (KleisliT f c) where
+  type Join y (KleisliT f c) = Cls.Join (f y) c
+  apply f = lift (Cls.apply (unlift f))
+  {-# INLINE apply #-}
 
 instance (ArrowMonad f c, ArrowStore var val c) => ArrowStore var val (KleisliT f c) where
   type Join y (KleisliT f c) = Store.Join (f y) c

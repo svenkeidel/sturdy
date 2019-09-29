@@ -26,7 +26,6 @@ library:
     -Widentities
     -Wincomplete-record-updates
     -Wincomplete-uni-patterns
-    -Wpartial-fields
     -Wredundant-constraints
   source-dirs:
     - src

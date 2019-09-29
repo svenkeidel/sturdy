@@ -12,6 +12,7 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Fix.Context as Ctx
 import Control.Arrow.Environment as Env
+import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Order
@@ -128,12 +129,11 @@ instance (Applicative f, ArrowEnv var val c) => ArrowEnv var val (StaticT f c) w
   {-# INLINE extend #-}
   {-# SPECIALIZE instance ArrowEnv var val c => ArrowEnv var val (StaticT ((->) r) c) #-}
 
-instance (Applicative f, ArrowClosure var val env c) => ArrowClosure var val env (StaticT f c) where
-  ask = lift' Env.ask
-  local (StaticT f) = StaticT $ Env.local <$> f
-  {-# INLINE ask #-}
-  {-# INLINE local #-}
-  {-# SPECIALIZE instance ArrowClosure var val env c => ArrowClosure var val env (StaticT ((->) r) c) #-}
+instance (Applicative f, ArrowClosure expr cls c) => ArrowClosure expr cls (StaticT f c) where
+  type Join y (StaticT f c) = Cls.Join y c
+  apply (StaticT f) = StaticT $ Cls.apply <$> f
+  {-# INLINE apply #-}
+  {-# SPECIALIZE instance ArrowClosure expr cls c => ArrowClosure expr cls (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f c) where
   type Join y (StaticT f c) = Store.Join y c

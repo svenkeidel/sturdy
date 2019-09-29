@@ -1,4 +1,4 @@
-module Data.Abstract.TreeGrammar.OrdMap
+module Data.TreeGrammar.OrdMap
 ( OrdMap
 , empty
 , insertLeq
@@ -14,8 +14,8 @@ import qualified Data.HashMap.Lazy as M
 import           Data.HashSet (HashSet)
 import           Data.Identifiable
 import qualified Data.Abstract.Boolean as A
-import           Data.Abstract.TreeGrammar.ClosedSet (ClosedSet)
-import qualified Data.Abstract.TreeGrammar.ClosedSet as C
+import           Data.TreeGrammar.ClosedSet (ClosedSet)
+import qualified Data.TreeGrammar.ClosedSet as C
 
 -- | Datatype that describes a subset of a heterogenous order with
 -- fast access to the lower and upper sets of elements.

@@ -14,6 +14,7 @@ import Control.Category
 import Control.Arrow hiding (ArrowMonad)
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
+import Control.Arrow.Closure as Cls
 import Control.Arrow.Except
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -35,7 +36,7 @@ import Data.Coerce
 newtype ExceptT e c x y = ExceptT (KleisliT (Except e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowLowerBounded,
             ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowClosure var val env, ArrowStore a b,
+            ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
             ArrowFail e')
 
 runExceptT :: ExceptT e c x y -> c x (Except e y)

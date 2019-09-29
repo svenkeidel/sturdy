@@ -40,7 +40,6 @@ import           Data.Order
 import           GHC.Generics(Generic)
 import           GHC.Exts(IsList(..))
 
-import           Text.Printf
 import           Text.Read (readMaybe)
 import           Test.QuickCheck (Arbitrary(..),Gen)
 import qualified Test.QuickCheck as Q
@@ -151,22 +150,22 @@ instance Eq Strategy where
 strategy :: MonadState Label m => [StratVar] -> [TermVar] -> m Strat -> m Strategy
 strategy svs tvs body = Strategy svs tvs <$> body <*> fresh
 
-data Closure = Closure Strategy StratEnv
-  deriving stock (Eq,Generic)
-  deriving PreOrd via Discrete Closure
-  deriving anyclass (NFData,Hashable)
+-- data Closure = Closure Strategy StratEnv
+--   deriving stock (Eq,Generic)
+--   deriving PreOrd via Discrete Closure
+--   deriving anyclass (NFData,Hashable)
 
-type StratEnv = HashMap StratVar Closure
+type StratEnv = HashMap StratVar Strategy
 type LStratEnv = State Label StratEnv
 
 instance IsEmpty LStratEnv where
   empty = return empty
 
 stratEnv :: MonadState Label m => [(StratVar,m Strategy)] -> m StratEnv
-stratEnv l = M.fromList <$> sequence [ (\s -> (sv,Closure s M.empty)) <$> strat | (sv,strat) <- l ]
+stratEnv l = M.fromList <$> sequence [ (sv,) <$> strat | (sv,strat) <- l ]
 
 filterStratEnv :: HashSet StratVar -> StratEnv -> StratEnv
-filterStratEnv vars env = M.intersection env (H.toMap vars)
+filterStratEnv vars = M.filterWithKey (\var _ -> var `H.member` vars)
 
 newtype TermVar = TermVar Text   deriving newtype (Eq,Ord,Hashable,NFData)
 newtype StratVar = StratVar Text deriving newtype (Eq,Ord,IsString,Hashable,NFData)
@@ -224,7 +223,7 @@ liftScopes strat = case strat of
 --       else error $ "non-unique scope vars " ++ show (s1,s2)
 
 moduleStratEnv :: Module -> StratEnv
-moduleStratEnv (Module _ senv) = fmap (`Closure` M.empty) senv
+moduleStratEnv (Module _ senv) = M.fromList [ (var,strat) | (var,strat) <- M.toList senv ]
 
 signature :: Module -> Context
 signature (Module sig _) = sig
@@ -483,9 +482,6 @@ instance Show Strat where
 instance Hashable Strategy where
   hashWithSalt s strat = s `hashWithSalt` strategyLabel strat
 
-instance Show Closure where
-  show (Closure s senv) = printf "%s@%s" (show (hash s)) (show senv)
-
 instance Show StratVar where
   show (StratVar x) = unpack x
 
@@ -551,8 +547,8 @@ instance TermVars Module where
 instance (TermVars x,TermVars y) => TermVars (HashMap x y) where
   termVars = termVars . M.toList
 
-instance TermVars Closure where
-  termVars (Closure s env) = termVars s <> termVars env
+-- instance TermVars env => TermVars (Closure Strategy env) where
+--   termVars (Closure s env) = termVars s <> termVars env
 
 instance TermVars Strat where
   termVars s = case s of
