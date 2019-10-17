@@ -22,7 +22,7 @@ spec :: Spec
 spec = do
   it "x:=2; y:=4; x:=1; z:=0; if(y>x) {z:=y} {z:=y*y}; x:=z" $ do
     let ?bound = I.Interval (-500) 500
-    run 3 [("x",0),("y",1),("z",2)] ["x" =: 2, "y" =: 4, "x" =: 1, ifExpr ("x" ~= "y") ["z" =: "y"] ["z" =: "y" * "y"], "x" =: "z"]
+    run 3 [("x",0),("y",1),("z",2)] ["x" =: 2, "y" =: 4, "x" =: 1, "z" =: 0, ifExpr ("x" ~= "y") ["z" =: "y"] ["z" =: "y" * "y"], "x" =: "z"]
       `shouldBe` res [(0,num 16 16), (1,num 4 4), (2,num 16 16)]
 
   it "9 < 10 == true" $ do
