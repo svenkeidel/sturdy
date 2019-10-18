@@ -2,6 +2,8 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+-- | A generic interpreter for WebAssembly.
+-- | This implements the official specification https://webassembly.github.io/spec/.
 module GenericInterpreter where
 
 import Prelude hiding (Read)
@@ -11,6 +13,7 @@ import Control.Arrow.Except
 import qualified Control.Arrow.Except as Exc
 import Control.Arrow.Fix
 import Control.Arrow.Reader
+import qualified Control.Arrow.Utils as Arr
 
 import Data.Profunctor
 import Data.Vector ((!))
@@ -24,12 +27,15 @@ import Text.Printf
 
 import GHC.Natural
 
-data Exc v = Trap String | Jump Natural [v]
+data Exc v = Trap String | Jump Natural [v] | CallReturn [v]
 newtype Read = Read {labels :: [Natural]}
+type FrameData = (Natural, ModuleInstance)
 
 class ArrowWasmStore v c | c -> v where
   readGlobal :: c Int v
   writeGlobal :: c (Int, v) ()
+
+  readFunctionInstance :: c Int (FuncType, ModuleInstance, Function)
 
 class ArrowStack v c | c -> v where
   push :: c v ()
@@ -65,13 +71,13 @@ class ArrowStack v c | c -> v where
 class ArrowFrame fd v c | c -> fd, c -> v where
   -- | Runs a computation in a newly created frame given the frame data
   -- | and the number of slots.
-  inNewFrame :: fd -> Natural -> c x y -> c x y
+  inNewFrame :: c x y -> c (fd, [v], x) y
   frameData :: c () fd
   frameLookup :: c Natural y
   frameUpdate :: c (Natural, v) ()
 
 eval ::
-  ( ArrowChoice c, ArrowFrame ModuleInstance v c, ArrowWasmStore v c,
+  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
     ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
     IsVal v c, Show v,
     Exc.Join () c,
@@ -95,7 +101,8 @@ eval = fix $ \eval' -> proc is -> case is of
 
 evalControlInst ::
   ( ArrowChoice c, Profunctor c, ArrowStack v c, IsVal v c,
-    ArrowExcept (Exc v) c, ArrowReader Read c,
+    ArrowExcept (Exc v) c, ArrowReader Read c, ArrowFrame FrameData v c,
+    ArrowWasmStore v c,
     Exc.Join () c)
   => c [Instruction Natural] () -> c (Instruction Natural) ()
 evalControlInst eval' = proc i -> case i of
@@ -119,9 +126,35 @@ evalControlInst eval' = proc i -> case i of
   BrTable ls ldefault -> do
     v <- pop -< ()
     listLookup branch branch -< (v, ls, ldefault)
-  -- Return -> True
-  -- Call _ -> True
+  Return -> do
+    (n,_) <- frameData -< ()
+    vs <- popn -< n
+    throw -< CallReturn vs
+  Call ix -> do
+    (_, modInst) <- frameData -< ()
+    let funcAddr = funcaddrs modInst ! fromIntegral ix
+    invoke eval' -< funcAddr
   -- CallIndirect _ -> True
+
+invoke ::
+  ( ArrowChoice c, ArrowWasmStore v c, ArrowStack v c, ArrowReader Read c,
+    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join y c)
+  => c [Instruction Natural] y -> c Int y
+invoke eval' = proc a -> do
+  (FuncType paramTys resultTys, funcModInst, Function _ localTys code) <- readFunctionInstance -< a
+  vs <- popn -< fromIntegral $ length paramTys
+  zeros <- Arr.map initLocal -< localTys
+  let rtLength = fromIntegral $ length resultTys
+  inNewFrame (label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
+  where
+    initLocal :: (ArrowChoice c, IsVal v c) => c ValueType v
+    initLocal = proc ty ->  case ty of
+      I32 -> i32const -< 0
+      I64 -> i64const -< 0
+      F32 -> f32const -< 0
+      F64 -> f64const -< 0
+
+
 
 branch :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader Read c) => c Natural ()
 branch = proc ix -> do
@@ -130,16 +163,18 @@ branch = proc ix -> do
   throw -< Jump ix vs
 
 -- | Introduces a branching point `g` that can be jumped to from within `f`.
+-- | When escalating jumps, all label-local operands must be popped from the stack.
+-- | This implementatino assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
 label :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader Read c, Exc.Join z c)
   => c x z -> c y z -> c (ResultType, x, y) z
 label f g = catch
   (proc (rt,x,_) -> localLabel f -< (rt, x))
   (proc ((_,_,y),e) -> case e of
-    Trap _ -> throw -< e
     Jump 0 vs -> do
       pushn -< vs
       g -< y
     Jump n vs -> throw -< Jump (n-1) vs
+    _ -> throw -< e
   )
 
 localLabel :: (ArrowReader Read c) => c x y -> c (ResultType, x) y
@@ -162,7 +197,7 @@ evalParametricInst = proc i -> case i of
       -< (v, ())
 
 evalVariableInst ::
-  ( ArrowChoice c, ArrowFrame ModuleInstance v c, ArrowWasmStore v c,
+  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
     ArrowStack v c)
   => c (Instruction Natural) ()
 evalVariableInst = proc i -> case i of
@@ -174,12 +209,12 @@ evalVariableInst = proc i -> case i of
     v <- peek -< ()
     frameUpdate -< (ix, v)
   GetGlobal ix ->  do
-    modInst <- frameData -< ()
+    (_,modInst) <- frameData -< ()
     let globalAddr = globaladdrs modInst ! fromIntegral ix
     push <<< readGlobal -< globalAddr
   SetGlobal ix -> do
     v <- pop -< ()
-    modInst <- frameData -< ()
+    (_,modInst) <- frameData -< ()
     let globalAddr = globaladdrs modInst ! fromIntegral ix
     writeGlobal -< (globalAddr, v)
 
