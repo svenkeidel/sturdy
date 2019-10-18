@@ -35,7 +35,13 @@ class ArrowWasmStore v c | c -> v where
   readGlobal :: c Int v
   writeGlobal :: c (Int, v) ()
 
-  readFunctionInstance :: c Int (FuncType, ModuleInstance, Function)
+  readFunction :: c Int (FuncType, ModuleInstance, Function)
+
+  -- | readTable f g h (ta,x)
+  -- | Lookup in table at `ta` to retrieve the function address `fa` and pass it to `f (ta, x, fa)`.
+  -- | Invokes `g (ta,x)` if `ta` is out of bounds.
+  -- | Invokes `h (ta,x)` if `ta` cell is uninitialized.
+  readTable :: c (Int,x,Int) y -> c (Int,x) y -> c (Int,x) y -> c (Int,x) y
 
 class ArrowStack v c | c -> v where
   push :: c v ()
@@ -70,7 +76,7 @@ class ArrowStack v c | c -> v where
 -- | unchangeable frame data `fd`.
 class ArrowFrame fd v c | c -> fd, c -> v where
   -- | Runs a computation in a newly created frame given the frame data
-  -- | and the number of slots.
+  -- | and the initial slot assignment.
   inNewFrame :: c x y -> c (fd, [v], x) y
   frameData :: c () fd
   frameLookup :: c Natural y
@@ -133,15 +139,32 @@ evalControlInst eval' = proc i -> case i of
   Call ix -> do
     (_, modInst) <- frameData -< ()
     let funcAddr = funcaddrs modInst ! fromIntegral ix
-    invoke eval' -< funcAddr
-  -- CallIndirect _ -> True
+    invoke eval' <<< readFunction -< funcAddr
+  CallIndirect ix -> do
+    (_, modInst) <- frameData -< ()
+    let tableAddr = tableaddrs modInst ! fromIntegral ix
+    let ftExpect = funcTypes modInst ! fromIntegral ix
+    readTable
+      (proc (_,ftExpect,fa) -> invokeChecked eval' -< (fa, ftExpect))
+      (proc (ta,_) -> throw -< Trap $ printf "Table address %s out of bounds" (show ta))
+      (proc (ta,_) -> throw -< Trap $ printf "Table address %s uninitialized" (show ta))
+      -< (tableAddr, ftExpect)
 
-invoke ::
+invokeChecked ::
   ( ArrowChoice c, ArrowWasmStore v c, ArrowStack v c, ArrowReader Read c,
     IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join y c)
-  => c [Instruction Natural] y -> c Int y
-invoke eval' = proc a -> do
-  (FuncType paramTys resultTys, funcModInst, Function _ localTys code) <- readFunctionInstance -< a
+  => c [Instruction Natural] y -> c (Int, FuncType) y
+invokeChecked eval' = proc (a, ftExpect) -> do
+  (ftActual, funcModInst, func) <- readFunction -< a
+  if ftActual == ftExpect
+  then invoke eval' -< (ftActual, funcModInst, func)
+  else throw -< Trap $ printf "Mismatched function type in indirect call. Expected %s, actual %s." (show ftExpect) (show ftActual)
+
+invoke ::
+  ( ArrowChoice c, ArrowStack v c, ArrowReader Read c,
+    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join y c)
+  => c [Instruction Natural] y -> c (FuncType, ModuleInstance, Function) y
+invoke eval' = proc (FuncType paramTys resultTys, funcModInst, Function _ localTys code) -> do
   vs <- popn -< fromIntegral $ length paramTys
   zeros <- Arr.map initLocal -< localTys
   let rtLength = fromIntegral $ length resultTys
@@ -155,7 +178,6 @@ invoke eval' = proc a -> do
       F64 -> f64const -< 0
 
 
-
 branch :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader Read c) => c Natural ()
 branch = proc ix -> do
   Read{labels=ls} <- ask -< ()
@@ -164,7 +186,7 @@ branch = proc ix -> do
 
 -- | Introduces a branching point `g` that can be jumped to from within `f`.
 -- | When escalating jumps, all label-local operands must be popped from the stack.
--- | This implementatino assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
+-- | This implementation assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
 label :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader Read c, Exc.Join z c)
   => c x z -> c y z -> c (ResultType, x, y) z
 label f g = catch
