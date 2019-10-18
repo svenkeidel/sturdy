@@ -49,7 +49,7 @@ zipWith :: (ArrowChoice c,Profunctor c) => c (x,y) z -> c ([x],[y]) [z]
 zipWith f = proc (l1,l2) -> case (l1,l2) of
   ([],_)      -> returnA -< []
   (_,[])      -> returnA -< []
-  (a:as,b:bs) -> rmap (uncurry (:)) (f *** zipWith f) -< ((a,b),(as,bs)) 
+  (a:as,b:bs) -> rmap (uncurry (:)) (f *** zipWith f) -< ((a,b),(as,bs))
 {-# INLINABLE zipWith #-}
 
 -- | Folds a computation over a list from left to right.
@@ -78,3 +78,4 @@ all f = rmap and (map f)
 any :: (ArrowChoice c, Profunctor c) => c a Bool -> c [a] Bool
 any f = rmap or (map f)
 {-# INLINE any #-}
+
