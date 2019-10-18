@@ -25,8 +25,6 @@ import Language.Wasm.Interpreter (ModuleInstance(..))
 import Numeric.Natural (Natural)
 import Text.Printf
 
-import GHC.Natural
-
 data Exc v = Trap String | Jump Natural [v] | CallReturn [v]
 newtype Read = Read {labels :: [Natural]}
 type FrameData = (Natural, ModuleInstance)
@@ -37,11 +35,15 @@ class ArrowWasmStore v c | c -> v where
 
   readFunction :: c Int (FuncType, ModuleInstance, Function)
 
-  -- | readTable f g h (ta,x)
-  -- | Lookup in table at `ta` to retrieve the function address `fa` and pass it to `f (ta, x, fa)`.
+  -- | readTable f g h (ta,ix,x)
+  -- | Lookup `ix` in table `ta` to retrieve the function address `fa` and pass it to `f (fa, x)`.
   -- | Invokes `g (ta,x)` if `ta` is out of bounds.
   -- | Invokes `h (ta,x)` if `ta` cell is uninitialized.
-  readTable :: c (Int,x,Int) y -> c (Int,x) y -> c (Int,x) y -> c (Int,x) y
+  readTable :: c (Int,x) y -> c (Int,x) y -> c (Int,x) y -> c (Int,Int,x) y
+
+  readMemory :: c (Int, v, LoadType, ValueType) v
+
+data LoadType = L_I8S | L_I8U | L_I16S | L_I16U | L_I32S | L_I32U | L_I32 | L_I64 | L_F32 | L_F64
 
 class ArrowStack v c | c -> v where
   push :: c v ()
@@ -142,13 +144,13 @@ evalControlInst eval' = proc i -> case i of
     invoke eval' <<< readFunction -< funcAddr
   CallIndirect ix -> do
     (_, modInst) <- frameData -< ()
-    let tableAddr = tableaddrs modInst ! fromIntegral ix
+    let tableAddr = tableaddrs modInst ! 0
     let ftExpect = funcTypes modInst ! fromIntegral ix
     readTable
-      (proc (_,ftExpect,fa) -> invokeChecked eval' -< (fa, ftExpect))
+      (invokeChecked eval')
       (proc (ta,_) -> throw -< Trap $ printf "Table address %s out of bounds" (show ta))
       (proc (ta,_) -> throw -< Trap $ printf "Table address %s uninitialized" (show ta))
-      -< (tableAddr, ftExpect)
+      -< (tableAddr, fromIntegral ix, ftExpect)
 
 invokeChecked ::
   ( ArrowChoice c, ArrowWasmStore v c, ArrowStack v c, ArrowReader Read c,
@@ -181,7 +183,7 @@ invoke eval' = proc (FuncType paramTys resultTys, funcModInst, Function _ localT
 branch :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader Read c) => c Natural ()
 branch = proc ix -> do
   Read{labels=ls} <- ask -< ()
-  vs <- popn -< ls !! naturalToInt ix
+  vs <- popn -< ls !! fromIntegral ix
   throw -< Jump ix vs
 
 -- | Introduces a branching point `g` that can be jumped to from within `f`.
@@ -217,6 +219,47 @@ evalParametricInst = proc i -> case i of
         (_,v2) <- pop2 -< ()
         push -< v2)
       -< (v, ())
+
+
+evalMemoryInst ::
+  ( ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c)
+  => c (Instruction Natural) ()
+evalMemoryInst = proc i -> case i of
+  I32Load (MemArg off _) -> load L_I32 I32 -< off
+  I64Load (MemArg off _) -> load L_I64 I64 -< off
+  F32Load (MemArg off _) -> load L_F32 F32 -< off
+  F64Load (MemArg off _) -> load L_F64 F64 -< off
+  I32Load8S (MemArg off _) -> load L_I8S I32 -< off
+  I32Load8U (MemArg off _) -> load L_I8U I32 -< off
+  I32Load16S (MemArg off _) -> load L_I16S I32 -< off
+  I32Load16U (MemArg off _) -> load L_I16U I32 -< off
+  I64Load8S (MemArg off _) -> load L_I8S I64 -< off
+  I64Load8U (MemArg off _) -> load L_I8U I64 -< off
+  I64Load16S (MemArg off _) -> load L_I16S I64 -< off
+  I64Load16U (MemArg off _) -> load L_I16U I64 -< off
+  I64Load32S (MemArg off _) -> load L_I32S I64 -< off
+  I64Load32U (MemArg off _) -> load L_I32U I64 -< off
+  -- I32Store (MemArg off _) -> _ -< _
+  -- I64Store (MemArg off _) -> _ -< _
+  -- F32Store (MemArg off _) -> _ -< _
+  -- F64Store (MemArg off _) -> _ -< _
+  -- I32Store8 (MemArg off _) -> _ -< _
+  -- I32Store16 (MemArg off _) -> _ -< _
+  -- I64Store8 (MemArg off _) -> _ -< _
+  -- I64Store16 (MemArg off _) -> _ -< _
+  -- I64Store32 (MemArg off _) -> _ -< _
+  -- CurrentMemory -> _ -< _
+  -- GrowMemory -> _ -< _
+
+load :: (ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c)
+  => LoadType -> ValueType -> c Natural ()
+load loadType valType = proc off -> do
+  (_,modInst) <- frameData -< ()
+  let memAddr = memaddrs modInst ! 0
+  v <- pop -< ()
+  iOffset <- i32const -< fromIntegral off
+  Just addr <- iBinOp -< (BS32,IAdd,v,iOffset)
+  push <<< readMemory -< (memAddr, addr, loadType, valType)
 
 evalVariableInst ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
@@ -368,6 +411,36 @@ isParametricInst i = case i of
   Drop -> True
   Select -> True
 
+isMemoryInst :: Instruction index -> Bool
+isMemoryInst i = case i of
+  I32Load _ -> True
+  I64Load _ -> True
+  F32Load _ -> True
+  F64Load _ -> True
+  I32Load8S _ -> True
+  I32Load8U _ -> True
+  I32Load16S _ -> True
+  I32Load16U _ -> True
+  I64Load8S _ -> True
+  I64Load8U _ -> True
+  I64Load16S _ -> True
+  I64Load16U _ -> True
+  I64Load32S _ -> True
+  I64Load32U _ -> True
+  I32Store _ -> True
+  I64Store _ -> True
+  F32Store _ -> True
+  F64Store _ -> True
+  I32Store8 _ -> True
+  I32Store16 _ -> True
+  I64Store8 _ -> True
+  I64Store16 _ -> True
+  I64Store32 _ -> True
+  CurrentMemory -> True
+  GrowMemory -> True
+  _ -> False
+
+
 isVariableInst :: Instruction index -> Bool
 isVariableInst i = case i of
   GetLocal _ -> True
@@ -376,7 +449,6 @@ isVariableInst i = case i of
   GetGlobal _ -> True
   SetGlobal _ -> True
   _ -> False
-
 
 isNumericInst :: Instruction index -> Bool
 isNumericInst i = case i of
