@@ -32,9 +32,12 @@ newtype Read = Read {labels :: [Natural]}
 type FrameData = (Natural, ModuleInstance)
 
 class ArrowWasmStore v c | c -> v where
+  -- | Reads a global variable. Cannot fail due to validation.
   readGlobal :: c Int v
+  -- | Writes a global variable. Cannot fail due to validation.
   writeGlobal :: c (Int, v) ()
 
+  -- | Reads a function. Cannot fail due to validation.
   readFunction :: c Int (FuncType, ModuleInstance, Function)
 
   -- | readTable f g h (ta,ix,x)
@@ -44,9 +47,16 @@ class ArrowWasmStore v c | c -> v where
   -- | Invokes `h (ta,ix,x)` if `ix` cell is uninitialized.
   readTable :: c (Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y
 
+  -- | Executes a function relative to a memory instance. The memory instance exists due to validation.
   withMemoryInstance :: c x y -> c (Int,x) y
 
-type ArrowWasmSerialize val dat c = ArrowSerialize val dat ValueType LoadType StoreType c
+
+type ArrowWasmMemory addr bytes v c =
+  ( ArrowMemory addr bytes c,
+    ArrowMemAddress v Natural addr c,
+    ArrowSerialize v bytes ValueType LoadType StoreType c,
+    ArrowMemSizable v c,
+    Show addr, Show bytes)
 
 class ArrowSerialize val dat valTy datDecTy datEncTy c | c -> datDecTy, c -> datEncTy where
   decode :: c (val, x) y -> c x y -> c (dat, datdecTy, valTy, x) y
@@ -95,8 +105,6 @@ class ArrowStack v c | c -> v where
       push -< v
       pushn -< vs'
 
-
-
 -- | A frame has a fixed number of slots of type `v` and some arbitrar
 -- | unchangeable frame data `fd`.
 class ArrowFrame fd v c | c -> fd, c -> v where
@@ -107,11 +115,45 @@ class ArrowFrame fd v c | c -> fd, c -> v where
   frameLookup :: c Natural y
   frameUpdate :: c (Natural, v) ()
 
+class Show v => IsVal v c | c -> v where
+  i32const :: c Word32 v
+  i64const :: c Word64 v
+  f32const :: c Float v
+  f64const :: c Double v
+  iUnOp :: c (BitSize, IUnOp, v) v
+  iBinOp :: c (BitSize, IBinOp, v, v) (Maybe v)
+  i32eqz :: c v v
+  i64eqz :: c v v
+  iRelOp :: c (BitSize, IRelOp, v, v) v
+  fUnOp :: c (BitSize, FUnOp, v) v
+  fBinOp :: c (BitSize, FBinOp, v, v) v
+  fRelOp :: c (BitSize, FRelOp, v, v) v
+  i32WrapI64 :: c v v
+  iTruncFU :: c (BitSize, BitSize, v) (Maybe v)
+  iTruncFS :: c (BitSize, BitSize, v) (Maybe v)
+  i64ExtendSI32 :: c v v
+  i64ExtendUI32 :: c v v
+  fConvertIU :: c (BitSize, BitSize, v) v
+  fConvertIS :: c (BitSize, BitSize, v) v
+  f32DemoteF64 :: c v v
+  f64PromoteF32 :: c v v
+  iReinterpretF :: c (BitSize, v) v
+  fReinterpretI :: c (BitSize, v) v
+  i32ifNeqz :: c x y -> c x y -> c (v, x) y
+  -- | `listLookup f g (v, xs, x)`
+  -- | Looks up the `v`-th element in `xs` and passes it to `f`, or
+  -- | passes `x` to `g` if `v` is out of range of `xs`.
+  listLookup :: c x y -> c x y -> c (v, [x], x) y
+
+
+
+
+
 eval ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
     ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
-    ArrowMemory addr bytes c, ArrowMemAddress v Natural addr c, ArrowWasmSerialize v bytes c, ArrowMemSizable v c,
-    IsVal v c, Show v, Show addr, Show bytes,
+    ArrowWasmMemory addr bytes v c,
+    IsVal v c, Show v,
     Exc.Join () c,
     ArrowFix (c [Instruction Natural] ()))
   => c [Instruction Natural] ()
@@ -250,10 +292,10 @@ evalParametricInst = proc i -> case i of
 
 evalMemoryInst ::
   ( ArrowChoice c,
-    ArrowMemory addr bytes c, ArrowMemAddress v Natural addr c, ArrowWasmSerialize v bytes c, ArrowMemSizable v c,
-    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c, Show addr, Show bytes)
+    ArrowWasmMemory addr bytes v c,
+    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
   => c (Instruction Natural) ()
-evalMemoryInst = proc i -> case i of
+evalMemoryInst = withCurrentMemory $ proc i -> case i of
   I32Load (MemArg off _) -> load 4 L_I32 I32 -< off
   I64Load (MemArg off _) -> load 8 L_I64 I64 -< off
   F32Load (MemArg off _) -> load 4 L_F32 F32 -< off
@@ -282,7 +324,7 @@ evalMemoryInst = proc i -> case i of
     n <- pop -< ()
     memgrow
       (push <<^ fst)
-      (proc _ -> push <<< i32const -< (-1))
+      (proc _ -> push <<< i32const -< 0xFFFFFFFF) -- 0xFFFFFFFF ~= -1
       -< (n, ())
 
 withCurrentMemory :: (ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c) => c x y -> c x y
@@ -293,23 +335,27 @@ withCurrentMemory f = proc x -> do
 
 load ::
   ( ArrowChoice c,
-    ArrowMemory addr bytes c, ArrowMemAddress v Natural addr c, ArrowWasmSerialize v bytes c, Show addr,
+    ArrowWasmMemory addr bytes v c,
     ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
   => Int -> LoadType -> ValueType -> c Natural ()
-load byteSize loadType valType = withCurrentMemory $ proc off -> do
+load byteSize loadType valType = proc off -> do
   base <- pop -< ()
   addr <- memaddr -< (base, off)
   memread
-    (proc (bytes,_) -> decode (push <<^ fst) (error "decode failure") -< (bytes, loadType, valType, ()))
+    (proc (bytes,_) ->
+      decode
+        (push <<^ fst)
+        (error "decode failure")
+        -< (bytes, loadType, valType, ()))
     (proc addr -> throw -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
     -< (addr, byteSize, addr)
 
 store ::
   ( ArrowChoice c,
-    ArrowMemory addr bytes c, ArrowMemAddress v Natural addr c, ArrowWasmSerialize v bytes c,
-    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c, Show addr, Show bytes)
+    ArrowWasmMemory addr bytes v c,
+    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
   => StoreType -> ValueType -> c Natural ()
-store storeType valType = withCurrentMemory $ proc off -> do
+store storeType valType = proc off -> do
   v <- pop -< ()
   encode
     (proc (bytes,off) -> do
@@ -419,38 +465,6 @@ evalNumericInst = proc i -> case i of
   FReinterpretI bs -> do
     v <- pop -< ()
     fReinterpretI -< (bs, v)
-
-
-class Show v => IsVal v c | c -> v where
-  i32const :: c Word32 v
-  i64const :: c Word64 v
-  f32const :: c Float v
-  f64const :: c Double v
-  iUnOp :: c (BitSize, IUnOp, v) v
-  iBinOp :: c (BitSize, IBinOp, v, v) (Maybe v)
-  i32eqz :: c v v
-  i64eqz :: c v v
-  iRelOp :: c (BitSize, IRelOp, v, v) v
-  fUnOp :: c (BitSize, FUnOp, v) v
-  fBinOp :: c (BitSize, FBinOp, v, v) v
-  fRelOp :: c (BitSize, FRelOp, v, v) v
-  i32WrapI64 :: c v v
-  iTruncFU :: c (BitSize, BitSize, v) (Maybe v)
-  iTruncFS :: c (BitSize, BitSize, v) (Maybe v)
-  i64ExtendSI32 :: c v v
-  i64ExtendUI32 :: c v v
-  fConvertIU :: c (BitSize, BitSize, v) v
-  fConvertIS :: c (BitSize, BitSize, v) v
-  f32DemoteF64 :: c v v
-  f64PromoteF32 :: c v v
-  iReinterpretF :: c (BitSize, v) v
-  fReinterpretI :: c (BitSize, v) v
-  i32ifNeqz :: c x y -> c x y -> c (v, x) y
-  -- | `listLookup f g (v, xs, x)`
-  -- | Looks up the `v`-th element in `xs` and passes it to `f`, or
-  -- | passes `x` to `g` if `v` is out of range of `xs`.
-  listLookup :: c x y -> c x y -> c (v, [x], x) y
-
 
 
 isControlInst :: Instruction index -> Bool
