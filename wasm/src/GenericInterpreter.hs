@@ -1,6 +1,7 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 -- | A generic interpreter for WebAssembly.
 -- | This implements the official specification https://webassembly.github.io/spec/.
@@ -36,14 +37,29 @@ class ArrowWasmStore v c | c -> v where
   readFunction :: c Int (FuncType, ModuleInstance, Function)
 
   -- | readTable f g h (ta,ix,x)
-  -- | Lookup `ix` in table `ta` to retrieve the function address `fa` and pass it to `f (fa, x)`.
-  -- | Invokes `g (ta,x)` if `ta` is out of bounds.
-  -- | Invokes `h (ta,x)` if `ta` cell is uninitialized.
-  readTable :: c (Int,x) y -> c (Int,x) y -> c (Int,x) y -> c (Int,Int,x) y
+  -- | Lookup `ix` in table `ta` to retrieve the function address `fa`.
+  -- | Invokes `f (fa, x)` if all goes well.
+  -- | Invokes `g (ta,ix,x)` if `ix` is out of bounds.
+  -- | Invokes `h (ta,ix,x)` if `ix` cell is uninitialized.
+  readTable :: c (Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y
 
-  readMemory :: c (Int, v, LoadType, ValueType) v
+  withMemoryInstance :: c x y -> c (Int,x) y
 
-data LoadType = L_I8S | L_I8U | L_I16S | L_I16U | L_I32S | L_I32U | L_I32 | L_I64 | L_F32 | L_F64
+class ArrowLinearMemoryAddress base off addr c where
+  computeAddr :: c (base, off) addr
+
+class ArrowSerialize val dat valTy datDecTy datEncTy c | c -> datDecTy, c -> datEncTy where
+  decode :: c (val, x) y -> c x y -> c (dat, datdecTy, valTy, x) y
+  encode :: c (dat, x) y -> c x y -> c (val, valTy, datEncTy, x) y
+
+class ArrowLinearMemory addr bytes c | c -> addr, c -> bytes where
+  readMemory :: c (bytes, x) y -> c x y -> c (addr, Int, x) y
+  storeMemory :: c x y -> c x y -> c (addr, bytes, x) y
+
+data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U | L_I32S | L_I32U
+  deriving Show
+data StoreType = S_I32 | S_I64 | S_F32 | S_F64 | S_I8 | S_I16
+  deriving Show
 
 class ArrowStack v c | c -> v where
   push :: c v ()
@@ -87,7 +103,8 @@ class ArrowFrame fd v c | c -> fd, c -> v where
 eval ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
     ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
-    IsVal v c, Show v,
+    ArrowLinearMemory addr bytes c, ArrowLinearMemoryAddress v Natural addr c, ArrowSerialize v bytes ValueType LoadType StoreType c,
+    IsVal v c, Show v, Show addr, Show bytes,
     Exc.Join () c,
     ArrowFix (c [Instruction Natural] ()))
   => c [Instruction Natural] ()
@@ -104,6 +121,9 @@ eval = fix $ \eval' -> proc is -> case is of
     eval' -< is'
   i:is' | isControlInst i -> do
     evalControlInst eval' -< i
+    eval' -< is'
+  i:is' | isMemoryInst i -> do
+    evalMemoryInst -< i
     eval' -< is'
 
 
@@ -148,8 +168,8 @@ evalControlInst eval' = proc i -> case i of
     let ftExpect = funcTypes modInst ! fromIntegral ix
     readTable
       (invokeChecked eval')
-      (proc (ta,_) -> throw -< Trap $ printf "Table address %s out of bounds" (show ta))
-      (proc (ta,_) -> throw -< Trap $ printf "Table address %s uninitialized" (show ta))
+      (proc (ta,ix,_) -> throw -< Trap $ printf "Index %s out of bounds for table address %s" (show ix) (show ta))
+      (proc (ta,ix,_) -> throw -< Trap $ printf "Index %s uninitialized for table address %s" (show ix) (show ta))
       -< (tableAddr, fromIntegral ix, ftExpect)
 
 invokeChecked ::
@@ -222,44 +242,86 @@ evalParametricInst = proc i -> case i of
 
 
 evalMemoryInst ::
-  ( ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c)
+  ( ArrowChoice c,
+    ArrowLinearMemory addr bytes c, ArrowLinearMemoryAddress v Natural addr c, ArrowSerialize v bytes ValueType LoadType StoreType c,
+    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c, Show addr, Show bytes)
   => c (Instruction Natural) ()
 evalMemoryInst = proc i -> case i of
-  I32Load (MemArg off _) -> load L_I32 I32 -< off
-  I64Load (MemArg off _) -> load L_I64 I64 -< off
-  F32Load (MemArg off _) -> load L_F32 F32 -< off
-  F64Load (MemArg off _) -> load L_F64 F64 -< off
-  I32Load8S (MemArg off _) -> load L_I8S I32 -< off
-  I32Load8U (MemArg off _) -> load L_I8U I32 -< off
-  I32Load16S (MemArg off _) -> load L_I16S I32 -< off
-  I32Load16U (MemArg off _) -> load L_I16U I32 -< off
-  I64Load8S (MemArg off _) -> load L_I8S I64 -< off
-  I64Load8U (MemArg off _) -> load L_I8U I64 -< off
-  I64Load16S (MemArg off _) -> load L_I16S I64 -< off
-  I64Load16U (MemArg off _) -> load L_I16U I64 -< off
-  I64Load32S (MemArg off _) -> load L_I32S I64 -< off
-  I64Load32U (MemArg off _) -> load L_I32U I64 -< off
-  -- I32Store (MemArg off _) -> _ -< _
-  -- I64Store (MemArg off _) -> _ -< _
-  -- F32Store (MemArg off _) -> _ -< _
-  -- F64Store (MemArg off _) -> _ -< _
-  -- I32Store8 (MemArg off _) -> _ -< _
-  -- I32Store16 (MemArg off _) -> _ -< _
-  -- I64Store8 (MemArg off _) -> _ -< _
-  -- I64Store16 (MemArg off _) -> _ -< _
-  -- I64Store32 (MemArg off _) -> _ -< _
+  I32Load (MemArg off _) -> load 4 L_I32 I32 -< off
+  I64Load (MemArg off _) -> load 8 L_I64 I64 -< off
+  F32Load (MemArg off _) -> load 4 L_F32 F32 -< off
+  F64Load (MemArg off _) -> load 8 L_F64 F64 -< off
+  I32Load8S (MemArg off _) -> load 1 L_I8S I32 -< off
+  I32Load8U (MemArg off _) -> load 1 L_I8U I32 -< off
+  I32Load16S (MemArg off _) -> load 2 L_I16S I32 -< off
+  I32Load16U (MemArg off _) -> load 2 L_I16U I32 -< off
+  I64Load8S (MemArg off _) -> load 1 L_I8S I64 -< off
+  I64Load8U (MemArg off _) -> load 1 L_I8U I64 -< off
+  I64Load16S (MemArg off _) -> load 2 L_I16S I64 -< off
+  I64Load16U (MemArg off _) -> load 2 L_I16U I64 -< off
+  I64Load32S (MemArg off _) -> load 4 L_I32S I64 -< off
+  I64Load32U (MemArg off _) -> load 4 L_I32U I64 -< off
+  I32Store (MemArg off _) -> store S_I32 I32 -< off
+  I64Store (MemArg off _) -> store S_I64 I64 -< off
+  F32Store (MemArg off _) -> store S_F32 F32 -< off
+  F64Store (MemArg off _) -> store S_F64 F64 -< off
+  I32Store8 (MemArg off _) -> store S_I8 I32 -< off
+  I32Store16 (MemArg off _) -> store S_I16 I32 -< off
+  I64Store8 (MemArg off _) -> store S_I8 I64 -< off
+  I64Store16 (MemArg off _) -> store S_I16 I64 -< off
+  I64Store32 (MemArg off _) -> store S_I32 I64 -< off
   -- CurrentMemory -> _ -< _
   -- GrowMemory -> _ -< _
 
-load :: (ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c)
-  => LoadType -> ValueType -> c Natural ()
-load loadType valType = proc off -> do
+withCurrentMemory :: (ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c) => c x y -> c x y
+withCurrentMemory f = proc x -> do
   (_,modInst) <- frameData -< ()
   let memAddr = memaddrs modInst ! 0
+  withMemoryInstance f -< (memAddr, x)
+
+load ::
+  ( ArrowChoice c,
+    ArrowLinearMemory addr bytes c, ArrowLinearMemoryAddress v Natural addr c, ArrowSerialize v bytes ValueType LoadType StoreType c, Show addr,
+    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
+  => Int -> LoadType -> ValueType -> c Natural ()
+load byteSize loadType valType = withCurrentMemory $ proc off -> do
+  base <- pop -< ()
+  addr <- computeAddr -< (base, off)
+  readMemory
+    (proc (bytes,_) -> decode (push <<^ fst) (error "decode failure") -< (bytes, loadType, valType, ()))
+    (proc addr -> throw -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
+    -< (addr, byteSize, addr)
+
+store ::
+  ( ArrowChoice c,
+    ArrowLinearMemory addr bytes c, ArrowLinearMemoryAddress v Natural addr c, ArrowSerialize v bytes ValueType LoadType StoreType c,
+    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c, Show addr, Show bytes)
+  => StoreType -> ValueType -> c Natural ()
+store storeType valType = withCurrentMemory $ proc off -> do
   v <- pop -< ()
-  iOffset <- i32const -< fromIntegral off
-  Just addr <- iBinOp -< (BS32,IAdd,v,iOffset)
-  push <<< readMemory -< (memAddr, addr, loadType, valType)
+  encode
+    (proc (bytes,off) -> do
+      base <- pop -< ()
+      addr <- computeAddr -< (base, off)
+      storeMemory
+        (arr $ const ())
+        (proc (addr,bytes) -> throw -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr))
+        -< (addr, bytes, (addr, bytes)))
+    (error "encode failure")
+    -< (v, valType, storeType, off)
+
+-- store :: (ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
+--   => StoreType -> ValueType -> c Natural ()
+-- store storeType valType = proc off -> do
+--   (_,modInst) <- frameData -< ()
+--   let memAddr = memaddrs modInst ! 0
+--   v <- pop -< ()
+--   addr <- pop -< ()
+--   storeMemory
+--     (arr id)
+--     (proc (memAddr, addr, off, _, _, _, _) ->
+--       throw -< Trap $ printf "Memory access out of bounds: Cannot write %s at addrees %s+%s in memory %s" (show storeType) (show addr) (show off) (show memAddr))
+--     -< (memAddr, addr, off, v, storeType, valType, ())
 
 evalVariableInst ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
@@ -360,7 +422,7 @@ evalNumericInst = proc i -> case i of
     fReinterpretI -< (bs, v)
 
 
-class Arrow c => IsVal v c | c -> v where
+class Show v => IsVal v c | c -> v where
   i32const :: c Word32 v
   i64const :: c Word64 v
   f32const :: c Float v
