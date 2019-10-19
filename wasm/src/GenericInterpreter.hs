@@ -2,6 +2,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 -- | A generic interpreter for WebAssembly.
 -- | This implements the official specification https://webassembly.github.io/spec/.
@@ -45,16 +46,22 @@ class ArrowWasmStore v c | c -> v where
 
   withMemoryInstance :: c x y -> c (Int,x) y
 
-class ArrowLinearMemoryAddress base off addr c where
-  computeAddr :: c (base, off) addr
+type ArrowWasmSerialize val dat c = ArrowSerialize val dat ValueType LoadType StoreType c
 
 class ArrowSerialize val dat valTy datDecTy datEncTy c | c -> datDecTy, c -> datEncTy where
   decode :: c (val, x) y -> c x y -> c (dat, datdecTy, valTy, x) y
   encode :: c (dat, x) y -> c x y -> c (val, valTy, datEncTy, x) y
 
-class ArrowLinearMemory addr bytes c | c -> addr, c -> bytes where
-  readMemory :: c (bytes, x) y -> c x y -> c (addr, Int, x) y
-  storeMemory :: c x y -> c x y -> c (addr, bytes, x) y
+class ArrowMemory addr bytes c | c -> addr, c -> bytes where
+  memread :: c (bytes, x) y -> c x y -> c (addr, Int, x) y
+  memstore :: c x y -> c x y -> c (addr, bytes, x) y
+
+class ArrowMemAddress base off addr c where
+  memaddr :: c (base, off) addr
+
+class ArrowMemSizable sz c where
+  memsize :: c () sz
+  memgrow :: c (sz,x) y -> c x y -> c (sz,x) y
 
 data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U | L_I32S | L_I32U
   deriving Show
@@ -103,7 +110,7 @@ class ArrowFrame fd v c | c -> fd, c -> v where
 eval ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
     ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
-    ArrowLinearMemory addr bytes c, ArrowLinearMemoryAddress v Natural addr c, ArrowSerialize v bytes ValueType LoadType StoreType c,
+    ArrowMemory addr bytes c, ArrowMemAddress v Natural addr c, ArrowWasmSerialize v bytes c, ArrowMemSizable v c,
     IsVal v c, Show v, Show addr, Show bytes,
     Exc.Join () c,
     ArrowFix (c [Instruction Natural] ()))
@@ -243,7 +250,7 @@ evalParametricInst = proc i -> case i of
 
 evalMemoryInst ::
   ( ArrowChoice c,
-    ArrowLinearMemory addr bytes c, ArrowLinearMemoryAddress v Natural addr c, ArrowSerialize v bytes ValueType LoadType StoreType c,
+    ArrowMemory addr bytes c, ArrowMemAddress v Natural addr c, ArrowWasmSerialize v bytes c, ArrowMemSizable v c,
     ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c, Show addr, Show bytes)
   => c (Instruction Natural) ()
 evalMemoryInst = proc i -> case i of
@@ -270,8 +277,13 @@ evalMemoryInst = proc i -> case i of
   I64Store8 (MemArg off _) -> store S_I8 I64 -< off
   I64Store16 (MemArg off _) -> store S_I16 I64 -< off
   I64Store32 (MemArg off _) -> store S_I32 I64 -< off
-  -- CurrentMemory -> _ -< _
-  -- GrowMemory -> _ -< _
+  CurrentMemory -> push <<< memsize -< ()
+  GrowMemory -> do
+    n <- pop -< ()
+    memgrow
+      (push <<^ fst)
+      (proc _ -> push <<< i32const -< (-1))
+      -< (n, ())
 
 withCurrentMemory :: (ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c) => c x y -> c x y
 withCurrentMemory f = proc x -> do
@@ -281,20 +293,20 @@ withCurrentMemory f = proc x -> do
 
 load ::
   ( ArrowChoice c,
-    ArrowLinearMemory addr bytes c, ArrowLinearMemoryAddress v Natural addr c, ArrowSerialize v bytes ValueType LoadType StoreType c, Show addr,
+    ArrowMemory addr bytes c, ArrowMemAddress v Natural addr c, ArrowWasmSerialize v bytes c, Show addr,
     ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
   => Int -> LoadType -> ValueType -> c Natural ()
 load byteSize loadType valType = withCurrentMemory $ proc off -> do
   base <- pop -< ()
-  addr <- computeAddr -< (base, off)
-  readMemory
+  addr <- memaddr -< (base, off)
+  memread
     (proc (bytes,_) -> decode (push <<^ fst) (error "decode failure") -< (bytes, loadType, valType, ()))
     (proc addr -> throw -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
     -< (addr, byteSize, addr)
 
 store ::
   ( ArrowChoice c,
-    ArrowLinearMemory addr bytes c, ArrowLinearMemoryAddress v Natural addr c, ArrowSerialize v bytes ValueType LoadType StoreType c,
+    ArrowMemory addr bytes c, ArrowMemAddress v Natural addr c, ArrowWasmSerialize v bytes c,
     ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c, Show addr, Show bytes)
   => StoreType -> ValueType -> c Natural ()
 store storeType valType = withCurrentMemory $ proc off -> do
@@ -302,26 +314,13 @@ store storeType valType = withCurrentMemory $ proc off -> do
   encode
     (proc (bytes,off) -> do
       base <- pop -< ()
-      addr <- computeAddr -< (base, off)
-      storeMemory
+      addr <- memaddr -< (base, off)
+      memstore
         (arr $ const ())
         (proc (addr,bytes) -> throw -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr))
         -< (addr, bytes, (addr, bytes)))
     (error "encode failure")
     -< (v, valType, storeType, off)
-
--- store :: (ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
---   => StoreType -> ValueType -> c Natural ()
--- store storeType valType = proc off -> do
---   (_,modInst) <- frameData -< ()
---   let memAddr = memaddrs modInst ! 0
---   v <- pop -< ()
---   addr <- pop -< ()
---   storeMemory
---     (arr id)
---     (proc (memAddr, addr, off, _, _, _, _) ->
---       throw -< Trap $ printf "Memory access out of bounds: Cannot write %s at addrees %s+%s in memory %s" (show storeType) (show addr) (show off) (show memAddr))
---     -< (memAddr, addr, off, v, storeType, valType, ())
 
 evalVariableInst ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
