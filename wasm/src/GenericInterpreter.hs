@@ -239,7 +239,7 @@ invoke eval' = proc (FuncType paramTys resultTys, funcModInst, Function _ localT
   vs <- popn -< fromIntegral $ length paramTys
   zeros <- Arr.map initLocal -< localTys
   let rtLength = fromIntegral $ length resultTys
-  inNewFrame (label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
+  inNewFrame (localNoLabels $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
   where
     initLocal :: (ArrowChoice c, IsVal v c) => c ValueType v
     initLocal = proc ty ->  case ty of
@@ -275,6 +275,11 @@ localLabel f = proc (rt, x) -> do
   r@Read{labels=ls} <- ask -< ()
   let l = fromIntegral $ length rt
   local f -< (r{labels=l:ls}, x)
+
+localNoLabels :: (ArrowReader Read c) => c x y -> c x y
+localNoLabels f = proc x -> do
+  r <- ask -< ()
+  local f -< (r{labels=[]}, x)
 
 evalParametricInst :: (ArrowChoice c, Profunctor c, ArrowStack v c, IsVal v c)
   => c (Instruction Natural) ()
