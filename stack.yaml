@@ -13,4 +13,4 @@ extra-deps:
   # - dump-core-0.1.3.2
   - monadLib-3.9
   - git: git@gitlab.rlp.net:plmz/external/haskell-wasm.git
-    commit: 0ce9f9bdf705f6e0aa55e4ea4a0ac27b141ec80a
+    commit: d867cf29bdf784ef65aa844032ed3fda7adbc1d7

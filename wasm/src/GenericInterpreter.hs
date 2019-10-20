@@ -3,16 +3,18 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 -- | A generic interpreter for WebAssembly.
 -- | This implements the official specification https://webassembly.github.io/spec/.
 module GenericInterpreter where
 
-import Prelude hiding (Read)
+import Prelude hiding (Read, fail)
 
 import Control.Arrow
 import Control.Arrow.Except
 import qualified Control.Arrow.Except as Exc
+import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
 import qualified Control.Arrow.Utils as Arr
@@ -22,7 +24,7 @@ import Data.Vector ((!))
 import Data.Word (Word32, Word64)
 
 import Language.Wasm.Structure
-import Language.Wasm.Interpreter (ModuleInstance(..))
+import Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance)
 
 import Numeric.Natural (Natural)
 import Text.Printf
@@ -31,6 +33,10 @@ data Exc v = Trap String | Jump Natural [v] | CallReturn [v]
 newtype Read = Read {labels :: [Natural]}
 type FrameData = (Natural, ModuleInstance)
 
+type HostFunctionSupport addr bytes v c = (ArrowApply c, ArrowWasmStore v c, ArrowWasmMemory addr bytes v c)
+newtype HostFunction v c = HostFunction (
+  forall addr bytes. HostFunctionSupport addr bytes v c => (c [v] [v]) )
+
 class ArrowWasmStore v c | c -> v where
   -- | Reads a global variable. Cannot fail due to validation.
   readGlobal :: c Int v
@@ -38,7 +44,7 @@ class ArrowWasmStore v c | c -> v where
   writeGlobal :: c (Int, v) ()
 
   -- | Reads a function. Cannot fail due to validation.
-  readFunction :: c Int (FuncType, ModuleInstance, Function)
+  readFunction :: c ((FuncType, ModuleInstance, Function), x) y -> c ((FuncType, HostFunction v c), x) y -> c (Int, x) y
 
   -- | readTable f g h (ta,ix,x)
   -- | Lookup `ix` in table `ta` to retrieve the function address `fa`.
@@ -49,7 +55,6 @@ class ArrowWasmStore v c | c -> v where
 
   -- | Executes a function relative to a memory instance. The memory instance exists due to validation.
   withMemoryInstance :: c x y -> c (Int,x) y
-
 
 type ArrowWasmMemory addr bytes v c =
   ( ArrowMemory addr bytes c,
@@ -144,15 +149,53 @@ class Show v => IsVal v c | c -> v where
   -- | Looks up the `v`-th element in `xs` and passes it to `f`, or
   -- | passes `x` to `g` if `v` is out of range of `xs`.
   listLookup :: c x y -> c x y -> c (v, [x], x) y
+  ifHasType :: c x y -> c x y -> c (v, ValueType, x) y
 
 
+invokeExternal ::
+  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
+    ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
+    ArrowWasmMemory addr bytes v c, HostFunctionSupport addr bytes v c,
+    IsVal v c, Show v,
+    Exc.Join () c,
+    ArrowFail String c,
+    ArrowFix (c [Instruction Natural] ()))
+  => c (Int, [v]) [v]
+invokeExternal = proc (funcAddr, args) ->
+  readFunction
+    (proc (func@(FuncType paramTys resultTys, _, _), args) ->
+      withCheckedType (withRootFrame (invoke eval)) -< (paramTys, args, (resultTys, args, func)))
+    (proc (func@(FuncType paramTys resultTys, _), args) ->
+      withCheckedType (withRootFrame invokeHost) -< (paramTys, args, (resultTys, args, func)))
+    -< (funcAddr, args)
+  where
+    withRootFrame f = proc (resultTys, args, x) -> do
+      let rtLength = fromIntegral $ length resultTys
+      inNewFrame
+        (proc (rtLength, args, x) -> do
+          pushn -< args
+          f -< x
+          popn -< rtLength)
+        -< ((rtLength, emptyModInstance), [], (rtLength, args, x))
 
+    withCheckedType f = proc (paramTys, args, x) -> do
+      if length paramTys /= length args
+        then fail -< printf "Wrong number of arguments in external invocation. Expected %d but got %d" (length paramTys) (length args)
+        else returnA -< ()
+      Arr.zipWith
+        (proc (arg, ty) ->
+          ifHasType
+            (arr $ const ())
+            (proc (arg, ty) -> fail -< printf "Wrong argument type in external invocation. Expected %s but got %s" (show ty) (show arg))
+            -< (arg, ty, (arg, ty)))
+        -< (args, paramTys)
+      f -< x
 
 
 eval ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
     ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
-    ArrowWasmMemory addr bytes v c,
+    ArrowWasmMemory addr bytes v c, HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
     ArrowFix (c [Instruction Natural] ()))
@@ -179,7 +222,7 @@ eval = fix $ \eval' -> proc is -> case is of
 evalControlInst ::
   ( ArrowChoice c, Profunctor c, ArrowStack v c, IsVal v c,
     ArrowExcept (Exc v) c, ArrowReader Read c, ArrowFrame FrameData v c,
-    ArrowWasmStore v c,
+    ArrowWasmStore v c, HostFunctionSupport addr bytes v c,
     Exc.Join () c)
   => c [Instruction Natural] () -> c (Instruction Natural) ()
 evalControlInst eval' = proc i -> case i of
@@ -210,7 +253,7 @@ evalControlInst eval' = proc i -> case i of
   Call ix -> do
     (_, modInst) <- frameData -< ()
     let funcAddr = funcaddrs modInst ! fromIntegral ix
-    invoke eval' <<< readFunction -< funcAddr
+    readFunction (invoke eval' <<^ fst) (invokeHost <<^ fst) -< (funcAddr, ())
   CallIndirect ix -> do
     (_, modInst) <- frameData -< ()
     let tableAddr = tableaddrs modInst ! 0
@@ -223,13 +266,21 @@ evalControlInst eval' = proc i -> case i of
 
 invokeChecked ::
   ( ArrowChoice c, ArrowWasmStore v c, ArrowStack v c, ArrowReader Read c,
-    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join y c)
-  => c [Instruction Natural] y -> c (Int, FuncType) y
-invokeChecked eval' = proc (a, ftExpect) -> do
-  (ftActual, funcModInst, func) <- readFunction -< a
-  if ftActual == ftExpect
-  then invoke eval' -< (ftActual, funcModInst, func)
-  else throw -< Trap $ printf "Mismatched function type in indirect call. Expected %s, actual %s." (show ftExpect) (show ftActual)
+    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join () c,
+    HostFunctionSupport addr bytes v c)
+  => c [Instruction Natural] () -> c (Int, FuncType) ()
+invokeChecked eval' = proc (addr, ftExpect) ->
+  readFunction
+    (proc (f@(ftActual, _, _), ftExpect) ->
+       withCheckedType (invoke eval') -< (ftActual, ftExpect, f))
+    (proc (f@(ftActual, _), ftExpect) ->
+       withCheckedType invokeHost -< (ftActual, ftExpect, f))
+    -< (addr, ftExpect)
+  where
+    withCheckedType f = proc (ftActual, ftExpect, x) ->
+      if ftActual == ftExpect
+      then f -< x
+      else throw -< Trap $ printf "Mismatched function type in indirect call. Expected %s, actual %s." (show ftExpect) (show ftActual)
 
 invoke ::
   ( ArrowChoice c, ArrowStack v c, ArrowReader Read c,
@@ -247,6 +298,13 @@ invoke eval' = proc (FuncType paramTys resultTys, funcModInst, Function _ localT
       I64 -> i64const -< 0
       F32 -> f32const -< 0
       F64 -> f64const -< 0
+
+invokeHost ::
+  (ArrowChoice c, ArrowStack v c, HostFunctionSupport addr bytes v c)
+  => c (FuncType, HostFunction v c) ()
+invokeHost = proc (FuncType paramTys _, HostFunction hostFunc) -> do
+  vs <- popn -< fromIntegral $ length paramTys
+  pushn <<< app -< (hostFunc, vs)
 
 
 branch :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader Read c) => c Natural ()
