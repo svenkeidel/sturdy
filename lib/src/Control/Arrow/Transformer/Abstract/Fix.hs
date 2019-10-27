@@ -40,6 +40,7 @@ instance ArrowRun c => ArrowRun (FixT a b c) where
 type instance Fix (FixT _ _ c) x y = FixT x y c
 instance (Profunctor c,ArrowChoice c) => ArrowFix (FixT a b c a b) where
   fix f = iterationStrategy (f (fix f))
+  {-# NOINLINE fix #-}
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (FixT a b c) where
   app = FixT (app .# first coerce)

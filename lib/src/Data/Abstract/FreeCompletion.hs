@@ -40,11 +40,15 @@ instance Hashable a => Hashable (FreeCompletion a) where
 instance Applicative FreeCompletion where
   pure = return
   (<*>) = ap
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Monad FreeCompletion where
   return = Lower
   Lower x >>= k = k x
   Top >>= _ = Top
+  {-# INLINE return #-}
+  {-# INLINE (>>=) #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor FreeCompletion c where
   mapA f = lmap toEither (arr (const Top) ||| rmap Lower f)
@@ -141,7 +145,7 @@ widening wa (Lower a) (Lower a') = second Lower (a `wa` a')
 widening _ Top Top = (Stable,Top)
 widening _ (Lower _) Top = (Unstable,Top)
 widening _ Top (Lower _) = (Unstable,Top)
-{-# INLINE widening #-}
+{-# INLINABLE widening #-}
 
 fromCompletion :: a -> FreeCompletion a -> a
 fromCompletion a Top = a

@@ -26,15 +26,19 @@ newtype Closure expr env = Closure (HashMap expr env)
 instance (Identifiable expr, PreOrd env) => PreOrd (Closure expr env) where
   (⊑) = withCls $ \m1 m2 -> M.keysSet m1 ⊑ M.keysSet m2
                          && and (M.intersectionWith (⊑) m1 m2)
+  {-# INLINE (⊑) #-}
 
 instance (Identifiable expr, Complete env) => Complete (Closure expr env) where
   (⊔) = withCls $ M.unionWith (⊔)
+  {-# INLINE (⊔) #-}
 
 instance Foldable (Closure expr) where
   foldMap = foldMapDefault
+  {-# INLINE foldMap #-}
 
 instance Traversable (Closure expr) where
   traverse f (Closure m) = Closure <$> traverse f m
+  {-# INLINE traverse #-}
 
 instance (Show a,Show b) => Show (Closure a b) where
   show (Closure h)
@@ -48,15 +52,18 @@ instance (Identifiable expr, Complete env) => IsList (Closure expr env) where
 
 closure :: Identifiable expr => expr -> env -> Closure expr env
 closure expr env = Closure $ M.singleton expr env
+{-# INLINE closure #-}
 
 apply :: (O.ArrowComplete y c, O.ArrowLowerBounded c, ArrowChoice c)
       => c ((expr,env),x) y -> c (Closure expr env,x) y
 apply f = lmap (first (\(Closure m) -> M.toList m)) (O.joinList1' f)
+{-# INLINE apply #-}
 
 widening :: Identifiable expr => Widening env -> Widening (Closure expr env)
 widening w = withCls $ \m1 m2 ->
   (fold $ M.intersectionWith (\x y -> fst (w x y)) m1 m2,
    M.unionWith (\x y -> snd (w x y)) m1 m2)
+{-# INLINE widening #-}
 
 withCls :: Coercible x x' => (HashMap expr env -> x') -> (Closure expr env -> x)
 withCls = coerce

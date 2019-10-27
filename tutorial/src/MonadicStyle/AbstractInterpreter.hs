@@ -59,17 +59,15 @@ eval e = case e of
         (True,_) -> b2
         (_,True) -> b1
         (_,_) -> TopBool
-      (TopVal, _) -> return TopVal
-      (_,TopVal) -> return TopVal
       (_,_) -> throw "Expected two booleans as arguments for &&"
   Lt e1 e2 _ -> do
     v1 <- eval e1
     v2 <- eval e2
     case (v1,v2) of
       (NumVal (Interval i1 j1), NumVal (Interval i2 j2))
-        | j1 < i2   -> return (BoolVal True) 
-        | j2 < i1   -> return (BoolVal False) 
-        | otherwise -> return (BoolVal TopBool) 
+        | j1 < i2   -> return (BoolVal True)
+        | j2 < i1   -> return (BoolVal False)
+        | otherwise -> return (BoolVal TopBool)
       (TopVal, _) -> return TopVal
       (_,TopVal) -> return TopVal
       (_,_) -> throw "Expected two numbers as arguments for +"
@@ -77,14 +75,14 @@ eval e = case e of
 -- run :: Store -> [Statement] -> Either String Store
 run :: [Statement] -> M ()
 run stmts = case stmts of
-  (Assign x e l : rest) -> do
+  Assign x e l : rest -> do
     v <- eval e
     env <- ask
     st <- get
     let addr = fromMaybe l (M.lookup x env)
     put (M.insert addr v st)
     local (run rest) (M.insert x addr env)
-  (If cond ifBranch elseBranch _ : rest) -> do
+  If cond ifBranch elseBranch _ : rest -> do
     v <- eval cond
     case v of
       BoolVal True -> run ifBranch
@@ -93,7 +91,7 @@ run stmts = case stmts of
       NumVal _ -> throw "Expected a boolean expression as condition for an if"
       TopVal -> (run ifBranch ⊔ run elseBranch) ⊔ throw "Expected a boolean expression as condition for an if"
     run rest
-  (While cond body l : rest) ->
+  While cond body l : rest ->
     run (If cond (body ++ [While cond body l]) [] l : rest)
   [] ->
     return ()

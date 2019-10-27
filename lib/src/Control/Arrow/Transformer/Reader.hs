@@ -157,7 +157,7 @@ instance ArrowConst x c => ArrowConst x (ReaderT r c) where
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ReaderT r c)
 
 instance ArrowReuse a b c => ArrowReuse a b (ReaderT r c) where
-  reuse f = lift' $ reuse f
+  reuse s f = lift' $ reuse s f
   {-# INLINE reuse #-}
 
 instance ArrowContext ctx a c => ArrowContext ctx a (ReaderT r c) where

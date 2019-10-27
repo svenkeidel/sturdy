@@ -56,7 +56,7 @@ eval = proc e -> case e of
     or -< (v1,v2)
   Not e1 _ -> do
     v1 <- eval -< e1
-    not -< (v1)
+    not -< v1
   NumLit n _ -> numLit -< n
   RandomNum _ -> random -< ()
   Add e1 e2 _ -> do

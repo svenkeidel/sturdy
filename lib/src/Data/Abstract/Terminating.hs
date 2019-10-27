@@ -33,19 +33,23 @@ instance Hashable a => Hashable (Terminating a)
 instance Applicative Terminating where
   pure = return
   (<*>) = ap
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Monad Terminating where
   return = Terminating
   Terminating x >>= k = k x
   NonTerminating >>= _ = NonTerminating
+  {-# INLINE return #-}
+  {-# INLINE (>>=) #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor Terminating c where
   mapA f = lmap toEither (arr (\_ -> NonTerminating) ||| rmap Terminating f)
-  {-# INLINEABLE mapA #-}
+  {-# INLINE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad Terminating c where
   mapJoinA f = lmap toEither (arr (\_ -> NonTerminating) ||| f)
-  {-# INLINEABLE mapJoinA #-}
+  {-# INLINE mapJoinA #-}
 
 toEither :: Terminating a -> Either () a
 toEither (Terminating a) = Right a
@@ -67,7 +71,7 @@ instance Complete a => Complete (Terminating a) where
   Terminating a ⊔ Terminating b = Terminating (a ⊔ b) 
   x ⊔ NonTerminating = x
   NonTerminating ⊔ y = y
-  {-# INLINE (⊔) #-}
+  {-# INLINABLE (⊔) #-}
 
 instance CoComplete a => CoComplete (Terminating a) where
   Terminating a ⊓ Terminating b = Terminating (a ⊓ b) 
@@ -86,7 +90,6 @@ widening _ NonTerminating NonTerminating = (Stable,NonTerminating)
 widening _ NonTerminating (Terminating b) = (Unstable,Terminating b)
 widening _ (Terminating a) NonTerminating = (Unstable,Terminating a)
 widening w (Terminating a) (Terminating b) = second Terminating (w a b)
-{-# INLINE widening #-}
 
 instance Num a => Num (Terminating a) where
   (+) = liftA2 (+)

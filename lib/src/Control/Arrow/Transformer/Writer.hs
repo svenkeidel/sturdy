@@ -184,7 +184,7 @@ instance (Monoid w, ArrowStack a c) => ArrowStack a (WriterT w c) where
   {-# INLINE size #-}
 
 instance (Monoid w, ArrowReuse a b c) => ArrowReuse a b (WriterT w c) where
-  reuse f = lift' (Reuse.reuse f)
+  reuse s f = lift' (Reuse.reuse s f)
   {-# INLINE reuse #-}
 
 instance (Monoid w, ArrowContext ctx a c) => ArrowContext ctx a (WriterT w c) where

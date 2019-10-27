@@ -46,7 +46,7 @@ bounded limit w a b
 
 (**) :: Widening a -> Widening b -> Widening (a,b)
 (**) wa wb (a1,b1) (a2,b2) =
-    let ~(s1,a') = wa a1 a2
-        ~(s2,b') = wb b1 b2
+    let (s1,a') = wa a1 a2
+        (s2,b') = wb b1 b2
     in (s1 ⊔ s2, (a',b'))
 {-# INLINE (**) #-}

@@ -135,6 +135,11 @@ instance (Applicative f, ArrowClosure expr cls c) => ArrowClosure expr cls (Stat
   {-# INLINE apply #-}
   {-# SPECIALIZE instance ArrowClosure expr cls c => ArrowClosure expr cls (StaticT ((->) r) c) #-}
 
+instance (Applicative f, ArrowLetRec var val c) => ArrowLetRec var val (StaticT f c) where
+  letRec (StaticT f) = StaticT $ Env.letRec <$> f
+  {-# INLINE letRec #-}
+  {-# SPECIALIZE instance ArrowLetRec var val c => ArrowLetRec var val (StaticT ((->) r) c) #-}
+
 instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f c) where
   type Join y (StaticT f c) = Store.Join y c
   read (StaticT f) (StaticT g) = StaticT $ Store.read <$> f <*> g

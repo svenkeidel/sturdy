@@ -50,7 +50,7 @@ instance (Identifiable var, ArrowEnv var val c, Profunctor c) => ArrowEnv var va
   lookup (FreeVarsT f) (FreeVarsT g) = FreeVarsT $ proc (var,x) -> do
     tell -< H.singleton var
     Env.lookup f g -< (var,x)
-  extend (FreeVarsT f) = FreeVarsT $ proc (var,val,x) -> do
+  extend (FreeVarsT f) = FreeVarsT $ proc (var,val,x) ->
     censor (\(var,_,_) -> H.delete var) (Env.extend f) -< (var,val,x)
 
 instance (Identifiable var,ArrowApply c, Profunctor c) => ArrowApply (FreeVarsT var c) where

@@ -24,7 +24,7 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  let ?bound = I.Interval (-100) 100; ?sensitivity = 3 in sharedSpec (\env e -> toEither $ evalInterval env e) (NumVal . fromIntegral)
+  let ?bound = I.Interval (-100) 100; ?sensitivity = 3 in sharedSpec (toEither . evalInterval []) (NumVal . fromIntegral)
 
   describe "behavior specific to interval analysis" $ do
     it "should execute both branches on IfZero on interval containing zero" $

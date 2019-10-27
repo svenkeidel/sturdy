@@ -7,6 +7,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE PolyKinds #-}
 module Control.Arrow.Transformer.Abstract.Environment where
 
 import Prelude hiding ((.),read,Maybe(..))
@@ -26,6 +27,7 @@ import Control.Arrow.Closure as Cls
 import Control.Arrow.Fix
 import Control.Arrow.Order
 
+import Data.Abstract.IntersectionSet (Set)
 import Data.Abstract.Maybe
 import qualified Data.Abstract.StrongMap as SM
 import qualified Data.Abstract.Environment.Flat as FM
@@ -40,7 +42,7 @@ import Data.Coerce
 
 import GHC.Exts
 
-newtype EnvT env var val c x y = EnvT (ReaderT (env var val) c x y)
+newtype EnvT (env :: k1 -> k2 -> *) var val c x y = EnvT (ReaderT (env var val) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded, ArrowComplete z,
             ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k, ArrowRun)
 
@@ -66,7 +68,7 @@ instance (Identifiable var, UpperBounded val, ArrowChoice c, Profunctor c) => Ar
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (Identifiable var, IsClosure val (FM.Env var val), Complete val, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT FM.Env var val c) where
+instance (Identifiable var, Traversable val, Complete (val (Set var)), ArrowChoice c, Profunctor c) => ArrowEnv var (val (FM.Env var val)) (EnvT FM.Env var val c) where
   type Join y (EnvT FM.Env var val c) = ArrowComplete y c
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- Reader.ask -< ()
@@ -80,7 +82,7 @@ instance (Identifiable var, IsClosure val (FM.Env var val), Complete val, ArrowC
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (Identifiable var, IsClosure val (FM.Env var val), Complete val, ArrowChoice c, Profunctor c) => ArrowLetRec var val (EnvT FM.Env var val c) where
+instance (Identifiable var, Traversable val, Complete (val (Set var)), ArrowChoice c, Profunctor c) => ArrowLetRec var (val (FM.Env var val)) (EnvT FM.Env var val c) where
   letRec (EnvT f) = EnvT $ proc (ls,x) -> do
     env <- Reader.ask -< ()
     Reader.local f -< (FM.insertRec ls env,x)

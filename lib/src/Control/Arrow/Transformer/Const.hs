@@ -34,7 +34,7 @@ import Data.Coerce
 -- | Passes along constant data.
 newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded,ArrowLift,ArrowJoin,
-            ArrowState s,ArrowReader r',ArrowWriter w,
+            ArrowState s,ArrowReader r',ArrowWriter w, ArrowLetRec var val,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val,
             ArrowFail e, ArrowExcept e,ArrowContext ctx a)
 

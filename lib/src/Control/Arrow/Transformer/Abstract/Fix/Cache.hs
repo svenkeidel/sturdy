@@ -115,10 +115,10 @@ instance (Arrow c, ArrowContext ctx a c) => ArrowContext ctx a (CacheT Cache a b
   {-# INLINE localContext #-}
   {-# INLINE joinByContext #-}
 
-instance (PreOrd a, Arrow c, Profunctor c) => ArrowReuse a b (CacheT Cache a b c) where
-  reuse f = CacheT $ proc (a,s) -> do
+instance (Arrow c, Profunctor c) => ArrowReuse a b (CacheT Cache a b c) where
+  reuse s f = CacheT $ proc a -> do
     Cache cache <- get -< ()
-    returnA -< M.foldlWithKey' (\m a' (s',b') -> if s' ⊑ s && a ⊑ a' then m <> f a a' s' b' else m) mempty cache
+    returnA -< M.foldlWithKey' (\m a' (s',b') -> if s' ⊑ s then f a a' s' b' m else m) mempty cache
   {-# INLINE reuse #-}
 
 instance Identifiable a => IsList (Cache a b) where
@@ -154,7 +154,7 @@ instance (Arrow c, ArrowContext ctx a c) => ArrowContext ctx (k,a) (CacheT (Grou
   {-# INLINE joinByContext #-}
 
 instance (Identifiable k, IsEmpty (cache a b), ArrowApply c, Profunctor c, ArrowReuse a b (CacheT cache a b c)) => ArrowReuse (k,a) b (CacheT (Group cache) (k,a) b c) where
-  reuse f = proc ((k,a0),s) -> withCache (reuse (\a a' -> f (k,a) (k,a'))) -<< (k,(a0,s))
+  reuse s f = proc (k,a0) -> withCache (reuse s (\a a' -> f (k,a) (k,a'))) -<< (k,a0)
   {-# INLINE reuse #-}
 
 withCache :: (Identifiable k, IsEmpty (cache a b), Arrow c, Profunctor c) => CacheT cache a b c x y -> CacheT (Group cache) (k,a) b c (k,x) y

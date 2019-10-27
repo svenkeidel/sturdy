@@ -53,19 +53,23 @@ instance MonadError e (Error e) where
 instance Applicative (Error e) where
   pure = return
   (<*>) = ap
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Monad (Error e) where
   return = Success
   Fail e >>= _ = Fail e
   Success a >>= k = k a
+  {-# INLINE return #-}
+  {-# INLINE (>>=) #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Error e) c where
   mapA f = lmap toEither (arr Fail ||| rmap Success f)
-  {-# INLINABLE mapA #-}
+  {-# INLINE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad (Error e) c where
   mapJoinA f = lmap toEither (arr Fail ||| f)
-  {-# INLINABLE mapJoinA #-}
+  {-# INLINE mapJoinA #-}
 
 instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
   Success x ⊑ Success y = x ⊑ y

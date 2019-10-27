@@ -17,7 +17,6 @@ import qualified Data.Concrete.Boolean as Con
 import qualified Data.Abstract.Boolean as Abs
 import qualified Data.Abstract.Interval as Abs
 import           Data.Identifiable
-import           Control.Arrow
 
 -- | A galois connection consisting of an abstraction function alpha
 -- and a concretization function gamma between two pre-ordered sets
@@ -47,10 +46,6 @@ instance Galois (Con.Pow Con.Bool) Abs.Bool where
 instance (Hashable a, Eq a, Ord a, Enum a) => Galois (Con.Pow a) (Abs.Interval a) where
   alpha x = Abs.Interval (minimum x) (maximum x)
   gamma (Abs.Interval x y) = [x..y]
-
-instance (Galois (m y) (n y'), Galois x x') => Galois (Kleisli m x y) (Kleisli n x' y') where
-  alpha (Kleisli f) = Kleisli (alpha . f . gamma)
-  gamma (Kleisli f) = Kleisli (gamma . f . alpha)
 
 instance (Complete a', Eq a, Hashable a, Galois (Con.Pow a) a', Eq b, Hashable b, Complete b', Galois (Con.Pow b) b')
     => Galois (Con.Pow (Con.Error a b)) (Abs.Except a' b') where

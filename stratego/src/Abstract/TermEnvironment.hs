@@ -42,9 +42,12 @@ newtype EnvT t c x y = EnvT (StoreT Map TermVar t c x y)
 instance (Complete t, ArrowChoice c, ArrowJoin c) => IsTermEnv (TermEnv t) t (EnvT t c) where
   type Join y (EnvT t c) = Store.Join y (StoreT Map TermVar t c)
   deleteTermVars = EnvT $ modify' $ \(vars,env) -> ((), S.delete' vars env)
-  unionTermEnvs = EnvT $ modify' $ \((vars,oldEnv),newEnv) -> ((), S.delete' vars newEnv `S.unsafeUnion` oldEnv)
+  unionTermEnvs = EnvT $ modify' $ \((vars,oldEnv),newEnv) -> ((), S.delete' vars newEnv `union` oldEnv)
   {-# INLINE deleteTermVars #-}
   {-# INLINE unionTermEnvs #-}
+
+union :: TermEnv t -> TermEnv t -> TermEnv t
+union = S.unsafeUnion
 
 type instance Fix (EnvT t c) x y = EnvT t (Fix c (TermEnv t, x) (TermEnv t, y))
 deriving instance ArrowFix (Underlying (EnvT t c) x y) => ArrowFix (EnvT t c x y)

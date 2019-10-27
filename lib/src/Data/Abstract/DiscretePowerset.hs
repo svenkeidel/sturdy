@@ -87,6 +87,7 @@ widening (Pow xs) (Pow ys) = let zs = H.union xs ys in (if H.size zs == H.size x
 widening Top (Pow _) = (Unstable,Top)
 widening (Pow _) Top = (Unstable,Top)
 widening Top Top = (Stable,Top)
+{-# INLINABLE widening #-}
 
 instance Identifiable x => Complete (FreeCompletion (Pow x)) where
   F.Top ⊔ _ = F.Top

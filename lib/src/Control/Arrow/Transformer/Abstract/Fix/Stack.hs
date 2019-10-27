@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -33,8 +33,6 @@ import Data.Order hiding (top)
 import Data.Abstract.Widening (Widening)
 import Data.HashSet(HashSet)
 import qualified Data.HashSet as H
-import Data.Abstract.Stable
-import Data.Foldable
 
 maxSize :: (ArrowChoice c, ArrowStack a c) => Int -> IterationStrategy c a b -> IterationStrategy c a b
 maxSize limit strat f = proc a -> do
@@ -65,14 +63,9 @@ instance IsEmpty (Stack a) where
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx a)
 
-instance (PreOrd a, LowerBounded b, ArrowChoice c, ArrowReuse a b c, ArrowStack a (StackT stack a c)) => ArrowReuse a b (StackT stack a c) where
-  reuse f = proc (a,s) -> case s of
-    Unstable -> do
-      m0 <- StackT (reuse f) -< (a,Unstable)
-      stack <- Stack.elems -< ()
-      returnA -< foldl' (\m a' -> if a ⊑ a' then m <> f a a' Unstable bottom else m) m0 stack
-    Stable ->
-      StackT (reuse f) -< (a,Stable)
+instance (ArrowReuse a b c, ArrowStack a (StackT stack a c)) => ArrowReuse a b (StackT stack a c) where
+  reuse s f = StackT $ reuse s f
+  {-# INLINABLE reuse #-}
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
   peek = lift $ proc (stack,()) -> returnA -< top stack
@@ -87,7 +80,7 @@ instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a
   {-# INLINE size #-}
 
 runStackT :: (IsEmpty (stack a), Profunctor c) => StackT stack a c x y -> c x y
-runStackT (StackT f) = lmap (\x -> (empty,x)) (runReaderT f)
+runStackT (StackT f) = lmap (empty,) (runReaderT f)
 {-# INLINE runStackT #-}
 
 instance (IsEmpty (stack a), ArrowRun c) => ArrowRun (StackT stack a c) where

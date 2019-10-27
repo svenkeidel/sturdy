@@ -42,25 +42,23 @@ instance (Show a,Show b) => Show (Map a b) where
     | otherwise = "[" ++ init (unwords [ printf "%s%s -> %s," (show k) (show t) (show v) | (k,(t,v)) <- H.toList h]) ++ "]"
 
 instance (Identifiable a, PreOrd b) => PreOrd (Map a b) where
-  Map m1 ⊑ m2 = all (\(k,(t,v)) -> (case t of Must -> M.Just v; May -> M.JustNothing v) ⊑ lookup k m2)
-                    (H.toList m1)
-  {-# INLINE (⊑) #-}
+  m1 ⊑ Map m2 = all (\(k,(t,v)) -> lookup k m1 ⊑ (case t of Must -> M.Just v; May -> M.JustNothing v))
+                    (H.toList m2)
 
 instance (Identifiable a, Complete b) => Complete (Map a b) where
   (⊔) = toJoin widening (⊔)
-  {-# INLINE (⊔) #-}
 
 widening :: Identifiable a => Widening b -> Widening (Map a b)
-widening w (Map m1) (Map m2) = second Map $ foldl (\(s,m) a -> let (s',b) = join a in (s ⊔ s',H.insert a b m)) (Stable,H.empty) keys
-  where
-     keys = H.keys (H.union m1 m2)
-     join k = case (H.lookup k m1,H.lookup k m2) of
-       (Just (t1,b1),Just (t2,b2)) -> (T.widening ** w) (t1,b1) (t2,b2)
-       (Nothing,Just (_,b2)) -> (Unstable,(May,b2))
-       (Just (_,b1),Nothing) -> (Unstable,(May,b1))
-       (Nothing,Nothing) -> error "cannot happen"
-     {-# INLINE keys #-}
-     {-# INLINE join #-}
+widening w (Map m1) (Map m2)
+  | H.keysSet m1 == H.keysSet m2 = second Map $ sequence (H.intersectionWith (T.widening ** w) m1 m2)
+  | otherwise = (Unstable, Map $
+      -- this would be much more efficient with a Data.Map.merge operation.
+      H.unionWith (\(t1,b1) (t2,b2) -> (t1 ⊔ t2, snd (w b1 b2))) m1 m2
+      -- `H.union`
+      -- H.map (\(_,b) -> (May,b)) (m1 `H.difference` m2)
+      -- `H.union`
+      -- H.map (\(_,b) -> (May,b)) (m2 `H.difference` m1)
+      )
 {-# INLINE widening #-}
 
 instance (Identifiable a, PreOrd b) => LowerBounded (Map a b) where

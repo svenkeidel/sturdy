@@ -18,6 +18,7 @@ import Control.Arrow.Fix.Cache
 
 import Data.Abstract.Stable
 
+import Data.Order
 import Data.Metric
 import Data.Profunctor
 import Data.Monoid (First(..))
@@ -27,11 +28,15 @@ import Text.Printf
 class (Arrow c, Profunctor c) => ArrowReuse a b c where
 
   -- | Reuse cached results at the cost of precision.
-  reuse :: (Monoid m) => (a -> a -> Stable -> b -> m) -> c (a,Stable) m
+  reuse :: (Monoid m) => Stable -> (a -> a -> Stable -> b -> m -> m) -> c a m
 
-reuseFirst :: (ArrowChoice c, ArrowReuse a b c) => Stable -> IterationStrategy c a b
-reuseFirst st f = proc a -> do
-  m <- reuse (\_ a' s' b' -> First (Just (a',b',s'))) -< (a,st)
+reuseFirst :: (PreOrd a, ArrowChoice c, ArrowReuse a b c) => Stable -> IterationStrategy c a b
+reuseFirst s f = proc a -> do
+  m <- reuse s (\a a' s' b' m -> case m of
+                 First (Just _) -> m
+                 First Nothing
+                   | a ⊑ a' -> First (Just (a',b',s'))
+                   | otherwise -> m) -< a
   case getFirst m of
     Just (_,b,Stable) -> returnA -< b
     Just (a',_,Unstable) -> f -< a'
@@ -46,17 +51,20 @@ reuseExact f = proc a -> do
     _ -> f -< a
 {-# INLINE reuseExact #-}
 
-reuseByMetric :: (Ord n, ArrowChoice c, ArrowReuse a b c) => Metric a n -> IterationStrategy c a b
+reuseByMetric :: (PreOrd a, Ord n, ArrowChoice c, ArrowReuse a b c) => Metric a n -> IterationStrategy c a b
 reuseByMetric metric = reuseByMetric_ (\s a a' -> Product s (metric a a')) Unstable
 {-# INLINE reuseByMetric #-}
 
-reuseStableByMetric :: (Ord n, ArrowChoice c, ArrowReuse a b c) => Metric a n -> IterationStrategy c a b
+reuseStableByMetric :: (PreOrd a, Ord n, ArrowChoice c, ArrowReuse a b c) => Metric a n -> IterationStrategy c a b
 reuseStableByMetric metric = reuseByMetric_ (const metric) Stable
 {-# INLINE reuseStableByMetric #-}
 
-reuseByMetric_ :: (Ord n, ArrowChoice c, ArrowReuse a b c) => (Stable -> Metric a n) -> Stable -> IterationStrategy c a b
-reuseByMetric_ metric st f = proc a -> do
-  m <- reuse (\a a' s' b' -> Just (Measured { input = a', output = b', stable = s', measured = metric s' a a' })) -< (a,st)
+reuseByMetric_ :: (PreOrd a, Ord n, ArrowChoice c, ArrowReuse a b c) => (Stable -> Metric a n) -> Stable -> IterationStrategy c a b
+reuseByMetric_ metric s f = proc a -> do
+  m <- reuse s (\a a' s' b' m ->
+                if a ⊑ a'
+                then m <> Just (Measured { input = a', output = b', stable = s', measured = metric s' a a' })
+                else m) -< a
   case m of
     Just Measured { stable = Stable, output = b } -> returnA -< b
     Just Measured { stable = Unstable, input = a' } -> f -< a'

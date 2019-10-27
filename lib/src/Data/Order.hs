@@ -2,11 +2,11 @@
 {-# LANGUAGE Arrows #-}
 module Data.Order where
 
-import           Data.Functor.Identity
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Set (Set)
 import qualified Data.Set as S
+import           Data.Hashable
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as HM
 import           Data.HashSet(HashSet)
@@ -28,6 +28,7 @@ class PreOrd x where
   (≈) :: x -> x -> Bool
   x ≈ y = x ⊑ y && y ⊑ x
   infix 4 ≈
+  {-# INLINE (≈) #-}
 
 -- | Order with all least upper bounds
 class PreOrd x => Complete x where
@@ -40,6 +41,7 @@ class PreOrd x => LowerBounded x where
 
 lub :: (Foldable f, Complete x) => f x -> x
 lub = foldr1 (⊔)
+{-# INLINE lub #-}
 
 joined :: (Profunctor c, Complete (c (a1,a2) b)) => c a1 b -> c a2 b -> c (a1,a2) b
 joined f1 f2 = (lmap fst f1) ⊔ (lmap snd f2)
@@ -62,6 +64,7 @@ class PreOrd x => UpperBounded x where
 
 glb1 :: (Foldable f, CoComplete x) => f x -> x
 glb1 = foldr1 (⊓)
+{-# NOINLINE glb1 #-}
 
 glb :: (CoComplete x) => x -> [x] -> x
 glb x [] = x
@@ -76,7 +79,7 @@ instance PreOrd a => PreOrd [a] where
   []   ⊑ []   = True
   a:as ⊑ b:bs = a ⊑ b && as ⊑ bs
   _    ⊑ _    = False
-  
+
   []   ≈ []   = True
   a:as ≈ b:bs = a ≈ b && as ≈ bs
   _    ≈ _    = False
@@ -92,6 +95,7 @@ instance (Ord a, PreOrd a) => CoComplete (Set a) where
 
 instance PreOrd () where
   () ⊑ () = True
+  {-# INLINE (⊑) #-}
 
 instance LowerBounded () where
   bottom = ()
@@ -101,9 +105,11 @@ instance UpperBounded () where
 
 instance Complete () where
   () ⊔ () = ()
+  {-# INLINE (⊔) #-}
 
 instance (PreOrd a,PreOrd b) => PreOrd (a,b) where
   (a1,b1) ⊑ (a2,b2) = a1 ⊑ a2 && b1 ⊑ b2
+  {-# INLINE (⊑) #-}
 
 instance (LowerBounded a,LowerBounded b) => LowerBounded (a,b) where
   bottom = (bottom,bottom)
@@ -113,9 +119,11 @@ instance (UpperBounded a,UpperBounded b) => UpperBounded (a,b) where
 
 instance (Complete a, Complete b) => Complete (a,b) where
   (a1,b1) ⊔ (a2,b2) = (a1 ⊔ a2, b1 ⊔ b2)
+  {-# INLINE (⊔) #-}
 
 instance (CoComplete a, CoComplete b) => CoComplete (a,b) where
   (a1,b1) ⊓ (a2,b2) = (a1 ⊓ a2, b1 ⊓ b2)
+  {-# INLINE (⊓) #-}
 
 instance (PreOrd a,PreOrd b,PreOrd c) => PreOrd (a,b,c) where
   (a1,b1,c1) ⊑ (a2,b2,c2) = a1 ⊑ a2 && b1 ⊑ b2 && c1 ⊑ c2
@@ -143,18 +151,23 @@ instance UpperBounded b => UpperBounded (a -> b) where
 
 instance Complete b => Complete (a -> b) where
   f ⊔ g = \x -> f x ⊔ g x
+  {-# INLINE (⊔) #-}
 
 instance CoComplete b => CoComplete (a -> b) where
   f ⊓ g = \x -> f x ⊓ g x
+  {-# INLINE (⊓) #-}
 
 instance (Ord k,PreOrd v) => PreOrd (Map k v) where
   c1 ⊑ c2 = M.keysSet c1 `S.isSubsetOf` M.keysSet c2 && all (\k -> (c1 M.! k) ⊑ (c2 M.! k)) (M.keys c1)
+  {-# INLINE (⊑) #-}
 
 instance PreOrd v => PreOrd (IntMap v) where
   c1 ⊑ c2 = IM.keysSet c1 `IS.isSubsetOf` IM.keysSet c2 && all (\k -> (c1 IM.! k) ⊑ (c2 IM.! k)) (IM.keys c1)
+  {-# INLINE (⊑) #-}
 
 instance (Ord k, Complete v) => Complete (Map k v) where
   (⊔) = M.unionWith (⊔)
+  {-# INLINE (⊔) #-}
 
 instance PreOrd Char where
   (⊑) = (==)
@@ -189,45 +202,38 @@ instance Complete a => Complete (Maybe a) where
 
 instance PreOrd a => LowerBounded (Maybe a) where
   bottom = Nothing
+  {-# INLINE bottom #-}
 
 instance PreOrd a => LowerBounded (Set a) where
   bottom = S.empty
+  {-# INLINE bottom #-}
+
+instance PreOrd a => PreOrd (Hashed a) where
+  a ⊑ b = unhashed a ⊑ unhashed b
+  a ≈ b = unhashed a ≈ unhashed b
 
 instance Identifiable a => PreOrd (HashSet a) where
   xs ⊑ ys = all (\x -> HS.member x ys) xs
+  {-# INLINE (⊑) #-}
 
 instance Identifiable a => Complete (HashSet a) where
   xs ⊔ ys = HS.union xs ys
+  {-# INLINE (⊔) #-}
 
 instance (Identifiable a, PreOrd b) => PreOrd (HashMap a b) where
   m1 ⊑ m2 = and (HM.intersectionWith (⊑) m1 m2)
+  {-# INLINE (⊑) #-}
 
 instance (Identifiable a, PreOrd b) => LowerBounded (HashMap a b) where
   bottom = HM.empty
+  {-# INLINE bottom #-}
 
 instance (Identifiable a, Complete b) => Complete (HashMap a b) where
   (⊔) = HM.unionWith (⊔)
+  {-# INLINE (⊔) #-}
 
 instance (Ord k, PreOrd v) => LowerBounded (Map k v) where
   bottom = M.empty
-
-instance PreOrd (m b) => PreOrd (Kleisli m a b) where
-  _ ⊑ _ = error "Kleisli f ⊑ Kleisli g  iff  forall x. f x ⊑ g x"
-
-instance LowerBounded (m b) => LowerBounded (Kleisli m a b) where
-  bottom = Kleisli bottom
-
-instance Complete (m b) => Complete (Kleisli m a b) where
-  Kleisli f ⊔ Kleisli g = Kleisli $ f ⊔ g
-
-instance PreOrd a => PreOrd (Identity a) where
-  (Identity x) ⊑ (Identity y) = x ⊑ y
-
-instance LowerBounded a => LowerBounded (Identity a) where
-  bottom = Identity bottom
-
-instance Complete a => Complete (Identity a) where
-  Identity x ⊔ Identity y = Identity $ x ⊔ y
 
 newtype Discrete a = Discrete a deriving (Eq)
 instance Eq a => PreOrd (Discrete a) where

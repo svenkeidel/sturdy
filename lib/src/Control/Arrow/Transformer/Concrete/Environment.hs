@@ -68,9 +68,9 @@ instance (ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr (HashM
 
 instance (Identifiable var, IsClosure val (HashMap var val), ArrowChoice c, Profunctor c)
   => ArrowLetRec var val (EnvT var val c) where
-  letRec (EnvT f) = EnvT $ proc (ls,x) -> do
+  letRec (EnvT f) = EnvT $ proc (bindings,x) -> do
     env <- Reader.ask -< ()
-    let env' = foldr (\(var,val) -> M.insert var (setEnvironment env' val)) env ls
+    let env' = foldr (\(var,val) -> M.insert var (setEnvironment env' val)) env bindings
     Reader.local f -< (env',x)
 
 instance (ArrowApply c,Profunctor c) => ArrowApply (EnvT var val c) where
