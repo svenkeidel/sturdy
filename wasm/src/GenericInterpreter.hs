@@ -20,14 +20,18 @@ import Control.Arrow.Reader
 import qualified Control.Arrow.Utils as Arr
 
 import Data.Profunctor
-import Data.Vector ((!))
+import Data.Text.Lazy (Text)
+import Data.Vector ((!), find)
 import Data.Word (Word32, Word64)
 
-import Language.Wasm.Structure
-import Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance)
+import Language.Wasm.Structure hiding (exports)
+import Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance, ExportInstance(..), ExternalValue(..))
 
 import Numeric.Natural (Natural)
 import Text.Printf
+
+import Frame
+import Stack
 
 data Exc v = Trap String | Jump Natural [v] | CallReturn [v]
 newtype Read = Read {labels :: [Natural]}
@@ -83,43 +87,6 @@ data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U 
 data StoreType = S_I32 | S_I64 | S_F32 | S_F64 | S_I8 | S_I16
   deriving Show
 
-class ArrowStack v c | c -> v where
-  push :: c v ()
-  pop :: c () v
-  peek :: c () v
-  ifEmpty :: c x y -> c x y -> c x y
-
-  pop2 :: ArrowChoice c => c () (v, v)
-  pop2 = proc _ -> do
-    v2 <- pop -< ()
-    v1 <- pop -< ()
-    returnA -< (v1, v2)
-
-  popn :: ArrowChoice c => c Natural [v]
-  popn = proc n -> case n of
-    0 -> returnA -< []
-    _ -> do
-      v <- pop -< ()
-      vs <- popn -< n-1
-      returnA -< v:vs
-
-  pushn :: ArrowChoice c => c [v] ()
-  pushn = proc vs -> case vs of
-    [] -> returnA -< ()
-    v:vs' -> do
-      push -< v
-      pushn -< vs'
-
--- | A frame has a fixed number of slots of type `v` and some arbitrar
--- | unchangeable frame data `fd`.
-class ArrowFrame fd v c | c -> fd, c -> v where
-  -- | Runs a computation in a newly created frame given the frame data
-  -- | and the initial slot assignment.
-  inNewFrame :: c x y -> c (fd, [v], x) y
-  frameData :: c () fd
-  frameLookup :: c Natural y
-  frameUpdate :: c (Natural, v) ()
-
 class Show v => IsVal v c | c -> v where
   i32const :: c Word32 v
   i64const :: c Word64 v
@@ -151,6 +118,21 @@ class Show v => IsVal v c | c -> v where
   listLookup :: c x y -> c x y -> c (v, [x], x) y
   ifHasType :: c x y -> c x y -> c (v, ValueType, x) y
 
+
+invokeExported ::
+  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
+    ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
+    ArrowWasmMemory addr bytes v c, HostFunctionSupport addr bytes v c,
+    IsVal v c, Show v,
+    Exc.Join () c,
+    ArrowFail String c,
+    ArrowFix (c [Instruction Natural] ()))
+  => c (Text, [v]) [v]
+invokeExported = proc (funcName, args) -> do
+  (_, modInst) <- frameData -< ()
+  case find (\(ExportInstance n _) -> n == funcName) (exports modInst) of
+      Just (ExportInstance _ (ExternFunction addr)) -> invokeExternal -< (addr, args)
+      _ -> fail -< printf "Function with name %s was not found in module's exports" (show funcName)
 
 invokeExternal ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
@@ -290,7 +272,7 @@ invoke eval' = proc (FuncType paramTys resultTys, funcModInst, Function _ localT
   vs <- popn -< fromIntegral $ length paramTys
   zeros <- Arr.map initLocal -< localTys
   let rtLength = fromIntegral $ length resultTys
-  inNewFrame (localNoLabels $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
+  inNewFrame (localNoLabels $ localFreshStack $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
   where
     initLocal :: (ArrowChoice c, IsVal v c) => c ValueType v
     initLocal = proc ty ->  case ty of
