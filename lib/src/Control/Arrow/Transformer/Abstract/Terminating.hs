@@ -10,6 +10,7 @@ module Control.Arrow.Transformer.Abstract.Terminating(TerminatingT,runTerminatin
 import Prelude hiding (id,(.),lookup,fail)
 
 import Control.Arrow
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Environment
 import Control.Arrow.Closure
@@ -32,7 +33,7 @@ import Data.Coerce
 -- | Arrow that propagates non-terminating computations.
 newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
-            ArrowConst r, ArrowState s, ArrowReader r,
+            ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore addr val)
 
 runTerminatingT :: TerminatingT c x y -> c x (Terminating y)

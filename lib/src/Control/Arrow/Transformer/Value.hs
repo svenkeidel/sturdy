@@ -24,6 +24,7 @@ import Prelude hiding ((.))
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -42,7 +43,7 @@ newtype ValueT val c x y = ValueT { runValueT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice, ArrowConst r,
             ArrowEnv var val', ArrowLetRec var val', ArrowStore addr val',
             ArrowExcept exc,ArrowFail e,
-            ArrowLowerBounded, ArrowReader r, ArrowState s)
+            ArrowLowerBounded, ArrowReader r, ArrowState s, ArrowCont)
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ValueT val c) where
   app = lift (app .# first coerce)

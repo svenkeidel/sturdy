@@ -10,6 +10,7 @@ module Control.Arrow.Transformer.Abstract.Error(ErrorT,runErrorT) where
 import Prelude hiding (id,lookup,(.),read,fail)
 
 import Control.Arrow
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
@@ -34,7 +35,7 @@ import Data.Coerce
 
 newtype ErrorT e c x y = ErrorT (KleisliT (Error e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
-            ArrowConst r, ArrowState s, ArrowReader r,
+            ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
             ArrowExcept e')
 

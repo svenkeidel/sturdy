@@ -12,6 +12,7 @@ import Prelude hiding (id,lookup,(.),read,fail)
 
 import Control.Category
 import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
@@ -35,7 +36,7 @@ import Data.Coerce
 
 newtype ExceptT e c x y = ExceptT (KleisliT (Except e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowLowerBounded,
-            ArrowConst r, ArrowState s, ArrowReader r,
+            ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
             ArrowFail e')
 

@@ -1,7 +1,9 @@
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Kleisli where
 
@@ -9,6 +11,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Category
 import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
@@ -80,6 +83,12 @@ instance (ArrowMonad f c, ArrowChoice c) => ArrowChoice (KleisliT f c) where
 instance (ArrowMonad f c, ArrowApply c) => ArrowApply (KleisliT f c) where
   app = lift (app .# first coerce)
   {-# INLINE app #-}
+
+instance (ArrowCont c, Monad f, ArrowMonad f c) => ArrowCont (KleisliT f c) where
+  type Cont (KleisliT f c) y = Cont c (f y)
+  callCC f = lift $ callCC $ \k -> unlift (f k)
+  jump k = lift $ lmap (return @f) (jump k)
+  {-# INLINE callCC #-}
 
 instance (ArrowMonad f c, ArrowState s c) => ArrowState s (KleisliT f c) where
   get = lift' State.get

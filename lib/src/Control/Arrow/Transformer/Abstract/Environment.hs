@@ -14,6 +14,7 @@ import Prelude hiding ((.),read,Maybe(..))
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Transformer.Reader
 import Control.Arrow.Reader as Reader
@@ -44,7 +45,7 @@ import GHC.Exts
 
 newtype EnvT (env :: k1 -> k2 -> *) var val c x y = EnvT (ReaderT (env var val) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded, ArrowComplete z,
-            ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k, ArrowRun)
+            ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k, ArrowRun, ArrowCont)
 
 runEnvT :: EnvT env var val c x y -> c (env var val,x) y
 runEnvT = coerce

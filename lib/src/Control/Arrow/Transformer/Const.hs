@@ -12,6 +12,7 @@ import Prelude hiding (id,(.),lookup,read)
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Fix.Context
 import Control.Arrow.Environment
@@ -37,6 +38,7 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
             ArrowState s,ArrowReader r',ArrowWriter w, ArrowLetRec var val,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val,
             ArrowFail e, ArrowExcept e,ArrowContext ctx a)
+
 
 constT :: (r -> c x y) -> ConstT r c x y
 constT f = ConstT (StaticT f)
@@ -69,6 +71,12 @@ instance (Arrow c, Profunctor c, ArrowFix (c x y)) => ArrowFix (ConstT r c x y) 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ConstT r c) where
   app = ConstT $ StaticT $ \r -> lmap (\(f,x) -> (coerce f r,x)) app
   {-# INLINE app #-}
+
+instance ArrowCont c => ArrowCont (ConstT r c) where
+  type Cont (ConstT r c) y = Cont c y
+  callCC f = lift $ \r -> callCC $ \k -> unlift (f k) r
+  jump k = lift $ \_ -> jump k
+  {-# INLINE callCC #-}
 
 deriving instance ArrowComplete y c =>  ArrowComplete y (ConstT r c)
 

@@ -10,6 +10,7 @@ module Control.Arrow.Transformer.Abstract.Store where
 
 import Prelude hiding (Maybe(..))
 import Control.Arrow
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -37,7 +38,7 @@ import Data.Coerce
 
 newtype StoreT store var val c x y = StoreT (StateT (store var val) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
-            ArrowConst r, ArrowReader r,
+            ArrowCont, ArrowConst r, ArrowReader r,
             ArrowEnv var' val', ArrowClosure expr cls,
             ArrowFail e, ArrowExcept e, ArrowState (store var val),
             ArrowLowerBounded, ArrowRun, ArrowJoin)

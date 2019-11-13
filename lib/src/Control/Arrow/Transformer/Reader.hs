@@ -10,6 +10,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
@@ -84,6 +85,12 @@ instance (ArrowChoice c, Profunctor c) => ArrowChoice (ReaderT r c) where
 instance (ArrowApply c, Profunctor c) => ArrowApply (ReaderT r c) where
   app = lift $ lmap (\(r,(f,b)) -> (unlift f,(r,b))) app
   {-# INLINE app #-}
+
+instance (ArrowCont c, Profunctor c) => ArrowCont (ReaderT r c) where
+  type Cont (ReaderT r c) y = Cont c y
+  callCC f = lift $ callCC $ \k -> unlift (f k)
+  jump k = lift $ lmap snd $ jump k
+  {-# INLINE callCC #-}
 
 instance (Arrow c, Profunctor c) => ArrowReader r (ReaderT r c) where
   ask = lift (arr fst)
