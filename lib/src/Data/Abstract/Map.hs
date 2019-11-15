@@ -53,11 +53,11 @@ widening w (Map m1) (Map m2)
   | H.keysSet m1 == H.keysSet m2 = second Map $ sequence (H.intersectionWith (T.widening ** w) m1 m2)
   | otherwise = (Unstable, Map $
       -- this would be much more efficient with a Data.Map.merge operation.
-      H.unionWith (\(t1,b1) (t2,b2) -> (t1 ⊔ t2, snd (w b1 b2))) m1 m2
-      -- `H.union`
-      -- H.map (\(_,b) -> (May,b)) (m1 `H.difference` m2)
-      -- `H.union`
-      -- H.map (\(_,b) -> (May,b)) (m2 `H.difference` m1)
+      H.intersectionWith (\(t1,b1) (t2,b2) -> (t1 ⊔ t2, snd (w b1 b2))) m1 m2
+        `H.union`
+        H.map (\(_,b) -> (May,b)) (m1 `H.difference` m2)
+        `H.union`
+        H.map (\(_,b) -> (May,b)) (m2 `H.difference` m1)
       )
 {-# INLINE widening #-}
 

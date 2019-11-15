@@ -62,7 +62,7 @@ traceShow = trace show show
 
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,
-            ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx a,ArrowState s, ArrowReuse a b)
+            ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx a,ArrowState s)
 
 -- instance (Show a, ArrowReuse a b c) => ArrowReuse a b (TraceT c) where
 --   -- | Reuse cached results at the cost of precision.

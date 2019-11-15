@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Data.Abstract.Closure(Closure,closure,apply,widening) where
@@ -6,7 +7,6 @@ import           Control.DeepSeq
 import           Control.Arrow
 import qualified Control.Arrow.Order as O
 
-import           Data.Profunctor
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Hashable(Hashable)
@@ -54,9 +54,12 @@ closure :: Identifiable expr => expr -> env -> Closure expr env
 closure expr env = Closure $ M.singleton expr env
 {-# INLINE closure #-}
 
-apply :: (O.ArrowComplete y c, O.ArrowLowerBounded c, ArrowChoice c)
+apply :: (O.ArrowComplete y c, ArrowChoice c)
       => c ((expr,env),x) y -> c (Closure expr env,x) y
-apply f = lmap (first (\(Closure m) -> M.toList m)) (O.joinList1' f)
+apply f = proc (Closure m,x) ->
+  (| O.joinList (error "encountered empty closure" -< ())
+                (\(expr,env) -> f -< ((expr,env),x)) |)
+     (M.toList m)
 {-# INLINE apply #-}
 
 widening :: Identifiable expr => Widening env -> Widening (Closure expr env)
