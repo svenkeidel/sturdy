@@ -5,12 +5,16 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Static where
 
-import Prelude hiding (id,(.),lookup,read,fail)
+import Prelude hiding (id,(.),lookup,read,fail,elem)
 
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Fix.Chaotic as Chaotic
+import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Ctx
+import Control.Arrow.Fix.Reuse as Reuse
+import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
@@ -163,12 +167,39 @@ instance (Applicative f, ArrowComplete y c) => ArrowComplete y (StaticT f c) whe
   {-# INLINE (<⊔>) #-}
   {-# SPECIALIZE instance ArrowComplete y c => ArrowComplete y (StaticT ((->) r) c) #-}
 
-instance (Applicative f, ArrowContext ctx a c) => ArrowContext ctx a (StaticT f c) where
-  type Widening (StaticT f c) a = Widening c a
-  askContext = StaticT (pure askContext)
+instance (Applicative f, ArrowContext ctx c) => ArrowContext ctx (StaticT f c) where
   localContext (StaticT f) = StaticT $ localContext <$> f
-  joinByContext widen = StaticT (pure (joinByContext widen))
-  {-# INLINE askContext #-}
   {-# INLINE localContext #-}
-  {-# INLINE joinByContext #-}
-  {-# SPECIALIZE instance ArrowContext ctx a c => ArrowContext ctx a (StaticT ((->) r) c) #-}
+  {-# SPECIALIZE instance ArrowContext ctx c => ArrowContext ctx (StaticT ((->) r) c) #-}
+
+instance (Applicative f, ArrowReuse a b c) => ArrowReuse a b (StaticT f c) where
+  reuse s f = lift' (reuse s f)
+  {-# INLINE reuse #-}
+  {-# SPECIALIZE instance ArrowReuse a b c => ArrowReuse a b (StaticT ((->) r) c) #-}
+
+instance (Applicative f, ArrowStack a c) => ArrowStack a (StaticT f c) where
+  peek = lift' peek
+  size = lift' size
+  push (StaticT f) = StaticT $ push <$> f
+  elem = lift' elem
+  elems = lift' elems
+  {-# INLINE peek #-}
+  {-# INLINE size #-}
+  {-# INLINE push #-}
+  {-# INLINE elem #-}
+  {-# INLINE elems #-}
+  {-# SPECIALIZE instance ArrowStack a c => ArrowStack a (StaticT ((->) r) c) #-}
+
+instance (Applicative f, ArrowCache a b c) => ArrowCache a b (StaticT f c) where
+  type Widening (StaticT f c) = Cache.Widening c
+  {-# SPECIALIZE instance ArrowCache a b c => ArrowCache a b (StaticT ((->) r) c) #-}
+
+instance (Applicative f, ArrowChaotic a c) => ArrowChaotic a (StaticT f c) where
+  iterate = lift' Chaotic.iterate
+  setComponent = lift' Chaotic.setComponent
+  withComponent (StaticT f) (StaticT g) = StaticT $ Chaotic.withComponent <$> f <*> g
+  {-# INLINE iterate #-}
+  {-# INLINE setComponent #-}
+  {-# INLINE withComponent #-}
+  {-# SPECIALIZE instance ArrowChaotic a c => ArrowChaotic a (StaticT ((->) r) c) #-}
+

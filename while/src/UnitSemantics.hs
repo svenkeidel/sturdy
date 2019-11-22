@@ -33,7 +33,8 @@ import qualified Data.Abstract.Widening as W
 
 import           Control.Category
 import           Control.Arrow
-import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Combinator as Fix
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
 import           Control.Arrow.Environment
@@ -60,7 +61,7 @@ type Exception = ()
 run :: [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
 run env ss =
   fmap (fmap (fmap fst)) <$>
-    snd $ 
+    snd $
     Trans.run
       (Generic.run ::
         Fix'

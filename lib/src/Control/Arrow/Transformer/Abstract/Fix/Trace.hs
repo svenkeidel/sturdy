@@ -12,9 +12,7 @@ import Prelude hiding (pred,lookup,map,head,iterate,(.),truncate)
 
 import Control.Category
 import Control.Arrow
-import Control.Arrow.Fix
 import Control.Arrow.Fix.Chaotic
-import Control.Arrow.Fix.Reuse as Reuse
 -- import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
@@ -25,44 +23,9 @@ import Control.Arrow.Order
 import Data.Profunctor.Unsafe
 import Data.Coerce
 
-import qualified Debug.Trace as Debug
-import Text.Printf
-
-trace :: Arrow c => (a -> String) -> (b -> String) -> IterationStrategy c a b
-trace showA showB f = proc x -> do
-  y <- f -< Debug.trace (printf "CALL\n%s\n\n" (showA x)) x
-  returnA -< Debug.trace (printf "RETURN\n%s\n%s\n\n" (showA x) (showB y)) y
-{-# INLINE trace #-}
-
-trace' :: (Eq a, ArrowApply c) => (a -> String) -> (b -> String) -> IterationStrategy c a b -> IterationStrategy c a b
-trace' showA showB strat f = proc x -> do
-  y <- strat (proc x' -> f -< Debug.trace (if x == x'
-                                           then printf "CALL\n%s\n\n" (showA x)
-                                           else printf "CALL\n%s~>\n%s\n\n" (showA x) (showA x')) x') -<< x
-  returnA -< Debug.trace (printf "RETURN\n%s\n%s\n\n" (showA x) (showB y)) y
-{-# INLINE trace' #-}
-
-traceCache :: ArrowState cache c => (cache -> String) -> IterationStrategy c a b
-traceCache showCache f = proc a -> do
-  cache <- get -< ()
-  f -< Debug.trace (printf "CACHE %s\n\n" (showCache cache)) a
-{-# INLINE traceCache #-}
-
-traceCtx :: (ArrowContext ctx a' c,ArrowState cache c) => (a -> String) -> (b -> String) -> (ctx -> String) -> (cache -> String) -> IterationStrategy c a b
-traceCtx showA showB showCtx showCache f = proc x -> do
-  ctx <- askContext -< ()
-  cache <- get -< ()
-  y <- f -< Debug.trace (printf "CALL\n%s\n%s\n%s\n\n" (showA x) (showCtx ctx) (showCache cache)) x
-  returnA -< Debug.trace (printf "RETURN\n%s\n%s\n%s\n\n" (showA x) (showCtx ctx) (showB y)) y
-{-# INLINE traceCtx #-}
-
-traceShow :: (Show a, Show b, Arrow c) => IterationStrategy c a b
-traceShow = trace show show
-{-# INLINE traceShow #-}
-
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,
-            ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx a,ArrowState s)
+            ArrowEffectCommutative,ArrowChaotic a,ArrowStack a,ArrowContext ctx,ArrowState s)
 
 -- instance (Show a, ArrowReuse a b c) => ArrowReuse a b (TraceT c) where
 --   -- | Reuse cached results at the cost of precision.

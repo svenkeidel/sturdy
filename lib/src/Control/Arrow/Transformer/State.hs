@@ -19,7 +19,7 @@ import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Context
+import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.Fix.Widening
 import           Control.Arrow.Order
 import           Control.Arrow.Random
@@ -66,7 +66,7 @@ instance (Profunctor c) => Profunctor (StateT s c) where
   {-# INLINE rmap #-}
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
- 
+
 instance ArrowLift (StateT s) where
   lift' f = lift (second f)
   {-# INLINE lift' #-}
@@ -186,28 +186,16 @@ instance ArrowRand v c => ArrowRand v (StateT s c) where
   random = lift' random
   {-# INLINE random #-}
 
-instance ArrowContext ctx a c => ArrowContext ctx a (StateT s c) where
-  type Widening (StateT s c) a = Widening c a
-  askContext = lift' askContext
+instance ArrowContext ctx c => ArrowContext ctx (StateT s c) where
   localContext f = lift (lmap shuffle1 (localContext (unlift f)))
-  joinByContext widen = lift' $ joinByContext widen
-  {-# INLINE askContext #-}
   {-# INLINE localContext #-}
-  {-# INLINE joinByContext #-}
 
 instance ArrowWidening y c => ArrowWidening y (StateT s c) where
   widening = lift' widening
   {-# INLINE widening #-}
 
 instance (ArrowCache a b c) => ArrowCache a b (StateT s c) where
-  lookup = lift' Cache.lookup
-  write = lift' Cache.write
-  update = lift' Cache.update
-  setStable = lift' Cache.setStable
-  {-# INLINE lookup #-}
-  {-# INLINE write #-}
-  {-# INLINE update #-}
-  {-# INLINE setStable #-}
+  type Widening (StateT s c) = Cache.Widening c
 
 instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
   => ArrowEffectCommutative (StateT s c)

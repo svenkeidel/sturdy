@@ -36,8 +36,8 @@ import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Stable
 import           Data.Abstract.CallString(CallString)
 
-import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Reuse as Reuse
+import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Combinator as Fix
 import           Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.Except
@@ -99,9 +99,9 @@ run k lstmts =
     stmts = generate (sequence lstmts)
     iterationStrategy = Fix.transform (iso' (\(store,(env,stmt)) -> (stmt,(env,store)))
                                             (\(stmt,(env,store)) -> (store,(env,stmt))))
-                      $ reuseExact
-                      . callsiteSensitive' @([Statement],(_,_)) k (statementLabel . fst) widenEnvStore
-                      . iterateInner
+                      $ Fix.reuseExact
+                      . Fix.callsiteSensitive' @([Statement],(_,_)) k (statementLabel . fst) widenEnvStore
+                      . Fix.iterateInner
 
     statementLabel st = case st of (s:_) -> Just (label s); [] -> Nothing
     widenEnvStore = SM.widening W.finite W.** M.widening (widenVal W.** W.finite)

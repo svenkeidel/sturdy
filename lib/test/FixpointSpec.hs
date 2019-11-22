@@ -8,14 +8,14 @@ import           Prelude hiding (id,(.),lookup,Bounded,Bool(..),fail)
 import           TestPrograms
 
 import           Control.Category
-import           Control.Arrow.Fix.Reuse
+import           Control.Arrow.Fix.Combinator
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
+-- import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
 import           Data.Identifiable
 import qualified Data.Metric as M

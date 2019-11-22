@@ -34,7 +34,7 @@ import Data.Coerce
 newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowClosure expr cls, ArrowStore addr val)
+            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore addr val)
 
 runTerminatingT :: TerminatingT c x y -> c x (Terminating y)
 runTerminatingT = coerce
@@ -45,7 +45,7 @@ instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (TerminatingT
   {-# INLINE app #-}
 
 type instance Fix (TerminatingT c) x y = TerminatingT (Fix c x (Terminating y))
-deriving instance (ArrowFix (Underlying (TerminatingT c) x y)) => ArrowFix (TerminatingT c x y)
+instance (ArrowChoice c, ArrowFix (Underlying (TerminatingT c) x y), Profunctor c) => ArrowFix (TerminatingT c x y) where
 
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (TerminatingT c) where
   bottom = lift $ arr (const NonTerminating)

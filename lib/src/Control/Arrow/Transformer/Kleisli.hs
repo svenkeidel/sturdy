@@ -19,7 +19,7 @@ import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Monad
-import Control.Arrow.Order
+import Control.Arrow.Order as Ord
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
 import Control.Arrow.Store as Store
@@ -109,6 +109,10 @@ instance (ArrowMonad f c, ArrowEnv x y c) => ArrowEnv x y (KleisliT f c) where
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
+instance (ArrowMonad f c, ArrowLetRec x y c) => ArrowLetRec x y (KleisliT f c) where
+  letRec f = lift (letRec (unlift f))
+  {-# INLINE letRec #-}
+
 instance (ArrowMonad f c, ArrowClosure expr cls c) => ArrowClosure expr cls (KleisliT f c) where
   type Join y (KleisliT f c) = Cls.Join (f y) c
   apply f = lift (Cls.apply (unlift f))
@@ -144,5 +148,4 @@ instance (ArrowMonad f c, ArrowComplete (f y) c) => ArrowComplete y (KleisliT f 
   {-# INLINE (<⊔>) #-}
 
 instance (ArrowMonad f c, ArrowLowerBounded c) => ArrowLowerBounded (KleisliT f c) where
-  bottom = lift bottom
-
+  bottom = lift Ord.bottom

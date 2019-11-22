@@ -6,13 +6,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Abstract.Fix.Stack(StackT,Stack,widenInput,maxSize) where
+module Control.Arrow.Transformer.Abstract.Fix.Stack(StackT,Stack) where
 
 import Prelude hiding (pred,lookup,map,head,iterate,(.))
 
 import Control.Category
 import Control.Arrow hiding (loop)
-import Control.Arrow.Fix
 import Control.Arrow.Fix.Reuse as Reuse
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack(ArrowStack)
@@ -29,26 +28,8 @@ import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 import Data.Empty
-import Data.Order hiding (top)
-import Data.Abstract.Widening (Widening)
 import Data.HashSet(HashSet)
 import qualified Data.HashSet as H
-
-maxSize :: (ArrowChoice c, ArrowStack a c) => Int -> IterationStrategy c a b -> IterationStrategy c a b
-maxSize limit strat f = proc a -> do
-  n <- Stack.size -< ()
-  if n < limit
-  then f -< a
-  else strat f -< a
-{-# INLINE maxSize #-}
-
-widenInput :: (Complete a, ArrowStack a c) => Widening a -> IterationStrategy c a b
-widenInput widen f = proc a -> do
-  m <- Stack.peek -< ()
-  f -< case m of
-    Nothing -> a
-    Just x  -> snd $ x `widen` (x ⊔ a)
-{-# INLINE widenInput #-}
 
 data Stack a = Stack
   { top :: Maybe a
@@ -61,7 +42,7 @@ instance IsEmpty (Stack a) where
   {-# INLINE empty #-}
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx a)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx)
 
 instance (ArrowReuse a b c, ArrowStack a (StackT stack a c)) => ArrowReuse a b (StackT stack a c) where
   reuse s f = StackT $ reuse s f

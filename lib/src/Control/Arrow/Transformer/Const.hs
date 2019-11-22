@@ -14,12 +14,16 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Cont
 import Control.Arrow.Const
-import Control.Arrow.Fix.Context
 import Control.Arrow.Environment
 import Control.Arrow.Closure
 import Control.Arrow.Except
 import Control.Arrow.Fail
 import Control.Arrow.Fix
+import Control.Arrow.Fix.Cache
+import Control.Arrow.Fix.Chaotic
+import Control.Arrow.Fix.Context
+import Control.Arrow.Fix.Reuse
+import Control.Arrow.Fix.Stack
 import Control.Arrow.Order
 import Control.Arrow.Reader
 import Control.Arrow.State
@@ -37,8 +41,8 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded,ArrowLift,ArrowJoin,
             ArrowState s,ArrowReader r',ArrowWriter w, ArrowLetRec var val,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val,
-            ArrowFail e, ArrowExcept e,ArrowContext ctx a)
-
+            ArrowFail e, ArrowExcept e,
+            ArrowContext ctx, ArrowStack a, ArrowReuse a b, ArrowCache a b, ArrowChaotic a)
 
 constT :: (r -> c x y) -> ConstT r c x y
 constT f = ConstT (StaticT f)
@@ -51,6 +55,14 @@ runConstT r (ConstT (StaticT f)) = f r
 liftConstT :: (c x y -> c' x' y') -> ConstT r c x y -> ConstT r c' x' y'
 liftConstT f g = lift $ \r -> f (unlift g r)
 {-# INLINE liftConstT #-}
+
+mapConstT :: (r' -> r) -> (ConstT r c x y -> ConstT r' c x y)
+mapConstT g (ConstT (StaticT f)) = constT $ \r' -> f (g r')
+{-# INLINE mapConstT #-}
+
+setConstT :: r -> (ConstT r c x y -> ConstT r' c x y)
+setConstT r = mapConstT (const r)
+{-# INLINE setConstT #-}
 
 instance ArrowTrans (ConstT r c) where
   type Underlying (ConstT r c) x y = r -> c x y

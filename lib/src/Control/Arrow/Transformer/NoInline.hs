@@ -30,8 +30,15 @@ import Unsafe.Coerce
 
 newtype NoInlineT c x y = NoInlineT { runNoInlineTT :: c x y }
 
-instance ArrowRun c => ArrowRun (NoInlineT c) where type Run (NoInlineT c) x y = Run c x y
-instance ArrowTrans (NoInlineT c) where type Underlying (NoInlineT c) x y = c x y
+instance ArrowRun c => ArrowRun (NoInlineT c) where
+  type Run (NoInlineT c) x y = Run c x y
+
+instance ArrowTrans (NoInlineT c) where
+  type Underlying (NoInlineT c) x y = c x y
+
+instance ArrowLift NoInlineT where
+  lift' = NoInlineT
+  {-# INLINE lift' #-}
 
 instance Profunctor c => Profunctor (NoInlineT c) where
   dimap f g h = lift $ dimap f g (unlift h)
@@ -160,20 +167,18 @@ instance ArrowReuse a b c => ArrowReuse a b (NoInlineT c) where
   reuse s f = lift $ reuse s f
   {-# NOINLINE reuse #-}
 
-instance ArrowContext ctx a c => ArrowContext ctx a (NoInlineT c) where
-  type Widening (NoInlineT c) a = Widening c a
-  askContext = Context.askContext
+instance ArrowContext ctx c => ArrowContext ctx (NoInlineT c) where
   localContext f = lift (localContext (unlift f))
-  joinByContext widen = lift $ joinByContext widen
-  {-# NOINLINE askContext #-}
   {-# NOINLINE localContext #-}
-  {-# NOINLINE joinByContext #-}
 
 instance ArrowCache a b c => ArrowCache a b (NoInlineT c) where
+  type Widening (NoInlineT c) = Cache.Widening c
+  initialize = lift Cache.initialize
   lookup = lift Cache.lookup
   write = lift Cache.write
   update = lift Cache.update
   setStable = lift Cache.setStable
+  {-# NOINLINE initialize #-}
   {-# NOINLINE lookup #-}
   {-# NOINLINE write #-}
   {-# NOINLINE update #-}

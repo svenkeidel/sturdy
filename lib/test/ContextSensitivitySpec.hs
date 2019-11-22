@@ -15,7 +15,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -fsimpl-tick-factor=200 -fno-warn-partial-type-signatures #-}
+{-# OPTIONS_GHC -fsimpl-tick-factor=200 -fno-warn-redundant-constraints -fno-warn-partial-type-signatures #-}
 module ContextSensitivitySpec where
 
 import           Prelude hiding (lookup,Bounded,fail,Bool)
@@ -25,6 +25,7 @@ import           TestPrograms
 import           Control.Monad(forM_)
 import           Control.Arrow
 import           Control.Arrow.Fix as F
+import           Control.Arrow.Fix.Combinator
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix

@@ -14,13 +14,10 @@ import           Data.Order
 
 import           Text.Printf
 
-class (Arrow c, Profunctor c) => ArrowIterate a c where
-  -- | Remembers to iterate on an unstable result until it stabilized.
+class (Arrow c, Profunctor c) => ArrowChaotic a c | c -> a where
   iterate :: c (a,b) b
-
-class (Arrow c, Profunctor c) => ArrowComponent a c | c -> a where
   setComponent :: c (Component a,y) y
-  withComponent :: c x y -> (c (x,y,Component a) y) -> c x y
+  withComponent :: c x y -> c (x,y,Component a) y -> c x y
 
 data Component a = Component { head :: HashSet a, body :: HashSet a } deriving (Eq)
 

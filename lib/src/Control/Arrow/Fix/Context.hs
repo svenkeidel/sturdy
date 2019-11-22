@@ -1,22 +1,24 @@
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Fix.Context where
 
-import Prelude hiding ((.))
-
-import Control.Category
 import Control.Arrow
-import Control.Arrow.Fix
-
+import Control.Arrow.Trans
 import Data.Profunctor
 
-class (Arrow c, Profunctor c) => ArrowContext ctx a c | c -> ctx, c -> a where
-  type Widening c a :: *
+class (Arrow c, Profunctor c) => ArrowContext ctx c | c -> ctx where
   askContext :: c () ctx
   localContext :: c x y -> c (ctx,x) y
-  joinByContext :: Widening c a -> c a a
 
-joinByContext' :: ArrowContext ctx a c => Widening c a -> IterationStrategy c a b
-joinByContext' widen f = f . joinByContext widen
-{-# INLINE joinByContext' #-}
+  default askContext :: (c ~ t c', ArrowLift t, ArrowContext ctx c') => c () ctx
+  askContext = lift' askContext
+  {-# INLINE askContext #-}
+
+class (Arrow c, Profunctor c) => ArrowJoinContext a c | c -> a where
+  joinByContext :: c a a
+
+  default joinByContext :: (c ~ t c', ArrowLift t, ArrowJoinContext a c') => c a a
+  joinByContext = lift' joinByContext
+  {-# INLINE joinByContext #-}

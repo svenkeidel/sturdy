@@ -10,6 +10,7 @@ import           Prelude hiding (lookup,Bounded,Bool(..),fail)
 
 import           Control.Arrow
 import           Control.Arrow.Fix as F
+import           Control.Arrow.Fix.Combinator
 import           Control.Arrow.Fix.Reuse
 import           Control.Arrow.Fix.Cache
 import           Control.Arrow.Fix.Stack
@@ -77,7 +78,7 @@ diverge = fix $ \f -> proc n -> case n of
 {-# INLINE diverge #-}
 
 type Arr x y = forall c. (ArrowChoice c, Profunctor c, ArrowApply c, ArrowComplete y c, ArrowFix (c x y)) => c x y
-newtype Strat x y = Strat { getStrat :: forall c. (ArrowChoice c, Profunctor c, ArrowApply c, ArrowComponent x c, ArrowComplete (Terminating y) c, ArrowStack x c, ArrowCache x (Terminating y) c, ArrowIterate x c, ArrowReuse x (Terminating y) c) => IterationStrategy c x (Terminating y)}
+newtype Strat x y = Strat { getStrat :: forall c. (ArrowChoice c, Profunctor c, ArrowApply c, ArrowChaotic x c, ArrowComplete (Terminating y) c, ArrowStack x c, ArrowCache x (Terminating y) c, ArrowReuse x (Terminating y) c) => FixpointCombinator c x (Terminating y)}
 type IV = Interval (InfiniteNumber Int)
 
 iv :: InfiniteNumber Int -> InfiniteNumber Int -> IV
