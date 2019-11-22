@@ -26,7 +26,7 @@ import           Data.Profunctor.Unsafe((.#))
 import           Data.Coerce
 
 newtype FixT a b c x y = FixT { unFixT :: ConstT (FixpointCombinator c a b) c x y }
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComplete z, ArrowJoin, ArrowContext ctx u)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComplete z, ArrowJoin, ArrowContext ctx)
 
 runFixT :: FixpointCombinator c a b -> FixT a b c x y -> c x y
 runFixT comb (FixT f) = runConstT comb f

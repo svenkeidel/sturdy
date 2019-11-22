@@ -171,5 +171,5 @@ instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
   localContext f = lift $ lmap shuffle1 (localContext (unlift f))
   {-# INLINE localContext #-}
 
-instance (ArrowCache a b c) => ArrowCache a b (ReaderT r c) where
-  type Widening (ReaderT r c) = Cache.Widening c
+instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c)
+instance (ArrowCache a b c) => ArrowCache a b (ReaderT r c)

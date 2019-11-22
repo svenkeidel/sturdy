@@ -10,8 +10,6 @@ import Data.Profunctor
 import Data.Abstract.Stable
 
 class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
-  type Widening c :: *
-
   -- | Initializes a cache entry with 'bottom'.
   initialize :: c a b
 

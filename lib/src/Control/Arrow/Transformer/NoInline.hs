@@ -172,7 +172,6 @@ instance ArrowContext ctx c => ArrowContext ctx (NoInlineT c) where
   {-# NOINLINE localContext #-}
 
 instance ArrowCache a b c => ArrowCache a b (NoInlineT c) where
-  type Widening (NoInlineT c) = Cache.Widening c
   initialize = lift Cache.initialize
   lookup = lift Cache.lookup
   write = lift Cache.write

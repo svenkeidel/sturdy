@@ -31,7 +31,7 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Cache hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 
 import qualified Data.Abstract.Boolean as Abs
@@ -59,9 +59,9 @@ spec =
   --describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
   describe "Chaotic" $ do
     describe "iterate inner component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst ?widenA . iterateInner) (T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . iterateInner) (?widenA, T.widening ?widenB) a)
     describe "iterate outer component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst ?widenA . iterateOuter) (T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . iterateOuter) (?widenA, T.widening ?widenB) a)
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)
 
@@ -69,7 +69,7 @@ type Line = Int
 
 {-# INLINE callsiteSpec #-}
 callsiteSpec :: (forall lab a b.
-                 (Show lab, Show a, Show b, Identifiable lab, Identifiable a, PreOrd a, Complete b,
+                 (Show lab, Show a, Show b, Identifiable lab, Identifiable a, PreOrd lab, PreOrd a, Complete b,
                   ?sensitivity :: Int, ?widenA :: Widening a, ?widenB :: Widening b)
                 => Arr (lab,a) b -> (lab,a) -> Terminating b) -> Spec
 callsiteSpec run = do
@@ -155,8 +155,8 @@ toChaotic :: (Identifiable lab, Identifiable a, Complete b)
                           (FixT (lab,a) (Terminating b)
                             (ChaoticT (lab,a)
                               (StackT Stack (lab,a)
-                                (CacheT (Group Cache) (lab,a) (Terminating b)
-                                  (ContextT (CallString lab) a
+                                (CacheT (Context (Proj2 (CtxCache (CallString lab))) Cache) (lab,a) (Terminating b)
+                                  (ContextT (CallString lab)
                                     (->)))))) (lab,a) b
 toChaotic x = x
 {-# INLINE toChaotic #-}

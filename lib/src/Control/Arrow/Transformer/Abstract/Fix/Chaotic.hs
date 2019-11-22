@@ -30,7 +30,7 @@ import           Data.Identifiable
 import           Data.Coerce
 
 newtype ChaoticT a c x y = ChaoticT (WriterT (Component a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowCache a b,ArrowReuse a b,ArrowState s,ArrowContext ctx)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowCache a b,ArrowReuse a b,ArrowState s,ArrowContext ctx, ArrowJoinContext u)
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowChaotic a (ChaoticT a c) where
   iterate = lift (arr (first singleton))

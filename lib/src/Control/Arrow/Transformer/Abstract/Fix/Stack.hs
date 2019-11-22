@@ -16,7 +16,7 @@ import Control.Arrow.Fix.Reuse as Reuse
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack(ArrowStack)
 import qualified Control.Arrow.Fix.Stack as Stack
-import Control.Arrow.Fix.Context(ArrowContext)
+import Control.Arrow.Fix.Context(ArrowContext,ArrowJoinContext)
 import Control.Arrow.State
 import Control.Arrow.Trans
 import Control.Arrow.Order(ArrowJoin(..),ArrowComplete(..),ArrowEffectCommutative)
@@ -42,7 +42,7 @@ instance IsEmpty (Stack a) where
   {-# INLINE empty #-}
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx, ArrowJoinContext u)
 
 instance (ArrowReuse a b c, ArrowStack a (StackT stack a c)) => ArrowReuse a b (StackT stack a c) where
   reuse s f = StackT $ reuse s f

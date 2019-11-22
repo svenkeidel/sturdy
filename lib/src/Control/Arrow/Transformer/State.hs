@@ -194,8 +194,7 @@ instance ArrowWidening y c => ArrowWidening y (StateT s c) where
   widening = lift' widening
   {-# INLINE widening #-}
 
-instance (ArrowCache a b c) => ArrowCache a b (StateT s c) where
-  type Widening (StateT s c) = Cache.Widening c
+instance (ArrowCache a b c) => ArrowCache a b (StateT s c)
 
 instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
   => ArrowEffectCommutative (StateT s c)

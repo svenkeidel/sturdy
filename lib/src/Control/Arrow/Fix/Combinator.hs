@@ -250,7 +250,7 @@ traceCache showCache f = proc a -> do
   f -< Debug.trace (printf "CACHE %s\n\n" (showCache cache)) a
 {-# INLINE traceCache #-}
 
-traceCtx :: (ArrowContext ctx a' c,ArrowState cache c) => (a -> String) -> (b -> String) -> (ctx -> String) -> (cache -> String) -> FixpointCombinator c a b
+traceCtx :: (ArrowContext ctx c,ArrowState cache c) => (a -> String) -> (b -> String) -> (ctx -> String) -> (cache -> String) -> FixpointCombinator c a b
 traceCtx showA showB showCtx showCache f = proc x -> do
   ctx <- Ctx.askContext -< ()
   cache <- State.get -< ()

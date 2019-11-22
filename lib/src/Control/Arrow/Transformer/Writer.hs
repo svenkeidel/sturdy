@@ -191,5 +191,5 @@ instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
   localContext f = lift (Context.localContext (unlift f))
   {-# INLINE localContext #-}
 
-instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c) where
-  type Widening (WriterT w c) = Cache.Widening c
+instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c)
+instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c)
