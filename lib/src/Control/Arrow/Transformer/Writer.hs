@@ -187,21 +187,9 @@ instance (Monoid w, ArrowReuse a b c) => ArrowReuse a b (WriterT w c) where
   reuse s f = lift' (Reuse.reuse s f)
   {-# INLINE reuse #-}
 
-instance (Monoid w, ArrowContext ctx a c) => ArrowContext ctx a (WriterT w c) where
-  type Widening (WriterT w c) a = Widening c a
-  askContext = lift' Context.askContext
+instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
   localContext f = lift (Context.localContext (unlift f))
-  joinByContext widen = lift' (Context.joinByContext widen)
-  {-# INLINE askContext #-}
   {-# INLINE localContext #-}
-  {-# INLINE joinByContext #-}
 
-instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c) where
-  lookup = lift' Cache.lookup
-  write = lift' Cache.write
-  update = lift' Cache.update
-  setStable = lift' Cache.setStable
-  {-# INLINE lookup #-}
-  {-# INLINE write #-}
-  {-# INLINE update #-}
-  {-# INLINE setStable #-}
+instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c)
+instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c)

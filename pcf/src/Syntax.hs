@@ -105,11 +105,12 @@ instance IsString (State Label Expr) where
 instance Hashable Expr where
   hashWithSalt s e = s `hashWithSalt` label e
 
-apply :: Prism' (env,Expr) ((Expr,Label),env)
-apply = L.prism' (\((e',l),env) -> (env,Apply e' l))
-                 (\(env,e) -> case e of
-                      Apply e' l -> Just ((e',l),env)
+apply :: Prism' (store,(env,Expr)) (store,((Expr,Label),env))
+apply = L.prism' (\(store,((e',l),env)) -> (store,(env,Apply e' l)))
+                 (\(store,(env,e)) -> case e of
+                      Apply e' l -> Just (store,((e',l),env))
                       _ -> Nothing)
+{-# INLINE apply #-}
 
 freeVars :: Expr -> HashMap Expr (HashSet Text)
 freeVars e0 = execState (go e0) M.empty

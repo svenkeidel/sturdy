@@ -9,6 +9,7 @@ import Data.Order
 import Data.Abstract.FreeCompletion
 import Control.Monad.State
 import Control.DeepSeq
+import Text.Printf
 
 -- Retrieves label from expression.
 class HasLabel x where
@@ -18,7 +19,7 @@ newtype Label = Label { labelVal :: Int }
   deriving (Ord,Eq,Hashable,Num,NFData)
 
 instance Show Label where
-  show (Label l) = show l
+  show (Label l) = printf "#%d" l
 
 instance PreOrd Label where
   (⊑) = (==)

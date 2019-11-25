@@ -24,8 +24,9 @@ class (Arrow c, Profunctor c) => ArrowClosure expr cls c | cls -> expr where
   closure = lift' closure
   {-# INLINE closure #-}
 
-class IsClosure cls env | env -> cls, cls -> env where
+class IsClosure cls env where
   mapEnvironment :: (env -> env) -> cls -> cls
   traverseEnvironment :: Applicative f => (env -> f env) -> cls -> f cls
   setEnvironment :: env -> cls -> cls
   setEnvironment env = mapEnvironment (const env)
+  {-# INLINE setEnvironment #-}

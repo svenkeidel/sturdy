@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -6,6 +8,7 @@ module Data.Abstract.Closure(Closure,closure,apply,widening) where
 import           Control.DeepSeq
 import           Control.Arrow
 import qualified Control.Arrow.Order as O
+import           Control.Arrow.Closure(IsClosure(..))
 
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
@@ -31,6 +34,12 @@ instance (Identifiable expr, PreOrd env) => PreOrd (Closure expr env) where
 instance (Identifiable expr, Complete env) => Complete (Closure expr env) where
   (⊔) = withCls $ M.unionWith (⊔)
   {-# INLINE (⊔) #-}
+
+instance IsClosure (Closure expr env) env where
+  mapEnvironment f (Closure m) = Closure (M.map f m)
+  traverseEnvironment f (Closure m) = Closure <$> traverse f m
+  {-# INLINE mapEnvironment #-}
+  {-# INLINE traverseEnvironment #-}
 
 instance Foldable (Closure expr) where
   foldMap = foldMapDefault

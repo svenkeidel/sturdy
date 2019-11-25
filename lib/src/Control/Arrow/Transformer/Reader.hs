@@ -129,7 +129,7 @@ instance ArrowClosure expr cls c => ArrowClosure expr cls (ReaderT r c) where
 
 instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
   type Join y (ReaderT r c) = Store.Join y c
-  read f g = lift $ lmap shuffle1 
+  read f g = lift $ lmap shuffle1
                   $ Store.read (lmap shuffle1 (unlift f)) (unlift g)
   write = lift' Store.write
   {-# INLINE read #-}
@@ -167,21 +167,9 @@ instance ArrowReuse a b c => ArrowReuse a b (ReaderT r c) where
   reuse s f = lift' $ reuse s f
   {-# INLINE reuse #-}
 
-instance ArrowContext ctx a c => ArrowContext ctx a (ReaderT r c) where
-  type Widening (ReaderT r c) a = Widening c a
-  askContext = lift' Context.askContext
-  localContext f = lift $ lmap shuffle1 (localContext (unlift f)) 
-  joinByContext widen = lift' $ joinByContext widen
-  {-# INLINE askContext #-}
+instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
+  localContext f = lift $ lmap shuffle1 (localContext (unlift f))
   {-# INLINE localContext #-}
-  {-# INLINE joinByContext #-}
 
-instance (ArrowCache a b c) => ArrowCache a b (ReaderT r c) where
-  lookup = lift' Cache.lookup
-  write = lift' Cache.write
-  update = lift' Cache.update
-  setStable = lift' Cache.setStable
-  {-# INLINE lookup #-}
-  {-# INLINE write #-}
-  {-# INLINE update #-}
-  {-# INLINE setStable #-}
+instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c)
+instance (ArrowCache a b c) => ArrowCache a b (ReaderT r c)
