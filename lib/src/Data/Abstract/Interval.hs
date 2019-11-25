@@ -80,8 +80,8 @@ withBounds2 f (Interval i1 i2) (Interval j1 j2) =
 instance (Ord n, Bounded n) => UpperBounded (Interval n) where
   top = Interval minBound maxBound
 
-widening :: Ord n => Interval n -> Widening (Interval (InfiniteNumber n))
-widening (Interval lowerBound upperBound) (Interval i1 i2) (Interval j1 j2) =
+bounded :: Ord n => Interval n -> Widening (Interval (InfiniteNumber n))
+bounded (Interval lowerBound upperBound) (Interval i1 i2) (Interval j1 j2) =
   (if j1 P./= i1 || j2 P./= i2 then Unstable else Stable,
     Interval (if | lower P.< Number lowerBound -> NegInfinity
                  | Number upperBound P.< lower -> Number upperBound
@@ -92,6 +92,11 @@ widening (Interval lowerBound upperBound) (Interval i1 i2) (Interval j1 j2) =
   where
     lower = min i1 j1
     upper = max i2 j2
+
+widening :: Ord n => Widening (Interval (InfiniteNumber n))
+widening (Interval i1 i2) (Interval j1 j2) =
+  (if j1 P./= i1 || j2 P./= i2 then Unstable else Stable,
+    Interval (if i1 P./= j1 then NegInfinity else i1) (if i2 P./= j2 then Infinity else i2))
 
 metric :: Metric m n -> Metric (Interval m) (Product n n)
 metric m (Interval i1 i2) (Interval j1 j2) = Product (m i1 j1) (m i2 j2)

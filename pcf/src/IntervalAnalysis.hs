@@ -123,7 +123,7 @@ evalInterval env0 e = snd $
       Fix.filter apply Fix.iterateInner
 
     widenVal :: Widening Val
-    widenVal = widening (I.widening ?bound)
+    widenVal = widening (I.bounded ?bound)
 
 evalInterval' :: (?sensitivity :: Int, ?bound :: Interval Int) => [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
 evalInterval' env expr = snd $ evalInterval env expr

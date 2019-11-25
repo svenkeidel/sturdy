@@ -107,7 +107,7 @@ run k lstmts =
 
     statementLabel st = case st of (s:_) -> Just (label s); [] -> Nothing
     widenEnvStore = SM.widening W.finite W.** M.widening (widenVal W.** W.finite)
-    widenVal = widening (I.widening ?bound)
+    widenVal = widening (I.bounded ?bound)
     widenExc (Exception m1) (Exception m2) = Exception <$> M.widening widenVal m1 m2
     widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening (widenVal W.** W.finite) W.** W.finite))
 
