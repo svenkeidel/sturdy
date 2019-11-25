@@ -52,12 +52,14 @@ import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 
+type FixCache lab = Context (Proj2 (CtxCache (CallString lab))) (Group Cache)
+
 -- | Calculates the entry sets of which definitions may be reached for
 -- each statment.  The analysis instantiates the generic interpreter
 -- 'Generic.run' with analysis components for fixpoint computation
 -- ('FixT'), termination ('TerminatingT'), failure ('ErrorT'), store
 -- ('StoreT'), environments ('EnvT'), and values ('IntervalT')
-run :: (?bound :: IV) => Int -> [LStatement] -> [(Label, M.Map Text (Pow Label))]
+run :: (?bound :: I.Interval Int) => Int -> [LStatement] -> [(Label, M.Map Text (Pow Label))]
 run k lstmts =
   L.sortOn fst $
 
@@ -88,11 +90,11 @@ run k lstmts =
                      (FixT _ _
                        (ChaoticT _
                         (StackT Stack _
-                          (CacheT (Group Cache) (_,_) _
-                            (ContextT (CallString _) _
+                          (CacheT (FixCache lab) (_,_) _
+                            (ContextT (CallString _)
                                (->))))))))))))) [Statement] ())
     iterationStrategy
-    widenResult
+    (widenEnvStore, widenResult)
     (M.empty,(SM.empty,stmts))
 
   where
@@ -100,12 +102,12 @@ run k lstmts =
     iterationStrategy = Fix.transform (iso' (\(store,(env,stmt)) -> (stmt,(env,store)))
                                             (\(stmt,(env,store)) -> (store,(env,stmt))))
                       $ Fix.reuseExact
-                      . Fix.callsiteSensitive' @([Statement],(_,_)) k (statementLabel . fst) widenEnvStore
+                      . Fix.callsiteSensitive' @([Statement],(_,_)) k (statementLabel . fst)
                       . Fix.iterateInner
 
     statementLabel st = case st of (s:_) -> Just (label s); [] -> Nothing
     widenEnvStore = SM.widening W.finite W.** M.widening (widenVal W.** W.finite)
-    widenVal = widening (W.bounded ?bound I.widening)
+    widenVal = widening (I.widening ?bound)
     widenExc (Exception m1) (Exception m2) = Exception <$> M.widening widenVal m1 m2
     widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening (widenVal W.** W.finite) W.** W.finite))
 
@@ -116,9 +118,10 @@ combineMaps env store = M.fromList [ (a,c) | (a,b) <- fromJust (SM.toList env)
 dropValues :: M.Map a (v,l) -> M.Map a l
 dropValues = M.map snd
 
-toMap :: (Identifiable k, Identifiable a) => Group Cache (k,a) b -> HashMap (k,a) (Stable,b)
-toMap (Groups groups) = Map.fromList [ ((k,a),(s,b)) | (k,Cache cache) <- Map.toList groups
-                                                         , (a,(s,b)) <- Map.toList cache ]
+toMap :: (Identifiable k, Identifiable a) => FixCache lab (k,a) b -> HashMap (k,a) (Stable,b)
+toMap (Context _ (Groups groups)) =
+  Map.fromList [ ((k,a),(s,b)) | (k,Cache cache) <- Map.toList groups
+                               , (a,(s,b)) <- Map.toList cache ]
 
 joinOnKey :: (Identifiable k',Complete v') => (k -> v -> Maybe (k',v')) -> HashMap k v -> HashMap k' v'
 joinOnKey pred = Map.foldlWithKey' (\m k v -> case pred k v of

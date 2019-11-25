@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -73,17 +74,24 @@ withBounds1 f (Interval i1 i2) = Interval (min (f i1) (f i2)) (max (f i1) (f i2)
 
 withBounds2 :: Ord n => (n -> n -> n) -> Interval n -> Interval n -> Interval n
 withBounds2 f (Interval i1 i2) (Interval j1 j2) =
-    Interval (minimum [ f x y | x <- [i1,i2], y <- [j1,j2]]) 
+    Interval (minimum [ f x y | x <- [i1,i2], y <- [j1,j2]])
              (maximum [ f x y | x <- [i1,i2], y <- [j1,j2]])
 
 instance (Ord n, Bounded n) => UpperBounded (Interval n) where
   top = Interval minBound maxBound
 
-widening :: Ord n => Widening (Interval (InfiniteNumber n))
-widening (Interval i1 i2) (Interval j1 j2) =
+widening :: Ord n => Interval n -> Widening (Interval (InfiniteNumber n))
+widening (Interval lowerBound upperBound) (Interval i1 i2) (Interval j1 j2) =
   (if j1 P./= i1 || j2 P./= i2 then Unstable else Stable,
-    Interval (if j1 P./= i1 then NegInfinity else j1)
-             (if j2 P./= i2 then Infinity else i2))
+    Interval (if | lower P.< Number lowerBound -> NegInfinity
+                 | Number upperBound P.< lower -> Number upperBound
+                 | otherwise -> lower)
+             (if | Number upperBound P.< upper -> Infinity
+                 | upper P.< Number lowerBound -> Number lowerBound
+                 | otherwise -> upper))
+  where
+    lower = min i1 j1
+    upper = max i2 j2
 
 metric :: Metric m n -> Metric (Interval m) (Product n n)
 metric m (Interval i1 i2) (Interval j1 j2) = Product (m i1 j1) (m i2 j2)

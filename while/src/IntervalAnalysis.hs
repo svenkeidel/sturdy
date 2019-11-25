@@ -40,7 +40,7 @@ import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Cache hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -93,7 +93,7 @@ newtype Exception = Exception (Map Text Val) deriving (PreOrd,Complete,Show,Eq)
 -- 'Generic.run' with the components for fixpoint computation
 -- ('FixT'), termination ('TerminatingT'), failure ('ErrorT'), store
 -- ('StoreT'), environments ('EnvT'), and values ('IntervalT').
-run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
+run :: (?bound :: Interval Int) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
 run k env ss = fmap (fmap (fmap fst)) <$> snd $
   Trans.run
     (Generic.run ::
@@ -107,19 +107,19 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
                     (FixT _ _
                       (ChaoticT _
                         (StackT Stack _
-                          (CacheT (Group Cache) (_,_) _
-                            (ContextT (CallString _) _
+                          (CacheT (Context (Proj2 (CtxCache (CallString lab))) (Group Cache)) (_,_) _
+                            (ContextT (CallString _)
                                (->)))))))))))) [Statement] ())
       iterationStrategy
-      widenResult
+      (widenEnvStore,widenResult)
       (M.empty,(SM.fromList env, generate (sequence ss)))
   where
     iterationStrategy = Fix.filter whileLoops
-                      $ Fix.callsiteSensitive @(((Expr,Statement,Label),[Statement]),(_,_)) k (thrd . fst . fst) widenEnvStore
+                      $ Fix.callsiteSensitive @(((Expr,Statement,Label),[Statement]),(_,_)) k (thrd . fst . fst)
                       . Fix.iterateInner
 
     widenEnvStore = M.widening widenVal W.** SM.widening W.finite
-    widenVal = widening (W.bounded ?bound I.widening)
+    widenVal = widening (I.widening ?bound)
     widenExc (Exception m1) (Exception m2) = Exception <$> M.widening widenVal m1 m2
     widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening widenVal W.** W.finite))
     thrd (_,_,z) = z

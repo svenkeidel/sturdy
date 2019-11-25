@@ -19,8 +19,10 @@ module IntervalAnalysis where
 
 import           Prelude hiding (Bounded,fail,(.),exp)
 
+import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail
+import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Combinator as Fix
 import qualified Control.Arrow.Fix.Context as Ctx
@@ -35,7 +37,7 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Cache(CacheT,Cache,Monotone,type (**),Group)
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -90,9 +92,9 @@ type Out = (Store, Terminating (Error (Pow String) Val))
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?sensitivity :: Int, ?bound :: IV) => [(Text,Val)] -> State Label Expr -> (Store, Terminating (Error (Pow String) Val))
+evalInterval :: (?sensitivity :: Int, ?bound :: Interval Int) => [(Text,Val)] -> State Label Expr -> (Store, Terminating (Error (Pow String) Val))
 evalInterval env0 e = snd $
-  run (Generic.eval ::
+  run (extend' (Generic.eval ::
       Fix'
         (ValueT Val
           (ErrorT (Pow String)
@@ -102,25 +104,30 @@ evalInterval env0 e = snd $
                   (ChaoticT In
                     (StackT Stack In
                       (CacheT (Monotone ** Group Cache) In Out
-                        (ContextT Ctx In
-                          (->)))))))))) Expr Val)
-    alloc
+                        (ContextT Ctx
+                          (->)))))))))) Expr Val))
+    (alloc, widenVal)
     iterationStrategy
     (widenStore widenVal, T.widening (E.widening W.finite widenVal))
-    (Map.empty,(Map.empty,e0))
+    (Map.empty,(Map.empty,(env0,e0)))
   where
     e0 = generate e
 
-    alloc = proc (var,val) -> do
-      ctx <- Ctx.askContext @Ctx @In -< ()
+    alloc = proc (var,_) -> do
+      ctx <- Ctx.askContext @Ctx -< ()
       returnA -< (var,ctx)
 
     iterationStrategy =
-      Fix.filter apply
-      Fix.iterateInner
+      -- Fix.traceShow .
+      Fix.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
+      Fix.filter apply Fix.iterateInner
 
     widenVal :: Widening Val
-    widenVal = widening (W.bounded ?bound I.widening)
+    widenVal = widening (I.widening ?bound)
+
+evalInterval' :: (?sensitivity :: Int, ?bound :: Interval Int) => [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
+evalInterval' env expr = snd $ evalInterval env expr
+{-# INLINE evalInterval' #-}
 
 instance (IsString e, ArrowChoice c, ArrowFail e c) => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)
