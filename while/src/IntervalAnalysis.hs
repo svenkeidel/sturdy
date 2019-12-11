@@ -17,7 +17,7 @@
 -- | Interval Analysis for the While language.
 module IntervalAnalysis where
 
-import           Prelude hiding (Bool(..),Bounded(..),(/),fail,(.))
+import           Prelude hiding (Bool(..),Bounded(..),(/),fail,(.),filter)
 import qualified Prelude as P
 
 import           Syntax
@@ -28,7 +28,8 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Combinator as Fix
+import           Control.Arrow.Fix.Context
+import           Control.Arrow.Fix.Chaotic(iterateInner)
 import           Control.Arrow.Random
 import           Control.Arrow.Order
 import qualified Control.Arrow.Trans as Trans
@@ -114,9 +115,10 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
       (widenEnvStore,widenResult)
       (M.empty,(SM.fromList env, generate (sequence ss)))
   where
-    iterationStrategy = Fix.filter whileLoops
-                      $ Fix.callsiteSensitive @(((Expr,Statement,Label),[Statement]),(_,_)) k (thrd . fst . fst)
-                      . Fix.iterateInner
+    iterationStrategy
+      = filter whileLoops
+      $ callsiteSensitive @(((Expr,Statement,Label),[Statement]),(_,_)) k (thrd . fst . fst)
+      . iterateInner
 
     widenEnvStore = M.widening widenVal W.** SM.widening W.finite
     widenVal = widening (I.bounded ?bound)

@@ -14,7 +14,6 @@ import           Prelude hiding (id,(.),const,head,iterate,lookup)
 import           Control.Category
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Combinator
 import           Control.Arrow.Fix.Context (ArrowContext)
 import           Control.Arrow.Order(ArrowEffectCommutative,ArrowComplete,ArrowJoin)
 import           Control.Arrow.Trans

@@ -14,7 +14,6 @@ import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Arrow.Fix.Reuse as Reuse
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Order
@@ -162,10 +161,6 @@ instance ArrowConst x c => ArrowConst x (NoInlineT c) where
   {-# NOINLINE askConst #-}
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (NoInlineT c)
-
-instance ArrowReuse a b c => ArrowReuse a b (NoInlineT c) where
-  reuse s f = lift $ reuse s f
-  {-# NOINLINE reuse #-}
 
 instance ArrowContext ctx c => ArrowContext ctx (NoInlineT c) where
   localContext f = lift (localContext (unlift f))

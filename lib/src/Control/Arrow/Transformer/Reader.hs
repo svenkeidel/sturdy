@@ -17,7 +17,7 @@ import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
-import Control.Arrow.Fix.Reuse as Reuse
+import Control.Arrow.Fix.Parallel as Parallel
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Order
@@ -163,13 +163,10 @@ instance ArrowConst x c => ArrowConst x (ReaderT r c) where
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ReaderT r c)
 
-instance ArrowReuse a b c => ArrowReuse a b (ReaderT r c) where
-  reuse s f = lift' $ reuse s f
-  {-# INLINE reuse #-}
-
 instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
   localContext f = lift $ lmap shuffle1 (localContext (unlift f))
   {-# INLINE localContext #-}
 
 instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c)
 instance (ArrowCache a b c) => ArrowCache a b (ReaderT r c)
+instance (ArrowParallel c) => ArrowParallel (ReaderT r c)

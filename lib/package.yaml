@@ -35,6 +35,7 @@ tests:
     main: Spec.hs
     source-dirs:
       - test
+      - test-programs
     dependencies:
       - sturdy-lib
       - hspec
@@ -42,9 +43,20 @@ tests:
 
 benchmarks:
   arrow-transformers:
-    source-dirs:
-      - bench
     main: ArrowTransformerBench.hs
+    source-dirs:
+      - bench/transformer
+    dependencies:
+      - sturdy-lib
+      - criterion
+      - dump-core
+    ghc-options: -fplugin=DumpCore -fplugin-opt DumpCore:core-html -O2
+
+  fixpoint:
+    main: FixpointBench.hs
+    source-dirs:
+      - bench/fixpoint
+      - test-programs
     dependencies:
       - sturdy-lib
       - criterion

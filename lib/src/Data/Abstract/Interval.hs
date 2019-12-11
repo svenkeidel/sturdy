@@ -6,6 +6,9 @@ module Data.Abstract.Interval where
 
 import Prelude hiding (div,Bool(..),(==),(/),(<),Ordering)
 import qualified Prelude as P
+
+import Control.DeepSeq
+
 import Data.Hashable
 import Data.Order
 import Data.Metric
@@ -33,6 +36,8 @@ instance Ord x => PreOrd (Interval x) where
 
 instance Ord x => Complete (Interval x) where
   Interval i1 i2 ⊔  Interval j1 j2 = Interval (min i1 j1) (max i2 j2)
+
+instance NFData x => NFData (Interval x)
 
 instance (Num n, Ord n) => Num (Interval n) where
   Interval i1 i2 + Interval j1 j2 = Interval (i1 + j1) (i2 + j2)
@@ -82,21 +87,24 @@ instance (Ord n, Bounded n) => UpperBounded (Interval n) where
 
 bounded :: Ord n => Interval n -> Widening (Interval (InfiniteNumber n))
 bounded (Interval lowerBound upperBound) (Interval i1 i2) (Interval j1 j2) =
-  (if j1 P./= i1 || j2 P./= i2 then Unstable else Stable,
-    Interval (if | lower P.< Number lowerBound -> NegInfinity
-                 | Number upperBound P.< lower -> Number upperBound
-                 | otherwise -> lower)
-             (if | Number upperBound P.< upper -> Infinity
-                 | upper P.< Number lowerBound -> Number lowerBound
-                 | otherwise -> upper))
+  ( if (i1,i2) P.== (r1,r2) || (j1,j2) P.== (r1,r2) then Stable else Unstable
+  , Interval r1 r2
+  )
   where
     lower = min i1 j1
     upper = max i2 j2
 
+    r1 = if | lower P.< Number lowerBound -> NegInfinity
+            | Number upperBound P.< lower -> Number upperBound
+            | otherwise -> lower
+    r2 = if | Number upperBound P.< upper -> Infinity
+            | upper P.< Number lowerBound -> Number lowerBound
+            | otherwise -> upper
+
 widening :: Ord n => Widening (Interval (InfiniteNumber n))
 widening (Interval i1 i2) (Interval j1 j2) =
-  (if j1 P./= i1 || j2 P./= i2 then Unstable else Stable,
-    Interval (if i1 P./= j1 then NegInfinity else i1) (if i2 P./= j2 then Infinity else i2))
+  let (r1,r2) = (if i1 P./= j1 then NegInfinity else i1, if i2 P./= j2 then Infinity else i2)
+  in (if (i1,i2) P.== (r1,r2) || (j1,j2) P.== (r1,r2) then Stable else Unstable, Interval r1 r2)
 
 metric :: Metric m n -> Metric (Interval m) (Product n n)
 metric m (Interval i1 i2) (Interval j1 j2) = Product (m i1 j1) (m i2 j2)

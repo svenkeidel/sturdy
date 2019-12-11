@@ -13,7 +13,6 @@ import Control.Arrow
 import Control.Arrow.Fix.Chaotic as Chaotic
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Ctx
-import Control.Arrow.Fix.Reuse as Reuse
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
@@ -172,33 +171,20 @@ instance (Applicative f, ArrowContext ctx c) => ArrowContext ctx (StaticT f c) w
   {-# INLINE localContext #-}
   {-# SPECIALIZE instance ArrowContext ctx c => ArrowContext ctx (StaticT ((->) r) c) #-}
 
-instance (Applicative f, ArrowReuse a b c) => ArrowReuse a b (StaticT f c) where
-  reuse s f = lift' (reuse s f)
-  {-# INLINE reuse #-}
-  {-# SPECIALIZE instance ArrowReuse a b c => ArrowReuse a b (StaticT ((->) r) c) #-}
-
 instance (Applicative f, ArrowStack a c) => ArrowStack a (StaticT f c) where
   peek = lift' peek
   size = lift' size
   push (StaticT f) = StaticT $ push <$> f
-  elem = lift' elem
-  elems = lift' elems
   {-# INLINE peek #-}
   {-# INLINE size #-}
   {-# INLINE push #-}
-  {-# INLINE elem #-}
-  {-# INLINE elems #-}
   {-# SPECIALIZE instance ArrowStack a c => ArrowStack a (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowCache a b c) => ArrowCache a b (StaticT f c) where
   {-# SPECIALIZE instance ArrowCache a b c => ArrowCache a b (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowChaotic a c) => ArrowChaotic a (StaticT f c) where
-  iterate = lift' Chaotic.iterate
-  setComponent = lift' Chaotic.setComponent
-  withComponent (StaticT f) (StaticT g) = StaticT $ Chaotic.withComponent <$> f <*> g
-  {-# INLINE iterate #-}
-  {-# INLINE setComponent #-}
-  {-# INLINE withComponent #-}
+  getComponent (StaticT f) = StaticT $ Chaotic.getComponent <$> f
+  {-# INLINE getComponent #-}
   {-# SPECIALIZE instance ArrowChaotic a c => ArrowChaotic a (StaticT ((->) r) c) #-}
 

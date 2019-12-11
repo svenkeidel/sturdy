@@ -18,6 +18,7 @@ import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Chaotic as Chaotic
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.Fix.Widening
@@ -195,6 +196,12 @@ instance ArrowWidening y c => ArrowWidening y (StateT s c) where
   {-# INLINE widening #-}
 
 instance (ArrowCache a b c) => ArrowCache a b (StateT s c)
+
+instance ArrowChaotic a c => ArrowChaotic a (StateT s c) where
+  setComponent = lift' setComponent
+  getComponent f = lift $ rmap shuffle1 (getComponent (unlift f))
+  {-# INLINE setComponent #-}
+  {-# INLINE getComponent #-}
 
 instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
   => ArrowEffectCommutative (StateT s c)

@@ -25,7 +25,8 @@ import           TestPrograms
 import           Control.Monad(forM_)
 import           Control.Arrow
 import           Control.Arrow.Fix as F
-import           Control.Arrow.Fix.Combinator
+import           Control.Arrow.Fix.Context
+import           Control.Arrow.Fix.Chaotic
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
@@ -58,9 +59,11 @@ spec =
   -- do
   --describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
   describe "Chaotic" $ do
-    describe "iterate inner component" $
+    describe "simple" $
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . chaotic) (?widenA, T.widening ?widenB) a)
+    describe "inner component" $
       callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . iterateInner) (?widenA, T.widening ?widenB) a)
-    describe "iterate outer component" $
+    describe "outer component" $
       callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . iterateOuter) (?widenA, T.widening ?widenB) a)
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)

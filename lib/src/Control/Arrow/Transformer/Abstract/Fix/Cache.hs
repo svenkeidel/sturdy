@@ -22,7 +22,7 @@ import Control.Arrow.Trans
 import Control.Arrow.State
 import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Fix.Cache as Cache
-import Control.Arrow.Fix.Reuse as Reuse
+import Control.Arrow.Fix.Parallel as Parallel
 import Control.Arrow.Order(ArrowJoin(..),ArrowComplete(..),ArrowEffectCommutative)
 
 import Control.Arrow.Transformer.Const
@@ -94,15 +94,21 @@ instance IsEmpty (Cache a b) where
 instance (Show a, Show b) => Show (Cache a b) where
   show (Cache m) = show (M.toList m)
 
-instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowCache a b (CacheT Cache a b c) where
-  initialize = CacheT $ proc _ -> returnA -< bottom
+instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c)
+  => ArrowCache a b (CacheT Cache a b c) where
+  initialize = CacheT $ modify' $ \(a,Cache cache) ->
+    let cache' = M.insertWith (\_ _old -> _old) a (Unstable,bottom) cache
+        ~(_,b) = M.lookupDefault (Unstable,bottom) a cache
+    in (b,Cache cache')
   lookup = CacheT $ proc a -> do
     Cache cache <- get -< ()
     returnA -< M.lookup a cache
   update = CacheT $ askConst $ \widen -> proc (a,b) -> do
     Cache cache <- get -< ()
     case M.lookup a cache of
-      Just (_,b') -> do
+      Just (Stable,b') ->
+        returnA -< (Stable,b')
+      Just (Unstable,b') -> do
         let b'' = widen b' b
         put -< Cache (M.insert a b'' cache)
         returnA -< b''
@@ -116,12 +122,6 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowC
   {-# INLINE write #-}
   {-# INLINE update #-}
   {-# INLINE setStable #-}
-
-instance (Arrow c, Profunctor c) => ArrowReuse a b (CacheT Cache a b c) where
-  reuse s f = CacheT $ proc a -> do
-    Cache cache <- get -< ()
-    returnA -< M.foldlWithKey' (\m a' (s',b') -> if s' ⊑ s then f a a' s' b' m else m) mempty cache
-  {-# INLINE reuse #-}
 
 instance Identifiable a => IsList (Cache a b) where
   type Item (Cache a b) = (a,b,Stable)
@@ -150,10 +150,6 @@ instance (Identifiable k, Arrow c, Profunctor c, ArrowCache a b (CacheT cache a 
   {-# INLINE write #-}
   {-# INLINE setStable #-}
 
-instance (Identifiable k, IsEmpty (cache a b), ArrowApply c, Profunctor c, ArrowReuse a b (CacheT cache a b c)) => ArrowReuse (k,a) b (CacheT (Group cache) (k,a) b c) where
-  reuse s f = proc (k,a0) -> withGroup (reuse s (\a a' -> f (k,a) (k,a'))) -<< (k,a0)
-  {-# INLINE reuse #-}
-
 instance (Identifiable k, IsEmpty (cache a b), ArrowApply c, Profunctor c, ArrowJoinContext a (CacheT cache a b c)) => ArrowJoinContext (k,a) (CacheT (Group cache) (k,a) b c) where
   joinByContext = proc (k,a) -> do
     a' <- withGroup joinByContext -< (k,a)
@@ -162,7 +158,8 @@ instance (Identifiable k, IsEmpty (cache a b), ArrowApply c, Profunctor c, Arrow
 
 withGroup :: (Identifiable k, IsEmpty (cache a b), Arrow c, Profunctor c) => CacheT cache a b c x y -> CacheT (Group cache) (k,a) b c (k,x) y
 withGroup f = lift $ \widen ->
-  dimap (\(Groups groups,(k,x)) -> ((groups,k),(fromMaybe empty (M.lookup k groups),x))) (\((groups,k),(cache,y)) -> (Groups (M.insert k cache groups), y))
+  dimap (\(Groups groups,(k,x)) -> ((groups,k),(fromMaybe empty (M.lookup k groups),x)))
+        (\((groups,k),(cache,y)) -> (Groups (M.insert k cache groups), y))
         (second (unlift f widen))
 {-# INLINE withGroup #-}
 
@@ -173,6 +170,57 @@ instance Identifiable k => IsList (Group cache (k,a) b) where
 
 instance (Show k, Show (cache a b)) => Show (Group cache (k,a) b) where
   show (Groups m) = show (M.toList m)
+
+------ Parallel Cache ------
+data Parallel cache a b = Parallel { old :: cache a b, new :: cache a b, stable :: !Stable }
+  deriving (Show)
+
+type instance Widening (Parallel cache a b) = Widening (cache a b)
+
+instance IsEmpty (cache a b) => IsEmpty (Parallel cache a b) where
+  empty = Parallel { old = empty, new = empty, stable = Stable }
+
+instance (IsEmpty (cache a b), Arrow c, Profunctor c) => ArrowParallel (CacheT (Parallel cache) a b c) where
+  nextIteration = modify' (\((),p) -> ((),Parallel { old = new p, new = empty, stable = Stable }))
+  {-# INLINE nextIteration #-}
+
+instance (ArrowChoice c, Profunctor c, ArrowCache a b (CacheT cache a b c))
+  => ArrowCache a b (CacheT (Parallel cache) a b c) where
+  initialize = proc a -> do
+    m <- oldCache lookup -< a
+    case m of
+      Just (s,b) -> do
+        newCache write -< (a,b,s)
+        returnA -< b
+      Nothing -> do
+        modify' (\((),cache) -> ((),cache { stable = Unstable })) -< ()
+        newCache initialize -< a
+  lookup = newCache lookup
+  update = proc (a,b) -> do
+    (s,b') <- newCache update -< (a,b)
+    s' <- modify' (\(s,cache) -> let s' = stable cache ⊔ s in (s',cache { stable = s' })) -< s
+    returnA -< (s',b')
+  write = newCache write
+  setStable = newCache setStable
+  {-# INLINE initialize #-}
+  {-# INLINE lookup #-}
+  {-# INLINE write #-}
+  {-# INLINE update #-}
+  {-# INLINE setStable #-}
+
+oldCache :: (Arrow c, Profunctor c) => CacheT cache a b c x y -> CacheT (Parallel cache) a b c x y
+oldCache f = lift $ \widen ->
+  dimap (\(p,x) -> ((new p,stable p),(old p,x)))
+        (\((n,s),(o,y)) -> (Parallel { old = o, new = n, stable = s}, y))
+        (second (unlift f widen))
+{-# INLINE oldCache #-}
+
+newCache :: (Arrow c, Profunctor c) => CacheT cache a b c x y -> CacheT (Parallel cache) a b c x y
+newCache f = lift $ \widen ->
+  dimap (\(p,x) -> ((old p,stable p),(new p,x)))
+        (\((o,s),(n,y)) -> (Parallel { old = o, new = n, stable = s}, y))
+        (second (unlift f widen))
+{-# INLINE newCache #-}
 
 ------ Monotone Cache ------
 data Monotone a b where
@@ -185,6 +233,10 @@ instance IsEmpty s => IsEmpty (Monotone s s) where
 
 instance Show s => Show (Monotone s s) where
   show (Monotone s) = show s
+
+instance (Arrow c, Profunctor c) => ArrowParallel (CacheT Monotone a b c) where
+  nextIteration = id
+  {-# INLINE nextIteration #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowCache s s (CacheT Monotone s s c) where
   initialize = id
@@ -200,12 +252,17 @@ instance (ArrowChoice c, Profunctor c) => ArrowCache s s (CacheT Monotone s s c)
   {-# INLINE update #-}
   {-# INLINE setStable #-}
 
-
 ------ Product Cache ------
 data (**) cache1 cache2 a b where
   Product :: cache1 a1 b1 -> cache2 a2 b2 -> (**) cache1 cache2 (a1,a2) (b1,b2)
 
 type instance Widening ((cache1 ** cache2) (a1,a2) (b1,b2)) = (Widening (cache1 a1 b1), Widening (cache2 a2 b2))
+
+instance (Arrow c, Profunctor c, ArrowParallel (CacheT cache1 a1 b1 c), ArrowParallel (CacheT cache2 a2 b2 c)) => ArrowParallel (CacheT (cache1 ** cache2) (a1,a2) (b1,b2) c) where
+  nextIteration = proc () -> do
+    nextIteration ** nextIteration -< ((),())
+    returnA -< ()
+  {-# INLINE nextIteration #-}
 
 instance (IsEmpty (cache1 a1 b1), IsEmpty (cache2 a2 b2)) => IsEmpty ((**) cache1 cache2 (a1,a2) (b1,b2)) where
   empty = Product empty empty
@@ -331,3 +388,4 @@ instance (Identifiable ctx, PreOrd a, Profunctor c, ArrowChoice c, ArrowContext 
           in (CtxCache (M.insert ctx a'' cache),a'')
       Nothing -> (CtxCache (M.insert ctx a cache),a)
   {-# INLINE joinByContext #-}
+

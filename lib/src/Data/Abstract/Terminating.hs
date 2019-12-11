@@ -60,24 +60,20 @@ instance PreOrd a => PreOrd (Terminating a) where
   NonTerminating ⊑ _ = True
   _ ⊑ NonTerminating = False
   Terminating a ⊑ Terminating b = a ⊑ b
-  {-# INLINE (⊑) #-}
 
   NonTerminating ≈ NonTerminating = True
   Terminating a ≈ Terminating b = a ≈ b
   _ ≈ _ = False
-  {-# INLINE (≈) #-}
 
 instance Complete a => Complete (Terminating a) where
   Terminating a ⊔ Terminating b = Terminating (a ⊔ b) 
   x ⊔ NonTerminating = x
   NonTerminating ⊔ y = y
-  {-# INLINABLE (⊔) #-}
 
 instance CoComplete a => CoComplete (Terminating a) where
   Terminating a ⊓ Terminating b = Terminating (a ⊓ b) 
   NonTerminating ⊓ _ = NonTerminating
   _ ⊓ NonTerminating = NonTerminating
-  {-# INLINE (⊓) #-}
 
 instance UpperBounded a => UpperBounded (Terminating a) where
   top = Terminating top

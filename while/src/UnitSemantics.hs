@@ -12,7 +12,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
 module UnitSemantics where
 
-import           Prelude hiding (Bool(..),Bounded(..),(.))
+import           Prelude hiding (Bool(..),Bounded(..),(.),filter)
 
 import           Syntax
 import           GenericInterpreter
@@ -34,7 +34,7 @@ import qualified Data.Abstract.Widening as W
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Combinator as Fix
+import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Fail
 import           Control.Arrow.Except
 import           Control.Arrow.Environment
@@ -80,8 +80,8 @@ run env ss =
       W.finite
       (M.empty,(SM.fromList env,generate <$> ss))
   where
-    iterationStrategy = Fix.filter whileLoops
-                      iterateInner
+    iterationStrategy = filter whileLoops
+                        iterateInner
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val,ArrowStore var val,ArrowExcept exc,ArrowComplete z)

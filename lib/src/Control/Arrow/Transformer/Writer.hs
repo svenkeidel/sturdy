@@ -13,7 +13,6 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
-import Control.Arrow.Fix.Reuse as Reuse
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
@@ -172,20 +171,8 @@ instance (Monoid w, ArrowConst x c) => ArrowConst x (WriterT w c) where
   {-# INLINE askConst #-}
 
 instance (Monoid w, ArrowStack a c) => ArrowStack a (WriterT w c) where
-  peek = lift' Stack.peek
   push f = lift $ Stack.push (unlift f)
-  elem = lift' Stack.elem
-  elems = lift' Stack.elems
-  size = lift' Stack.size
-  {-# INLINE peek #-}
   {-# INLINE push #-}
-  {-# INLINE elem #-}
-  {-# INLINE elems #-}
-  {-# INLINE size #-}
-
-instance (Monoid w, ArrowReuse a b c) => ArrowReuse a b (WriterT w c) where
-  reuse s f = lift' (Reuse.reuse s f)
-  {-# INLINE reuse #-}
 
 instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
   localContext f = lift (Context.localContext (unlift f))

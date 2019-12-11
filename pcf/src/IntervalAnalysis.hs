@@ -17,14 +17,14 @@
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module IntervalAnalysis where
 
-import           Prelude hiding (Bounded,fail,(.),exp)
+import           Prelude hiding (Bounded,fail,(.),exp,filter)
 
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Combinator as Fix
+import           Control.Arrow.Fix.Parallel(parallel)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -34,10 +34,10 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvironment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache(CacheT,Cache,Monotone,type (**),Group)
+-- import           Control.Arrow.Transformer.Abstract.Fix.Trace
+import           Control.Arrow.Transformer.Abstract.Fix.Cache(CacheT,Cache,Parallel,Monotone,type (**),Group)
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -86,7 +86,7 @@ type Ctx = CallString Label
 data Val = NumVal IV | ClosureVal Cls | TypeError (Pow String) deriving (Eq, Generic)
 
 -- Input and output type of the fixpoint.
-type In = (Store,((Expr,Label),Env))
+type In  = (Store, ((Expr,Label),Env))
 type Out = (Store, Terminating (Error (Pow String) Val))
 
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
@@ -101,11 +101,12 @@ evalInterval env0 e = snd $
             (TerminatingT
               (EnvT Text Addr Val
                 (FixT _ _
-                  (ChaoticT In
-                    (StackT Stack In
-                      (CacheT (Monotone ** Group Cache) In Out
-                        (ContextT Ctx
-                          (->)))))))))) Expr Val))
+                  (-- ChaoticT In
+                    (-- TraceT
+                      (StackT Stack In
+                        (CacheT (Monotone ** Parallel (Group Cache)) In Out
+                          (ContextT Ctx
+                            (->))))))))))) Expr Val))
     (alloc, widenVal)
     iterationStrategy
     (widenStore widenVal, T.widening (E.widening W.finite widenVal))
@@ -118,9 +119,10 @@ evalInterval env0 e = snd $
       returnA -< (var,ctx)
 
     iterationStrategy =
-      -- Fix.traceShow .
-      Fix.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
-      Fix.filter apply Fix.iterateInner
+      -- traceShow .
+      -- traceCache show .
+      Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
+      filter apply parallel
 
     widenVal :: Widening Val
     widenVal = widening (I.bounded ?bound)

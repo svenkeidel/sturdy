@@ -6,9 +6,13 @@ import Data.Order
 import Data.Hashable
 import Data.Metric
 
+import Control.DeepSeq
+
 import GHC.Generics
 
 data InfiniteNumber a = NegInfinity | Number a | Infinity deriving (Eq,Ord,Generic)
+
+instance NFData a => NFData (InfiniteNumber a)
 
 instance Show a => Show (InfiniteNumber a) where
   show NegInfinity = "-∞"
