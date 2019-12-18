@@ -1,0 +1,39 @@
+name:                sturdy-jimple
+version:             0.1.0.0
+license:             BSD3
+license-file:        LICENSE
+author:              Wouter Raateland
+maintainer:          Sven Keidel <svenkeidel@gmail.com>
+category:            Language
+
+dependencies:
+  - base
+  - containers
+  - unordered-containers
+  - hashable
+  - logfloat
+  - mtl
+  - random
+  - sturdy-lib
+  - text
+  - vector
+  - vector-instances
+
+library:
+  source-dirs:
+    - src
+
+  ghc-options: -Wall
+
+tests:
+  spec:
+    main: Spec.hs
+
+    source-dirs:
+      - test
+
+    ghc-options: -Wall
+
+    dependencies:
+      - sturdy-pcf
+      - hspec

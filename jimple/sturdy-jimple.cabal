@@ -1,66 +1,86 @@
-name:                sturdy-jimple
-version:             0.1.0.0
-license:             BSD3
-license-file:        LICENSE
-author:              Wouter Raateland
-maintainer:          wouterraateland@gmail.com
-category:            Language
-build-type:          Simple
-extra-source-files:
-cabal-version:       >=1.10
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 683be31214f2b83403a0b2eddd3a28777bcd124ce83864dfbda0e2595288614d
+
+name:           sturdy-jimple
+version:        0.1.0.0
+category:       Language
+author:         Wouter Raateland
+maintainer:     Sven Keidel <svenkeidel@gmail.com>
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
 
 library
-  exposed-modules:     ConcreteSemantics,
-                       -- IntervalSemantics,
-                       NullnessSemantics,
-                       SharedSemantics,
-                       Syntax,
-                       Data.Concrete.Exception
-                       Data.Abstract.Exception
-  ghc-options:         -Wall
-  build-depends:       base,
-                       containers,
-                       hashable,
-                       mtl,
-                       random,
-                       logfloat,
-                       sturdy-lib,
-                       text,
-                       QuickCheck
-  hs-source-dirs:      src
-  default-language:    Haskell2010
+  exposed-modules:
+      ConcreteSemantics
+      Data.Abstract.Exception
+      Data.Concrete.Exception
+      GenericInterpreter
+      IntervalSemantics
+      NullnessSemantics
+      Syntax
+  other-modules:
+      Paths_sturdy_jimple
+  hs-source-dirs:
+      src
+  ghc-options: -Wall
+  build-depends:
+      base
+    , containers
+    , hashable
+    , logfloat
+    , mtl
+    , random
+    , sturdy-lib
+    , text
+    , unordered-containers
+    , vector
+    , vector-instances
+  default-language: Haskell2010
 
-test-suite specs
-  type:                exitcode-stdio-1.0
-  ghc-options:         -Wall
-  hs-source-dirs:      test
-  main-is:             Spec.hs
-  other-modules:       ConcreteSpec,
-                       -- IntervalSpec,
-                       NullnessSpec,
-                       JimpleSoundness,
-                       Soundness,
-                       Utils,
-                       Java.Lang.ArithmeticException,
-                       Java.Lang.ArrayIndexOutOfBoundsException,
-                       Java.Lang.ClassCastException,
-                       Java.Lang.IllegalArgumentException,
-                       Java.Lang.NullPointerException,
-                       Java.Lang.Object,
-                       Java.Lang.Throwable,
-                       Classes.FactorialExample,
-                       Classes.ArrayFieldExample,
-                       Classes.SingleMethodExample,
-                       Classes.PersonExample,
-                       Classes.TryCatchExample
-  build-depends:       base,
-                       containers,
-                       hashable,
-                       logfloat,
-                       hspec,
-                       hspec-core,
-                       sturdy-lib,
-                       sturdy-jimple,
-                       text,
-                       QuickCheck
-  default-language:    Haskell2010
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Classes.ArrayFieldExample
+      Classes.FactorialExample
+      Classes.PersonExample
+      Classes.SingleMethodExample
+      Classes.TryCatchExample
+      ConcreteSpec
+      IntervalSpec
+      Java.Lang.ArithmeticException
+      Java.Lang.ArrayIndexOutOfBoundsException
+      Java.Lang.ClassCastException
+      Java.Lang.IllegalArgumentException
+      Java.Lang.NullPointerException
+      Java.Lang.Object
+      Java.Lang.Throwable
+      JimpleSoundness
+      NullnessSpec
+      Soundness
+      Utils
+      Paths_sturdy_jimple
+  hs-source-dirs:
+      test
+  ghc-options: -Wall
+  build-depends:
+      base
+    , containers
+    , hashable
+    , hspec
+    , logfloat
+    , mtl
+    , random
+    , sturdy-lib
+    , sturdy-pcf
+    , text
+    , unordered-containers
+    , vector
+    , vector-instances
+  default-language: Haskell2010

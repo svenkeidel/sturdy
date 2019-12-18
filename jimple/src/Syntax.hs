@@ -1,21 +1,60 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Syntax where
 
-import Data.Hashable
+import           Data.Hashable
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import           Data.Vector (Vector)
+import qualified Data.Vector as Vec
+import           Data.Int
+import           Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
+import           Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as Map
+import           Data.HashSet (HashSet)
+import           Data.Identifiable
 
-import Control.Monad
-
-import Test.QuickCheck
+import           GHC.Generics (Generic)
+import           Text.Printf
 
 ---- Data ----------------------------------------------------------------------
 
-data CompilationUnit = CompilationUnit { fileModifiers :: [Modifier]
-                                       , fileType :: FileType
-                                       , fileName :: String
-                                       , extends :: Maybe String
-                                       , implements :: [String]
-                                       , fileBody :: [Member]
-                                       }
+type Label = Int
+
+type ClassTable = ClassTable' Label
+newtype ClassTable' label = ClassTable (HashMap ClassId (CompilationUnit' label))
+
+type CompilationUnit = CompilationUnit' Label
+data CompilationUnit' label
+  = Class
+  { modifiers :: HashSet Modifier
+  , classExtends :: Maybe ClassId
+  , implements :: Vector ClassId
+  , classFields :: HashMap FieldName Field
+  , methods :: HashMap MethodSignature (Method' label)
+  }
+  | Interface
+  { modifiers :: HashSet Modifier
+  , interfaceExtends :: Vector ClassId
+  , methods :: HashMap MethodSignature (Method' label)
+  }
+
+type ClassName = Text
+type MethodName = Text
+type FieldName = Text
+
+data ClassId
+  = ClassId
+  { classHash :: Int
+  , classPackage :: Vector Text
+  , className :: Text
+  }
+  deriving stock (Eq)
 
 data Modifier
   = Abstract
@@ -30,197 +69,246 @@ data Modifier
   | Volatile
   | Strictfp
   | Enum
-  | Annotation deriving (Eq)
-
-data FileType
-  = ClassFile
-  | InterfaceFile
-
-data MethodSignature = MethodSignature String Type String [Type] deriving (Show, Eq)
-
-data UnnamedMethodSignature = UnnamedMethodSignature Type [Type] deriving (Show, Eq)
-
-data FieldSignature = FieldSignature String Type String deriving (Eq)
-
-data Member = FieldMember Field | MethodMember Method
-
-data Field = Field { fieldModifiers :: [Modifier]
-                   , fieldType :: Type
-                   , fieldName :: String
-                   }
-
-data Method = Method { methodModifiers :: [Modifier]
-                     , returnType :: Type
-                     , methodName :: String
-                     , parameters :: [Type]
-                     , throws :: [String]
-                     , methodBody :: MethodBody
-                     } deriving (Show, Eq)
+  | Annotation
+  deriving stock (Eq)
 
 data Type
-  = ArrayType Type
-  | BooleanType
-  | ByteType
-  | CharType
-  | DoubleType
-  | FloatType
-  | IntType
-  | LongType
-  | NullType
-  | RefType String
-  | ShortType
-  | UnknownType
-  | VoidType deriving (Eq)
+  = Array Type
+  | Boolean
+  | Byte
+  | Char
+  | Double
+  | Float
+  | Int
+  | Long
+  | Object ClassId
+  | Short
+  | Unknown
+  | Void
+  deriving stock (Eq,Generic)
+  deriving anyclass (Hashable)
 
-data MethodBody
-  = EmptyBody
-  | FullBody { declarations :: [Declaration]
-             , statements :: [Statement]
-             , catchClauses :: [CatchClause]
-             } deriving (Show, Eq)
+data Field = Field
+  { fieldModifiers :: HashSet Modifier
+  , fieldType :: Type
+  }
 
-type Declaration = (Type, [String])
+data MethodSignature
+  = MethodSignature
+  { methodHash :: Int
+  , methodReturnType :: Type
+  , methodName :: MethodName
+  , methodArgumentTypes :: Vector Type
+  } deriving (Eq)
 
-data Statement
-  = Label String
-  | Breakpoint
-  -- | Entermonitor Immediate -- Don't use this!
-  -- | Exitmonitor Immediate -- Don't use this!
-  | Tableswitch Immediate [CaseStatement]
-  | Lookupswitch Immediate [CaseStatement]
-  | Identity String AtIdentifier Type
-  | IdentityNoType String AtIdentifier
+type Method = Method' Label
+data Method' label = Method
+  { methodModifiers :: HashSet Modifier
+  , throws :: HashSet ClassId
+  , methodBody :: Maybe (MethodBody' label)
+  } deriving (Show, Eq)
+
+type MethodBody = MethodBody' Label
+data MethodBody' label
+  = MethodBody
+  { declarations :: HashMap Text Type
+  , statements :: Vector (Statement' label)
+  , catchClauses :: HashMap ClassId (CatchClause' label)
+  }
+  deriving (Show, Eq)
+
+type Statement = Statement' Label
+data Statement' label
+  = Breakpoint
+  | EnterMonitor Immediate
+  | ExitMonitor Immediate
+  | TableSwitch Immediate Int (Vector label) label
+  | LookupSwitch Immediate (IntMap label) label
+  | Identity Text Variable (Maybe Type)
   | Assign Variable Expr
-  | If BoolExpr String
-  | Goto String
+  | If Expr label
+  | Goto label
+  | Label label
   | Nop
   | Ret (Maybe Immediate)
   | Return (Maybe Immediate)
   | Throw Immediate
-  | Invoke EInvoke deriving (Show, Eq)
+  | InvokeStmt Invoke
+  deriving (Show, Eq)
 
-type CaseStatement = (CaseLabel, String)
-
-data CaseLabel
-  = ConstantCase Int
-  | DefaultCase deriving (Show, Eq)
-
-data CatchClause = CatchClause { className :: String
-                               , fromLabel :: String -- First label in try block
-                               , toLabel   :: String -- Last label in catch block continue parsing until next label
-                               , withLabel :: String -- Execute code below this label
-                               } deriving (Show, Eq)
+type CatchClause = CatchClause' Label
+data CatchClause' label
+  = CatchClause
+  { fromLabel     :: label -- First label in try block label
+  , toLabel       :: label -- Last label in catch block continue parsing until next label
+  , withLabel     :: label -- Execute code below this label
+  }
+  deriving (Show, Eq)
 
 data Expr
-  = NewExpr Type
-  | NewArrayExpr Type Immediate
-  | NewMultiArrayExpr Type [Immediate]
-  | CastExpr Type Immediate
-  | InstanceOfExpr Immediate Type
-  | InvokeExpr EInvoke
-  | RefExpr ERef
-  | BinopExpr Immediate Binop Immediate
-  | UnopExpr Unop Immediate
-  | ImmediateExpr Immediate
-  | MethodHandle MethodSignature deriving (Show, Eq)
-
-data BoolExpr
-  = BoolExpr Immediate BoolOp Immediate deriving (Show, Eq)
+  = New Type
+  | NewArray Type Immediate
+  | NewMultiArray Type [Immediate]
+  | Cast Type Immediate
+  | InstanceOf Immediate Type
+  | InvokeExpr Invoke
+  | Ref Reference
+  | Binop Immediate Binop Immediate
+  | Unop Unop Immediate
+  | Immediate Immediate
+  | MethodHandle MethodSignature
+  deriving (Show, Eq)
 
 data Immediate
-  = Local String
-  | DoubleConstant Float
+  = Local Text
+  | DoubleConstant Double
   | FloatConstant Float
-  | IntConstant Int
-  | LongConstant Int
+  | IntConstant Int32
+  | LongConstant Int64
   | NullConstant
-  | StringConstant String
-  | ClassConstant String deriving (Show, Eq)
-
-data AtIdentifier
-  = ThisRef
-  | ParameterRef Int
-  | CaughtExceptionRef deriving (Show, Eq)
+  | StringConstant Text
+  | ClassConstant Text
+  deriving (Show, Eq)
 
 data Variable
-  = ReferenceVar ERef
-  | LocalVar String deriving (Show, Eq)
+  = ReferenceVar Reference
+  | LocalVar Text
+  | This
+  | Parameter Int
+  | CaughtException
+  | StaticInstance ClassId
+  deriving (Show, Eq)
 
-data ERef
-  = ArrayRef String Immediate
-  | FieldRef String FieldSignature
-  | SignatureRef FieldSignature deriving (Show, Eq)
+data Reference
+  = ArrayRef Text Immediate
+  | FieldRef Text Type
+  | SignatureRef Type
+  deriving (Show, Eq)
 
-data EInvoke
-  = SpecialInvoke String MethodSignature [Immediate]
-  | VirtualInvoke String MethodSignature [Immediate]
-  | InterfaceInvoke String MethodSignature [Immediate]
-  | StaticInvoke MethodSignature [Immediate]
-  | DynamicInvoke String UnnamedMethodSignature [Immediate] MethodSignature [Immediate] deriving (Show, Eq)
-
-data BoolOp
-  = Cmpeq | Cmpne | Cmpgt | Cmpge | Cmplt | Cmple deriving (Show, Eq)
+data Invoke
+  = InvokeSpecial   Variable ClassId MethodSignature [Immediate]
+  | InvokeVirtual   Variable ClassId MethodSignature [Immediate]
+  | InvokeInterface Variable ClassId MethodSignature [Immediate]
+  | InvokeStatic             ClassId MethodSignature [Immediate]
+  -- | InvokeDynamic -- Currently not supported
+  deriving (Show, Eq)
 
 data Binop
-  = And | Or | Xor | Shl | Shr | Ushr
+  = And | Or | Xor | Mod | Rem
   | Cmp | Cmpg | Cmpl
-  | Plus | Minus | Mult | Div | Rem deriving (Show, Eq)
+  | Shl | Shr | Ushr
+  | Plus | Minus | Mult | Div
+  deriving (Show, Eq)
 
 data Unop
   = Lengthof
-  | Neg deriving (Show, Eq)
+  | Neg
+  deriving (Show, Eq)
+
+---- Resolving Labels -----------------------------------------------------------------
+
+class ResolveLabels stmts where
+  resolveLabels :: (Identifiable label,Show label) => stmts label -> stmts Label
+
+instance ResolveLabels ClassTable' where
+  resolveLabels (ClassTable t) = ClassTable (Map.map resolveLabels t)
+
+instance ResolveLabels CompilationUnit' where
+  resolveLabels Class{..} = Class { modifiers = modifiers, classExtends = classExtends, implements = implements, classFields = classFields, methods = Map.map resolveLabels methods }
+  resolveLabels Interface{..} = Interface { modifiers = modifiers, interfaceExtends = interfaceExtends, methods = Map.map resolveLabels methods }
+
+instance ResolveLabels Method' where
+  resolveLabels Method{..} = Method { methodModifiers = methodModifiers, throws = throws, methodBody = resolveLabels <$> methodBody }
+
+instance ResolveLabels MethodBody' where
+  resolveLabels MethodBody{..}
+    = MethodBody
+    { declarations = declarations
+    , statements = Vec.map (resolveLabelsWith resolve) statements
+    , catchClauses = Map.map (resolveLabelsWith resolve) catchClauses
+    }
+    where
+      labs = labels statements
+      resolve lab = case Map.lookup lab labs of
+        Just i -> i
+        Nothing -> error (printf "Label %s not found" (show lab))
+
+      labels :: Identifiable label => Vector (Statement' label) -> HashMap label Int
+      labels = Vec.ifoldl (\m i s -> case s of Label l -> Map.insert l i m; _ -> m) Map.empty
+
+class ResolveLabelsWith stmts where
+  resolveLabelsWith :: Identifiable label => (label -> Label) -> stmts label -> stmts Label
+
+instance ResolveLabelsWith Statement' where
+  resolveLabelsWith resolve stmt = case stmt of
+    TableSwitch key offset cases def -> TableSwitch key offset (Vec.map resolve cases) (resolve def)
+    LookupSwitch key cases def -> LookupSwitch key (IntMap.map resolve cases) (resolve def)
+    If expr label -> If expr (resolve label)
+    Goto label -> Goto (resolve label)
+    Label label -> Label (resolve label)
+    Breakpoint -> Breakpoint
+    EnterMonitor x -> EnterMonitor x
+    ExitMonitor x -> ExitMonitor x
+    Identity to from typ -> Identity to from typ
+    Assign to expr -> Assign to expr
+    Nop -> Nop
+    Ret ret -> Ret ret
+    Return ret -> Return ret
+    Throw x -> Throw x
+    InvokeStmt m -> InvokeStmt m
+
+instance ResolveLabelsWith CatchClause' where
+  resolveLabelsWith resolve CatchClause{..}
+    = CatchClause
+    { fromLabel = resolve fromLabel
+    , toLabel = resolve toLabel
+    , withLabel = resolve withLabel
+    }
+
 
 ---- Helpers -------------------------------------------------------------------
 
-fieldSignature :: CompilationUnit -> Field -> FieldSignature
-fieldSignature CompilationUnit{fileName=c} Field{fieldType=t,fieldName=n}
-  = FieldSignature c t n
+classId :: [Text] -> Text -> ClassId
+classId pkg name = ClassId { classHash = hash (pkg,name), classPackage = Vec.fromList pkg, className = name }
 
-methodSignature :: CompilationUnit -> Method -> MethodSignature
-methodSignature CompilationUnit{fileName=c} Method{returnType=t,parameters=p,methodName=n}
-  = MethodSignature c t n p
+methodSignature :: Type -> MethodName -> [Type] -> MethodSignature
+methodSignature retType name argTypes
+  = MethodSignature
+  { methodReturnType = retType
+  , methodName = name
+  , methodArgumentTypes = Vec.fromList argTypes
+  , methodHash = hash (retType,name,argTypes)
+  }
 
 isNonvoidType :: Type -> Bool
-isNonvoidType VoidType = False
-isNonvoidType UnknownType = False
+isNonvoidType Void = False
+isNonvoidType Unknown = False
 isNonvoidType _ = True
 
 isBaseType :: Type -> Bool
-isBaseType VoidType = False
-isBaseType UnknownType = False
-isBaseType (ArrayType _) = False
+isBaseType Void = False
+isBaseType Unknown = False
+isBaseType (Array _) = False
 isBaseType _ = True
 
 isIntegerType :: Type -> Bool
-isIntegerType BooleanType = True
-isIntegerType ByteType = True
-isIntegerType CharType = True
-isIntegerType IntType = True
-isIntegerType LongType = True
-isIntegerType ShortType = True
+isIntegerType Boolean = True
+isIntegerType Byte = True
+isIntegerType Char = True
+isIntegerType Int = True
+isIntegerType Long = True
+isIntegerType Short = True
 isIntegerType _ = False
 
-arbitraryLabel :: Gen String
-arbitraryLabel = do
-  n <- choose (1::Int,10::Int)
-  return $ "label" ++ show n
-
-arbitraryLocalName :: Gen String
-arbitraryLocalName = oneof $ map (return . show) (decreasing 26 ['a'..'z'])
-  where
-    decreasing _ [] = []
-    decreasing n (h:t) = replicate (n*n) h:decreasing (n - 1) t
-
-arbitraryFieldName :: Gen String
-arbitraryFieldName = oneof $ arbitrary : map return ["foo","bar","baz"]
-
-arbitraryMethodName :: Gen String
-arbitraryMethodName = oneof $ arbitrary : map return ["<clinit>","<init>","main","foo","bar","baz"]
-
-arbitraryClassName :: Gen String
-arbitraryClassName = oneof $ arbitrary : map return ["java.lang.Object"]
 
 ---- Instances -----------------------------------------------------------------
+
+instance Show ClassId where
+  show c = Text.unpack $ Text.intercalate "." (Vec.toList (classPackage c)) `Text.append` "." `Text.append` className c
+
+instance Hashable ClassId where
+  hashWithSalt s c = s `hashWithSalt` classHash c
+  hash = classHash
 
 instance Show Modifier where
   show Abstract     = "abstract"
@@ -237,161 +325,40 @@ instance Show Modifier where
   show Enum         = "enum"
   show Annotation   = "annotation"
 
-instance Ord FieldSignature where
-  compare (FieldSignature c1 _ n1) (FieldSignature c2 _ n2) =
-    case compare c1 c2 of
-      LT -> LT
-      EQ -> compare n1 n2
-      GT -> GT
+instance Hashable MethodSignature where
+  hashWithSalt s sig = s `hashWithSalt` methodHash sig
+  hash = methodHash
 
-instance Show FieldSignature where
-  show (FieldSignature c t n) =
-    "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
+instance Show MethodSignature where
+  show m = printf "%s %s%s"
+    (show (methodReturnType m))
+    (Text.unpack (methodName m))
+    (show (Vec.toList (methodArgumentTypes m)))
 
-instance Hashable FieldSignature where
-  hashWithSalt s (FieldSignature c t n) = s + hash c + hash t + hash n
+-- instance Ord FieldSignature where
+--   compare (FieldSignature c1 _ n1) (FieldSignature c2 _ n2) =
+--     case compare c1 c2 of
+--       LT -> LT
+--       EQ -> compare n1 n2
+--       GT -> GT
+
+-- instance Show FieldSignature where
+--   show (FieldSignature c t n) =
+--     "<" ++ show c ++ ": " ++ show t ++ " " ++ show n ++ ">"
+
+-- instance Hashable FieldSignature where
+--   hashWithSalt s (FieldSignature c t n) = s + hash c + hash t + hash n
 
 instance Show Type where
-  show (ArrayType t) = show t ++ "[]"
-  show BooleanType = "bool"
-  show ByteType = "byte"
-  show CharType = "char"
-  show DoubleType = "double"
-  show FloatType = "float"
-  show IntType = "int"
-  show LongType = "long"
-  show NullType = "null"
-  show (RefType s) = show s
-  show ShortType = "short"
-  show UnknownType = "<untyped>"
-  show VoidType = "void"
-
-instance Hashable Type where
-  hashWithSalt n t = n + hash (show t)
-
----- Arbitrary Instances -------------------------------------------------------
-
--- instance Arbitrary CompilationUnit where
---instance Arbitrary Modifier where
---instance Arbitrary FileType where
-
-instance Arbitrary MethodSignature where
-  arbitrary = liftM4 MethodSignature arbitraryClassName arbitrary arbitraryMethodName arbitrary
-
-instance Arbitrary UnnamedMethodSignature where
-  arbitrary = liftM2 UnnamedMethodSignature arbitrary arbitrary
-
-instance Arbitrary FieldSignature where
-  arbitrary = liftM3 FieldSignature arbitraryClassName arbitrary arbitraryFieldName
-
---instance Arbitrary Member where
---instance Arbitrary Field where
---instance Arbitrary Method where
-
-instance Arbitrary Type where
-  arbitrary = oneof $ refType:map return [
-    BooleanType,
-    ByteType,
-    CharType,
-    DoubleType,
-    FloatType,
-    IntType,
-    LongType,
-    NullType,
-    ShortType,
-    UnknownType,
-    VoidType]
-    where
-      refType = fmap RefType arbitrary
-
---instance Arbitrary MethodBody where
--- type Declaration
-
-instance Arbitrary Statement where
-  arbitrary = oneof [
-    fmap Label arbitraryLabel,
-    return Breakpoint,
-    liftM2 Tableswitch arbitrary arbitrary,
-    liftM2 Lookupswitch arbitrary arbitrary,
-    liftM3 Identity arbitraryLocalName arbitrary arbitrary,
-    liftM2 IdentityNoType arbitraryLocalName arbitrary,
-    liftM2 Assign arbitrary arbitrary,
-    liftM2 If arbitrary arbitraryLabel,
-    fmap Goto arbitraryLabel,
-    return Nop,
-    fmap Ret arbitrary,
-    fmap Return arbitrary,
-    fmap Throw arbitrary,
-    fmap Invoke arbitrary]
-
--- type CaseStatement
-
-instance Arbitrary CaseLabel where
-  arbitrary = oneof $
-    return DefaultCase :
-    replicate 5 (fmap ConstantCase arbitrary)
-
---instance Arbitrary CatchClause where
-
-instance Arbitrary Expr where
-  arbitrary = oneof [
-    fmap NewExpr arbitrary,
-    liftM2 NewArrayExpr arbitrary arbitrary,
-    liftM2 NewMultiArrayExpr arbitrary (replicateM 2 arbitrary),
-    liftM2 CastExpr arbitrary arbitrary,
-    liftM2 InstanceOfExpr arbitrary arbitrary,
-    fmap InvokeExpr arbitrary,
-    fmap RefExpr arbitrary,
-    liftM3 BinopExpr arbitrary arbitrary arbitrary,
-    liftM2 UnopExpr arbitrary arbitrary,
-    fmap ImmediateExpr arbitrary,
-    fmap MethodHandle arbitrary]
-
-instance Arbitrary BoolExpr where
-  arbitrary = liftM3 BoolExpr arbitrary arbitrary arbitrary
-
-instance Arbitrary Immediate where
-  arbitrary = oneof [
-    fmap Local arbitraryLocalName,
-    fmap DoubleConstant arbitrary,
-    fmap FloatConstant arbitrary,
-    fmap IntConstant arbitrary,
-    fmap LongConstant arbitrary,
-    return NullConstant,
-    fmap StringConstant arbitrary,
-    fmap ClassConstant arbitrary]
-
-instance Arbitrary AtIdentifier where
-  arbitrary = oneof $ [
-    return ThisRef,
-    return CaughtExceptionRef] ++ replicate 4 (fmap ParameterRef arbitrary)
-
-instance Arbitrary Variable where
-  arbitrary = oneof [
-    fmap ReferenceVar arbitrary,
-    fmap LocalVar arbitrary]
-
-instance Arbitrary ERef where
-  arbitrary = oneof [
-    liftM2 ArrayRef arbitraryLocalName arbitrary,
-    liftM2 FieldRef arbitraryLocalName arbitrary,
-    fmap SignatureRef arbitrary]
-
-instance Arbitrary EInvoke where
-  arbitrary = oneof [
-    liftM3 SpecialInvoke arbitraryLocalName arbitrary arbitrary,
-    liftM3 VirtualInvoke arbitraryLocalName arbitrary arbitrary,
-    liftM3 InterfaceInvoke arbitraryLocalName arbitrary arbitrary,
-    liftM2 StaticInvoke arbitrary arbitrary,
-    liftM5 DynamicInvoke arbitraryLocalName arbitrary arbitrary arbitrary arbitrary]
-
-instance Arbitrary BoolOp where
-  arbitrary = oneof $ map return [Cmpeq, Cmpne, Cmpgt, Cmpge, Cmplt, Cmple]
-
-instance Arbitrary Binop where
-  arbitrary = oneof $ map return [And, Or, Xor, Shl, Shr, Ushr,
-                                  Cmp, Cmpg, Cmpl,
-                                  Plus, Minus, Mult, Div, Rem]
-
-instance Arbitrary Unop where
-  arbitrary = oneof $ map return [Lengthof, Neg]
+  show (Array t) = show t ++ "[]"
+  show Boolean = "bool"
+  show Byte = "byte"
+  show Char = "char"
+  show Double = "double"
+  show Float = "float"
+  show Int = "int"
+  show Long = "long"
+  show (Object s) = show s
+  show Short = "short"
+  show Unknown = "<untyped>"
+  show Void = "void"
