@@ -125,7 +125,7 @@ instance ArrowEnv var val c => ArrowEnv var val (ReaderT r c) where
   {-# INLINE extend #-}
 
 instance ArrowClosure expr cls c => ArrowClosure expr cls (ReaderT r c) where
-  type Join y (ReaderT r c) = Cls.Join y c
+  type Join y cls (ReaderT r c) = Cls.Join y cls c
   apply f = lift $ lmap shuffle1 $ Cls.apply (lmap shuffle1 (unlift f))
   {-# INLINE apply #-}
 

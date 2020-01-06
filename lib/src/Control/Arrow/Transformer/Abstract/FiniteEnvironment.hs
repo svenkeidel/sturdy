@@ -78,7 +78,7 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutat
 
 instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowEffectCommutative c, ArrowChoice c, Profunctor c) =>
   ArrowClosure expr (Closure expr (HashSet (HashMap var addr))) (EnvT var addr val c) where
-  type Join y (EnvT var addr val c) = Complete y
+  type Join y (Closure expr (HashSet (HashMap var addr))) (EnvT var addr val c) = Complete y
   closure = EnvT $ proc expr -> do
     env <- Reader.ask -< ()
     returnA -< Cls.closure expr (Set.singleton env)
@@ -97,7 +97,6 @@ instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (Hash
     State.modify' (\(vals,store) -> ((), Map.unionWith (\old new -> snd (widening old new)) store vals)) -< vals
     Reader.local f -< (env',x)
   {-# INLINE letRec #-}
-
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var addr val c) where
   app = EnvT (app .# first coerce)

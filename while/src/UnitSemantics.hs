@@ -55,6 +55,8 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 
 -- Value semantics for the while language that does not approximate values at all.
 type Addr = FreeCompletion Label
+type Env = SM.Map Text Addr
+type Store = M.Map Addr Val
 type Val = ()
 type Exception = ()
 
@@ -66,8 +68,8 @@ run env ss =
       (Generic.run ::
         Fix'
           (UnitT
-            (EnvT SM.Map Text Addr
-              (StoreT M.Map Addr Val
+            (EnvT Env
+              (StoreT Store
                 (ExceptT Exception
                   (ErrorT (Pow String)
                     (TerminatingT

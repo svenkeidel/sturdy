@@ -99,7 +99,7 @@ instance (ArrowComonad f c, ArrowEnv x y c) => ArrowEnv x y (CokleisliT f c) whe
   {-# INLINE extend #-}
 
 instance (ArrowComonad f c, ArrowClosure expr cls c) => ArrowClosure expr cls (CokleisliT f c) where
-  type Join y (CokleisliT f c) = Cls.Join y c
+  type Join y cls (CokleisliT f c) = Cls.Join y cls c
   apply f = lift (lmap costrength2 (Cls.apply (lmap strength2 (unlift f))))
   {-# INLINE apply #-}
 

@@ -88,6 +88,8 @@ import           Text.Printf
 data Val = BoolVal Bool | NumVal IV | TypeError (Pow String) deriving (Eq,Generic)
 type IV = Interval (InfiniteNumber Int)
 type Addr = FreeCompletion Label
+type Env = SM.Map Text Addr
+type Store = Map Addr Val
 newtype Exception = Exception (Map Text Val) deriving (PreOrd,Complete,Show,Eq)
 
 -- | The interval analysis instantiates the generic interpreter
@@ -100,8 +102,8 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
     (Generic.run ::
       Fix'
         (ValueT Val
-          (EnvT SM.Map Text Addr
-            (StoreT Map Addr Val
+          (EnvT Env
+            (StoreT Store
               (ExceptT Exception
                 (ErrorT (Pow String)
                   (TerminatingT

@@ -116,7 +116,7 @@ instance (ArrowMonad f c, ArrowLetRec x y c) => ArrowLetRec x y (KleisliT f c) w
   {-# INLINE letRec #-}
 
 instance (ArrowMonad f c, ArrowClosure expr cls c) => ArrowClosure expr cls (KleisliT f c) where
-  type Join y (KleisliT f c) = Cls.Join (f y) c
+  type Join y cls (KleisliT f c) = Cls.Join (f y) cls c
   apply f = lift (Cls.apply (unlift f))
   {-# INLINE apply #-}
 

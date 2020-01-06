@@ -153,7 +153,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsVal Val (ValueT Val c) 
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
-  type Join y (ValueT Val c) = Cls.Join y c
+  type Join y Val (ValueT Val c) = Cls.Join y Cls c
   closure = ValueT $ rmap ClosureVal Cls.closure
   apply (ValueT f) = ValueT $ proc (v,x) -> case v of
     ClosureVal cls -> Cls.apply f -< (cls,x)

@@ -121,7 +121,7 @@ instance ArrowLetRec var val c => ArrowLetRec var val (NoInlineT c) where
   {-# NOINLINE letRec #-}
 
 instance ArrowClosure expr cls c => ArrowClosure expr cls (NoInlineT c) where
-  type Join y (NoInlineT c) = Cls.Join y c
+  type Join y cls (NoInlineT c) = Cls.Join y cls c
   closure = lift Cls.closure
   apply f = lift $ Cls.apply (unlift f)
   {-# NOINLINE closure #-}

@@ -146,7 +146,7 @@ instance (ArrowEnv var val c) => ArrowEnv var val (StateT s c) where
   {-# INLINE extend #-}
 
 instance ArrowClosure expr cls c => ArrowClosure expr cls (StateT s c) where
-  type Join y (StateT s c) = Cls.Join (s,y) c
+  type Join y cls (StateT s c) = Cls.Join (s,y) cls c
   apply f = lift $ lmap shuffle1 (Cls.apply (lmap shuffle1 (unlift f)))
   {-# INLINE apply #-}
 

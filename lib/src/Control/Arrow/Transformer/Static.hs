@@ -138,7 +138,7 @@ instance (Applicative f, ArrowEnv var val c) => ArrowEnv var val (StaticT f c) w
   {-# SPECIALIZE instance ArrowEnv var val c => ArrowEnv var val (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowClosure expr cls c) => ArrowClosure expr cls (StaticT f c) where
-  type Join y (StaticT f c) = Cls.Join y c
+  type Join y cls (StaticT f c) = Cls.Join y cls c
   apply (StaticT f) = StaticT $ Cls.apply <$> f
   {-# INLINE apply #-}
   {-# SPECIALIZE instance ArrowClosure expr cls c => ArrowClosure expr cls (StaticT ((->) r) c) #-}

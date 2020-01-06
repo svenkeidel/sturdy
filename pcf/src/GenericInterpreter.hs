@@ -24,7 +24,7 @@ import           GHC.Exts (IsString(..),Constraint)
 
 -- | Shared interpreter for PCF.
 eval :: (ArrowChoice c, ArrowFix (c Expr v), ArrowEnv Text v c, ArrowFail e c, IsString e,
-         ArrowClosure Expr v c, ArrowLetRec Text v c, IsVal v c, Env.Join v c, Cls.Join v c, Join v c)
+         ArrowClosure Expr v c, ArrowLetRec Text v c, IsVal v c, Env.Join v c, Cls.Join v v c, Join v c)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> Env.lookup' -< x

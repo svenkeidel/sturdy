@@ -35,20 +35,13 @@ import           Data.Profunctor.Unsafe
 import           Data.Coerce
 
 -- | Arrow transformer that adds an environment to a computation.
-newtype EnvT var val c x y = EnvT (ReaderT (HashMap var val) c x y)
+newtype EnvT env c x y = EnvT (ReaderT env c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,
             ArrowFail e,ArrowExcept e,ArrowState s,ArrowConst r,
             ArrowStore var' val', ArrowRun)
 
-runEnvT :: EnvT var val c x y -> c (HashMap var val,x) y
-runEnvT = coerce
-{-# INLINE runEnvT #-}
-
-runEnvT' :: (Profunctor c, Identifiable var) => EnvT var val c x y -> c ([(var,val)],x) y
-runEnvT' f = lmap (first M.fromList) (runEnvT f)
-
-instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT var val c) where
-  type Join y (EnvT var val c) = ()
+instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT (HashMap var val) c) where
+  type Join y (EnvT (HashMap var val) c) = ()
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- Reader.ask -< ()
     case M.lookup var env of
@@ -58,8 +51,8 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowEnv var val (En
     env <- Reader.ask -< ()
     Reader.local f -< (M.insert var val env, x)
 
-instance (ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr (HashMap var val)) (EnvT var val c) where
-  type Join y (EnvT var val c) = ()
+instance (ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr env) (EnvT env c) where
+  type Join y (Closure expr env) (EnvT env c) = ()
   closure = EnvT $ proc expr -> do
     env <- Reader.ask -< ()
     returnA -< Closure expr env
@@ -67,19 +60,19 @@ instance (ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr (HashM
     Reader.local f -< (env,(expr,x))
 
 instance (Identifiable var, IsClosure val (HashMap var val), ArrowChoice c, Profunctor c)
-  => ArrowLetRec var val (EnvT var val c) where
+  => ArrowLetRec var val (EnvT (HashMap var val) c) where
   letRec (EnvT f) = EnvT $ proc (bindings,x) -> do
     env <- Reader.ask -< ()
     let env' = foldr (\(var,val) -> M.insert var (setEnvironment env' val)) env bindings
     Reader.local f -< (env',x)
 
-instance (ArrowApply c,Profunctor c) => ArrowApply (EnvT var val c) where
+instance (ArrowApply c,Profunctor c) => ArrowApply (EnvT env c) where
   app = EnvT $ app .# first coerce
 
-instance ArrowReader r c => ArrowReader r (EnvT var val c) where
+instance ArrowReader r c => ArrowReader r (EnvT env c) where
   ask = lift' Reader.ask
   local (EnvT (ReaderT f)) = EnvT (ReaderT (lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local f)))
 
-deriving instance ArrowFix (Underlying (EnvT var val c) x y) => ArrowFix (EnvT var val c x y)
+deriving instance ArrowFix (Underlying (EnvT env c) x y) => ArrowFix (EnvT env c x y)
 
-type instance Fix (EnvT var val c) x y = EnvT var val (Fix c (HashMap var val,x) y)
+type instance Fix (EnvT env c) x y = EnvT env (Fix c (env,x) y)

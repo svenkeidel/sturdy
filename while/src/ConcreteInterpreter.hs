@@ -47,6 +47,8 @@ import           GHC.Generics (Generic)
 -- | Values of the While language can be booleans or numbers.
 data Val = BoolVal Bool | NumVal Int deriving (Eq, Show, Generic)
 type Addr = Label
+type Env = HashMap Text Addr
+type Store = HashMap Addr Val
 type Exception = (Text,Val)
 
 -- | The concrete interpreter of the while language instantiates
@@ -59,8 +61,8 @@ run ss =
       (Generic.run ::
         ConcreteT
           (RandomT
-            (EnvT Text Addr
-              (StoreT Addr Val
+            (EnvT Env
+              (StoreT Store
                 (ExceptT Exception
                   (FailureT String
                     (->)))))) [Statement] ())
@@ -78,7 +80,7 @@ instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ConcreteT c) where
 instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
   type JoinVal y (ConcreteT c) = ()
 
-  boolLit = arr (BoolVal)
+  boolLit = arr BoolVal
   and = proc (v1,v2) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 && b2)
     _ -> fail -< "Expected two booleans as arguments for 'and'"
@@ -88,7 +90,7 @@ instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
   not = proc v -> case v of
     BoolVal b -> returnA -< BoolVal (Prelude.not b)
     _ -> fail -< "Expected a boolean as argument for 'not'"
-  numLit = arr (\d -> NumVal d)
+  numLit = arr NumVal
   add = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
     _ -> fail -< "Expected two numbers as arguments for 'add'"

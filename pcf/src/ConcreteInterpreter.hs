@@ -39,7 +39,7 @@ data Val = NumVal Int | ClosureVal Cls deriving (Eq,Generic)
 -- implemented by instantiating the shared semantics with the concrete
 -- interpreter arrow `Interp`.
 evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
-evalConcrete env e = run (eval :: ValueT Val (EnvT Text Val (FailureT String (->))) Expr Val) (M.fromList env,generate e)
+evalConcrete env e = run (eval :: ValueT Val (EnvT Env (FailureT String (->))) Expr Val) (M.fromList env,generate e)
 
 -- | Concrete instance of the interface for value operations.
 instance (ArrowClosure Expr Cls c, ArrowChoice c, ArrowFail String c) => IsVal Val (ValueT Val c) where
@@ -62,7 +62,7 @@ instance (ArrowClosure Expr Cls c, ArrowChoice c, ArrowFail String c) => IsVal V
 
 instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
-  type Join y (ValueT Val c) = Cls.Join y c
+  type Join y Val (ValueT Val c) = Cls.Join y Cls c
   closure = ValueT $ rmap ClosureVal Cls.closure
   apply (ValueT f) = ValueT $ proc (v,x) -> case v of
     ClosureVal cls -> Cls.apply f -< (cls,x)

@@ -43,20 +43,20 @@ import Data.Coerce
 
 import GHC.Exts
 
-newtype EnvT (env :: k1 -> k2 -> *) var val c x y = EnvT (ReaderT (env var val) c x y)
+newtype EnvT env c x y = EnvT (ReaderT env c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded, ArrowComplete z,
             ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k, ArrowRun, ArrowCont)
 
-runEnvT :: EnvT env var val c x y -> c (env var val,x) y
+runEnvT :: EnvT env c x y -> c (env,x) y
 runEnvT = coerce
 {-# INLINE runEnvT #-}
 
-runEnvT' :: (IsList (env var val), Item (env var val) ~ (var,val), Profunctor c) => EnvT env var val c x y -> c ([(var,val)],x) y
+runEnvT' :: (IsList env, Item env ~ (var,val), Profunctor c) => EnvT env c x y -> c ([(var,val)],x) y
 runEnvT' f = lmap (first fromList) (runEnvT f)
 {-# INLINE runEnvT' #-}
 
-instance (Identifiable var, UpperBounded val, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT SM.Map var val c) where
-  type Join y (EnvT SM.Map var val c) = ArrowComplete y c
+instance (Identifiable var, UpperBounded val, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT (SM.Map var val) c) where
+  type Join y (EnvT (SM.Map var val) c) = ArrowComplete y c
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- Reader.ask -< ()
     case SM.lookup' var env of
@@ -69,8 +69,8 @@ instance (Identifiable var, UpperBounded val, ArrowChoice c, Profunctor c) => Ar
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (Identifiable var, Traversable val, Complete (val (Set var)), ArrowChoice c, Profunctor c) => ArrowEnv var (val (FM.Env var val)) (EnvT FM.Env var val c) where
-  type Join y (EnvT FM.Env var val c) = ArrowComplete y c
+instance (Identifiable var, Traversable val, Complete (val (Set var)), ArrowChoice c, Profunctor c) => ArrowEnv var (val (FM.Env var val)) (EnvT (FM.Env var val) c) where
+  type Join y (EnvT (FM.Env var val) c) = ArrowComplete y c
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- Reader.ask -< ()
     case FM.lookup var env of
@@ -83,14 +83,14 @@ instance (Identifiable var, Traversable val, Complete (val (Set var)), ArrowChoi
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (Identifiable var, Traversable val, Complete (val (Set var)), ArrowChoice c, Profunctor c) => ArrowLetRec var (val (FM.Env var val)) (EnvT FM.Env var val c) where
+instance (Identifiable var, Traversable val, Complete (val (Set var)), ArrowChoice c, Profunctor c) => ArrowLetRec var (val (FM.Env var val)) (EnvT (FM.Env var val) c) where
   letRec (EnvT f) = EnvT $ proc (ls,x) -> do
     env <- Reader.ask -< ()
     Reader.local f -< (FM.insertRec ls env,x)
   {-# INLINE letRec #-}
 
-instance (Identifiable expr, ArrowLowerBounded c, ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr (env var val)) (EnvT env var val c) where
-  type Join y (EnvT env var val c) = ArrowComplete y c
+instance (Identifiable expr, ArrowLowerBounded c, ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr env) (EnvT env c) where
+  type Join y (Closure expr env) (EnvT env c) = ArrowComplete y c
   closure = EnvT $ proc expr -> do
     env <- Reader.ask -< ()
     returnA -< Abs.closure expr env
@@ -99,15 +99,15 @@ instance (Identifiable expr, ArrowLowerBounded c, ArrowChoice c, Profunctor c) =
   {-# INLINE closure #-}
   {-# INLINE apply #-}
 
-instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT env var val c) where
+instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT env c) where
   app = EnvT (app .# first coerce)
   {-# INLINE app #-}
 
-instance ArrowReader r c => ArrowReader r (EnvT env var val c) where
+instance ArrowReader r c => ArrowReader r (EnvT env c) where
   ask = lift' Reader.ask
   local f = lift $ lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local (unlift f))
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
-type instance Fix (EnvT env var val c) x y = EnvT env var val (Fix c (env var val,x) y)
-deriving instance ArrowFix (Underlying (EnvT env var val c) x y) => ArrowFix (EnvT env var val c x y)
+type instance Fix (EnvT env c) x y = EnvT env (Fix c (env,x) y)
+deriving instance ArrowFix (Underlying (EnvT env c) x y) => ArrowFix (EnvT env c x y)

@@ -140,7 +140,7 @@ instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
   {-# INLINE extend #-}
 
 instance (Monoid w, ArrowClosure expr cls c) => ArrowClosure expr cls (WriterT w c) where
-  type Join y (WriterT w c) = Cls.Join (w,y) c
+  type Join y cls (WriterT w c) = Cls.Join (w,y) cls c
   apply f = lift (Cls.apply (unlift f))
   {-# INLINE apply #-}
 
