@@ -15,6 +15,7 @@ import Control.Arrow.Cont
 import Control.Arrow.Fix
 import Control.Arrow.Fail
 import Control.Arrow.Order
+import Control.Arrow.Primitive
 import Control.Arrow.Trans
 import Control.Arrow.Reader
 import Control.Arrow.State
@@ -45,6 +46,9 @@ instance ArrowTrans (ContT r c) where
 instance ArrowLift (ContT r) where
   lift' f = ContT $ \k -> k . f
   {-# INLINE lift' #-}
+
+instance (ArrowApply c, ArrowPrimitive c) => ArrowPrimitive (ContT r c) where
+  type PrimState (ContT r c) = PrimState c
 
 instance Profunctor c => Profunctor (ContT r c) where
   dimap f g h = lift $ \k -> lmap f (unlift h (lmap g k))

@@ -17,6 +17,7 @@ import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Monad
 import Control.Arrow.Order
+import Control.Arrow.Primitive
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
 import Control.Arrow.Store as Store
@@ -30,10 +31,9 @@ import Control.Comonad
 
 newtype CokleisliT f c x y = CokleisliT { runCokleisliT :: c (f x) y }
 
-instance (ArrowComonad f c, ArrowRun c) => ArrowRun (CokleisliT f c) where
-  type Run (CokleisliT f c) x y = Run c (f x) y
-instance ArrowTrans (CokleisliT f c) where
-  type Underlying (CokleisliT f c) x y = c (f x) y
+instance (ArrowComonad f c, ArrowRun c) => ArrowRun (CokleisliT f c) where type Run (CokleisliT f c) x y = Run c (f x) y
+instance ArrowTrans (CokleisliT f c) where type Underlying (CokleisliT f c) x y = c (f x) y
+instance (ArrowComonad f c, ArrowPrimitive c) => ArrowPrimitive (CokleisliT f c) where type PrimState (CokleisliT f c) = PrimState c
 
 instance Comonad f => ArrowLift (CokleisliT f) where
   lift' f = lift $ lmap extract f

@@ -19,6 +19,7 @@ import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Order
+import Control.Arrow.Primitive
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
 import Control.Arrow.Store as Store
@@ -37,6 +38,10 @@ instance (Applicative f, ArrowRun c) =>  ArrowRun (StaticT f c) where
   run = fmap run . runStaticT
   {-# INLINE run #-}
   {-# SPECIALIZE instance (ArrowRun c) => ArrowRun (StaticT ((->) r) c) #-}
+
+instance (Applicative f, ArrowPrimitive c) => ArrowPrimitive (StaticT f c) where
+  type PrimState (StaticT f c) = PrimState c
+  {-# SPECIALIZE instance (ArrowPrimitive c) => ArrowPrimitive (StaticT ((->) r) c) #-}
 
 instance (Applicative f) =>  ArrowTrans (StaticT f c) where
   type Underlying (StaticT f c) x y = f (c x y)
