@@ -11,7 +11,6 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Stack (ArrowStack,widenInput,maxSize,reuseByMetric)
-import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Cache (ArrowCache)
 import           Control.Arrow.Fix.Chaotic (ArrowChaotic,chaotic,iterateInner,iterateOuter)
 import           Control.Arrow.Fix.Parallel (ArrowParallel,parallel)
@@ -20,7 +19,7 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
-import           Control.Arrow.Transformer.Abstract.Fix.Cache hiding (Widening)
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 -- import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
