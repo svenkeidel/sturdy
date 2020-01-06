@@ -12,6 +12,7 @@ dependencies:
   - unordered-containers
   - hashable
   - logfloat
+  - profunctors
   - mtl
   - random
   - sturdy-lib

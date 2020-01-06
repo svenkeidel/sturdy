@@ -19,6 +19,7 @@ import           Control.Arrow.Closure as Closure
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Frame
 import           Control.Arrow.Reader as Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
@@ -40,6 +41,10 @@ newtype EnvT env c x y = EnvT (ReaderT env c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,
             ArrowFail e,ArrowExcept e,ArrowState s,ArrowConst r,
             ArrowStore var' val', ArrowRun)
+
+instance (Arrow c, Profunctor c) => ArrowFrame env (EnvT env c) where
+  newFrame (EnvT f) = EnvT $ Reader.local f
+  askFrame = EnvT Reader.ask
 
 instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT (HashMap var val) c) where
   type Join y (EnvT (HashMap var val) c) = ()

@@ -33,31 +33,34 @@ import Control.Arrow.Utils (map)
 import GHC.Exts
 
 import Syntax
+import Text.Printf
 
-data Frame val =
+data Frame addr =
   Frame
-  { this            :: val
-  , params          :: Vector val
-  , locals          :: HashMap Text val
+  { this            :: addr
+  , params          :: Vector addr
+  , locals          :: HashMap Text addr
   , stmts           :: Vector Statement
   , handlers        :: HashMap ClassId CatchClause
-  , caughtException :: Maybe val
+  , caughtException :: Maybe addr
   }
 
 type PC = Int
 
-type StmtInterpreter c = c PC ()
+type StmtInterpreter val c = c PC val
 
-type ArrowInterp val e c =
-  ( IsString e, IsVal val c
-  , ArrowChoice c, ArrowReturn val c
-  , ArrowFrame (Frame val) c, ArrowEnv Variable val c
-  , ArrowExcept val c, ArrowFail e c
-  , ArrowFix (StmtInterpreter c)
-  , JoinVal () c, JoinVal val c, Env.Join val c, Except.Join () c
+type ArrowInterp addr val err c =
+  ( IsString err, IsVal val c
+  , ArrowChoice c
+  , ArrowFrame (Frame addr) c
+  , ArrowEnv Variable val c
+  , ArrowExcept val c
+  , ArrowFail err c
+  , ArrowFix (StmtInterpreter val c)
+  , JoinVal () c, JoinVal val c, Env.Join val c, Except.Join val c
   )
 
-eval :: ArrowInterp val e c => StmtInterpreter c -> c Expr val
+eval :: ArrowInterp addr val err c => StmtInterpreter val c -> c Expr val
 eval run' = proc expr -> case expr of
   New typ -> new -< typ
   NewArray typ e -> do
@@ -103,7 +106,7 @@ eval run' = proc expr -> case expr of
   MethodHandle {} -> fail -< "Unsupported operation: MethodHandle"
 {-# INLINE eval #-}
 
-evalImmediate :: ArrowInterp val e c => c Immediate val
+evalImmediate :: ArrowInterp addr val err c => c Immediate val
 evalImmediate = proc i -> case i of
   Local name -> lookup' -< LocalVar name
   DoubleConstant f -> doubleConstant -< f
@@ -112,10 +115,10 @@ evalImmediate = proc i -> case i of
   LongConstant f -> longConstant -< f
   NullConstant -> nullConstant -< ()
   StringConstant s -> stringConstant -< s
-  ClassConstant c -> classConstant -< c
+  ClassConstant c -> fail -< "Unsupported operation: ClassConstant"
 {-# INLINE evalImmediate #-}
 
-evalInvoke :: ArrowInterp val e c => StmtInterpreter c -> c Invoke val
+evalInvoke :: ArrowInterp addr val err c => StmtInterpreter val c -> c Invoke val
 evalInvoke run' = proc e -> case e of
   InvokeVirtual obj klass methodSig args -> do
     receiver <- lookup' -< obj
@@ -141,18 +144,18 @@ evalInvoke run' = proc e -> case e of
                             , handlers = catchClauses body
                             , caughtException = Nothing
                             }
-          newFrame (handleReturn run') -< (frame,0)
+          newFrame run' -< (frame,0)
         ) -< (receiver,klass,methodSig,argVals)
     {-# INLINE invoke #-}
 {-# INLINE evalInvoke #-}
 
 
-run :: ArrowInterp val e c => StmtInterpreter c
+run :: ArrowInterp addr val err c => StmtInterpreter val c
 run = fix $ \run' -> handleExceptions $ proc pc -> do
   let nextStmt = pc + 1
   frame <- askFrame -< ()
   case stmts frame !? pc of
-    Nothing -> returnA -< ()
+    Nothing -> failString -< printf "PC out of range: PC=%d, #instr=%d" pc (Vec.length (stmts frame))
     Just stmt -> case stmt of
       Goto lab -> run' -< lab
       Label {} -> run' -< nextStmt
@@ -174,8 +177,8 @@ run = fix $ \run' -> handleExceptions $ proc pc -> do
       InvokeStmt invoke -> do
         evalInvoke run' -< invoke
         run' -< nextStmt
-      Return Nothing  -> returnA -< ()
-      Return (Just e) -> return <<< evalImmediate -< e
+      Return Nothing  -> void -< ()
+      Return (Just e) -> evalImmediate -< e
       Throw e -> throw <<< evalImmediate -< e
       Nop -> run' -< nextStmt
       Breakpoint {} -> run' -< nextStmt
@@ -186,15 +189,15 @@ run = fix $ \run' -> handleExceptions $ proc pc -> do
       ExitMonitor {}  -> fail -< "JVM monitor statements are not supported"
 {-# INLINE run #-}
 
-handleExceptions :: ArrowInterp val e c => StmtInterpreter c -> StmtInterpreter c
+handleExceptions :: ArrowInterp addr val err c => StmtInterpreter val c -> StmtInterpreter val c
 handleExceptions run' = catch run' $ proc (pc,exc) -> do
   frame <- askFrame -< ()
   matchException (proc (exc,handler) -> Env.extend run' -< (CaughtException,exc,withLabel handler)) -< (exc,pc,handlers frame)
 {-# INLINE handleExceptions #-}
 
-class ArrowReturn v c where
-  return :: c v x
-  handleReturn :: c x y -> c x v
+-- class ArrowReturn v c where
+--   return :: c v x
+--   handleReturn :: c x y -> c x v
 
 -- | Interface for value operations.
 class IsVal v c | c -> v where
@@ -208,13 +211,14 @@ class IsVal v c | c -> v where
   matchException :: JoinVal y c => c (v,CatchClause) y -> c (v,PC,HashMap ClassId CatchClause) y
   new :: c Type v
   newArray :: c (Type,[v]) v
+  void :: c () v
   doubleConstant :: c Double v
   floatConstant :: c Float v
   intConstant :: c Int32 v
   longConstant :: c Int64 v
   nullConstant :: c () v
   stringConstant :: c Text v
-  classConstant :: c Text v
+  -- classConstant :: c Text v
   and :: c (v,v) v
   or :: c (v,v) v
   xor :: c (v,v) v
