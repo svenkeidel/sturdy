@@ -6,7 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.ST(ST(..)) where
+module Control.Arrow.Transformer.ST(runST, ST(..)) where
 
 import           Prelude hiding (id,(.),lookup,read,fail)
 
@@ -24,16 +24,19 @@ import           Data.Profunctor.Unsafe
 import           GHC.Exts
 
 -- Arrow version of the ST monad (https://hackage.haskell.org/package/base/docs/Control-Monad-ST.html).
-newtype ST s x y = ST { runST :: (# State# s, x #) -> (# State# s, y #) }
+newtype ST s x y = ST ( (# State# s, x #) -> (# State# s, y #) )
 
 instance ArrowPrimitive (ST s) where
   type PrimState (ST s) = s
   primitive = lift
   {-# INLINE primitive #-}
 
-instance ArrowRun (ST RealWorld) where
-  type Run (ST RealWorld) x y = x -> y
-  run (ST f) x = case runRW# (\s -> f (# s, x #)) of { (# _, y #) -> y }
+runST :: (forall s. ST s x y) -> (x -> y)
+runST (ST f) x = case runRW# (\s -> f (# s, x #)) of { (# _, y #) -> y }
+
+instance ArrowRun (ST s) where
+  type Run (ST s) x y = ST s x y
+  run f = f
   {-# NOINLINE run #-}
 
 instance ArrowTrans (ST s) where
