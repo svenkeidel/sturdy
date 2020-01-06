@@ -21,6 +21,7 @@ import Control.Arrow.Fix.Parallel as Parallel
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Order
+import Control.Arrow.Primitive
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
 import Control.Arrow.Store as Store
@@ -37,6 +38,7 @@ newtype ReaderT r c x y = ReaderT { runReaderT :: c (r,x) y }
 
 instance ArrowRun c => ArrowRun (ReaderT r c) where type Run (ReaderT r c) x y = Run c (r,x) y
 instance ArrowTrans (ReaderT r c) where type Underlying (ReaderT r c) x y = c (r,x) y
+instance (ArrowPrimitive c) => ArrowPrimitive (ReaderT s c) where type PrimState (ReaderT s c) = PrimState c
 
 instance (Profunctor c) => Profunctor (ReaderT r c) where
   dimap f g h = lift $ dimap (second f) g (unlift h)

@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Control.Arrow.Transformer.Abstract.Fix.Cache where
+module Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable where
 
 import Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,elem,product,(**))
 

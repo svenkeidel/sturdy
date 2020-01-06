@@ -41,7 +41,7 @@ import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Cache hiding (Widening)
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating

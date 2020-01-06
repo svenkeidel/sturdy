@@ -23,6 +23,7 @@ import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.Fix.Widening
 import           Control.Arrow.Order
+import           Control.Arrow.Primitive
 import           Control.Arrow.Random
 import           Control.Arrow.Reader as Reader
 import           Control.Arrow.State as State
@@ -55,6 +56,7 @@ withStateT f = lift (second (unlift f))
 
 instance ArrowRun c => ArrowRun (StateT s c) where type Run (StateT s c) x y = Run c (s,x) (s,y)
 instance ArrowTrans (StateT s c) where type Underlying (StateT s c) x y = c (s,x) (s,y)
+instance (ArrowPrimitive c) => ArrowPrimitive (StateT s c) where type PrimState (StateT s c) = PrimState c
 
 instance (Profunctor c) => Profunctor (StateT s c) where
   dimap f g h = lift $ dimap (second' f) (second' g) (unlift h)

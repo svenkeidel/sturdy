@@ -20,6 +20,7 @@ import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Monad
 import Control.Arrow.Order as Ord
+import Control.Arrow.Primitive as Prim
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
 import Control.Arrow.Store as Store
@@ -35,6 +36,7 @@ newtype KleisliT f c x y = KleisliT { runKleisliT :: c x (f y) }
 
 instance (ArrowMonad f c, ArrowRun c) => ArrowRun (KleisliT f c) where type Run (KleisliT f c) x y = Run c x (f y)
 instance ArrowTrans (KleisliT f c) where type Underlying (KleisliT f c) x y = c x (f y)
+instance (ArrowMonad f c, ArrowPrimitive c) => ArrowPrimitive (KleisliT f c) where type PrimState (KleisliT f c) = PrimState c
 
 instance Monad f => ArrowLift (KleisliT f) where
   lift' f = lift $ rmap return f

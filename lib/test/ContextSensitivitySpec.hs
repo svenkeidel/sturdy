@@ -32,7 +32,7 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache hiding (Widening)
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 
 import qualified Data.Abstract.Boolean as Abs

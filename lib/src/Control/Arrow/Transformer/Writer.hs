@@ -22,6 +22,7 @@ import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Order
+import Control.Arrow.Primitive
 import Control.Arrow.Random
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
@@ -46,6 +47,9 @@ instance (Monoid w,ArrowRun c) => ArrowRun (WriterT w c) where
 
 instance ArrowTrans (WriterT w c) where
   type Underlying (WriterT w c) x y = c x (w,y)
+
+instance (Monoid w,ArrowPrimitive c) => ArrowPrimitive (WriterT w c) where
+  type PrimState (WriterT w c) = PrimState c
 
 instance (Profunctor c) => Profunctor (WriterT w c) where
   dimap f g h = lift $ dimap f (second g) (unlift h)
