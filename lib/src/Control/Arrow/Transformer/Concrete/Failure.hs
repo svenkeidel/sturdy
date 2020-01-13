@@ -32,7 +32,7 @@ import Data.Coerce
 newtype FailureT e c x y = FailureT (KleisliT (Error e) c x y) 
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
             ArrowConst r,ArrowState s,ArrowReader r,ArrowExcept exc,
-            ArrowEnv var val, ArrowClosure expr cls,ArrowStore var val)
+            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls,ArrowStore var val)
 
 runFailureT :: FailureT e c x y -> c x (Error e y)
 runFailureT = coerce

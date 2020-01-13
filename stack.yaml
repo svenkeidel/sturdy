@@ -4,7 +4,8 @@ resolver: lts-14.15
 packages:
 - 'lib'
 - 'pcf'
-- 'while'
+- 'scheme'
+# - 'while'
 # - 'stratego'
 # - 'jimple'
 # - 'tutorial'

@@ -1,0 +1,43 @@
+name:                sturdy-scheme
+version:             0.2.0.0
+license:             BSD3
+maintainer:          Sven Keidel <svenkeidel@gmail.com>
+category:            Language
+
+dependencies:
+  - base
+  - hashable
+  - mtl
+  - profunctors
+  - sturdy-lib
+  - text
+  - transformers
+  - unordered-containers
+  - parsec
+  - array
+  - random
+  - split
+  - process
+  - directory
+
+library:
+  source-dirs:
+    - src
+    - parser
+    - scheme_files
+
+  ghc-options: -Wall
+
+
+tests:
+  spec:
+    main: Spec.hs
+
+    source-dirs:
+      - test
+
+    ghc-options: -Wall
+
+    dependencies:
+      - sturdy-scheme
+      - hspec

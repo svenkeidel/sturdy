@@ -119,7 +119,7 @@ evalInterval env0 e = snd $
       returnA -< (var,ctx)
 
     iterationStrategy =
-      -- traceShow .
+      traceShow .
       -- traceCache show .
       Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
       filter apply parallel
