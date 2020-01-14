@@ -12,6 +12,7 @@ import Prelude hiding (lookup,truncate,(.),id)
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Fix.ControlFlow
 import Control.Arrow.Fix.Context
 import Control.Arrow.Fix.Cache
 import Control.Arrow.Trans
@@ -26,7 +27,8 @@ import Data.Empty
 import Data.Order hiding (lub)
 
 newtype ContextT ctx c x y = ContextT (ReaderT ctx c x y)
-  deriving (Category,Arrow,ArrowChoice,Profunctor,ArrowTrans,ArrowCache u b)
+  deriving (Category,Arrow,ArrowChoice,Profunctor,
+            ArrowTrans,ArrowCache u b,ArrowControlFlow stmt)
 
 runContextT :: (IsEmpty ctx, Profunctor c) => ContextT ctx c x y -> c x y
 runContextT (ContextT f) = lmap (empty,) (runReaderT f)
