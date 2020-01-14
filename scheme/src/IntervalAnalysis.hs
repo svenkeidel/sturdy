@@ -81,18 +81,6 @@ import           GenericInterpreter as Generic
 
 -- | Questions:
 --
--- does it work this way?
---   instance Complete Val where
---   (⊔) val val' = snd $ widening val val'
---
--- fail or typeError? -> fail
---
--- Non-terminating programs? 
--- 
--- Implementation of errors? 
--- fail or typeError? -> fail
--- 
---------------------------------
 -- TypeError or ListVal _ for cdr?
 -- How to represent empty lists?
 --
@@ -100,7 +88,13 @@ import           GenericInterpreter as Generic
 --
 -- ListVal TypeError or TypeError for lists of different types 
 --
--- Wie konservativ? z.B.: (lists? TypeError _) -> BoolVal B.Top oder fail 
+-- Wie konservativ may/must? z.B.: (lists? TypeError _) -> BoolVal B.Top oder fail 
+--
+-- Append to (Pow String)
+--
+-- <> "widening (TypeError m1) (TypeError m2) = (Stable,TypeError (m1 <> m2))"
+--
+-- ArrowComplete?
 
 
 
@@ -462,8 +456,8 @@ widening StringVal StringVal = (Stable, StringVal)
 widening QuoteVal QuoteVal = (Stable, QuoteVal)
 widening (ListVal x) (ListVal y) = second ListVal (widening x y)
 widening (TypeError m1) (TypeError m2) = (Stable,TypeError (m1 <> m2))
-widening _ (TypeError m2) = (Stable ,TypeError m2)
-widening (TypeError m1) _ = (Stable ,TypeError m1)
+widening _ (TypeError m2) = (Unstable, TypeError m2)
+widening (TypeError m1) _ = (Unstable, TypeError m1)
 ----------------------TRASH-------------------------------------------------------------------
 widening NumVal (BoolVal _) = (Unstable, TypeError "cannot unify NumVals and BoolVals")
 widening NumVal (ClosureVal _) = (Unstable, TypeError "cannot unify NumVals and ClosureVals")
