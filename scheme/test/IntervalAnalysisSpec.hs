@@ -76,7 +76,7 @@ spec = do
 -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do
     it "cpstak" $ do 
-      pendingWith "takes too long"  
+      -- pendingWith "takes too long"  
       file_str <- helper_import "//scheme_files//gabriel//cpstak.scm"
       case readExprList file_str of
         Right a ->
@@ -129,7 +129,7 @@ spec = do
 -------------------SCALA-AM BENCHMARKS------------------------------------------
   describe "Scala-AM-Benchmarks" $ do
     it "collatz" $ do
-      pendingWith "takes too long"
+      -- pendingWith "takes too long"
       file_str <- helper_import "//scheme_files//scala-am//collatz.scm"
       case readExprList file_str of
         Right a ->
@@ -150,7 +150,7 @@ spec = do
             Left a -> print $ showError a
 
     it "nqueens" $ do
-      pendingWith "takes too long"
+      -- pendingWith "takes too long"
       file_str <- helper_import "//scheme_files//scala-am//nqueens.scm"
       case readExprList file_str of
         Right a ->
@@ -161,7 +161,7 @@ spec = do
         Left a -> print $ showError a
 
     it "rsa" $ do
-      pendingWith "takes too long"
+      -- pendingWith "takes too long"
       file_str <- helper_import "//scheme_files//scala-am//rsa.scm"
       case readExprList file_str of
         Right a ->

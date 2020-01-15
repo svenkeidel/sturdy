@@ -25,6 +25,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Parallel(parallel)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Fix.Chaotic (iterateInner)
 import           Control.Arrow.Trans
@@ -39,7 +40,7 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Cache,Monotone,type (**),Group)
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Cache,Parallel,Monotone,type (**),Group)
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -82,7 +83,7 @@ import           GenericInterpreter as Generic
 -- | Questions:
 --
 -- TypeError or ListVal _ for cdr?
--- How to represent empty lists?
+-- How to represent empty lists? -> ListVal Bottom
 --
 -- How to join Error operations?
 --
@@ -90,7 +91,7 @@ import           GenericInterpreter as Generic
 --
 -- Wie konservativ may/must? z.B.: (lists? TypeError _) -> BoolVal B.Top oder fail 
 --
--- Append to (Pow String)
+-- Append to (Pow String) -> <> , overloadedlists
 --
 -- <> "widening (TypeError m1) (TypeError m2) = (Stable,TypeError (m1 <> m2))"
 --
@@ -135,9 +136,9 @@ evalInterval env0 e = snd $
             (TerminatingT
               (EnvStoreT Text Addr Val
                 (FixT _ _
-                  (ChaoticT In
+                  (-- ChaoticT In
                     (StackT Stack In
-                      (CacheT (Monotone ** Group Cache) In Out
+                      (CacheT (Monotone ** Parallel (Group Cache)) In Out
                         (ContextT Ctx
                           (->)))))))))) [Expr] Val))
     (alloc, widening)
@@ -155,7 +156,7 @@ evalInterval env0 e = snd $
       -- Fix.traceShow .
       -- collect . 
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply iterateInner
+      Fix.filter apply parallel -- iterateInner
 
 
     -- widenVal :: Widening Val
