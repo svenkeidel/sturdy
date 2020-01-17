@@ -51,7 +51,7 @@ spec = do
         evalInterval' [("x", num 0 1)] (let_ [("add",add)] (app "add" ["x",two]))
           -- Most precise would be [2,3], however, the analysis does not refine
           -- `x` and therefore introduces some imprecision.
-          `shouldBe` Terminating (Success (num 2 5))
+          `shouldBe` Terminating (Success (num 2 7))
 
     it "context sensitivity" $
       let diamond = let_ [("second",second),("id",id)] (app "second" [app "id" [one],app "id" [two]]) in
