@@ -10,6 +10,7 @@ import Prelude hiding (id,(.),lookup,read,fail,elem)
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Chaotic as Chaotic
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Ctx
@@ -192,4 +193,7 @@ instance (Applicative f, ArrowChaotic a c) => ArrowChaotic a (StaticT f c) where
   getComponent (StaticT f) = StaticT $ Chaotic.getComponent <$> f
   {-# INLINE getComponent #-}
   {-# SPECIALIZE instance ArrowChaotic a c => ArrowChaotic a (StaticT ((->) r) c) #-}
+
+instance (Applicative f, ArrowControlFlow stmt c) => ArrowControlFlow stmt (StaticT f c) where
+  {-# SPECIALIZE instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StaticT ((->) r) c) #-}
 

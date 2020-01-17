@@ -18,6 +18,7 @@ import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Fix.Chaotic as Chaotic
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Context as Context
@@ -198,6 +199,7 @@ instance ArrowWidening y c => ArrowWidening y (StateT s c) where
   {-# INLINE widening #-}
 
 instance (ArrowCache a b c) => ArrowCache a b (StateT s c)
+instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StateT s c)
 
 instance ArrowChaotic a c => ArrowChaotic a (StateT s c) where
   setComponent = lift' setComponent

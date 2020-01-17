@@ -16,6 +16,7 @@ import           Control.Arrow
 import           Control.Arrow.Order
 import           Control.Arrow.State
 import           Control.Arrow.Trans
+import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Fix.Chaotic as Chaotic
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack as Stack
@@ -35,7 +36,7 @@ import           Data.Coerce
 import           Text.Printf
 
 newtype MetricsT a c x y = MetricsT (StateT (Metrics a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowChaotic a)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowChaotic a,ArrowControlFlow stmt)
 
 data Metrics a = Metrics Int (HashMap a Metric)
 

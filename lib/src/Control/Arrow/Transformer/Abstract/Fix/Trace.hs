@@ -15,6 +15,7 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Fix.Chaotic
 import Control.Arrow.Fix.Parallel as Parallel
+import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
@@ -29,7 +30,7 @@ import Text.Printf
 
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,
-            ArrowEffectCommutative,ArrowChaotic a,ArrowStack a,ArrowContext ctx,ArrowState s)
+            ArrowEffectCommutative,ArrowChaotic a,ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt)
 
 instance ArrowParallel c => ArrowParallel (TraceT c) where
   nextIteration = TraceT $ proc () ->

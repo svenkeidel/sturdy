@@ -22,6 +22,7 @@ import Control.Arrow.Closure
 import Control.Arrow.Except
 import Control.Arrow.Fail
 import Control.Arrow.Fix
+import Control.Arrow.Fix.ControlFlow
 import Control.Arrow.Fix.Cache
 import Control.Arrow.Fix.Chaotic
 import Control.Arrow.Fix.Context
@@ -45,7 +46,7 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
             ArrowState s,ArrowReader r',ArrowWriter w, ArrowLetRec var val,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val,
             ArrowFail e, ArrowExcept e,
-            ArrowContext ctx, ArrowStack a, ArrowCache a b, ArrowChaotic a)
+            ArrowContext ctx, ArrowStack a, ArrowCache a b, ArrowChaotic a,ArrowControlFlow stmt)
 
 constT :: (r -> c x y) -> ConstT r c x y
 constT f = ConstT (StaticT f)

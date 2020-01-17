@@ -16,6 +16,7 @@ import           Control.Category
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Fix.Cache as Cache
+import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.State
@@ -29,7 +30,8 @@ import           Data.Identifiable
 import           Data.Coerce
 
 newtype ChaoticT a c x y = ChaoticT (WriterT (Component a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowCache a b,ArrowState s,ArrowContext ctx, ArrowJoinContext u)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowCache a b,
+            ArrowState s,ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowChaotic a (ChaoticT a c) where
   setComponent = lift id

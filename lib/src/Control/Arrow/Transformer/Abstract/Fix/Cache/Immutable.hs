@@ -13,41 +13,42 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable where
 
-import Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,elem,product,(**))
+import           Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,elem,product,(**))
 
-import Control.Category
-import Control.Arrow
-import Control.Arrow.Const
-import Control.Arrow.Trans
-import Control.Arrow.State
-import Control.Arrow.Fix.Context as Context
-import Control.Arrow.Fix.Cache as Cache
-import Control.Arrow.Fix.Parallel as Parallel
-import Control.Arrow.Order(ArrowJoin(..),ArrowComplete(..),ArrowEffectCommutative)
+import           Control.Category
+import           Control.Arrow
+import           Control.Arrow.Const
+import           Control.Arrow.Trans
+import           Control.Arrow.State
+import           Control.Arrow.Fix.ControlFlow as ControlFlow
+import           Control.Arrow.Fix.Context as Context
+import           Control.Arrow.Fix.Cache as Cache
+import           Control.Arrow.Fix.Parallel as Parallel
+import           Control.Arrow.Order (ArrowJoin(..),ArrowComplete(..),ArrowEffectCommutative)
 
-import Control.Arrow.Transformer.Const
-import Control.Arrow.Transformer.Static
-import Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Const
+import           Control.Arrow.Transformer.Static
+import           Control.Arrow.Transformer.State
 
-import Data.Profunctor.Unsafe
-import Data.Empty
-import Data.Order hiding (lub)
-import Data.Coerce
-import Data.Identifiable
-import Data.HashMap.Lazy(HashMap)
+import           Data.Profunctor.Unsafe
+import           Data.Empty
+import           Data.Order hiding (lub)
+import           Data.Coerce
+import           Data.Identifiable
+import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
-import Data.Monoidal
-import Data.Maybe
+import           Data.Monoidal
+import           Data.Maybe
 
-import Data.Abstract.Stable
+import           Data.Abstract.Stable
 import qualified Data.Abstract.Widening as W
 
-import GHC.Exts
+import           GHC.Exts
 
 type family Widening c :: *
 
 newtype CacheT cache a b c x y = CacheT { unCacheT :: ConstT (Widening (cache a b)) (StateT (cache a b) c) x y}
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowState (cache a b))
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowState (cache a b),ArrowControlFlow stmt)
 
 instance ArrowTrans (CacheT cache a b c) where
   type Underlying (CacheT cache a b c) x y = Widening (cache a b) -> c (cache a b, x) (cache a b, y)

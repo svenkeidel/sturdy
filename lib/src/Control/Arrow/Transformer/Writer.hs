@@ -13,6 +13,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
+import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
@@ -184,3 +185,5 @@ instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
 
 instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c)
 instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c)
+instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w c)
+

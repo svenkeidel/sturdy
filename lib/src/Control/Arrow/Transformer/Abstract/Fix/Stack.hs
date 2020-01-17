@@ -8,30 +8,31 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Stack(StackT,Stack) where
 
-import Prelude hiding (pred,lookup,map,head,iterate,(.))
+import           Prelude hiding (pred,lookup,map,head,iterate,(.))
 
-import Control.Category
-import Control.Arrow hiding (loop)
-import Control.Arrow.Fix.Parallel as Parallel
-import Control.Arrow.Fix.Cache as Cache
-import Control.Arrow.Fix.Stack(ArrowStack)
+import           Control.Category
+import           Control.Arrow hiding (loop)
+import           Control.Arrow.Fix.ControlFlow as ControlFlow
+import           Control.Arrow.Fix.Parallel as Parallel
+import           Control.Arrow.Fix.Cache as Cache
+import           Control.Arrow.Fix.Stack (ArrowStack)
 import qualified Control.Arrow.Fix.Stack as Stack
-import Control.Arrow.Fix.Context(ArrowContext,ArrowJoinContext)
-import Control.Arrow.State
-import Control.Arrow.Trans
-import Control.Arrow.Order(ArrowJoin(..),ArrowComplete(..),ArrowEffectCommutative)
+import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
+import           Control.Arrow.State
+import           Control.Arrow.Trans
+import           Control.Arrow.Order (ArrowJoin(..),ArrowComplete(..),ArrowEffectCommutative)
 
-import Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.Reader
 
-import Data.Profunctor
-import Data.Profunctor.Unsafe((.#))
-import Data.Coerce
-import Data.Empty
+import           Data.Profunctor
+import           Data.Profunctor.Unsafe ((.#))
+import           Data.Coerce
+import           Data.Empty
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,
             ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx, ArrowJoinContext u,
-            ArrowParallel)
+            ArrowParallel,ArrowControlFlow stmt)
 
 data Stack a = Stack
   { elems :: [a]
