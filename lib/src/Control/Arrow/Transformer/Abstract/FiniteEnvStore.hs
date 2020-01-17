@@ -33,6 +33,7 @@ import Control.Arrow.Closure
 import Control.Arrow.Fix
 import Control.Arrow.Order
 import Control.Arrow.Utils
+import Control.Arrow.Fix.ControlFlow
 
 import Data.Abstract.Widening (Widening)
 import Data.Abstract.Closure (Closure)
@@ -52,7 +53,7 @@ type Alloc var addr val c = EnvStoreT var addr val c (var,val) addr
 newtype EnvStoreT var addr val c x y = EnvStoreT (ConstT (Alloc var addr val c, Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded,
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
-            ArrowContext ctx)
+            ArrowContext ctx, ArrowControlFlow stmt)
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutative c, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvStoreT var addr val c) where
   type Join y (EnvStoreT var addr val c) = ()

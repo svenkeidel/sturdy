@@ -28,6 +28,7 @@ import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Parallel(parallel)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Fix.Chaotic (iterateInner)
+import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
 import qualified Control.Arrow.Closure as Cls
@@ -40,6 +41,7 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
+import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Cache,Parallel,Monotone,type (**),Group)
 import           Control.Arrow.Transformer.Abstract.Terminating
 
@@ -55,6 +57,8 @@ import           Data.Profunctor
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
+import           Data.Graph.Inductive (Gr)
+import qualified Data.Graph.Inductive as G
 -- import qualified Data.HashSet as Set
 
 import qualified Data.Abstract.Boolean as B
@@ -108,6 +112,7 @@ type Env = HashMap Text Addr
 type Store = HashMap Addr Val
 type Ctx = CallString Label
 
+
 -- | Numeric values are approximated with bounded intervals, closure
 -- values are approximated with a set of abstract closures.
 data Val 
@@ -123,13 +128,18 @@ data Val
 -- Input and output type of the fixpoint.
 type In = (Store,(([Expr],Label),Env))
 type Out = (Store, Terminating (Error (Pow String) Val))
+type Out' = (Gr Expr (), ((**)
+                           Monotone
+                           (Parallel (Group Cache))
+                           (Store, (([Expr], Label), Env))
+                           (Store, Terminating (Error (Pow String) Val)),
+                         (HashMap (Text, Ctx) Val, Terminating (Error (Pow String) Val))))
 
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?sensitivity :: Int) => [(Text,Val)] -> [State Label Expr] -> (Store, Terminating (Error (Pow String) Val))
-evalInterval env0 e = snd $
-  run (extend' (Generic.run_ ::
+evalInterval :: (?sensitivity :: Int) => [(Text,Val)] -> [State Label Expr] -> Out'
+evalInterval env0 e = run (extend' (Generic.run_ ::
       Fix'
         (ValueT Val
           (ErrorT (Pow String)
@@ -140,7 +150,8 @@ evalInterval env0 e = snd $
                     (StackT Stack In
                       (CacheT (Monotone ** Parallel (Group Cache)) In Out
                         (ContextT Ctx
-                          (->)))))))))) [Expr] Val))
+                          (ControlFlowT Expr 
+                            (->))))))))))) [Expr] Val))
     (alloc, widening)
     iterationStrategy
     (widenStore widening, T.widening (E.widening W.finite widening))
@@ -156,6 +167,7 @@ evalInterval env0 e = snd $
       -- Fix.traceShow .
       -- collect . 
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+      CF.recordControlFlowGraph (\(_,(_,[expr])) -> expr) . 
       Fix.filter apply parallel -- iterateInner
 
 
@@ -164,8 +176,12 @@ evalInterval env0 e = snd $
 
 
 evalInterval' :: (?sensitivity :: Int) => [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
-evalInterval' env exprs = snd $ evalInterval env exprs
+evalInterval' env exprs = snd $ snd $ snd $ evalInterval env exprs
 {-# INLINE evalInterval' #-}
+
+evalInterval'' :: (?sensitivity :: Int) => [State Label Expr] -> Gr Expr ()
+evalInterval'' exprs = fst $ evalInterval [] exprs
+{-# INLINE evalInterval'' #-}
 
 
 instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) where

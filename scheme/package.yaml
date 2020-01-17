@@ -19,6 +19,8 @@ dependencies:
   - split
   - process
   - directory
+  - fgl
+  - graphviz
 
 library:
   source-dirs:

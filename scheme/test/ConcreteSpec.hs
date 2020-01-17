@@ -7,8 +7,7 @@ import ConcreteInterpreter
 import Test.Hspec
 
 main :: IO ()
-main = do
-  hspec spec
+main = hspec spec
 
 spec :: Spec
 spec = do

@@ -7,12 +7,16 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.ControlFlow where
 
+import           Prelude hiding(pred)
+
 import           Control.Arrow
+import           Control.Arrow.Fix.Context
 import           Control.Arrow.Order
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Category
+
 
 import           Data.Label
 import           Data.Coerce
@@ -43,15 +47,20 @@ instance (HasLabel stmt, Arrow c, Profunctor c) => ArrowControlFlow stmt (Contro
     returnA -< (cfg', ())
     where
       addEdge :: HasLabel stmt => Maybe stmt -> stmt -> Gr stmt () -> Gr stmt ()
-      addEdge pred next cfg = undefined
-        -- TODO: Add an control-flow edge from @previousStmt@ to @nextStmt@.
-        -- Be careful, since you might insert the same nodes and edges multiple
-        -- times (I don't know if this is a problem for FGL graphs).
-        --
-        -- TODO: `pred = Nothing` marks the entry point of the control-flow graph.
-        -- In this case it should suffice to add a control-flow node for `next`.
-        --
-        -- TODO: Use `HasLabel.label` to extract the label from statements and use it as node identifiers in the graph.
+      addEdge pred next cfg = case pred of  
+        Just pred' -> do 
+          let cfg' = G.insEdge (labelVal $ label pred', labelVal $ label next, ()) cfg
+          G.insNode (labelVal $ label next, next) cfg'
+
+        Nothing -> G.insNode (labelVal $ label next, next) cfg
+      -- TODO: Add an control-flow edge from @previousStmt@ to @nextStmt@.
+      -- Be careful, since you might insert the same nodes and edges multiple
+      -- times (I don't know if this is a problem for FGL graphs).
+      --
+      -- TODO: `pred = Nothing` marks the entry point of the control-flow graph.
+      -- In this case it should suffice to add a control-flow node for `next`.
+      --
+      -- TODO: Use `HasLabel.label` to extract the label from statements and use it as node identifiers in the graph.
 
 instance (ArrowRun c) => ArrowRun (ControlFlowT stmt c) where
   type Run (ControlFlowT stmt c) x y = Run c x (Gr stmt (),y)
@@ -60,6 +69,8 @@ instance (ArrowRun c) => ArrowRun (ControlFlowT stmt c) where
 
 instance ArrowTrans (ControlFlowT stmt c) where
   type Underlying (ControlFlowT stmt c) x y = c (CFG stmt,x) (CFG stmt,y)
+
+instance ArrowEffectCommutative c => ArrowEffectCommutative (ControlFlowT stmt c)
 
 instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (ControlFlowT stmt c) where
   ControlFlowT f <⊔> ControlFlowT g = ControlFlowT $ rmap (uncurry (⊔)) (f &&& g)

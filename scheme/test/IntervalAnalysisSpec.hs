@@ -22,6 +22,20 @@ import           IntervalAnalysis
 
 import           Syntax as S
 import qualified Data.Abstract.Boolean as B
+
+import           Data.Label
+import           Control.Monad.State
+import           Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as M
+import           Data.Text.Lazy
+import           Data.GraphViz
+import           Data.Graph.Inductive.Example
+import           Data.GraphViz.Printing
+import           Data.Graph.Inductive (Gr)
+import qualified Data.Graph.Inductive as G
+import           Data.Graph.Inductive.Example as Ex
+
+
 -- import           Data.Label
 
 -- import           GHC.Exts(toList)
@@ -31,6 +45,7 @@ main = hspec spec
 
 spec :: Spec
 spec = do
+  -- fileGraphsRun(\file -> (evalInterval'' file))
   -- let ?bound = I.Interval (-100) 100; ?sensitivity = 3 in sharedSpec (toEither . evalInterval' []) (NumVal . fromIntegral)
 
   describe "behavior specific to interval analysis" $ do
@@ -270,6 +285,30 @@ spec = do
                 Left b -> print b
             Left a -> print $ showError a           
 
+  describe "graph-test" $ 
+    it "test graph" $ do 
+      -- let infile = "test_opvars"
+      file_str <- helper_import "//scheme_files//scala-am//nqueens.scm"
+      case readExprList file_str of
+        Right a ->
+          case match a of
+            Right b -> do 
+              let ?sensitivity = 0
+              let graph = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
+              G.prettyPrint graph
+              -- G.prettyPrint Ex.g3 
+              -- putStrLn $ unpack $ renderDot $ toDot $ graphToDot nonClusteredParams clr479
+              let res = graphToDot nonClusteredParams graph
+              root <- getCurrentDirectory 
+              let root' = root ++ "//scheme_files//scala-am//nqueens" ++ ".png"
+              -- runGraphvizCommand :: PrintDotRepr dg n => GraphvizCommand -> dg n -> GraphvizOutput -> FilePath -> IO FilePath
+              _ <- runGraphvizCommand Dot res Png root'
+              -- readCreateProcess (shell) 
+              putStrLn $ unpack $ renderDot $ toDot $ graphToDot nonClusteredParams graph
+
+ 
+            Left b -> print b
+        Left a -> print $ showError a
 
 -------------------HELPER-------------------------------------------------------
 helper_import :: String -> IO String
@@ -278,8 +317,24 @@ helper_import inFile = do
   let root' = root ++ inFile
   readCreateProcess (shell $ "raco expand " ++ root') ""
 
+-- fileGraphsRun :: ([State Label Expr] -> Gr S.Expr ()) -> Spec
+-- fileGraphsRun run = 
 
-    -- it "should execute both branches on IfZero on interval containing zero" $
+-- -----------------GABRIEL BENCHMARKS---------------------------------------------
+--   describe "test" $ 
+--     it "test graph" $ do 
+--       file_str <- helper_import "//scheme_files//test_opvars.scm"
+--       case readExprList file_str of
+--         Right a ->
+--           case match a of
+--             Right b -> do 
+--               let graph = run [let_rec (getTopDefinesLam b) (getBody b)]
+--               putStrLn $ unpack $ renderDot $ toDot $ graphToDot nonClusteredParams graph 
+--             Left b -> print b
+--         Left a -> print $ showError a
+
+
+    -- it "should execute both bsharedSpecFileranches on IfZero on interval containing zero" $
     --   let ?bound = I.Interval (-100) 100
     --       ?sensitivity = 1
     --   in evalInterval' [("x", num (-5) 5)]
