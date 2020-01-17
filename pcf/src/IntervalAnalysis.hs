@@ -93,7 +93,7 @@ type Out = (Store, Terminating (Error (Pow String) Val))
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?sensitivity :: Int, ?bound :: Interval Int) => [(Text,Val)] -> State Label Expr -> (Store, Terminating (Error (Pow String) Val))
+evalInterval :: (?sensitivity :: Int, ?bound :: IV) => [(Text,Val)] -> State Label Expr -> (Store, Terminating (Error (Pow String) Val))
 evalInterval env0 e = snd $
   run (extend' (Generic.eval ::
       Fix'
@@ -128,7 +128,7 @@ evalInterval env0 e = snd $
     widenVal :: Widening Val
     widenVal = widening (I.bounded ?bound)
 
-evalInterval' :: (?sensitivity :: Int, ?bound :: Interval Int) => [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
+evalInterval' :: (?sensitivity :: Int, ?bound :: IV) => [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
 evalInterval' env expr = snd $ evalInterval env expr
 {-# INLINE evalInterval' #-}
 
@@ -142,6 +142,10 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsVal Val (ValueT Val c) 
   pred = proc x -> case x of
     NumVal n -> returnA -< NumVal $ n - 1
     _ -> fail -< "Expected a number as argument for 'pred'"
+
+  mult = proc x -> case x of
+    (NumVal n, NumVal m) -> returnA -< NumVal $ n * m
+    _ -> fail -< "Expected two numbers as argument for 'mult'"
 
   zero = proc _ -> returnA -< NumVal 0
 

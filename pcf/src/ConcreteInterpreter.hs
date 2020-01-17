@@ -53,6 +53,10 @@ instance (ArrowClosure Expr Cls c, ArrowChoice c, ArrowFail String c) => IsVal V
     NumVal n -> returnA -< NumVal (n - 1)
     _ -> fail -< "Expected a number as argument for 'pred'"
 
+  mult = proc x -> case x of
+    (NumVal n, NumVal m) -> returnA -< NumVal (n * m)
+    _ -> fail -< "Expected two numbers as argument for 'mult'"
+
   zero = arr $ const (NumVal 0)
 
   if_ f g = proc (v1, (x, y)) -> case v1 of
