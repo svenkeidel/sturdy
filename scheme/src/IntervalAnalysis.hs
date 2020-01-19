@@ -171,7 +171,7 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       Fix.filter apply parallel -- iterateInner
 
 
-    -- widenVal :: Widening Val
+    -- widenVal :: Widening Valtest_simple_list
     -- widenVal = widening (I.bounded ?bound)
 
 
@@ -179,8 +179,9 @@ evalInterval' :: (?sensitivity :: Int) => [(Text,Val)] -> [State Label Expr] -> 
 evalInterval' env exprs = snd $ snd $ snd $ evalInterval env exprs
 {-# INLINE evalInterval' #-}
 
-evalInterval'' :: (?sensitivity :: Int) => [State Label Expr] -> Gr Expr ()
-evalInterval'' exprs = fst $ evalInterval [] exprs
+evalInterval'' :: (?sensitivity :: Int) => [State Label Expr] -> (Gr Expr (), Terminating (Error (Pow String) Val))
+evalInterval'' exprs =
+  let res = evalInterval [] exprs in (fst res, snd $ snd $ snd res)
 {-# INLINE evalInterval'' #-}
 
 

@@ -22,18 +22,19 @@ import           IntervalAnalysis
 
 import           Syntax as S
 import qualified Data.Abstract.Boolean as B
+import           Data.Abstract.DiscretePowerset (Pow)
 
-import           Data.Label
-import           Control.Monad.State
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as M
-import           Data.Text.Lazy
+-- import           Data.Label
+-- import           Control.Monad.State
+-- import           Data.HashMap.Lazy (HashMap)
+-- import qualified Data.HashMap.Lazy as M
+-- import           Data.Text.Lazy
+
 import           Data.GraphViz
-import           Data.Graph.Inductive.Example
-import           Data.GraphViz.Printing
-import           Data.Graph.Inductive (Gr)
-import qualified Data.Graph.Inductive as G
-import           Data.Graph.Inductive.Example as Ex
+-- import           Data.GraphViz.Printing
+import           Data.Graph.Inductive(Gr)
+-- import qualified Data.Graph.Inductive as G
+-- import           Data.Graph.Inductive.Example as Ex
 
 
 -- import           Data.Label
@@ -90,297 +91,165 @@ spec = do
 
 -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do
+
     it "cpstak" $ do 
-      -- pendingWith "takes too long"  
-      file_str <- helper_import "//scheme_files//gabriel//cpstak.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success NumVal)
-            Left b -> print b
-        Left a -> print $ showError a
+      let inFile = "gabriel//cpstak"
+      let expRes = Terminating (Success NumVal)
+      helper_test inFile expRes
 
 
     it "deriv" $ do
-      file_str <- helper_import "//scheme_files//gabriel//deriv.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Fail "message")
-            Left b -> print b
-        Left a -> print $ showError a
+      let inFile = "gabriel//deriv"
+      let expRes = Terminating (Fail "message")
+      helper_test inFile expRes
 
     it "diviter" $ do
-      file_str <- helper_import "//scheme_files//gabriel//diviter.scm"
-      case readExprList file_str of
-        Right a -> case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ BoolVal B.Top)              
-            Left b -> print b
-        Left a -> print a
+      let inFile = "gabriel//diviter"
+      let expRes = Terminating (Success $ BoolVal B.Top)              
+      helper_test inFile expRes
 
     it "divrec" $ do
-      file_str <- helper_import "//scheme_files//gabriel//divrec.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ BoolVal B.Top)
-            Left b -> print b
-        Left a -> print $ showError a
+      let inFile = "gabriel//divrec"
+      let expRes = Terminating (Success $ BoolVal B.Top)              
+      helper_test inFile expRes      
 
     it "takl" $ do
-      file_str <- helper_import "//scheme_files//gabriel//takl.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ BoolVal B.Top)              
-            Left b -> print b
-        Left a -> print $ showError a
+      let inFile = "gabriel//takl"
+      let expRes = Terminating (Success $ BoolVal B.Top)              
+      helper_test inFile expRes
 
 -------------------SCALA-AM BENCHMARKS------------------------------------------
   describe "Scala-AM-Benchmarks" $ do
     it "collatz" $ do
-      -- pendingWith "takes too long"
-      file_str <- helper_import "//scheme_files//scala-am//collatz.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success NumVal)
-            Left b -> print b
-        Left a -> print $ showError a    
+      let inFile = "scala-am//collatz"
+      let expRes = Terminating (Success NumVal)
+      helper_test inFile expRes
 
     it "gcipd" $ do
-          file_str <- helper_import "//scheme_files//scala-am//gcipd.scm"
-          case readExprList file_str of
-            Right a ->
-              case match a of
-                Right b -> 
-                  let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success NumVal)
-                Left b -> print b
-            Left a -> print $ showError a
+      let inFile = "scala-am//gcipd"
+      let expRes = Terminating (Success NumVal)
+      helper_test inFile expRes 
 
     it "nqueens" $ do
-      -- pendingWith "takes too long"
-      file_str <- helper_import "//scheme_files//scala-am//nqueens.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b ->
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success NumVal)
-            Left b -> print b
-        Left a -> print $ showError a
+      let inFile = "scala-am//nqueens"
+      let expRes = Terminating (Success NumVal)
+      helper_test inFile expRes      
 
     it "rsa" $ do
-      -- pendingWith "takes too long"
-      file_str <- helper_import "//scheme_files//scala-am//rsa.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ BoolVal B.True)
-            Left b -> print b
-        Left a -> print $ showError a
-
+      let inFile = "scala-am//rsa"
+      let expRes = Terminating (Success $ BoolVal B.Top)              
+      helper_test inFile expRes      
 
 -------------------Custom Tests------------------------------------------
   describe "Custom_Tests" $ do
     it "recursion and union with empty list" $ do
-      file_str <- helper_import "//scheme_files//test_rec_empty.scm"
-      -- putStrLn file_str
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              -- do
-              -- putStrLn (show b)
-              -- let es = let_rec (getTopDefinesLam b) (getBody b)
-              -- putStr $ show $ generate es
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Fail "{\"empty list\"}")
-            Left b -> print b
-        Left a -> print $ showError a
+      let inFile = "test_rec_empty"
+      let expRes = Terminating (Fail "{\"empty list\"}")
+      helper_test inFile expRes      
 
 
     it "recursion and union with non-empty list" $ do
-      file_str <- helper_import "//scheme_files//test_rec_nonempty.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ ListVal NumVal)
-            Left b -> print b
-        Left a -> print $ showError a        
+      let inFile = "test_rec_nonempty"
+      let expRes = Terminating (Success $ ListVal NumVal)          
+      helper_test inFile expRes               
 
     it "should return listVal for (cdr '(2 3 4))" $ do
-      file_str <- helper_import "//scheme_files//test_cdr.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ ListVal NumVal)
-            Left b -> print b
-        Left a -> print $ showError a
+      let inFile = "test_cdr"
+      let expRes = Terminating (Success $ ListVal NumVal)
+      helper_test inFile expRes  
 
     it "should return correct val for car" $ do
-      file_str <- helper_import "//scheme_files//test_car.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ NumVal)
-            Left b -> print b
-        Left a -> print $ showError a        
+      let inFile = "test_car"
+      let expRes = Terminating (Success $ NumVal)
+      helper_test inFile expRes      
 
     it "should return true for null? cdr cdr '(1 2)" $ do
-      file_str <- helper_import "//scheme_files//test_null.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ BoolVal B.Top)
-            Left b -> print b
-        Left a -> print $ showError a        
+      let inFile = "test_null"
+      let expRes = Terminating (Success $ BoolVal B.Top)
+      helper_test inFile expRes       
 
     it "unifying two list of nums of different size should result in list of nums" $ do
-      file_str <- helper_import "//scheme_files//test_faulty_list.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ ListVal NumVal)
-            Left b -> print b
-        Left a -> print $ showError a     
+      let inFile = "test_faulty_list"
+      let expRes = Terminating (Success $ ListVal NumVal)           
+      helper_test inFile expRes  
 
     it "test simple num lists" $ do
-      file_str <- helper_import "//scheme_files//test_simple_list.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ ListVal NumVal)
-            Left b -> print b
-        Left a -> print $ showError a             
+      let inFile = "test_simple_list"
+      let expRes = Terminating (Success $ ListVal NumVal)          
+      helper_test inFile expRes            
 
     it "test_empty_lists" $ do
-      file_str <- helper_import "//scheme_files//test_empty_lists.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> 
-              let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Fail "{\"empty list\"}")
-            Left b -> print b
-        Left a -> print $ showError a
+      let inFile = "test_empty_lists"
+      let expRes = Terminating (Fail "{\"empty list\"}")
+      helper_test inFile expRes  
 
     it "test_opvars" $ do
-          file_str <- helper_import "//scheme_files//test_opvars.scm"
-          case readExprList file_str of
-            Right a ->
-              case match a of
-                Right b -> 
-                  let ?sensitivity = 0 in evalInterval' [] [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Terminating (Success $ NumVal)
-                Left b -> print b
-            Left a -> print $ showError a           
+      let inFile = "test_opvars"
+      let expRes = Terminating (Success $ NumVal)         
+      helper_test inFile expRes         
+
+
 
   describe "graph-test" $ 
     it "test graph" $ do 
-      -- let infile = "test_opvars"
-      file_str <- helper_import "//scheme_files//scala-am//nqueens.scm"
+      let inFile = "test_opvars"
+      file_str <- helper_import inFile
+      -- file_str <- helper_import "//scheme_files//scala-am//nqueens.scm"
       case readExprList file_str of
         Right a ->
           case match a of
             Right b -> do 
               let ?sensitivity = 0
-              let graph = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
-              G.prettyPrint graph
+              let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
+              _ <- draw_graph inFile graph
+              res `shouldBe` Terminating (Success $ NumVal)
+
+              -- G.prettyPrint graph
               -- G.prettyPrint Ex.g3 
               -- putStrLn $ unpack $ renderDot $ toDot $ graphToDot nonClusteredParams clr479
-              let res = graphToDot nonClusteredParams graph
-              root <- getCurrentDirectory 
-              let root' = root ++ "//scheme_files//scala-am//nqueens" ++ ".png"
+              -- let dotGraph = graphToDot nonClusteredParams graph
+              -- root <- getCurrentDirectory 
+              -- let root' = root ++ "//scheme_files//scala-am//nqueens" ++ ".png"
               -- runGraphvizCommand :: PrintDotRepr dg n => GraphvizCommand -> dg n -> GraphvizOutput -> FilePath -> IO FilePath
-              _ <- runGraphvizCommand Dot res Png root'
+              -- _ <- runGraphvizCommand Dot dotGraph Png root'
               -- readCreateProcess (shell) 
-              putStrLn $ unpack $ renderDot $ toDot $ graphToDot nonClusteredParams graph
+              -- putStrLn $ unpack $ renderDot $ toDot $ graphToDot nonClusteredParams graph
 
  
             Left b -> print b
         Left a -> print $ showError a
 
 -------------------HELPER-------------------------------------------------------
+
+
+helper_test :: String -> Terminating (Error (Pow String) Val) -> IO ()
+helper_test inFile expRes = do
+  file_str <- helper_import inFile
+  case readExprList file_str of
+    Right a ->
+      case match a of
+        Right b -> do
+          let ?sensitivity = 0 
+          let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
+          _ <- draw_graph inFile graph
+          res`shouldBe` expRes
+        Left b -> print b
+    Left a -> print $ showError a
+
+
 helper_import :: String -> IO String
 helper_import inFile = do
   root <- getCurrentDirectory
-  let root' = root ++ inFile
+  let root' = root ++ "//scheme_files//" ++  inFile ++ ".scm"
   readCreateProcess (shell $ "raco expand " ++ root') ""
 
--- fileGraphsRun :: ([State Label Expr] -> Gr S.Expr ()) -> Spec
--- fileGraphsRun run = 
+draw_graph :: String -> Gr Expr () -> IO FilePath
+draw_graph inFile graph = do 
+  let dotGraph = graphToDot fileGraphParams graph
+  root <- getCurrentDirectory 
+  let outPath = root ++ "//graph_files//" ++ inFile ++ ".png"
+  runGraphvizCommand Dot dotGraph Png outPath
 
--- -----------------GABRIEL BENCHMARKS---------------------------------------------
---   describe "test" $ 
---     it "test graph" $ do 
---       file_str <- helper_import "//scheme_files//test_opvars.scm"
---       case readExprList file_str of
---         Right a ->
---           case match a of
---             Right b -> do 
---               let graph = run [let_rec (getTopDefinesLam b) (getBody b)]
---               putStrLn $ unpack $ renderDot $ toDot $ graphToDot nonClusteredParams graph 
---             Left b -> print b
---         Left a -> print $ showError a
-
-
-    -- it "should execute both bsharedSpecFileranches on IfZero on interval containing zero" $
-    --   let ?bound = I.Interval (-100) 100
-    --       ?sensitivity = 1
-    --   in evalInterval' [("x", num (-5) 5)]
-    --       (ifZero "x" (succ zero) (pred zero))
-    --       `shouldBe` Terminating (Success (num (-1) 1))
-
-    -- it "should compute 0 + -1 + 1 = 0" $
-    --   let ?bound = I.Interval (-100) 100
-    --       ?sensitivity = 1
-    --   in evalInterval' [] (succ (pred zero)) `shouldBe`
-    --        Terminating (Success (num 0 0))
-
-    -- it "should analyse addition correctly" $
-    --   let ?bound = I.Interval 0 5Bool
-    --       ?sensitivity = 2
-    --   in do
-    --     evalInterval' [] (let_ [("add",add)] (app "add" [zero,two])) `shouldBe` Terminating (Success (num 2 2))
-    --     evalInterval' [] (let_ [("add",add)] (app "add" [one,two])) `shouldBe` Terminating (Success (num 3 3))
-    --     evalInterval' [("x", num 0 1)] (let_ [("add",add)] (app "add" ["x",two]))
-    --       -- Most precise would be [2,3], however, the analysis does not refine
-    --       -- `x` and therefore introduces some imprecision.
-    --       `shouldBe` Terminating (Success (num 2 Infinity))
-
-    -- it "context sensitivity" $
-    --   let diamond = let_ [("second",second),("id",id)] (app "second" [app "id" [one],app "id" [two]]) in
-    --   let ?bound = I.Interval 0 5 in do
-    --   let ?sensitivity = 0 in evalInterval' [] diamond `shouldBe` Terminating (Success (num 1 2))
-    --   let ?sensitivity = 1 in evalInterval' [] diamond `shouldBe` Terminating (Success (num 2 2))
-
-    -- it "context sensitivity reverse testing" $ 
-    --   let diamond = let_ [("first",first),("id",id)] (app "first" [app "id" [one],app "id" [two]]) in
-    --   let ?bound = I.Interval 0 5 in do
-    --   let ?sensitivity = 0 in evalInterval' [] diamond `shouldBe` Terminating (Success (num 1 2))
-    --   let ?sensitivity = 1 in evalInterval' [] diamond `shouldBe` Terminating (Success (num 1 1)) 
-
-    -- it "should terminate for the non-terminating program" $
-    --   let ?bound = I.Interval 0 5
-    --       ?sensitivity = 2
-    --   in evalInterval' [] (let_ [("id", lam ["x"] "x"),
-    --                             ("fix",lam ["x"] (app "fix" ["x"]))]
-    --                      (app "fix" ["id"]))
-    --        `shouldBe` NonTerminating
-
-    -- num i j = NumVal $ I.Interval i j
-
-    -- toEither :: Terminating (Error (Pow String) a) -> Either String a
-    -- toEither (Terminating (Fail e)) = Left (unwords (toList e))
-    -- toEither (Terminating (Success x)) = Right x
-    -- toEither NonTerminating = Left "NonTerminating"
+-- visualize node labels (expr) as actual node labels
+fileGraphParams :: GraphvizParams Int Expr () () Expr
+fileGraphParams = defaultParams {fmtNode = \(_, vl) -> [toLabel vl]}

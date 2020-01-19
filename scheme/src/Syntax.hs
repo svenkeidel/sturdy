@@ -6,11 +6,13 @@
 module Syntax where
 
 import           Data.Text (Text,unpack)
+import           Data.Text.Lazy(pack)
 import           Data.Hashable
 import           Data.Label
 import           Data.String
 import           Data.Lens (Prism')
 import qualified Data.Lens as L
+import           Data.GraphViz.Attributes
 
 import Control.Monad.State
 
@@ -281,6 +283,9 @@ instance Show Expr where
 
 instance IsString (State Label Expr) where
   fromString = var_ . fromString
+
+instance Labellable Expr where 
+  toLabelValue a = textLabelValue $ pack $ show a
 
 --Abstract Interpreter specific-------------------------------------------------
 
