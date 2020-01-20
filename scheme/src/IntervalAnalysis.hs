@@ -27,18 +27,17 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Parallel(parallel)
 import qualified Control.Arrow.Fix.Context as Ctx
-import           Control.Arrow.Fix.Chaotic (iterateInner)
+-- import           Control.Arrow.Fix.Chaotic (iterateInner)
 import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
 import qualified Control.Arrow.Closure as Cls
 import           Control.Arrow.Order
--- import           Control.Arrow.State as State
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+-- import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
@@ -58,8 +57,6 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
 import           Data.Graph.Inductive (Gr)
-import qualified Data.Graph.Inductive as G
--- import qualified Data.HashSet as Set
 
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Error (Error)
@@ -73,9 +70,6 @@ import           Data.Abstract.Closure (Closure)
 import qualified Data.Abstract.Closure as C
 import           Data.Abstract.DiscretePowerset (Pow)
 import           Data.Abstract.CallString(CallString)
--- import           Data.List
-
--- import           Data.Either
 
 import           GHC.Exts(IsString(..))
 import           GHC.Generics(Generic)
@@ -102,7 +96,8 @@ import           GenericInterpreter as Generic
 -- ArrowComplete?
 
 
-
+-----------------------------
+-- Export instances
 
 
 
@@ -123,6 +118,7 @@ data Val
   | QuoteVal
   | ListVal Val
   | TypeError (Pow String) 
+  -- | BottomVal 
   deriving (Eq, Generic)
 
 -- Input and output type of the fixpoint.
@@ -171,10 +167,6 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       Fix.filter apply parallel -- iterateInner
 
 
-    -- widenVal :: Widening Valtest_simple_list
-    -- widenVal = widening (I.bounded ?bound)
-
-
 evalInterval' :: (?sensitivity :: Int) => [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
 evalInterval' env exprs = snd $ snd $ snd $ evalInterval env exprs
 {-# INLINE evalInterval' #-}
@@ -212,58 +204,22 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     _ -> fail -< "(if): Expected a boolean as condition"
 
   op1_ = proc (op, x) -> case op of
-    Number_ ->
+    Number_ -> 
       case x of
         NumVal -> returnA -< BoolVal B.True 
         _ -> returnA -< BoolVal B.False
-    Integer_ ->
-      case x of
-        NumVal -> returnA -< BoolVal B.Top
-        _ -> returnA -< BoolVal B.False
-    Float_ -> 
-      case x of
-        NumVal -> returnA -< BoolVal B.Top
-        _ -> returnA -< BoolVal B.False
-    Ratio_ -> 
-      case x of
-        NumVal -> returnA -< BoolVal B.Top
-        _ -> returnA -< BoolVal B.False
-    Zero -> 
-      case x of
-        NumVal -> returnA -< BoolVal B.Top
-        _ -> fail -< "(zero?): Contract violation, expected element of type number"
-    Positive -> 
-      case x of
-        NumVal -> returnA -< BoolVal B.Top
-        _ -> fail -< "(positive?): Contract violation, expected element of type number"
-    Negative -> 
-      case x of
-        NumVal -> returnA -< BoolVal B.Top
-        _ -> fail -< "(negative?): Contract violation, expected element of type number"
-    Odd -> 
-      case x of
-        NumVal -> returnA -< BoolVal B.Top
-        _ -> fail -< "(odd?): Contract violation, expected element of type int: "
-    Even -> 
-      case x of
-        NumVal -> returnA -< BoolVal B.Top
-        _ -> fail -< "(even?): Contract violation, expected element of type int"
-    Abs -> 
-      case x of
-        NumVal -> returnA -< NumVal
-        _ -> fail -< "(abs): Contract violation, expected element of type int"
-    Floor -> 
-      case x of
-        NumVal -> returnA -< NumVal
-        _ -> fail -< "(floor): Contract violation, epxected elements of type number"
-    Ceiling -> 
-      case x of
-        NumVal -> returnA -< NumVal
-        _ -> fail -< "(ceiling): Contract violation, epxected elements of type number"
-    Log -> 
-      case x of
-        NumVal -> returnA -< NumVal
-        _ -> fail -< "(log): Contract violation, epxected element of type number"
+    Integer_ -> withNumToTop -< x
+    Float_ -> withNumToTop -< x 
+    Ratio_ -> withNumToTop -< x 
+    Zero -> withNumToTop' -< x
+    Positive -> withNumToTop' -< x 
+    Negative ->  withNumToTop' -< x 
+    Odd -> withNumToTop' -< x 
+    Even -> withNumToTop' -< x 
+    Abs -> withNumToNum -< x
+    Floor -> withNumToNum -< x
+    Ceiling -> withNumToNum -< x 
+    Log -> withNumToNum -< x 
     Boolean -> 
       case x of
         BoolVal _ -> returnA -< BoolVal B.True
@@ -323,94 +279,55 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
           True -> returnA -< BoolVal B.Top
           False -> returnA -< BoolVal B.False
         _ -> Generic.op2_ -< (Eqv, x, y)
-    Quotient ->
-      case (x, y) of
-        (NumVal, NumVal) -> returnA -< NumVal
-        _ -> fail -< "(remainder): Contract violation, epxected elements of type int"
-    Remainder ->
-      case (x, y) of
-        (NumVal, NumVal) -> returnA -< NumVal
-        _ -> fail -< "(remainder): Contract violation, epxected elements of type int"
-    Modulo ->
-      case (x, y) of
-        (NumVal, NumVal) -> returnA -< NumVal
-        _ -> fail -< "(modulo): Contract violation, epxected elements of type int"
+    Quotient -> withNumToNum2 -< (x,y) 
+    Remainder -> withNumToNum2 -< (x,y)
+    Modulo -> withNumToNum2 -< (x,y)
     Cons -> 
       case (x, y) of
         (n, ListVal val) -> returnA -< ListVal $ snd $ widening n val
         (n, m) -> returnA  -< ListVal $ snd $ widening n m
   opvar_ =  proc (op, xs) -> case op of
-    EqualS -> case (withOrdHelp xs) of
-      Left _ -> fail -< "(=): Contract violation, "
-      Right a -> returnA -< a
-    SmallerS -> case (withOrdHelp xs) of
-      Left _ -> fail -< "(<): Contract violation, "
-      Right a -> returnA -< a
-    GreaterS -> case (withOrdHelp xs) of
-      Left _ -> fail -< "(>): Contract violation, "
-      Right a -> returnA -< a
-    SmallerEqualS -> case (withOrdHelp xs) of
-      Left _ -> fail -< "(<=): Contract violation, "
-      Right a -> returnA -< a
-    GreaterEqualS -> case (withOrdHelp xs) of
-      Left _ -> fail -< "(>=): Contract violation, "
-      Right a -> returnA -< a
+    EqualS -> withOpvarWrap withOrdHelp -< xs
+    SmallerS -> withOpvarWrap withOrdHelp -< xs
+    GreaterS -> withOpvarWrap withOrdHelp -< xs 
+    SmallerEqualS -> withOpvarWrap withOrdHelp -< xs 
+    GreaterEqualS -> withOpvarWrap withOrdHelp -< xs  
     Max -> case xs of
       [] -> fail -< "(max): Arity missmatch, expected at least one argument"
-      _ -> case withNumHelp xs of
-        Left _ -> fail -< "(max): Contract violation, "
-        Right a -> returnA -< a
+      _ -> withOpvarWrap withNumHelp -< xs  
     Min -> case xs of
       [] -> fail -< "(min): Arity missmatch, expected at least one argument"
-      _ -> case withNumHelp xs of
-        Left _ -> fail -< "(min): Contract violation, "
-        Right a -> returnA -< a
+      _ -> withOpvarWrap withNumHelp -< xs  
     Add -> do
       case xs of
         [] -> returnA -< NumVal
-        _ -> case withNumHelp xs of
-          Left _ -> fail -< "(+): Contract violation, " 
-          Right a -> returnA -< a
+        _ -> withOpvarWrap withNumHelp -< xs 
     Mul -> do
       case xs of
         [] -> returnA -< NumVal
-        _ -> case withNumHelp xs of
-          Left _ -> fail -< "(*): Contract violation, "
-          Right a -> returnA -< a
+        _ -> withOpvarWrap withNumHelp -< xs
     Sub -> do
       case xs of
         [] -> fail -< "(-): Arity missmatch, expected at least one argument"
         NumVal :[] -> returnA -< NumVal
-        _ -> case withNumHelp xs of
-          Left _ -> fail -< "(-): Contract violation, "
-          Right a -> returnA -< a
+        _ -> withOpvarWrap withNumHelp -< xs
     Div -> do
       case xs of
         [] -> fail -< "(/): Arity missmatch, expected at least one argument"
         NumVal:[] -> returnA -< NumVal
-        _ -> case withNumHelp xs of
-          Left _ -> fail -< "(/): Contract violation, "
-          Right a -> returnA -< a
+        _ -> withOpvarWrap withNumHelp -< xs 
     Gcd -> case xs of
       [] -> returnA -< NumVal
-      _ -> case withNumHelp xs of 
-          Left _ -> fail -< "(gcd): Contract violation, "
-          Right a -> returnA -< a
+      _ -> withOpvarWrap withNumHelp -< xs 
     Lcm -> case xs of 
       [] -> returnA -< NumVal
-      _ -> case withNumHelp xs of
-        Left _ -> fail -< "(lcm): Contract violation, " 
-        Right a -> returnA -< a
+      _ -> withOpvarWrap withNumHelp -< xs 
     And -> case xs of
       [] -> returnA -< BoolVal B.True
-      _ -> case withBoolAndHelp xs of 
-        Left _ -> fail -< "(and): Contract violation, " 
-        Right a -> returnA -< a
+      _ -> withOpvarWrap withBoolAndHelp -< xs  
     Or -> case xs of 
       [] -> returnA -< BoolVal B.False
-      _ -> case withBoolOrHelp xs of 
-        Left _ -> fail -< "(or): Contract violation, " 
-        Right a -> returnA -< a
+      _ -> withOpvarWrap withBoolOrHelp -< xs 
     List_ -> returnA -< ListVal $ widenHelp xs
   {-# INLINE lit #-}
   {-# INLINE if_ #-}
@@ -427,14 +344,13 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     _ -> fail -< "Expected a closure"
   {-# INLINE closure #-}
   {-# INLINE apply #-}
-
-
+  
 instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c) => ArrowComplete Val (ValueT Val c) where
   ValueT f <⊔> ValueT g = ValueT $ proc x -> do
     v <- (f -< x) <⊔> (g -< x)
     case v of
       TypeError m -> fail -< fromString (show m)
-      _           -> returnA -< v
+      _           -> returnA -< v  
 
 instance PreOrd Val where
   _ ⊑ TypeError _ = True
@@ -476,47 +392,15 @@ widening (ListVal x) (ListVal y) = second ListVal (widening x y)
 widening (TypeError m1) (TypeError m2) = (Stable,TypeError (m1 <> m2))
 widening _ (TypeError m2) = (Unstable, TypeError m2)
 widening (TypeError m1) _ = (Unstable, TypeError m1)
-----------------------TRASH-------------------------------------------------------------------
-widening NumVal (BoolVal _) = (Unstable, TypeError "cannot unify NumVals and BoolVals")
-widening NumVal (ClosureVal _) = (Unstable, TypeError "cannot unify NumVals and ClosureVals")
-widening NumVal StringVal = (Unstable, TypeError "cannot unify NumVals and StringVals")
-widening NumVal QuoteVal = (Unstable, TypeError "cannot unify NumVals and QuoteVals")
-widening NumVal (ListVal _) = (Unstable, TypeError "cannot unify NumVals and ListVals")
+widening a b = (Unstable, TypeError $ singleton $ "cannot unify " ++ show a ++ " and " ++ show b)
+{-# INLINE widening #-}
 
-widening (BoolVal _) NumVal = (Unstable, TypeError "cannot unify BoolVals and NumVals")
-widening (BoolVal _) (ClosureVal _) = (Unstable, TypeError "cannot unify BoolVals and ClosureVals")
-widening (BoolVal _) StringVal = (Unstable, TypeError "cannot unify BoolVals and StringVals")
-widening (BoolVal _) QuoteVal = (Unstable, TypeError "cannot unify BoolVals and QuoteVals")
-widening (BoolVal _) (ListVal _) = (Unstable, TypeError "cannot unify BoolVals and ListVals")
-
-widening (ClosureVal _) NumVal = (Unstable, TypeError "cannot unify ClosureVals and NumVals")
-widening (ClosureVal _) (BoolVal _) = (Unstable, TypeError "cannot unify ClosureVals and BoolVals")
-widening (ClosureVal _) StringVal = (Unstable, TypeError "cannot unify ClosureVals and StringVals")
-widening (ClosureVal _) QuoteVal = (Unstable, TypeError "cannot unify ClosureVals and QuoteVals")
-widening (ClosureVal _) (ListVal _) = (Unstable, TypeError "cannot unify ClosureVals and ListVals")
-
-widening StringVal NumVal = (Unstable, TypeError "cannot unify StringVals and NumVals")
-widening StringVal (BoolVal _) = (Unstable, TypeError "cannot unify StringVals and BoolVals")
-widening StringVal (ClosureVal _) = (Unstable, TypeError "cannot unify StringVals and ClosureVals")
-widening StringVal QuoteVal = (Unstable, TypeError "cannot unify StringVals and QuoteVals")
-widening StringVal (ListVal _) = (Unstable, TypeError "cannot unify StringVals and ListVals")
-
-widening QuoteVal NumVal = (Unstable, TypeError "cannot unify QuoteVals and NumVals")
-widening QuoteVal (BoolVal _) = (Unstable, TypeError "cannot unify QuoteVals and BoolVals")
-widening QuoteVal (ClosureVal _) = (Unstable, TypeError "cannot unify QuoteVals and ClosureVals")
-widening QuoteVal StringVal = (Unstable, TypeError "cannot unify QuoteVals and StringVals")
-widening QuoteVal (ListVal _) = (Unstable, TypeError "cannot unify QuoteVals and ListVals")
-
-widening (ListVal _) NumVal = (Unstable, TypeError "cannot unify ListVals and NumVals")
-widening (ListVal _) (BoolVal _) = (Unstable, TypeError "cannot unify ListVals and BoolVals")
-widening (ListVal _) (ClosureVal _) = (Unstable, TypeError "cannot unify ListVals and ClosureVals")
-widening (ListVal _) StringVal = (Unstable, TypeError "cannot unify ListVals and StringVals")
-widening (ListVal _) QuoteVal = (Unstable, TypeError "cannot unify ListVals and QuoteVals")
 
 widenStore :: Identifiable addr => Widening val -> Widening (HashMap addr val)
 widenStore w m1 m2
   | Map.keys m1 == Map.keys m2 = sequenceA $ Map.intersectionWith w m1 m2
   | otherwise = (Unstable,Map.unionWith (\x y -> snd (w x y)) m1 m2)
+{-# INLINE widenStore #-}
 
 
 -- OPERATION HELPER ------------------------------------------------------------
@@ -526,28 +410,33 @@ withOrdHelp (NumVal:[]) = Right $ BoolVal B.True
 withOrdHelp (NumVal:NumVal:[]) = Right $ BoolVal B.Top
 withOrdHelp (NumVal:xs) = withOrdHelp xs
 withOrdHelp _ = Left $ "Expected elements of type ord for op"
+{-# INLINE withOrdHelp #-}
 
 withNumHelp :: [Val] -> Either String Val 
 withNumHelp (NumVal:[]) = Right NumVal
 withNumHelp (NumVal:xs) = withNumHelp xs
 withNumHelp _ = Left "Expected elements of type num for op"
+{-# INLINE withNumHelp #-}
 
 withBoolAndHelp :: [Val] -> Either String Val
 withBoolAndHelp (BoolVal b :[]) = Right $ BoolVal b
 withBoolAndHelp (BoolVal B.True: BoolVal B.True:xs) = withBoolAndHelp (BoolVal B.True:xs)
 withBoolAndHelp (BoolVal _: BoolVal _:xs) = withBoolAndHelp (BoolVal B.False:xs)
 withBoolAndHelp _ = Left "Expected elements of type bool for op"
+{-# INLINE withBoolAndHelp #-}
 
 withBoolOrHelp :: [Val] -> Either String Val
 withBoolOrHelp (BoolVal b :[]) = Right $ BoolVal b
 withBoolOrHelp (BoolVal B.False: BoolVal B.False:xs) = withBoolOrHelp (BoolVal B.False:xs)
 withBoolOrHelp (BoolVal _: BoolVal _:xs) = withBoolOrHelp (BoolVal B.True:xs)
 withBoolOrHelp _ = Left "Expected elements of type bool for op"
+{-# INLINE withBoolOrHelp #-}
 
 widenHelp :: [Val] -> Val
 widenHelp [] = TypeError "cannot tell type from empty list"
 widenHelp (x:[]) = x
 widenHelp (x1:x2:xs) = widenHelp ((snd $ widening x1 x2) : xs)
+{-# INLINE widenHelp #-}
 
 listHelp :: Literal -> [Literal] -> Val
 listHelp x [] = litsToVals x
@@ -555,6 +444,7 @@ listHelp x (y:[]) = snd $ widening (litsToVals x) (litsToVals y)
 listHelp x (y:ys) = case snd $ widening (litsToVals x) (litsToVals y) of 
   TypeError msg -> TypeError msg
   _ -> listHelp x ys
+{-# INLINE listHelp #-}
 
 litsToVals :: Literal -> Val
 litsToVals (Number _) = NumVal
@@ -570,8 +460,42 @@ litsToVals (List []) = TypeError "empty list"
 litsToVals (List (n:ns)) = ListVal $ listHelp n ns
 litsToVals (DottedList (n:ns) z) = ListVal $ listHelp n (ns++[z])
 litsToVals (DottedList [] z) = ListVal $ litsToVals z
+{-# INLINE litsToVals #-}
 
+withNumToTop :: (ArrowChoice c, ArrowFail e c, IsString e) => c Val Val 
+withNumToTop = proc v -> case v of
+  NumVal -> returnA -< BoolVal B.Top
+  TypeError msg -> fail -< fromString $ show msg
+  _ -> returnA -< BoolVal B.False
+{-# INLINE withNumToTop #-}
 
+withNumToTop' :: (ArrowChoice c, ArrowFail e c, IsString e) => c Val Val 
+withNumToTop' = proc v -> case v of
+  NumVal -> returnA -< BoolVal B.Top
+  TypeError msg -> fail -< fromString $ show msg
+  _ -> fail -< "expected value of type num"  
+{-# INLINE withNumToTop' #-}
+
+withNumToNum :: (ArrowChoice c, ArrowFail e c, IsString e) => c Val Val 
+withNumToNum = proc v -> case v of
+  NumVal -> returnA -< NumVal
+  TypeError msg -> fail -< fromString $ show msg
+  _ -> fail -< "expected value of type num"
+{-# INLINE withNumToNum #-}
+
+withNumToNum2 :: (IsString e, ArrowChoice c, ArrowFail e c) => c (Val,Val) Val 
+withNumToNum2 = proc v -> case v of
+  (NumVal, NumVal) -> returnA -< NumVal
+  (TypeError msg, _) -> fail -< fromString $ show msg
+  (_, TypeError msg) -> fail -< fromString $ show msg 
+  _ -> fail -< "expected values of type num"
+{-# INLINE withNumToNum2 #-}
+
+withOpvarWrap :: (IsString e, ArrowChoice c, ArrowFail e c) => ([Val] -> Either String Val) -> c [Val] Val 
+withOpvarWrap f = proc vs -> case f vs of 
+  Left msg -> fail -< fromString msg
+  Right a -> returnA -< a
+{-# INLINE withOpvarWrap #-}
 
 -- instance Traversable Val where
 --   traverse _ (NumVal n) = pure $ NumVal n

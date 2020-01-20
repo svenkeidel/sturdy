@@ -10,7 +10,6 @@ module Control.Arrow.Transformer.Abstract.Fix.ControlFlow where
 import           Prelude hiding(pred)
 
 import           Control.Arrow
-import           Control.Arrow.Fix.Context
 import           Control.Arrow.Order
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
@@ -51,16 +50,7 @@ instance (HasLabel stmt, Arrow c, Profunctor c) => ArrowControlFlow stmt (Contro
         Just pred' -> do 
           let cfg' = G.insEdge (labelVal $ label pred', labelVal $ label next, ()) cfg
           G.insNode (labelVal $ label next, next) cfg'
-
         Nothing -> G.insNode (labelVal $ label next, next) cfg
-      -- TODO: Add an control-flow edge from @previousStmt@ to @nextStmt@.
-      -- Be careful, since you might insert the same nodes and edges multiple
-      -- times (I don't know if this is a problem for FGL graphs).
-      --
-      -- TODO: `pred = Nothing` marks the entry point of the control-flow graph.
-      -- In this case it should suffice to add a control-flow node for `next`.
-      --
-      -- TODO: Use `HasLabel.label` to extract the label from statements and use it as node identifiers in the graph.
 
 instance (ArrowRun c) => ArrowRun (ControlFlowT stmt c) where
   type Run (ControlFlowT stmt c) x y = Run c x (Gr stmt (),y)

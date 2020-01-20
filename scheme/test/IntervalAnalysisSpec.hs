@@ -24,30 +24,16 @@ import           Syntax as S
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.DiscretePowerset (Pow)
 
--- import           Data.Label
--- import           Control.Monad.State
--- import           Data.HashMap.Lazy (HashMap)
--- import qualified Data.HashMap.Lazy as M
--- import           Data.Text.Lazy
 
 import           Data.GraphViz
--- import           Data.GraphViz.Printing
 import           Data.Graph.Inductive(Gr)
--- import qualified Data.Graph.Inductive as G
--- import           Data.Graph.Inductive.Example as Ex
 
-
--- import           Data.Label
-
--- import           GHC.Exts(toList)
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
 spec = do
-  -- fileGraphsRun(\file -> (evalInterval'' file))
-  -- let ?bound = I.Interval (-100) 100; ?sensitivity = 3 in sharedSpec (toEither . evalInterval' []) (NumVal . fromIntegral)
 
   describe "behavior specific to interval analysis" $ do
     it "context sensitivity" $
@@ -74,8 +60,8 @@ spec = do
                    set "x" (lit $ S.Number 2), 
                    set "x" (lit $ S.Bool True),
                    "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify BoolVals and NumVals")
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify BoolVals and NumVals")
+      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Num")
+      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Num")
 
 
     it "should terminate for the non-terminating program LetRec" $
@@ -87,7 +73,6 @@ spec = do
 
     it "should terminate for the non-terminating program Define" $
       pending
-
 
 -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do
@@ -147,7 +132,6 @@ spec = do
       let expRes = Terminating (Fail "{\"empty list\"}")
       helper_test inFile expRes      
 
-
     it "recursion and union with non-empty list" $ do
       let inFile = "test_rec_nonempty"
       let expRes = Terminating (Success $ ListVal NumVal)          
@@ -189,39 +173,7 @@ spec = do
       helper_test inFile expRes         
 
 
-
-  describe "graph-test" $ 
-    it "test graph" $ do 
-      let inFile = "test_opvars"
-      file_str <- helper_import inFile
-      -- file_str <- helper_import "//scheme_files//scala-am//nqueens.scm"
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> do 
-              let ?sensitivity = 0
-              let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
-              _ <- draw_graph inFile graph
-              res `shouldBe` Terminating (Success $ NumVal)
-
-              -- G.prettyPrint graph
-              -- G.prettyPrint Ex.g3 
-              -- putStrLn $ unpack $ renderDot $ toDot $ graphToDot nonClusteredParams clr479
-              -- let dotGraph = graphToDot nonClusteredParams graph
-              -- root <- getCurrentDirectory 
-              -- let root' = root ++ "//scheme_files//scala-am//nqueens" ++ ".png"
-              -- runGraphvizCommand :: PrintDotRepr dg n => GraphvizCommand -> dg n -> GraphvizOutput -> FilePath -> IO FilePath
-              -- _ <- runGraphvizCommand Dot dotGraph Png root'
-              -- readCreateProcess (shell) 
-              -- putStrLn $ unpack $ renderDot $ toDot $ graphToDot nonClusteredParams graph
-
- 
-            Left b -> print b
-        Left a -> print $ showError a
-
--------------------HELPER-------------------------------------------------------
-
-
+-------------------HELPER------------------------------------------------------
 helper_test :: String -> Terminating (Error (Pow String) Val) -> IO ()
 helper_test inFile expRes = do
   file_str <- helper_import inFile
