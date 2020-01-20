@@ -97,9 +97,12 @@ import           GenericInterpreter as Generic
 
 
 -----------------------------
--- Export instances
+-- Export instances (Boolean) ? 
 
-
+-- widening ⊥, representation of ⊥ in operators ??
+-- ListVal ⊥ union NonTerminating => ListVal ⊥ ??
+-- ListVal ⊥ union ListVal Num => (Stable/Unstable, ListVal Num) ??
+-- ListVal ⊥ ⊑ ListVal Num ??  
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
 type Addr = (Text,Ctx)
@@ -118,7 +121,7 @@ data Val
   | QuoteVal
   | ListVal Val
   | TypeError (Pow String) 
-  -- | BottomVal 
+  | Bottom
   deriving (Eq, Generic)
 
 -- Input and output type of the fixpoint.
@@ -189,7 +192,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Char _ -> returnA -< StringVal
     String _ -> returnA -< StringVal
     Quote _ -> returnA -< QuoteVal
-    List [] -> returnA -< TypeError "empty list"
+    List [] -> returnA -< ListVal Bottom
     List (y:ys) -> case listHelp y ys of
       TypeError msg -> returnA -< TypeError msg
       val -> returnA -< ListVal val
@@ -232,6 +235,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
         _ -> returnA -< BoolVal B.False
     Null -> 
       case x of
+        ListVal Bottom -> returnA -< BoolVal B.True
         ListVal _ -> returnA -< BoolVal B.Top
         _ -> returnA -< BoolVal B.False
     ListS -> 
@@ -259,7 +263,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
       v2 <- op1_ -< (Cdr, x)
       op1_ -< (Car, v2)
     Error -> case x of 
-      StringVal -> fail -< "message"
+      StringVal -> fail -< "Error Expr"
       _ -> fail -< "(fail): contract violation expected string as error msg"
   op2_ = proc (op, x, y) -> case op of
     Eqv ->
@@ -272,12 +276,18 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
         (NumVal, NumVal) -> returnA -< BoolVal B.Top
         (StringVal, StringVal) -> returnA -< BoolVal B.Top
         (QuoteVal, QuoteVal) -> returnA -< BoolVal B.Top
+        (Bottom, Bottom) -> returnA -< BoolVal B.True 
+        (TypeError msg, _) -> fail -< fromString $ show msg
+        (_, TypeError msg) -> fail -< fromString $ show msg
         _ -> returnA -< BoolVal B.False 
     Equal ->
       case (x, y) of
-        (ListVal val1, ListVal val2) -> case val1 == val2 of 
-          True -> returnA -< BoolVal B.Top
-          False -> returnA -< BoolVal B.False
+        (ListVal v1, ListVal v2) -> Generic.op2_ -< (Equal, v1, v2)
+
+        -- (ListVal Bottom, ListVal Bottom) -> returnA -< BoolVal B.True
+        -- (ListVal val1, ListVal val2) -> case val1 == val2 of 
+        --   True -> returnA -< BoolVal B.Top
+        --   False -> returnA -< BoolVal B.False
         _ -> Generic.op2_ -< (Eqv, x, y)
     Quotient -> withNumToNum2 -< (x,y) 
     Remainder -> withNumToNum2 -< (x,y)
@@ -374,6 +384,7 @@ instance Show Val where
   show QuoteVal = "Quote123"
   show (ListVal x) = "List [" ++ (show x) ++ "]"
   show (TypeError m) = printf "TypeError: %s" (show m)
+  show Bottom = "Bottom"
   
 instance IsClosure Val (HashSet Env) where
   mapEnvironment f (ClosureVal c) = ClosureVal (mapEnvironment f c)
@@ -389,6 +400,9 @@ widening (ClosureVal cs) (ClosureVal cs') = second ClosureVal $ C.widening W.fin
 widening StringVal StringVal = (Stable, StringVal)
 widening QuoteVal QuoteVal = (Stable, QuoteVal)
 widening (ListVal x) (ListVal y) = second ListVal (widening x y)
+widening Bottom Bottom = (Stable, Bottom)
+widening Bottom a = (Unstable, a) 
+widening a Bottom = (Unstable, a)
 widening (TypeError m1) (TypeError m2) = (Stable,TypeError (m1 <> m2))
 widening _ (TypeError m2) = (Unstable, TypeError m2)
 widening (TypeError m1) _ = (Unstable, TypeError m1)
@@ -456,7 +470,7 @@ litsToVals (Char _) = StringVal
 litsToVals (String _) = StringVal
 litsToVals (Quote _) = QuoteVal
 litsToVals (Symbol _) = QuoteVal
-litsToVals (List []) = TypeError "empty list"
+litsToVals (List []) = ListVal Bottom
 litsToVals (List (n:ns)) = ListVal $ listHelp n ns
 litsToVals (DottedList (n:ns) z) = ListVal $ listHelp n (ns++[z])
 litsToVals (DottedList [] z) = ListVal $ litsToVals z
