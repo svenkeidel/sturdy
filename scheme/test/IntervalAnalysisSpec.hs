@@ -180,9 +180,16 @@ spec = do
       helper_test inFile expRes   
 
     it "test_cons" $ do
-        let inFile = "test_cons"
-        let expRes = Terminating (Success $ BoolVal B.True)         
-        helper_test inFile expRes 
+      let inFile = "test_cons"
+      let expRes = Terminating (Success $ BoolVal B.True)         
+      helper_test inFile expRes 
+
+    it "random_test" $ do
+      let inFile = "random_test"
+      let expRes = Terminating (Success NumVal)         
+      helper_test inFile expRes 
+
+
 
 -------------------HELPER------------------------------------------------------
 helper_test :: String -> Terminating (Error (Pow String) Val) -> IO ()

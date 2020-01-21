@@ -23,3 +23,23 @@ recordControlFlowGraph getStatement f = proc a -> do
   nextStatement -< getStatement a
   f -< a
 {-# INLINE recordControlFlowGraph #-}
+
+-- | Records the trace of the abstract interpreter as an control-flow graph.
+recordControlFlowGraph' :: (ArrowChoice c, ArrowControlFlow stmt c) => (a -> Maybe stmt) -> FixpointCombinator c a b
+recordControlFlowGraph' getStatement f = proc a -> do
+  case getStatement a of 
+    Just stmt -> do 
+      nextStatement -< stmt
+      f -< a
+    _ -> f -< a
+{-# INLINE recordControlFlowGraph' #-}
+
+
+-- recordCallsite :: forall a lab b c. ArrowContext (CallString lab) c => Int -> (a -> Maybe lab) -> FixpointCombinator c a b
+-- recordCallsite k getLabel g = proc a -> do
+--   callString <- askContext -< ()
+--   let callString' = case getLabel a of
+--         Just lab -> CallString.truncate k (CallString.push lab callString)
+--         Nothing -> callString
+--   localContext g -< (callString',a)
+-- {-# INLINE recordCallsite #-}

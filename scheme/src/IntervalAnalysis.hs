@@ -104,6 +104,10 @@ import           GenericInterpreter as Generic
 -- ListVal ⊥ union ListVal Num => (Stable/Unstable, ListVal Num) ??
 -- ListVal ⊥ ⊑ ListVal Num ??  
 
+-- recordCFG' ArrowChoice c ??
+
+-- sinnvollere Benchmarks 
+
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
 type Addr = (Text,Ctx)
 type Env = HashMap Text Addr
@@ -166,7 +170,8 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       -- Fix.traceShow .
       -- collect . 
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      CF.recordControlFlowGraph (\(_,(_,[expr])) -> expr) . 
+      CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
+      -- CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
       Fix.filter apply parallel -- iterateInner
 
 
