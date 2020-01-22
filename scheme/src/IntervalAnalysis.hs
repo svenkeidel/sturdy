@@ -108,6 +108,10 @@ import           GenericInterpreter as Generic
 
 -- sinnvollere Benchmarks 
 
+-- showTopLevel function? 
+
+-- sinnvollere Nutzung der Graphen 
+
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
 type Addr = (Text,Ctx)
 type Env = HashMap Text Addr
