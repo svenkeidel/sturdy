@@ -110,7 +110,10 @@ import           GenericInterpreter as Generic
 
 -- showTopLevel function? 
 
--- sinnvollere Nutzung der Graphen 
+-- sinnvolle Nutzung der Graphen 
+-- sowie Anzahl States in GC paper
+-- ver der Anzahl an Evaluierten Exprs überhauot sinnvoll für Vergleich von Single Env vs Multiple Envs?
+
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
 type Addr = (Text,Ctx)
