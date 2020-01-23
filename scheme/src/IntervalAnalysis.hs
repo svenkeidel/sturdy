@@ -111,8 +111,8 @@ import           GenericInterpreter as Generic
 -- showTopLevel function? 
 
 -- sinnvolle Nutzung der Graphen 
--- sowie Anzahl States in GC paper
--- ver der Anzahl an Evaluierten Exprs überhauot sinnvoll für Vergleich von Single Env vs Multiple Envs?
+-- sowie Anzahl States in GC paper?
+-- ist der Anzahl an Evaluierten Exprs überhaupt sinnvoll für Vergleich von Single Env vs Multiple Envs?
 
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
@@ -206,7 +206,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Quote _ -> returnA -< QuoteVal
     List [] -> returnA -< ListVal Bottom
     List (y:ys) -> case listHelp y ys of
-      TypeError msg -> returnA -< TypeError msg
+      TypeError msg -> fail -< fromString $ show msg
       val -> returnA -< ListVal val
     DottedList [] z -> returnA -< ListVal $ litsToVals z
     DottedList (y:ys) z -> returnA -< ListVal $ listHelp y (ys ++ [z])
@@ -222,6 +222,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Number_ -> 
       case x of
         NumVal -> returnA -< BoolVal B.True 
+        TypeError msg -> fail -< fromString $ show msg
         _ -> returnA -< BoolVal B.False
     Integer_ -> withNumToTop -< x
     Float_ -> withNumToTop -< x 
@@ -238,29 +239,35 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Boolean -> 
       case x of
         BoolVal _ -> returnA -< BoolVal B.True
+        TypeError msg -> fail -< fromString $ show msg
         _ -> returnA -< BoolVal B.False
     Not -> 
       case x of
         BoolVal B.Top -> returnA -< BoolVal B.Top
         BoolVal B.True -> returnA -< BoolVal B.False
         BoolVal B.False -> returnA -< BoolVal B.True
+        TypeError msg -> fail -< fromString $ show msg 
         _ -> returnA -< BoolVal B.False
     Null -> 
       case x of
         ListVal Bottom -> returnA -< BoolVal B.True
         ListVal _ -> returnA -< BoolVal B.Top
+        TypeError msg -> fail -< fromString $ show msg
         _ -> returnA -< BoolVal B.False
     ListS -> 
       case x of
         ListVal _ -> returnA -< BoolVal B.True
+        TypeError msg -> fail -< fromString $ show msg
         _ -> returnA -< BoolVal B.False
     Car -> 
       case x of
         ListVal n -> returnA -< n
+        TypeError msg -> fail -< fromString $ show msg
         _ -> fail -< "(car): Bad form"
     Cdr -> 
       case x of
         ListVal n -> returnA -< ListVal n
+        TypeError msg -> fail -< fromString $ show msg
         _ -> fail -< "(cdr): Bad form: "
     Caar -> do
       v1 <- op1_ -< (Car, x)
@@ -276,6 +283,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
       op1_ -< (Car, v2)
     Error -> case x of 
       StringVal -> fail -< "Error Expr"
+      TypeError msg -> fail -< fromString $ show msg
       _ -> fail -< "(fail): contract violation expected string as error msg"
   op2_ = proc (op, x, y) -> case op of
     Eqv ->
@@ -295,11 +303,6 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Equal ->
       case (x, y) of
         (ListVal v1, ListVal v2) -> Generic.op2_ -< (Equal, v1, v2)
-
-        -- (ListVal Bottom, ListVal Bottom) -> returnA -< BoolVal B.True
-        -- (ListVal val1, ListVal val2) -> case val1 == val2 of 
-        --   True -> returnA -< BoolVal B.Top
-        --   False -> returnA -< BoolVal B.False
         _ -> Generic.op2_ -< (Eqv, x, y)
     Quotient -> withNumToNum2 -< (x,y) 
     Remainder -> withNumToNum2 -< (x,y)
@@ -307,6 +310,8 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Cons -> 
       case (x, y) of
         (n, ListVal val) -> returnA -< ListVal $ snd $ widening n val
+        (TypeError msg, _) -> fail -< fromString $ show msg 
+        (_, TypeError msg) -> fail -< fromString $ show msg
         (n, m) -> returnA  -< ListVal $ snd $ widening n m
   opvar_ =  proc (op, xs) -> case op of
     EqualS -> withOpvarWrap withOrdHelp -< xs
@@ -376,9 +381,13 @@ instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c) => Arro
 
 instance PreOrd Val where
   _ ⊑ TypeError _ = True
+  Bottom ⊑ _ = True
   NumVal ⊑ NumVal = True 
   BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
   ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
+  StringVal ⊑ StringVal = True
+  QuoteVal ⊑ QuoteVal = True 
+  ListVal ls1 ⊑ ListVal ls2 = ls1 ⊑ ls2
   _ ⊑ _ = False
 
 instance Complete Val where
