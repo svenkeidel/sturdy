@@ -97,7 +97,7 @@ import           GenericInterpreter as Generic
 
 
 -----------------------------
--- Export instances (Boolean) ? 
+-- Export instances (Boolean) ? qualified  
 
 -- widening ⊥, representation of ⊥ in operators ??
 -- ListVal ⊥ union NonTerminating => ListVal ⊥ ??
@@ -114,6 +114,17 @@ import           GenericInterpreter as Generic
 -- sowie Anzahl States in GC paper?
 -- ist der Anzahl an Evaluierten Exprs überhaupt sinnvoll für Vergleich von Single Env vs Multiple Envs?
 
+-- unendliche listen lv lv lv lv ...
+-- widening für listen -> Top
+
+-- ab wann top ? bei testfllen
+
+-- Grammar  Buamgramtiken 
+-- non terminals unique, gleiche Sorache 
+
+-- TEtSTEN, precision reduzierung 
+
+-- introd , architecture
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
 type Addr = (Text,Ctx)
@@ -160,7 +171,7 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
                     (StackT Stack In
                       (CacheT (Monotone ** Parallel (Group Cache)) In Out
                         (ContextT Ctx
-                          (ControlFlowT Expr 
+                          (ControlFlowT Expr -- unter fixT liften
                             (->))))))))))) [Expr] Val))
     (alloc, widening)
     iterationStrategy
@@ -177,8 +188,8 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       -- Fix.traceShow .
       -- collect . 
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
-      -- CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
+      -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
+      CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
       Fix.filter apply parallel -- iterateInner
 
 
@@ -241,7 +252,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
         BoolVal _ -> returnA -< BoolVal B.True
         TypeError msg -> fail -< fromString $ show msg
         _ -> returnA -< BoolVal B.False
-    Not -> 
+    Not -> -- js wat talk
       case x of
         BoolVal B.Top -> returnA -< BoolVal B.Top
         BoolVal B.True -> returnA -< BoolVal B.False

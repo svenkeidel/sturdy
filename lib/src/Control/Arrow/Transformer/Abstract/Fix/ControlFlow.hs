@@ -62,6 +62,8 @@ instance ArrowTrans (ControlFlowT stmt c) where
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ControlFlowT stmt c)
 
+
+-- !
 instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (ControlFlowT stmt c) where
   ControlFlowT f <⊔> ControlFlowT g = ControlFlowT $ rmap (uncurry (⊔)) (f &&& g)
   {-# INLINE (<⊔>) #-}

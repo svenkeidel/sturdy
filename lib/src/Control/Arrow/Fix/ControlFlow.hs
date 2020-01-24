@@ -12,6 +12,8 @@ import Data.Profunctor
 class (Arrow c, Profunctor c) => ArrowControlFlow stmt c | c -> stmt where
   -- | Adds a control-flow edge between the previously evaluated statement and the next statement.
   -- For example, @(nextStatement -< e1; nextStatement -< e2)@ adds an CFG edge between @e1@ and @e2@.
+
+  -- nextStatement :: c x y -> c (stmt, x) y 
   nextStatement :: c stmt ()
 
   default nextStatement :: (c ~ t c', ArrowLift t, ArrowControlFlow stmt c') => c stmt ()
