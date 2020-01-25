@@ -225,37 +225,26 @@ newCache f = lift $ \widen ->
 
 ------ Monotone Cache ------
 data Monotone a b where
-  Monotone :: s -> HashMap a b -> Monotone (s,a) (s,b)
+  Monotone :: s -> Monotone s s
 
-type instance Widening (Monotone (s,a) (s,b)) = (W.Widening s,W.Widening b)
+type instance Widening (Monotone s s) = W.Widening s
 
-instance IsEmpty s => IsEmpty (Monotone (s,a) (s,b)) where
-  empty = Monotone empty empty
+instance IsEmpty s => IsEmpty (Monotone s s) where
+  empty = Monotone empty
 
-instance (Show s, Show a, Show b) => Show (Monotone (s,a) (s,b)) where
-  show (Monotone s m) = show (s,m)
+instance Show s => Show (Monotone s s) where
+  show (Monotone s) = show s
 
 instance (Arrow c, Profunctor c) => ArrowParallel (CacheT Monotone a b c) where
   nextIteration = id
   {-# INLINE nextIteration #-}
 
-instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowCache (s,a) (s,b) (CacheT Monotone (s,a) (s,b) c) where
-  initialize = CacheT $ modify' $ \((s,a),Monotone s' cache) ->
-    let cache' = M.insertWith (\_ _old -> _old) a bottom cache
-        b = M.lookupDefault bottom a cache
-    in ((s,b),Monotone s' cache')
-  lookup = CacheT $ proc (s,a) -> do
-    m <- get -< ()
-    case m of
-      Monotone _ cache ->
-        returnA -< (\b -> (Unstable,(s,b))) <$> M.lookup a cache
-  update = CacheT $ askConst $ \(widenS,widenB) -> modify' $ \(((_,a),(sNew,b)),Monotone sOld cache) ->
-    let (stable1,sWiden) = widenS sOld sNew
-    in case M.lookup a cache of
-        Just b' ->
-          let ~(stable2,b'') = widenB b' b
-          in ((stable1 ⊔ stable2, (sWiden,b'')), Monotone sWiden (M.insert a b'' cache))
-        Nothing -> ((Unstable,(sWiden,b)),Monotone sWiden (M.insert a b cache))
+instance (ArrowChoice c, Profunctor c) => ArrowCache s s (CacheT Monotone s s c) where
+  initialize = id
+  lookup = CacheT $ proc s -> returnA -< Just (Unstable, s)
+  update = CacheT $ askConst $ \widening -> modify' $ \((_,sNew), Monotone sOld) ->
+    let y@(_,sWiden) = widening sOld sNew
+    in (y,Monotone sWiden)
   write = CacheT $ proc _ -> returnA -< ()
   setStable = CacheT $ proc _ -> returnA -< ()
   {-# INLINE initialize #-}

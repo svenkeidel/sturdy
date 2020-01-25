@@ -9,7 +9,6 @@ import           Data.Abstract.DiscretePowerset(Pow)
 import           Data.Abstract.Error hiding (toEither)
 import qualified Data.Abstract.Interval as I
 import           Data.Abstract.Terminating hiding (toEither)
-import           Data.Abstract.InfiniteNumbers(InfiniteNumber(..))
 
 import           Test.Hspec
 import           SharedSpecs
@@ -52,14 +51,7 @@ spec = do
         evalInterval' [("x", num 0 1)] (let_ [("add",add)] (app "add" ["x",two]))
           -- Most precise would be [2,3], however, the analysis does not refine
           -- `x` and therefore introduces some imprecision.
-          `shouldBe` Terminating (Success (num 2 7))
-
-    context "the factorial function" $
-      it "should only return positive numbers" $
-        let ?bound = I.Interval 0 Infinity
-            ?sensitivity = 1
-        in evalInterval' [("x", num 0 Infinity)] (let_ [("fact", lam ["n"] (ifZero "n" (succ zero) (mult (app "fact" [pred "n"]) "n")))] (app "fact" ["x"])) `shouldBe`
-             Terminating (Success (num NegInfinity Infinity))
+          `shouldBe` Terminating (Success (num 2 5))
 
     it "context sensitivity" $
       let diamond = let_ [("second",second),("id",id)] (app "second" [app "id" [one],app "id" [two]]) in

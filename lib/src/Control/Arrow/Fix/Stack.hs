@@ -19,17 +19,14 @@ import Text.Printf
 
 class (Arrow c, Profunctor c) => ArrowStack a c | c -> a where
   push :: c a b -> c a b
-  elem :: c a Bool
   elems :: c () [a]
   peek :: c () (Maybe a)
   size :: c () Int
 
-  default elem :: (c ~ t c', ArrowLift t, ArrowStack a c') => c a Bool
   default elems :: (c ~ t c', ArrowLift t, ArrowStack a c') => c () [a]
   default peek :: (c ~ t c', ArrowLift t, ArrowStack a c') => c () (Maybe a)
   default size :: (c ~ t c', ArrowLift t, ArrowStack a c') => c () Int
 
-  elem = lift' elem
   elems = lift' elems
   peek = lift' peek
   size = lift' size
@@ -72,13 +69,13 @@ reuseFirst = reuse find
 reuseByMetric :: (PreOrd a, Ord n, ArrowChoice c, ArrowStack a c) => Metric a n -> FixpointCombinator c a b
 reuseByMetric metric = reuse find
   where
-    find a xs = element <$> foldMap (\a' -> if a ⊑ a' then Just (Measured a' (metric a a')) else Nothing) xs
+    find a xs = elem <$> foldMap (\a' -> if a ⊑ a' then Just (Measured a' (metric a a')) else Nothing) xs
 {-# INLINE reuseByMetric #-}
 
-data Measured a n = Measured { element :: a, measured :: n }
+data Measured a n = Measured { elem :: a, measured :: n }
 
 instance (Show a, Show n) => Show (Measured a n) where
-  show m = printf "%s@%s" (show (element m)) (show (measured m))
+  show m = printf "%s@%s" (show (elem m)) (show (measured m))
 
 instance Ord n => Semigroup (Measured a n) where
   m1 <> m2

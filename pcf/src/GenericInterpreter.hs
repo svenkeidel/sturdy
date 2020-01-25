@@ -40,10 +40,6 @@ eval = fix $ \ev -> proc e0 -> case e0 of
   Pred e _ -> do
     v <- ev -< e
     pred -< v
-  Mult e1 e2 _ -> do
-    v1 <- ev -< e1
-    v2 <- ev -< e2
-    mult -< (v1,v2)
   IfZero e1 e2 e3 _ -> do
     v1 <- ev -< e1
     if_ ev ev -< (v1, (e2, e3))
@@ -73,7 +69,5 @@ class IsVal v c | c -> v where
 
   -- | creates the numeric value zero.
   zero :: c () v
-
-  mult :: c (v,v) v
 
   if_ :: Join z c => c x z -> c y z -> c (v, (x, y)) z

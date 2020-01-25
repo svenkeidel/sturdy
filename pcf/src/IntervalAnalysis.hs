@@ -24,7 +24,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Chaotic(chaotic)
+import           Control.Arrow.Fix.Parallel(parallel)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -34,11 +34,10 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvironment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
+-- import           Control.Arrow.Transformer.Abstract.Fix.Trace
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Cache,Parallel,Monotone,type (**),Group)
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -93,7 +92,7 @@ type Out = (Store, Terminating (Error (Pow String) Val))
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?sensitivity :: Int, ?bound :: IV) => [(Text,Val)] -> State Label Expr -> (Store, Terminating (Error (Pow String) Val))
+evalInterval :: (?sensitivity :: Int, ?bound :: Interval Int) => [(Text,Val)] -> State Label Expr -> (Store, Terminating (Error (Pow String) Val))
 evalInterval env0 e = snd $
   run (extend' (Generic.eval ::
       Fix'
@@ -102,10 +101,10 @@ evalInterval env0 e = snd $
             (TerminatingT
               (EnvT Text Addr Val
                 (FixT _ _
-                  (ChaoticT In
+                  (-- ChaoticT In
                     (-- TraceT
                       (StackT Stack In
-                        (CacheT Monotone In Out
+                        (CacheT (Monotone ** Parallel (Group Cache)) In Out
                           (ContextT Ctx
                             (->))))))))))) Expr Val))
     (alloc, widenVal)
@@ -123,12 +122,12 @@ evalInterval env0 e = snd $
       traceShow .
       -- traceCache show .
       Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
-      filter apply chaotic
+      filter apply parallel
 
     widenVal :: Widening Val
     widenVal = widening (I.bounded ?bound)
 
-evalInterval' :: (?sensitivity :: Int, ?bound :: IV) => [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
+evalInterval' :: (?sensitivity :: Int, ?bound :: Interval Int) => [(Text,Val)] -> State Label Expr -> Terminating (Error (Pow String) Val)
 evalInterval' env expr = snd $ evalInterval env expr
 {-# INLINE evalInterval' #-}
 
@@ -142,10 +141,6 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsVal Val (ValueT Val c) 
   pred = proc x -> case x of
     NumVal n -> returnA -< NumVal $ n - 1
     _ -> fail -< "Expected a number as argument for 'pred'"
-
-  mult = proc x -> case x of
-    (NumVal n, NumVal m) -> returnA -< NumVal $ n * m
-    _ -> fail -< "Expected two numbers as argument for 'mult'"
 
   zero = proc _ -> returnA -< NumVal 0
 

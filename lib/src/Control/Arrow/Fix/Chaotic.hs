@@ -8,7 +8,7 @@ module Control.Arrow.Fix.Chaotic where
 
 import           Prelude hiding (head,iterate,map)
 
-import           Control.Arrow hiding (loop)
+import           Control.Arrow
 import           Control.Arrow.Trans
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Stack as Stack
@@ -36,20 +36,13 @@ chaotic :: forall a b c. (ArrowStack a c, ArrowCache a b c, ArrowChoice c) => Fi
 chaotic f = proc a -> do
   m <- Cache.lookup -< a
   case m of
-    Just (Stable,b) -> returnA -< b
-    Just (Unstable,b) -> do
-      loop <- Stack.elem -< a
-      if loop
-        then returnA -< b
-        else Stack.push iterate -< a
-    Nothing -> do
-      loop <- Stack.elem -< a
-      if loop
-        then initialize -< a
-        else Stack.push iterate -< a
+    Just (_,b) -> returnA -< b
+    Nothing    -> do
+      Cache.initialize -< a
+      iterate -< a
   where
     iterate = proc a -> do
-      b <- f -< a
+      b <- Stack.push f -< a
       (stable,b') <- Cache.update -< (a,b)
       case stable of
         Stable   -> returnA -< b'
@@ -59,10 +52,17 @@ chaotic f = proc a -> do
 -- | Iterate on the innermost fixpoint component.
 iterateInner :: forall a b c. (Identifiable a, ArrowChaotic a c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
 {-# INLINE iterateInner #-}
-iterateInner f = detectLoop iterate
+iterateInner f = proc a -> do
+  m <- Cache.lookup -< a
+  case m of
+    Just (Stable,b)   -> returnA -< b
+    Just (Unstable,b) -> setComponent -< (mempty { head = H.singleton a }, b)
+    Nothing -> do
+      Cache.initialize -< a
+      iterate -< a
   where
     iterate = proc a -> do
-      (component,b) <- getComponent f -< a
+      (component,b) <- getComponent (Stack.push f) -< a
 
       -- The call did not depend on any unstable calls. This means
       -- we are done and don't need to iterate.
@@ -87,10 +87,17 @@ iterateInner f = detectLoop iterate
 -- | Iterate on the outermost fixpoint component.
 iterateOuter :: forall a b c. (Identifiable a, ArrowChaotic a c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
 {-# INLINE iterateOuter #-}
-iterateOuter f = detectLoop iterate
+iterateOuter f = proc a -> do
+  m <- Cache.lookup -< a
+  case m of
+    Just (Stable,b)   -> returnA -< b
+    Just (Unstable,b) -> setComponent -< (mempty { head = H.singleton a }, b)
+    Nothing -> do
+      Cache.initialize -< a
+      iterate -< a
   where
     iterate = proc a -> do
-      (component,b) <- getComponent f -< a
+      (component,b) <- getComponent (Stack.push f) -< a
       case () of
         -- The call did not depend on any unstable calls. This means
         -- we are done and don't need to iterate.
@@ -120,25 +127,6 @@ iterateOuter f = detectLoop iterate
              Cache.write -< (a,b,Unstable)
              setComponent -< (component { head = H.delete a (head component)
                                         , body = H.insert a (body component) }, b)
-
-detectLoop :: (Identifiable a, ArrowChaotic a c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => c a b -> c a b
-detectLoop iterate = proc a -> do
-  m <- Cache.lookup -< a
-  case m of
-    Just (Stable,b) -> returnA -< b
-    Just (Unstable,b) -> do
-      loop <- Stack.elem -< a
-      if loop
-        then setComponent -< (mempty { head = H.singleton a }, b)
-        else Stack.push iterate -< a
-    Nothing -> do
-      loop <- Stack.elem -< a
-      if loop
-        then do
-          b <- Cache.initialize -< a
-          setComponent -< (mempty { head = H.singleton a }, b)
-        else Stack.push iterate -< a
-{-# INLINE detectLoop #-}
 
 data Component a = Component { head :: HashSet a, body :: HashSet a } deriving (Eq)
 
