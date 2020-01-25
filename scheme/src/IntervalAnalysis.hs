@@ -27,7 +27,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Parallel(parallel)
 import qualified Control.Arrow.Fix.Context as Ctx
--- import           Control.Arrow.Fix.Chaotic (iterateInner)
+import           Control.Arrow.Fix.Chaotic (iterateInner, chaotic)
 import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -37,7 +37,7 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
--- import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
@@ -149,9 +149,11 @@ data Val
 -- Input and output type of the fixpoint.
 type In = (Store,(([Expr],Label),Env))
 type Out = (Store, Terminating (Error (Pow String) Val))
-type Out' = (Gr Expr (), ((**)
+type Out' = (--Gr Expr (), 
+            ( -- (**)
                            Monotone
-                           (Parallel (Group Cache))
+                           --(Parallel (Group Cache)) 
+                           --(Group Cache)
                            (Store, (([Expr], Label), Env))
                            (Store, Terminating (Error (Pow String) Val)),
                          (HashMap (Text, Ctx) Val, Terminating (Error (Pow String) Val))))
@@ -167,11 +169,12 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
             (TerminatingT
               (EnvStoreT Text Addr Val
                 (FixT _ _
-                  (-- ChaoticT In
+                  (ChaoticT In
                     (StackT Stack In
-                      (CacheT (Monotone ** Parallel (Group Cache)) In Out
+                      (--CacheT (Monotone ** Parallel (Group Cache)) In Out
+                        CacheT  Monotone In Out 
                         (ContextT Ctx
-                          (ControlFlowT Expr -- unter fixT liften
+                          (-- ControlFlowT Expr -- unter fixT liften
                             (->))))))))))) [Expr] Val))
     (alloc, widening)
     iterationStrategy
@@ -189,18 +192,18 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       -- collect . 
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
-      CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
-      Fix.filter apply parallel -- iterateInner
+     -- CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
+      Fix.filter apply iterateInner -- chaotic --parallel 
 
 
 evalInterval' :: (?sensitivity :: Int) => [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
-evalInterval' env exprs = snd $ snd $ snd $ evalInterval env exprs
+evalInterval' env exprs = snd $ snd $ evalInterval env exprs
 {-# INLINE evalInterval' #-}
 
-evalInterval'' :: (?sensitivity :: Int) => [State Label Expr] -> (Gr Expr (), Terminating (Error (Pow String) Val))
-evalInterval'' exprs =
-  let res = evalInterval [] exprs in (fst res, snd $ snd $ snd res)
-{-# INLINE evalInterval'' #-}
+-- evalInterval'' :: (?sensitivity :: Int) => [State Label Expr] -> (Gr Expr (), Terminating (Error (Pow String) Val))
+-- evalInterval'' exprs =
+--   let res = evalInterval [] exprs in (fst res, snd $ snd $ snd res)
+-- {-# INLINE evalInterval'' #-}
 
 
 instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) where
