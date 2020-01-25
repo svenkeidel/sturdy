@@ -164,7 +164,11 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
                         CacheT  Monotone In Out 
                         (ContextT Ctx
 <<<<<<< HEAD
+<<<<<<< HEAD
                           (-- ControlFlowT Expr -- unter fixT liften
+=======
+                          (ControlFlowT Expr 
+>>>>>>> parent of 0ed49a1... comments
 =======
                           (ControlFlowT Expr 
 >>>>>>> parent of 0ed49a1... comments
@@ -185,10 +189,13 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       -- collect . 
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
 <<<<<<< HEAD
+<<<<<<< HEAD
       -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
      -- CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
       Fix.filter apply iterateInner -- chaotic --parallel 
 =======
+=======
+>>>>>>> parent of 0ed49a1... comments
       CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
       -- CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
       Fix.filter apply parallel -- iterateInner
