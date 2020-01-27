@@ -138,6 +138,7 @@ run_ = fix $ \run' -> proc es -> case es of
       then run' -< [Lit (String "#<void>") l]
       else run' -< rest
   Define x e l: rest -> do
+    -- Not used except by test cases, which explicitly use define expression 
     -- TODO: Check whether pre_val == Undefined if so continue else => Error "Var has already been defined"
     cls <- run' -< [e]
     -- Env.lookup (proc (_,(var,_,_)) -> fail -< fromString $ printf "Variable %s already exists" (show var))

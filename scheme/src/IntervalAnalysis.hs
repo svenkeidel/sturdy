@@ -78,6 +78,8 @@ import           Text.Printf
 import           Syntax (Expr(..),Literal(..) ,Op1_(..),Op2_(..),OpVar_(..), apply)
 import           GenericInterpreter as Generic
 
+
+----------------------------- BIS 23.1.
 -- | Questions:
 --
 -- TypeError or ListVal _ for cdr?
@@ -96,35 +98,46 @@ import           GenericInterpreter as Generic
 -- ArrowComplete?
 
 
------------------------------
--- Export instances (Boolean) ? qualified  
+----------------------------- BIS 27.1.
+-- Export instances (Boolean) ? qualified  -> doesnt work
 
--- widening ⊥, representation of ⊥ in operators ??
--- ListVal ⊥ union NonTerminating => ListVal ⊥ ??
--- ListVal ⊥ union ListVal Num => (Stable/Unstable, ListVal Num) ??
--- ListVal ⊥ ⊑ ListVal Num ??  
+-- widening ⊥, representation of ⊥ in operators ?? -> correct
+-- ListVal ⊥ union NonTerminating => ListVal ⊥ ?? -> correct
+-- ListVal ⊥ union ListVal Num => (Stable/Unstable, ListVal Num) ?? -> correct
+-- ListVal ⊥ ⊑ ListVal Num ?? -> correct 
 
--- recordCFG' ArrowChoice c ??
+-- recordCFG' ArrowChoice c ?? -> correct
 
--- sinnvollere Benchmarks 
-
--- showTopLevel function? 
+-- showTopLevel function? -> TODO -> DONE 
 
 -- sinnvolle Nutzung der Graphen 
 -- sowie Anzahl States in GC paper?
--- ist der Anzahl an Evaluierten Exprs überhaupt sinnvoll für Vergleich von Single Env vs Multiple Envs?
+-- ist der Anzahl an Evaluierten Exprs überhaupt sinnvoll für Vergleich von Single Env vs Multiple Envs? -> nur zum Debugging
 
 -- unendliche listen lv lv lv lv ...
--- widening für listen -> Top
+-- widening für listen -> Top -> TODO -> DONE 
 
 -- ab wann top ? bei testfllen
+-- spezifischere Fehler/TypeErrors -> TODO -> DONE
 
 -- Grammar  Buamgramtiken 
--- non terminals unique, gleiche Sorache 
+-- non terminals unique, gleiche Sorache -> warten auf Rückmeldung
 
--- TEtSTEN, precision reduzierung 
+-- introd , architecture -> TODO 
 
--- introd , architecture
+----------------Curr Questions---------------------------------------------
+
+-- infinite List - ArrowComplete? 
+
+----------------BONUS-----------------------------------------
+-- sinnvollere Benchmarks -> 
+
+-- TEtSTEN, precision Erhöhen -> BONUS
+
+-- auslagern rest of the operations  -> BONUS
+
+-- korrekte Graphen -> BONUS
+
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
 type Addr = (Text,Ctx)
@@ -221,13 +234,13 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
       val -> returnA -< ListVal val
     DottedList [] z -> returnA -< ListVal $ litsToVals z
     DottedList (y:ys) z -> returnA -< ListVal $ listHelp y (ys ++ [z])
-    _ -> fail -< "(lit): Expected type didn't match with given type"
+    _ -> fail -< fromString $ "(lit): Expected type didn't match with given type| " ++ show x 
 
   if_ f g = proc (v,(x,y)) -> case v of
     BoolVal B.True -> f -< x 
     BoolVal B.False -> g -< y 
     BoolVal B.Top -> (f -< x) <⊔> (g -< y)
-    _ -> fail -< "(if): Expected a boolean as condition"
+    _ -> fail -< fromString $ "(if): Expected a boolean as condition| " ++ show v 
 
   op1_ = proc (op, x) -> case op of
     Number_ -> 
@@ -255,7 +268,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Not -> -- js wat talk
       case x of
         BoolVal B.Top -> returnA -< BoolVal B.Top
-        BoolVal B.True -> returnA -< BoolVal B.False
+        BoolVal B.True  -> returnA -< BoolVal B.False
         BoolVal B.False -> returnA -< BoolVal B.True
         TypeError msg -> fail -< fromString $ show msg 
         _ -> returnA -< BoolVal B.False
@@ -274,12 +287,12 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
       case x of
         ListVal n -> returnA -< n
         TypeError msg -> fail -< fromString $ show msg
-        _ -> fail -< "(car): Bad form"
+        _ -> fail -< fromString $ "(car): Bad form| " ++ show x
     Cdr -> 
       case x of
         ListVal n -> returnA -< ListVal n
         TypeError msg -> fail -< fromString $ show msg
-        _ -> fail -< "(cdr): Bad form: "
+        _ -> fail -< fromString $ "(cdr): Bad form| " ++ show x 
     Caar -> do
       v1 <- op1_ -< (Car, x)
       op1_ -< (Car, v1)
@@ -293,9 +306,9 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
       v2 <- op1_ -< (Cdr, x)
       op1_ -< (Car, v2)
     Error -> case x of 
-      StringVal -> fail -< "Error Expr"
+      StringVal -> fail -< "Scheme-Error"
       TypeError msg -> fail -< fromString $ show msg
-      _ -> fail -< "(fail): contract violation expected string as error msg"
+      _ -> fail -< fromString $ "(fail): contract violation expected string as error msg| " ++ show x 
   op2_ = proc (op, x, y) -> case op of
     Eqv ->
       case (x, y) of
@@ -331,10 +344,10 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     SmallerEqualS -> withOpvarWrap withOrdHelp -< xs 
     GreaterEqualS -> withOpvarWrap withOrdHelp -< xs  
     Max -> case xs of
-      [] -> fail -< "(max): Arity missmatch, expected at least one argument"
+      [] -> fail -< fromString $ "(max): Arity missmatch, expected at least one argument| " ++ show xs
       _ -> withOpvarWrap withNumHelp -< xs  
     Min -> case xs of
-      [] -> fail -< "(min): Arity missmatch, expected at least one argument"
+      [] -> fail -< fromString $ "(min): Arity missmatch, expected at least one argument| " ++ show xs 
       _ -> withOpvarWrap withNumHelp -< xs  
     Add -> do
       case xs of
@@ -346,12 +359,12 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
         _ -> withOpvarWrap withNumHelp -< xs
     Sub -> do
       case xs of
-        [] -> fail -< "(-): Arity missmatch, expected at least one argument"
+        [] -> fail -< fromString $ "(-): Arity missmatch, expected at least one argument| " ++ show xs
         NumVal :[] -> returnA -< NumVal
         _ -> withOpvarWrap withNumHelp -< xs
     Div -> do
       case xs of
-        [] -> fail -< "(/): Arity missmatch, expected at least one argument"
+        [] -> fail -< fromString $ "(/): Arity missmatch, expected at least one argument" ++ show xs 
         NumVal:[] -> returnA -< NumVal
         _ -> withOpvarWrap withNumHelp -< xs 
     Gcd -> case xs of
@@ -379,7 +392,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
   closure = ValueT $ rmap ClosureVal Cls.closure
   apply (ValueT f) = ValueT $ proc (v,x) -> case v of
     ClosureVal cls -> Cls.apply f -< (cls,x)
-    _ -> fail -< "Expected a closure"
+    _ -> fail -< fromString $ "Expected a closure| " ++ show v 
   {-# INLINE closure #-}
   {-# INLINE apply #-}
   
@@ -388,7 +401,8 @@ instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c) => Arro
     v <- (f -< x) <⊔> (g -< x)
     case v of
       TypeError m -> fail -< fromString (show m)
-      _           -> returnA -< v  
+      ListVal (ListVal (ListVal (ListVal (ListVal _)))) -> fail -< "infinite list creation suspected" 
+      _ -> returnA -< v  
 
 instance PreOrd Val where
   _ ⊑ TypeError _ = True
@@ -413,7 +427,7 @@ instance Show Val where
   show (BoolVal b) = show b
   show (ClosureVal cls) = show cls
   show StringVal = "String"
-  show QuoteVal = "Quote123"
+  show QuoteVal = "Quote"
   show (ListVal x) = "List [" ++ (show x) ++ "]"
   show (TypeError m) = printf "TypeError: %s" (show m)
   show Bottom = "Bottom"
@@ -455,27 +469,27 @@ withOrdHelp [] = Right $ BoolVal B.True
 withOrdHelp (NumVal:[]) = Right $ BoolVal B.True
 withOrdHelp (NumVal:NumVal:[]) = Right $ BoolVal B.Top
 withOrdHelp (NumVal:xs) = withOrdHelp xs
-withOrdHelp _ = Left $ "Expected elements of type ord for op"
+withOrdHelp x = Left $ fromString $ "Expected elements of type ord for op| " ++ show x
 {-# INLINE withOrdHelp #-}
 
 withNumHelp :: [Val] -> Either String Val 
 withNumHelp (NumVal:[]) = Right NumVal
 withNumHelp (NumVal:xs) = withNumHelp xs
-withNumHelp _ = Left "Expected elements of type num for op"
+withNumHelp x = Left $ fromString $ "Expected elements of type num for op| " ++ show x
 {-# INLINE withNumHelp #-}
 
 withBoolAndHelp :: [Val] -> Either String Val
 withBoolAndHelp (BoolVal b :[]) = Right $ BoolVal b
 withBoolAndHelp (BoolVal B.True: BoolVal B.True:xs) = withBoolAndHelp (BoolVal B.True:xs)
 withBoolAndHelp (BoolVal _: BoolVal _:xs) = withBoolAndHelp (BoolVal B.False:xs)
-withBoolAndHelp _ = Left "Expected elements of type bool for op"
+withBoolAndHelp x = Left $ fromString $ "Expected elements of type bool for op| " ++ show x 
 {-# INLINE withBoolAndHelp #-}
 
 withBoolOrHelp :: [Val] -> Either String Val
 withBoolOrHelp (BoolVal b :[]) = Right $ BoolVal b
 withBoolOrHelp (BoolVal B.False: BoolVal B.False:xs) = withBoolOrHelp (BoolVal B.False:xs)
 withBoolOrHelp (BoolVal _: BoolVal _:xs) = withBoolOrHelp (BoolVal B.True:xs)
-withBoolOrHelp _ = Left "Expected elements of type bool for op"
+withBoolOrHelp x = Left $ fromString $ "Expected elements of type bool for op| " ++ show x 
 {-# INLINE withBoolOrHelp #-}
 
 widenHelp :: [Val] -> Val
@@ -519,14 +533,14 @@ withNumToTop' :: (ArrowChoice c, ArrowFail e c, IsString e) => c Val Val
 withNumToTop' = proc v -> case v of
   NumVal -> returnA -< BoolVal B.Top
   TypeError msg -> fail -< fromString $ show msg
-  _ -> fail -< "expected value of type num"  
+  x -> fail -< fromString $ "expected value of type num| " ++ show x 
 {-# INLINE withNumToTop' #-}
 
 withNumToNum :: (ArrowChoice c, ArrowFail e c, IsString e) => c Val Val 
 withNumToNum = proc v -> case v of
   NumVal -> returnA -< NumVal
   TypeError msg -> fail -< fromString $ show msg
-  _ -> fail -< "expected value of type num"
+  x -> fail -< fromString $ "expected value of type num| " ++ show x
 {-# INLINE withNumToNum #-}
 
 withNumToNum2 :: (IsString e, ArrowChoice c, ArrowFail e c) => c (Val,Val) Val 
@@ -534,7 +548,7 @@ withNumToNum2 = proc v -> case v of
   (NumVal, NumVal) -> returnA -< NumVal
   (TypeError msg, _) -> fail -< fromString $ show msg
   (_, TypeError msg) -> fail -< fromString $ show msg 
-  _ -> fail -< "expected values of type num"
+  x -> fail -< fromString $ "expected values of type num| " ++ show x 
 {-# INLINE withNumToNum2 #-}
 
 withOpvarWrap :: (IsString e, ArrowChoice c, ArrowFail e c) => ([Val] -> Either String Val) -> c [Val] Val 

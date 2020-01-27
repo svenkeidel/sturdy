@@ -1,3 +1,3 @@
-#lang racket
+#lang scheme
 
 (equal? '( () () ()) '( () () ()))

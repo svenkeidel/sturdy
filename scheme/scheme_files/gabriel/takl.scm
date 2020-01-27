@@ -1,4 +1,4 @@
-#lang racket
+#lang scheme
 ;;Expected result : True, PASSES
 (define (listn n)
   (if (= n 0)

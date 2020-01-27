@@ -1,3 +1,3 @@
-#lang racket
+#lang scheme
 
 (cdr '(2 3 4))

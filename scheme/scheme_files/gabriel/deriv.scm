@@ -1,4 +1,4 @@
-#lang racket
+#lang scheme
 ;;Expected result True PASSES
 (define (map f l)
   (if (null? l)

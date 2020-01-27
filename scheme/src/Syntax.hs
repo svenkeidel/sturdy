@@ -274,18 +274,34 @@ instance Show Expr where
     OpVar opvar es _ -> showParen (d > app_prec)
       $ shows opvar
       . shows es
-
 -- TODO : add op1 op2 opvar
     where
       app_prec = 10
       lam_prec = 9
       let_prec = 8
 
+showTopLvl :: Expr -> String 
+showTopLvl e = case e of 
+    Lit x _ -> "Lit " ++ show x
+    Begin es _-> "Begin" 
+    App e1 e2 _ -> "App"
+    Apply e _ -> "Apply"
+    Var x _ -> "Var " ++ unpack x
+    Set t e _ -> "Set " ++ unpack t ++ " := " ++ showTopLvl e  
+    Define t e _ -> "Define " ++ unpack t ++ " := " ++ showTopLvl e  
+    Lam xs e2 _ -> "Lam " ++ unwords (map unpack xs) ++ " -> " ++ unwords (map showTopLvl e2)
+    If e1 e2 e3 _ -> "If(" ++ showTopLvl e1 ++ ")"
+    Let bnds body _ -> "Let"
+    LetRec bnds body _ -> "LetRec"
+    Op1 op1 e _ -> show op1 ++ " (" ++ showTopLvl e ++ ")"
+    Op2 op2 e1 e2 _ -> show op2 ++ " (" ++  showTopLvl e1 ++ ", " ++ showTopLvl e2 ++ ")"
+    OpVar opvar es _ -> show opvar ++ " (" ++ unwords (map showTopLvl es) ++ ")"
+
 instance IsString (State Label Expr) where
   fromString = var_ . fromString
 
 instance Labellable Expr where 
-  toLabelValue a = textLabelValue $ pack $ show a
+  toLabelValue a = textLabelValue $ pack $ showTopLvl a
 
 --Abstract Interpreter specific-------------------------------------------------
 

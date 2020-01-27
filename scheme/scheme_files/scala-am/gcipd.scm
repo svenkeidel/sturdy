@@ -1,4 +1,4 @@
-#lang racket
+#lang scheme
 ;; Taken from https://github.com/jensnicolay/abstractmemo
 ;; Expected result: 36, passes
 (letrec ((id (lambda (x) x))

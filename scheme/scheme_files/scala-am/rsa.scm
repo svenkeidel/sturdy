@@ -1,4 +1,4 @@
-#lang racket
+#lang scheme
 ;; Expected result #t, passes
 (define (extended-gcd a b)
   (if (= (modulo a b) 0)

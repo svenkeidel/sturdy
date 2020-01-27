@@ -1,4 +1,4 @@
-#lang racket 
+#lang scheme 
 
 (let ((double (lambda (x) (+ x x)))
       (square (lambda (y) (and #f y)))

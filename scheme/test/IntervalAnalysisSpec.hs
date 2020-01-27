@@ -7,6 +7,7 @@ import           Prelude hiding (succ,pred,id)
 
 import           Data.Abstract.Error hiding (toEither)
 import           Data.Abstract.Terminating hiding (toEither)
+import qualified Data.Abstract.DiscretePowerset as Pow
 
 import           Test.Hspec
 -- import           SharedSpecs
@@ -85,7 +86,7 @@ spec = do
 
     it "deriv" $ do
       let inFile = "gabriel//deriv"
-      let expRes = Terminating (Fail "{\"cannot unify Quote123 and List [TypeError: {\\\"cannot unify Quote123 and Num\\\"}]\"}")
+      let expRes = Terminating (Fail "{\"cannot unify Quote and List [TypeError: {\\\"cannot unify Quote and Num\\\"}]\"}")
       helper_test inFile expRes
 
     it "diviter" $ do
@@ -122,9 +123,8 @@ spec = do
       helper_test inFile expRes      
 
     it "rsa" $ do
-      pendingWith "unresolved error"
       let inFile = "scala-am//rsa"
-      let expRes = Terminating (Success $ BoolVal B.Top)              
+      let expRes = Terminating (Fail $ Pow.singleton "Expected elements of type num for op| [List [Num],Num]" <> "Scheme-Error")              
       helper_test inFile expRes      
 
 -------------------Custom Tests------------------------------------------
@@ -159,15 +159,10 @@ spec = do
       let expRes = Terminating (Success $ ListVal NumVal)           
       helper_test inFile expRes  
 
-    it "test simple num lists" $ do
-      let inFile = "test_simple_list"
+    it "test_if" $ do
+      let inFile = "test_if"
       let expRes = Terminating (Success $ ListVal NumVal)          
       helper_test inFile expRes            
-
-    it "test_empty_lists" $ do
-      let inFile = "test_empty_lists"
-      let expRes = Terminating (Success $ ListVal NumVal)
-      helper_test inFile expRes  
 
     it "test_opvars" $ do
       let inFile = "test_opvars"
@@ -186,6 +181,16 @@ spec = do
 
     it "random_test" $ do
       let inFile = "random_test"
+      let expRes = Terminating (Success NumVal)         
+      helper_test inFile expRes 
+
+    it "lang_scheme_test" $ do
+      let inFile = "lang_scheme_test"
+      let expRes = Terminating (Success NumVal)         
+      helper_test inFile expRes 
+
+    it "test_inner_define" $ do
+      let inFile = "test_inner_define"
       let expRes = Terminating (Success NumVal)         
       helper_test inFile expRes 
 
