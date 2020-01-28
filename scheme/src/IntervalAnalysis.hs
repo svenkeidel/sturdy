@@ -129,8 +129,15 @@ import           GenericInterpreter as Generic
 
 -- infinite List - ArrowComplete? 
 
+-- underlying arrow structure, for CFG
+-- underlying nötig, when nutzung von reader
+
+-- haskell bug when merge with master or rather in master
+
+-- fortfahren mit flow-sensitive?
+
 ----------------BONUS-----------------------------------------
--- sinnvollere Benchmarks -> 
+-- sinnvollere Benchmarks -> BONUS
 
 -- TEtSTEN, precision Erhöhen -> BONUS
 
