@@ -46,12 +46,12 @@ maxSize limit strat f = proc a -> do
   else strat f -< a
 {-# INLINE maxSize #-}
 
-widenInput :: (Complete a, ArrowStack a c) => Widening a -> FixpointCombinator c a b
+widenInput :: ArrowStack a c => Widening a -> FixpointCombinator c a b
 widenInput widen f = proc a -> do
   m <- peek -< ()
   f -< case m of
     Nothing -> a
-    Just x  -> snd $ x `widen` (x ⊔ a)
+    Just x  -> snd $ x `widen` a
 {-# INLINE widenInput #-}
 
 reuse :: (ArrowChoice c, ArrowStack a c) => (a -> [a] -> Maybe a) -> FixpointCombinator c a b
