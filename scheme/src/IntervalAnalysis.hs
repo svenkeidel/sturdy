@@ -134,14 +134,29 @@ import           GenericInterpreter as Generic
 
 -- infinite List - ArrowComplete? 
 
+-- underlying arrow structure, for CFG
+-- underlying nötig, when nutzung von reader
+
+-- haskell bug when merge with master or rather in master
+-- TODO: debuggen, verbose, Monotone cache
+-- ISSUE, gitlab 
+
+-- fortfahren mit flow-sensitive?
+
 ----------------BONUS-----------------------------------------
--- sinnvollere Benchmarks -> 
+-- sinnvollere Benchmarks -> BONUS
 
 -- TEtSTEN, precision Erhöhen -> BONUS
 
 -- auslagern rest of the operations  -> BONUS
 
 -- korrekte Graphen -> BONUS
+
+----------------------------------------------------------------
+-- Änderungen aus lib pushen
+
+-- Exakte analyse von GC Paper, Zahlen -> Sets von Werten etc., Code, Vergleichbarkeit 
+
 
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
@@ -162,7 +177,8 @@ data Val
   | ListVal Val
   | TypeError (Pow String) 
   | Bottom
-  deriving (Eq, Generic)
+  deriving (Eq  deriving (Eq, Generic)
+, Generic)
 
 -- Input and output type of the fixpoint.
 type In = (Store,(([Expr],Label),Env))
