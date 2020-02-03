@@ -12,7 +12,7 @@ import qualified Data.Abstract.DiscretePowerset as Pow
 import           Test.Hspec
 -- import           SharedSpecs
 
-import System.Process -- deprecated
+import System.Process hiding (env) -- deprecated
 import System.Directory
 
 import LispTypes as LT hiding (Bool)
@@ -37,24 +37,25 @@ main = hspec spec
 spec :: Spec
 spec = do
   describe "behavior specific to interval analysis" $ do
+    let ?bound = 100  
     it "context sensitivity" $
       let diamond = [if_ "w" "x" "y"] in do
-      let env =  [("w", BoolVal B.Top), ("x", NumVal (Pow.singleton 1)), ("y", NumVal(Pow.singleton 2))]
-      let ?sensitivity = 0 in evalInterval' env diamond `shouldBe` Terminating (Success $ NumVal $ fromList [1,2])
-      let ?sensitivity = 1 in evalInterval' env diamond `shouldBe` Terminating (Success $ NumVal $ fromList [1,2])
+      let env =  [("w", BoolVal B.Top), ("x", IntVal (Pow.singleton 1)), ("y", IntVal(Pow.singleton 2))]
+      let ?sensitivity = 0 in evalInterval' env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
+      let ?sensitivity = 1 in evalInterval' env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
 
     it "should analyze let expression" $ 
       let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
-      let ?sensitivity = 0 in evalInterval' [] expr `shouldBe` Terminating (Success $ NumVal $ fromList [1])
-      let ?sensitivity = 1 in evalInterval' [] expr `shouldBe` Terminating (Success $ NumVal $ fromList [1])
+      let ?sensitivity = 0 in evalInterval' [] expr `shouldBe` Terminating (Success $ IntVal $ fromList [1])
+      let ?sensitivity = 1 in evalInterval' [] expr `shouldBe` Terminating (Success $ IntVal $ fromList [1])
 
     it "should analyze define" $ 
       let exprs = [define "x" (lit $ S.Number 1),                   
                    set "x" (lit $ S.Number 2), 
                    set "x" (lit $ S.Number 3),
                    "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ NumVal $ fromList [1,2,3])
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ NumVal $ fromList [1,2,3])
+      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ IntVal $ fromList [1,2,3])
+      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ IntVal $ fromList [1,2,3])
 
 
     it "should return top for unifying two different types" $  
@@ -62,8 +63,8 @@ spec = do
                    set "x" (lit $ S.Number 2), 
                    set "x" (lit $ S.Bool True),
                    "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Num: {1, 2}")
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Num: {1, 2}")
+      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Int: {1, 2}")
+      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Int: {1, 2}")
 
 
     it "should terminate for the non-terminating program LetRec" $
@@ -78,10 +79,11 @@ spec = do
 
 -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do
-
+    let ?bound = 1000
+    let ?sensitivity = 0
     it "cpstak" $ do 
       let inFile = "gabriel//cpstak"
-      let expRes = Terminating (Success $ NumVal $ fromList [6])
+      let expRes = Terminating (Success $ IntVal $ fromList [6])
       helper_test inFile expRes
 
 
@@ -96,32 +98,34 @@ spec = do
       helper_test inFile expRes
 
     it "divrec" $ do
-      pendingWith "returns False instead of true bc of: equal? (LV Bottom) (LV (LV Bottom))"
+      -- pendingWith "returns False instead of true bc of: equal? (LV Bottom) (LV (LV Bottom))"
       let inFile = "gabriel//divrec"
       let expRes = Terminating (Success $ BoolVal B.Top)              
       helper_test inFile expRes      
 
     it "takl" $ do
       let inFile = "gabriel//takl"
-      pendingWith "returns False instead of top/true because NV dont compare yet"
+      -- pendingWith "returns False instead of top/true because NV dont compare yet"
       let expRes = Terminating (Success $ BoolVal B.Top)              
       helper_test inFile expRes
       
 -------------------SCALA-AM BENCHMARKS------------------------------------------
   describe "Scala-AM-Benchmarks" $ do
+    let ?bound = 1000
+    let ?sensitivity = 2
     it "collatz" $ do
       let inFile = "scala-am//collatz"
-      let expRes = Terminating (Success $ NumVal $ fromList [6])
+      let expRes = Terminating (Success $ IntVal $ fromList [6])
       helper_test inFile expRes
 
     it "gcipd" $ do
       let inFile = "scala-am//gcipd"
-      let expRes = Terminating (Success $ NumVal $ fromList [36])
+      let expRes = Terminating (Success $ IntVal $ fromList [36])
       helper_test inFile expRes 
 
     it "nqueens" $ do
       let inFile = "scala-am//nqueens"
-      let expRes = Terminating (Success $ NumVal $ fromList [92])
+      let expRes = Terminating (Success $ IntVal $ fromList [92])
       helper_test inFile expRes      
 
     it "rsa" $ do
@@ -131,44 +135,46 @@ spec = do
 
 -------------------Custom Tests------------------------------------------
   describe "Custom_Tests" $ do
+    let ?bound = 100
+    let ?sensitivity = 0
     it "recursion and union with empty list" $ do
       let inFile = "test_rec_empty"
-      let expRes = Terminating (Success $ ListVal Bottom)
+      let expRes = Terminating (Success $ ListVal [Bottom])
       helper_test inFile expRes      
 
     it "recursion and union with non-empty list" $ do
       let inFile = "test_rec_nonempty"
-      let expRes = Terminating (Success $ ListVal $ NumVal $ fromList [1])          
+      let expRes = Terminating (Success $ ListVal $ [IntVal $ fromList [1]])          
       helper_test inFile expRes               
 
     it "should return listVal for (cdr '(2 3 4))" $ do
       let inFile = "test_cdr"
-      let expRes = Terminating (Success $ ListVal $ NumVal $ fromList [3,4])
+      let expRes = Terminating (Success $ ListVal $ [IntVal $ fromList [3], IntVal $ fromList [4]])
       helper_test inFile expRes  
 
     it "should return correct val for car" $ do
       let inFile = "test_car"
-      let expRes = Terminating (Success $ NumVal $ fromList [1])
+      let expRes = Terminating (Success $ IntVal $ fromList [1])
       helper_test inFile expRes      
 
     it "should return true for null? cdr cdr '(1 2)" $ do
       let inFile = "test_null"
-      let expRes = Terminating (Success $ BoolVal B.Top)
+      let expRes = Terminating (Success $ BoolVal B.True)
       helper_test inFile expRes       
 
-    it "unifying two list of nums of different size should result in list of nums" $ do
+    it "unifying two list of nums of different size should result in an error" $ do
       let inFile = "test_faulty_list"
-      let expRes = Terminating (Success $ ListVal $ NumVal $ fromList [1])           
+      let expRes = Terminating (Fail "{\"cannot unify lists of differing lengths| List [Int: {1}], List [Int: {1},Int: {2}]\"}")           
       helper_test inFile expRes  
 
     it "test_if" $ do
       let inFile = "test_if"
-      let expRes = Terminating (Success $ ListVal Bottom)          
+      let expRes = Terminating (Success $ ListVal [IntVal $ fromList [1], IntVal $ fromList [2]])          
       helper_test inFile expRes            
 
     it "test_opvars" $ do
       let inFile = "test_opvars"
-      let expRes = Terminating (Success $ NumVal $ fromList [10])         
+      let expRes = Terminating (Success $ IntVal $ fromList [10])         
       helper_test inFile expRes         
 
     it "test_equal" $ do
@@ -181,24 +187,24 @@ spec = do
       let expRes = Terminating (Success $ BoolVal B.True)         
       helper_test inFile expRes 
 
-    it "closures_gc" $ do
-      let inFile = "random_test"
-      let expRes = Terminating (Success $ NumVal $ fromList [6,7,8,9,12,16])         
+    it "test_closures_gc" $ do
+      let inFile = "test_closure_gc"
+      let expRes = Terminating (Success $ IntVal $ fromList [6,7,8,9,12,16])         
       helper_test inFile expRes 
 
     it "lang_scheme_test" $ do
       let inFile = "lang_scheme_test"
-      let expRes = Terminating (Success $ NumVal $ fromList [8])         
+      let expRes = Terminating (Success $ IntVal $ fromList [8])         
       helper_test inFile expRes 
 
     it "test_inner_define" $ do
       let inFile = "test_inner_define"
-      let expRes = Terminating (Success $ NumVal $ fromList [8,10])         
+      let expRes = Terminating (Success $ IntVal $ fromList [8,10])         
       helper_test inFile expRes 
 
     it "test_subtraction" $ do
       let inFile = "test_subtraction"
-      let expRes = Terminating (Success $ NumVal $ fromList [-4])         
+      let expRes = Terminating (Success $ IntVal $ fromList [-4])         
       helper_test inFile expRes     
 
     it "test_endless_recursion" $ do
@@ -206,16 +212,24 @@ spec = do
       let expRes = NonTerminating
       helper_test inFile expRes     
 
+    it "test_lits" $ do
+      let inFile = "test_lits"
+      let expRes = Terminating (Success $ IntVal $ fromList [3])
+      helper_test inFile expRes     
+
+    it "test_simple_floats" $ do
+      let inFile = "test_simple_floats"
+      let expRes = Terminating (Success $ BoolVal B.False)
+      helper_test inFile expRes     
 
 -------------------HELPER------------------------------------------------------
-helper_test :: String -> Terminating (Error (Pow String) Val) -> IO ()
+helper_test :: (?sensitivity :: Int, ?bound :: Int) => String -> Terminating (Error (Pow String) Val) -> IO ()
 helper_test inFile expRes = do
   file_str <- helper_import inFile
   case readExprList file_str of
     Right a ->
       case match a of
         Right b -> do
-          let ?sensitivity = 0 
           let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
           _ <- draw_graph inFile graph
           res`shouldBe` expRes

@@ -179,8 +179,8 @@ spec = do
       let expRes = Terminating (Success $ BoolVal B.True)         
       helper_test inFile expRes 
 
-    it "random_test" $ do
-      let inFile = "random_test"
+    it "test_closure_gc" $ do
+      let inFile = "test_closure_gc"
       let expRes = Terminating (Success NumVal)         
       helper_test inFile expRes 
 

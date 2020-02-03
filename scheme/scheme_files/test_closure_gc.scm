@@ -4,4 +4,4 @@
       (square (lambda (y) (* y y)))
       (apply-fn (lambda (f n) (f n))))
   (apply-fn double 3)
-  (apply-fn square 4))
+  (apply-fn square 5))
