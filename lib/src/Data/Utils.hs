@@ -31,7 +31,7 @@ maybeHead (a:_) = Just a
 maybeHead []    = Nothing
 
 pow :: [a] -> Seq [a]
-pow = foldl (\xs x -> fmap (x:) xs<> xs) mempty
+pow = foldl (\powersets x -> fmap (x:) powersets <> powersets) mempty
 
 -- @powComplement M@ computes for a set M, the set { (X,M\X) | X in P(M) }
 powComplement :: [a] -> Seq ([a], [a])
