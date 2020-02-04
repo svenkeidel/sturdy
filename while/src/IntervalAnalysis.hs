@@ -96,7 +96,7 @@ newtype Exception = Exception (Map Text Val) deriving (PreOrd,Complete,Show,Eq)
 -- 'Generic.run' with the components for fixpoint computation
 -- ('FixT'), termination ('TerminatingT'), failure ('ErrorT'), store
 -- ('StoreT'), environments ('EnvT'), and values ('IntervalT').
-run :: (?bound :: Interval Int) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
+run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
 run k env ss = fmap (fmap (fmap fst)) <$> snd $
   Trans.run
     (Generic.run ::

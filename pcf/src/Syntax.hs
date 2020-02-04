@@ -25,6 +25,7 @@ data Expr
   | Lam [Text] Expr Label
   | App Expr [Expr] Label
   | Zero Label
+  | Mult Expr Expr Label
   | Succ Expr Label
   | Pred Expr Label
   | IfZero Expr Expr Expr Label
@@ -52,6 +53,9 @@ succ e = Succ <$> e <*> fresh
 pred :: State Label Expr -> State Label Expr
 pred e = Pred <$> e <*> fresh
 
+mult :: State Label Expr -> State Label Expr -> State Label Expr
+mult e1 e2 = Mult <$> e1 <*> e2 <*> fresh
+
 ifZero :: State Label Expr -> State Label Expr -> State Label Expr -> State Label Expr
 ifZero e1 e2 e3 = IfZero <$> e1 <*> e2 <*> e3 <*> fresh
 
@@ -78,6 +82,10 @@ instance Show Expr where
       $ showsPrec (app_prec + 1) e1
       . showString " "
       . showsPrec (app_prec + 1) e2
+    Mult e1 e2 _ -> showParen (d > mult_prec)
+      $ showsPrec (mult_prec + 1) e1
+      . showString " * "
+      . showsPrec (mult_prec + 1) e2
     Lam x e2 _ -> showParen (d > lam_prec)
       $ showString "λ"
       . showString (unwords (map unpack x))
@@ -86,6 +94,7 @@ instance Show Expr where
     where
       app_prec = 10
       lam_prec = 9
+      mult_prec = 8
 
 instance HasLabel Expr where
   label e = case e of
@@ -95,6 +104,7 @@ instance HasLabel Expr where
     Zero l -> l
     Succ _ l -> l
     Pred _ l -> l
+    Mult _ _ l -> l
     IfZero _ _ _ l -> l
     Let _ _ l -> l
     Apply _ l -> l
@@ -123,6 +133,7 @@ freeVars e0 = execState (go e0) M.empty
       Zero _ -> return H.empty
       Succ e1 _ -> go e1
       Pred e1 _ -> go e1
+      Mult e1 e2 _ -> H.union <$> go e1 <*> go e2
       IfZero e1 e2 e3 _ -> do
           m1 <- go e1
           m2 <- go e2

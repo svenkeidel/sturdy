@@ -28,6 +28,9 @@ import           Data.Profunctor
 import           Data.Profunctor.Unsafe ((.#))
 import           Data.Coerce
 import           Data.Empty
+import           Data.HashSet (HashSet)
+import qualified Data.HashSet as Set
+import           Data.Identifiable
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,
@@ -35,18 +38,25 @@ newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
             ArrowParallel,ArrowControlFlow stmt)
 
 data Stack a = Stack
-  { elems :: [a]
+  { elems :: HashSet a
+  , stack :: [a]
   , size  :: !Int
   }
 
 instance IsEmpty (Stack a) where
-  empty = Stack { elems = [], size = 0 }
+  empty = Stack { elems = empty, stack = empty, size = 0 }
   {-# INLINE empty #-}
 
-instance (Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
-  push f = lift $ proc (st,a) -> unlift f -< (st { elems = a : elems st, size = size st + 1 }, a)
-  peek = lift $ proc (st,()) -> returnA -< case elems st of [] -> Nothing; (x:_) -> Just x
-  elems = lift $ proc (st,()) -> returnA -< elems st
+instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
+  push f = lift $ proc (st,a) -> do
+    let st' = st { elems = Set.insert a (elems st)
+                 , stack = a : stack st
+                 , size = size st + 1
+                 }
+    unlift f -< (st', a)
+  elem = lift $ proc (st,a) -> returnA -< Set.member a (elems st)
+  peek = lift $ proc (st,()) -> returnA -< case stack st of [] -> Nothing; (x:_) -> Just x
+  elems = lift $ proc (st,()) -> returnA -< stack st
   size = lift $ proc (st,()) -> returnA -< size st
   {-# INLINE peek #-}
   {-# INLINE push #-}

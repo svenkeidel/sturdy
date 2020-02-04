@@ -85,7 +85,7 @@ withBounds2 f (Interval i1 i2) (Interval j1 j2) =
 instance (Ord n, Bounded n) => UpperBounded (Interval n) where
   top = Interval minBound maxBound
 
-bounded :: Ord n => Interval n -> Widening (Interval (InfiniteNumber n))
+bounded :: Ord n => Interval (InfiniteNumber n) -> Widening (Interval (InfiniteNumber n))
 bounded (Interval lowerBound upperBound) (Interval i1 i2) (Interval j1 j2) =
   ( if (i1,i2) P.== (r1,r2) || (j1,j2) P.== (r1,r2) then Stable else Unstable
   , Interval r1 r2
@@ -94,11 +94,11 @@ bounded (Interval lowerBound upperBound) (Interval i1 i2) (Interval j1 j2) =
     lower = min i1 j1
     upper = max i2 j2
 
-    r1 = if | lower P.< Number lowerBound -> NegInfinity
-            | Number upperBound P.< lower -> Number upperBound
+    r1 = if | lower P.< lowerBound -> NegInfinity
+            | upperBound P.< lower -> upperBound
             | otherwise -> lower
-    r2 = if | Number upperBound P.< upper -> Infinity
-            | upper P.< Number lowerBound -> Number lowerBound
+    r2 = if | upperBound P.< upper -> Infinity
+            | upper P.< lowerBound -> lowerBound
             | otherwise -> upper
 
 widening :: Ord n => Widening (Interval (InfiniteNumber n))

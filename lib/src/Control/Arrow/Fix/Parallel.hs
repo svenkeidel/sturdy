@@ -6,7 +6,7 @@ module Control.Arrow.Fix.Parallel where
 
 import Prelude hiding (iterate)
 
-import Control.Arrow
+import Control.Arrow hiding (loop)
 import Control.Arrow.Trans
 import Control.Arrow.Fix
 import Control.Arrow.Fix.Stack as Stack
@@ -43,12 +43,17 @@ parallel f = proc a -> do
           iterate -< a
 
     update = proc a -> do
-      m <- Cache.lookup -< a
-      case m of
-        Just (_,b) -> returnA -< b
-        Nothing -> do
-          Cache.initialize -< a
-          b <- Stack.push f -< a
-          (_,b') <- Cache.update -< (a,b)
-          returnA -< b'
+      loop <- Stack.elem -< a
+      if loop
+      then do
+        m <- Cache.lookup -< a
+        case m of
+          Just (_,b) -> returnA -< b
+          Nothing -> do
+            Cache.initialize -< a
+            b <- Stack.push f -< a
+            (_,b') <- Cache.update -< (a,b)
+            returnA -< b'
+      else
+        Stack.push f -< a
 {-# INLINE parallel #-}
