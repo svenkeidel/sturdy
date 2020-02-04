@@ -177,8 +177,7 @@ data Val
   | ListVal Val
   | TypeError (Pow String) 
   | Bottom
-  deriving (Eq  deriving (Eq, Generic)
-, Generic)
+  deriving (Eq, Generic)
 
 -- Input and output type of the fixpoint.
 type In = (Store,(([Expr],Label),Env))

@@ -258,15 +258,39 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
         IntVal _ -> returnA -< BoolVal B.True 
         TypeError msg -> fail -< fromString $ show msg
         _ -> returnA -< BoolVal B.False
-    -- start TODO 
-    Integer_ -> withNumToTop -< x  
-    Float_ -> withNumToTop -< x 
+    -- start TODO write wrapper
+    Integer_ -> case x of 
+      IntVal _ -> returnA -< BoolVal B.True  
+      TypeError msg -> fail -< fromString $ show msg
+      _ -> returnA -< BoolVal B.False
+    Float_ -> case x of 
+      FloatVal _ -> returnA -< BoolVal B.True  
+      TypeError msg -> fail -< fromString $ show msg
+      _ -> returnA -< BoolVal B.False
     Ratio_ -> withNumToTop -< x 
-    Zero -> withNumToTop' -< x
-    Positive -> withNumToTop' -< x 
-    Negative ->  withNumToTop' -< x 
-    Odd -> withNumToTop' -< x 
-    Even -> withNumToTop' -< x 
+    Zero -> case x of 
+      IntVal v -> checkNum' (== 0) -< toList v
+      FloatVal v -> checkNum' (== 0) -< toList v
+      TypeError msg -> fail -< fromString $ show msg
+      _ -> fail -< fromString $ "Expected elem of type num for op| " ++ show x
+    Positive -> case x of 
+      IntVal v -> checkNum' (> 0) -< toList v
+      FloatVal v -> checkNum' (> 0) -< toList v
+      TypeError msg -> fail -< fromString $ show msg
+      _ -> fail -< fromString $ "Expected elem of type num for op| " ++ show x
+    Negative -> case x of 
+      IntVal v -> checkNum' (< 0) -< toList v
+      FloatVal v -> checkNum' (< 0) -< toList v
+      TypeError msg -> fail -< fromString $ show msg
+      _ -> fail -< fromString $ "Expected elem of type num for op| " ++ show x
+    Odd -> case x of 
+      IntVal v -> checkNum' (\x -> (mod x 2) == 1) -< toList v
+      TypeError msg -> fail -< fromString $ show msg
+      _ -> fail -< fromString $ "Expected elem of type int for op| " ++ show x 
+    Even -> case x of 
+      IntVal v -> checkNum' (\x -> (mod x 2) == 1) -< toList v
+      TypeError msg -> fail -< fromString $ show msg
+      _ -> fail -< fromString $ "Expected elem of type int for op| " ++ show x 
     -- end TODO
     Abs -> withNumToNum abs -< x
     Floor -> withFloatToNum floor -< x
@@ -438,6 +462,7 @@ instance PreOrd Val where
   _ ⊑ _ = False
 
 instance Complete Val where
+  -- doesn't terminate for widening of ints
   -- (⊔) = W.toJoin widening (⊔)
   (⊔) val val' = snd $ widening (numGuardTop' 1000) val val'
 
@@ -461,6 +486,15 @@ instance IsClosure Val (HashSet Env) where
   mapEnvironment _ v = v
   traverseEnvironment f (ClosureVal c) = ClosureVal <$> traverseEnvironment f c
   traverseEnvironment _ v = pure v
+
+
+checkNum' :: (ArrowChoice c, ArrowFail e c, IsString e, Num a, Eq a) => (a -> Bool) -> c [a] Val
+checkNum' op = proc vs -> if any op vs 
+  then if all op vs 
+    then returnA -< BoolVal B.True 
+    else returnA -< BoolVal B.Top 
+  else returnA -< BoolVal B.False
+
 
 
 widening :: Widening Val -> Widening Val
@@ -487,13 +521,6 @@ widenStore w m1 m2
   | Map.keys m1 == Map.keys m2 = sequenceA $ Map.intersectionWith w m1 m2
   | otherwise = (Unstable,Map.unionWith (\x y -> snd (w x y)) m1 m2)
 {-# INLINE widenStore #-}
-
--- numGuardTop :: Int -> Val -> Val -> Val 
--- numGuardTop bound (NumVal xs) (NumVal ys) = do 
---   if any (> bound) (toList xs) || any (> bound) (toList ys)
---     then TypeError "numvals reached upperbound"
---     else NumVal (xs <> ys)
--- numGuardTop _ _ _ = TypeError "expected elem of type num"
  
 -- OpVar list? 
 widenList :: [Val] -> [Val] -> [Val]
@@ -546,6 +573,7 @@ litsToVals (DottedList ns z) = ListVal $ map litsToVals (ns++[z])
 withNumToTop :: (ArrowChoice c, ArrowFail e c, IsString e) => c Val Val 
 withNumToTop = proc v -> case v of
   IntVal _ -> returnA -< BoolVal B.Top
+  FloatVal _ -> returnA -< BoolVal B.Top
   TypeError msg -> fail -< fromString $ show msg
   _ -> returnA -< BoolVal B.False
 {-# INLINE withNumToTop #-}
@@ -650,7 +678,6 @@ checkLength (FloatVal x:xs) = case length $ toList x of
   _ -> Left "Top" 
 checkLength _ = Left "Fail"
 {-# INLINE checkLength #-}
-
 --withOrd
 withOrderHelp :: (Ord a) => (a -> a -> P.Bool) -> P.Bool -> [([a], [a])] -> Either String P.Bool
 withOrderHelp op b (([v1],[v2]):[]) = Right $ b && (op v1 v2)
@@ -667,7 +694,6 @@ zipWithNum op (as:bs:xss) = do
   zipWithNum op (tmps:xss) 
 {-# INLINE zipWithNum #-}
 
-
 -- withNumToNumList withOrd
 numToReal :: (IsString e, ArrowChoice c, ArrowFail e c) => c Val [Double]
 numToReal = proc v -> case v of 
@@ -682,57 +708,9 @@ intValToInt = proc v -> case v of
   _ -> fail -< fromString $ "expected value typ int| " ++ show v 
 {-# INLINE intValToInt #-}
 
-
 -- withBoolToBoolList
 valToBool :: (IsString e, ArrowChoice c, ArrowFail e c) => c Val B.Bool 
 valToBool = proc v -> case v of 
   BoolVal b -> returnA -< b 
   _ -> fail -< fromString $ "expected element of type bool| " ++ show v 
 {-# INLINE valToBool #-}
-
--- instance Traversable Val where
---   traverse _ (NumVal n) = pure $ NumVal n
---   traverse _ (TypeError e) = pure $ TypeError e
---   traverse f (ClosureVal c) = ClosureVal <$> traverse f c
-
--- instance Foldable Val where
---   foldMap = foldMapDefault
-
--- type Cls = Closure Expr (HashSet (HashMap Text Addr))
--- data Val = NumVal IV | ClosureVal Cls | TypeError (Pow String) deriving (Eq, Generic)
-
--- collect :: FixpointCombinator c (((Expr,Label),(HashMap Text Addr,HashMap Addr Val))) b
--- collect :: (ArrowState Store c) => FixpointCombinator c ((Expr, Label), Env, Store) b 
--- type In = (Store,((Expr,Label),Env))
-
--- collect :: (ArrowState Store c) => FixpointCombinator c a b 
--- collect f = proc a -> do
---   cache <- State.get -< ()  -- get curr store of input to computation
---   --let store' = garbage_collect store  -- compute all reachable addresses and remove non-reachables addresses 
---   State.put -< garbage_collect cache  -- set curr store to modified garbage free store
---   f -< a  -- continue computation 
-
--- -- gets a store and returns a store with unreferenced addrs removed
--- garbage_collect :: HashMap Addr Val -> HashMap Addr Val
--- garbage_collect store =
---   let addrs = Map.keys store  -- get addrs currently used in store 
---       referenced_addrs = get_referenced_addrs $ Map.elems store  -- get all addrs referenced by the curr state
---       collect_addrs = addrs \\ referenced_addrs  -- all addrs that are in store and are not referenced 
---   in remove_addrs collect_addrs store  -- return store with all addrs to be collected removed
-
--- -- retrieve referenced addrs from values 
--- -- those addrs are the ones that are accessible from some env of some closure
--- get_referenced_addrs :: [Val] -> [Addr] 
--- get_referenced_addrs ((ClosureVal cls): xs) = get_addrs cls ++ get_referenced_addrs xs
--- get_referenced_addrs (_:xs) = get_referenced_addrs xs 
--- get_referenced_addrs [] = [] 
-
--- -- TODO: Fix flattening (remove head)
--- -- retrieve addrs reference by specific closure 
--- get_addrs :: Closure Expr (HashSet (HashMap Text Addr)) -> [Addr]
--- get_addrs cls = Map.elems $ head $ Set.toList $ C.get_env cls 
-
--- -- remove addrs from a store and return  modified store 
--- remove_addrs :: [Addr] -> HashMap Addr Val -> HashMap Addr Val
--- remove_addrs (x:xs) store = remove_addrs xs (Map.delete x store)
--- remove_addrs [] store = store
