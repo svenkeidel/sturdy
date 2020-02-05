@@ -30,7 +30,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix 
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(chaotic)
+import           Control.Arrow.Fix.Chaotic(chaotic,iterateInner)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Trans
@@ -201,7 +201,7 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
                         (ContextT Ctx 
                           (ControlFlowT Expr -- unter fixT liften
                             (->))))))))))) [Expr] Val))
-    (alloc, widenVal)
+    (alloc, finite)
     iterationStrategy
     (finite, finite)
     (Map.empty,(Map.empty,(env0,e0)))
@@ -218,10 +218,11 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
       CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
-      Fix.filter apply chaotic -- parallel -- iterateInner
+      Fix.filter apply chaotic -- iterateInner --chaotic -- parallel -- iterateInner
 
     widenVal :: Widening Val 
-    widenVal = finite --- (numGuardTop' ?bound)
+    widenVal = widening (numGuardTop' ?bound) 
+    -- widenVal = finite  
 
 
 evalInterval' :: (?sensitivity :: Int, ?bound :: Int) => [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
@@ -459,6 +460,7 @@ instance PreOrd Val where
   _ ⊑ TypeError _ = True
   Bottom ⊑ _ = True
   IntVal xs ⊑ IntVal ys = xs ⊑ ys
+  FloatVal xs ⊑ FloatVal ys = xs ⊑ ys
   BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
   ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
   StringVal ⊑ StringVal = True
@@ -469,7 +471,11 @@ instance PreOrd Val where
 instance Complete Val where
   -- doesn't terminate for widening of ints
   -- (⊔) = W.toJoin widening (⊔)
-  (⊔) val val' = snd $ widening (numGuardTop' 1000) val val'
+  -- (⊔) val val' = snd $ widening (numGuardTop' 1000) val val'
+  (⊔) a b = snd $ widening (numGuardTop' 100) a b
+  -- (⊔) a b = snd $ finite a b  
+  -- (⊔) a b =  
+
 
 instance UpperBounded Val where
   top = TypeError (singleton "Value outside the allowed range of the analysis")
@@ -500,11 +506,11 @@ checkNum' op = proc vs -> if any op vs
     else returnA -< BoolVal B.Top 
   else returnA -< BoolVal B.False
 
-
-
 widening :: Widening Val -> Widening Val
-widening bound (IntVal xs) (IntVal ys) = bound (IntVal xs) (IntVal ys)
-widening bound (FloatVal xs) (FloatVal ys) = bound (FloatVal xs) (FloatVal ys)
+-- widening bound (IntVal xs) (IntVal ys) =  bound (IntVal xs) (IntVal ys)
+-- widening bound (FloatVal xs) (FloatVal ys) = bound (FloatVal xs) (FloatVal ys)
+widening _ (IntVal xs) (IntVal ys) =  (Stable, IntVal (xs ⊔ ys))
+widening _ (FloatVal xs) (FloatVal ys) = (Stable, FloatVal (xs ⊔ ys))
 widening _ (BoolVal x) (BoolVal y) = second BoolVal (B.widening x y)
 widening _ (ClosureVal cs) (ClosureVal cs') = second ClosureVal $ C.widening W.finite cs cs'
 widening _ StringVal StringVal = (Stable, StringVal)

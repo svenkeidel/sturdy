@@ -82,10 +82,10 @@ spec = do
     let ?bound = 1000
     let ?sensitivity = 0
     it "cpstak" $ do 
+      pendingWith "takes to long"
       let inFile = "gabriel//cpstak"
       let expRes = Terminating (Success $ IntVal $ fromList [6])
       helper_test inFile expRes
-
 
     it "deriv" $ do
       let inFile = "gabriel//deriv"
@@ -136,7 +136,7 @@ spec = do
 -------------------Custom Tests------------------------------------------
   describe "Custom_Tests" $ do
     let ?bound = 100
-    let ?sensitivity = 1
+    let ?sensitivity = 0
     it "recursion and union with empty list" $ do
       let inFile = "test_rec_empty"
       let expRes = Terminating (Success $ ListVal [Bottom])
@@ -208,6 +208,7 @@ spec = do
       helper_test inFile expRes     
 
     it "test_endless_recursion" $ do
+      -- pendingWith "doesnt terminate"
       let inFile = "test_endless_recursion"
       let expRes = NonTerminating
       helper_test inFile expRes     

@@ -24,7 +24,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Chaotic(chaotic)
+import           Control.Arrow.Fix.Chaotic(chaotic,iterateInner)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -123,7 +123,7 @@ evalInterval env0 e = snd $
       traceShow .
       -- traceCache show .
       Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
-      filter apply chaotic
+      filter apply iterateInner -- chaotic
 
     widenVal :: Widening Val
     widenVal = widening (I.bounded ?bound)
