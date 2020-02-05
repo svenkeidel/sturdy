@@ -112,7 +112,7 @@ spec = do
 -------------------SCALA-AM BENCHMARKS------------------------------------------
   describe "Scala-AM-Benchmarks" $ do
     let ?bound = 1000
-    let ?sensitivity = 2
+    let ?sensitivity = 0
     it "collatz" $ do
       let inFile = "scala-am//collatz"
       let expRes = Terminating (Success $ IntVal $ fromList [6])
@@ -136,7 +136,7 @@ spec = do
 -------------------Custom Tests------------------------------------------
   describe "Custom_Tests" $ do
     let ?bound = 100
-    let ?sensitivity = 0
+    let ?sensitivity = 1
     it "recursion and union with empty list" $ do
       let inFile = "test_rec_empty"
       let expRes = Terminating (Success $ ListVal [Bottom])

@@ -28,9 +28,9 @@ import           Control.Arrow
 import qualified Control.Arrow.Utils as ArrowUtils
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment(extend')
-import           Control.Arrow.Fix
+import           Control.Arrow.Fix 
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Parallel(parallel)
+import           Control.Arrow.Fix.Chaotic(chaotic)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Trans
@@ -42,6 +42,7 @@ import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Cache,Parallel,Monotone,type (**),Group)
@@ -65,7 +66,7 @@ import           Data.Graph.Inductive (Gr)
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Error (Error)
 import qualified Data.Abstract.Error as E
-import           Data.Abstract.Widening (Widening)
+import           Data.Abstract.Widening (Widening, finite)
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Stable
 import           Data.Abstract.Terminating(Terminating)
@@ -171,13 +172,17 @@ data Val
 
 -- Input and output type of the fixpoint.
 type In = (Store,(([Expr],Label),Env))
-type Out = (Store, Terminating (Error (Pow String) Val))
-type Out' = (Gr Expr (), ((**)
-                           Monotone
-                           (Parallel (Group Cache))
+type Out = (Store, Terminating (Error (Pow String) Val)) 
+-- type Out' = (Gr Expr (), Monotone
+--                          (Store, (([Expr], Label), Env))
+--                          (Store, Terminating (Error (Pow String) Val)),
+--                          (HashMap (Text, Ctx) Val, Terminating (Error (Pow String) Val)))
+type Out' = (Gr Expr (),
+                        (Monotone
                            (Store, (([Expr], Label), Env))
                            (Store, Terminating (Error (Pow String) Val)),
                          (HashMap (Text, Ctx) Val, Terminating (Error (Pow String) Val))))
+
 
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
@@ -190,15 +195,15 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
             (TerminatingT
               (EnvStoreT Text Addr Val
                 (FixT _ _
-                  (-- ChaoticT In
+                  (ChaoticT In
                     (StackT Stack In
-                      (CacheT (Monotone ** Parallel (Group Cache)) In Out
-                        (ContextT Ctx
+                      (CacheT Monotone In Out
+                        (ContextT Ctx 
                           (ControlFlowT Expr -- unter fixT liften
                             (->))))))))))) [Expr] Val))
     (alloc, widenVal)
     iterationStrategy
-    (widenStore widenVal, T.widening (E.widening W.finite widenVal))
+    (finite, finite)
     (Map.empty,(Map.empty,(env0,e0)))
   where
     e0 = generate (sequence e)
@@ -213,10 +218,10 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
       CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
-      Fix.filter apply parallel -- iterateInner
+      Fix.filter apply chaotic -- parallel -- iterateInner
 
     widenVal :: Widening Val 
-    widenVal = widening (numGuardTop' ?bound)
+    widenVal = finite --- (numGuardTop' ?bound)
 
 
 evalInterval' :: (?sensitivity :: Int, ?bound :: Int) => [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
