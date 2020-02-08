@@ -79,6 +79,7 @@ spec = do
   describe "Gabriel-Benchmarks" $ do
 
     it "cpstak" $ do 
+      -- pending
       let inFile = "gabriel//cpstak"
       let expRes = Terminating (Success NumVal)
       helper_test inFile expRes
@@ -101,6 +102,7 @@ spec = do
       helper_test inFile expRes      
 
     it "takl" $ do
+      -- pending
       let inFile = "gabriel//takl"
       let expRes = Terminating (Success $ BoolVal B.Top)              
       helper_test inFile expRes
@@ -113,16 +115,19 @@ spec = do
       helper_test inFile expRes
 
     it "gcipd" $ do
+      -- pending
       let inFile = "scala-am//gcipd"
       let expRes = Terminating (Success NumVal)
       helper_test inFile expRes 
 
     it "nqueens" $ do
+      -- pending
       let inFile = "scala-am//nqueens"
       let expRes = Terminating (Success NumVal)
       helper_test inFile expRes      
 
     it "rsa" $ do
+      -- pending
       let inFile = "scala-am//rsa"
       let expRes = Terminating (Fail $ Pow.singleton "Expected elements of type num for op| [List [Num],Num]" <> "Scheme-Error")              
       helper_test inFile expRes      

@@ -259,7 +259,7 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowC
   write = CacheT $ proc _ -> returnA -< ()
   setStable = CacheT $ proc _ -> returnA -< ()
   {-# INLINE initialize #-}
-  {-# INLINE lookup #-}
+  -- {-# INLINE lookup #-} -- !!!!!!!!!!!! CAUSES GHC PANIC, when building without --fast
   {-# INLINE write #-}
   {-# INLINE update #-}
   {-# INLINE setStable #-}

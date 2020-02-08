@@ -1,3 +1,5 @@
 #lang scheme
 
-(- 2 1 1 4)
+(define x 0)
+(set! x 12) 
+x

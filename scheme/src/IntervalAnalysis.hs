@@ -212,7 +212,7 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
                             (->))))))))))) [Expr] Val))
     (alloc, widening)
     iterationStrategy
-    (widenStore widening, T.widening (E.widening W.finite widening))
+    (W.finite, T.widening (E.widening W.finite widening)) --something is wrong with widenStore 
     (Map.empty,(Map.empty,(env0,e0)))
   where
     e0 = generate (sequence e)

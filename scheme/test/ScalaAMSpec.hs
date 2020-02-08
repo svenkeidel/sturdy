@@ -41,21 +41,21 @@ spec = do
     it "context sensitivity" $
       let diamond = [if_ "w" "x" "y"] in do
       let env =  [("w", BoolVal B.Top), ("x", IntVal (Pow.singleton 1)), ("y", IntVal(Pow.singleton 2))]
-      let ?sensitivity = 0 in evalInterval' env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
-      let ?sensitivity = 1 in evalInterval' env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
+      let ?sensitivity = 0 in evalInterval' ?bound env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
+      let ?sensitivity = 1 in evalInterval' ?bound env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
 
     it "should analyze let expression" $ 
       let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
-      let ?sensitivity = 0 in evalInterval' [] expr `shouldBe` Terminating (Success $ IntVal $ fromList [1])
-      let ?sensitivity = 1 in evalInterval' [] expr `shouldBe` Terminating (Success $ IntVal $ fromList [1])
+      let ?sensitivity = 0 in evalInterval' ?bound [] expr `shouldBe` Terminating (Success $ IntVal $ fromList [1])
+      let ?sensitivity = 1 in evalInterval' ?bound [] expr `shouldBe` Terminating (Success $ IntVal $ fromList [1])
 
     it "should analyze define" $ 
       let exprs = [define "x" (lit $ S.Number 1),                   
                    set "x" (lit $ S.Number 2), 
                    set "x" (lit $ S.Number 3),
                    "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ IntVal $ fromList [1,2,3])
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ IntVal $ fromList [1,2,3])
+      let ?sensitivity = 0 in evalInterval' ?bound [] exprs `shouldBe` Terminating (Success $ IntVal $ fromList [1,2,3])
+      let ?sensitivity = 2 in evalInterval' ?bound [] exprs `shouldBe` Terminating (Success $ IntVal $ fromList [1,2,3])
 
 
     it "should return top for unifying two different types" $  
@@ -63,13 +63,13 @@ spec = do
                    set "x" (lit $ S.Number 2), 
                    set "x" (lit $ S.Bool True),
                    "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Int: {1, 2}")
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Int: {1, 2}")
+      let ?sensitivity = 0 in evalInterval' ?bound [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Int: {1, 2}")
+      let ?sensitivity = 2 in evalInterval' ?bound [] exprs `shouldBe` Terminating (Success $ TypeError "cannot unify True and Int: {1, 2}")
 
 
     it "should terminate for the non-terminating program LetRec" $
       let ?sensitivity = 2
-      in evalInterval' [] [let_rec [("id", lam ["x"] ["x"]),
+      in evalInterval' ?bound [] [let_rec [("id", lam ["x"] ["x"]),
                                 ("fix",lam ["x"] [app "fix" ["x"]])]
                          [app "fix" ["id"]]]
            `shouldBe` NonTerminating
@@ -79,7 +79,7 @@ spec = do
 
 -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do
-    let ?bound = 1000
+    let ?bound = 100
     let ?sensitivity = 0
     it "cpstak" $ do 
       pendingWith "takes to long"
@@ -104,6 +104,7 @@ spec = do
       helper_test inFile expRes      
 
     it "takl" $ do
+      pendingWith "takes too long"
       let inFile = "gabriel//takl"
       -- pendingWith "returns False instead of top/true because NV dont compare yet"
       let expRes = Terminating (Success $ BoolVal B.Top)              
@@ -111,14 +112,16 @@ spec = do
       
 -------------------SCALA-AM BENCHMARKS------------------------------------------
   describe "Scala-AM-Benchmarks" $ do
-    let ?bound = 1000
+    let ?bound = 10
     let ?sensitivity = 0
     it "collatz" $ do
+      pendingWith "takes too long"
       let inFile = "scala-am//collatz"
       let expRes = Terminating (Success $ IntVal $ fromList [6])
       helper_test inFile expRes
 
     it "gcipd" $ do
+      pendingWith "takes too long"
       let inFile = "scala-am//gcipd"
       let expRes = Terminating (Success $ IntVal $ fromList [36])
       helper_test inFile expRes 
@@ -231,7 +234,7 @@ helper_test inFile expRes = do
     Right a ->
       case match a of
         Right b -> do
-          let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
+          let (graph, res) = evalInterval'' ?bound [let_rec (getTopDefinesLam b) (getBody b)]
           _ <- draw_graph inFile graph
           res`shouldBe` expRes
         Left b -> print b

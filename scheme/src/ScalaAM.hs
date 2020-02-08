@@ -187,8 +187,8 @@ type Out' = (Gr Expr (),
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?sensitivity :: Int, ?bound :: Int) => [(Text,Val)] -> [State Label Expr] -> Out'
-evalInterval env0 e = run (extend' (Generic.run_ ::
+evalInterval :: (?sensitivity :: Int) => Int -> [(Text,Val)] -> [State Label Expr] -> Out'
+evalInterval bound env0 e = run (extend' (Generic.run_ ::
       Fix'
         (ValueT Val
           (ErrorT (Pow String)
@@ -201,9 +201,12 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
                         (ContextT Ctx 
                           (ControlFlowT Expr -- unter fixT liften
                             (->))))))))))) [Expr] Val))
-    (alloc, finite)
-    iterationStrategy
-    (finite, finite)
+    -- (alloc, widenVal)
+    -- iterationStrategy
+    -- (widenStore widenVal, T.widening (E.widening W.finite widenVal))
+    (alloc, widenVal)
+    iterationStrategy 
+    (widenStore widenVal, T.widening (E.widening W.finite widenVal))
     (Map.empty,(Map.empty,(env0,e0)))
   where
     e0 = generate (sequence e)
@@ -218,20 +221,20 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
       CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
-      Fix.filter apply chaotic -- iterateInner --chaotic -- parallel -- iterateInner
+      Fix.filter apply iterateInner -- parallel -- iterateInner --chaotic -- parallel -- iterateInner
 
     widenVal :: Widening Val 
-    widenVal = widening (numGuardTop' ?bound) 
+    widenVal = widening (numGuardTop' 100) 
     -- widenVal = finite  
 
 
-evalInterval' :: (?sensitivity :: Int, ?bound :: Int) => [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
-evalInterval' env exprs = snd $ snd $ snd $ evalInterval env exprs
+evalInterval' :: (?sensitivity :: Int) => Int -> [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
+evalInterval' bound env exprs = snd $ snd $ snd $ evalInterval bound env exprs
 {-# INLINE evalInterval' #-}
 
-evalInterval'' :: (?sensitivity :: Int, ?bound :: Int) => [State Label Expr] -> (Gr Expr (), Terminating (Error (Pow String) Val))
-evalInterval'' exprs =
-  let res = evalInterval [] exprs in (fst res, snd $ snd $ snd res)
+evalInterval'' :: (?sensitivity :: Int) => Int -> [State Label Expr] -> (Gr Expr (), Terminating (Error (Pow String) Val))
+evalInterval'' bound exprs =
+  let res = evalInterval bound [] exprs in (fst res, snd $ snd $ snd res)
 {-# INLINE evalInterval'' #-}
 
 
@@ -507,10 +510,10 @@ checkNum' op = proc vs -> if any op vs
   else returnA -< BoolVal B.False
 
 widening :: Widening Val -> Widening Val
--- widening bound (IntVal xs) (IntVal ys) =  bound (IntVal xs) (IntVal ys)
--- widening bound (FloatVal xs) (FloatVal ys) = bound (FloatVal xs) (FloatVal ys)
-widening _ (IntVal xs) (IntVal ys) =  (Stable, IntVal (xs ⊔ ys))
-widening _ (FloatVal xs) (FloatVal ys) = (Stable, FloatVal (xs ⊔ ys))
+widening bound (IntVal xs) (IntVal ys) =  bound (IntVal xs) (IntVal ys)
+widening bound (FloatVal xs) (FloatVal ys) = bound (FloatVal xs) (FloatVal ys)
+-- widening _ (IntVal xs) (IntVal ys) =  (Stable, IntVal (xs ⊔ ys))
+-- widening _ (FloatVal xs) (FloatVal ys) = (Stable, FloatVal (xs ⊔ ys))
 widening _ (BoolVal x) (BoolVal y) = second BoolVal (B.widening x y)
 widening _ (ClosureVal cs) (ClosureVal cs') = second ClosureVal $ C.widening W.finite cs cs'
 widening _ StringVal StringVal = (Stable, StringVal)
@@ -545,14 +548,14 @@ widenList _ _ =[ TypeError $ singleton "error when unifying lists, should not ha
 numGuardTop' :: Int -> Widening Val  
 numGuardTop' bound (IntVal xs) (IntVal ys) = do 
   if any (> bound) (toList xs) || any (> bound) (toList ys)
-    then (Stable, TypeError "numvals reached upperbound")
+    then (Unstable, TypeError "numvals reached upperbound")
     else (Stable, IntVal (xs <> ys))
 numGuardTop' bound (FloatVal xs) (FloatVal ys) = do 
   let bound' = fromIntegral bound
   if any (> bound') (toList xs) || any (> bound') (toList ys)
-    then (Stable, TypeError "numvals reached upperbound")
+    then (Unstable, TypeError "numvals reached upperbound")
     else (Stable, FloatVal (xs <> ys))
-numGuardTop' _ _ _ = (Stable, TypeError "expected elem of type num")
+numGuardTop' _ _ _ = (Unstable, TypeError "expected elem of type num")
 
 -- OPERATION HELPER ------------------------------------------------------------
 

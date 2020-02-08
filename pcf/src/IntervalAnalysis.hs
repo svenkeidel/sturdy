@@ -24,7 +24,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Chaotic(chaotic,iterateInner)
+import           Control.Arrow.Fix.Chaotic(chaotic)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -37,8 +37,8 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
+import           Control.Arrow.Transformer.Abstract.Fix.Trace()
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -120,10 +120,10 @@ evalInterval env0 e = snd $
       returnA -< (var,ctx)
 
     iterationStrategy =
-      traceShow .
+      -- traceShow .
       -- traceCache show .
       Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
-      filter apply iterateInner -- chaotic
+      filter apply chaotic
 
     widenVal :: Widening Val
     widenVal = widening (I.bounded ?bound)
