@@ -221,10 +221,10 @@ evalInterval bound env0 e = run (extend' (Generic.run_ ::
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
       CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
-      Fix.filter apply iterateInner -- parallel -- iterateInner --chaotic -- parallel -- iterateInner
+      Fix.filter apply chaotic --iterateInner -- parallel -- iterateInner --chaotic -- parallel -- iterateInner
 
     widenVal :: Widening Val 
-    widenVal = widening (numGuardTop' 100) 
+    widenVal = widening (numGuardTop' 10) 
     -- widenVal = finite  
 
 
@@ -547,7 +547,7 @@ widenList _ _ =[ TypeError $ singleton "error when unifying lists, should not ha
 
 numGuardTop' :: Int -> Widening Val  
 numGuardTop' bound (IntVal xs) (IntVal ys) = do 
-  if any (> bound) (toList xs) || any (> bound) (toList ys)
+  if any (> bound) (map abs (toList xs)) || any (> bound) (toList ys)
     then (Unstable, TypeError "numvals reached upperbound")
     else (Stable, IntVal (xs <> ys))
 numGuardTop' bound (FloatVal xs) (FloatVal ys) = do 

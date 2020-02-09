@@ -80,9 +80,9 @@ spec = do
 -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do
     let ?bound = 100
-    let ?sensitivity = 0
+    let ?sensitivity = 1
     it "cpstak" $ do 
-      pendingWith "takes to long"
+      -- pendingWith "takes to long"
       let inFile = "gabriel//cpstak"
       let expRes = Terminating (Success $ IntVal $ fromList [6])
       helper_test inFile expRes
@@ -104,7 +104,7 @@ spec = do
       helper_test inFile expRes      
 
     it "takl" $ do
-      pendingWith "takes too long"
+      -- pendingWith "takes too long"
       let inFile = "gabriel//takl"
       -- pendingWith "returns False instead of top/true because NV dont compare yet"
       let expRes = Terminating (Success $ BoolVal B.Top)              
@@ -113,15 +113,15 @@ spec = do
 -------------------SCALA-AM BENCHMARKS------------------------------------------
   describe "Scala-AM-Benchmarks" $ do
     let ?bound = 10
-    let ?sensitivity = 0
+    let ?sensitivity = 1
     it "collatz" $ do
-      pendingWith "takes too long"
+      -- pendingWith "takes too long"
       let inFile = "scala-am//collatz"
       let expRes = Terminating (Success $ IntVal $ fromList [6])
       helper_test inFile expRes
 
     it "gcipd" $ do
-      pendingWith "takes too long"
+      -- pendingWith "takes too long"
       let inFile = "scala-am//gcipd"
       let expRes = Terminating (Success $ IntVal $ fromList [36])
       helper_test inFile expRes 
@@ -213,6 +213,11 @@ spec = do
     it "test_endless_recursion" $ do
       -- pendingWith "doesnt terminate"
       let inFile = "test_endless_recursion"
+      let expRes = NonTerminating
+      helper_test inFile expRes     
+
+    it "test_endless_nums" $ do
+      let inFile = "test_endless_nums"
       let expRes = NonTerminating
       helper_test inFile expRes     
 
