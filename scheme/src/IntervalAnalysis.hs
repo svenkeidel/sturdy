@@ -20,7 +20,7 @@
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module IntervalAnalysis where
 
-import           Prelude hiding (not,Bounded,fail,(.),exp)
+import           Prelude hiding (not,Bounded,fail,(.),exp) 
 
 import           Control.Category
 import           Control.Arrow
@@ -44,7 +44,7 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Cache,Parallel,Monotone,type (**),Group)
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -62,7 +62,6 @@ import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
 import           Data.Graph.Inductive (Gr)
 
-import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Error (Error)
 import qualified Data.Abstract.Error as E
@@ -399,12 +398,12 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Lcm -> case xs of 
       [] -> returnA -< NumVal
       _ -> withOpvarWrap withNumHelp -< xs 
-    And -> case xs of
-      [] -> returnA -< BoolVal B.True
-      _ -> withOpvarWrap withBoolAndHelp -< xs  
-    Or -> case xs of 
-      [] -> returnA -< BoolVal B.False
-      _ -> withOpvarWrap withBoolOrHelp -< xs 
+    -- And -> case xs of
+    --   [] -> returnA -< BoolVal B.True
+    --   _ -> withOpvarWrap withBoolAndHelp -< xs  
+    -- Or -> case xs of 
+    --   [] -> returnA -< BoolVal B.False
+    --   _ -> withOpvarWrap withBoolOrHelp -< xs 
     List_ -> returnA -< ListVal $ widenHelp xs
   {-# INLINE lit #-}
   {-# INLINE if_ #-}

@@ -247,6 +247,11 @@ spec = do
       let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.True, StringVal])         
       helper_test inFile expRes 
 
+    it "test_list" $ do
+      let inFile = "test_list"
+      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.True])         
+      helper_test inFile expRes       
+
 -------------------HELPER------------------------------------------------------
 helper_test :: String -> Terminating (Error (Pow String) Val) -> IO ()
 helper_test inFile expRes = do

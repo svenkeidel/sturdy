@@ -128,8 +128,8 @@ lispToExpr val = case val of
     "/" -> opvar_ Div (map lispToExpr args)
     "gcd" -> opvar_ Gcd (map lispToExpr args)
     "lcm" -> opvar_ Lcm (map lispToExpr args)
-    "and" -> opvar_ And (map lispToExpr args)
-    "or" -> opvar_ Or (map lispToExpr args)
+    -- "and" -> opvar_ And (map lispToExpr args)
+    -- "or" -> opvar_ Or (map lispToExpr args)
     "list" -> opvar_ List_ (map lispToExpr args)
     _ -> app (var_ (pack x)) (map lispToExpr args)
   LT.List (Atom "#%app": foo: args) ->

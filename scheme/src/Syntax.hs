@@ -88,8 +88,8 @@ data OpVar_
   | Gcd -- (gcd z1 ...)
   | Lcm -- (lcm z1 ...)
 -- | Boolean operations
-  | And -- (and z1 z2 z3 ...)
-  | Or -- (or z1 z2 z3 ...)
+  -- | And -- (and z1 z2 z3 ...)
+  -- | Or -- (or z1 z2 z3 ...)
 -- | List operations
   | List_ -- (list z1 z2 z3 ...)
   deriving (Eq)
@@ -214,8 +214,8 @@ instance Show OpVar_ where
     Div -> showString ("/ ")
     Gcd -> showString ("gcd ")
     Lcm -> showString ("lcm ")
-    And -> showString ("and ")
-    Or -> showString ("or ")
+    -- And -> showString ("and ")
+    -- Or -> showString ("or ")
     List_ -> showString ("list")
 
 instance Show Expr where
@@ -283,17 +283,17 @@ instance Show Expr where
 showTopLvl :: Expr -> String 
 showTopLvl e = case e of 
     Lit x _ -> "Lit " ++ show x
-    Begin es _-> "Begin" 
-    App e1 e2 _ -> "App"
-    Apply e _ -> "Apply"
+    Begin _ _-> "Begin" 
+    App _ _ _ -> "App"
+    Apply _ _ -> "Apply"
     Var x _ -> "Var " ++ unpack x
-    Set t e _ -> "Set " ++ unpack t ++ " := " ++ showTopLvl e  
-    Define t e _ -> "Define " ++ unpack t ++ " := " ++ showTopLvl e  
+    Set t _ _ -> "Set " ++ unpack t ++ " := " ++ showTopLvl e  
+    Define t _ _ -> "Define " ++ unpack t ++ " := " ++ showTopLvl e  
     Lam xs e2 _ -> "Lam " ++ unwords (map unpack xs) ++ " -> " ++ unwords (map showTopLvl e2)
-    If e1 e2 e3 _ -> "If(" ++ showTopLvl e1 ++ ")"
-    Let bnds body _ -> "Let"
-    LetRec bnds body _ -> "LetRec"
-    Op1 op1 e _ -> show op1 ++ " (" ++ showTopLvl e ++ ")"
+    If e1 _ _ _ -> "If(" ++ showTopLvl e1 ++ ")"
+    Let _ _ _ -> "Let"
+    LetRec _ _ _ -> "LetRec"
+    Op1 op1 _ _ -> show op1 ++ " (" ++ showTopLvl e ++ ")"
     Op2 op2 e1 e2 _ -> show op2 ++ " (" ++  showTopLvl e1 ++ ", " ++ showTopLvl e2 ++ ")"
     OpVar opvar es _ -> show opvar ++ " (" ++ unwords (map showTopLvl es) ++ ")"
 

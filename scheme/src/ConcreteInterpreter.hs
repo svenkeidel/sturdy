@@ -346,12 +346,12 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
     Lcm -> case foldl (withIntFold (lcm)) (Right $ head xs) (tail xs) of
       Left a -> fail -< "(lcm): Contract violation, " ++ a
       Right a -> returnA -< a
-    And -> case foldl (withBoolFold (&&)) (Right $ head xs) (tail xs) of
-      Left a -> fail -< "(and): Contract violation, " ++ a
-      Right a -> returnA -< a
-    Or -> case foldl (withBoolFold (||)) (Right $ head xs) (tail xs) of
-      Left a -> fail -< "(or): Contract violation, " ++ a
-      Right a -> returnA -< a
+    -- And -> case foldl (withBoolFold (&&)) (Right $ head xs) (tail xs) of
+    --   Left a -> fail -< "(and): Contract violation, " ++ a
+    --   Right a -> returnA -< a
+    -- Or -> case foldl (withBoolFold (||)) (Right $ head xs) (tail xs) of
+    --   Left a -> fail -< "(or): Contract violation, " ++ a
+    --   Right a -> returnA -< a
     List_ -> returnA -< ListVal xs
 
 

@@ -30,7 +30,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix 
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(chaotic,iterateInner)
+import           Control.Arrow.Fix.Chaotic(chaotic)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Trans
@@ -45,7 +45,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Cache,Parallel,Monotone,type (**),Group)
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -66,7 +66,7 @@ import           Data.Graph.Inductive (Gr)
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Error (Error)
 import qualified Data.Abstract.Error as E
-import           Data.Abstract.Widening (Widening, finite)
+import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Stable
 import           Data.Abstract.Terminating(Terminating)
@@ -188,7 +188,7 @@ type Out' = (Gr Expr (),
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
 evalInterval :: (?sensitivity :: Int) => Int -> [(Text,Val)] -> [State Label Expr] -> Out'
-evalInterval bound env0 e = run (extend' (Generic.run_ ::
+evalInterval _ env0 e = run (extend' (Generic.run_ ::
       Fix'
         (ValueT Val
           (ErrorT (Pow String)
@@ -428,12 +428,12 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
       _ -> withNumToNumList' gcd -< xs 
     Lcm -> case xs of 
       _ -> withNumToNumList' lcm -< xs 
-    And -> case xs of
-      [] -> returnA -< BoolVal B.True
-      _ -> withBoolToBoolList B.and -< xs  
-    Or -> case xs of 
-      [] -> returnA -< BoolVal B.False
-      _ -> withBoolToBoolList B.or -< xs 
+    -- And -> case xs of
+    --   [] -> returnA -< BoolVal B.True
+    --   _ -> withBoolToBoolList B.and -< xs  
+    -- Or -> case xs of 
+    --   [] -> returnA -< BoolVal B.False
+    --   _ -> withBoolToBoolList B.or -< xs  
     List_ -> returnA -< ListVal xs 
   {-# INLINE lit #-}
   {-# INLINE if_ #-}

@@ -80,12 +80,15 @@ instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c) => A
     case do { addr <- Map.lookup var env; Map.lookup addr store } of
       P.Just val -> f -< (val,x)
       P.Nothing -> g -< x
-  write = EnvStoreT $ askConst $ \(EnvStoreT _,widening) -> proc (var, val) -> do
+  write = EnvStoreT $ askConst $ \(EnvStoreT alloc,widening) -> proc (var, val) -> do
     env <- Reader.ask -< ()
     store <- State.get -< ()
     case Map.lookup var env of 
       P.Just addr -> State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
-      P.Nothing -> returnA -< ()
+      -- P.Nothing -> returnA -< ()
+      P.Nothing -> do
+        addr <- alloc -< (var,val)
+        State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
     returnA -< ()
   {-# INLINE read #-}
   {-# INLINE write #-}
