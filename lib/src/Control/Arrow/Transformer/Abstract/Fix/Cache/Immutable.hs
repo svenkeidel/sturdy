@@ -244,11 +244,8 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowC
     let cache' = M.insertWith (\_ _old -> _old) a bottom cache
         b = M.lookupDefault bottom a cache
     in ((s,b),Monotone s' cache')
-  lookup = CacheT $ proc (s,a) -> do
-    m <- get -< ()
-    case m of
-      Monotone _ cache ->
-        returnA -< (\b -> (Unstable,(s,b))) <$> M.lookup a cache
+  lookup = CacheT $ modify' $ \((s,a),m@(Monotone _ cache)) -> do
+    ((\b -> (Unstable,(s,b))) <$> M.lookup a cache, m)
   update = CacheT $ askConst $ \(widenS,widenB) -> modify' $ \(((_,a),(sNew,b)),Monotone sOld cache) ->
     let (stable1,sWiden) = widenS sOld sNew
     in case M.lookup a cache of
