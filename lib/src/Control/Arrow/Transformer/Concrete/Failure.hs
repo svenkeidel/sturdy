@@ -20,6 +20,7 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Store as Store
 import Control.Arrow.Trans
+import Control.Arrow.LetRec
 
 import Control.Arrow.Transformer.Kleisli
 
@@ -32,7 +33,7 @@ import Data.Coerce
 newtype FailureT e c x y = FailureT (KleisliT (Error e) c x y) 
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
             ArrowConst r,ArrowState s,ArrowReader r,ArrowExcept exc,
-            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls,ArrowStore var val)
+            ArrowEnv var addr, ArrowLetRec var val, ArrowClosure expr cls,ArrowStore addr val)
 
 runFailureT :: FailureT e c x y -> c x (Error e y)
 runFailureT = coerce

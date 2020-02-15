@@ -24,6 +24,7 @@ import Control.Arrow.Fix
 import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
 import Control.Category
+import Control.Arrow.LetRec
 
 import qualified Data.Order as O
 import Data.Abstract.Error

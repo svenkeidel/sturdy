@@ -23,6 +23,7 @@ import           Control.Arrow.Reader as Reader
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Arrow.Trans
+import           Control.Arrow.LetRec
 
 import           Control.Arrow.Transformer.Reader
 

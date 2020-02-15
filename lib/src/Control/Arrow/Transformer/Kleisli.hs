@@ -25,6 +25,7 @@ import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
 import Control.Arrow.Store as Store
 import Control.Arrow.Trans
+import Control.Arrow.LetRec
 
 import Data.Monoidal
 import Data.Profunctor (Profunctor(..))
@@ -111,7 +112,7 @@ instance (ArrowMonad f c, ArrowEnv x y c) => ArrowEnv x y (KleisliT f c) where
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (ArrowMonad f c, ArrowLetRec x y c) => ArrowLetRec x y (KleisliT f c) where
+instance (ArrowLetRec x y c) => ArrowLetRec x y (KleisliT f c) where
   letRec f = lift (letRec (unlift f))
   {-# INLINE letRec #-}
 

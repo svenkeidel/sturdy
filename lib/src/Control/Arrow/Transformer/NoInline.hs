@@ -22,6 +22,7 @@ import Control.Arrow.State as State
 import Control.Arrow.Store as Store
 import Control.Arrow.Trans
 import Control.Arrow.Writer
+import Control.Arrow.LetRec
 
 import Data.Profunctor
 import Data.Profunctor.Unsafe

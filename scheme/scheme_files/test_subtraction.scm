@@ -1,5 +1,3 @@
 #lang scheme
 
-(define x 0)
-(set! x 12) 
-x
+(- 10 2 12)

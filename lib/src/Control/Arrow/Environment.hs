@@ -34,10 +34,6 @@ class (Arrow c, Profunctor c) => ArrowEnv var val c | c -> var, c -> val where
   -- | Extend an environment with a binding.
   extend :: c x y -> c (var,val,x) y
 
-class ArrowEnv var val c => ArrowLetRec var val c where
-  -- | creates a list of bindings that mutual recursively refer to each other.
-  letRec :: c x y -> c ([(var,val)],x) y
-
 -- | Simpler version of environment lookup.
 lookup' :: (Join val c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
 lookup' = lookup'' id

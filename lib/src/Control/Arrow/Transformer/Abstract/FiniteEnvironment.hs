@@ -33,6 +33,7 @@ import Control.Arrow.Closure
 import Control.Arrow.Fix
 import Control.Arrow.Order
 import Control.Arrow.Utils
+import Control.Arrow.LetRec
 
 import Data.Abstract.Widening (Widening)
 import Data.Abstract.Closure (Closure)

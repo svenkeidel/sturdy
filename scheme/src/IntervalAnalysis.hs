@@ -196,37 +196,38 @@ type Out' = (Gr Expr (),
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
 evalInterval :: (?sensitivity :: Int) => [(Text,Val)] -> [State Label Expr] -> Out'
-evalInterval env0 e = run (extend' (Generic.run_ ::
-      Fix'
-        (ValueT Val
-          (ErrorT (Pow String)
-            (TerminatingT
-              (EnvStoreT Text Addr Val
-                (FixT _ _
-                  (--ChaoticT In
-                    (StackT Stack In
-                      (CacheT Monotone In Out
-                        (ContextT Ctx 
-                          (ControlFlowT Expr -- unter fixT liften
-                            (->))))))))))) [Expr] Val))
-    (alloc, widening)
-    iterationStrategy
-    (W.finite, T.widening (E.widening W.finite widening)) --something is wrong with widenStore 
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
+evalInterval env0 e = undefined
+  -- run (extend' (Generic.run_ ::
+  --     Fix'
+  --       (ValueT Val
+  --         (ErrorT (Pow String)
+  --           (TerminatingT
+  --             (EnvStoreT Text Addr Val
+  --               (FixT _ _
+  --                 (--ChaoticT In
+  --                   (StackT Stack In
+  --                     (CacheT Monotone In Out
+  --                       (ContextT Ctx 
+  --                         (ControlFlowT Expr -- unter fixT liften
+  --                           (->))))))))))) [Expr] Val))
+  --   (alloc, widening)
+  --   iterationStrategy
+  --   (W.finite, T.widening (E.widening W.finite widening)) --something is wrong with widenStore 
+  --   (Map.empty,(Map.empty,(env0,e0)))
+  -- where
+  --   e0 = generate (sequence e)
 
-    alloc = proc (var,_) -> do
-      ctx <- Ctx.askContext @Ctx -< ()
-      returnA -< (var,ctx)
+  --   alloc = proc (var,_) -> do
+  --     ctx <- Ctx.askContext @Ctx -< ()
+  --     returnA -< (var,ctx)
 
-    iterationStrategy =
-      -- Fix.traceShow .
-      -- collect . 
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
-      CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
-      Fix.filter apply chaotic -- parallel -- iterateInner
+  --   iterationStrategy =
+  --     -- Fix.traceShow .
+  --     -- collect . 
+  --     Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+  --     -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
+  --     CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
+  --     Fix.filter apply chaotic -- parallel -- iterateInner
 
 
 

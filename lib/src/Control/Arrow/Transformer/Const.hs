@@ -34,6 +34,7 @@ import Control.Arrow.State
 import Control.Arrow.Store
 import Control.Arrow.Trans
 import Control.Arrow.Writer
+import Control.Arrow.LetRec
 
 import Control.Arrow.Transformer.Static
 

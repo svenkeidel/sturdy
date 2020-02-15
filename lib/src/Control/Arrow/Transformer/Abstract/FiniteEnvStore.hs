@@ -32,8 +32,8 @@ import Control.Arrow.Environment as Env
 import Control.Arrow.Closure
 import Control.Arrow.Fix
 import Control.Arrow.Order
-import Control.Arrow.Utils
 import Control.Arrow.Fix.ControlFlow
+import Control.Arrow.LetRec
 
 import Data.Abstract.Widening (Widening)
 import Data.Abstract.Closure (Closure)
@@ -49,47 +49,36 @@ import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
-type Alloc var addr val c = EnvStoreT var addr val c (var,val) addr
-newtype EnvStoreT var addr val c x y = EnvStoreT (ConstT (Alloc var addr val c, Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y)
+newtype EnvStoreT var addr val c x y = EnvStoreT (ConstT (Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded,
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
             ArrowContext ctx, ArrowControlFlow stmt)
 
-instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutative c, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvStoreT var addr val c) where
+instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutative c, ArrowChoice c, Profunctor c) 
+    => ArrowEnv var addr (EnvStoreT var addr val c) where
   type Join y (EnvStoreT var addr val c) = ()
   lookup (EnvStoreT f) (EnvStoreT g) = EnvStoreT $ proc (var,x) -> do
     env <- Reader.ask -< ()
-    store <- State.get -< ()
-    case do { addr <- Map.lookup var env; Map.lookup addr store } of
-      P.Just val -> f -< (val,x)
+    case Map.lookup var env of
+      P.Just addr -> f -< (addr,x)
       P.Nothing   -> g -< x
-  extend (EnvStoreT f) = EnvStoreT $ askConst $ \(EnvStoreT alloc,widening) -> proc (var,val,x) -> do
+  extend (EnvStoreT f) = EnvStoreT $ proc (var,addr,x) -> do
     env <- Reader.ask -< ()
-    store <- State.get -< ()
-    addr <- alloc -< (var,val)
-    State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
     Reader.local f -< (Map.insert var addr env, x)
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c) => ArrowStore var val (EnvStoreT var addr val c) where
+instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c) 
+    => ArrowStore addr val (EnvStoreT var addr val c) where
   type Join y (EnvStoreT var addr val c) = ()
-  read (EnvStoreT f) (EnvStoreT g) = EnvStoreT $ proc (var,x) -> do
-    env <- Reader.ask -< ()
+  read (EnvStoreT f) (EnvStoreT g) = EnvStoreT $ proc (addr,x) -> do
     store <- State.get -< ()
-    case do { addr <- Map.lookup var env; Map.lookup addr store } of
+    case Map.lookup addr store of
       P.Just val -> f -< (val,x)
       P.Nothing -> g -< x
-  write = EnvStoreT $ askConst $ \(EnvStoreT alloc,widening) -> proc (var, val) -> do
-    env <- Reader.ask -< ()
+  write = EnvStoreT $ askConst $ \widening -> proc (addr, val) -> do
     store <- State.get -< ()
-    case Map.lookup var env of 
-      P.Just addr -> State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
-      -- P.Nothing -> returnA -< ()
-      P.Nothing -> do
-        addr <- alloc -< (var,val)
-        State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
-    returnA -< ()
+    State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -106,13 +95,13 @@ instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowEffectCom
   {-# INLINE closure #-}
   {-# INLINE apply #-}
 
-instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowEffectCommutative c, ArrowChoice c, Profunctor c) => ArrowLetRec var val (EnvStoreT var addr val c) where
-  letRec (EnvStoreT f) = EnvStoreT $ askConst $ \(EnvStoreT alloc,widening) -> proc (bindings,x) -> do
+instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowEffectCommutative c, ArrowChoice c, Profunctor c) 
+    => ArrowLetRec var addr (EnvStoreT var addr val c) where
+  letRec (EnvStoreT f) = EnvStoreT $ proc (bindings,x) -> do
     env <- Reader.ask -< ()
-    addrs <- map alloc -< bindings
-    let env' = Map.fromList [ (var,addr) | ((var,_), addr) <- zip bindings addrs ] `Map.union` env
-        vals = Map.fromList [ (addr, setEnvironment (Set.singleton env') val) | (addr, (_,val)) <- zip addrs bindings ]
-    State.modify' (\(vals,store) -> ((), Map.unionWith (\old new -> snd (widening old new)) store vals)) -< vals
+    let env' = Map.fromList bindings `Map.union` env
+    --     vals = Map.fromList [ (addr, setEnvironment (Set.singleton env') val) | (addr, (_,val)) <- zip addrs bindings ]
+    -- State.modify' (\(vals,store) -> ((), Map.unionWith (\old new -> snd (widening old new)) store vals)) -< vals
     Reader.local f -< (env',x)
   {-# INLINE letRec #-}
 

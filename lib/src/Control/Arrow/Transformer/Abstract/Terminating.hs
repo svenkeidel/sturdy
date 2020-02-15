@@ -22,6 +22,7 @@ import Control.Arrow.Trans
 import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
 import Control.Category
+import Control.Arrow.LetRec
 
 import Data.Abstract.Terminating
 import Data.Abstract.Widening

@@ -188,44 +188,45 @@ type Out' = (Gr Expr (),
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
 evalInterval :: (?sensitivity :: Int) => Int -> [(Text,Val)] -> [State Label Expr] -> Out'
-evalInterval _ env0 e = run (extend' (Generic.run_ ::
-      Fix'
-        (ValueT Val
-          (ErrorT (Pow String)
-            (TerminatingT
-              (EnvStoreT Text Addr Val
-                (FixT _ _
-                  (ChaoticT In
-                    (StackT Stack In
-                      (CacheT Monotone In Out
-                        (ContextT Ctx 
-                          (ControlFlowT Expr -- unter fixT liften
-                            (->))))))))))) [Expr] Val))
-    -- (alloc, widenVal)
-    -- iterationStrategy
-    -- (widenStore widenVal, T.widening (E.widening W.finite widenVal))
-    (alloc, widenVal)
-    iterationStrategy 
-    (widenStore widenVal, T.widening (E.widening W.finite widenVal))
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
+evalInterval _ env0 e = undefined
+  -- run (extend' (Generic.run_ ::
+  --     Fix'
+  --       (ValueT Val
+  --         (ErrorT (Pow String)
+  --           (TerminatingT
+  --             (EnvStoreT Text Addr Val
+  --               (FixT _ _
+  --                 (ChaoticT In
+  --                   (StackT Stack In
+  --                     (CacheT Monotone In Out
+  --                       (ContextT Ctx 
+  --                         (ControlFlowT Expr -- unter fixT liften
+  --                           (->))))))))))) [Expr] Val))
+  --   -- (alloc, widenVal)
+  --   -- iterationStrategy
+  --   -- (widenStore widenVal, T.widening (E.widening W.finite widenVal))
+  --   (alloc, widenVal)
+  --   iterationStrategy 
+  --   (widenStore widenVal, T.widening (E.widening W.finite widenVal))
+  --   (Map.empty,(Map.empty,(env0,e0)))
+  -- where
+  --   e0 = generate (sequence e)
 
-    alloc = proc (var,_) -> do
-      ctx <- Ctx.askContext @Ctx -< ()
-      returnA -< (var,ctx)
+  --   alloc = proc (var,_) -> do
+  --     ctx <- Ctx.askContext @Ctx -< ()
+  --     returnA -< (var,ctx)
 
-    iterationStrategy =
-      -- Fix.traceShow .
-      -- collect . 
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
-      CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
-      Fix.filter apply chaotic --iterateInner -- parallel -- iterateInner --chaotic -- parallel -- iterateInner
+  --   iterationStrategy =
+  --     -- Fix.traceShow .
+  --     -- collect . 
+  --     Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+  --     -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
+  --     CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
+  --     Fix.filter apply chaotic --iterateInner -- parallel -- iterateInner --chaotic -- parallel -- iterateInner
 
-    widenVal :: Widening Val 
-    widenVal = widening (numGuardTop' 10) 
-    -- widenVal = finite  
+  --   widenVal :: Widening Val 
+  --   widenVal = widening (numGuardTop' 10) 
+  --   -- widenVal = finite  
 
 
 evalInterval' :: (?sensitivity :: Int) => Int -> [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)

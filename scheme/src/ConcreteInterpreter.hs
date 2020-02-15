@@ -15,10 +15,8 @@ module ConcreteInterpreter where
 
 import Prelude hiding (fail,(.))
 
-import Control.Category()
 import Control.Arrow
 import Control.Arrow.Fail
--- import Control.Arrow.Fix
 import Control.Arrow.State as State
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
 import qualified Control.Arrow.Closure as Cls
@@ -27,13 +25,10 @@ import Control.Arrow.Transformer.Value
 import Control.Arrow.Transformer.Concrete.FiniteEnvStore
 import Control.Arrow.Transformer.Concrete.Failure
 import Control.Arrow.Transformer.State
--- import Control.Arrow.Fix as Fix
+import Control.Arrow.Store(ArrowStore)
 
 import Control.Monad.State hiding (fail, StateT, get, put)
 
--- import Control.Arrow.Transformer.Abstract.Fix
-
--- import Control.Arrow.Fix.Context as Ctx
 import Data.Concrete.Error
 
 import Data.Concrete.Closure
@@ -69,37 +64,23 @@ data Val
   | ClosureVal Cls
   deriving (Generic, Eq)
 
-evalConcrete' :: [State Label Expr] -> (Int, (Store, Error String Val))
+evalConcrete' :: [State Label Expr] -> (Addr, (Store, Error String Val))
 evalConcrete' es = 
   Trans.run
-    (Generic.run_ :: 
-      --  Fix'
+    (Generic.run_ ::   
           ValueT Val 
             (FailureT String
-              (EnvStoreT Text Addr Val
-                -- (FixT _ _
-                (StateT Int
-                  (->)))) [Expr] Val)
-      alloc
-      -- iterationStrategy
+                (EnvStoreT Text Addr Val
+                  (StateT Addr
+                      (->)))) [Expr] Val)
       (0, (M.empty, (M.empty, generate <$> es)))
 
-  where
-    alloc = proc _ -> do
-      nextAddr <- get -< ()
+
+instance (ArrowChoice c, Profunctor c, ArrowState Int c, ArrowStore Addr Val c) => ArrowAlloc Addr (ValueT Val c) where
+  alloc = proc _ -> do
+      nextAddr <- get -< () 
       put -< nextAddr + 1
       returnA -< nextAddr
-    -- iterationStrategy = Fix.traceShow
-    --                     Fix.trace (\(env,(store,expr)) -> printf "STORE %s\nENV  %s\nExpr   %s\n" (show env) (show store) (show expr))
-    --                               (printf "RET   %s" . show) .
-
-       
--- recordLabels :: forall a lab b c. (Num lab, ArrowChoice c, ArrowContext lab c) => (a -> Maybe lab) -> FixpointCombinator c a b
--- recordLabels getLabel g = proc a -> do
---   case  getLabel a of 
---     Just lab -> Ctx.localContext g -< (lab,a)
---     Nothing -> Ctx.localContext g -< (0,a)
-
 
 evalConcrete'' :: [State Label Expr] -> (Either (Store, String) Val)
 evalConcrete'' exprs = case evalConcrete' exprs of
@@ -107,7 +88,6 @@ evalConcrete'' exprs = case evalConcrete' exprs of
     Success val -> Right val
     Fail str -> Left (store, str)
     
-
 -- | Concrete instance of the interface for value operations.
 instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
   type Join y (ValueT Val c) = ()
@@ -366,6 +346,8 @@ instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)
   {-# INLINE closure #-}
   {-# INLINE apply #-}
 
+-- instance ArrowStore Addr Val c => ArrowStore Addr Val (ValueT Val c) where 
+--   type Join
 
 instance IsClosure Val Env where
   traverseEnvironment _ (NumVal n) = pure $ NumVal n

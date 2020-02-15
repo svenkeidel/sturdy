@@ -35,6 +35,7 @@ import Control.Arrow.Store
 import Control.Arrow.Except
 import Control.Arrow.Reader
 import Control.Arrow.State
+import Control.Arrow.LetRec
 
 import Data.Profunctor.Unsafe
 import Data.Coerce

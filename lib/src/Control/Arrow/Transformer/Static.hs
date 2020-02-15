@@ -26,6 +26,7 @@ import Control.Arrow.State as State
 import Control.Arrow.Store as Store
 import Control.Arrow.Trans
 import Control.Arrow.Writer
+import Control.Arrow.LetRec as LetRec
 
 import Data.Profunctor
 import Data.Profunctor.Unsafe
@@ -144,8 +145,8 @@ instance (Applicative f, ArrowClosure expr cls c) => ArrowClosure expr cls (Stat
   {-# INLINE apply #-}
   {-# SPECIALIZE instance ArrowClosure expr cls c => ArrowClosure expr cls (StaticT ((->) r) c) #-}
 
-instance (Applicative f, ArrowLetRec var val c) => ArrowLetRec var val (StaticT f c) where
-  letRec (StaticT f) = StaticT $ Env.letRec <$> f
+instance (Applicative f, ArrowLetRec addr val c) => ArrowLetRec addr val (StaticT f c) where
+  letRec (StaticT f) = StaticT $ LetRec.letRec <$> f
   {-# INLINE letRec #-}
   {-# SPECIALIZE instance ArrowLetRec var val c => ArrowLetRec var val (StaticT ((->) r) c) #-}
 

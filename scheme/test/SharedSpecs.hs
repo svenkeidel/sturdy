@@ -30,6 +30,19 @@ sharedSpecRun run = describe "shared language behavior" $ do
         define "y" (lit $ S.Number 3),
         set "y" (lit $ S.Number 3)] `shouldBe` Right ((StringVal "#<void>"))
 
+  it "test simple let" $ do
+    let es' = [let_ [("y", lit $ S.Number 3)] ["y"] ]
+    run es' `shouldBe` Right (NumVal 3)
+
+  it "test simple letrec" $ do
+    let es' = [let_rec [("y", lit $ S.Number 3)] ["y"] ]
+    run es' `shouldBe` Right (NumVal 3)
+
+  it "test simple lambda" $ do
+    let es' = [app (lam ["x"] ["x"]) [lit $ S.Number 3]]
+    run es' `shouldBe` Right (NumVal 3)
+
+
   it "test define with lambda body  " $ do
     let es' = [let_rec [("y", lam ["y"] ["y"])]
                     [app "y" [lit $ S.Number 3]]]
@@ -44,6 +57,7 @@ sharedSpecRun run = describe "shared language behavior" $ do
   it "demonstrate need for stepwise evaluation of letrec bindings" $ do
     let es' = [let_rec [("x", lit $ S.Number 4),
                         ("y", "x")]
+                    --  [lam ["x"] ["x"]]]
                         ["y"]]
     run es' `shouldBe` Right (NumVal 4)
 
@@ -100,7 +114,7 @@ sharedSpecFile :: ([State Label Expr] -> Either (HashMap Addr Val, String) Val) 
 sharedSpecFile run = do
 
 -----------------GABRIEL BENCHMARKS---------------------------------------------
-  describe "Gabriel Benchmarks" $ do
+  describe "Gabriel-Benchmarks" $ do
     it "cpstak" $ do 
       -- pendingWith "passes, but takes veeery long"
       file_str <- helper_import "//scheme_files//gabriel//cpstak.scm"
@@ -148,7 +162,7 @@ sharedSpecFile run = do
         Left a -> print $ showError a
 
 -------------------SCALA-AM BENCHMARKS------------------------------------------
-  describe "Scala-AM Benchmarks" $ do
+  describe "Scala-AM-Benchmarks" $ do
     it "collatz" $ do
       file_str <- helper_import "//scheme_files//scala-am//collatz.scm"
       case readExprList file_str of
@@ -185,25 +199,156 @@ sharedSpecFile run = do
             Left b -> print b
         Left a -> print $ showError a
 
-  describe "Custom_Tests" $ 
-    it "let statements should extend the environment with bindings" $ do
-      pendingWith "insert test"
-      file_str <- helper_import "//scheme_files//test.scm"
-      putStrLn file_str
-      case readExprList file_str of
-        Right a ->
-          case match a of
-            Right b -> do
-              putStrLn (show b)
-              let es = let_rec (getTopDefinesLam b) (getBody b)
-              putStr $ show $ generate es
-              run [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Right (BoolVal True)
-            Left b -> print b
-        Left a -> print $ showError a
+
+  -- describe "Custom_Tests" $ 
+  --   it "let statements should extend the environment with bindings" $ do
+  --     pendingWith "insert test"
+  --     file_str <- helper_import "//scheme_files//test.scm"
+  --     putStrLn file_str
+  --     case readExprList file_str of
+  --       Right a ->
+  --         case match a of
+  --           Right b -> do
+  --             putStrLn (show b)
+  --             let es = let_rec (getTopDefinesLam b) (getBody b)
+  --             putStr $ show $ generate es
+  --             run [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Right (BoolVal True)
+  --           Left b -> print b
+  --       Left a -> print $ showError a
+------------------------------------------CUSTOMS--------------------------------------------
+
+  describe "Custom_Tests" $ do
+      -- let ?bound = 100
+      -- let ?sensitivity = 0
+      it "recursion and union with empty list" $ do
+        let inFile = "test_rec_empty"
+        let expRes = Right $ ListVal []
+        helper_test run inFile expRes      
+
+      it "recursion and union with non-empty list" $ do
+        let inFile = "test_rec_nonempty"
+        let expRes = Right $ ListVal [NumVal 1]
+        helper_test run inFile expRes               
+
+      it "should return listVal for (cdr '(2 3 4))" $ do
+        let inFile = "test_cdr"
+        let expRes = Right $ ListVal $ [NumVal 3, NumVal 4]
+        helper_test run inFile expRes  
+
+      it "should return correct val for car" $ do
+        let inFile = "test_car"
+        let expRes = Right $ NumVal 1
+        helper_test run inFile expRes      
+
+      it "should return true for null? cdr cdr '(1 2)" $ do
+        let inFile = "test_null"
+        let expRes = Right $ BoolVal True
+        helper_test run inFile expRes       
+
+      -- it "unifying two list of nums of different size should result in an error" $ do
+      --   let inFile = "test_faulty_list"
+      --   let expRes = Terminating (Fail "{\"cannot unify lists of differing lengths| List [Int: {1}], List [Int: {1},Int: {2}]\"}")           
+      --   helper_test inFile expRes  
+
+      it "test_if" $ do
+        let inFile = "test_if"
+        let expRes = Right $ ListVal [NumVal 1, NumVal 2]          
+        helper_test run inFile expRes            
+
+      it "test_opvars" $ do
+        let inFile = "test_opvars"
+        let expRes = Right $ NumVal 10          
+        helper_test run inFile expRes         
+
+      it "test_equal" $ do
+        let inFile = "test_equal"
+        let expRes = Right $ BoolVal True
+        helper_test run inFile expRes   
+
+      it "test_cons" $ do
+        let inFile = "test_cons"
+        let expRes = Right $ BoolVal True
+        helper_test run inFile expRes 
+
+      it "test_closures_gc" $ do
+        let inFile = "test_closure_gc"
+        let expRes = Right $ NumVal 16          
+        helper_test run inFile expRes 
+
+      it "lang_scheme_test" $ do
+        let inFile = "lang_scheme_test"
+        let expRes = Right $ NumVal 8   
+        helper_test run inFile expRes 
+
+      it "test_inner_define" $ do
+        let inFile = "test_inner_define"
+        let expRes = Right $ NumVal 10          
+        helper_test run inFile expRes 
+
+      it "test_subtraction" $ do
+        let inFile = "test_subtraction"
+        let expRes = Right $ NumVal (-4)   
+        helper_test run inFile expRes     
+
+      -- it "test_endless_recursion" $ do
+      --   -- pendingWith "doesnt terminate"
+      --   let inFile = "test_endless_recursion"
+      --   let expRes = NonTerminating
+      --   helper_test inFile expRes     
+
+      -- it "test_endless_nums" $ do
+      --   let inFile = "test_endless_nums"
+      --   let expRes = NonTerminating
+      --   helper_test inFile expRes     
+
+      it "test_lits" $ do
+        let inFile = "test_lits"
+        let expRes = Right $ NumVal 3 
+        helper_test run inFile expRes     
+
+      it "test_simple_floats" $ do
+        let inFile = "test_simple_floats"
+        let expRes = Right $ BoolVal False 
+        helper_test run inFile expRes     
+
+      it "test_rec_defines" $ do
+        let inFile = "test_rec_defines"
+        let expRes = Right $ NumVal 720 
+        helper_test run inFile expRes     
+
 
 -------------------HELPER-------------------------------------------------------
 helper_import :: String -> IO String
 helper_import inFile = do
   root <- getCurrentDirectory
   let root' = root ++ inFile
+  readCreateProcess (shell $ "raco expand " ++ root') ""
+
+-- helper_test :: String -> Either (HashMap Addr Val, String) Val -> IO ()
+-- helper_test inFile expRes = do
+--   file_str <- helper_import inFile
+--   case readExprList file_str of
+--     Right a ->
+--       case match a of
+--         Right b -> do
+--           let res = run [let_rec (getTopDefinesLam b) (getBody b)]
+--           res`shouldBe` expRes
+--         Left b -> print b
+--     Left a -> print $ showError a
+
+
+helper_test :: ([State Label Expr] -> Either (HashMap Addr Val, String) Val) -> String -> Either (HashMap Addr Val, String) Val -> IO ()
+helper_test run inFile expRes = do
+  file_str <- helper_import_ inFile
+  case readExprList file_str of
+    Right a ->
+      case match a of
+        Right b -> run [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` expRes
+        Left b -> print b
+    Left a -> print $ showError a
+
+helper_import_ :: String -> IO String
+helper_import_ inFile = do
+  root <- getCurrentDirectory
+  let root' = root ++ "//scheme_files//" ++  inFile ++ ".scm"
   readCreateProcess (shell $ "raco expand " ++ root') ""
