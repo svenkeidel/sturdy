@@ -26,6 +26,7 @@ import Control.Arrow.State as State
 import Control.Arrow.Store as Store
 import Control.Arrow.Trans
 import Control.Arrow.LetRec
+import Control.Arrow.Fix.Context
 
 import Data.Monoidal
 import Data.Profunctor (Profunctor(..))
@@ -152,3 +153,7 @@ instance (ArrowMonad f c, ArrowComplete (f y) c) => ArrowComplete y (KleisliT f 
 
 instance (ArrowMonad f c, ArrowLowerBounded c) => ArrowLowerBounded (KleisliT f c) where
   bottom = lift Ord.bottom
+
+instance (ArrowMonad f c, ArrowContext ctx c) => ArrowContext ctx (KleisliT f c) where
+  localContext (KleisliT f) = KleisliT (localContext f)
+  {-# INLINE localContext #-}

@@ -6,7 +6,7 @@
 module GenericInterpreter where
 
 import           Prelude hiding (succ, pred, fail, map)
-import           Syntax (Literal(..), Expr(..), Op1_(..), Op2_(..), OpVar_(..))
+import           Syntax (Literal(..), Expr(..), Op1_(..), Op2_(..), OpVar_(..),list)
 
 import           Control.Arrow
 import           Control.Arrow.Fail
@@ -14,6 +14,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Environment(ArrowEnv)
 import           Control.Arrow.LetRec(ArrowLetRec)
 import qualified Control.Arrow.LetRec as LetRec
+import           Control.Arrow.Fix.Context
 
 
 -- import           Control.Arrow.LetRec (ArrowLetRec_)
@@ -26,7 +27,8 @@ import qualified Control.Arrow.Store as Store
 import           Control.Arrow.Utils
 
 
-import           Data.Text (Text)
+import           Data.Text (Text,pack)
+import           Data.Label (fresh)
 import           Text.Printf
 import           Data.List.Split
 
@@ -43,6 +45,7 @@ eval :: (ArrowChoice c,
          ArrowLetRec Text v c,
          IsNum v c,
          Env.Join v c,
+         ArrowList addr v c,
          Cls.Join v v c,
          Store.Join v c,
          Join v c,
@@ -53,6 +56,58 @@ eval :: (ArrowChoice c,
 eval run' = proc e0 -> case e0 of
   -- inner representation and evaluation
   Lit x _ -> lit -< x
+  List [] l -> emptyList -< ()
+  List xs l -> do
+    fst <- run' -< [head xs]
+    if length xs == 1 
+      then do 
+        snd <- emptyList -< ()
+        a1 <- alloc -< Right $ head xs 
+        a2 <- alloc -< Left $ pack "Top" 
+        write -< (a1, fst)
+        write -< (a2, snd)
+        list_ -< (a1,a2)        
+      else do      
+        -- if length xs > 2 
+          -- then do
+        snd <- run' -< [List (tail xs) l]
+        a1 <- alloc -< Right $ head xs 
+        a2 <- alloc -< Right $ List (tail xs) l
+        write -< (a1, fst)
+        write -< (a2, snd)
+        list_ -< (a1,a2)    
+          -- else do 
+          --   snd <- run' -< tail xs 
+          --   a1 <- alloc -< Right $ head xs 
+          --   a2 <- alloc -< Right $ (head $ tail xs)
+          --   write -< (a1, fst)
+          --   write -< (a2, snd)
+          --   list_ -< (a1,a2)    
+  Cons x1 x2 l -> do 
+    fst <- run' -< [x1]
+    snd <- run' -< [x2]
+    a1 <- alloc -< Right $ x1
+    a2 <- alloc -< Right $ x2
+    write -< (a1, fst)
+    write -< (a2, snd)
+    cons_ -< (a1,a2)    
+  -- List_ xs l -> do
+  --   fst <- run' -< [head xs]
+  --   if length xs > 2 
+  --     then do
+  --       snd <- run' -< [List (tail xs) l]
+  --       a1 <- alloc -< Right $ head xs 
+  --       a2 <- alloc -< Right $ List (tail xs) l
+  --       write -< (a1, fst)
+  --       write -< (a2, snd)
+  --       list_ -< (a1,a2)    
+  --     else do 
+  --       snd <- run' -< tail xs 
+  --       a1 <- alloc -< Right $ head xs 
+  --       a2 <- alloc -< Right $ (head $ tail xs)
+  --       write -< (a1, fst)
+  --       write -< (a2, snd)
+  --       list_ -< (a1,a2)            
   Begin es _ -> do
     run' -< es
   App e1 e2 _ -> do
@@ -68,7 +123,7 @@ eval run' = proc e0 -> case e0 of
     Env.extend' run' -< (vs,body)
   LetRec bnds body _ -> do
     vs <- evalBindings' -< bnds
-    addrs <- map alloc -< [(var,val) | (var,_,val) <- vs]
+    addrs <- map alloc -< [Left var | (var,_,val) <- vs]
     Env.extend' (LetRec.letRec run') -< ([(var,addr) | ((var,_,_),addr) <- zip vs addrs], ([(var,val) | (var,_,val) <- vs], body))
   Set x e l -> run' -< [Set x e l]
   Define xs e l -> run' -< [Define xs e l]
@@ -92,7 +147,7 @@ eval run' = proc e0 -> case e0 of
       Lam xs body l -> do
         if length xs == length args
           then do
-            addrs <- map alloc -< (zip xs args)
+            addrs <- map alloc -< map (\x -> Left x) xs
             map write -< zip addrs args
             Env.extend' run' -< (zip xs addrs, [Apply body l])
           else fail -< fromString $ "Applied a function to too many or too few arguments, params: "
@@ -102,7 +157,7 @@ eval run' = proc e0 -> case e0 of
       [] -> returnA -< []
       (var,expr) : bnds' -> do
         val <- run' -< [expr]
-        addr <- alloc -< (var,val)
+        addr <- alloc -< Left var
         write -< (addr,val)
         vs <- Env.extend (evalBindings) -< (var, addr, bnds')
         returnA -< (var,addr) : vs
@@ -112,7 +167,7 @@ eval run' = proc e0 -> case e0 of
       [] -> returnA -< []
       (var,expr) : bnds' -> do
         val <- run' -< [expr]
-        addr <- alloc -< (var,val)
+        addr <- alloc -< Left var
         write -< (addr,val)
         --only adds closure to its own env so it can call itself recursively
         vs <- Env.extend (LetRec.letRec (evalBindings')) -< (var,addr,([(var,val)],bnds')) 
@@ -132,6 +187,7 @@ run_ :: (ArrowChoice c,
          Cls.Join v v c,
          Store.Join v c,
          Join v c,
+         ArrowList addr v c,
          ArrowAlloc addr c,
          Show addr)
     => c [Expr] v
@@ -151,7 +207,7 @@ run_ = fix $ \run' -> proc es -> case es of
     -- Not used except by test cases, which explicitly use define expression 
     -- TODO: Check whether pre_val == Undefined if so continue else => Error "Var has already been defined"
     cls <- run' -< [e]
-    addr <- alloc -< (x,cls)
+    addr <- alloc -< Left x
     write -< (addr,cls)
     if rest == []
       then Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)], [Lit (String "#<void>") l]))
@@ -164,13 +220,18 @@ run_ = fix $ \run' -> proc es -> case es of
 
 
 class ArrowAlloc addr c where
-  alloc :: (ArrowEnv Text addr c, ArrowStore addr v c) => c (Text,v) addr
+  alloc :: (ArrowEnv Text addr c, ArrowStore addr v c) => c (Either Text Expr) addr
+
+class ArrowList addr v c where
+  list_ :: c (addr,addr) v 
+  cons_ :: c (addr,addr) v
 
 -- | Interface for numeric operations
 class Arrow c => IsNum v c | c -> v where
   type family Join y (c :: * -> * -> *) :: Constraint
   lit :: c Literal v
   if_ :: Join z c => c x z -> c y z -> c (v, (x, y)) z
+  emptyList :: c () v
 
   op1_ :: c (Op1_, v) v
   op2_ :: c (Op2_, v, v) v

@@ -26,8 +26,7 @@ data Literal
   | String String -- any amount of chars and double quotation (")
   | Symbol String
   | Quote Literal
-  | List [Literal]
-  | DottedList [Literal] Literal
+  -- | DottedList [Literal] Literal
   deriving (Eq)
 
 data Op1_
@@ -69,7 +68,6 @@ data Op2_
   | Remainder -- (remainder z1 z2)
   | Modulo -- (modulo z1 z2)
 -- | List operations
-  | Cons -- (cons z1 z2)
   deriving (Eq)
 
 data OpVar_
@@ -91,7 +89,6 @@ data OpVar_
   -- | And -- (and z1 z2 z3 ...)
   -- | Or -- (or z1 z2 z3 ...)
 -- | List operations
-  | List_ -- (list z1 z2 z3 ...)
   deriving (Eq)
 
 
@@ -100,6 +97,10 @@ data OpVar_
 data Expr
 -- | Expressions for inner representation and evaluation
   = Lit Literal Label
+  | List [Expr] Label -- '(1 2 3)
+  | Cons Expr Expr Label -- (cons z1 z2)
+
+  -- | List_ [Expr] Label -- (list z1 z2 z3 ...)
   | Begin [Expr] Label
   | App Expr [Expr] Label
   | Apply [Expr] Label
@@ -122,6 +123,12 @@ data Expr
 -- | Expressions for inner representation and evaluation
 lit :: Literal -> State Label Expr
 lit x = Lit x <$> fresh
+list :: [State Label Expr] -> State Label Expr 
+list xs = List <$> (sequence xs) <*> fresh 
+-- list_ :: [State Label Expr] -> State Label Expr 
+-- list_ xs = List_ <$> (sequence xs) <*> fresh 
+cons :: State Label Expr -> State Label Expr ->State Label Expr 
+cons e1 e2 = Cons <$> e1 <*> e2 <*> fresh
 begin :: [State Label Expr] -> State Label Expr
 begin es = Begin <$> (sequence es) <*> fresh
 app :: State Label Expr -> [State Label Expr] -> State Label Expr
@@ -160,8 +167,7 @@ instance Show Literal where
     String x -> showString ("String ") . shows (x)  -- any amount of chars and double quotation (")
     Symbol x -> showString ("Symbol ") . shows (x)
     Quote x -> showString ("Quote ") . shows (x)
-    List xs -> showString ("List ") . showList(xs)
-    DottedList xs x -> showString ("DottedList ") . showList(xs) . showString (" . ") . shows (x)
+    -- DottedList xs x -> showString ("DottedList ") . showList(xs) . showString (" . ") . shows (x)
 
 instance Show Op1_ where
   showsPrec _ e0 = case e0 of
@@ -197,7 +203,6 @@ instance Show Op2_ where
     Quotient -> showString ("quotient ")
     Remainder -> showString ("remainder ")
     Modulo -> showString ("modulo ")
-    Cons -> showString ("cons ")
 
 instance Show OpVar_ where
   showsPrec _ e0 = case e0 of
@@ -216,11 +221,14 @@ instance Show OpVar_ where
     Lcm -> showString ("lcm ")
     -- And -> showString ("and ")
     -- Or -> showString ("or ")
-    List_ -> showString ("list")
+    -- List_ -> showString ("list")
 
 instance Show Expr where
   showsPrec d e0 = case e0 of
     Lit x _ -> shows x
+    List xs _ -> showString ("List ") . showList(xs)
+      
+    Cons e1 e2 _ -> showString ("cons ") . showsPrec (app_prec + 1) e1 . showsPrec (app_prec + 1) e2
     Begin es _->
       showString "{"
       . shows es
@@ -308,6 +316,8 @@ instance Labellable Expr where
 instance HasLabel Expr where
   label e = case e of
     Lit _ l -> l
+    List _ l -> l
+    Cons _ _ l -> l
     Begin _ l -> l
     App _ _ l -> l
     Apply _ l -> l

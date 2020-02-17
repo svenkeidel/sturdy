@@ -25,7 +25,6 @@ import Control.Arrow.Transformer.Value
 import Control.Arrow.Transformer.Concrete.FiniteEnvStore
 import Control.Arrow.Transformer.Concrete.Failure
 import Control.Arrow.Transformer.State
-import Control.Arrow.Store(ArrowStore)
 
 import Control.Monad.State hiding (fail, StateT, get, put)
 
@@ -65,18 +64,18 @@ data Val
   deriving (Generic, Eq)
 
 evalConcrete' :: [State Label Expr] -> (Addr, (Store, Error String Val))
-evalConcrete' es = 
-  Trans.run
-    (Generic.run_ ::   
-          ValueT Val 
-            (FailureT String
-                (EnvStoreT Text Addr Val
-                  (StateT Addr
-                      (->)))) [Expr] Val)
-      (0, (M.empty, (M.empty, generate <$> es)))
+evalConcrete' es = undefined
+  -- Trans.run
+  --   (Generic.run_ ::   
+  --         ValueT Val 
+  --           (FailureT String
+  --               (EnvStoreT Text Addr Val
+  --                 (StateT Addr
+  --                     (->)))) [Expr] Val)
+  --     (0, (M.empty, (M.empty, generate <$> es)))
 
 
-instance (ArrowChoice c, Profunctor c, ArrowState Int c, ArrowStore Addr Val c) => ArrowAlloc Addr (ValueT Val c) where
+instance (ArrowChoice c, Profunctor c, ArrowState Int c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = proc _ -> do
       nextAddr <- get -< () 
       put -< nextAddr + 1
@@ -100,8 +99,8 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
     Char n -> returnA -< CharVal n
     String n -> returnA -< StringVal n
     Quote n -> returnA -< evalQuote n
-    List ns -> returnA -< ListVal (map litsToVals ns)
-    DottedList ns n -> returnA -< DottedListVal (map litsToVals ns) (litsToVals n)
+    -- List ns -> returnA -< ListVal (map litsToVals ns)
+    -- DottedList ns n -> returnA -< DottedListVal (map litsToVals ns) (litsToVals n)
     _ -> fail -< "(lit): Expected type didn't match with given type" ++ show (x)
 
   if_ f g = proc (v1, (x, y)) -> case v1 of
@@ -252,12 +251,12 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
       case (x, y) of
         (NumVal n, NumVal m) -> returnA -< NumVal (n `mod` m)
         _ -> fail -< "(modulo): Contract violation, epxected elements of type int"
-    Cons -> do
-      case (x, y) of
-        (n, ListVal []) -> returnA -< ListVal [n]
-        (n, ListVal ns) -> returnA -< ListVal (n:ns)
-        (n, DottedListVal ns nlast) -> returnA -< DottedListVal (n:ns) nlast
-        (n, m) -> returnA -< DottedListVal [n] m
+    -- Cons -> do
+    --   case (x, y) of
+    --     (n, ListVal []) -> returnA -< ListVal [n]
+    --     (n, ListVal ns) -> returnA -< ListVal (n:ns)
+    --     (n, DottedListVal ns nlast) -> returnA -< DottedListVal (n:ns) nlast
+    --     (n, m) -> returnA -< DottedListVal [n] m
 
   opvar_ =  proc (op, xs) -> case op of
     EqualS -> case (withOrdEqHelp (==) xs) of
@@ -332,7 +331,7 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
     -- Or -> case foldl (withBoolFold (||)) (Right $ head xs) (tail xs) of
     --   Left a -> fail -< "(or): Contract violation, " ++ a
     --   Right a -> returnA -< a
-    List_ -> returnA -< ListVal xs
+    -- List_ -> returnA -< ListVal xs
 
 
 -- | Concrete instance of the interface for closure operations.
@@ -359,7 +358,7 @@ instance IsClosure Val Env where
   traverseEnvironment _ (SymVal n) = pure $ SymVal n
   traverseEnvironment _ (QuoteVal n) = pure $ QuoteVal n
   traverseEnvironment _ (ListVal ns) = pure $ ListVal ns
-  traverseEnvironment _ (DottedListVal ns n) = pure $ DottedListVal ns n
+  -- traverseEnvironment _ (DottedListVal ns n) = pure $ DottedListVal ns n
   traverseEnvironment f (ClosureVal cl) = ClosureVal <$> traverse f cl
 
   mapEnvironment _ (NumVal n) = NumVal n
@@ -371,7 +370,7 @@ instance IsClosure Val Env where
   mapEnvironment _ (SymVal n) = SymVal n
   mapEnvironment _ (QuoteVal n) = QuoteVal n
   mapEnvironment _ (ListVal ns) = ListVal ns
-  mapEnvironment _ (DottedListVal ns n) = DottedListVal ns n
+  -- mapEnvironment _ (DottedListVal ns n) = DottedListVal ns n
   mapEnvironment f (ClosureVal (Closure expr env)) = ClosureVal (Closure expr (f env))
 
 
@@ -491,8 +490,8 @@ evalQuote (Char n) = CharVal n
 evalQuote (String n) = StringVal n
 evalQuote (Symbol n) = QuoteVal (SymVal n)
 evalQuote (Quote n) = QuoteVal $ litsToVals n
-evalQuote (List ns) = ListVal $ map evalQuote ns
-evalQuote (DottedList ns n) = DottedListVal (map evalQuote ns) (evalQuote n)
+-- evalQuote (List ns) = ListVal $ map evalQuote ns
+-- evalQuote (DottedList ns n) = DottedListVal (map evalQuote ns) (evalQuote n)
 
 litsToVals :: Literal -> Val
 litsToVals (Number n) = NumVal n
@@ -503,8 +502,8 @@ litsToVals (Char n) = CharVal n
 litsToVals (String n) = StringVal n
 litsToVals (Symbol n) = SymVal n
 litsToVals (Quote n) = QuoteVal $ litsToVals n
-litsToVals (List ns) = ListVal $ map litsToVals ns
-litsToVals (DottedList ns n) = DottedListVal (map litsToVals ns) (litsToVals n)
+-- litsToVals (List ns) = ListVal $ map litsToVals ns
+-- litsToVals (DottedList ns n) = DottedListVal (map litsToVals ns) (litsToVals n)
 
 checkZero :: Val -> Bool
 checkZero x = case x of

@@ -23,6 +23,7 @@ import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
 import Control.Category
 import Control.Arrow.LetRec
+import Control.Arrow.Fix.Context
 
 import Data.Abstract.Terminating
 import Data.Abstract.Widening
@@ -33,9 +34,9 @@ import Data.Coerce
 
 -- | Arrow that propagates non-terminating computations.
 newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,  
             ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore addr val)
+            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore addr val, ArrowContext ctx)
 
 runTerminatingT :: TerminatingT c x y -> c x (Terminating y)
 runTerminatingT = coerce

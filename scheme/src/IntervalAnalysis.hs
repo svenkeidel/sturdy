@@ -46,6 +46,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
 import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.Arrow.Fix.Context
 
 import           Control.Monad.State hiding (lift,fail)
 
@@ -195,43 +196,45 @@ type Out' = (Gr Expr (),
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?sensitivity :: Int) => [(Text,Val)] -> [State Label Expr] -> Out'
-evalInterval env0 e = undefined
-  -- run (extend' (Generic.run_ ::
-  --     Fix'
-  --       (ValueT Val
-  --         (ErrorT (Pow String)
-  --           (TerminatingT
-  --             (EnvStoreT Text Addr Val
-  --               (FixT _ _
-  --                 (--ChaoticT In
-  --                   (StackT Stack In
-  --                     (CacheT Monotone In Out
-  --                       (ContextT Ctx 
-  --                         (ControlFlowT Expr -- unter fixT liften
-  --                           (->))))))))))) [Expr] Val))
-  --   (alloc, widening)
-  --   iterationStrategy
-  --   (W.finite, T.widening (E.widening W.finite widening)) --something is wrong with widenStore 
-  --   (Map.empty,(Map.empty,(env0,e0)))
-  -- where
-  --   e0 = generate (sequence e)
+evalInterval :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+evalInterval env0 e = undefined 
+-- run (extend' (Generic.run_ ::
+--       Fix'
+--         (ValueT Val
+--           (ErrorT (Pow String)
+--             (TerminatingT
+--               (EnvStoreT Text Addr Val
+--                 (FixT _ _
+--                   (--ChaoticT In
+--                     (StackT Stack In
+--                       (CacheT Monotone In Out
+--                         (ContextT Ctx 
+--                           (ControlFlowT Expr -- unter fixT liften
+--                             (->))))))))))) [Expr] Val))
+--     widening
+--     iterationStrategy
+--     (W.finite, T.widening (E.widening W.finite widening)) --something is wrong with widenStore 
+--     (Map.empty,(Map.empty,(env0,e0)))
+--   where
+--     e0 = generate (sequence e)
+--     iterationStrategy =
+--       -- Fix.traceShow .
+--       -- collect . 
+--       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+--       -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
+--       CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
+--       Fix.filter apply chaotic -- parallel -- iterateInner
 
-  --   alloc = proc (var,_) -> do
-  --     ctx <- Ctx.askContext @Ctx -< ()
-  --     returnA -< (var,ctx)
-
-  --   iterationStrategy =
-  --     -- Fix.traceShow .
-  --     -- collect . 
-  --     Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-  --     -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
-  --     CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
-  --     Fix.filter apply chaotic -- parallel -- iterateInner
+instance (ArrowChoice c, ArrowContext Ctx c, ArrowFail e c, IsString e) 
+    => ArrowAlloc Addr (ValueT Val c) where
+  alloc = proc x -> case x of 
+    Left var -> do 
+      ctx <- Ctx.askContext @Ctx -< ()
+      returnA -< (var,ctx)
+    Right _ -> fail -< " "
 
 
-
-evalInterval' :: (?sensitivity :: Int) => [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
+evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
 evalInterval' env exprs = snd $ snd $ snd $ evalInterval env exprs
 {-# INLINE evalInterval' #-}
 
@@ -253,12 +256,12 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Char _ -> returnA -< StringVal
     String _ -> returnA -< StringVal
     Quote _ -> returnA -< QuoteVal
-    List [] -> returnA -< ListVal Bottom
-    List (y:ys) -> case listHelp y ys of
-      TypeError msg -> fail -< fromString $ show msg
-      val -> returnA -< ListVal val
-    DottedList [] z -> returnA -< ListVal $ litsToVals z
-    DottedList (y:ys) z -> returnA -< ListVal $ listHelp y (ys ++ [z])
+    -- List [] -> returnA -< ListVal Bottom
+    -- List (y:ys) -> case listHelp y ys of
+    --   TypeError msg -> fail -< fromString $ show msg
+    --   val -> returnA -< ListVal val
+    -- DottedList [] z -> returnA -< ListVal $ litsToVals z
+    -- DottedList (y:ys) z -> returnA -< ListVal $ listHelp y (ys ++ [z])
     _ -> fail -< fromString $ "(lit): Expected type didn't match with given type| " ++ show x 
 
   if_ f g = proc (v,(x,y)) -> case v of
@@ -357,12 +360,12 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Quotient -> withNumToNum2 -< (x,y) 
     Remainder -> withNumToNum2 -< (x,y)
     Modulo -> withNumToNum2 -< (x,y)
-    Cons -> 
-      case (x, y) of
-        (n, ListVal val) -> returnA -< ListVal $ snd $ widening n val
-        (TypeError msg, _) -> fail -< fromString $ show msg 
-        (_, TypeError msg) -> fail -< fromString $ show msg
-        (n, m) -> returnA  -< ListVal $ snd $ widening n m
+    -- Cons -> 
+    --   case (x, y) of
+    --     (n, ListVal val) -> returnA -< ListVal $ snd $ widening n val
+    --     (TypeError msg, _) -> fail -< fromString $ show msg 
+    --     (_, TypeError msg) -> fail -< fromString $ show msg
+    --     (n, m) -> returnA  -< ListVal $ snd $ widening n m
   opvar_ =  proc (op, xs) -> case op of
     EqualS -> withOpvarWrap withOrdHelp -< xs
     SmallerS -> withOpvarWrap withOrdHelp -< xs
@@ -405,7 +408,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     -- Or -> case xs of 
     --   [] -> returnA -< BoolVal B.False
     --   _ -> withOpvarWrap withBoolOrHelp -< xs 
-    List_ -> returnA -< ListVal $ widenHelp xs
+    -- List_ -> returnA -< ListVal $ widenHelp xs
   {-# INLINE lit #-}
   {-# INLINE if_ #-}
   {-# INLINE op1_ #-}
@@ -530,7 +533,7 @@ listHelp x (y:[]) = snd $ widening (litsToVals x) (litsToVals y)
 listHelp x (y:ys) = case snd $ widening (litsToVals x) (litsToVals y) of 
   TypeError msg -> TypeError msg
   _ -> listHelp x ys
-{-# INLINE listHelp #-}
+{-# INLINE listHelp #-}  
 
 litsToVals :: Literal -> Val
 litsToVals (Number _) = NumVal
@@ -542,10 +545,10 @@ litsToVals (Char _) = StringVal
 litsToVals (String _) = StringVal
 litsToVals (Quote _) = QuoteVal
 litsToVals (Symbol _) = QuoteVal
-litsToVals (List []) = ListVal Bottom
-litsToVals (List (n:ns)) = ListVal $ listHelp n ns
-litsToVals (DottedList (n:ns) z) = ListVal $ listHelp n (ns++[z])
-litsToVals (DottedList [] z) = ListVal $ litsToVals z
+-- litsToVals (List []) = ListVal Bottom
+-- litsToVals (List (n:ns)) = ListVal $ listHelp n ns
+-- litsToVals (DottedList (n:ns) z) = ListVal $ listHelp n (ns++[z])
+-- litsToVals (DottedList [] z) = ListVal $ litsToVals z
 {-# INLINE litsToVals #-}
 
 withNumToTop :: (ArrowChoice c, ArrowFail e c, IsString e) => c Val Val 

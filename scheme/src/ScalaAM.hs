@@ -47,6 +47,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
 import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.Arrow.Fix.Context
 
 import           Control.Monad.State hiding (lift,fail)
 
@@ -187,49 +188,52 @@ type Out' = (Gr Expr (),
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?sensitivity :: Int) => Int -> [(Text,Val)] -> [State Label Expr] -> Out'
-evalInterval _ env0 e = undefined
-  -- run (extend' (Generic.run_ ::
-  --     Fix'
-  --       (ValueT Val
-  --         (ErrorT (Pow String)
-  --           (TerminatingT
-  --             (EnvStoreT Text Addr Val
-  --               (FixT _ _
-  --                 (ChaoticT In
-  --                   (StackT Stack In
-  --                     (CacheT Monotone In Out
-  --                       (ContextT Ctx 
-  --                         (ControlFlowT Expr -- unter fixT liften
-  --                           (->))))))))))) [Expr] Val))
-  --   -- (alloc, widenVal)
-  --   -- iterationStrategy
-  --   -- (widenStore widenVal, T.widening (E.widening W.finite widenVal))
-  --   (alloc, widenVal)
-  --   iterationStrategy 
-  --   (widenStore widenVal, T.widening (E.widening W.finite widenVal))
-  --   (Map.empty,(Map.empty,(env0,e0)))
-  -- where
-  --   e0 = generate (sequence e)
+evalInterval :: (?sensitivity :: Int) => Int -> [(Text,Addr)] -> [State Label Expr] -> Out'
+evalInterval _ env0 e = undefined 
+-- run (extend' (Generic.run_ ::
+--       Fix'
+--         (ValueT Val
+--           (ErrorT (Pow String)
+--             (TerminatingT
+--               (EnvStoreT Text Addr Val
+--                 (FixT _ _
+--                   (ChaoticT In
+--                     (StackT Stack In
+--                       (CacheT Monotone In Out
+--                         (ContextT Ctx 
+--                           (ControlFlowT Expr -- unter fixT liften
+--                             (->))))))))))) [Expr] Val))
+--     -- (alloc, widenVal)
+--     -- iterationStrategy
+--     -- (widenStore widenVal, T.widening (E.widening W.finite widenVal))
+--     widenVal
+--     iterationStrategy 
+--     (widenStore widenVal, T.widening (E.widening W.finite widenVal))
+--     (Map.empty,(Map.empty,(env0,e0)))
+--   where
+--     e0 = generate (sequence e)
+--     iterationStrategy =
+--       -- Fix.traceShow .
+--       -- collect . 
+--       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+--       -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
+--       CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
+--       Fix.filter apply chaotic --iterateInner -- parallel -- iterateInner --chaotic -- parallel -- iterateInner
 
-  --   alloc = proc (var,_) -> do
-  --     ctx <- Ctx.askContext @Ctx -< ()
-  --     returnA -< (var,ctx)
-
-  --   iterationStrategy =
-  --     -- Fix.traceShow .
-  --     -- collect . 
-  --     Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-  --     -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
-  --     CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
-  --     Fix.filter apply chaotic --iterateInner -- parallel -- iterateInner --chaotic -- parallel -- iterateInner
-
-  --   widenVal :: Widening Val 
-  --   widenVal = widening (numGuardTop' 10) 
-  --   -- widenVal = finite  
+--     widenVal :: Widening Val 
+--     widenVal = widening (numGuardTop' 3) 
+--     -- widenVal = finite  
 
 
-evalInterval' :: (?sensitivity :: Int) => Int -> [(Text,Val)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
+instance (ArrowChoice c, ArrowContext Ctx c, ArrowFail e c, IsString e) 
+    => ArrowAlloc Addr (ValueT Val c) where
+  alloc = proc x -> case x of 
+    Left var -> do 
+      ctx <- Ctx.askContext @Ctx -< ()
+      returnA -< (var,ctx)
+    Right _ -> fail -< " "
+
+evalInterval' :: (?sensitivity :: Int) => Int -> [(Text,Addr)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
 evalInterval' bound env exprs = snd $ snd $ snd $ evalInterval bound env exprs
 {-# INLINE evalInterval' #-}
 
@@ -250,10 +254,10 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Char _ -> returnA -< StringVal
     String _ -> returnA -< StringVal
     Quote _ -> returnA -< QuoteVal
-    List [] -> returnA -< ListVal [Bottom]
-    List ys -> returnA -< ListVal $ map litsToVals ys 
-    DottedList [] z -> returnA -< ListVal $ [litsToVals z]
-    DottedList ys z -> returnA -< ListVal $ map litsToVals (ys ++ [z])
+    -- List [] -> returnA -< ListVal [Bottom]
+    -- List ys -> returnA -< ListVal $ map litsToVals ys 
+    -- DottedList [] z -> returnA -< ListVal $ [litsToVals z]
+    -- DottedList ys z -> returnA -< ListVal $ map litsToVals (ys ++ [z])
     _ -> fail -< fromString $ "(lit): Expected type didn't match with given type| " ++ show x 
 
   if_ f g = proc (v,(x,y)) -> case v of
@@ -387,13 +391,13 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     Quotient -> withNumToNum2 quot -< (x,y) 
     Remainder -> withNumToNum2 rem -< (x,y)
     Modulo -> withNumToNum2 mod -< (x,y)
-    Cons -> 
-      case (x, y) of
-        (n, ListVal [Bottom]) -> returnA -< ListVal [n]
-        (n, ListVal val) -> returnA -< ListVal (n:val)
-        (TypeError msg, _) -> fail -< fromString $ show msg 
-        (_, TypeError msg) -> fail -< fromString $ show msg
-        (n, m) -> returnA  -< ListVal (n:m:[]) -- usually dottedlist but here '(2.3) -> '(2 3)
+    -- Cons -> 
+    --   case (x, y) of
+    --     (n, ListVal [Bottom]) -> returnA -< ListVal [n]
+    --     (n, ListVal val) -> returnA -< ListVal (n:val)
+    --     (TypeError msg, _) -> fail -< fromString $ show msg 
+    --     (_, TypeError msg) -> fail -< fromString $ show msg
+    --     (n, m) -> returnA  -< ListVal (n:m:[]) -- usually dottedlist but here '(2.3) -> '(2 3)
   opvar_ =  proc (op, xs) -> case op of
     EqualS -> withOrd (==) -< xs
     SmallerS -> withOrd (<) -< xs
@@ -435,7 +439,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsNum Val (ValueT Val c) 
     -- Or -> case xs of 
     --   [] -> returnA -< BoolVal B.False
     --   _ -> withBoolToBoolList B.or -< xs  
-    List_ -> returnA -< ListVal xs 
+    -- List_ -> returnA -< ListVal xs 
   {-# INLINE lit #-}
   {-# INLINE if_ #-}
   {-# INLINE op1_ #-}
@@ -579,9 +583,9 @@ litsToVals (Char _) = StringVal
 litsToVals (String _) = StringVal
 litsToVals (Quote _) = QuoteVal
 litsToVals (Symbol _) = QuoteVal
-litsToVals (List []) = ListVal [Bottom]
-litsToVals (List xs) = ListVal $ map litsToVals xs 
-litsToVals (DottedList ns z) = ListVal $ map litsToVals (ns++[z])
+-- litsToVals (List []) = ListVal [Bottom]
+-- litsToVals (List xs) = ListVal $ map litsToVals xs 
+-- litsToVals (DottedList ns z) = ListVal $ map litsToVals (ns++[z])
 {-# INLINE litsToVals #-}
 
 -- Op1  integer? float? ratio?

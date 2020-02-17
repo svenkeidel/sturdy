@@ -1,3 +1,5 @@
 #lang scheme
 
-(equal? '( () () ()) '( () () ()))
+(define x '(1 2))
+
+(equal? x x)

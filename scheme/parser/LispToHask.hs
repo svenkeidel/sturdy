@@ -37,6 +37,8 @@ lispToExpr val = case val of
   LT.Bool x -> lit $ S.Bool x
   LT.Character x -> lit $ S.Char x
   LT.String x -> lit $ S.String x
+  LT.Atom "#t" -> lit $ S.Bool True
+  LT.Atom "#f" -> lit $ S.Bool False
   LT.Atom x -> var_ (pack x)
   LT.List [Atom "define-values", LT.List[Atom var], form] ->
     define (pack var) (lispToExpr form)
@@ -72,7 +74,9 @@ lispToExpr val = case val of
     set (pack var) (lispToExpr val_)
   LT.List [Atom "set!", Atom var, body_] ->
     set (pack var) (lispToExpr body_)
+  LT.List [Atom "quote", LT.List xs] -> list (map lispToExpr xs)
   LT.List [Atom "quote", val_] -> lit $ lispToLits val_
+
   -- quote-syntax
   -- quote-syntax
   -- with-continuation-mark
@@ -113,7 +117,7 @@ lispToExpr val = case val of
     "quotient" -> op2_ Quotient (lispToExpr $ head args) (lispToExpr $ last args)
     "remainder" -> op2_ Remainder (lispToExpr $ head args) (lispToExpr $ last args)
     "modulo" -> op2_ Modulo (lispToExpr $ head args) (lispToExpr $ last args)
-    "cons" -> op2_ Cons (lispToExpr $ head args) (lispToExpr $ last args)
+    "cons" -> cons (lispToExpr $ head args) (lispToExpr $ last args)
     -- opvar
     "=" -> opvar_ EqualS (map lispToExpr args)
     "<" -> opvar_ SmallerS (map lispToExpr args)
@@ -130,7 +134,7 @@ lispToExpr val = case val of
     "lcm" -> opvar_ Lcm (map lispToExpr args)
     -- "and" -> opvar_ And (map lispToExpr args)
     -- "or" -> opvar_ Or (map lispToExpr args)
-    "list" -> opvar_ List_ (map lispToExpr args)
+    "list" -> list (map lispToExpr args)
     _ -> app (var_ (pack x)) (map lispToExpr args)
   LT.List (Atom "#%app": foo: args) ->
     app (lispToExpr foo) (map lispToExpr args)
@@ -156,6 +160,6 @@ lispToLits val = case val of
   LT.Atom "#t" -> S.Bool True
   LT.Atom "#f" -> S.Bool False
   LT.Atom x -> S.Quote $ S.Symbol x
-  LT.List xs -> S.List (map lispToLits xs)
-  LT.DottedList xs x -> S.DottedList (map lispToLits xs) (lispToLits x)
+  -- LT.List xs -> list (map lispToExpr xs)
+  -- LT.DottedList xs x -> S.DottedList (map lispToLits xs) (lispToLits x)
   _ -> error "type not supported"

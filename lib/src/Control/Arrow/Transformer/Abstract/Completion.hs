@@ -22,6 +22,7 @@ import Control.Arrow.Const
 import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
 import Control.Category
+import Control.Arrow.Fix.Context
 
 import Data.Abstract.FreeCompletion
 import Data.Abstract.Widening
@@ -36,7 +37,7 @@ newtype CompletionT c x y = CompletionT (KleisliT FreeCompletion c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
-            ArrowFail e, ArrowExcept e)
+            ArrowFail e, ArrowExcept e, ArrowContext ctx)
 
 runCompletionT :: CompletionT c x y -> c x (FreeCompletion y)
 runCompletionT = coerce

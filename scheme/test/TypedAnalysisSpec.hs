@@ -40,7 +40,7 @@ spec = do
 
   describe "behavior specific to interval analysis" $ do
     it "test lits" $ do 
-      let ?sensitivity = 0 in evalInterval' [("x", singleton NumVal), ("y", singleton NumVal)] ["x"] `shouldBe` Terminating (Success $ singleton NumVal)
+      -- let ?sensitivity = 0 in evalInterval' [("x", singleton NumVal), ("y", singleton NumVal)] ["x"] `shouldBe` Terminating (Success $ singleton NumVal)
       let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2), "x"] `shouldBe` Terminating (Success $ singleton NumVal)
       let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2), 
                                                 set "x" (lit $ S.Bool True),
@@ -56,10 +56,10 @@ spec = do
       let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
                                                 set "id" (lit $ S.Bool True),
                                                 app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton NumVal)
-    it "context sensitivity" $
-      let diamond = [if_ (lit $ Bool True) "x" "y"] in do
-      let ?sensitivity = 0 in evalInterval' [("x", singleton NumVal), ("y", singleton NumVal)] diamond `shouldBe` Terminating (Success $ singleton NumVal)
-      let ?sensitivity = 1 in evalInterval' [("x", singleton NumVal), ("y", singleton NumVal)] diamond `shouldBe` Terminating (Success $ singleton NumVal)
+    -- it "context sensitivity" $
+    --   let diamond = [if_ (lit $ Bool True) "x" "y"] in do
+      -- let ?sensitivity = 0 in evalInterval' [("x", singleton NumVal), ("y", singleton NumVal)] diamond `shouldBe` Terminating (Success $ singleton NumVal)
+      -- let ?sensitivity = 1 in evalInterval' [("x", singleton NumVal), ("y", singleton NumVal)] diamond `shouldBe` Terminating (Success $ singleton NumVal)
 
     it "should analyze let expression" $ 
       let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
@@ -96,111 +96,131 @@ spec = do
 
 -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do
+-- TIMEOUT = 30s
+
     it "cpstak" $ do 
-      -- pending
+--     => Final Values: Set(Int)
+--     => TIME: 105 | STATES: 120
       let inFile = "gabriel//cpstak"
       let expRes = Terminating (Success $ singleton NumVal)
       helper_test inFile expRes
 
 
---     it "deriv" $ do
---       let inFile = "gabriel//deriv"
---       let expRes = Terminating (Fail "{\"cannot unify Quote and List [TypeError: {\\\"cannot unify Quote and Num\\\"}]\"}")
---       helper_test inFile expRes
 
---     it "diviter" $ do
---       let inFile = "gabriel//diviter"
---       let expRes = Terminating (Success $ BoolVal B.True)              
---       helper_test inFile expRes
+    it "deriv" $ do
+-- => TIMEOUT | STATES: 1645737
+      pendingWith "!!!!!!!! some variable not bound !!!!!!!"
+      let inFile = "gabriel//deriv"
+      let expRes = Terminating (Fail "{\"cannot unify Quote and List [TypeError: {\\\"cannot unify Quote and Num\\\"}]\"}")
+      helper_test inFile expRes
 
---     it "divrec" $ do
---       pendingWith "returns False instead of true bc of: equal? (LV Bottom) (LV (LV Bottom))"
---       let inFile = "gabriel//divrec"
---       let expRes = Terminating (Success $ BoolVal B.Top)              
---       helper_test inFile expRes      
+    it "diviter" $ do
+--     => Final Values: Set(#f, {#f,#t})
+--     => TIME: 163 | STATES: 175
+      pendingWith "out of memory"
+      let inFile = "gabriel//diviter"
+      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top])              
+      helper_test inFile expRes
 
---     it "takl" $ do
---       -- pending
---       let inFile = "gabriel//takl"
---       let expRes = Terminating (Success $ BoolVal B.Top)              
---       helper_test inFile expRes
+    it "divrec" $ do
+--       => Final Values: Set(#f, {#f,#t})
+--       => TIME: 59 | STATES: 219
+      pendingWith "out of memory"
+      let inFile = "gabriel//divrec"
+      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top])              
+      helper_test inFile expRes      
+
+    it "takl" $ do
+-- => TIMEOUT | STATES: 1959438
+      pendingWith "out of memory"
+      let inFile = "gabriel//takl"
+      let expRes = Terminating (Success $ singleton $ BoolVal B.Top)              
+      helper_test inFile expRes
 
 -- -------------------SCALA-AM BENCHMARKS------------------------------------------
   describe "Scala-AM-Benchmarks" $ do
     it "collatz" $ do
+-- => Final Values: Set(Int)
+-- => TIME: 8 | STATES: 431
       let inFile = "scala-am//collatz"
       let expRes = Terminating (Success $ singleton NumVal)
       helper_test inFile expRes
 
     it "gcipd" $ do
-      -- pending
+--       => Final Values: Set(Int)
+--       => TIME: 14 | STATES: 1098
       let inFile = "scala-am//gcipd"
       let expRes = Terminating (Success $ singleton NumVal)
       helper_test inFile expRes 
 
---     it "nqueens" $ do
---       -- pending
---       let inFile = "scala-am//nqueens"
---       let expRes = Terminating (Success NumVal)
---       helper_test inFile expRes      
+    it "nqueens" $ do
+-- => TIMEOUT | STATES: 1781142
+      let inFile = "scala-am//nqueens"
+      let expRes = Terminating (Success $ singleton NumVal)
+      helper_test inFile expRes      
 
---     it "rsa" $ do
---       -- pending
---       let inFile = "scala-am//rsa"
---       let expRes = Terminating (Fail $ Pow.singleton "Expected elements of type num for op| [List [Num],Num]" <> "Scheme-Error")              
---       helper_test inFile expRes      
+    it "rsa" $ do
+-- => Final Values: Set({#f,#t})
+-- => TIME: 2831 | STATES: 247915
+      pendingWith "!!!!!!!! some variable not bound !!!!!!!"
+      let inFile = "scala-am//rsa"
+      let expRes = Terminating (Fail $ Pow.singleton "Expected elements of type num for op| [List [Num],Num]" <> "Scheme-Error")              
+      helper_test inFile expRes      
 
 -- -------------------Custom Tests------------------------------------------
   describe "Custom_Tests" $ do
-    -- it "recursion and union with empty list" $ do
-    --   let inFile = "test_rec_empty"
-    --   let expRes = Terminating (Success $ singleton $ ListVal Bottom)
-    --   helper_test inFile expRes      
+    it "recursion_union_empty_list" $ do
+      let inFile = "test_rec_empty"
+      let expRes = Terminating (Success $ singleton Bottom)
+      helper_test inFile expRes      
 
-    -- it "recursion and union with non-empty list" $ do
-    --   let inFile = "test_rec_nonempty"
-    --   let expRes = Terminating (Success $ ListVal NumVal)          
-    --   helper_test inFile expRes               
+    it "recursion and union with non-empty list" $ do
+      let inFile = "test_rec_nonempty"
+      let expRes = Terminating (Success $ singleton NumVal)          
+      helper_test inFile expRes               
 
-    -- it "should return listVal for (cdr '(2 3 4))" $ do
-    --   let inFile = "test_cdr"
-    --   let expRes = Terminating (Success $ ListVal NumVal)
-    --   helper_test inFile expRes  
+    it "should return listVal for (cdr '(2 3 4))" $ do
+      pendingWith "passes"
+      let inFile = "test_cdr"
+      let expRes = Terminating (Success $ singleton NumVal)
+      helper_test inFile expRes  
 
-    -- it "should return correct val for car" $ do
-    --   let inFile = "test_car"
-    --   let expRes = Terminating (Success $ NumVal)
-    --   helper_test inFile expRes      
+    it "should return correct val for car" $ do
+      let inFile = "test_car"
+      let expRes = Terminating (Success $ singleton NumVal)
+      helper_test inFile expRes      
 
-    -- it "should return true for null? cdr cdr '(1 2)" $ do
-    --   let inFile = "test_null"
-    --   let expRes = Terminating (Success $ BoolVal B.Top)
-    --   helper_test inFile expRes       
+    it "test_null_cdr" $ do
+      let inFile = "test_null"
+      let expRes = Terminating (Success $ singleton $ BoolVal B.True)
+      helper_test inFile expRes       
 
-    -- it "unifying two list of nums of different size should result in list of nums" $ do
-    --   let inFile = "test_faulty_list"
-    --   let expRes = Terminating (Success $ ListVal NumVal)           
-    --   helper_test inFile expRes  
+    it "unifying two list of nums of different size should result in list of nums" $ do
+      pendingWith "passes"
+      let inFile = "test_faulty_list"
+      let expRes = Terminating (Success $ singleton NumVal)           
+      helper_test inFile expRes  
 
-    -- it "test_if" $ do
-    --   let inFile = "test_if"
-    --   let expRes = Terminating (Success $ ListVal NumVal)          
-    --   helper_test inFile expRes            
+    it "test_if" $ do
+      pendingWith "passes"
+      let inFile = "test_if"
+      let expRes = Terminating (Success $ singleton NumVal)          
+      helper_test inFile expRes            
 
     it "test_opvars" $ do
       let inFile = "test_opvars"
       let expRes = Terminating (Success $ singleton NumVal)         
       helper_test inFile expRes         
 
-    -- it "test_equal" $ do
-    --   let inFile = "test_equal"
-    --   let expRes = Terminating (Success $ BoolVal B.True)         
-    --   helper_test inFile expRes   
+    it "test_equal" $ do
+      let inFile = "test_equal"
+      let expRes = Terminating (Success $ singleton $ BoolVal B.True)         
+      helper_test inFile expRes   
 
-    -- it "test_cons" $ do
-    --   let inFile = "test_cons"
-    --   let expRes = Terminating (Success $ BoolVal B.True)         
-    --   helper_test inFile expRes 
+    it "test_cons" $ do
+      let inFile = "test_cons"
+      let expRes = Terminating (Success $ singleton $ BoolVal B.True)         
+      helper_test inFile expRes 
 
     it "test_closure_gc" $ do
       let inFile = "test_closure_gc"
@@ -249,7 +269,12 @@ spec = do
 
     it "test_list" $ do
       let inFile = "test_list"
-      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.True])         
+      let expRes = Terminating (Success $ singleton EmptyList)         
+      helper_test inFile expRes       
+
+    it "test_factorial" $ do
+      let inFile = "test_factorial"
+      let expRes = Terminating (Success $ singleton $ NumVal)         
       helper_test inFile expRes       
 
 -------------------HELPER------------------------------------------------------

@@ -37,10 +37,10 @@ spec :: Spec
 spec = do
 
   describe "behavior specific to interval analysis" $ do
-    it "context sensitivity" $
-      let diamond = [if_ (lit $ Bool True) "x" "y"] in do
-      let ?sensitivity = 0 in evalInterval' [("x", NumVal), ("y", NumVal)] diamond `shouldBe` Terminating (Success NumVal)
-      let ?sensitivity = 1 in evalInterval' [("x", NumVal), ("y", NumVal)] diamond `shouldBe` Terminating (Success NumVal)
+    -- it "context sensitivity" $
+    --   let diamond = [if_ (lit $ Bool True) "x" "y"] in do
+    --   let ?sensitivity = 0 in evalInterval' [("x", NumVal), ("y", NumVal)] diamond `shouldBe` Terminating (Success NumVal)
+    --   let ?sensitivity = 1 in evalInterval' [("x", NumVal), ("y", NumVal)] diamond `shouldBe` Terminating (Success NumVal)
 
     it "should analyze let expression" $ 
       let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
@@ -79,7 +79,7 @@ spec = do
   describe "Gabriel-Benchmarks" $ do
 
     it "cpstak" $ do 
-      -- pending
+      pending
       let inFile = "gabriel//cpstak"
       let expRes = Terminating (Success NumVal)
       helper_test inFile expRes

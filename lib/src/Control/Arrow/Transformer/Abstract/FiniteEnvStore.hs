@@ -48,6 +48,8 @@ import Data.Identifiable
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
+import Data.Maybe(mapMaybe)
+
 
 newtype EnvStoreT var addr val c x y = EnvStoreT (ConstT (Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded,
@@ -96,12 +98,20 @@ instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowEffectCom
   {-# INLINE apply #-}
 
 instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowEffectCommutative c, ArrowChoice c, Profunctor c) 
-    => ArrowLetRec var addr (EnvStoreT var addr val c) where
+    => ArrowLetRec var val (EnvStoreT var addr val c) where
+  -- letRec (EnvStoreT f) = undefined
+    -- EnvStoreT $ proc (bindings,x) -> do
+    -- env <- Reader.ask -< ()
+    -- let env' = Map.fromList bindings `Map.union` env
+    -- --     vals = Map.fromList [ (addr, setEnvironment (Set.singleton env') val) | (addr, (_,val)) <- zip addrs bindings ]
+    -- -- State.modify' (\(vals,store) -> ((), Map.unionWith (\old new -> snd (widening old new)) store vals)) -< vals
+    -- Reader.local f -< (env',x)
   letRec (EnvStoreT f) = EnvStoreT $ proc (bindings,x) -> do
     env <- Reader.ask -< ()
-    let env' = Map.fromList bindings `Map.union` env
-    --     vals = Map.fromList [ (addr, setEnvironment (Set.singleton env') val) | (addr, (_,val)) <- zip addrs bindings ]
-    -- State.modify' (\(vals,store) -> ((), Map.unionWith (\old new -> snd (widening old new)) store vals)) -< vals
+    let addrs = mapMaybe (\var -> Map.lookup var env) [var | (var,_) <- bindings]
+    let env' = Map.fromList [(var, addr) | ((var,_),addr) <- zip bindings addrs] `Map.union` env
+        val' = Map.fromList [(addr, setEnvironment (Set.singleton env') val) | ((_,val),addr) <- zip bindings addrs]
+    State.modify' (\(val,store) -> ((), Map.union val store)) -< val'
     Reader.local f -< (env',x)
   {-# INLINE letRec #-}
 

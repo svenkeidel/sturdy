@@ -38,11 +38,11 @@ spec :: Spec
 spec = do
   describe "behavior specific to interval analysis" $ do
     let ?bound = 100  
-    it "context sensitivity" $
-      let diamond = [if_ "w" "x" "y"] in do
-      let env =  [("w", BoolVal B.Top), ("x", IntVal (Pow.singleton 1)), ("y", IntVal(Pow.singleton 2))]
-      let ?sensitivity = 0 in evalInterval' ?bound env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
-      let ?sensitivity = 1 in evalInterval' ?bound env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
+    -- it "context sensitivity" $
+    --   let diamond = [if_ "w" "x" "y"] in do
+    --   let env =  [("w", BoolVal B.Top), ("x", IntVal (Pow.singleton 1)), ("y", IntVal(Pow.singleton 2))]
+    --   let ?sensitivity = 0 in evalInterval' ?bound env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
+    --   let ?sensitivity = 1 in evalInterval' ?bound env diamond `shouldBe` Terminating (Success $ IntVal $ fromList [1,2])
 
     it "should analyze let expression" $ 
       let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
@@ -138,7 +138,7 @@ spec = do
 
 -------------------Custom Tests------------------------------------------
   describe "Custom_Tests" $ do
-    let ?bound = 100
+    let ?bound = 5
     let ?sensitivity = 0
     it "recursion and union with empty list" $ do
       let inFile = "test_rec_empty"
