@@ -23,7 +23,6 @@ import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail
-import           Control.Arrow.Environment
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic(chaotic)
@@ -44,7 +43,7 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
--- import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 -- import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
@@ -54,7 +53,7 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
 
-import           Data.Identifiable
+-- import           Data.Identifiable
 import           Data.Hashable
 import           Data.Label
 import           Data.Order
@@ -72,9 +71,9 @@ import           Data.HashSet(HashSet)
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Error (Error)
 -- import qualified Data.Abstract.Error as E
-import           Data.Abstract.Widening (Widening)
+-- import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
-import           Data.Abstract.Stable
+-- import           Data.Abstract.Stable
 import           Data.Abstract.Terminating(Terminating)
 -- import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Closure (Closure)
@@ -109,7 +108,6 @@ data Primitives
   | StringVal
   | QuoteVal
   | ListVal Addr Addr
-  -- | DottedList Addr Addr
   | EmptyList 
   | Top
   | Bottom
@@ -122,17 +120,10 @@ data ListT
 -- Input and output type of the fixpoint.
 type In = (Store,(([Expr],Label),Env))
 type Out = (Store, Terminating (Error (Pow String) Val))
--- type Out' = (Gr Expr (), ((**)
---                            Monotone
---                            (Parallel (Group Cache))
---                            (Store, (([Expr], Label), Env))
---                            (Store, Terminating (Error (Pow String) Val)),
---                          (HashMap (Text, Ctx) Val, Terminating (Error (Pow String) Val))))
-type Out' = (--Gr Expr (),
-                        (Monotone
-                           (Store, (([Expr], Label), Env))
-                           (Store, Terminating (Error (Pow String) Val)),
-                         (HashMap Addr Val, Terminating (Error (Pow String) Val))))
+type Out' = (Monotone
+              (Store, (([Expr], Label), Env))
+              (Store, Terminating (Error (Pow String) Val)),
+            (HashMap Addr Val, Terminating (Error (Pow String) Val)))
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
@@ -144,13 +135,11 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
             (TerminatingT
               (EnvStoreT Text Addr Val 
                 (FixT _ _
-                  (--FailureT Val
-                    (--ChaoticT In
+                    (ChaoticT In
                       (StackT Stack In
                         (CacheT Monotone In Out
                           (ContextT Ctx  
-                            (--ControlFlowT Expr -- unter fixT liften
-                              (->)))))))))))) [Expr] Val))
+                              (->)))))))))) [Expr] Val))
     W.finite
     iterationStrategy
     (W.finite, W.finite)
@@ -158,13 +147,9 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
   where
     e0 = generate (sequence e)
     iterationStrategy =
-      Fix.traceShow .
-      -- collect . 
+      -- Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      -- CF.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of [App x y z] -> Just (App x y z); _ -> Nothing) . 
-      -- CF.recordControlFlowGraph (\(_,(_,exprs)) -> head exprs) . 
       Fix.filter apply chaotic -- parallel -- iterateInner
-
 
 instance (ArrowChoice c, ArrowContext Ctx c, ArrowFail e c, IsString e) 
     => ArrowAlloc Addr (ValueT Val c) where
@@ -176,37 +161,30 @@ instance (ArrowChoice c, ArrowContext Ctx c, ArrowFail e c, IsString e)
     Right e -> do 
       ctx <- Ctx.askContext @Ctx -< ()
       returnA -< CellA (e,ctx)
-  -- list_ = proc (a1,a2) -> returnA -< singleton (ListVal a1 a2)
-
--- instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ValueT Val c) where
---   alloc = arr $ \(_,_,l) -> return l    
 
 instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, IsString e) 
     => ArrowList Addr Val (ValueT Val c) where
-  list_ = proc (a1,a2) -> returnA -< singleton (ListVal a1 a2)
+  list_ = proc (a1,a2) -> returnA -< singleton $ ListVal a1 a2
   cons_ = proc (a1,a2) -> returnA -< singleton $ ListVal a1 a2
-    -- v1 <- read' -< a2 
-    -- case toList v1 of 
-    --   [EmptyList] -> returnA -< singleton (ListVal a1 a2)
-    --   _ -> returnA -< singleton (DottedList a1 a2)
-
-
-evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
--- evalInterval' env exprs = snd $ snd $ snd $ evalInterval env exprs
-evalInterval' env exprs = snd $ snd $ evalInterval env exprs
-
-{-# INLINE evalInterval' #-}
-
--- evalInterval'' :: (?sensitivity :: Int) => [State Label Expr] -> (Gr Expr (), Terminating (Error (Pow String) Val))
-evalInterval'' :: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
-evalInterval'' exprs =
-  let res = evalInterval [] exprs in (snd $ snd res)
-{-# INLINE evalInterval'' #-}
     
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
+    => ArrowClosure Expr Val (ValueT Val c) where
+  type Join y Val (ValueT Val c) = Cls.Join y Cls c
+  closure = ValueT $ proc e -> do 
+    cls <- Cls.closure -< e
+    returnA -< singleton (ClosureVal cls)
+  -- TODO: 
+  -- fix, apply only works for 1 cls in set of vals 
+  apply (ValueT f) = ValueT $ proc (v,x) -> do
+    let clss = getCls $ toList v
+    Cls.apply f -< head $ zip clss (repeat x)  
+  -- END TODO
+  {-# INLINE closure #-} 
+  {-# INLINE apply #-}
+
 instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Addr c, IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c) 
     => IsNum Val (ValueT Val c) where
   type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)
-
   lit = proc x -> case x of
     Number _ -> returnA -< singleton NumVal
     Float _ -> returnA -< singleton NumVal
@@ -216,15 +194,7 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Char _ -> returnA -< singleton StringVal
     String _ -> returnA -< singleton StringVal
     Quote _ -> returnA -< singleton QuoteVal
-    -- List ys -> 
-      -- do
-      -- let vars = map pack $ map litsToString ys
-      -- let vals = map singleton $ map litsToVals ys
-      -- ArrowUtils.map write -< zip vars vals
-      -- returnA -< singleton $ ListVal $ Coons (head vars) (intercalate " " (tail vars))
-    -- DottedList _ _ -> returnA -< singleton $ litsToVals x
     _ -> returnA -< singleton Bottom
-
   if_ f g = proc (v,(x,y)) ->
     if isTrue v && isFalse v
       then  (f -< x) <⊔> (g -< y)
@@ -233,9 +203,7 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
         else if isFalse v
           then g -< y 
           else fail -< "if: should not happen"
-  
   emptyList = proc _ -> returnA -< singleton EmptyList
-  
   op1_ = proc (op, x) -> case op of
     Number_ -> withVal (\val -> case val of 
       NumVal -> BoolVal B.True
@@ -285,7 +253,7 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
       vals <- ArrowUtils.map read' -< addrs
       if vals == empty
         then returnA -< singleton EmptyList 
-        else returnA -< foldl1 (⊔) vals
+        else returnA -< foldl1 (⊔) vals 
     Caar -> do
       v1 <- op1_ -< (Car, x)
       op1_ -< (Car, v1)
@@ -307,7 +275,6 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
       null2 <- op1_ -< (Null,y)
       list1 <- op1_ -< (ListS,x)
       list2 <- op1_ -< (ListS,y)
-      
       if eq == (singleton $ BoolVal B.True ) ||
         (null1 == (singleton $ BoolVal B.True) &&
          null2 == (singleton $ BoolVal B.True))
@@ -328,12 +295,9 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
                   list2 == (singleton $ BoolVal B.False) 
             then returnA -< eq
             else returnA -< singleton $ BoolVal B.Top
-
-
     Quotient -> with2Val -< (x,y) 
     Remainder -> with2Val -< (x,y)
     Modulo -> with2Val -< (x,y)
-    -- Cons -> returnA -< undefined
   opvar_ =  proc (op, xs) -> case op of
     EqualS -> withVarValNumBool -< xs
     SmallerS -> withVarValNumBool -< xs
@@ -348,81 +312,11 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Div -> withVarValNumNum -< xs 
     Gcd -> withVarValNumNum -< xs 
     Lcm -> withVarValNumNum -< xs 
-    -- List_ -> fail  -< "should be list operator"
-      -- do
-      -- let vars = map pack $ map primitivesToStrings (map toList xs)
-      -- ArrowUtils.map write -< (zip vars xs)
-      -- returnA -< singleton $ ListVal $ Coons (head vars) (head $ tail vars)
-  -- {-# INLINE lit #-}
-  -- {-# INLINE if_ #-}
-  -- {-# INLINE op1_ #-}
-  -- {-# INLINE op2_ #-}
-  -- {-# INLINE opvar_ #-}
-
-containsList :: [Primitives] -> Bool 
-containsList [] = False 
-containsList [ListVal _ _] = True
-containsList (ListVal _ _: _) = True 
-containsList (_:rest) = containsList rest
-
-allList :: [Primitives] -> Bool 
-allList [] = False 
-allList [ListVal _ _] = True
-allList (ListVal _ _: rest) = allList rest
-allList (_:_) = False 
-
-
-carHelp :: [Primitives] -> [Addr]
-carHelp [] = []
-carHelp (ListVal a1 _: rest) = a1 : carHelp rest
-carHelp (_:rest) = carHelp rest
-
-cdrHelp :: [Primitives] -> [Addr]
-cdrHelp [] = []
-cdrHelp (ListVal _ a2: rest) = a2 : carHelp rest
-cdrHelp (_:rest) = carHelp rest
-
--- primitivesToStrings :: [Primitives] -> String 
--- primitivesToStrings ps = case ps of 
---   [] -> ""
---   (NumVal: rest) -> "NV" ++ (primitivesToStrings rest)
---   BoolVal b:rest -> show b ++ (primitivesToStrings rest)
---   ClosureVal _:rest -> "ClsV" ++ (primitivesToStrings rest)
---   StringVal:rest -> "StrV" ++ (primitivesToStrings rest)
---   QuoteVal:rest -> "QV" ++ (primitivesToStrings rest)
---   -- ListVal _:rest -> "LV" ++ (primitivesToStrings rest)
---   -- ListVal ls:rest -> "LV(" ++ (primitivesToStrings ls) ++ ")" ++ (primitivesToStrings rest)
---   Top:rest -> "Top" ++ (primitivesToStrings rest)
---   Bottom:rest -> "Bot" ++ (primitivesToStrings rest)
-
-instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
-    => ArrowClosure Expr Val (ValueT Val c) where
-  type Join y Val (ValueT Val c) = Cls.Join y Cls c
-  closure = ValueT $ proc e -> do 
-    cls <- Cls.closure -< e
-    returnA -< singleton (ClosureVal cls)
-  -- TODO: 
-  -- fix, apply only works for 1 cls in set of vals 
-  apply (ValueT f) = ValueT $ proc (v,x) -> do
-    let clss = getCls $ toList v
-    Cls.apply f -< head $ zip clss (repeat x)  
-  -- END TODO
-  {-# INLINE closure #-} 
-  {-# INLINE apply #-}
-    
-
-getCls :: [Primitives] -> [Cls]
-getCls (ClosureVal cls : rest) = cls : (getCls rest) 
-getCls (_:rest) = getCls rest
-getCls _ = []
-
--- clsHelp :: (ArrowChoice c, ArrowFail e c, IsString e, ArrowClosure Expr Cls c, Cls.Join y Val c) 
---   =>  (c (expr,x) y -> c (cls, x) y) -> c (Expr, x) y -> c (Val,x) Val
--- clsHelp app f = proc (val,x) -> case head $ toList val of 
---   ClosureVal cls -> app f -< (cls,x)
---   _ -> returnA -< singleton Bottom
-
-
+  {-# INLINE lit #-}
+  {-# INLINE if_ #-}
+  {-# INLINE op1_ #-}
+  {-# INLINE op2_ #-}
+  {-# INLINE opvar_ #-}
 
 instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c) 
     => ArrowComplete Val (ValueT Val c) where
@@ -430,21 +324,7 @@ instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c)
     v <- (f -< x) <⊔> (g -< x)
     case toList v of
       [Top] -> fail -< ""
-      -- ListVal (ListVal (ListVal (ListVal (ListVal _)))) -> fail -< "infinite list creation suspected" 
       _ -> returnA -< v  
-
--- TODO: Fix for lists
-instance PreOrd Primitives where
-  _ ⊑ Top = True
-  Bottom ⊑ _ = True
-  NumVal ⊑ NumVal = True 
-  BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
-  ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
-  StringVal ⊑ StringVal = True
-  QuoteVal ⊑ QuoteVal = True 
-  -- ListVal ls1 ⊑ ListVal ls2 = ls1 ⊑ ls2
-  _ ⊑ _ = False
--- END TODO
 
 instance Hashable Addr 
 instance Show Addr where 
@@ -460,8 +340,7 @@ instance Show Primitives where
   show StringVal = "String"
   show QuoteVal = "Quote"
   show (ListVal x y) = "List [" ++ (show x) ++ ", " ++ (show y) ++ "]"
-  -- show (DottedList x y) = "List [" ++ (show x) ++ " DOT " ++ (show y) ++ "]"
-  show (EmptyList) = "'()"
+  show EmptyList = "'()"
   show Top = "Top"
   show Bottom = "Bottom"
 instance Hashable ListT
@@ -479,14 +358,41 @@ instance IsClosure Val (HashSet Env) where
     _ -> pure v
   -- TODO END
 
-widenStore :: Identifiable addr => Widening val -> Widening (HashMap addr val)
-widenStore w m1 m2
-  | Map.keys m1 == Map.keys m2 = sequenceA $ Map.intersectionWith w m1 m2
-  | otherwise = (Unstable,Map.unionWith (\x y -> snd (w x y)) m1 m2)
-{-# INLINE widenStore #-}
-
-
 -- OPERATION HELPER ------------------------------------------------------------
+evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
+evalInterval' env exprs = snd $ snd $ evalInterval env exprs
+{-# INLINE evalInterval' #-}
+
+evalInterval'' :: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
+evalInterval'' exprs = let res = evalInterval [] exprs in (snd $ snd res)
+{-# INLINE evalInterval'' #-}
+
+getCls :: [Primitives] -> [Cls]
+getCls (ClosureVal cls : rest) = cls : (getCls rest) 
+getCls (_:rest) = getCls rest
+getCls _ = []
+
+containsList :: [Primitives] -> Bool 
+containsList [] = False 
+containsList [ListVal _ _] = True
+containsList (ListVal _ _: _) = True 
+containsList (_:rest) = containsList rest
+
+allList :: [Primitives] -> Bool 
+allList [] = False 
+allList [ListVal _ _] = True
+allList (ListVal _ _: rest) = allList rest
+allList (_:_) = False 
+
+carHelp :: [Primitives] -> [Addr]
+carHelp [] = []
+carHelp (ListVal a1 _: rest) = a1 : carHelp rest
+carHelp (_:rest) = carHelp rest
+
+cdrHelp :: [Primitives] -> [Addr]
+cdrHelp [] = []
+cdrHelp (ListVal _ a2: rest) = a2 : cdrHelp rest
+cdrHelp (_:rest) = cdrHelp rest
 
 -- is there any value that can be considered false?
 isFalse :: Val -> Bool 
@@ -531,53 +437,3 @@ withVarValNumNum = proc vs ->
   case foldl1 intersect (map toList vs) of
     [NumVal] -> returnA -< singleton NumVal 
     _ -> returnA -< singleton Bottom
-
-withVarValBoolBool :: (ArrowChoice c, ArrowFail e c, IsString e) => c [Val] Val
-withVarValBoolBool = proc vs -> do 
-  let inters = foldl1 intersect (map toList vs)
-  if checkBool inters 
-    then returnA -< singleton $ BoolVal $ foldl1 B.and $ valToBool inters 
-    else returnA -< singleton Bottom
-
-checkBool :: [Primitives] -> Bool
-checkBool ps = case ps of
-  (BoolVal _: []) -> True
-  (BoolVal _:rest) -> checkBool rest
-  _ -> False 
-
-valToBool :: [Primitives] -> [B.Bool]
-valToBool [] = []
-valToBool (BoolVal b:rest) = b : (valToBool rest)
-valToBool _ = [] -- should never happens
-
-litsToVals :: Literal -> Primitives
-litsToVals (Number _) = NumVal
-litsToVals (Float _) = NumVal
-litsToVals (Ratio _) = NumVal
-litsToVals (Bool True) = BoolVal B.True 
-litsToVals (Bool False) = BoolVal B.False
-litsToVals (Char _) = StringVal
-litsToVals (String _) = StringVal
-litsToVals (Quote _) = QuoteVal
-litsToVals (Symbol _) = QuoteVal
--- litsToVals (List []) = ListVal Nil
--- litsToVals (List _) = undefined
--- litsToVals (DottedList _ _) = undefined
--- litsToVals (DottedList [] z) = singleton $ ListVal $ [litsToVals z]
-{-# INLINE litsToVals #-}
-
-
-litsToString :: Literal -> String 
-litsToString ls = case ls of 
-  (Number _ ) -> "NV"
-  (Float _ ) -> "NV"
-  (Ratio _ ) -> "NV"
-  Bool True -> "True"
-  Bool False -> "False"
-  Char _ -> "StrV"
-  String _ -> "StrV"
-  Quote _ -> "QV"
-  -- List _ -> "LV"
-  Symbol _ -> "SV"
-  -- List ls:rest -> "LV(" ++ (litsToString ls) ++ ")" ++ (litsToString rest)
-  -- DottedList _ _ -> "LV"

@@ -1,3 +1,3 @@
 #lang scheme
 
-(cdr '(2 3 4))
+(car (cdr '(2 3 4)))

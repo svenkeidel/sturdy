@@ -74,7 +74,7 @@ lispToExpr val = case val of
     set (pack var) (lispToExpr val_)
   LT.List [Atom "set!", Atom var, body_] ->
     set (pack var) (lispToExpr body_)
-  LT.List [Atom "quote", LT.List xs] -> list (map lispToExpr xs)
+  LT.List [Atom "quote", LT.List xs] -> list (map quoteListHelp xs)
   LT.List [Atom "quote", val_] -> lit $ lispToLits val_
 
   -- quote-syntax
@@ -138,7 +138,7 @@ lispToExpr val = case val of
     _ -> app (var_ (pack x)) (map lispToExpr args)
   LT.List (Atom "#%app": foo: args) ->
     app (lispToExpr foo) (map lispToExpr args)
-  _ -> lit $ S.Quote $ S.String ("undefined " ++ show(val))
+  _ -> lit $ S.Quote $ S.String ("undefined " ++ show val)
 
 extractTuple :: LispVal -> Either String (Text, State Label Expr)
 extractTuple (LT.List [LT.List [Atom var], val]) = Right (pack var, lispToExpr val)
@@ -161,5 +161,20 @@ lispToLits val = case val of
   LT.Atom "#f" -> S.Bool False
   LT.Atom x -> S.Quote $ S.Symbol x
   -- LT.List xs -> list (map lispToExpr xs)
+  -- LT.DottedList xs x -> S.DottedList (map lispToLits xs) (lispToLits x)
+  _ -> error "type not supported"
+
+quoteListHelp :: LispVal -> State Label Expr   
+quoteListHelp val = case val of
+  LT.Number x -> lit $ S.Number $ fromIntegral x
+  LT.Float x -> lit $ S.Float x
+  LT.Ratio x -> lit $ S.Ratio x
+  LT.Bool x -> lit $ S.Bool x
+  LT.Character x -> lit $ S.Char x
+  LT.String x -> lit $ S.String x
+  LT.Atom "#t" -> lit $ S.Bool True
+  LT.Atom "#f" -> lit $ S.Bool False
+  LT.Atom x -> lit $ S.Quote $ S.Symbol x
+  LT.List xs -> list (map quoteListHelp xs)
   -- LT.DottedList xs x -> S.DottedList (map lispToLits xs) (lispToLits x)
   _ -> error "type not supported"

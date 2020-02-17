@@ -57,57 +57,10 @@ eval run' = proc e0 -> case e0 of
   -- inner representation and evaluation
   Lit x _ -> lit -< x
   List [] l -> emptyList -< ()
-  List xs l -> do
-    fst <- run' -< [head xs]
-    if length xs == 1 
-      then do 
-        snd <- emptyList -< ()
-        a1 <- alloc -< Right $ head xs 
-        a2 <- alloc -< Left $ pack "Top" 
-        write -< (a1, fst)
-        write -< (a2, snd)
-        list_ -< (a1,a2)        
-      else do      
-        -- if length xs > 2 
-          -- then do
-        snd <- run' -< [List (tail xs) l]
-        a1 <- alloc -< Right $ head xs 
-        a2 <- alloc -< Right $ List (tail xs) l
-        write -< (a1, fst)
-        write -< (a2, snd)
-        list_ -< (a1,a2)    
-          -- else do 
-          --   snd <- run' -< tail xs 
-          --   a1 <- alloc -< Right $ head xs 
-          --   a2 <- alloc -< Right $ (head $ tail xs)
-          --   write -< (a1, fst)
-          --   write -< (a2, snd)
-          --   list_ -< (a1,a2)    
-  Cons x1 x2 l -> do 
-    fst <- run' -< [x1]
-    snd <- run' -< [x2]
-    a1 <- alloc -< Right $ x1
-    a2 <- alloc -< Right $ x2
-    write -< (a1, fst)
-    write -< (a2, snd)
-    cons_ -< (a1,a2)    
-  -- List_ xs l -> do
-  --   fst <- run' -< [head xs]
-  --   if length xs > 2 
-  --     then do
-  --       snd <- run' -< [List (tail xs) l]
-  --       a1 <- alloc -< Right $ head xs 
-  --       a2 <- alloc -< Right $ List (tail xs) l
-  --       write -< (a1, fst)
-  --       write -< (a2, snd)
-  --       list_ -< (a1,a2)    
-  --     else do 
-  --       snd <- run' -< tail xs 
-  --       a1 <- alloc -< Right $ head xs 
-  --       a2 <- alloc -< Right $ (head $ tail xs)
-  --       write -< (a1, fst)
-  --       write -< (a2, snd)
-  --       list_ -< (a1,a2)            
+  List xs l -> if length xs == 1 
+    then evalList -< ([head xs], [])
+    else evalList -< ([head xs], [List (tail xs) l])
+  Cons x1 x2 l -> evalList -< ([x1],[x2])
   Begin es _ -> do
     run' -< es
   App e1 e2 _ -> do
@@ -172,6 +125,22 @@ eval run' = proc e0 -> case e0 of
         --only adds closure to its own env so it can call itself recursively
         vs <- Env.extend (LetRec.letRec (evalBindings')) -< (var,addr,([(var,val)],bnds')) 
         returnA -< (var,addr,val) : vs
+
+    evalList = proc (e1,e2) -> do 
+      v1 <- run' -< e1
+      a1 <- alloc -< Right $ head e1
+      write -< (a1, v1)
+      if (e2 == [])
+        then do 
+          v2 <- emptyList -< ()
+          a2 <- alloc -< Left $ pack "Top" 
+          write -< (a2, v2)
+          list_ -< (a1,a2) 
+        else do 
+          v2 <- run' -< e2
+          a2 <- alloc -< Right $ head e2
+          write -< (a2, v2)
+          list_ -< (a1,a2) 
 
 run_ :: (ArrowChoice c,
          ArrowFix (c [Expr] v),

@@ -1,4 +1,4 @@
 #lang scheme
 
 
-(cdr (cdr (cdr (list 1 2 3))))
+(car '(+ 1 2 3))

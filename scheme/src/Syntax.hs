@@ -1,5 +1,4 @@
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -159,66 +158,66 @@ opvar_ operation es = OpVar operation <$> (sequence es) <*> fresh
 
 instance Show Literal where
   showsPrec _ e0 = case e0 of
-    Number x -> showString ("Number ") . shows (x)
-    Float x -> showString ("Float ") . shows (x)
-    Ratio x -> showString ("Ratio ") . shows (x)
-    Bool x -> showString ("Bool ") . shows (x)
-    Char x -> showString ("Char ") .shows (x) --single character and single quotation (')
-    String x -> showString ("String ") . shows (x)  -- any amount of chars and double quotation (")
-    Symbol x -> showString ("Symbol ") . shows (x)
-    Quote x -> showString ("Quote ") . shows (x)
+    Number x -> showString "Number " . shows x
+    Float x -> showString "Float " . shows x
+    Ratio x -> showString "Ratio " . shows x
+    Bool x -> showString "Bool " . shows x
+    Char x -> showString "Char " .shows x --single character and single quotation (')
+    String x -> showString "String " . shows x  -- any amount of chars and double quotation (")
+    Symbol x -> showString "Symbol " . shows x
+    Quote x -> showString "Quote " . shows x
     -- DottedList xs x -> showString ("DottedList ") . showList(xs) . showString (" . ") . shows (x)
 
 instance Show Op1_ where
   showsPrec _ e0 = case e0 of
-    Number_ -> showString ("number? ")
-    Integer_ -> showString ("integer? ")
-    Float_ -> showString ("float? ")
-    Ratio_ -> showString ("rational? ")
-    Zero -> showString ("zero? ")
-    Positive -> showString ("positive? ")
-    Negative -> showString ("negative? ")
-    Odd -> showString ("odd? ")
-    Even -> showString ("even? ")
-    Abs -> showString ("abs ")
-    Floor -> showString ("floor ")
-    Ceiling -> showString ("ceiling ")
-    Log -> showString ("log ")
-    Boolean -> showString ("boolean? ")
-    Not -> showString ("not ")
-    Null -> showString ("null? ")
-    ListS -> showString ("list? ")
-    Car -> showString ("car ")
-    Cdr -> showString ("cdr ")
-    Caar -> showString ("caar ")
-    Cadr -> showString ("cadr ")
-    Cddr -> showString ("cddr")
-    Caddr -> showString ("caddr")
-    Error -> showString ("error")
+    Number_ -> showString "number? "
+    Integer_ -> showString "integer? "
+    Float_ -> showString "float? "
+    Ratio_ -> showString "rational? "
+    Zero -> showString "zero? "
+    Positive -> showString "positive? "
+    Negative -> showString "negative? "
+    Odd -> showString "odd? "
+    Even -> showString "even? "
+    Abs -> showString "abs "
+    Floor -> showString "floor "
+    Ceiling -> showString "ceiling "
+    Log -> showString "log "
+    Boolean -> showString "boolean? "
+    Not -> showString "not "
+    Null -> showString "null? "
+    ListS -> showString "list? "
+    Car -> showString "car "
+    Cdr -> showString "cdr "
+    Caar -> showString "caar "
+    Cadr -> showString "cadr "
+    Cddr -> showString "cddr"
+    Caddr -> showString "caddr"
+    Error -> showString "error"
 
 instance Show Op2_ where
   showsPrec _ e0 = case e0 of
-    Eqv -> showString ("eq? ")
-    Equal -> showString ("equal? ")
-    Quotient -> showString ("quotient ")
-    Remainder -> showString ("remainder ")
-    Modulo -> showString ("modulo ")
+    Eqv -> showString "eq? "
+    Equal -> showString "equal? "
+    Quotient -> showString "quotient "
+    Remainder -> showString "remainder "
+    Modulo -> showString "modulo "
 
 instance Show OpVar_ where
   showsPrec _ e0 = case e0 of
-    EqualS -> showString ("= ")
-    SmallerS -> showString ("< ")
-    GreaterS -> showString ("> ")
-    SmallerEqualS -> showString ("<= ")
-    GreaterEqualS -> showString (">= ")
-    Max -> showString ("max ")
-    Min -> showString ("min ")
-    Add -> showString ("+ ")
-    Mul -> showString ("* ")
-    Sub -> showString ("- ")
-    Div -> showString ("/ ")
-    Gcd -> showString ("gcd ")
-    Lcm -> showString ("lcm ")
+    EqualS -> showString "= "
+    SmallerS -> showString "< "
+    GreaterS -> showString "> "
+    SmallerEqualS -> showString "<= "
+    GreaterEqualS -> showString ">= "
+    Max -> showString "max "
+    Min -> showString "min "
+    Add -> showString "+ "
+    Mul -> showString "* "
+    Sub -> showString "- "
+    Div -> showString "/ "
+    Gcd -> showString "gcd "
+    Lcm -> showString "lcm "
     -- And -> showString ("and ")
     -- Or -> showString ("or ")
     -- List_ -> showString ("list")
@@ -226,9 +225,9 @@ instance Show OpVar_ where
 instance Show Expr where
   showsPrec d e0 = case e0 of
     Lit x _ -> shows x
-    List xs _ -> showString ("List ") . showList(xs)
+    List xs _ -> showString "List " . showList xs 
       
-    Cons e1 e2 _ -> showString ("cons ") . showsPrec (app_prec + 1) e1 . showsPrec (app_prec + 1) e2
+    Cons e1 e2 _ -> showString "cons " . showsPrec (app_prec + 1) e1 . showsPrec (app_prec + 1) e2
     Begin es _->
       showString "{"
       . shows es
@@ -291,6 +290,8 @@ instance Show Expr where
 showTopLvl :: Expr -> String 
 showTopLvl e = case e of 
     Lit x _ -> "Lit " ++ show x
+    List _ _ -> "List "
+    Cons _ _ _ -> "Cons"
     Begin _ _-> "Begin" 
     App _ _ _ -> "App"
     Apply _ _ -> "Apply"

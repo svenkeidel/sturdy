@@ -28,9 +28,9 @@ import           Data.Abstract.DiscretePowerset (Pow, singleton)
 
 import           Data.GraphViz hiding (diamond)
 import           Data.Graph.Inductive(Gr)
-import           GHC.Exts(toList, fromList)
-import qualified Data.HashSet as Set 
-import qualified Data.HashMap.Lazy as Map
+import           GHC.Exts(fromList)
+-- import qualified Data.HashSet as Set 
+-- import qualified Data.HashMap.Lazy as Map
 
 main :: IO ()
 main = hspec spec
@@ -109,7 +109,7 @@ spec = do
 
     it "deriv" $ do
 -- => TIMEOUT | STATES: 1645737
-      pendingWith "!!!!!!!! some variable not bound !!!!!!!"
+      pendingWith "out of memory"
       let inFile = "gabriel//deriv"
       let expRes = Terminating (Fail "{\"cannot unify Quote and List [TypeError: {\\\"cannot unify Quote and Num\\\"}]\"}")
       helper_test inFile expRes
@@ -171,7 +171,7 @@ spec = do
   describe "Custom_Tests" $ do
     it "recursion_union_empty_list" $ do
       let inFile = "test_rec_empty"
-      let expRes = Terminating (Success $ singleton Bottom)
+      let expRes = Terminating (Success $ singleton EmptyList)
       helper_test inFile expRes      
 
     it "recursion and union with non-empty list" $ do
@@ -179,8 +179,7 @@ spec = do
       let expRes = Terminating (Success $ singleton NumVal)          
       helper_test inFile expRes               
 
-    it "should return listVal for (cdr '(2 3 4))" $ do
-      pendingWith "passes"
+    it "should return NV for (car (cdr '(2 3 4)))" $ do
       let inFile = "test_cdr"
       let expRes = Terminating (Success $ singleton NumVal)
       helper_test inFile expRes  
@@ -196,15 +195,13 @@ spec = do
       helper_test inFile expRes       
 
     it "unifying two list of nums of different size should result in list of nums" $ do
-      pendingWith "passes"
       let inFile = "test_faulty_list"
-      let expRes = Terminating (Success $ singleton NumVal)           
+      let expRes = Terminating (Success $ fromList [NumVal, BoolVal B.False])           
       helper_test inFile expRes  
 
     it "test_if" $ do
-      pendingWith "passes"
       let inFile = "test_if"
-      let expRes = Terminating (Success $ singleton NumVal)          
+      let expRes = Terminating (Success $ singleton $ BoolVal B.False)          
       helper_test inFile expRes            
 
     it "test_opvars" $ do
@@ -214,7 +211,7 @@ spec = do
 
     it "test_equal" $ do
       let inFile = "test_equal"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.True)         
+      let expRes = Terminating (Success $ singleton $ BoolVal B.Top)         
       helper_test inFile expRes   
 
     it "test_cons" $ do
@@ -269,7 +266,7 @@ spec = do
 
     it "test_list" $ do
       let inFile = "test_list"
-      let expRes = Terminating (Success $ singleton EmptyList)         
+      let expRes = Terminating (Success $ singleton QuoteVal)         
       helper_test inFile expRes       
 
     it "test_factorial" $ do
