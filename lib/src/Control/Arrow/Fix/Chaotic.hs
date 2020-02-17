@@ -34,19 +34,15 @@ class (Arrow c, Profunctor c) => ArrowChaotic a c | c -> a where
 
 chaotic :: forall a b c. (ArrowStack a c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
 chaotic f = proc a -> do
-  m <- Cache.lookup -< a
-  case m of
-    Just (Stable,b) -> returnA -< b
-    Just (Unstable,b) -> do
-      loop <- Stack.elem -< a
-      if loop
-        then returnA -< b
-        else Stack.push iterate -< a
-    Nothing -> do
-      loop <- Stack.elem -< a
-      if loop
-        then initialize -< a
-        else Stack.push iterate -< a
+  loop <- Stack.elem -< a
+  if loop
+  then do
+    m <- Cache.lookup -< a
+    case m of
+      Just (_,b) -> returnA -< b
+      Nothing -> initialize -< a
+  else
+    Stack.push iterate -< a
   where
     iterate = proc a -> do
       b <- f -< a
@@ -59,7 +55,7 @@ chaotic f = proc a -> do
 -- | Iterate on the innermost fixpoint component.
 iterateInner :: forall a b c. (Identifiable a, ArrowChaotic a c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
 {-# INLINE iterateInner #-}
-iterateInner f = detectLoop iterate
+iterateInner f = detectLoop (Stack.push iterate)
   where
     iterate = proc a -> do
       (component,b) <- getComponent f -< a
@@ -87,7 +83,7 @@ iterateInner f = detectLoop iterate
 -- | Iterate on the outermost fixpoint component.
 iterateOuter :: forall a b c. (Identifiable a, ArrowChaotic a c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
 {-# INLINE iterateOuter #-}
-iterateOuter f = detectLoop iterate
+iterateOuter f = detectLoop (Stack.push iterate)
   where
     iterate = proc a -> do
       (component,b) <- getComponent f -< a
@@ -123,21 +119,20 @@ iterateOuter f = detectLoop iterate
 
 detectLoop :: (Identifiable a, ArrowChaotic a c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => c a b -> c a b
 detectLoop iterate = proc a -> do
-  m <- Cache.lookup -< a
-  case m of
-    Just (Stable,b) -> returnA -< b
-    Just (Unstable,b) -> do
-      loop <- Stack.elem -< a
-      if loop
-        then setComponent -< (mempty { head = H.singleton a }, b)
-        else Stack.push iterate -< a
-    Nothing -> do
-      loop <- Stack.elem -< a
-      if loop
-        then do
-          b <- Cache.initialize -< a
-          setComponent -< (mempty { head = H.singleton a }, b)
-        else Stack.push iterate -< a
+  loop <- Stack.elem -< a
+  if loop
+  then do
+    m <- Cache.lookup -< a
+    case m of
+      Just (Stable,b) ->
+        returnA -< b
+      Just (Unstable,b) ->
+        setComponent -< (mempty { head = H.singleton a }, b)
+      Nothing -> do
+        b <- Cache.initialize -< a
+        setComponent -< (mempty { head = H.singleton a }, b)
+  else
+    iterate -< a
 {-# INLINE detectLoop #-}
 
 data Component a = Component { head :: HashSet a, body :: HashSet a } deriving (Eq)
