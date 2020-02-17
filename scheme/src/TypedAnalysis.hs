@@ -28,7 +28,6 @@ import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic(chaotic,iterateInner,iterateOuter)
 import           Control.Arrow.Fix.Parallel
 import qualified Control.Arrow.Fix.Context as Ctx
--- import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
 import qualified Control.Arrow.Closure as Cls
@@ -37,8 +36,6 @@ import           Control.Arrow.Store
 import qualified Control.Arrow.Store as Store
 import qualified Control.Arrow.Utils as ArrowUtils
 import           Control.Arrow.Fix.Context
-
--- import Control.Arrow.State as State
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.Error
@@ -46,44 +43,32 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
--- import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
 import           Control.Arrow.Transformer.Abstract.Terminating
--- import           Control.Arrow.Transformer.Abstract.Failure
 
 import           Control.Monad.State hiding (lift,fail)
 
--- import           Data.Identifiable
 import           Data.Hashable
 import           Data.Label
 import           Data.Order
 import           Data.Text (Text, unpack)
 import           Data.List (intersect)
 import           Data.Utils
--- import           Data.Profunctor
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.Boolean as B
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
--- import           Data.Graph.Inductive (Gr)
 
--- import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Error (Error)
--- import qualified Data.Abstract.Error as E
--- import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
--- import           Data.Abstract.Stable
 import           Data.Abstract.Terminating(Terminating)
--- import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Closure (Closure)
--- import qualified Data.Abstract.Closure as C
 import           Data.Abstract.DiscretePowerset (Pow)
 import           Data.Abstract.CallString(CallString)
 
 import           GHC.Exts(IsString(..),fromList, toList)
 import           GHC.Generics(Generic)
--- import           Text.Printf
 
 import           Syntax (Expr(..),Literal(..) ,Op1_(..),Op2_(..),OpVar_(..), apply)
 import           GenericInterpreter as Generic
@@ -102,7 +87,8 @@ data Addr
 -- values are approximated with a set of abstract closures.
 type Val = Pow Primitives
 data Primitives
-  = NumVal 
+  = IntVal 
+  | FloatVal
   | BoolVal B.Bool 
   | ClosureVal Cls 
   | StringVal
@@ -257,9 +243,9 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     => IsNum Val (ValueT Val c) where
   type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)
   lit = proc x -> case x of
-    Number _ -> returnA -< singleton NumVal
-    Float _ -> returnA -< singleton NumVal
-    Ratio _ -> returnA -< singleton NumVal
+    Number _ -> returnA -< singleton IntVal
+    Float _ -> returnA -< singleton FloatVal
+    Ratio _ -> returnA -< singleton Bottom
     Bool True  -> returnA -< singleton $ BoolVal B.True 
     Bool False  -> returnA -< singleton $ BoolVal B.False
     Char _ -> returnA -< singleton StringVal
@@ -277,19 +263,18 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
   emptyList = proc _ -> returnA -< singleton EmptyList
   op1_ = proc (op, x) -> case op of
     Number_ -> withVal (\val -> case val of 
-      NumVal -> BoolVal B.True
+      IntVal -> BoolVal B.True
       _ -> BoolVal B.False) -< x
     Integer_ -> withVal (\val -> case val of 
-      NumVal -> BoolVal B.True 
+      IntVal -> BoolVal B.True 
       _ -> BoolVal B.False) -< x 
-    -- TODO : Change when adding FloatVal 
     Float_ -> withVal (\val -> case val of 
-      NumVal -> BoolVal B.True 
+      FloatVal -> BoolVal B.True 
       _ -> BoolVal B.False) -< x 
     Ratio_ -> withVal (\val -> case val of 
-      NumVal -> BoolVal B.True 
+      IntVal -> BoolVal B.Top
+      FloatVal -> BoolVal B.Top
       _ -> BoolVal B.False) -< x 
-    -- END TODO
     Zero -> withVal unArithmetics -< x
     Positive -> withVal unArithmetics -< x 
     Negative -> withVal unArithmetics -< x 
@@ -298,7 +283,10 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Abs -> withVal unArithmetics -< x
     Floor -> withVal unArithmetics -< x
     Ceiling -> withVal unArithmetics -< x 
-    Log -> withVal unArithmetics -< x 
+    Log -> withVal (\val -> case val of 
+      IntVal -> FloatVal
+      FloatVal -> FloatVal 
+      _ -> Bottom) -< x 
     Boolean -> withVal (\val -> case val of 
       BoolVal _ -> BoolVal B.True
       _ -> BoolVal B.False) -< x 
@@ -380,7 +368,7 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Add -> withVarValNumNum -< xs 
     Mul -> withVarValNumNum -< xs
     Sub -> withVarValNumNum -< xs
-    Div -> withVarValNumNum -< xs 
+    Div -> withVarValNumNum' -< xs 
     Gcd -> withVarValNumNum -< xs 
     Lcm -> withVarValNumNum -< xs 
   {-# INLINE lit #-}
@@ -405,7 +393,8 @@ instance Show Addr where
 
 instance Hashable Primitives
 instance Show Primitives where
-  show NumVal = "Num"
+  show IntVal = "Int"
+  show FloatVal = "Real"
   show (BoolVal b) = show b
   show (ClosureVal cls) = show cls
   show StringVal = "String"
@@ -493,7 +482,8 @@ withVal op = proc v -> returnA -< fromList $ map op (toList v)
  
 unArithmetics :: Primitives -> Primitives 
 unArithmetics val = case val of 
-  NumVal -> BoolVal B.Top
+  IntVal -> BoolVal B.Top
+  FloatVal -> BoolVal B.Top
   _ -> Bottom
 
 eqHelp :: (ArrowChoice c, ArrowFail e c, IsString e) => c (Val,Val) Val
@@ -510,17 +500,32 @@ eqHelp = proc (v1, v2) -> do
 with2Val :: (ArrowChoice c, ArrowFail e c, IsString e) => c (Val, Val) Val
 with2Val = proc (v1, v2) -> 
   case intersect (toList v1) (toList v2) of
-    [NumVal] -> returnA -< singleton NumVal 
+    [IntVal] -> returnA -< fromList [IntVal]
     _ -> returnA -< singleton Bottom
 
 withVarValNumBool :: (ArrowChoice c, ArrowFail e c, IsString e) => c [Val] Val
 withVarValNumBool = proc vs -> 
   case foldl1 intersect (map toList vs) of
-    [NumVal] -> returnA -< singleton $ BoolVal B.Top 
+    [IntVal] -> returnA -< singleton $ BoolVal B.Top 
+    [FloatVal] -> returnA -< singleton $ BoolVal B.Top
+    [IntVal, FloatVal] -> returnA -< singleton $ BoolVal B.Top
+    [FloatVal, IntVal] -> returnA -< singleton $ BoolVal B.Top
     _ -> returnA -< singleton Bottom
 
 withVarValNumNum :: (ArrowChoice c, ArrowFail e c, IsString e) => c [Val] Val
 withVarValNumNum = proc vs -> 
   case foldl1 intersect (map toList vs) of
-    [NumVal] -> returnA -< singleton NumVal 
+    [IntVal] -> returnA -< singleton IntVal 
+    [FloatVal] -> returnA -< singleton FloatVal 
+    [IntVal, FloatVal] -> returnA -< fromList [IntVal, FloatVal]
+    [FloatVal, IntVal] -> returnA -< fromList [IntVal, FloatVal]
+    _ -> returnA -< singleton Bottom
+
+withVarValNumNum' :: (ArrowChoice c, ArrowFail e c, IsString e) => c [Val] Val
+withVarValNumNum' = proc vs -> 
+  case foldl1 intersect (map toList vs) of
+    [IntVal] -> returnA -< fromList [IntVal, FloatVal]
+    [FloatVal] -> returnA -< fromList [IntVal, FloatVal] 
+    [IntVal, FloatVal] -> returnA -< fromList [IntVal, FloatVal]
+    [FloatVal, IntVal] -> returnA -< fromList [IntVal, FloatVal]
     _ -> returnA -< singleton Bottom
