@@ -25,9 +25,9 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(chaotic)
+import           Control.Arrow.Fix.Chaotic(chaotic,iterateInner,iterateOuter)
+import           Control.Arrow.Fix.Parallel
 import qualified Control.Arrow.Fix.Context as Ctx
--- import           Control.Arrow.Fix.Chaotic (iterateInner)
 -- import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -127,8 +127,8 @@ type Out' = (Monotone
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
-evalInterval :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalInterval env0 e = run (extend' (Generic.run_ ::
+evalIntervalChaotic :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+evalIntervalChaotic env0 e = run (extend' (Generic.run_ ::
       Fix'
         (ValueT Val
           (ErrorT (Pow String)
@@ -150,6 +150,77 @@ evalInterval env0 e = run (extend' (Generic.run_ ::
       -- Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       Fix.filter apply chaotic -- parallel -- iterateInner
+
+evalIntervalChaoticInner :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ ::
+      Fix'
+        (ValueT Val
+          (ErrorT (Pow String)
+            (TerminatingT
+              (EnvStoreT Text Addr Val 
+                (FixT _ _
+                    (ChaoticT In
+                      (StackT Stack In
+                        (CacheT Monotone In Out
+                          (ContextT Ctx  
+                              (->)))))))))) [Expr] Val))
+    W.finite
+    iterationStrategy
+    (W.finite, W.finite)
+    (Map.empty,(Map.empty,(env0,e0)))
+  where
+    e0 = generate (sequence e)
+    iterationStrategy =
+      -- Fix.traceShow .
+      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+      Fix.filter apply iterateInner
+
+evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ ::
+      Fix'
+        (ValueT Val
+          (ErrorT (Pow String)
+            (TerminatingT
+              (EnvStoreT Text Addr Val 
+                (FixT _ _
+                    (ChaoticT In
+                      (StackT Stack In
+                        (CacheT Monotone In Out
+                          (ContextT Ctx  
+                              (->)))))))))) [Expr] Val))
+    W.finite
+    iterationStrategy
+    (W.finite, W.finite)
+    (Map.empty,(Map.empty,(env0,e0)))
+  where
+    e0 = generate (sequence e)
+    iterationStrategy =
+      -- Fix.traceShow .
+      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+      Fix.filter apply iterateOuter
+
+evalIntervalParallel :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+evalIntervalParallel env0 e = run (extend' (Generic.run_ ::
+      Fix'
+        (ValueT Val
+          (ErrorT (Pow String)
+            (TerminatingT
+              (EnvStoreT Text Addr Val 
+                (FixT _ _
+                  (StackT Stack In
+                    (CacheT Monotone In Out
+                      (ContextT Ctx  
+                          (->))))))))) [Expr] Val))
+    W.finite
+    iterationStrategy
+    (W.finite, W.finite)
+    (Map.empty,(Map.empty,(env0,e0)))
+  where
+    e0 = generate (sequence e)
+    iterationStrategy =
+      -- Fix.traceShow .
+      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+      Fix.filter apply parallel      
 
 instance (ArrowChoice c, ArrowContext Ctx c, ArrowFail e c, IsString e) 
     => ArrowAlloc Addr (ValueT Val c) where
@@ -359,13 +430,25 @@ instance IsClosure Val (HashSet Env) where
   -- TODO END
 
 -- OPERATION HELPER ------------------------------------------------------------
+evalIntervalChaoticInner':: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
+evalIntervalChaoticInner' exprs = let res = evalIntervalChaoticInner [] exprs in (snd $ snd res)
+{-# INLINE evalIntervalChaoticInner' #-}
+
+evalIntervalChaoticOuter':: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
+evalIntervalChaoticOuter' exprs = let res = evalIntervalChaoticOuter [] exprs in (snd $ snd res)
+{-# INLINE evalIntervalChaoticOuter' #-}
+
+evalIntervalParallel':: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
+evalIntervalParallel' exprs = let res = evalIntervalParallel [] exprs in (snd $ snd res)
+{-# INLINE evalIntervalParallel' #-}
+
 evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
-evalInterval' env exprs = snd $ snd $ evalInterval env exprs
+evalInterval' env exprs = snd $ snd $ evalIntervalChaotic env exprs
 {-# INLINE evalInterval' #-}
 
-evalInterval'' :: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
-evalInterval'' exprs = let res = evalInterval [] exprs in (snd $ snd res)
-{-# INLINE evalInterval'' #-}
+evalIntervalChaotic' :: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
+evalIntervalChaotic' exprs = let res = evalIntervalChaotic [] exprs in (snd $ snd res)
+{-# INLINE evalIntervalChaotic' #-}
 
 getCls :: [Primitives] -> [Cls]
 getCls (ClosureVal cls : rest) = cls : (getCls rest) 
