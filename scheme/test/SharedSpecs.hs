@@ -152,7 +152,7 @@ sharedSpecFile run = do
         Left a -> print $ showError a
 
     it "takl" $ do
-      -- pendingWith "passes, but takes veeery long"
+      pendingWith "out of memory"
       file_str <- helper_import "//scheme_files//gabriel//takl.scm"
       case readExprList file_str of
         Right a ->
@@ -222,17 +222,17 @@ sharedSpecFile run = do
       -- let ?sensitivity = 0
       it "recursion and union with empty list" $ do
         let inFile = "test_rec_empty"
-        let expRes = Right $ ListVal []
+        let expRes = Right EmptyList
         helper_test run inFile expRes      
 
       it "recursion and union with non-empty list" $ do
         let inFile = "test_rec_nonempty"
-        let expRes = Right $ ListVal [NumVal 1]
+        let expRes = Right $ NumVal 1 
         helper_test run inFile expRes               
 
-      it "should return listVal for (cdr '(2 3 4))" $ do
+      it "should return 3 for (car (cdr '(2 3 4)))" $ do
         let inFile = "test_cdr"
-        let expRes = Right $ ListVal $ [NumVal 3, NumVal 4]
+        let expRes = Right $ NumVal 3 
         helper_test run inFile expRes  
 
       it "should return correct val for car" $ do
@@ -252,7 +252,7 @@ sharedSpecFile run = do
 
       it "test_if" $ do
         let inFile = "test_if"
-        let expRes = Right $ ListVal [NumVal 1, NumVal 2]          
+        let expRes = Right $ BoolVal False
         helper_test run inFile expRes            
 
       it "test_opvars" $ do
@@ -289,17 +289,6 @@ sharedSpecFile run = do
         let inFile = "test_subtraction"
         let expRes = Right $ NumVal (-4)   
         helper_test run inFile expRes     
-
-      -- it "test_endless_recursion" $ do
-      --   -- pendingWith "doesnt terminate"
-      --   let inFile = "test_endless_recursion"
-      --   let expRes = NonTerminating
-      --   helper_test inFile expRes     
-
-      -- it "test_endless_nums" $ do
-      --   let inFile = "test_endless_nums"
-      --   let expRes = NonTerminating
-      --   helper_test inFile expRes     
 
       it "test_lits" $ do
         let inFile = "test_lits"

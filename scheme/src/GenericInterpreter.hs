@@ -6,7 +6,7 @@
 module GenericInterpreter where
 
 import           Prelude hiding (succ, pred, fail, map)
-import           Syntax (Literal(..), Expr(..), Op1_(..), Op2_(..), OpVar_(..),list)
+import           Syntax (Literal(..), Expr(..), Op1_(..), Op2_(..), OpVar_(..))
 
 import           Control.Arrow
 import           Control.Arrow.Fail
@@ -14,7 +14,6 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Environment(ArrowEnv)
 import           Control.Arrow.LetRec(ArrowLetRec)
 import qualified Control.Arrow.LetRec as LetRec
-import           Control.Arrow.Fix.Context
 
 
 -- import           Control.Arrow.LetRec (ArrowLetRec_)
@@ -28,7 +27,6 @@ import           Control.Arrow.Utils
 
 
 import           Data.Text (Text,pack)
-import           Data.Label (fresh)
 import           Text.Printf
 import           Data.List.Split
 
@@ -73,7 +71,7 @@ eval run' = proc e0 -> case e0 of
   Lam xs es l -> Cls.closure -< Lam xs es l 
   Let bnds body _ -> do -- iterative evaluation of bindings really necessary? 
     vs <- evalBindings -< bnds
-    Env.extend' run' -< (vs,body)
+    Env.extend' run' -< (vs,body) 
   LetRec bnds body _ -> do
     vs <- evalBindings' -< bnds
     addrs <- map alloc -< [Left var | (var,_,val) <- vs]

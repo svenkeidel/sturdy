@@ -375,13 +375,17 @@ getCls _ = []
 containsList :: [Primitives] -> Bool 
 containsList [] = False 
 containsList [ListVal _ _] = True
+containsList [EmptyList] = True
 containsList (ListVal _ _: _) = True 
+containsList (EmptyList: _) = True 
 containsList (_:rest) = containsList rest
 
 allList :: [Primitives] -> Bool 
 allList [] = False 
 allList [ListVal _ _] = True
+allList [EmptyList] = True
 allList (ListVal _ _: rest) = allList rest
+allList (EmptyList: rest) = allList rest
 allList (_:_) = False 
 
 carHelp :: [Primitives] -> [Addr]

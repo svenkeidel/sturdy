@@ -18,6 +18,8 @@ import Prelude hiding (fail,(.))
 import Control.Arrow
 import Control.Arrow.Fail
 import Control.Arrow.State as State
+import Control.Arrow.Store as Store
+import Control.Arrow.Store (ArrowStore, read')
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
 import qualified Control.Arrow.Closure as Cls
 import Control.Arrow.Trans as Trans
@@ -58,21 +60,20 @@ data Val
   | StringVal String
   | SymVal String
   | QuoteVal Val
-  | ListVal [Val]
-  | DottedListVal [Val] Val
+  | ListVal Addr Addr
+  | EmptyList 
   | ClosureVal Cls
   deriving (Generic, Eq)
 
 evalConcrete' :: [State Label Expr] -> (Addr, (Store, Error String Val))
-evalConcrete' es = undefined
-  -- Trans.run
-  --   (Generic.run_ ::   
-  --         ValueT Val 
-  --           (FailureT String
-  --               (EnvStoreT Text Addr Val
-  --                 (StateT Addr
-  --                     (->)))) [Expr] Val)
-  --     (0, (M.empty, (M.empty, generate <$> es)))
+evalConcrete' es = Trans.run
+    (Generic.run_ ::   
+          ValueT Val 
+            (FailureT String
+                (EnvStoreT Text Addr Val
+                  (StateT Addr
+                      (->)))) [Expr] Val)
+      (0, (M.empty, (M.empty, generate <$> es)))
 
 
 instance (ArrowChoice c, Profunctor c, ArrowState Int c) => ArrowAlloc Addr (ValueT Val c) where
@@ -81,6 +82,11 @@ instance (ArrowChoice c, Profunctor c, ArrowState Int c) => ArrowAlloc Addr (Val
       put -< nextAddr + 1
       returnA -< nextAddr
 
+instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c) 
+    => ArrowList Addr Val (ValueT Val c) where
+  list_ = proc (a1,a2) -> returnA -< ListVal a1 a2
+  cons_ = proc (a1,a2) -> returnA -< ListVal a1 a2      
+
 evalConcrete'' :: [State Label Expr] -> (Either (Store, String) Val)
 evalConcrete'' exprs = case evalConcrete' exprs of
   (_, (store, err)) -> case err of 
@@ -88,7 +94,7 @@ evalConcrete'' exprs = case evalConcrete' exprs of
     Fail str -> Left (store, str)
     
 -- | Concrete instance of the interface for value operations.
-instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
+instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
   type Join y (ValueT Val c) = ()
 
   lit = proc x -> case x of
@@ -106,7 +112,7 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
   if_ f g = proc (v1, (x, y)) -> case v1 of
     BoolVal False -> g -< y
     _ -> f -< x
-
+  emptyList = proc _ -> returnA -< EmptyList
   -- | SCHEME STANDARD PROCEDURES
   op1_ = proc (op, x) -> case op of
     Number_ -> do
@@ -189,23 +195,22 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
         _ -> returnA -< BoolVal False
     Null -> do
       case x of
-        (ListVal []) -> returnA -< BoolVal True
+        EmptyList -> returnA -< BoolVal True
         _ -> returnA -< BoolVal False
     ListS -> do
       case x of
-        (ListVal _) -> returnA -< BoolVal True
-        (DottedListVal _ _) -> returnA -< BoolVal True
+        (ListVal _ _) -> returnA -< BoolVal True
+        EmptyList -> returnA -< BoolVal True
         _ -> returnA -< BoolVal False
-    Car -> do
-      case x of
-        (ListVal (n:_)) -> returnA -< n
-        (DottedListVal (n:_) _) -> returnA -< n
-        _ -> fail -< "(car): Bad form"
-    Cdr -> do
-      case x of
-        (ListVal (_:ns)) -> returnA -< ListVal ns
-        (DottedListVal (_:[]) n2) -> returnA -< n2
-        (DottedListVal (_:ns) n) -> returnA -< DottedListVal ns n
+    Car -> case x of
+        (ListVal a1 _)  -> do 
+          v <- read' -< a1
+          returnA -< v
+        _ -> fail -< "(car): Bad form" ++ show x
+    Cdr -> case x of
+        (ListVal _ a2) -> do
+          v <- read' -< a2 
+          returnA -< v
         _ -> fail -< "(cdr): Bad form: " ++ show (x)
     Caar -> do
       v1 <- op1_ -< (Car, x)
@@ -236,9 +241,22 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
         _ -> returnA -< BoolVal False
     Equal -> do
       case (x, y) of
-        (ListVal ns, ListVal ms) -> returnA -< BoolVal (ns == ms)
-        (DottedListVal ns n, DottedListVal ms m) -> returnA -< BoolVal ((ns ++ [n]) == (ms ++ [m]))
-        _ -> op2_ -< (Eqv, x, y)
+        (EmptyList, EmptyList) -> returnA -< BoolVal True
+        (ListVal a11 a12, ListVal a21 a22) -> do 
+          v11 <- read' -< a11
+          v12 <- read' -< a12
+          v21 <- read' -< a21
+          v22 <- read' -< a22 
+          eq <- op2_ -< (Equal, v11, v21)
+          if (eq /= BoolVal True) 
+            then returnA -< BoolVal False
+            else if (v12 == EmptyList && v22 == EmptyList)
+              then returnA -< BoolVal True
+              else do
+                c1 <- op1_ -< (Cdr, v12)
+                c2 <- op1_ -< (Cdr, v22)
+                op2_ -< (Equal, c1, c2)
+        _ -> op2_ -< (Eqv,x,y)
     Quotient -> do
       case (x, y) of
         (NumVal n, NumVal m) -> returnA -< NumVal (n `quot` m)
@@ -325,14 +343,6 @@ instance (ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
     Lcm -> case foldl (withIntFold (lcm)) (Right $ head xs) (tail xs) of
       Left a -> fail -< "(lcm): Contract violation, " ++ a
       Right a -> returnA -< a
-    -- And -> case foldl (withBoolFold (&&)) (Right $ head xs) (tail xs) of
-    --   Left a -> fail -< "(and): Contract violation, " ++ a
-    --   Right a -> returnA -< a
-    -- Or -> case foldl (withBoolFold (||)) (Right $ head xs) (tail xs) of
-    --   Left a -> fail -< "(or): Contract violation, " ++ a
-    --   Right a -> returnA -< a
-    -- List_ -> returnA -< ListVal xs
-
 
 -- | Concrete instance of the interface for closure operations.
 instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)
@@ -345,9 +355,6 @@ instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)
   {-# INLINE closure #-}
   {-# INLINE apply #-}
 
--- instance ArrowStore Addr Val c => ArrowStore Addr Val (ValueT Val c) where 
---   type Join
-
 instance IsClosure Val Env where
   traverseEnvironment _ (NumVal n) = pure $ NumVal n
   traverseEnvironment _ (FloatVal n) = pure $ FloatVal n
@@ -357,8 +364,8 @@ instance IsClosure Val Env where
   traverseEnvironment _ (StringVal n) = pure $ StringVal n
   traverseEnvironment _ (SymVal n) = pure $ SymVal n
   traverseEnvironment _ (QuoteVal n) = pure $ QuoteVal n
-  traverseEnvironment _ (ListVal ns) = pure $ ListVal ns
-  -- traverseEnvironment _ (DottedListVal ns n) = pure $ DottedListVal ns n
+  traverseEnvironment _ (ListVal a1 a2) = pure $ ListVal a1 a2
+  traverseEnvironment _ EmptyList = pure $ EmptyList
   traverseEnvironment f (ClosureVal cl) = ClosureVal <$> traverse f cl
 
   mapEnvironment _ (NumVal n) = NumVal n
@@ -369,8 +376,8 @@ instance IsClosure Val Env where
   mapEnvironment _ (StringVal n) = StringVal n
   mapEnvironment _ (SymVal n) = SymVal n
   mapEnvironment _ (QuoteVal n) = QuoteVal n
-  mapEnvironment _ (ListVal ns) = ListVal ns
-  -- mapEnvironment _ (DottedListVal ns n) = DottedListVal ns n
+  mapEnvironment _ (ListVal a1 a2) = ListVal a1 a2
+  mapEnvironment _ EmptyList = EmptyList
   mapEnvironment f (ClosureVal (Closure expr env)) = ClosureVal (Closure expr (f env))
 
 
@@ -383,9 +390,9 @@ instance Show Val where
   show (StringVal n) = show n
   show (SymVal n) = show n
   show (QuoteVal n) = "'" ++ show n
-  show (ListVal n) = show n
+  show (ListVal a1 a2) = "List" ++ show a1 ++ "," ++ show a2
+  show EmptyList = "'()"
   show (ClosureVal n) = show n
-  show (DottedListVal ns n) = show ns ++ " : " ++ show n
 
   
 -- FOLD HELPER -----------------------------------------------------------------
