@@ -54,11 +54,11 @@ eval :: (ArrowChoice c,
 eval run' = proc e0 -> case e0 of
   -- inner representation and evaluation
   Lit x _ -> lit -< x
-  List [] l -> emptyList -< ()
+  List [] _ -> emptyList -< ()
   List xs l -> if length xs == 1 
     then evalList -< ([head xs], [])
     else evalList -< ([head xs], [List (tail xs) l])
-  Cons x1 x2 l -> evalList -< ([x1],[x2])
+  Cons x1 x2 _ -> evalList -< ([x1],[x2]) 
   Begin es _ -> do
     run' -< es
   App e1 e2 _ -> do
@@ -74,7 +74,7 @@ eval run' = proc e0 -> case e0 of
     Env.extend' run' -< (vs,body) 
   LetRec bnds body _ -> do
     vs <- evalBindings' -< bnds
-    addrs <- map alloc -< [Left var | (var,_,val) <- vs]
+    addrs <- map alloc -< [Left var | (var,_,_) <- vs]
     Env.extend' (LetRec.letRec run') -< ([(var,addr) | ((var,_,_),addr) <- zip vs addrs], ([(var,val) | (var,_,val) <- vs], body))
   Set x e l -> run' -< [Set x e l]
   Define xs e l -> run' -< [Define xs e l]

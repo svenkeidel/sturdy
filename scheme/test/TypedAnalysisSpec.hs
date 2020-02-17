@@ -85,7 +85,7 @@ spec = do
 
 
     it "should terminate for the non-terminating program LetRec" $
-      let ?sensitivity = 2
+      let ?sensitivity = 0
       in evalInterval' [] [let_rec [("id", lam ["x"] ["x"]),
                                 ("fix",lam ["x"] [app "fix" ["x"]])]
                          [app "fix" ["id"]]]
@@ -277,20 +277,20 @@ spec = do
 -------------------HELPER------------------------------------------------------
 helperTest :: String -> Terminating (Error (Pow String) Val) -> IO ()
 helperTest inFile expRes = do 
+  let ?sensitivity = 0 
   helperTestChaotic inFile expRes
   helperTestChaoticInner inFile expRes
   helperTestChaoticOuter inFile expRes
   helperTestParallel inFile expRes
 
 
-helperTestChaotic :: String -> Terminating (Error (Pow String) Val) -> IO ()
+helperTestChaotic :: (?sensitivity :: Int) => String -> Terminating (Error (Pow String) Val) -> IO ()
 helperTestChaotic inFile expRes = do
   file_str <- helper_import inFile
   case readExprList file_str of
     Right a ->
       case match a of
         Right b -> do
-          let ?sensitivity = 0 
           -- let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
           let res = evalIntervalChaotic' [let_rec (getTopDefinesLam b) (getBody b)]
           -- _ <- draw_graph inFile graph

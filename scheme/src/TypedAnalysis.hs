@@ -223,7 +223,7 @@ instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c,
     => ArrowList Addr Val (ValueT Val c) where
   list_ = proc (a1,a2) -> returnA -< singleton $ ListVal a1 a2
   cons_ = proc (a1,a2) -> returnA -< singleton $ ListVal a1 a2
-    
+
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
   type Join y Val (ValueT Val c) = Cls.Join y Cls c
@@ -473,6 +473,7 @@ cdrHelp (_:rest) = cdrHelp rest
 -- is there any value that can be considered false?
 isFalse :: Val -> Bool 
 isFalse v = any (/= BoolVal B.True) (toList v)
+
 -- is there any value that can be considered true?
 isTrue :: Val -> Bool 
 isTrue v = any (/= BoolVal B.False) (toList v)
