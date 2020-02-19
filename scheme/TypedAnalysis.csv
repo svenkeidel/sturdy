@@ -1,0 +1,117 @@
+Benchmark,Iteration Strat,iterations,inits,lookups,updates
+gabriel//cpstak,chaotic simple,1,1,2,10
+gabriel//cpstak,chaotic inner,1,1,1,3
+gabriel//cpstak,chaotic outer,1,1,1,3
+gabriel//cpstak,parallel,2,2,2,3
+gabriel//deriv,chaotic simple,1,1,580,273
+gabriel//deriv,chaotic inner,1,1,580,272
+gabriel//deriv,chaotic outer,1,2,506,240
+gabriel//deriv,parallel,4,4,851,6
+gabriel//diviter,chaotic simple,1,2,5,17
+gabriel//diviter,chaotic inner,1,2,2,4
+gabriel//diviter,chaotic outer,1,2,2,4
+gabriel//diviter,parallel,3,4,4,6
+gabriel//divrec,chaotic simple,1,2,5,11
+gabriel//divrec,chaotic inner,1,2,4,6
+gabriel//divrec,chaotic outer,1,2,4,6
+gabriel//divrec,parallel,5,5,4,8
+gabriel//takl,chaotic simple,1,3,33,25
+gabriel//takl,chaotic inner,1,3,26,18
+gabriel//takl,chaotic outer,1,3,26,18
+gabriel//takl,parallel,2,4,48,5
+scala-am//collatz,chaotic simple,1,2,24,33
+scala-am//collatz,chaotic inner,1,2,9,10
+scala-am//collatz,chaotic outer,1,2,9,10
+scala-am//collatz,parallel,2,3,16,4
+scala-am//gcipd,chaotic simple,1,2,4,11
+scala-am//gcipd,chaotic inner,1,2,2,4
+scala-am//gcipd,chaotic outer,1,2,2,4
+scala-am//gcipd,parallel,2,3,4,4
+scala-am//nqueens,chaotic simple,1,3,45,66
+scala-am//nqueens,chaotic inner,1,4,34,44
+scala-am//nqueens,chaotic outer,1,4,34,44
+scala-am//nqueens,parallel,2,5,63,6
+test_rec_empty,chaotic simple,1,1,2,7
+test_rec_empty,chaotic inner,1,1,1,2
+test_rec_empty,chaotic outer,1,1,1,2
+test_rec_empty,parallel,2,2,2,3
+test_rec_nonempty,chaotic simple,1,1,2,8
+test_rec_nonempty,chaotic inner,1,1,1,2
+test_rec_nonempty,chaotic outer,1,1,1,2
+test_rec_nonempty,parallel,2,2,2,3
+test_cdr,chaotic simple,1,0,0,1
+test_cdr,chaotic inner,1,0,0,0
+test_cdr,chaotic outer,1,0,0,0
+test_cdr,parallel,2,1,0,2
+test_car,chaotic simple,1,0,0,1
+test_car,chaotic inner,1,0,0,0
+test_car,chaotic outer,1,0,0,0
+test_car,parallel,2,1,0,2
+test_null,chaotic simple,1,0,0,1
+test_null,chaotic inner,1,0,0,0
+test_null,chaotic outer,1,0,0,0
+test_null,parallel,2,1,0,2
+test_faulty_list,chaotic simple,1,0,0,1
+test_faulty_list,chaotic inner,1,0,0,0
+test_faulty_list,chaotic outer,1,0,0,0
+test_faulty_list,parallel,2,1,0,2
+test_if,chaotic simple,1,0,0,1
+test_if,chaotic inner,1,0,0,0
+test_if,chaotic outer,1,0,0,0
+test_if,parallel,2,1,0,2
+test_opvars,chaotic simple,1,0,0,1
+test_opvars,chaotic inner,1,0,0,0
+test_opvars,chaotic outer,1,0,0,0
+test_opvars,parallel,2,1,0,2
+test_equal,chaotic simple,1,0,0,1
+test_equal,chaotic inner,1,0,0,0
+test_equal,chaotic outer,1,0,0,0
+test_equal,parallel,2,1,0,2
+test_cons,chaotic simple,1,0,0,1
+test_cons,chaotic inner,1,0,0,0
+test_cons,chaotic outer,1,0,0,0
+test_cons,parallel,2,1,0,2
+test_closure_gc,chaotic simple,1,0,0,9
+test_closure_gc,chaotic inner,1,0,0,0
+test_closure_gc,chaotic outer,1,0,0,0
+test_closure_gc,parallel,2,1,0,2
+lang_scheme_test,chaotic simple,1,0,0,1
+lang_scheme_test,chaotic inner,1,0,0,0
+lang_scheme_test,chaotic outer,1,0,0,0
+lang_scheme_test,parallel,2,1,0,2
+test_inner_define,chaotic simple,1,0,0,1
+test_inner_define,chaotic inner,1,0,0,0
+test_inner_define,chaotic outer,1,0,0,0
+test_inner_define,parallel,2,1,0,2
+test_unops,chaotic simple,1,0,0,1
+test_unops,chaotic inner,1,0,0,0
+test_unops,chaotic outer,1,0,0,0
+test_unops,parallel,2,1,0,2
+test_eq,chaotic simple,1,0,0,1
+test_eq,chaotic inner,1,0,0,0
+test_eq,chaotic outer,1,0,0,0
+test_eq,parallel,2,1,0,2
+test_binops,chaotic simple,1,0,0,2
+test_binops,chaotic inner,1,0,0,0
+test_binops,chaotic outer,1,0,0,0
+test_binops,parallel,3,2,0,4
+test_opvar_numbool,chaotic simple,1,0,0,1
+test_opvar_numbool,chaotic inner,1,0,0,0
+test_opvar_numbool,chaotic outer,1,0,0,0
+test_opvar_numbool,parallel,2,1,0,2
+test_opvar_numnum,chaotic simple,1,0,0,1
+test_opvar_numnum,chaotic inner,1,0,0,0
+test_opvar_numnum,chaotic outer,1,0,0,0
+test_opvar_numnum,parallel,2,1,0,2
+test_opvar_boolbool,chaotic simple,1,0,0,1
+test_opvar_boolbool,chaotic inner,1,0,0,0
+test_opvar_boolbool,chaotic outer,1,0,0,0
+test_opvar_boolbool,parallel,2,1,0,2
+test_list,chaotic simple,1,0,0,1
+test_list,chaotic inner,1,0,0,0
+test_list,chaotic outer,1,0,0,0
+test_list,parallel,2,1,0,2
+test_factorial,chaotic simple,1,1,2,4
+test_factorial,chaotic inner,1,1,1,2
+test_factorial,chaotic outer,1,1,1,2
+test_factorial,parallel,2,2,2,3

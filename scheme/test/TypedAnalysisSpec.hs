@@ -8,6 +8,7 @@ import           Prelude hiding (succ,pred,id)
 import           Data.Abstract.Error hiding (toEither)
 import           Data.Abstract.Terminating hiding (toEither)
 import qualified Data.Abstract.DiscretePowerset as Pow
+-- import Control.Arrow.Fix.Metrics
 
 import           Test.Hspec
 -- import           SharedSpecs
@@ -29,6 +30,8 @@ import           Data.Abstract.DiscretePowerset (Pow, singleton)
 import           Data.GraphViz hiding (diamond)
 import           Data.Graph.Inductive(Gr)
 import           GHC.Exts(fromList)
+import Control.Arrow.Transformer.Abstract.Fix.Metrics
+import           Text.Printf
 -- import qualified Data.HashSet as Set 
 -- import qualified Data.HashMap.Lazy as Map
 
@@ -273,6 +276,7 @@ spec = do
       helperTest inFile expRes       
 
     it "test_random" $ do
+      pending
       let inFile = "test_random"
       let expRes = Terminating (Success $ singleton $ IntVal)         
       helperTest inFile expRes       
@@ -287,6 +291,8 @@ helperTest inFile expRes = do
   helperTestChaoticOuter inFile expRes
   helperTestParallel inFile expRes
 
+metricFile :: String
+metricFile = "TypedAnalysis.csv"
 
 helperTestChaotic :: (?sensitivity :: Int) => String -> Terminating (Error (Pow String) Val) -> IO ()
 helperTestChaotic inFile expRes = do
@@ -296,8 +302,10 @@ helperTestChaotic inFile expRes = do
       case match a of
         Right b -> do
           -- let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
-          let res = evalIntervalChaotic' [let_rec (getTopDefinesLam b) (getBody b)]
+          let (metric, res) = evalIntervalChaotic' [let_rec (getTopDefinesLam b) (getBody b)]
           -- _ <- draw_graph inFile graph
+          let csv = printf "\"%s\",chaotic simple,%s\n" inFile (toCSV metric)
+          appendFile metricFile csv
           res`shouldBe` expRes
         Left b -> print b
     Left a -> print $ showError a
@@ -311,7 +319,9 @@ helperTestChaoticInner inFile expRes = do
         Right b -> do
           let ?sensitivity = 0 
           -- let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
-          let res = evalIntervalChaoticInner' [let_rec (getTopDefinesLam b) (getBody b)]
+          let (metric, res) = evalIntervalChaoticInner' [let_rec (getTopDefinesLam b) (getBody b)]
+          let csv = printf "\"%s\",chaotic inner,%s\n" inFile (toCSV metric)
+          appendFile metricFile csv
           -- _ <- draw_graph inFile graph
           res`shouldBe` expRes
         Left b -> print b
@@ -326,8 +336,10 @@ helperTestChaoticOuter inFile expRes = do
         Right b -> do
           let ?sensitivity = 0 
           -- let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
-          let res = evalIntervalChaoticOuter' [let_rec (getTopDefinesLam b) (getBody b)]
+          let (metric,res) = evalIntervalChaoticOuter' [let_rec (getTopDefinesLam b) (getBody b)]
           -- _ <- draw_graph inFile graph
+          let csv = printf "\"%s\",chaotic outer,%s\n" inFile (toCSV metric)
+          appendFile metricFile csv
           res`shouldBe` expRes
         Left b -> print b
     Left a -> print $ showError a
@@ -341,8 +353,10 @@ helperTestParallel inFile expRes = do
         Right b -> do
           let ?sensitivity = 0 
           -- let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
-          let res = evalIntervalParallel' [let_rec (getTopDefinesLam b) (getBody b)]
+          let (metric,res) = evalIntervalParallel' [let_rec (getTopDefinesLam b) (getBody b)]
           -- _ <- draw_graph inFile graph
+          let csv = printf "\"%s\",parallel,%s\n" inFile (toCSV metric)
+          appendFile metricFile csv
           res`shouldBe` expRes
         Left b -> print b
     Left a -> print $ showError a

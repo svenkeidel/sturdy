@@ -45,6 +45,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
 import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 
 import           Control.Monad.State hiding (lift,fail)
 
@@ -103,13 +104,21 @@ data ListT
   | Coons Text Text
   deriving (Eq, Generic)
 
--- Input and output type of the fixpoint.
+-- -- Input and output type of the fixpoint.
 type In = (Store,(([Expr],Label),Env))
 type Out = (Store, Terminating (Error (Pow String) Val))
 type Out' = (Monotone
-              (Store, (([Expr], Label), Env))
-              (Store, Terminating (Error (Pow String) Val)),
-            (HashMap Addr Val, Terminating (Error (Pow String) Val)))
+                              (Store, (([Expr], Label), Env))
+                              (Store, Terminating (Error (Pow String) Val)),
+                            (Metrics (Store, (([Expr], Label), Env)),
+                             (HashMap Addr (Pow Primitives),
+                              Terminating (Error (Pow String) (Pow Primitives)))))
+-- type In = (Store,(([Expr],Label),Env))
+-- type Out = (Store, Terminating (Error (Pow String) Val))
+-- type Out' = (Monotone
+--               (Store, (([Expr], Label), Env))
+--               (Store, Terminating (Error (Pow String) Val)),
+--             (HashMap Addr Val, Terminating (Error (Pow String) Val)))
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
@@ -121,11 +130,12 @@ evalIntervalChaotic env0 e = run (extend' (Generic.run_ ::
             (TerminatingT
               (EnvStoreT Text Addr Val 
                 (FixT _ _
+                  (MetricsT In
                     (ChaoticT In
                       (StackT Stack In
                         (CacheT Monotone In Out
                           (ContextT Ctx  
-                              (->)))))))))) [Expr] Val))
+                              (->))))))))))) [Expr] Val))
     W.finite
     iterationStrategy
     (W.finite, W.finite)
@@ -145,11 +155,12 @@ evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ ::
             (TerminatingT
               (EnvStoreT Text Addr Val 
                 (FixT _ _
+                  (MetricsT In
                     (ChaoticT In
                       (StackT Stack In
                         (CacheT Monotone In Out
                           (ContextT Ctx  
-                              (->)))))))))) [Expr] Val))
+                              (->))))))))))) [Expr] Val))
     W.finite
     iterationStrategy
     (W.finite, W.finite)
@@ -164,16 +175,17 @@ evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ ::
 evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
 evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ ::
       Fix'
-        (ValueT Val
+        (ValueT Val 
           (ErrorT (Pow String)
             (TerminatingT
               (EnvStoreT Text Addr Val 
                 (FixT _ _
+                  (MetricsT In
                     (ChaoticT In
                       (StackT Stack In
                         (CacheT Monotone In Out
                           (ContextT Ctx  
-                              (->)))))))))) [Expr] Val))
+                              (->))))))))))) [Expr] Val))
     W.finite
     iterationStrategy
     (W.finite, W.finite)
@@ -193,10 +205,11 @@ evalIntervalParallel env0 e = run (extend' (Generic.run_ ::
             (TerminatingT
               (EnvStoreT Text Addr Val 
                 (FixT _ _
-                  (StackT Stack In
-                    (CacheT Monotone In Out
-                      (ContextT Ctx  
-                          (->))))))))) [Expr] Val))
+                  (MetricsT In
+                    (StackT Stack In
+                      (CacheT Monotone In Out
+                        (ContextT Ctx  
+                            (->)))))))))) [Expr] Val))
     W.finite
     iterationStrategy
     (W.finite, W.finite)
@@ -415,7 +428,7 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
 
 
   {-# INLINE lit #-}
-  {-# INLINE if_ #-}
+  -- {-# INLINE if_ #-}
   {-# INLINE op1_ #-}
   {-# INLINE op2_ #-}
   {-# INLINE opvar_ #-}
@@ -526,24 +539,24 @@ instance IsClosure Val (HashSet Env) where
   -- TODO END
 
 -- OPERATION HELPER ------------------------------------------------------------
-evalIntervalChaoticInner':: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
-evalIntervalChaoticInner' exprs = let res = evalIntervalChaoticInner [] exprs in (snd $ snd res)
+evalIntervalChaoticInner':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
+evalIntervalChaoticInner' exprs = let (_,(metrics,res)) = evalIntervalChaoticInner [] exprs in (metrics,snd $ res)
 {-# INLINE evalIntervalChaoticInner' #-}
 
-evalIntervalChaoticOuter':: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
-evalIntervalChaoticOuter' exprs = let res = evalIntervalChaoticOuter [] exprs in (snd $ snd res)
+evalIntervalChaoticOuter':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
+evalIntervalChaoticOuter' exprs = let (_,(metrics,res)) = evalIntervalChaoticOuter [] exprs in (metrics,snd $ res)
 {-# INLINE evalIntervalChaoticOuter' #-}
 
-evalIntervalParallel':: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
-evalIntervalParallel' exprs = let res = evalIntervalParallel [] exprs in (snd $ snd res)
+evalIntervalParallel':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
+evalIntervalParallel' exprs = let (_,(metrics,res)) = evalIntervalParallel [] exprs in (metrics,snd $ res)
 {-# INLINE evalIntervalParallel' #-}
 
 evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
-evalInterval' env exprs = snd $ snd $ evalIntervalChaotic env exprs
+evalInterval' env exprs = snd $ snd $ snd $ evalIntervalChaotic env exprs
 {-# INLINE evalInterval' #-}
 
-evalIntervalChaotic' :: (?sensitivity :: Int) => [State Label Expr] -> (Terminating (Error (Pow String) Val))
-evalIntervalChaotic' exprs = let res = evalIntervalChaotic [] exprs in (snd $ snd res)
+evalIntervalChaotic' :: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
+evalIntervalChaotic' exprs = let (_,(metrics,res)) = evalIntervalChaotic [] exprs in (metrics,snd $ res)
 {-# INLINE evalIntervalChaotic' #-}
 
 getCls :: [Primitives] -> [Cls]
