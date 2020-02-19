@@ -328,32 +328,70 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Error -> returnA -< singleton Bottom
   op2_ = proc (op, x, y) -> case op of
     Eqv -> eqHelp -< (x,y)
+  --     /** (define (equal? a b)
+  --       (or (eq? a b)
+  --         (and (null? a) (null? b))
+  --         (and (pair? a) (pair? b) (equal? (car a) (car b)) (equal? (cdr a) (cdr b)))
+  --         (and (vector? a) (vector? b)
+  --           (let ((n (vector-length a)))
+  --             (and (= (vector-length b) n)
+  --               (letrec ((loop (lambda (i)
+  --                                (or (= i n)
+  --                                  (and (equal? (vector-ref a i) (vector-ref b i))
+  --                                    (loop (+ i 1)))))))
+  --                 (loop 0)))))))
+  --  */
     Equal -> do 
       eq <- op2_ -< (Eqv,x,y)
-      null1 <- op1_ -< (Null,x)
-      null2 <- op1_ -< (Null,y)
-      list1 <- op1_ -< (ListS,x)
-      list2 <- op1_ -< (ListS,y)
-      if eq == (singleton $ BoolVal B.True ) ||
-        (null1 == (singleton $ BoolVal B.True) &&
-         null2 == (singleton $ BoolVal B.True))
-         then returnA -< singleton $ BoolVal B.True
-         else do 
-          car1 <- op1_ -< (Car, x)
-          car2 <- op1_ -< (Car, y)
-          cdr1 <- op1_ -< (Cdr, x)
-          cdr2 <- op1_ -< (Cdr, y)
-          eq1 <- op2_ -< (Equal,car1,car2)
-          eq2 <- op2_ -< (Equal,cdr1,cdr2)
-          if (list1 == (singleton $ BoolVal B.True) &&
-              list2 == (singleton $ BoolVal B.True) &&
-              eq1 == (singleton $ BoolVal B.True) &&
-              eq2 == (singleton $ BoolVal B.True))
-          then returnA -< singleton $ BoolVal B.True
-          else if list1 == (singleton $ BoolVal B.False) ||
-                  list2 == (singleton $ BoolVal B.False) 
-            then returnA -< eq
-            else returnA -< singleton $ BoolVal B.Top
+      t <- if__ returnA returnA -< (isTrue eq, (eq, singleton Bottom))
+      f <- if__ nullH returnA -< (isFalse eq, ((eq,(x,y)), singleton Bottom))
+      returnA -< t ⊔ f
+      
+      -- v <- if__ returnA nullH -< (eq, ((),(x,y))) 
+      -- v' <- if__ returnA listH -< (null1 == true && null1 == null2,((),(x,y)))
+
+      --   True -> returnA -< true
+      --   Top -> 
+      --   False ->
+      --   then returnA -< eq
+      --   else do 
+      --     null1 <- op1_ -< (Null,x)
+      --     null2 <- op1_ -< (Null,y)
+      --     if null1 == true &&
+      --        null2 == true
+      --        then return -< true
+      --        else do    
+      --         list1 <- op1_ -< (ListS,x)
+      --         list2 <- op1_ -< (ListS,y)
+      --         if list1 == true && list2 == true 
+      --           then do 
+      --             car1 <- op1_ -< (Car, x)
+      --             car2 <- op1_ -< (Car, y)
+      --             eq1 <- op2_ -< (Equal,car1,car2)
+      --             if eq1 == false 
+      --               then returnA -< false
+      --               else 
+      --           else returnA -< singleton $ BoolVal top
+      -- if eq == (singleton $ BoolVal B.True ) ||
+      --   (null1 == (singleton $ BoolVal B.True) &&
+      --    null2 == (singleton $ BoolVal B.True))
+      --    then returnA -< singleton $ BoolVal B.True
+      --    else do 
+      --     car1 <- op1_ -< (Car, x)
+      --     car2 <- op1_ -< (Car, y)
+      --     cdr1 <- op1_ -< (Cdr, x)
+      --     cdr2 <- op1_ -< (Cdr, y)
+      --     eq1 <- op2_ -< (Equal,car1,car2)
+      --     eq2 <- op2_ -< (Equal,cdr1,cdr2)
+      --     if (list1 == (singleton $ BoolVal B.True) &&
+      --         list2 == (singleton $ BoolVal B.True) &&
+      --         eq1 == (singleton $ BoolVal B.True) &&
+      --         eq2 == (singleton $ BoolVal B.True))
+      --     then returnA -< singleton $ BoolVal B.True
+      --     else if list1 == (singleton $ BoolVal B.False) ||
+      --             list2 == (singleton $ BoolVal B.False) 
+      --       then returnA -< eq
+      --       else returnA -< singleton $ BoolVal B.Top
     Quotient -> with2Val -< (x,y) 
     Remainder -> with2Val -< (x,y)
     Modulo -> with2Val -< (x,y)
@@ -371,11 +409,80 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Div -> withVarValNumNum' -< xs 
     Gcd -> withVarValNumNum -< xs 
     Lcm -> withVarValNumNum -< xs 
+    -- and / or not needed as it is desugared to if statements 
+    And -> withVarValBoolBool -< xs  
+    Or -> withVarValBoolBool -< xs 
+
+
   {-# INLINE lit #-}
   {-# INLINE if_ #-}
   {-# INLINE op1_ #-}
   {-# INLINE op2_ #-}
   {-# INLINE opvar_ #-}
+
+nullH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,(Val,Val)) Val 
+nullH = proc (eq,(v1, v2)) -> do
+  null1 <- op1_ -< (Null,v1)
+  null2 <- op1_ -< (Null,v2)
+  nulltest <- opvar_ -< (And, [null1] ++ [null2])
+  ft <- if__ returnA returnA -< (isTrue nulltest, (eq, singleton Bottom))
+  ff <- if__ listH returnA -< (isFalse nulltest, ((v1,v2), singleton Bottom))
+  returnA -< ft ⊔ ff
+
+listH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,Val) Val 
+listH = proc (v1,v2) -> do 
+  list1 <- op1_ -< (ListS,v1)
+  list2 <- op1_ -< (ListS,v2)
+  listtest <- opvar_ -< (And, [list1] ++ [list2]) 
+  fft <- if__ listTH returnA -< (isTrue listtest, ((v1,v2), singleton Bottom))
+  -- fst returnA -> Vector case, omitted here
+  fff <- if__ returnA returnA -< (isFalse listtest, (singleton Bottom, singleton Bottom))
+  returnA -< fft ⊔ fff
+
+listTH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,Val) Val
+listTH = proc (v1, v2) -> do
+  car1 <- op1_ -< (Car, v1)
+  car2 <- op1_ -< (Car, v2)
+  cartest <- op2_ -< (Equal, car1, car2)
+  fftt <- if__ listTTH returnA -< (isTrue cartest, ((v1,v2), singleton Bottom))
+  fftf <- if__ returnA returnA -< (isFalse cartest, (singleton $ BoolVal B.False, singleton Bottom))
+  returnA -< fftt ⊔ fftf
+
+listTTH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,Val) Val
+listTTH = proc (v1,v2) -> do 
+  cdr1 <- op1_ -< (Cdr, v1)
+  cdr2 <- op1_ -< (Cdr, v2)
+  cdrtest <- op2_ -< (Equal, cdr1,cdr2) 
+  returnA -< cdrtest
+  
+
+
+
+-- true = singleton (BoolVal B.True)
+-- false = singleton (BoolVal B.False)
+
+-- pattern True <- x | x == singleton (BoolVal B.True)
+-- pattern False <- x | x == singleton (BoolVal B.False)
+-- pattern Top <- x | x == singleton (BoolVal B.Top)
+
+-- returnHelp :: c x Val 
+-- returnHelp = proc _ -> returnA -< ()
+
+if__ :: (ArrowChoice c, Complete val) => c x val -> c y val -> c (Bool,(x,y)) val
+if__ f g = proc (v,(x,y)) -> case v of
+  True -> f -< x
+  False -> g -< y
+-- inlinable
+
+-- if__ :: Complete val => c x val -> c x val -> c (Val,x) val
+-- if__ f g = proc (v,(x,y)) -> case v of
+--   True -> f -< x
+--   False -> g -< y
+--   Top -> do 
+--     -- (v1,v2) <- f *** g -< x 
+--     (f -< x) <⊔> (g -< y)
+--     -- returnA -< v1 ⊔ V2
+-- -- inlinable 
 
 instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c) 
     => ArrowComplete Val (ValueT Val c) where
@@ -472,11 +579,14 @@ cdrHelp (_:rest) = cdrHelp rest
 
 -- is there any value that can be considered false?
 isFalse :: Val -> Bool 
-isFalse v = any (/= BoolVal B.True) (toList v)
+isFalse v = any (\x -> x /= BoolVal B.True && x /= Bottom) (toList v) 
+        --  && any (/= Bottom) (toList v)
 
 -- is there any value that can be considered true?
 isTrue :: Val -> Bool 
-isTrue v = any (/= BoolVal B.False) (toList v)
+isTrue v = any (\x -> x /= BoolVal B.False && x /= Bottom) (toList v)
+        -- && any (/= Bottom) (toList v)
+
 
 withVal :: (ArrowChoice c, ArrowFail e c, IsString e) => (Primitives -> Primitives) -> c Val Val
 withVal op = proc v -> returnA -< fromList $ map op (toList v)
@@ -492,6 +602,7 @@ eqHelp = proc (v1, v2) -> do
   let v1s = toList v1
   let v2s = toList v2
   case (v1s,v2s) of 
+    ([EmptyList],[EmptyList]) -> returnA -< singleton $ BoolVal B.True
     ([BoolVal b1], [BoolVal b2]) -> if b1 == b2 
       then returnA -< singleton $ BoolVal B.True else returnA -< singleton $ BoolVal B.False 
     _ -> case intersect v1s v2s of 
@@ -530,3 +641,21 @@ withVarValNumNum' = proc vs ->
     [IntVal, FloatVal] -> returnA -< fromList [IntVal, FloatVal]
     [FloatVal, IntVal] -> returnA -< fromList [IntVal, FloatVal]
     _ -> returnA -< singleton Bottom
+
+withVarValBoolBool :: (ArrowChoice c, ArrowFail e c, IsString e) => c [Val] Val
+withVarValBoolBool = proc vs -> do 
+  let inters = foldl1 intersect (map toList vs)
+  if checkBool inters 
+    then returnA -< singleton $ BoolVal $ foldl1 B.and $ valToBool inters 
+    else returnA -< singleton Bottom
+
+checkBool :: [Primitives] -> Bool
+checkBool ps = case ps of
+  (BoolVal _: []) -> True
+  (BoolVal _:rest) -> checkBool rest
+  _ -> False 
+  
+valToBool :: [Primitives] -> [B.Bool]
+valToBool [] = []
+valToBool (BoolVal b:rest) = b : (valToBool rest)
+valToBool _ = [] -- should never happens

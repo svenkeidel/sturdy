@@ -116,7 +116,7 @@ sharedSpecFile run = do
 -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do
     it "cpstak" $ do 
-      -- pendingWith "passes, but takes veeery long"
+      pendingWith "out of memory"
       file_str <- helper_import "//scheme_files//gabriel//cpstak.scm"
       case readExprList file_str of
         Right a ->
@@ -303,7 +303,13 @@ sharedSpecFile run = do
       it "test_rec_defines" $ do
         let inFile = "test_rec_defines"
         let expRes = Right $ NumVal 720 
-        helper_test run inFile expRes     
+        helper_test run inFile expRes
+        
+      it "test_random" $ do
+        let inFile = "test_random"
+        let expRes = Right $ NumVal 1         
+        helper_test run inFile expRes       
+        
 
 
 -------------------HELPER-------------------------------------------------------

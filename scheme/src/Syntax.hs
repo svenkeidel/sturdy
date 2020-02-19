@@ -85,8 +85,8 @@ data OpVar_
   | Gcd -- (gcd z1 ...)
   | Lcm -- (lcm z1 ...)
 -- | Boolean operations
-  -- | And -- (and z1 z2 z3 ...)
-  -- | Or -- (or z1 z2 z3 ...)
+  | And -- (and z1 z2 z3 ...)
+  | Or -- (or z1 z2 z3 ...)
 -- | List operations
   deriving (Eq)
 
@@ -155,6 +155,25 @@ op2_ operation e1 e2 = Op2 operation <$> e1 <*> e2 <*> fresh
 opvar_ :: OpVar_ -> [State Label Expr] -> State Label Expr
 opvar_ operation es = OpVar operation <$> (sequence es) <*> fresh
 
+-- instance Eq Expr where 
+--   (==) e1 e2 = case (e1,e2) of 
+--     (Lit _ l1, Lit _ l2) ->  l1 == l2 
+--     (Cons _ _ l1, Cons _ _ l2) -> l1 == l2 
+--     (List _ l1, List _ l2) -> l1 == l2
+--     (Begin _ l1, Begin _ l2) -> l1 == l2 
+--     (App _ _ l1, App _ _ l2) -> l1 == l2 
+--     (Apply _ l1, Apply _ l2) -> l1 == l2 
+--     (Var _ l1, Var _ l2) -> l1 == l2 
+--     (Set _ _ l1, Set _ _ l2) -> l1 == l2
+--     (Define _ _ l1, Define _ _ l2) -> l1 == l2
+--     (Lam _ _ l1, Lam _ _ l2) -> l1 == l2 
+--     (If _ _ _ l1, If _ _ _ l2) -> l1 == l2 
+--     (Let _ _ l1, Let _ _ l2) -> l1 == l2 
+--     (LetRec _ _ l1, LetRec _ _ l2) -> l1 == l2
+--     (Op1 _ _ l1, Op1 _ _ l2) -> l1 == l2 
+--     (Op2 _ _ _ l1, Op2 _ _ _ l2) -> l1 == l2
+--     (OpVar _ _ l1, OpVar _ _ l2) -> l1 == l2 
+--     _ -> False 
 
 instance Show Literal where
   showsPrec _ e0 = case e0 of

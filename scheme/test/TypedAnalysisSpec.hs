@@ -105,36 +105,34 @@ spec = do
       let expRes = Terminating (Success $ singleton IntVal)
       helperTest inFile expRes
 
-
-
     it "deriv" $ do
--- => TIMEOUT | STATES: 1645737
-      pendingWith "out of memory"
+--     => TIMEOUT | STATES: 1645737
+      -- pendingWith "out of memory"
       let inFile = "gabriel//deriv"
-      let expRes = Terminating (Fail "{\"cannot unify Quote and List [TypeError: {\\\"cannot unify Quote and Num\\\"}]\"}")
+      let expRes = Terminating (Success $ singleton Bottom)
       helperTest inFile expRes
 
     it "diviter" $ do
 --     => Final Values: Set(#f, {#f,#t})
 --     => TIME: 163 | STATES: 175
-      pendingWith "out of memory"
+      -- pendingWith "out of memory"
       let inFile = "gabriel//diviter"
-      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top])              
+      let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])              
       helperTest inFile expRes
 
     it "divrec" $ do
 --       => Final Values: Set(#f, {#f,#t})
 --       => TIME: 59 | STATES: 219
-      pendingWith "out of memory"
+      -- pendingWith "out of memory"
       let inFile = "gabriel//divrec"
-      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top])              
+      let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])              
       helperTest inFile expRes      
 
     it "takl" $ do
 -- => TIMEOUT | STATES: 1959438
-      pendingWith "out of memory"
+      -- pendingWith "out of memory"
       let inFile = "gabriel//takl"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.Top)              
+      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top, Bottom])              
       helperTest inFile expRes
 
 -- -------------------SCALA-AM BENCHMARKS------------------------------------------
@@ -211,12 +209,12 @@ spec = do
 
     it "test_equal" $ do
       let inFile = "test_equal"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.Top)         
+      let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])          
       helperTest inFile expRes   
 
     it "test_cons" $ do
       let inFile = "test_cons"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.True)         
+      let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])         
       helperTest inFile expRes 
 
     it "test_closure_gc" $ do
@@ -273,6 +271,12 @@ spec = do
       let inFile = "test_factorial"
       let expRes = Terminating (Success $ singleton $ IntVal)         
       helperTest inFile expRes       
+
+    it "test_random" $ do
+      let inFile = "test_random"
+      let expRes = Terminating (Success $ singleton $ IntVal)         
+      helperTest inFile expRes       
+
 
 -------------------HELPER------------------------------------------------------
 helperTest :: String -> Terminating (Error (Pow String) Val) -> IO ()
