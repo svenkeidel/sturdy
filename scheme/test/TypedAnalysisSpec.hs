@@ -101,8 +101,9 @@ spec = do
       helperTest inFile expRes
 
     it "deriv" $ do
---     => TIMEOUT | STATES: 1645737
+--     => TIMEOUT | STATES: 1645737 
       -- pendingWith "out of memory"
+      -- most likely wrong ?
       let inFile = "gabriel//deriv"
       let expRes = Terminating (Success $ singleton Bottom)
       helperTest inFile expRes

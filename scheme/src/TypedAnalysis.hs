@@ -475,11 +475,43 @@ evalIntervalChaotic' :: (?sensitivity :: Int) => [State Label Expr] -> (Metrics 
 evalIntervalChaotic' exprs = let (_,(metrics,res)) = evalIntervalChaotic [] exprs in (metrics,snd $ res)
 -- {-# INLINE evalIntervalChaotic' #-}
 
+-- UTILS 
+-- is there any value that can be considered false?
+isFalse :: Val -> Bool 
+isFalse v = any (\x -> x /= BoolVal B.True && x /= Bottom) (toList v) 
+-- is there any value that can be considered true?
+isTrue :: Val -> Bool 
+isTrue v = any (\x -> x /= BoolVal B.False && x /= Bottom) (toList v)
 
+checkBool :: [Primitives] -> Bool
+checkBool ps = case ps of
+  (BoolVal _: []) -> True
+  (BoolVal _:rest) -> checkBool rest
+  _ -> False 
+  
+valToBool :: [Primitives] -> [B.Bool]
+valToBool [] = []
+valToBool (BoolVal b:rest) = b : (valToBool rest)
+valToBool _ = [] -- should never happens
+
+
+-- CLOSURES
+-- apply 
 getCls :: [Primitives] -> [Cls]
 getCls (ClosureVal cls : rest) = cls : (getCls rest) 
 getCls (_:rest) = getCls rest
 getCls _ = []
+
+-- OPERATIONS
+--Op1
+withVal :: (ArrowChoice c, ArrowFail e c, IsString e) => (Primitives -> Primitives) -> c Val Val
+withVal op = proc v -> returnA -< fromList $ map op (toList v)
+
+unArithmetics :: Primitives -> Primitives 
+unArithmetics val = case val of 
+  IntVal -> BoolVal B.Top
+  FloatVal -> BoolVal B.Top
+  _ -> Bottom
 
 containsList :: [Primitives] -> Bool 
 containsList [] = False 
@@ -506,24 +538,7 @@ cdrHelp :: [Primitives] -> [Addr]
 cdrHelp [] = []
 cdrHelp (ListVal _ a2: rest) = a2 : cdrHelp rest
 cdrHelp (_:rest) = cdrHelp rest
-
--- is there any value that can be considered false?
-isFalse :: Val -> Bool 
-isFalse v = any (\x -> x /= BoolVal B.True && x /= Bottom) (toList v) 
-
--- is there any value that can be considered true?
-isTrue :: Val -> Bool 
-isTrue v = any (\x -> x /= BoolVal B.False && x /= Bottom) (toList v)
-
-withVal :: (ArrowChoice c, ArrowFail e c, IsString e) => (Primitives -> Primitives) -> c Val Val
-withVal op = proc v -> returnA -< fromList $ map op (toList v)
- 
-unArithmetics :: Primitives -> Primitives 
-unArithmetics val = case val of 
-  IntVal -> BoolVal B.Top
-  FloatVal -> BoolVal B.Top
-  _ -> Bottom
-
+-- Op2
 eqHelp :: (ArrowChoice c, ArrowFail e c, IsString e) => c (Val,Val) Val
 eqHelp = proc (v1, v2) -> do
   let v1s = toList v1
@@ -541,7 +556,7 @@ with2Val = proc (v1, v2) ->
   case intersect (toList v1) (toList v2) of
     [IntVal] -> returnA -< fromList [IntVal]
     _ -> returnA -< singleton Bottom
-
+-- OpVar
 withVarValNumBool :: (ArrowChoice c, ArrowFail e c, IsString e) => c [Val] Val
 withVarValNumBool = proc vs -> 
   case foldl1 intersect (map toList vs) of
@@ -575,14 +590,3 @@ withVarValBoolBool = proc vs -> do
   if checkBool inters 
     then returnA -< singleton $ BoolVal $ foldl1 B.and $ valToBool inters 
     else returnA -< singleton Bottom
-
-checkBool :: [Primitives] -> Bool
-checkBool ps = case ps of
-  (BoolVal _: []) -> True
-  (BoolVal _:rest) -> checkBool rest
-  _ -> False 
-  
-valToBool :: [Primitives] -> [B.Bool]
-valToBool [] = []
-valToBool (BoolVal b:rest) = b : (valToBool rest)
-valToBool _ = [] -- should never happens
