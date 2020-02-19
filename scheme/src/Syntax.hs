@@ -237,8 +237,8 @@ instance Show OpVar_ where
     Div -> showString "/ "
     Gcd -> showString "gcd "
     Lcm -> showString "lcm "
-    -- And -> showString ("and ")
-    -- Or -> showString ("or ")
+    And -> showString "and "
+    Or -> showString "or "
     -- List_ -> showString ("list")
 
 instance Show Expr where

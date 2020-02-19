@@ -78,15 +78,21 @@ type Cls = Closure Expr (HashSet (HashMap Text Addr))
 type Env = HashMap Text Addr
 type Store = HashMap Addr Val
 type Ctx = CallString Label
+type Val = Pow Primitives
+-- -- Input and output type of the fixpoint.
+type In = (Store,(([Expr],Label),Env))
+type Out = (Store, Terminating (Error (Pow String) Val))
+type Out' = (Monotone (Store, (([Expr], Label), Env))
+                      (Store, Terminating (Error (Pow String) Val)),
+                      (Metrics (Store, (([Expr], Label), Env)),
+                               (HashMap Addr (Pow Primitives),
+                                Terminating (Error (Pow String) 
+                                            (Pow Primitives)))))
 
 data Addr 
   = VarA (Text,Ctx)
   | CellA (Expr,Ctx)
   | TopA deriving (Eq,Generic)      
-
--- | Numeric values are approximated with bounded intervals, closure
--- values are approximated with a set of abstract closures.
-type Val = Pow Primitives
 data Primitives
   = IntVal 
   | FloatVal
@@ -104,24 +110,6 @@ data ListT
   | Coons Text Text
   deriving (Eq, Generic)
 
--- -- Input and output type of the fixpoint.
-type In = (Store,(([Expr],Label),Env))
-type Out = (Store, Terminating (Error (Pow String) Val))
-type Out' = (Monotone
-                              (Store, (([Expr], Label), Env))
-                              (Store, Terminating (Error (Pow String) Val)),
-                            (Metrics (Store, (([Expr], Label), Env)),
-                             (HashMap Addr (Pow Primitives),
-                              Terminating (Error (Pow String) (Pow Primitives)))))
--- type In = (Store,(([Expr],Label),Env))
--- type Out = (Store, Terminating (Error (Pow String) Val))
--- type Out' = (Monotone
---               (Store, (([Expr], Label), Env))
---               (Store, Terminating (Error (Pow String) Val)),
---             (HashMap Addr Val, Terminating (Error (Pow String) Val)))
--- | Run the abstract interpreter for an interval analysis. The arguments are the
--- maximum interval bound, the depth @k@ of the longest call string,
--- an environment, and the input of the computation.
 evalIntervalChaotic :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
 evalIntervalChaotic env0 e = run (extend' (Generic.run_ ::
       Fix'
@@ -145,7 +133,7 @@ evalIntervalChaotic env0 e = run (extend' (Generic.run_ ::
     iterationStrategy =
       -- Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply chaotic -- parallel -- iterateInner
+      Fix.filter apply chaotic
 
 evalIntervalChaoticInner :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
 evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ ::
@@ -249,8 +237,8 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     let clss = getCls $ toList v
     Cls.apply f -< head $ zip clss (repeat x)  
   -- END TODO
-  {-# INLINE closure #-} 
-  {-# INLINE apply #-}
+  -- {-# INLINE closure #-} 
+  -- {-# INLINE apply #-}
 
 instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Addr c, IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c) 
     => IsNum Val (ValueT Val c) where
@@ -303,7 +291,7 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Boolean -> withVal (\val -> case val of 
       BoolVal _ -> BoolVal B.True
       _ -> BoolVal B.False) -< x 
-    Not -> withVal (\val -> case val of -- js wat talk
+    Not -> withVal (\val -> case val of
       BoolVal b -> BoolVal $ B.not b
       _ -> Bottom) -< x 
     Null -> withVal (\val -> case val of 
@@ -341,70 +329,11 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Error -> returnA -< singleton Bottom
   op2_ = proc (op, x, y) -> case op of
     Eqv -> eqHelp -< (x,y)
-  --     /** (define (equal? a b)
-  --       (or (eq? a b)
-  --         (and (null? a) (null? b))
-  --         (and (pair? a) (pair? b) (equal? (car a) (car b)) (equal? (cdr a) (cdr b)))
-  --         (and (vector? a) (vector? b)
-  --           (let ((n (vector-length a)))
-  --             (and (= (vector-length b) n)
-  --               (letrec ((loop (lambda (i)
-  --                                (or (= i n)
-  --                                  (and (equal? (vector-ref a i) (vector-ref b i))
-  --                                    (loop (+ i 1)))))))
-  --                 (loop 0)))))))
-  --  */
     Equal -> do 
       eq <- op2_ -< (Eqv,x,y)
       t <- if__ returnA returnA -< (isTrue eq, (eq, singleton Bottom))
       f <- if__ nullH returnA -< (isFalse eq, ((eq,(x,y)), singleton Bottom))
       returnA -< t ⊔ f
-      
-      -- v <- if__ returnA nullH -< (eq, ((),(x,y))) 
-      -- v' <- if__ returnA listH -< (null1 == true && null1 == null2,((),(x,y)))
-
-      --   True -> returnA -< true
-      --   Top -> 
-      --   False ->
-      --   then returnA -< eq
-      --   else do 
-      --     null1 <- op1_ -< (Null,x)
-      --     null2 <- op1_ -< (Null,y)
-      --     if null1 == true &&
-      --        null2 == true
-      --        then return -< true
-      --        else do    
-      --         list1 <- op1_ -< (ListS,x)
-      --         list2 <- op1_ -< (ListS,y)
-      --         if list1 == true && list2 == true 
-      --           then do 
-      --             car1 <- op1_ -< (Car, x)
-      --             car2 <- op1_ -< (Car, y)
-      --             eq1 <- op2_ -< (Equal,car1,car2)
-      --             if eq1 == false 
-      --               then returnA -< false
-      --               else 
-      --           else returnA -< singleton $ BoolVal top
-      -- if eq == (singleton $ BoolVal B.True ) ||
-      --   (null1 == (singleton $ BoolVal B.True) &&
-      --    null2 == (singleton $ BoolVal B.True))
-      --    then returnA -< singleton $ BoolVal B.True
-      --    else do 
-      --     car1 <- op1_ -< (Car, x)
-      --     car2 <- op1_ -< (Car, y)
-      --     cdr1 <- op1_ -< (Cdr, x)
-      --     cdr2 <- op1_ -< (Cdr, y)
-      --     eq1 <- op2_ -< (Equal,car1,car2)
-      --     eq2 <- op2_ -< (Equal,cdr1,cdr2)
-      --     if (list1 == (singleton $ BoolVal B.True) &&
-      --         list2 == (singleton $ BoolVal B.True) &&
-      --         eq1 == (singleton $ BoolVal B.True) &&
-      --         eq2 == (singleton $ BoolVal B.True))
-      --     then returnA -< singleton $ BoolVal B.True
-      --     else if list1 == (singleton $ BoolVal B.False) ||
-      --             list2 == (singleton $ BoolVal B.False) 
-      --       then returnA -< eq
-      --       else returnA -< singleton $ BoolVal B.Top
     Quotient -> with2Val -< (x,y) 
     Remainder -> with2Val -< (x,y)
     Modulo -> with2Val -< (x,y)
@@ -423,15 +352,14 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Gcd -> withVarValNumNum -< xs 
     Lcm -> withVarValNumNum -< xs 
     -- and / or not needed as it is desugared to if statements 
+    -- for internal use only 
     And -> withVarValBoolBool -< xs  
     Or -> withVarValBoolBool -< xs 
-
-
-  {-# INLINE lit #-}
-  -- {-# INLINE if_ #-}
-  {-# INLINE op1_ #-}
-  {-# INLINE op2_ #-}
-  {-# INLINE opvar_ #-}
+  -- {-# INLINE lit #-}
+  -- -- {-# INLINABLE if_ #-}
+  -- {-# INLINE op1_ #-}
+  -- -- {-# INLINABLE op2_ #-}
+  -- {-# INLINE opvar_ #-}
 
 nullH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,(Val,Val)) Val 
 nullH = proc (eq,(v1, v2)) -> do
@@ -467,19 +395,6 @@ listTTH = proc (v1,v2) -> do
   cdr2 <- op1_ -< (Cdr, v2)
   cdrtest <- op2_ -< (Equal, cdr1,cdr2) 
   returnA -< cdrtest
-  
-
-
-
--- true = singleton (BoolVal B.True)
--- false = singleton (BoolVal B.False)
-
--- pattern True <- x | x == singleton (BoolVal B.True)
--- pattern False <- x | x == singleton (BoolVal B.False)
--- pattern Top <- x | x == singleton (BoolVal B.Top)
-
--- returnHelp :: c x Val 
--- returnHelp = proc _ -> returnA -< ()
 
 if__ :: (ArrowChoice c, Complete val) => c x val -> c y val -> c (Bool,(x,y)) val
 if__ f g = proc (v,(x,y)) -> case v of
@@ -539,25 +454,27 @@ instance IsClosure Val (HashSet Env) where
   -- TODO END
 
 -- OPERATION HELPER ------------------------------------------------------------
+-- EVALUATION
 evalIntervalChaoticInner':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
 evalIntervalChaoticInner' exprs = let (_,(metrics,res)) = evalIntervalChaoticInner [] exprs in (metrics,snd $ res)
-{-# INLINE evalIntervalChaoticInner' #-}
+-- {-# INLINE evalIntervalChaoticInner' #-}
 
 evalIntervalChaoticOuter':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
 evalIntervalChaoticOuter' exprs = let (_,(metrics,res)) = evalIntervalChaoticOuter [] exprs in (metrics,snd $ res)
-{-# INLINE evalIntervalChaoticOuter' #-}
+-- {-# INLINE evalIntervalChaoticOuter' #-}
 
 evalIntervalParallel':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
 evalIntervalParallel' exprs = let (_,(metrics,res)) = evalIntervalParallel [] exprs in (metrics,snd $ res)
-{-# INLINE evalIntervalParallel' #-}
+-- {-# INLINE evalIntervalParallel' #-}
 
 evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
 evalInterval' env exprs = snd $ snd $ snd $ evalIntervalChaotic env exprs
-{-# INLINE evalInterval' #-}
+-- {-# INLINE evalInterval' #-}
 
 evalIntervalChaotic' :: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
 evalIntervalChaotic' exprs = let (_,(metrics,res)) = evalIntervalChaotic [] exprs in (metrics,snd $ res)
-{-# INLINE evalIntervalChaotic' #-}
+-- {-# INLINE evalIntervalChaotic' #-}
+
 
 getCls :: [Primitives] -> [Cls]
 getCls (ClosureVal cls : rest) = cls : (getCls rest) 
@@ -593,13 +510,10 @@ cdrHelp (_:rest) = cdrHelp rest
 -- is there any value that can be considered false?
 isFalse :: Val -> Bool 
 isFalse v = any (\x -> x /= BoolVal B.True && x /= Bottom) (toList v) 
-        --  && any (/= Bottom) (toList v)
 
 -- is there any value that can be considered true?
 isTrue :: Val -> Bool 
 isTrue v = any (\x -> x /= BoolVal B.False && x /= Bottom) (toList v)
-        -- && any (/= Bottom) (toList v)
-
 
 withVal :: (ArrowChoice c, ArrowFail e c, IsString e) => (Primitives -> Primitives) -> c Val Val
 withVal op = proc v -> returnA -< fromList $ map op (toList v)

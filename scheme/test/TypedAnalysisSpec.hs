@@ -8,10 +8,8 @@ import           Prelude hiding (succ,pred,id)
 import           Data.Abstract.Error hiding (toEither)
 import           Data.Abstract.Terminating hiding (toEither)
 import qualified Data.Abstract.DiscretePowerset as Pow
--- import Control.Arrow.Fix.Metrics
 
 import           Test.Hspec
--- import           SharedSpecs
 
 import System.Process -- deprecated
 import System.Directory
@@ -32,8 +30,6 @@ import           Data.Graph.Inductive(Gr)
 import           GHC.Exts(fromList)
 import Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Text.Printf
--- import qualified Data.HashSet as Set 
--- import qualified Data.HashMap.Lazy as Map
 
 main :: IO ()
 main = hspec spec
@@ -59,10 +55,6 @@ spec = do
       let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
                                                 set "id" (lit $ S.Bool True),
                                                 app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton IntVal)
-    -- it "context sensitivity" $
-    --   let diamond = [if_ (lit $ Bool True) "x" "y"] in do
-      -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] diamond `shouldBe` Terminating (Success $ singleton IntVal)
-      -- let ?sensitivity = 1 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] diamond `shouldBe` Terminating (Success $ singleton IntVal)
 
     it "should analyze let expression" $ 
       let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
@@ -276,10 +268,11 @@ spec = do
       helperTest inFile expRes       
 
     it "test_random" $ do
-      pending
+      -- pending
+      let ?sensitivity = 0
       let inFile = "test_random"
       let expRes = Terminating (Success $ singleton $ IntVal)         
-      helperTest inFile expRes       
+      helperTestChaotic inFile expRes       
 
 
 -------------------HELPER------------------------------------------------------
@@ -301,9 +294,7 @@ helperTestChaotic inFile expRes = do
     Right a ->
       case match a of
         Right b -> do
-          -- let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
           let (metric, res) = evalIntervalChaotic' [let_rec (getTopDefinesLam b) (getBody b)]
-          -- _ <- draw_graph inFile graph
           let csv = printf "\"%s\",chaotic simple,%s\n" inFile (toCSV metric)
           appendFile metricFile csv
           res`shouldBe` expRes
@@ -318,11 +309,9 @@ helperTestChaoticInner inFile expRes = do
       case match a of
         Right b -> do
           let ?sensitivity = 0 
-          -- let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
-          let (metric, res) = evalIntervalChaoticInner' [let_rec (getTopDefinesLam b) (getBody b)]
+          let (metric,res) = evalIntervalChaoticInner' [let_rec (getTopDefinesLam b) (getBody b)]
           let csv = printf "\"%s\",chaotic inner,%s\n" inFile (toCSV metric)
           appendFile metricFile csv
-          -- _ <- draw_graph inFile graph
           res`shouldBe` expRes
         Left b -> print b
     Left a -> print $ showError a
@@ -335,9 +324,7 @@ helperTestChaoticOuter inFile expRes = do
       case match a of
         Right b -> do
           let ?sensitivity = 0 
-          -- let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
           let (metric,res) = evalIntervalChaoticOuter' [let_rec (getTopDefinesLam b) (getBody b)]
-          -- _ <- draw_graph inFile graph
           let csv = printf "\"%s\",chaotic outer,%s\n" inFile (toCSV metric)
           appendFile metricFile csv
           res`shouldBe` expRes
@@ -352,9 +339,7 @@ helperTestParallel inFile expRes = do
       case match a of
         Right b -> do
           let ?sensitivity = 0 
-          -- let (graph, res) = evalInterval'' [let_rec (getTopDefinesLam b) (getBody b)]
           let (metric,res) = evalIntervalParallel' [let_rec (getTopDefinesLam b) (getBody b)]
-          -- _ <- draw_graph inFile graph
           let csv = printf "\"%s\",parallel,%s\n" inFile (toCSV metric)
           appendFile metricFile csv
           res`shouldBe` expRes

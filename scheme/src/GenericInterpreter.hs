@@ -14,10 +14,6 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Environment(ArrowEnv)
 import           Control.Arrow.LetRec(ArrowLetRec)
 import qualified Control.Arrow.LetRec as LetRec
-
-
--- import           Control.Arrow.LetRec (ArrowLetRec_)
--- import qualified Control.Arrow.LetRec as LetRec
 import qualified Control.Arrow.Environment as Env
 import           Control.Arrow.Closure (ArrowClosure)
 import qualified Control.Arrow.Closure as Cls
@@ -54,7 +50,7 @@ eval :: (ArrowChoice c,
 eval run' = proc e0 -> case e0 of
   -- inner representation and evaluation
   Lit x _ -> lit -< x
-  List [] _ -> emptyList -< ()
+  List [] _ -> emptyList -< () 
   List xs l -> if length xs == 1 
     then evalList -< ([head xs], [])
     else evalList -< ([head xs], [List (tail xs) l])
@@ -193,7 +189,6 @@ class ArrowList addr v c where
   list_ :: c (addr,addr) v 
   cons_ :: c (addr,addr) v
 
--- | Interface for numeric operations
 class Arrow c => IsNum v c | c -> v where
   type family Join y (c :: * -> * -> *) :: Constraint
   lit :: c Literal v
