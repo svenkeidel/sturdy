@@ -113,7 +113,8 @@ spec = do
 --     => TIME: 163 | STATES: 175
       -- pendingWith "out of memory"
       let inFile = "gabriel//diviter"
-      let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])              
+      -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])              
+      let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.Top])              
       helperTest inFile expRes
 
     it "divrec" $ do
@@ -121,14 +122,16 @@ spec = do
 --       => TIME: 59 | STATES: 219
       -- pendingWith "out of memory"
       let inFile = "gabriel//divrec"
-      let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])              
+      -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])              
+      let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.Top])              
       helperTest inFile expRes      
 
     it "takl" $ do
 -- => TIMEOUT | STATES: 1959438
       -- pendingWith "out of memory"
       let inFile = "gabriel//takl"
-      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top, Bottom])              
+      -- let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top, Bottom])              
+      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top, BoolVal B.True])              
       helperTest inFile expRes
 
 -- -------------------SCALA-AM BENCHMARKS------------------------------------------
@@ -205,12 +208,14 @@ spec = do
 
     it "test_equal" $ do
       let inFile = "test_equal"
-      let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])          
+      -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])          
+      let expRes = Terminating (Success $ fromList [BoolVal B.True])          
       helperTest inFile expRes   
 
     it "test_cons" $ do
       let inFile = "test_cons"
-      let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])         
+      -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])         
+      let expRes = Terminating (Success $ fromList [BoolVal B.True])         
       helperTest inFile expRes 
 
     it "test_closure_gc" $ do
@@ -291,6 +296,7 @@ metricFile = "TypedAnalysis.csv"
 helperTestChaotic :: (?sensitivity :: Int) => String -> Terminating (Error (Pow String) Val) -> IO ()
 helperTestChaotic inFile expRes = do
   file_str <- helper_import inFile
+  -- print file_str
   case readExprList file_str of
     Right a ->
       case match a of

@@ -15,6 +15,8 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
+{-# -XPatternSynonyms #-}
+
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module TypedAnalysis where
 
@@ -240,7 +242,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
   -- {-# INLINE closure #-} 
   -- {-# INLINE apply #-}
 
-instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Addr c, IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c) 
+instance (ArrowComplete Val c, ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Addr c, IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c) 
     => IsNum Val (ValueT Val c) where
   type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)
   lit = proc x -> case x of
@@ -331,9 +333,36 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     Eqv -> eqHelp -< (x,y)
     Equal -> do 
       eq <- op2_ -< (Eqv,x,y)
-      t <- if__ returnA returnA -< (isTrue eq, (eq, singleton Bottom))
-      f <- if__ nullH returnA -< (isFalse eq, ((eq,(x,y)), singleton Bottom))
-      returnA -< t ⊔ f
+      v <- if' returnA (
+        proc (v1,v2) -> do 
+          null1 <- op1_ -< (Null,v1)
+          null2 <- op1_ -< (Null,v2)
+          nulltest <- opvar_ -< (And, [null1] ++ [null2])
+          v <- if' returnA (proc (v1,v2) -> do
+            list1 <- op1_ -< (ListS,v1)
+            list2 <- op1_ -< (ListS,v2)
+            listtest <- opvar_ -< (And, [list1] ++ [list2]) 
+            v <- if' (proc (v1,v2) -> do 
+              car1 <- op1_ -< (Car, v1)
+              car2 <- op1_ -< (Car, v2)
+              cartest <- op2_ -< (Equal, car1, car2)
+              v <- if' (proc (v1,v2) -> do
+                cdr1 <- op1_ -< (Cdr, v1)
+                cdr2 <- op1_ -< (Cdr, v2)
+                cdrtest <- op2_ -< (Equal, cdr1,cdr2) 
+                returnA -< cdrtest
+                ) returnA -< (cartest, ((v1,v2), singleton $ BoolVal B.False))
+              returnA -< v                              
+              ) returnA -< (listtest,((v1,v2),singleton Bottom))
+            returnA -< v
+            ) -< (nulltest, (nulltest,(v1,v2)))
+          returnA -< v) -< (eq, (eq,(x,y)))
+      returnA -< v
+    -- Equal -> do 
+    --   eq <- op2_ -< (Eqv,x,y)
+    --   t <- if__ returnA returnA -< (isTrue eq, (eq, singleton Bottom))
+    --   f <- if__ nullH returnA -< (isFalse eq, ((eq,(x,y)), singleton Bottom))
+    --   returnA -< t ⊔ f
     Quotient -> with2Val -< (x,y) 
     Remainder -> with2Val -< (x,y)
     Modulo -> with2Val -< (x,y)
@@ -356,61 +385,10 @@ instance (ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Add
     And -> withVarValBoolBool -< xs  
     Or -> withVarValBoolBool -< xs 
   -- {-# INLINE lit #-}
-  -- -- {-# INLINABLE if_ #-}
+  -- {-# INLINABLE if_ #-}
   -- {-# INLINE op1_ #-}
-  -- -- {-# INLINABLE op2_ #-}
+  -- {-# INLINABLE op2_ #-}
   -- {-# INLINE opvar_ #-}
-
-nullH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,(Val,Val)) Val 
-nullH = proc (eq,(v1, v2)) -> do
-  null1 <- op1_ -< (Null,v1)
-  null2 <- op1_ -< (Null,v2)
-  nulltest <- opvar_ -< (And, [null1] ++ [null2])
-  ft <- if__ returnA returnA -< (isTrue nulltest, (eq, singleton Bottom))
-  ff <- if__ listH returnA -< (isFalse nulltest, ((v1,v2), singleton Bottom))
-  returnA -< ft ⊔ ff
-
-listH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,Val) Val 
-listH = proc (v1,v2) -> do 
-  list1 <- op1_ -< (ListS,v1)
-  list2 <- op1_ -< (ListS,v2)
-  listtest <- opvar_ -< (And, [list1] ++ [list2]) 
-  fft <- if__ listTH returnA -< (isTrue listtest, ((v1,v2), singleton Bottom))
-  -- fst returnA -> Vector case, omitted here
-  fff <- if__ returnA returnA -< (isFalse listtest, (singleton Bottom, singleton Bottom))
-  returnA -< fft ⊔ fff
-
-listTH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,Val) Val
-listTH = proc (v1, v2) -> do
-  car1 <- op1_ -< (Car, v1)
-  car2 <- op1_ -< (Car, v2)
-  cartest <- op2_ -< (Equal, car1, car2)
-  fftt <- if__ listTTH returnA -< (isTrue cartest, ((v1,v2), singleton Bottom))
-  fftf <- if__ returnA returnA -< (isFalse cartest, (singleton $ BoolVal B.False, singleton Bottom))
-  returnA -< fftt ⊔ fftf
-
-listTTH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,Val) Val
-listTTH = proc (v1,v2) -> do 
-  cdr1 <- op1_ -< (Cdr, v1)
-  cdr2 <- op1_ -< (Cdr, v2)
-  cdrtest <- op2_ -< (Equal, cdr1,cdr2) 
-  returnA -< cdrtest
-
-if__ :: (ArrowChoice c, Complete val) => c x val -> c y val -> c (Bool,(x,y)) val
-if__ f g = proc (v,(x,y)) -> case v of
-  True -> f -< x
-  False -> g -< y
--- inlinable
-
--- if__ :: Complete val => c x val -> c x val -> c (Val,x) val
--- if__ f g = proc (v,(x,y)) -> case v of
---   True -> f -< x
---   False -> g -< y
---   Top -> do 
---     -- (v1,v2) <- f *** g -< x 
---     (f -< x) <⊔> (g -< y)
---     -- returnA -< v1 ⊔ V2
--- -- inlinable 
 
 instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c) 
     => ArrowComplete Val (ValueT Val c) where
@@ -494,6 +472,22 @@ valToBool [] = []
 valToBool (BoolVal b:rest) = b : (valToBool rest)
 valToBool _ = [] -- should never happens
 
+if__ :: (ArrowChoice c, Complete val) => c x val -> c y val -> c (Bool,(x,y)) val
+if__ f g = proc (v,(x,y)) -> case v of
+  True -> f -< x
+  False -> g -< y
+-- inlinable
+
+if' :: (ArrowChoice c, ArrowComplete Val c, IsString e, ArrowFail e c) => c x Val -> c y Val -> c (Val,(x,y)) Val
+if' f g = proc (v,(x,y)) -> if isTrue v && isFalse v 
+  then do 
+    (v1,v2) <- f *** g -< (x,y)
+    returnA -< v1 ⊔ v2
+  else if isTrue v 
+    then f -< x
+    else if isFalse v 
+      then g -< y
+      else returnA -< singleton Bottom
 
 -- CLOSURES
 -- apply 
@@ -546,7 +540,8 @@ eqHelp = proc (v1, v2) -> do
   case (v1s,v2s) of 
     ([EmptyList],[EmptyList]) -> returnA -< singleton $ BoolVal B.True
     ([BoolVal b1], [BoolVal b2]) -> if b1 == b2 
-      then returnA -< singleton $ BoolVal B.True else returnA -< singleton $ BoolVal B.False 
+      then returnA -< singleton $ BoolVal B.True 
+      else returnA -< singleton $ BoolVal B.False 
     _ -> case intersect v1s v2s of 
       [] -> returnA -< singleton $ BoolVal B.False
       _ -> returnA -< singleton $ BoolVal B.Top
@@ -590,3 +585,39 @@ withVarValBoolBool = proc vs -> do
   if checkBool inters 
     then returnA -< singleton $ BoolVal $ foldl1 B.and $ valToBool inters 
     else returnA -< singleton Bottom
+
+-- Equal
+nullH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,(Val,Val)) Val 
+nullH = proc (eq,(v1, v2)) -> do
+  null1 <- op1_ -< (Null,v1)
+  null2 <- op1_ -< (Null,v2)
+  nulltest <- opvar_ -< (And, [null1] ++ [null2])
+  ft <- if__ returnA returnA -< (isTrue nulltest, (eq, singleton Bottom))
+  ff <- if__ listH returnA -< (isFalse nulltest, ((v1,v2), singleton Bottom))
+  returnA -< ft ⊔ ff
+
+listH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,Val) Val 
+listH = proc (v1,v2) -> do 
+  list1 <- op1_ -< (ListS,v1)
+  list2 <- op1_ -< (ListS,v2)
+  listtest <- opvar_ -< (And, [list1] ++ [list2]) 
+  fft <- if__ listTH returnA -< (isTrue listtest, ((v1,v2), singleton Bottom))
+  -- fst returnA -> Vector case, omitted here
+  fff <- if__ returnA returnA -< (isFalse listtest, (singleton Bottom, singleton Bottom))
+  returnA -< fft ⊔ fff
+
+listTH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,Val) Val
+listTH = proc (v1, v2) -> do
+  car1 <- op1_ -< (Car, v1)
+  car2 <- op1_ -< (Car, v2)
+  cartest <- op2_ -< (Equal, car1, car2)
+  fftt <- if__ listTTH returnA -< (isTrue cartest, ((v1,v2), singleton Bottom))
+  fftf <- if__ returnA returnA -< (isFalse cartest, (singleton $ BoolVal B.False, singleton Bottom))
+  returnA -< fftt ⊔ fftf
+
+listTTH :: (IsNum Val c, Arrow c, ArrowChoice c) => c (Val,Val) Val
+listTTH = proc (v1,v2) -> do 
+  cdr1 <- op1_ -< (Cdr, v1)
+  cdr2 <- op1_ -< (Cdr, v2)
+  cdrtest <- op2_ -< (Equal, cdr1,cdr2) 
+  returnA -< cdrtest
