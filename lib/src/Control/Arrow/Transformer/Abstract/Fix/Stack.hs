@@ -13,7 +13,7 @@ import           Prelude hiding (pred,lookup,map,head,iterate,(.))
 import           Control.Category
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
-import           Control.Arrow.Fix.Parallel as Parallel
+import           Control.Arrow.Fix.Iterate as Iterate
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements)
 import qualified Control.Arrow.Fix.Stack as Stack
@@ -35,7 +35,7 @@ import           Data.Identifiable
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,
             ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx, ArrowJoinContext u,
-            ArrowParallel,ArrowControlFlow stmt)
+            ArrowIterate a,ArrowControlFlow stmt)
 
 data Stack a = Stack
   { elems :: HashSet a

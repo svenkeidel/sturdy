@@ -17,6 +17,7 @@ import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
+import Control.Arrow.Fix.Iterate as Iterate
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
@@ -189,4 +190,5 @@ instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
 instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c)
 instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c)
 instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w c)
+instance (Monoid w, ArrowIterate a c) => ArrowIterate a (WriterT w c)
 

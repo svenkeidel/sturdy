@@ -17,6 +17,7 @@ import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.ControlFlow
+import           Control.Arrow.Fix.Iterate
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.State
@@ -31,7 +32,7 @@ import           Data.Coerce
 
 newtype ComponentT a c x y = ComponentT (WriterT (Component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowStackDepth,ArrowStackElements a,ArrowCache a b,
-            ArrowState s,ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
+            ArrowState s,ArrowIterate a,ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowComponent (Component a) (ComponentT a c) where
   setComponent f = lift (rmap snd (unlift f))

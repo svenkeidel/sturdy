@@ -2,7 +2,6 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FunctionalDependencies #-}
 module Control.Arrow.Fix.Chaotic where
@@ -11,6 +10,7 @@ import           Prelude hiding (head,iterate,map)
 
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Iterate
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Utils(map)
@@ -46,7 +46,7 @@ detectLoop iterate = setComponent $ proc a -> do
 {-# INLINE detectLoop #-}
 
 -- | Iterate on the innermost fixpoint component.
-innermost :: forall a b c. (Identifiable a, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
+innermost :: forall a b c. (Identifiable a, ArrowChoice c, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c, ArrowIterate a c) => FixpointCombinator c a b
 {-# INLINE innermost #-}
 innermost f = detectLoop (Stack.push iterate)
   where
@@ -61,12 +61,14 @@ innermost f = detectLoop (Stack.push iterate)
               (stable,bNew) <- Cache.update -< (a,b)
               case stable of
                 Stable -> returnA -< (Component { head = H.delete a (head comp), body = H.insert a (body comp) }, bNew)
-                Unstable -> iterate -< a
+                Unstable -> do
+                  nextIteration -< a
+                  iterate -< a
            | otherwise ->
              returnA -< (comp, b)
 
 -- | Iterate on the outermost fixpoint component.
-outermost :: forall a b c. (Identifiable a, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
+outermost :: forall a b c. (Identifiable a, ArrowChoice c, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c, ArrowIterate a c) => FixpointCombinator c a b
 {-# INLINE outermost #-}
 outermost f = detectLoop (Stack.push iterate)
   where
@@ -91,7 +93,8 @@ outermost f = detectLoop (Stack.push iterate)
                  returnA -< (empty, bNew)
 
                -- If the head of a fixpoint component is not stable, keep iterating.
-               Unstable ->
+               Unstable -> do
+                 nextIteration -< a
                  iterate -< a
 
         -- We are inside an  fixpoint component, but its head has not stabilized.

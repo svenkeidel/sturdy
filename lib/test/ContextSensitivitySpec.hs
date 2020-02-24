@@ -25,6 +25,7 @@ import           TestPrograms
 import           Control.Monad(forM_)
 import           Control.Arrow
 import           Control.Arrow.Fix as F
+import           Control.Arrow.Fix.Iterate
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Chaotic
 import qualified Control.Arrow.Trans as Arrow

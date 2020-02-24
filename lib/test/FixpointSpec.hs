@@ -14,7 +14,8 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,widenInput,maxDepth,reuseByMetric)
 import           Control.Arrow.Fix.Cache (ArrowCache)
 import           Control.Arrow.Fix.Chaotic (ArrowComponent,Component,innermost,outermost)
-import           Control.Arrow.Fix.Parallel (ArrowParallel,parallel)
+import           Control.Arrow.Fix.Parallel (parallel)
+import           Control.Arrow.Fix.Iterate
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
@@ -46,12 +47,13 @@ metricFile :: String
 metricFile = "fixpoint.csv"
 
 spec :: Spec
-spec = do
-  describe "Parallel" $
-    fixpointSpec "parallel" (runParallel parallel)
-  describe "Chaotic" $ do
-    describe "inner component" $ fixpointSpec "Chaotic.inner" (runChaotic innermost)
-    describe "outer component" $ fixpointSpec "Chaotic.outer" (runChaotic outermost)
+spec =
+  beforeAll (writeFile metricFile (printf "Function,Algorithm,%s\n" csvHeader)) $ do
+    describe "Parallel" $
+      fixpointSpec "parallel" (runParallel parallel)
+    describe "Chaotic" $ do
+      describe "innermost component" $ fixpointSpec "innermost" (runChaotic innermost)
+      describe "outermost component" $ fixpointSpec "outermost" (runChaotic outermost)
 
 fixpointSpec :: String -> (forall a b. (Show a, Show b, Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b) => Arr a b -> a -> (Metrics a,Terminating b)) -> Spec
 fixpointSpec algName eval = sharedSpec $ \name f a -> do
@@ -75,10 +77,10 @@ sharedSpec run = do
        let ?widen = I.widening in
        run "fib" fib (iv 100 110) `shouldBe'` return (iv 0 Infinity)
 
-    it "fib[1,∞] should be [0,∞]" $
+    it "fib[1,∞] should be [1,∞]" $
        let ?strat = Strat (reuseByMetric euclid) in
        let ?widen = I.widening in
-       run "fib" fib (iv 0 Infinity) `shouldBe'` return (iv 0 Infinity)
+       run "fib" fib (iv 1 Infinity) `shouldBe'` return (iv 1 Infinity)
 
   describe "factorial" $ do
     it "fact[5,10] should be [5!,10!] = [12,3628800]" $
@@ -129,8 +131,8 @@ toParallel :: Complete b => Arr a b -> TerminatingT (FixT a (Terminating b) (Met
 toParallel x = x
 {-# INLINE toParallel #-}
 
-runParallel :: (forall a b c. (Identifiable a, ArrowChoice c, ArrowParallel c, ArrowStack a c, ArrowStackDepth c, ArrowStackElements a c, ArrowCache a b c) => FixpointCombinator c a b)
-           -> (forall a b. (Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b) => Arr a b -> a -> (Metrics a,Terminating b))
+runParallel :: (forall a b c. (Show a, Show b, Identifiable a, ArrowChoice c, ArrowIterate a c, ArrowStack a c, ArrowStackDepth c, ArrowStackElements a c, ArrowCache a b c) => FixpointCombinator c a b)
+           -> (forall a b. (Show a, Show b, Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b) => Arr a b -> a -> (Metrics a,Terminating b))
 runParallel algorithm f a = snd $ Arrow.run (toParallel f) (getStrat ?strat . algorithm) (T.widening ?widen) a
 {-# INLINE runParallel #-}
 
@@ -139,7 +141,7 @@ toChaotic :: (Identifiable a, Complete b)
 toChaotic x = x
 {-# INLINE toChaotic #-}
 
-runChaotic :: (forall a b c. (Show a, Show b, Identifiable a, ArrowChoice c, ArrowStack a c, ArrowComponent (Component a) c, ArrowCache a b c) => FixpointCombinator c a b)
+runChaotic :: (forall a b c. (Show a, Show b, Identifiable a, ArrowChoice c, ArrowIterate a c, ArrowStack a c, ArrowComponent (Component a) c, ArrowCache a b c) => FixpointCombinator c a b)
            -> (forall a b. (Show a, Show b, Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b) => Arr a b -> a -> (Metrics a,Terminating b))
 runChaotic algorithm f a = snd $ Arrow.run (toChaotic f) (getStrat ?strat . algorithm) (T.widening ?widen) a
 {-# INLINE runChaotic #-}

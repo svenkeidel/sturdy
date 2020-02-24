@@ -22,7 +22,7 @@ import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Fix.Chaotic as Chaotic
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack as Stack
-import           Control.Arrow.Fix.Parallel as Parallel
+import           Control.Arrow.Fix.Iterate as Iterate
 
 import           Control.Arrow.Transformer.State
 
@@ -40,26 +40,26 @@ import           Text.Printf
 newtype MetricsT a c x y = MetricsT (StateT (Metrics a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComponent comp,ArrowControlFlow stmt,ArrowStackDepth,ArrowStackElements a)
 
-data Metrics a = Metrics { iteration :: Int, metricCache :: HashMap a Metric }
+newtype Metrics a = Metrics { metricCache :: HashMap a Metric }
 
-data Metric = Metric { filtered :: Int, stackLookups :: Int, cacheEntries :: Int, cacheLookups :: Int, updates :: Int } deriving (Show)
+data Metric = Metric { filtered :: !Int, stackLookups :: !Int, cacheEntries :: !Int, iteration :: !Int, cacheLookups :: !Int, updates :: !Int } deriving (Show)
 instance Semigroup Metric where
-  Metric f1 i1 l1 u1 s1 <> Metric f2 i2 l2 u2 s2 = Metric (f1 + f2) (i1 + i2) (l1 + l2) (u1 + u2) (s1 + s2)
+  Metric f1 s1 e1 i1 l1 u1 <> Metric f2 s2 e2 i2 l2 u2 = Metric (f1 + f2) (s1 + s2) (e1 + e2) (i1 + i2) (l1 + l2) (u1 + u2)
 instance Monoid Metric where
-  mempty = Metric 0 0 0 0 0
+  mempty = Metric 0 0 0 0 0 0
   mappend = (<>)
   {-# INLINE mappend #-}
 
 csvHeader :: String
-csvHeader = "Iterations,Filtered,Stack Lookups,Cache Entries,Cache Lookups,Cache Updates"
+csvHeader = "Filtered,Stack Lookups,Cache Entries,Iteration,Cache Lookups,Cache Updates"
 
 toCSV :: Metrics a -> String
-toCSV (Metrics iter m) =
-  let Metric f i l u s = fold m
-  in printf "%d,%d,%d,%d,%d,%d" iter f i l u s
+toCSV (Metrics m) =
+  let Metric f s e i l u = fold m
+  in printf "%d,%d,%d,%d,%d,%d" f s e i l u
 
 instance IsEmpty (Metrics a) where
-  empty = Metrics 1 empty
+  empty = Metrics empty
 
 instance (Identifiable a, Arrow c,Profunctor c) => ArrowFiltered a (MetricsT a c) where
   filtered = MetricsT $ proc a ->
@@ -92,14 +92,14 @@ instance (Identifiable a, ArrowChoice c, Profunctor c, ArrowCache a b c) => Arro
   {-# INLINE update #-}
   {-# INLINE write #-}
 
-instance (Profunctor c, Arrow c, ArrowParallel c) => ArrowParallel (MetricsT a c) where
-  nextIteration = MetricsT $ proc () -> do
-    incrementIterations -< ()
-    lift' nextIteration -< ()
+instance (Identifiable a, Profunctor c, Arrow c, ArrowIterate a c) => ArrowIterate a (MetricsT a c) where
+  nextIteration = MetricsT $ proc a -> do
+    modifyMetric incrementIterations -< a
+    lift' nextIteration -< a
   {-# INLINE nextIteration #-}
 
 modifyMetric :: (Identifiable a, ArrowState (Metrics a) c) => (Metric -> Metric) -> c a ()
-modifyMetric f = modify' (\(a,Metrics iter m) -> ((),Metrics iter (upsert f a m)))
+modifyMetric f = modify' (\(a,Metrics m) -> ((),Metrics (upsert f a m)))
 {-# INLINE modifyMetric #-}
 
 setFiltered :: Metric -> Metric
@@ -109,17 +109,16 @@ incrementInitializes :: Metric -> Metric
 incrementInitializes m@Metric{..} = m { cacheEntries = 1 }
 
 incrementCacheLookups :: Metric -> Metric
-incrementCacheLookups m@Metric{..} = m { cacheEntries = 1, cacheLookups = cacheLookups + 1 }
+incrementCacheLookups m@Metric{..} = m { cacheLookups = cacheLookups + 1 }
 
 incrementStackLookups :: Metric -> Metric
-incrementStackLookups m@Metric{..} = m { cacheEntries = 1, cacheLookups = cacheLookups + 1 }
+incrementStackLookups m@Metric{..} = m { stackLookups = stackLookups + 1 }
 
 incrementUpdates :: Metric -> Metric
 incrementUpdates m@Metric{..} = m { cacheEntries = 1, updates = updates + 1 }
 
-incrementIterations :: ArrowState (Metrics a) c => c () ()
-incrementIterations = modify' (\((),Metrics iter m) -> ((),Metrics (iter + 1) m))
-{-# INLINE incrementIterations #-}
+incrementIterations :: Metric -> Metric
+incrementIterations m@Metric{..} = m { iteration = iteration + 1 }
 
 upsert :: Identifiable a => Monoid b => (b -> b) -> a -> HashMap a b -> HashMap a b
 upsert f a = M.insertWith (\_ _old -> f _old) a mempty
@@ -143,3 +142,9 @@ instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (MetricsT a c
 instance (Profunctor c,ArrowApply c) => ArrowApply (MetricsT a c) where
   app = MetricsT (app .# first coerce)
   {-# INLINE app #-}
+
+instance ArrowState s c => ArrowState s (MetricsT a c) where
+  get = lift' get
+  put = lift' put
+  {-# INLINE get #-}
+  {-# INLINE put #-}
