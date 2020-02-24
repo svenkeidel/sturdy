@@ -21,6 +21,7 @@ import Data.Abstract.Failure
 import Data.Abstract.InfiniteNumbers
 import Data.Abstract.Widening
 import Data.Abstract.Stable
+import Data.Abstract.Terminating
 
 import GHC.Generics
 
@@ -35,7 +36,13 @@ instance Ord x => PreOrd (Interval x) where
   Interval i1 i2 ⊑ Interval j1 j2 = j1 <= i1 && i2 <= j2
 
 instance Ord x => Complete (Interval x) where
-  Interval i1 i2 ⊔  Interval j1 j2 = Interval (min i1 j1) (max i2 j2)
+  Interval i1 i2 ⊔ Interval j1 j2 = Interval (min i1 j1) (max i2 j2)
+
+instance Ord x => CoComplete (Terminating (Interval x)) where
+  NonTerminating ⊓ _ = NonTerminating
+  _ ⊓ NonTerminating = NonTerminating
+  Terminating (Interval i1 i2) ⊓ Terminating (Interval j1 j2) = if x <= y then Terminating iv else NonTerminating
+    where iv@(Interval x y) = Interval (max i1 j1) (min i2 j2)
 
 instance NFData x => NFData (Interval x)
 

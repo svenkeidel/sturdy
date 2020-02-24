@@ -29,7 +29,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Context
-import           Control.Arrow.Fix.Chaotic(iterateInner)
+import           Control.Arrow.Fix.Chaotic(innermost)
 import           Control.Arrow.Random
 import           Control.Arrow.Order
 import qualified Control.Arrow.Trans as Trans
@@ -39,7 +39,7 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
@@ -108,7 +108,7 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
                 (ErrorT (Pow String)
                   (TerminatingT
                     (FixT _ _
-                      (ChaoticT _
+                      (ComponentT _
                         (StackT Stack _
                           (CacheT (Context (Proj2 (CtxCache (CallString lab))) (Group Cache)) (_,_) _
                             (ContextT (CallString _)
@@ -120,7 +120,7 @@ run k env ss = fmap (fmap (fmap fst)) <$> snd $
     iterationStrategy
       = filter whileLoops
       $ callsiteSensitive @(((Expr,Statement,Label),[Statement]),(_,_)) k (thrd . fst . fst)
-      . iterateInner
+      . innermost
 
     widenEnvStore = M.widening widenVal W.** SM.widening W.finite
     widenVal = widening (I.bounded ?bound)

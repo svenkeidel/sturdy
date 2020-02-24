@@ -179,6 +179,9 @@ instance (Monoid w, ArrowStack a c) => ArrowStack a (WriterT w c) where
   push f = lift $ Stack.push (unlift f)
   {-# INLINE push #-}
 
+instance (Monoid w, ArrowStackElements a c) => ArrowStackElements a (WriterT w c)
+instance (Monoid w, ArrowStackDepth c) => ArrowStackDepth (WriterT w c)
+
 instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
   localContext f = lift (Context.localContext (unlift f))
   {-# INLINE localContext #-}

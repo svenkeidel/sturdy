@@ -46,7 +46,7 @@ newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
             ArrowState s,ArrowReader r',ArrowWriter w, ArrowLetRec var val,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val,
             ArrowFail e, ArrowExcept e,
-            ArrowContext ctx, ArrowStack a, ArrowCache a b, ArrowChaotic a,ArrowControlFlow stmt)
+            ArrowContext ctx, ArrowStack a, ArrowCache a b, ArrowComponent a,ArrowControlFlow stmt)
 
 constT :: (r -> c x y) -> ConstT r c x y
 constT f = ConstT (StaticT f)

@@ -18,6 +18,7 @@ import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Fix.Chaotic as Chaotic
 import           Control.Arrow.Fix.Cache as Cache
@@ -200,9 +201,11 @@ instance ArrowWidening y c => ArrowWidening y (StateT s c) where
 
 instance (ArrowCache a b c) => ArrowCache a b (StateT s c)
 instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StateT s c)
+instance ArrowStackDepth c => ArrowStackDepth (StateT s c)
+instance ArrowStackElements a c => ArrowStackElements a (StateT s c)
 
-instance ArrowChaotic a c => ArrowChaotic a (StateT s c) where
-  setComponent = lift' setComponent
+instance ArrowComponent a c => ArrowComponent a (StateT s c) where
+  setComponent f = lift $ setComponent (rmap shuffle1 (unlift f))
   getComponent f = lift $ rmap shuffle1 (getComponent (unlift f))
   {-# INLINE setComponent #-}
   {-# INLINE getComponent #-}

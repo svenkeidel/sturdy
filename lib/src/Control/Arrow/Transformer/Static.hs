@@ -178,21 +178,18 @@ instance (Applicative f, ArrowContext ctx c) => ArrowContext ctx (StaticT f c) w
   {-# SPECIALIZE instance ArrowContext ctx c => ArrowContext ctx (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowStack a c) => ArrowStack a (StaticT f c) where
-  peek = lift' peek
-  size = lift' size
   push (StaticT f) = StaticT $ push <$> f
-  {-# INLINE peek #-}
-  {-# INLINE size #-}
   {-# INLINE push #-}
   {-# SPECIALIZE instance ArrowStack a c => ArrowStack a (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowCache a b c) => ArrowCache a b (StaticT f c) where
   {-# SPECIALIZE instance ArrowCache a b c => ArrowCache a b (StaticT ((->) r) c) #-}
 
-instance (Applicative f, ArrowChaotic a c) => ArrowChaotic a (StaticT f c) where
+instance (Applicative f, ArrowComponent comp c) => ArrowComponent comp (StaticT f c) where
   getComponent (StaticT f) = StaticT $ Chaotic.getComponent <$> f
+  setComponent (StaticT f) = StaticT $ Chaotic.setComponent <$> f
   {-# INLINE getComponent #-}
-  {-# SPECIALIZE instance ArrowChaotic a c => ArrowChaotic a (StaticT ((->) r) c) #-}
+  {-# SPECIALIZE instance ArrowComponent comp c => ArrowComponent comp (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowControlFlow stmt c) => ArrowControlFlow stmt (StaticT f c) where
   {-# SPECIALIZE instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StaticT ((->) r) c) #-}

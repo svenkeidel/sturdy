@@ -24,7 +24,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Chaotic(chaotic)
+import           Control.Arrow.Fix.Chaotic(innermost)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -34,10 +34,9 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvironment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
 import           Control.Arrow.Transformer.Abstract.Terminating
 
@@ -102,7 +101,7 @@ evalInterval env0 e = snd $
             (TerminatingT
               (EnvT Text Addr Val
                 (FixT _ _
-                  (ChaoticT In
+                  (ComponentT In
                     (-- TraceT
                       (StackT Stack In
                         (CacheT Monotone In Out
@@ -123,7 +122,7 @@ evalInterval env0 e = snd $
       -- traceShow .
       -- traceCache show .
       Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
-      filter apply chaotic
+      filter apply innermost
 
     widenVal :: Widening Val
     widenVal = widening (I.bounded ?bound)

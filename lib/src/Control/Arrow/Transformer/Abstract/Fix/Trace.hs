@@ -30,7 +30,7 @@ import Text.Printf
 
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,
-            ArrowEffectCommutative,ArrowChaotic a,ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt)
+            ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt)
 
 instance ArrowParallel c => ArrowParallel (TraceT c) where
   nextIteration = TraceT $ proc () ->

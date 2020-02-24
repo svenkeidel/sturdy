@@ -47,7 +47,7 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Store
@@ -74,7 +74,7 @@ run env ss =
                   (ErrorT (Pow String)
                     (TerminatingT
                       (FixT _ _
-                        (ChaoticT _
+                        (ComponentT _
                           (StackT Stack _
                             (CacheT Cache _ _
                                (->))))))))))) [Statement] ())
@@ -83,7 +83,7 @@ run env ss =
       (M.empty,(SM.fromList env,generate <$> ss))
   where
     iterationStrategy = filter whileLoops
-                        iterateInner
+                        innermost
 
 newtype UnitT c x y = UnitT { runUnitT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowFail e,ArrowEnv var val,ArrowStore var val,ArrowExcept exc,ArrowComplete z)

@@ -24,9 +24,9 @@ class (Arrow c, Profunctor c) => ArrowParallel c where
   {-# INLINE nextIteration #-}
 
 
-parallel :: forall a b c. (ArrowParallel c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
+parallel :: forall a b c. (ArrowParallel c, ArrowStack a c, ArrowStackDepth c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
 parallel f = proc a -> do
-  n <- Stack.size -< ()
+  n <- Stack.depth -< ()
   if n == 0
   then iterate -< a
   else update -< a

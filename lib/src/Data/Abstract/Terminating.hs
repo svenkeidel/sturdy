@@ -70,10 +70,10 @@ instance Complete a => Complete (Terminating a) where
   x ⊔ NonTerminating = x
   NonTerminating ⊔ y = y
 
-instance CoComplete a => CoComplete (Terminating a) where
-  Terminating a ⊓ Terminating b = Terminating (a ⊓ b) 
-  NonTerminating ⊓ _ = NonTerminating
-  _ ⊓ NonTerminating = NonTerminating
+-- instance CoComplete a => CoComplete (Terminating a) where
+--   Terminating a ⊓ Terminating b = Terminating (a ⊓ b) 
+--   NonTerminating ⊓ _ = NonTerminating
+--   _ ⊓ NonTerminating = NonTerminating
 
 instance UpperBounded a => UpperBounded (Terminating a) where
   top = Terminating top

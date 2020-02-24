@@ -7,19 +7,21 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Fix(Fix,Fix',ArrowFix(..),FixpointCombinator,transform,filter,trace,trace',traceShow,traceCache) where
+module Control.Arrow.Fix(Fix,Fix',ArrowFix(..),FixpointCombinator,transform,filter,filter',trace,trace',traceShow,traceCache) where
 
-import Prelude hiding (filter,pred)
+import           Prelude hiding (filter,pred)
 
-import Control.Arrow
-import Control.Arrow.State (ArrowState)
+import           Control.Arrow
+import           Control.Arrow.State (ArrowState)
 import qualified Control.Arrow.State as State
-import Control.Arrow.Trans
-import Data.Profunctor
-import Data.Lens(Iso',from,get,Prism',getMaybe,set)
+import           Control.Arrow.Trans
+import           Control.Arrow.Fix.Metrics
+
+import           Data.Profunctor
+import           Data.Lens(Iso',from,get,Prism',getMaybe,set)
 
 import qualified Debug.Trace as Debug
-import Text.Printf
+import           Text.Printf
 
 -- | Type family that computes the type of the fixpoint.
 type family Fix (c :: * -> * -> *) x y :: * -> * -> *
@@ -51,6 +53,14 @@ filter pred strat f = proc a -> case getMaybe pred a of
   Just a' -> strat (lmap (\x -> set pred x a) f) -<< a'
   Nothing -> f -< a
 {-# INLINE filter #-}
+
+filter' :: forall a a' b c. (ArrowChoice c, ArrowApply c, ArrowFiltered a' c) => Prism' a a' -> FixpointCombinator c a' b -> FixpointCombinator c a b
+filter' pred strat f = proc a -> case getMaybe pred a of
+  Just a' -> do
+    filtered -< a'
+    strat (lmap (\x -> set pred x a) f) -<< a'
+  Nothing -> f -< a
+{-# INLINE filter' #-}
 
 trace :: (Arrow c) => (a -> String) -> (b -> String) -> FixpointCombinator c a b
 trace showA showB f = proc x -> do
