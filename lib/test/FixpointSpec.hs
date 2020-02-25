@@ -14,7 +14,7 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,widenInput,maxDepth,reuseByMetric)
 import           Control.Arrow.Fix.Cache (ArrowCache)
 import           Control.Arrow.Fix.Chaotic (ArrowComponent,Component,innermost,outermost)
-import           Control.Arrow.Fix.Parallel (parallel)
+import           Control.Arrow.Fix.Parallel (parallel,parallelADI)
 import           Control.Arrow.Fix.Iterate
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -49,8 +49,9 @@ metricFile = "fixpoint.csv"
 spec :: Spec
 spec =
   beforeAll (writeFile metricFile (printf "Function,Algorithm,%s\n" csvHeader)) $ do
-    describe "Parallel" $
+    describe "Parallel" $ do
       fixpointSpec "parallel" (runParallel parallel)
+      fixpointSpec "parallel-adi" (runParallel parallelADI)
     describe "Chaotic" $ do
       describe "innermost component" $ fixpointSpec "innermost" (runChaotic innermost)
       describe "outermost component" $ fixpointSpec "outermost" (runChaotic outermost)
