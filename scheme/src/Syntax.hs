@@ -66,6 +66,7 @@ data Op2_
   | Quotient -- (quotient z1 z2)
   | Remainder -- (remainder z1 z2)
   | Modulo -- (modulo z1 z2)
+  | Assq -- (assq e list)
 -- | List operations
   deriving (Eq)
 
@@ -221,6 +222,7 @@ instance Show Op2_ where
     Quotient -> showString "quotient "
     Remainder -> showString "remainder "
     Modulo -> showString "modulo "
+    Assq -> showString "assq"
 
 instance Show OpVar_ where
   showsPrec _ e0 = case e0 of

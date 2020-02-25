@@ -28,7 +28,6 @@ import Control.Arrow.Closure as Cls
 import Control.Arrow.Fix
 import Control.Arrow.Order
 import Control.Arrow.LetRec
-import Control.Arrow.Fix.Context
 
 import Data.Abstract.IntersectionSet (Set)
 import Data.Abstract.Maybe

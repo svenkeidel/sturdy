@@ -15,7 +15,6 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-partial-type-signatures #-}
-{-# -XPatternSynonyms #-}
 
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module TypedAnalysis where
@@ -133,7 +132,7 @@ evalIntervalChaotic env0 e = run (extend' (Generic.run_ ::
   where
     e0 = generate (sequence e)
     iterationStrategy =
-      -- Fix.traceShow .
+      Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       Fix.filter apply chaotic
 
@@ -363,6 +362,24 @@ instance (ArrowComplete Val c, ArrowEnv Text Addr c, Store.Join Val c, Env.Join 
     --   t <- if__ returnA returnA -< (isTrue eq, (eq, singleton Bottom))
     --   f <- if__ nullH returnA -< (isFalse eq, ((eq,(x,y)), singleton Bottom))
     --   returnA -< t ⊔ f
+    Assq -> do 
+      nulltest <- op1_ -< (Null, y)
+      v <- if' returnA (
+        proc (e,l) -> do 
+          car <- op1_ -< (Car, l)
+          listtest <- op1_ -< (ListS, car)
+          v <- if' (
+            proc(car,e,l) -> do 
+              caar <- op1_ -< (Car, car)
+              eqtest <- op2_ -< (Eqv, e, caar)
+              v <- if' returnA (
+                proc (e,l) -> op2_ -< (Assq, e, l)
+                ) -< (eqtest,(car,(e,l)))
+              returnA -< v
+            ) returnA -< (listtest, ((car,e,l), singleton $ BoolVal B.False)) 
+          returnA -< v
+        ) -< (nulltest, (singleton $ BoolVal B.False, (x,y)))
+      returnA -< v
     Quotient -> with2Val -< (x,y) 
     Remainder -> with2Val -< (x,y)
     Modulo -> with2Val -< (x,y)

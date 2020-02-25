@@ -26,7 +26,7 @@ getBody (x:xs) = case x of
 
 match :: [LispVal] -> Either String [LispVal]
 match [LT.List [Atom "module", _, _, LT.List(Atom "#%module-begin": LT.List (Atom "module": _): program)]] = Right program
-match _ = Left "unknown program structure"
+match xs = Left ("unknown program structure" ++ show xs )
 
 --TODO: should throw error instead of String "undefined" ..
 lispToExpr :: LispVal -> State Label Expr
@@ -39,6 +39,7 @@ lispToExpr val = case val of
   LT.String x -> lit $ S.String x
   LT.Atom "#t" -> lit $ S.Bool True
   LT.Atom "#f" -> lit $ S.Bool False
+  LT.Atom "null" -> list []
   LT.Atom x -> var_ (pack x)
   LT.List [Atom "define-values", LT.List[Atom var], form] ->
     define (pack var) (lispToExpr form)
@@ -118,6 +119,7 @@ lispToExpr val = case val of
     "remainder" -> op2_ Remainder (lispToExpr $ head args) (lispToExpr $ last args)
     "modulo" -> op2_ Modulo (lispToExpr $ head args) (lispToExpr $ last args)
     "cons" -> cons (lispToExpr $ head args) (lispToExpr $ last args)
+    "assq" -> op2_ Assq (lispToExpr $ head args) (lispToExpr $ last args)
     -- opvar
     "=" -> opvar_ EqualS (map lispToExpr args)
     "<" -> opvar_ SmallerS (map lispToExpr args)

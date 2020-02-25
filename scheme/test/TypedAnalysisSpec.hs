@@ -93,11 +93,24 @@ spec = do
   describe "Gabriel-Benchmarks" $ do
 -- TIMEOUT = 30s
 
+    it "boyer" $ do 
+      pendingWith "out of memory"
+      let inFile = "gabriel//boyer"
+      let expRes = Terminating (Success $ singleton $ BoolVal B.True)
+      helperTest inFile expRes
+
     it "cpstak" $ do 
 --     => Final Values: Set(Int)
 --     => TIME: 105 | STATES: 120
       let inFile = "gabriel//cpstak"
       let expRes = Terminating (Success $ singleton IntVal)
+      helperTest inFile expRes
+
+
+    it "dderiv" $ do 
+      -- pendingWith "out of memory"
+      let inFile = "gabriel//dderiv"
+      let expRes = Terminating (Success $ singleton $ BoolVal B.True)
       helperTest inFile expRes
 
     it "deriv" $ do
@@ -155,6 +168,14 @@ spec = do
       let inFile = "scala-am//nqueens"
       let expRes = Terminating (Success $ singleton IntVal)
       helperTest inFile expRes      
+
+    it "primtest" $ do
+-- => Final Values: Set(Int)
+-- => TIME: 8 | STATES: 431
+      let inFile = "scala-am//primtest"
+      let expRes = Terminating (Success $ singleton IntVal)
+      let ?sensitivity = 0 
+      helperTestChaotic inFile expRes
 
     it "rsa" $ do
 -- => Final Values: Set({#f,#t})
@@ -298,7 +319,8 @@ helperTestChaotic inFile expRes = do
   file_str <- helper_import inFile
   -- print file_str
   case readExprList file_str of
-    Right a ->
+    Right a -> do 
+      -- print a 
       case match a of
         Right b -> do
           let (metric, res) = evalIntervalChaotic' [let_rec (getTopDefinesLam b) (getBody b)]
