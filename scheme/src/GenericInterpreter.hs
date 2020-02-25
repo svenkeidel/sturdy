@@ -135,6 +135,7 @@ eval run' = proc e0 -> case e0 of
           a2 <- alloc -< Right $ head e2
           write -< (a2, v2)
           list_ -< (a1,a2) 
+{-# INLINEABLE eval #-}
 
 run_ :: (ArrowChoice c,
          ArrowFix (c [Expr] v),
@@ -180,6 +181,7 @@ run_ = fix $ \run' -> proc es -> case es of
   e:rest -> do
     eval run' -< e
     run' -< rest 
+{-# INLINEABLE run_ #-}
 
 
 class ArrowAlloc addr c where
@@ -198,4 +200,4 @@ class Arrow c => IsNum v c | c -> v where
   op1_ :: c (Op1_, v) v
   op2_ :: c (Op2_, v, v) v
   opvar_ :: c (OpVar_, [v]) v
-  
+

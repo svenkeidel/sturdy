@@ -89,19 +89,17 @@ spec = do
     it "should terminate for the non-terminating program Define" $
       pending
 
-  describe "Benchmarks" $ do
-    describe "Chaotic Iteration" $ do
-      describe "Innermost" $ benchmarks innermostRunner
-      describe "Outermost" $ benchmarks outermostRunner
-    describe "Parallel Iteration" $
-      describe "Stack" $ benchmarks parallelRunner
+  describe "Benchmarks" $ testFixpointAlgorithms benchmarks
+  describe "Tests" $ testFixpointAlgorithms customTests
 
-  describe "Tests" $ do
-    describe "Chaotic Iteration" $ do
-      describe "Innermost" $ customTests innermostRunner
-      describe "Outermost" $ customTests outermostRunner
-    describe "Parallel Iteration" $
-      describe "Stack" $ customTests parallelRunner
+testFixpointAlgorithms :: (Runner -> Spec) -> Spec
+testFixpointAlgorithms tests = do
+  describe "Chaotic Iteration" $ do
+    describe "Innermost" $ tests innermostRunner
+    describe "Outermost" $ tests outermostRunner
+  describe "Parallel Iteration" $ do
+    describe "ADI" $ tests parallelADIRunner
+    describe "Stack" $ tests parallelRunner
 
 benchmarks :: Runner -> Spec
 benchmarks run = do
@@ -122,7 +120,7 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
     it "cpstak" $ do
 --     => Final Values: Set(Int)
 --     => TIME: 105 | STATES: 120
-      -- pendingWith "out of memory"
+      pendingWith "out of memory"
       let inFile = "gabriel//cpstak"
       let expRes = Terminating (Success $ singleton IntVal)
       run inFile expRes
@@ -209,120 +207,119 @@ scalaAM run = describe "Scala-AM-Benchmarks" $ do
 
 -- -------------------Custom Tests------------------------------------------
 customTests :: Runner -> Spec
-customTests run =
-  describe "Custom_Tests" $ do
-    it "recursion_union_empty_list" $ do
-      let inFile = "test_rec_empty"
-      let expRes = Terminating (Success $ singleton EmptyList)
-      run inFile expRes
+customTests run = do
+  it "recursion_union_empty_list" $ do
+    let inFile = "test_rec_empty"
+    let expRes = Terminating (Success $ singleton EmptyList)
+    run inFile expRes
 
-    it "recursion and union with non-empty list" $ do
-      let inFile = "test_rec_nonempty"
-      let expRes = Terminating (Success $ singleton IntVal)
-      run inFile expRes
+  it "recursion and union with non-empty list" $ do
+    let inFile = "test_rec_nonempty"
+    let expRes = Terminating (Success $ singleton IntVal)
+    run inFile expRes
 
-    it "should return NV for (car (cdr '(2 3 4)))" $ do
-      let inFile = "test_cdr"
-      let expRes = Terminating (Success $ singleton IntVal)
-      run inFile expRes
+  it "should return NV for (car (cdr '(2 3 4)))" $ do
+    let inFile = "test_cdr"
+    let expRes = Terminating (Success $ singleton IntVal)
+    run inFile expRes
 
-    it "should return correct val for car" $ do
-      let inFile = "test_car"
-      let expRes = Terminating (Success $ singleton IntVal)
-      run inFile expRes
+  it "should return correct val for car" $ do
+    let inFile = "test_car"
+    let expRes = Terminating (Success $ singleton IntVal)
+    run inFile expRes
 
-    it "test_null_cdr" $ do
-      let inFile = "test_null"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.True)
-      run inFile expRes
+  it "test_null_cdr" $ do
+    let inFile = "test_null"
+    let expRes = Terminating (Success $ singleton $ BoolVal B.True)
+    run inFile expRes
 
-    it "unifying two list of nums of different size should result in list of nums" $ do
-      let inFile = "test_faulty_list"
-      let expRes = Terminating (Success $ fromList [IntVal, BoolVal B.False])
-      run inFile expRes
+  it "unifying two list of nums of different size should result in list of nums" $ do
+    let inFile = "test_faulty_list"
+    let expRes = Terminating (Success $ fromList [IntVal, BoolVal B.False])
+    run inFile expRes
 
-    it "test_if" $ do
-      let inFile = "test_if"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.False)
-      run inFile expRes
+  it "test_if" $ do
+    let inFile = "test_if"
+    let expRes = Terminating (Success $ singleton $ BoolVal B.False)
+    run inFile expRes
 
-    it "test_opvars" $ do
-      let inFile = "test_opvars"
-      let expRes = Terminating (Success $ singleton IntVal)
-      run inFile expRes
+  it "test_opvars" $ do
+    let inFile = "test_opvars"
+    let expRes = Terminating (Success $ singleton IntVal)
+    run inFile expRes
 
-    it "test_equal" $ do
-      let inFile = "test_equal"
-      -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
-      let expRes = Terminating (Success $ fromList [BoolVal B.True])
-      run inFile expRes
+  it "test_equal" $ do
+    let inFile = "test_equal"
+    -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
+    let expRes = Terminating (Success $ fromList [BoolVal B.True])
+    run inFile expRes
 
-    it "test_cons" $ do
-      let inFile = "test_cons"
-      -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
-      let expRes = Terminating (Success $ fromList [BoolVal B.True])
-      run inFile expRes
+  it "test_cons" $ do
+    let inFile = "test_cons"
+    -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
+    let expRes = Terminating (Success $ fromList [BoolVal B.True])
+    run inFile expRes
 
-    it "test_closure_gc" $ do
-      let inFile = "test_closure_gc"
-      let expRes = Terminating (Success $ singleton IntVal)
-      run inFile expRes
+  it "test_closure_gc" $ do
+    let inFile = "test_closure_gc"
+    let expRes = Terminating (Success $ singleton IntVal)
+    run inFile expRes
 
-    it "lang_scheme_test" $ do
-      let inFile = "lang_scheme_test"
-      let expRes = Terminating (Success $ singleton IntVal)
-      run inFile expRes
+  it "lang_scheme_test" $ do
+    let inFile = "lang_scheme_test"
+    let expRes = Terminating (Success $ singleton IntVal)
+    run inFile expRes
 
-    it "test_inner_define" $ do
-      let inFile = "test_inner_define"
-      let expRes = Terminating (Success $ singleton IntVal)
-      run inFile expRes
+  it "test_inner_define" $ do
+    let inFile = "test_inner_define"
+    let expRes = Terminating (Success $ singleton IntVal)
+    run inFile expRes
 
-    it "test_unops" $ do
-      let inFile = "test_unops"
-      let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.False])
-      run inFile expRes
+  it "test_unops" $ do
+    let inFile = "test_unops"
+    let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.False])
+    run inFile expRes
 
-    it "test_eq" $ do
-      let inFile = "test_eq"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.Top)
-      run inFile expRes
+  it "test_eq" $ do
+    let inFile = "test_eq"
+    let expRes = Terminating (Success $ singleton $ BoolVal B.Top)
+    run inFile expRes
 
-    it "test_binops" $ do
-      let inFile = "test_binops"
-      let expRes = Terminating (Success $ singleton $ Bottom)
-      run inFile expRes
+  it "test_binops" $ do
+    let inFile = "test_binops"
+    let expRes = Terminating (Success $ singleton $ Bottom)
+    run inFile expRes
 
-    it "test_opvar_numbool" $ do
-      let inFile = "test_opvar_numbool"
-      let expRes = Terminating (Success $ singleton $ Bottom)
-      run inFile expRes
+  it "test_opvar_numbool" $ do
+    let inFile = "test_opvar_numbool"
+    let expRes = Terminating (Success $ singleton $ Bottom)
+    run inFile expRes
 
-    it "test_opvar_numnum" $ do
-      let inFile = "test_opvar_numnum"
-      let expRes = Terminating (Success $ singleton IntVal)
-      run inFile expRes
+  it "test_opvar_numnum" $ do
+    let inFile = "test_opvar_numnum"
+    let expRes = Terminating (Success $ singleton IntVal)
+    run inFile expRes
 
-    it "test_opvar_boolbool" $ do
-      let inFile = "test_opvar_boolbool"
-      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.True, StringVal])
-      run inFile expRes
+  it "test_opvar_boolbool" $ do
+    let inFile = "test_opvar_boolbool"
+    let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.True, StringVal])
+    run inFile expRes
 
-    it "test_list" $ do
-      let inFile = "test_list"
-      let expRes = Terminating (Success $ singleton QuoteVal)
-      run inFile expRes
+  it "test_list" $ do
+    let inFile = "test_list"
+    let expRes = Terminating (Success $ singleton QuoteVal)
+    run inFile expRes
 
-    it "test_factorial" $ do
-      let inFile = "test_factorial"
-      let expRes = Terminating (Success $ singleton $ IntVal)
-      run inFile expRes
+  it "test_factorial" $ do
+    let inFile = "test_factorial"
+    let expRes = Terminating (Success $ singleton $ IntVal)
+    run inFile expRes
 
-    it "test_random" $ do
-      -- pending
-      let inFile = "test_random"
-      let expRes = Terminating (Success $ singleton $ IntVal)
-      run inFile expRes
+  it "test_random" $ do
+    -- pending
+    let inFile = "test_random"
+    let expRes = Terminating (Success $ singleton $ IntVal)
+    run inFile expRes
 
 
 -------------------HELPER------------------------------------------------------
@@ -330,30 +327,8 @@ customTests run =
 
 type Runner = (String -> Terminating (Error (Pow String) Val) -> IO ())
 
--- helperTest :: String -> Terminating (Error (Pow String) Val) -> IO ()
--- helperTest inFile expRes = do
---   helperTestChaoticInner inFile expRes
---   helperTestChaoticOuter inFile expRes
---   -- helperTestParallel inFile expRes
-
 metricFile :: String
 metricFile = "TypedAnalysis.csv"
-
--- helperTestChaotic :: (?sensitivity :: Int) => String -> Terminating (Error (Pow String) Val) -> IO ()
--- helperTestChaotic inFile expRes = do
---   file_str <- helper_import inFile
---   -- print file_str
---   case readExprList file_str of
---     Right a -> do
---       -- print a
---       case match a of
---         Right b -> do
---           let (metric, res) = evalIntervalChaotic' [let_rec (getTopDefinesLam b) (getBody b)]
---           let csv = printf "\"%s\",chaotic simple,%s\n" inFile (toCSV metric)
---           appendFile metricFile csv
---           res`shouldBe` expRes
---         Left b -> print b
---     Left a -> print $ showError a
 
 innermostRunner :: String -> Terminating (Error (Pow String) Val) -> IO ()
 innermostRunner inFile expRes = do
@@ -394,6 +369,21 @@ parallelRunner inFile expRes = do
         Right b -> do
           let ?sensitivity = 0
           let (metric,res) = evalIntervalParallel' [let_rec (getTopDefinesLam b) (getBody b)]
+          let csv = printf "\"%s\",parallel,%s\n" inFile (toCSV metric)
+          appendFile metricFile csv
+          res`shouldBe` expRes
+        Left b -> print b
+    Left a -> print $ showError a
+
+parallelADIRunner :: String -> Terminating (Error (Pow String) Val) -> IO ()
+parallelADIRunner inFile expRes = do
+  file_str <- helper_import inFile
+  case readExprList file_str of
+    Right a ->
+      case match a of
+        Right b -> do
+          let ?sensitivity = 0
+          let (metric,res) = evalIntervalParallelADI' [let_rec (getTopDefinesLam b) (getBody b)]
           let csv = printf "\"%s\",parallel,%s\n" inFile (toCSV metric)
           appendFile metricFile csv
           res`shouldBe` expRes
