@@ -13,9 +13,9 @@ import           Prelude hiding (pred,lookup,map,head,iterate,(.))
 import           Control.Category
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
-import           Control.Arrow.Fix.Parallel as Parallel
+import           Control.Arrow.Fix.Iterate as Iterate
 import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Stack (ArrowStack)
+import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements)
 import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
 import           Control.Arrow.State
@@ -35,32 +35,38 @@ import           Data.Identifiable
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,
             ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx, ArrowJoinContext u,
-            ArrowParallel,ArrowControlFlow stmt)
+            ArrowIterate a,ArrowControlFlow stmt)
 
 data Stack a = Stack
   { elems :: HashSet a
   , stack :: [a]
-  , size  :: !Int
+  , depth  :: !Int
   }
 
 instance IsEmpty (Stack a) where
-  empty = Stack { elems = empty, stack = empty, size = 0 }
+  empty = Stack { elems = empty, stack = empty, depth = 0 }
   {-# INLINE empty #-}
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
   push f = lift $ proc (st,a) -> do
     let st' = st { elems = Set.insert a (elems st)
                  , stack = a : stack st
-                 , size = size st + 1
+                 , depth = depth st + 1
                  }
     unlift f -< (st', a)
   elem = lift $ proc (st,a) -> returnA -< Set.member a (elems st)
+  {-# INLINE push #-}
+  {-# INLINE elem #-}
+
+instance (Arrow c, Profunctor c) => ArrowStackDepth (StackT Stack a c) where
+  depth = lift $ proc (st,()) -> returnA -< depth st
+  {-# INLINE depth #-}
+
+instance (Identifiable a, Arrow c, Profunctor c) => ArrowStackElements a (StackT Stack a c) where
   peek = lift $ proc (st,()) -> returnA -< case stack st of [] -> Nothing; (x:_) -> Just x
   elems = lift $ proc (st,()) -> returnA -< stack st
-  size = lift $ proc (st,()) -> returnA -< size st
   {-# INLINE peek #-}
-  {-# INLINE push #-}
-  {-# INLINE size #-}
+  {-# INLINE elems #-}
 
 runStackT :: (IsEmpty (stack a), Profunctor c) => StackT stack a c x y -> c x y
 runStackT (StackT f) = lmap (empty,) (runReaderT f)

@@ -18,7 +18,7 @@ import Control.Arrow.Except as Exc
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Fix.ControlFlow as CF
-import Control.Arrow.Fix.Parallel as Parallel
+import Control.Arrow.Fix.Iterate as Iterate
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Order
@@ -172,5 +172,5 @@ instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
 
 instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c)
 instance ArrowCache a b c => ArrowCache a b (ReaderT r c)
-instance ArrowParallel c => ArrowParallel (ReaderT r c)
+instance ArrowIterate a c => ArrowIterate a (ReaderT r c)
 instance ArrowControlFlow stmt c => ArrowControlFlow stmt (ReaderT r c)

@@ -25,12 +25,13 @@ import           TestPrograms
 import           Control.Monad(forM_)
 import           Control.Arrow
 import           Control.Arrow.Fix as F
+import           Control.Arrow.Fix.Iterate
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Chaotic
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Fix.Context
@@ -59,12 +60,10 @@ spec =
   -- do
   --describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
   describe "Chaotic" $ do
-    describe "simple" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . chaotic) (?widenA, T.widening ?widenB) a)
     describe "inner component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . iterateInner) (?widenA, T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . innermost) (?widenA, T.widening ?widenB) a)
     describe "outer component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . iterateOuter) (?widenA, T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . outermost) (?widenA, T.widening ?widenB) a)
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)
 
@@ -156,7 +155,7 @@ instance PreOrd Fun where
 toChaotic :: (Identifiable lab, Identifiable a, Complete b)
           => Arr (lab,a) b -> TerminatingT
                           (FixT (lab,a) (Terminating b)
-                            (ChaoticT (lab,a)
+                            (ComponentT (lab,a)
                               (StackT Stack (lab,a)
                                 (CacheT (Context (Proj2 (CtxCache (CallString lab))) Cache) (lab,a) (Terminating b)
                                   (ContextT (CallString lab)

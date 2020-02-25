@@ -14,7 +14,7 @@ import Prelude hiding (pred,lookup,map,head,iterate,(.),truncate)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Fix.Chaotic
-import Control.Arrow.Fix.Parallel as Parallel
+import Control.Arrow.Fix.Iterate as Iterate
 import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
@@ -30,11 +30,11 @@ import Text.Printf
 
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,
-            ArrowEffectCommutative,ArrowChaotic a,ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt)
+            ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt)
 
-instance ArrowParallel c => ArrowParallel (TraceT c) where
-  nextIteration = TraceT $ proc () ->
-    nextIteration -< Debug.trace (printf "NEXT ITERATION\n\n") ()
+instance ArrowIterate a c => ArrowIterate a (TraceT c) where
+  nextIteration = TraceT $ proc a ->
+    nextIteration -< Debug.trace (printf "NEXT ITERATION\n\n") a
 
 instance (Show a, Show b, ArrowCache a b c) => ArrowCache a b (TraceT c) where
   initialize = TraceT $ proc a -> do
