@@ -32,6 +32,7 @@ To build, install the [Stack](https://www.haskellstack.org/) build tool and run 
 The sturdy project currently contains concrete and abstract and generic interpreters for the following languages:
 * _PCF_, a higher-order functional language
 * _While_, an imperative language with conditionals and while loops
+* _Scheme_, a functional language language in the LISP family.
 * [_Stratego_](https://svenkeidel.de/papers/program-trans-analysis.pdf), a language for program transformations
 * _LambdaJS_, an intermediate representation for JavaScript
 * _Jimple_, a Java Bytecode suitable for static analysis (work in progress)
