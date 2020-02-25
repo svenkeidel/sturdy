@@ -116,49 +116,33 @@ sharedSpecFile run = do
 -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do
     
-    it "null" $ do 
-      -- pendingWith "out of memory"
-      file_str <- helper_import "//scheme_files//gabriel//test.scm"
-      putStrLn file_str
-      case readExprList file_str of
-        Right a -> do
-          putStrLn $ show a 
-          case match a of
-            Right b -> run [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Right (BoolVal True)
-            Left b -> print b
-        Left a -> print $ showError a
-
     it "boyer" $ do 
-      -- pendingWith "out of memory"
+      pendingWith "out of memory"
       file_str <- helper_import "//scheme_files//gabriel//boyer.scm"
-      putStrLn file_str
       case readExprList file_str of
-        Right a -> do
-          putStrLn $ show a 
-          case match a of
+        Right a -> case match a of
             Right b -> run [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Right (BoolVal True)
             Left b -> print b
         Left a -> print $ showError a
 
-    -- it "cpstak" $ do 
-    --   pendingWith "out of memory"
-    --   file_str <- helper_import "//scheme_files//gabriel//cpstak.scm"
-    --   case readExprList file_str of
-    --     Right a ->
-    --       case match a of
-    --         Right b -> run [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Right (NumVal 6)
-    --         Left b -> print b
-    --     Left a -> print $ showError a
+    it "cpstak" $ do 
+      pendingWith "out of memory"
+      file_str <- helper_import "//scheme_files//gabriel//cpstak.scm"
+      case readExprList file_str of
+        Right a ->
+          case match a of
+            Right b -> run [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Right (NumVal 6)
+            Left b -> print b
+        Left a -> print $ showError a
 
-    -- it "deriv" $ do
-    --   file_str <- helper_import "//scheme_files//gabriel//deriv.scm"
-    --   putStrLn file_str
-    --   case readExprList file_str of
-    --     Right a ->
-    --       case match a of
-    --         Right b -> run [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Right (BoolVal True)
-    --         Left b -> print b
-    --     Left a -> print $ showError a
+    it "deriv" $ do
+      file_str <- helper_import "//scheme_files//gabriel//deriv.scm"
+      case readExprList file_str of
+        Right a ->
+          case match a of
+            Right b -> run [let_rec (getTopDefinesLam b) (getBody b)] `shouldBe` Right (BoolVal True)
+            Left b -> print b
+        Left a -> print $ showError a
 
     it "diviter" $ do
       file_str <- helper_import "//scheme_files//gabriel//diviter.scm"
@@ -243,98 +227,98 @@ sharedSpecFile run = do
   --       Left a -> print $ showError a
 ------------------------------------------CUSTOMS--------------------------------------------
 
-  -- describe "Custom_Tests" $ do
-  --     -- let ?bound = 100
-  --     -- let ?sensitivity = 0
-  --     it "recursion and union with empty list" $ do
-  --       let inFile = "test_rec_empty"
-  --       let expRes = Right EmptyList
-  --       helper_test run inFile expRes      
+  describe "Custom_Tests" $ do
+      -- let ?bound = 100
+      -- let ?sensitivity = 0
+      it "recursion and union with empty list" $ do
+        let inFile = "test_rec_empty"
+        let expRes = Right EmptyList
+        helper_test run inFile expRes      
 
-  --     it "recursion and union with non-empty list" $ do
-  --       let inFile = "test_rec_nonempty"
-  --       let expRes = Right $ NumVal 1 
-  --       helper_test run inFile expRes               
+      it "recursion and union with non-empty list" $ do
+        let inFile = "test_rec_nonempty"
+        let expRes = Right $ NumVal 1 
+        helper_test run inFile expRes               
 
-  --     it "should return 3 for (car (cdr '(2 3 4)))" $ do
-  --       let inFile = "test_cdr"
-  --       let expRes = Right $ NumVal 3 
-  --       helper_test run inFile expRes  
+      it "should return 3 for (car (cdr '(2 3 4)))" $ do
+        let inFile = "test_cdr"
+        let expRes = Right $ NumVal 3 
+        helper_test run inFile expRes  
 
-  --     it "should return correct val for car" $ do
-  --       let inFile = "test_car"
-  --       let expRes = Right $ NumVal 1
-  --       helper_test run inFile expRes      
+      it "should return correct val for car" $ do
+        let inFile = "test_car"
+        let expRes = Right $ NumVal 1
+        helper_test run inFile expRes      
 
-  --     it "should return true for null? cdr cdr '(1 2)" $ do
-  --       let inFile = "test_null"
-  --       let expRes = Right $ BoolVal True
-  --       helper_test run inFile expRes       
+      it "should return true for null? cdr cdr '(1 2)" $ do
+        let inFile = "test_null"
+        let expRes = Right $ BoolVal True
+        helper_test run inFile expRes       
 
-  --     -- it "unifying two list of nums of different size should result in an error" $ do
-  --     --   let inFile = "test_faulty_list"
-  --     --   let expRes = Terminating (Fail "{\"cannot unify lists of differing lengths| List [Int: {1}], List [Int: {1},Int: {2}]\"}")           
-  --     --   helper_test inFile expRes  
+      -- it "unifying two list of nums of different size should result in an error" $ do
+      --   let inFile = "test_faulty_list"
+      --   let expRes = Terminating (Fail "{\"cannot unify lists of differing lengths| List [Int: {1}], List [Int: {1},Int: {2}]\"}")           
+      --   helper_test inFile expRes  
 
-  --     it "test_if" $ do
-  --       let inFile = "test_if"
-  --       let expRes = Right $ BoolVal False
-  --       helper_test run inFile expRes            
+      it "test_if" $ do
+        let inFile = "test_if"
+        let expRes = Right $ BoolVal False
+        helper_test run inFile expRes            
 
-  --     it "test_opvars" $ do
-  --       let inFile = "test_opvars"
-  --       let expRes = Right $ NumVal 10          
-  --       helper_test run inFile expRes         
+      it "test_opvars" $ do
+        let inFile = "test_opvars"
+        let expRes = Right $ NumVal 10          
+        helper_test run inFile expRes         
 
-  --     it "test_equal" $ do
-  --       let inFile = "test_equal"
-  --       let expRes = Right $ BoolVal True
-  --       helper_test run inFile expRes   
+      it "test_equal" $ do
+        let inFile = "test_equal"
+        let expRes = Right $ BoolVal True
+        helper_test run inFile expRes   
 
-  --     it "test_cons" $ do
-  --       let inFile = "test_cons"
-  --       let expRes = Right $ BoolVal True
-  --       helper_test run inFile expRes 
+      it "test_cons" $ do
+        let inFile = "test_cons"
+        let expRes = Right $ BoolVal True
+        helper_test run inFile expRes 
 
-  --     it "test_closures_gc" $ do
-  --       let inFile = "test_closure_gc"
-  --       let expRes = Right $ NumVal 16          
-  --       helper_test run inFile expRes 
+      it "test_closures_gc" $ do
+        let inFile = "test_closure_gc"
+        let expRes = Right $ NumVal 16          
+        helper_test run inFile expRes 
 
-  --     it "lang_scheme_test" $ do
-  --       let inFile = "lang_scheme_test"
-  --       let expRes = Right $ NumVal 8   
-  --       helper_test run inFile expRes 
+      it "lang_scheme_test" $ do
+        let inFile = "lang_scheme_test"
+        let expRes = Right $ NumVal 8   
+        helper_test run inFile expRes 
 
-  --     it "test_inner_define" $ do
-  --       let inFile = "test_inner_define"
-  --       let expRes = Right $ NumVal 10          
-  --       helper_test run inFile expRes 
+      it "test_inner_define" $ do
+        let inFile = "test_inner_define"
+        let expRes = Right $ NumVal 10          
+        helper_test run inFile expRes 
 
-  --     it "test_subtraction" $ do
-  --       let inFile = "test_subtraction"
-  --       let expRes = Right $ NumVal (-4)   
-  --       helper_test run inFile expRes     
+      it "test_subtraction" $ do
+        let inFile = "test_subtraction"
+        let expRes = Right $ NumVal (-4)   
+        helper_test run inFile expRes     
 
-  --     it "test_lits" $ do
-  --       let inFile = "test_lits"
-  --       let expRes = Right $ NumVal 3 
-  --       helper_test run inFile expRes     
+      it "test_lits" $ do
+        let inFile = "test_lits"
+        let expRes = Right $ NumVal 3 
+        helper_test run inFile expRes     
 
-  --     it "test_simple_floats" $ do
-  --       let inFile = "test_simple_floats"
-  --       let expRes = Right $ BoolVal False 
-  --       helper_test run inFile expRes     
+      it "test_simple_floats" $ do
+        let inFile = "test_simple_floats"
+        let expRes = Right $ BoolVal False 
+        helper_test run inFile expRes     
 
-  --     it "test_rec_defines" $ do
-  --       let inFile = "test_rec_defines"
-  --       let expRes = Right $ NumVal 720 
-  --       helper_test run inFile expRes
+      it "test_rec_defines" $ do
+        let inFile = "test_rec_defines"
+        let expRes = Right $ NumVal 720 
+        helper_test run inFile expRes
         
-  --     it "test_random" $ do
-  --       let inFile = "test_random"
-  --       let expRes = Right $ NumVal 1         
-  --       helper_test run inFile expRes       
+      -- it "test_random" $ do
+      --   let inFile = "test_random"
+      --   let expRes = Right $ NumVal 1         
+      --   helper_test run inFile expRes       
         
 
 

@@ -13,7 +13,9 @@ import           Control.Arrow.Fix
 import           Control.Arrow.Fail
 import           Control.Arrow.Closure (ArrowClosure)
 import qualified Control.Arrow.Closure as Cls
-import           Control.Arrow.Environment (ArrowEnv,ArrowLetRec)
+import           Control.Arrow.Environment (ArrowEnv)
+import           Control.Arrow.LetRec(ArrowLetRec)
+import qualified Control.Arrow.LetRec as LetRec
 import qualified Control.Arrow.Environment as Env
 
 import           Data.Text (Text)
@@ -49,7 +51,7 @@ eval = fix $ \ev -> proc e0 -> case e0 of
     if_ ev ev -< (v1, (e2, e3))
   Let bnds body _ -> do
     vs <- map ev -< [ e | (_,e) <- bnds ]
-    Env.letRec ev -< ([ (v,cl) | ((v,_),cl) <- zip bnds vs ], body)
+    LetRec.letRec ev -< ([ (v,cl) | ((v,_),cl) <- zip bnds vs ], body)
   Apply e _ -> ev -< e
   where
     -- Helper function used to apply closure or a suspended fixpoint computation to its argument.

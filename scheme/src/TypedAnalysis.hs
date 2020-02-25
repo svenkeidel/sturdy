@@ -26,7 +26,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(chaotic,iterateInner,iterateOuter)
+import           Control.Arrow.Fix.Chaotic(innermost,outermost)
 import           Control.Arrow.Fix.Parallel
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
@@ -41,7 +41,7 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
@@ -111,30 +111,30 @@ data ListT
   | Coons Text Text
   deriving (Eq, Generic)
 
-evalIntervalChaotic :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalIntervalChaotic env0 e = run (extend' (Generic.run_ ::
-      Fix'
-        (ValueT Val
-          (ErrorT (Pow String)
-            (TerminatingT
-              (EnvStoreT Text Addr Val 
-                (FixT _ _
-                  (MetricsT In
-                    (ChaoticT In
-                      (StackT Stack In
-                        (CacheT Monotone In Out
-                          (ContextT Ctx  
-                              (->))))))))))) [Expr] Val))
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    iterationStrategy =
-      Fix.traceShow .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply chaotic
+-- evalIntervalChaotic :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+-- evalIntervalChaotic env0 e = run (extend' (Generic.run_ ::
+--       Fix'
+--         (ValueT Val
+--           (ErrorT (Pow String)
+--             (TerminatingT
+--               (EnvStoreT Text Addr Val 
+--                 (FixT _ _
+--                   (MetricsT In
+--                     (ComponentT In
+--                       (StackT Stack In
+--                         (CacheT Monotone In Out
+--                           (ContextT Ctx  
+--                               (->))))))))))) [Expr] Val))
+--     W.finite
+--     iterationStrategy
+--     (W.finite, W.finite)
+--     (Map.empty,(Map.empty,(env0,e0)))
+--   where
+--     e0 = generate (sequence e)
+--     iterationStrategy =
+--       Fix.traceShow .
+--       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+--       Fix.filter apply chaotic
 
 evalIntervalChaoticInner :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
 evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ ::
@@ -145,7 +145,7 @@ evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ ::
               (EnvStoreT Text Addr Val 
                 (FixT _ _
                   (MetricsT In
-                    (ChaoticT In
+                    (ComponentT In
                       (StackT Stack In
                         (CacheT Monotone In Out
                           (ContextT Ctx  
@@ -159,7 +159,7 @@ evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ ::
     iterationStrategy =
       -- Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply iterateInner
+      Fix.filter apply innermost
 
 evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
 evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ ::
@@ -170,7 +170,7 @@ evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ ::
               (EnvStoreT Text Addr Val 
                 (FixT _ _
                   (MetricsT In
-                    (ChaoticT In
+                    (ComponentT In
                       (StackT Stack In
                         (CacheT Monotone In Out
                           (ContextT Ctx  
@@ -184,7 +184,7 @@ evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ ::
     iterationStrategy =
       -- Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply iterateOuter
+      Fix.filter apply outermost
 
 evalIntervalParallel :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
 evalIntervalParallel env0 e = run (extend' (Generic.run_ ::
@@ -463,11 +463,11 @@ evalIntervalParallel' exprs = let (_,(metrics,res)) = evalIntervalParallel [] ex
 -- {-# INLINE evalIntervalParallel' #-}
 
 evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Terminating (Error (Pow String) Val)
-evalInterval' env exprs = snd $ snd $ snd $ evalIntervalChaotic env exprs
+evalInterval' env exprs = snd $ snd $ snd $ evalIntervalChaoticInner env exprs
 -- {-# INLINE evalInterval' #-}
 
-evalIntervalChaotic' :: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
-evalIntervalChaotic' exprs = let (_,(metrics,res)) = evalIntervalChaotic [] exprs in (metrics,snd $ res)
+-- evalIntervalChaotic' :: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (Terminating (Error (Pow String) Val)))
+-- evalIntervalChaotic' exprs = let (_,(metrics,res)) = evalIntervalChaotic [] exprs in (metrics,snd $ res)
 -- {-# INLINE evalIntervalChaotic' #-}
 
 -- UTILS 
