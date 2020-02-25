@@ -22,7 +22,6 @@ import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Fix.Chaotic as Chaotic
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack as Stack
-import           Control.Arrow.Fix.Parallel as Parallel
 import           Control.Arrow.Fix.Context(ArrowContext)
 import           Control.Arrow.Fix.Iterate as Iterate
 

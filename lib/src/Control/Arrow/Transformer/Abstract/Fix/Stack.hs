@@ -62,7 +62,7 @@ instance (Arrow c, Profunctor c) => ArrowStackDepth (StackT Stack a c) where
   depth = lift $ proc (st,()) -> returnA -< depth st
   {-# INLINE depth #-}
 
-instance (Identifiable a, Arrow c, Profunctor c) => ArrowStackElements a (StackT Stack a c) where
+instance (Arrow c, Profunctor c) => ArrowStackElements a (StackT Stack a c) where
   peek = lift $ proc (st,()) -> returnA -< case stack st of [] -> Nothing; (x:_) -> Just x
   elems = lift $ proc (st,()) -> returnA -< stack st
   {-# INLINE peek #-}
