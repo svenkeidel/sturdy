@@ -29,7 +29,7 @@ module TypedAnalysis where
 import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 
 import           Control.Category
-import           Control.Arrow
+import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fix as Fix
@@ -67,6 +67,7 @@ import qualified Data.Boolean as B
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
 import           Data.Identifiable
+import           Data.Text.Prettyprint.Doc
 
 import qualified Data.Abstract.Boolean as B
 import qualified Data.Abstract.Widening as W
@@ -143,9 +144,28 @@ evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ :: Interp [Expr] Va
   where
     e0 = generate (sequence e)
     iterationStrategy =
-      -- Fix.traceShow .
+      Fix.trace printIn printOut .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       Fix.filter apply innermost
+
+printIn :: (Store,(Env,[Expr])) -> String
+printIn (store,(env,expr)) =
+  show $
+  vsep
+  [ "EXPR:  " <> align (showFirst expr)
+  , "ENV:   " <> align (pretty env)
+  , "STORE: " <> align (pretty store)
+  ]
+  where showFirst (x:_) = pretty x; showFirst [] = "[]"
+
+printOut :: (Store,(HashSet Text,Terminating Val)) -> String
+printOut (store,(errs,val)) =
+  show $
+  vsep
+  [ "RET:   " <> align (pretty val)
+  , "STORE: " <> align (pretty store)
+  , "ERRORS:" <> align (pretty errs)
+  ]
 
 evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
 evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
@@ -432,26 +452,28 @@ instance (ArrowChoice c, IsString e, Fail.Join Val c, ArrowFail e c, ArrowComple
   ValueT f <⊔> ValueT g = ValueT $ proc x -> (f -< x) <⊔> (g -< x)
 
 instance Hashable Addr
-instance Show Addr where
-  show (VarA (var,ctx)) = unpack var ++ show ctx
-  show (LabelA (l,ctx)) = show l ++ show ctx
+instance Show Addr where show = show . pretty
+instance Pretty Addr where
+  pretty (VarA (var,ctx)) = pretty var <> viaShow ctx
+  pretty (LabelA (l,ctx)) = pretty (labelVal l) <> viaShow ctx
 
 instance Hashable Val
-instance Show Val where
-  show IntVal = "Int"
-  show FloatVal = "Real"
-  show (BoolVal b) = show b
-  show (ClosureVal cls) = show cls
-  show StringVal = "String"
-  show QuoteVal = "Quote"
-  show (ListVal l) = show l
-  show Top = "Top"
-  show Bottom = "Bottom"
+instance Show Val where show = show . pretty
+instance Pretty Val where
+  pretty IntVal = "Int"
+  pretty FloatVal = "Real"
+  pretty (BoolVal b) = viaShow b
+  pretty (ClosureVal cls) = viaShow cls
+  pretty StringVal = "String"
+  pretty QuoteVal = "Quote"
+  pretty (ListVal l) = pretty l
+  pretty Top = "Top"
+  pretty Bottom = "Bottom"
 instance Hashable List
-instance Show List where
-  show Nil = "Nil"
-  show (Cons a1 a2) = "Cons(" ++ show a1 ++ "," ++ show a2 ++ ")"
-  show (ConsNil a1 a2) = "Cons(" ++ show a1 ++ "," ++ show a2 ++ ") ⊔ Nil"
+instance Pretty List where
+  pretty Nil = "Nil"
+  pretty (Cons a1 a2) = "Cons" <> parens (pretty a1 <> "," <> pretty a2)
+  pretty (ConsNil a1 a2) = "Cons" <> parens (pretty a1 <> "," <> pretty a2) <> " ⊔ Nil"
 
 instance IsClosure Val (HashSet Env) where
   mapEnvironment f v = case v of
@@ -508,6 +530,12 @@ instance Complete List where
 
 instance (Identifiable s, IsString s) => IsString (HashSet s) where
   fromString = singleton . fromString
+
+instance (Identifiable s, Pretty s) => Pretty (HashSet s) where
+  pretty m = braces $ hsep (punctuate "," (pretty <$> toList m))
+
+instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
+  pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- Map.toList m]
 
 -- OPERATION HELPER ------------------------------------------------------------
 -- EVALUATION

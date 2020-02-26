@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.Abstract.Terminating where
 
 import Control.Arrow hiding (ArrowMonad)
@@ -17,6 +18,7 @@ import Data.Order
 import Data.Hashable
 import Data.Abstract.Stable
 import Data.Abstract.Widening
+import Data.Text.Prettyprint.Doc
 
 import GHC.Generics
 
@@ -27,6 +29,10 @@ instance NFData a => NFData (Terminating a)
 instance Show a => Show (Terminating a) where
   show NonTerminating = "NonTerminating"
   show (Terminating a) = show a
+
+instance Pretty a => Pretty (Terminating a) where
+  pretty NonTerminating = "NonTerminating"
+  pretty (Terminating a) = pretty a
 
 instance Hashable a => Hashable (Terminating a)
 

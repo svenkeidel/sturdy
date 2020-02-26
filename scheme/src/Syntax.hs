@@ -2,16 +2,18 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Syntax where
 
-import           Data.Text (Text,unpack)
-import           Data.Text.Lazy(pack)
+import           Data.Text (Text)
 import           Data.Hashable
 import           Data.Label
 import           Data.String
 import           Data.Lens (Prism')
 import qualified Data.Lens as L
 import           Data.GraphViz.Attributes
+import           Data.Text.Prettyprint.Doc hiding (list)
+import           Data.Text.Prettyprint.Doc.Render.Text
 
 import Control.Monad.State
 
@@ -112,8 +114,9 @@ data Expr
   | Op1 Op1_ Expr Label
   | Op2 Op2_ Expr Expr Label
   | OpVar OpVar_ [Expr] Label
-  deriving (Eq)
 
+instance Eq Expr where
+  e1 == e2 = label e1 == label e2
 
 -- Smart constructors that build labeled Scheme expressions.
 -- | Expressions for inner representation and evaluation
@@ -153,180 +156,123 @@ op2_ operation e1 e2 = Op2 operation <$> e1 <*> e2 <*> fresh
 opvar_ :: OpVar_ -> [State Label Expr] -> State Label Expr
 opvar_ operation es = OpVar operation <$> (sequence es) <*> fresh
 
--- instance Eq Expr where 
---   (==) e1 e2 = case (e1,e2) of 
---     (Lit _ l1, Lit _ l2) ->  l1 == l2 
---     (Cons _ _ l1, Cons _ _ l2) -> l1 == l2 
---     (List _ l1, List _ l2) -> l1 == l2
---     (Begin _ l1, Begin _ l2) -> l1 == l2 
---     (App _ _ l1, App _ _ l2) -> l1 == l2 
---     (Apply _ l1, Apply _ l2) -> l1 == l2 
---     (Var _ l1, Var _ l2) -> l1 == l2 
---     (Set _ _ l1, Set _ _ l2) -> l1 == l2
---     (Define _ _ l1, Define _ _ l2) -> l1 == l2
---     (Lam _ _ l1, Lam _ _ l2) -> l1 == l2 
---     (If _ _ _ l1, If _ _ _ l2) -> l1 == l2 
---     (Let _ _ l1, Let _ _ l2) -> l1 == l2 
---     (LetRec _ _ l1, LetRec _ _ l2) -> l1 == l2
---     (Op1 _ _ l1, Op1 _ _ l2) -> l1 == l2 
---     (Op2 _ _ _ l1, Op2 _ _ _ l2) -> l1 == l2
---     (OpVar _ _ l1, OpVar _ _ l2) -> l1 == l2 
---     _ -> False 
+instance Show Literal where show = show . pretty
 
-instance Show Literal where
-  showsPrec _ e0 = case e0 of
-    Number x -> showString "Number " . shows x
-    Float x -> showString "Float " . shows x
-    Ratio x -> showString "Ratio " . shows x
-    Bool x -> showString "Bool " . shows x
-    Char x -> showString "Char " .shows x --single character and single quotation (')
-    String x -> showString "String " . shows x  -- any amount of chars and double quotation (")
-    Symbol x -> showString "Symbol " . shows x
-    Quote x -> showString "Quote " . shows x
+instance Pretty Literal where
+  pretty e0 = case e0 of
+    Number x -> pretty x
+    Float x -> pretty x
+    Ratio x -> pretty (show x)
+    Bool x -> pretty x
+    Char x -> squotes (pretty x)
+    String x -> dquotes (pretty x)
+    Symbol x -> pretty x
+    Quote x -> pretty x
     -- DottedList xs x -> showString ("DottedList ") . showList(xs) . showString (" . ") . shows (x)
 
-instance Show Op1_ where
-  showsPrec _ e0 = case e0 of
-    Number_ -> showString "number? "
-    Integer_ -> showString "integer? "
-    Float_ -> showString "float? "
-    Ratio_ -> showString "rational? "
-    Zero -> showString "zero? "
-    Positive -> showString "positive? "
-    Negative -> showString "negative? "
-    Odd -> showString "odd? "
-    Even -> showString "even? "
-    Abs -> showString "abs "
-    Floor -> showString "floor "
-    Ceiling -> showString "ceiling "
-    Log -> showString "log "
-    Boolean -> showString "boolean? "
-    Not -> showString "not "
-    Null -> showString "null? "
-    ListS -> showString "list? "
-    ConsS -> showString "cons? "
-    Car -> showString "car "
-    Cdr -> showString "cdr "
-    Caar -> showString "caar "
-    Cadr -> showString "cadr "
-    Cddr -> showString "cddr"
-    Caddr -> showString "caddr"
-    Error -> showString "error"
+instance Show Op1_ where show = show . pretty
 
-instance Show Op2_ where
-  showsPrec _ e0 = case e0 of
-    Eqv -> showString "eq? "
-    Quotient -> showString "quotient "
-    Remainder -> showString "remainder "
-    Modulo -> showString "modulo "
+instance Pretty Op1_ where
+  pretty e0 = case e0 of
+    Number_ -> "number?"
+    Integer_ -> "integer?"
+    Float_ -> "float?"
+    Ratio_ -> "rational?"
+    Zero -> "zero?"
+    Positive -> "positive?"
+    Negative -> "negative?"
+    Odd -> "odd?"
+    Even -> "even?"
+    Abs -> "abs"
+    Floor -> "floor"
+    Ceiling -> "ceiling"
+    Log -> "log"
+    Boolean -> "boolean?"
+    Not -> "not"
+    Null -> "null?"
+    ListS -> "list?"
+    ConsS -> "cons?"
+    Car -> "car"
+    Cdr -> "cdr"
+    Caar -> "caar"
+    Cadr -> "cadr"
+    Cddr -> "cddr"
+    Caddr -> "caddr"
+    Error -> "error"
 
-instance Show OpVar_ where
-  showsPrec _ e0 = case e0 of
-    EqualS -> showString "= "
-    SmallerS -> showString "< "
-    GreaterS -> showString "> "
-    SmallerEqualS -> showString "<= "
-    GreaterEqualS -> showString ">= "
-    Max -> showString "max "
-    Min -> showString "min "
-    Add -> showString "+ "
-    Mul -> showString "* "
-    Sub -> showString "- "
-    Div -> showString "/ "
-    Gcd -> showString "gcd "
-    Lcm -> showString "lcm "
+instance Show Op2_ where show = show . pretty
+
+instance Pretty Op2_ where
+  pretty e0 = case e0 of
+    Eqv -> "eq?"
+    Quotient -> "quotient "
+    Remainder -> "remainder "
+    Modulo -> "modulo "
+
+instance Show OpVar_ where show = show . pretty
+
+instance Pretty OpVar_ where
+  pretty e0 = case e0 of
+    EqualS -> "="
+    SmallerS -> "<"
+    GreaterS -> ">"
+    SmallerEqualS -> "<="
+    GreaterEqualS -> ">="
+    Max -> "max"
+    Min -> "min"
+    Add -> "+"
+    Mul -> "*"
+    Sub -> "-"
+    Div -> "/"
+    Gcd -> "gcd"
+    Lcm -> "lcm"
     -- List_ -> showString ("list")
 
-instance Show Expr where
-  showsPrec d e0 = case e0 of
-    Lit x _ -> shows x
-    Nil _ -> showString "nil"
-    Cons e1 e2 _ -> showString "cons " . showsPrec (app_prec + 1) e1 . showsPrec (app_prec + 1) e2
-    Begin es _->
-      showString "{"
-      . shows es
-      . showString "}"
-    App e1 e2 _ -> showParen (d > app_prec)
-      $ showsPrec (app_prec + 1) e1
-      . showString " "
-      . showsPrec (app_prec + 1) e2
-    Apply e _ -> showParen (d > app_prec) $ showsPrec (app_prec + 1) e
-    Var x _ -> showString (unpack x)
-    Set t e _ -> showParen (d > app_prec)
-      $ showString "set"
-      . showString (unpack t)
-      . showString " "
-      . shows e
-    Define t e _ -> showParen (d > app_prec)
-      $ showString "define "
-      . showString (unpack t)
-      . showString " "
-      . shows e
-    Lam xs e2 _ -> showParen (d > lam_prec)
-      $ showString "lam"
-      . showList (map unpack xs)
-      . showString ". "
-      . shows e2
-    If e1 e2 e3 _ -> showParen (d > app_prec)
-      $ showString "If "
-      . showsPrec (app_prec + 1) e1
-      . showString " "
-      . showsPrec (app_prec + 1) e2
-      . showString " "
-      . showsPrec (app_prec + 1) e3
-    Let bnds body _ -> showParen (d > let_prec)
-      $ showString "let "
-      . shows bnds
-      . showString " in "
-      . showsPrec (app_prec + 1) body
-    LetRec bnds body _ -> showParen (d > let_prec)
-      $ showString "letrec "
-      . shows bnds
-      . showString " in "
-      . showsPrec (app_prec + 1) body
-    Op1 op1 e _ -> showParen (d > app_prec)
-      $ shows op1
-      . shows e
-    Op2 op2 e1 e2 _ -> showParen (d > app_prec)
-      $ shows op2
-      . shows e1
-      . showString " "
-      . shows e2
-    OpVar opvar es _ -> showParen (d > app_prec)
-      $ shows opvar
-      . shows es
--- TODO : add op1 op2 opvar
-    where
-      app_prec = 10
-      lam_prec = 9
-      let_prec = 8
+instance Show Expr where show = show . pretty
 
-showTopLvl :: Expr -> String
+instance Pretty Expr where
+  pretty e0 = case e0 of
+    Lit x _ -> pretty x
+    Nil _ -> "nil"
+    Cons e1 e2 _ -> parens $ "cons" <+> pretty e1 <+> pretty e2
+    Begin es _-> parens $ "begin" <+> pretty es
+    App e1 e2 _ -> parens $ pretty e1 <+> pretty e2
+    Apply e _ -> parens $ pretty e
+    Var x _ -> pretty x
+    Set t e _ -> parens $ "set!" <+> pretty t <+> pretty e
+    Define t e _ -> parens $ "define" <+> pretty t <+> pretty e
+    Lam xs e2 _ -> parens $ "lambda" <+> prettyList xs <> "." <+> pretty e2
+    If e1 e2 e3 _ -> parens $ "if" <+> pretty e1 <+> pretty e2 <+> pretty e3
+    Let bnds body _ -> parens $ "let" <+> prettyList bnds <+> pretty body
+    LetRec bnds body _ -> parens $ "letrec" <+> prettyList bnds <+> pretty body
+    Op1 op1 e _ -> parens $ pretty op1 <+> pretty e
+    Op2 op2 e1 e2 _ -> parens $ pretty op2 <+> pretty e1 <+> pretty e2
+    OpVar opvar es _ -> parens $ pretty opvar <+> hsep (map pretty es)
+
+showTopLvl :: Expr -> Doc ann
 showTopLvl e = case e of
-    Lit x _ -> "Lit " ++ show x
+    Lit x _ -> "Lit" <+> pretty x
     Nil _ -> "Nil"
-    Cons _ _ _ -> "Cons"
-    Begin _ _-> "Begin"
-    App _ _ _ -> "App"
-    Apply _ _ -> "Apply"
-    Var x _ -> "Var " ++ unpack x
-    Set t _ _ -> "Set " ++ unpack t ++ " := " ++ showTopLvl e
-    Define t _ _ -> "Define " ++ unpack t ++ " := " ++ showTopLvl e
-    Lam xs e2 _ -> "Lam " ++ unwords (map unpack xs) ++ " -> " ++ unwords (map showTopLvl e2)
-    If e1 _ _ _ -> "If(" ++ showTopLvl e1 ++ ")"
-    Let _ _ _ -> "Let"
-    LetRec _ _ _ -> "LetRec"
-    Op1 op1 _ _ -> show op1 ++ " (" ++ showTopLvl e ++ ")"
-    Op2 op2 e1 e2 _ -> show op2 ++ " (" ++  showTopLvl e1 ++ ", " ++ showTopLvl e2 ++ ")"
-    OpVar opvar es _ -> show opvar ++ " (" ++ unwords (map showTopLvl es) ++ ")"
+    Cons {} -> "Cons"
+    Begin {} -> "Begin"
+    App {} -> "App"
+    Apply {} -> "Apply"
+    Var x _ -> "Var" <+> pretty x
+    Set t _ _ -> "Set" <+> pretty t <+> showTopLvl e
+    Define t _ _ -> "Define" <+> pretty t <+> showTopLvl e
+    Lam xs e2 _ -> "Lam" <+> hsep (map pretty xs) <+> "->" <+> hsep (map showTopLvl e2)
+    If e1 _ _ _ -> "If" <+> parens (showTopLvl e1)
+    Let {} -> "Let"
+    LetRec {} -> "LetRec"
+    Op1 op1 _ _ -> pretty op1 <+> parens (showTopLvl e)
+    Op2 op2 e1 e2 _ -> pretty op2 <+> parens (showTopLvl e1 <> "," <> showTopLvl e2)
+    OpVar opvar es _ -> pretty opvar <+> parens (hsep (map showTopLvl es))
 
 instance IsString (State Label Expr) where
   fromString = var_ . fromString
 
 instance Labellable Expr where
-  toLabelValue a = textLabelValue $ pack $ showTopLvl a
-
---Abstract Interpreter specific-------------------------------------------------
+  toLabelValue a = textLabelValue $ renderLazy $ layoutPretty defaultLayoutOptions $ showTopLvl a
 
 instance HasLabel Expr where
   label e = case e of

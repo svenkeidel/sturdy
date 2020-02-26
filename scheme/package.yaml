@@ -21,6 +21,7 @@ dependencies:
   - directory
   - fgl
   - graphviz
+  - prettyprinter
 
 library:
   source-dirs:

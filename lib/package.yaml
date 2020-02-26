@@ -20,6 +20,7 @@ dependencies:
   - deepseq
   - profunctors
   - fgl
+  - prettyprinter
 
 library:
   ghc-options:

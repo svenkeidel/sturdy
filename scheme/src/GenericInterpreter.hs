@@ -100,7 +100,7 @@ eval run' = proc e0 -> case e0 of
             map write -< zip addrs args
             Env.extend' run' -< (zip xs addrs, [Apply body l])
           else fail -< fromString $ printf "Applied a function with %d arguments to %d arguments" (length xs) (length args)
-      _ -> fail -< fromString $ "found unexpected epxression in closure: "  ++ show e
+      _ -> fail -< fromString $ "found unexpected epxression in closure: " ++ show e
 
     evalBindings = proc bnds -> case bnds of
       [] -> returnA -< []
