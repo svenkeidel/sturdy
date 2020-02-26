@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -82,19 +83,15 @@ instance (ArrowChoice c, Profunctor c, ArrowState Int c) => ArrowAlloc Addr (Val
       put -< nextAddr + 1
       returnA -< nextAddr
 
-instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c) 
-    => ArrowList Addr Val (ValueT Val c) where
-  list_ = proc (a1,a2) -> returnA -< ListVal a1 a2
-  cons_ = proc (a1,a2) -> returnA -< ListVal a1 a2      
-
 evalConcrete'' :: [State Label Expr] -> (Either (Store, String) Val)
 evalConcrete'' exprs = case evalConcrete' exprs of
   (_, (store, err)) -> case err of 
     Success val -> Right val
     Fail str -> Left (store, str)
-    
+
 -- | Concrete instance of the interface for value operations.
-instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail String c) => IsNum Val (ValueT Val c) where
+instance (ArrowState Int c, ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail String c)
+  => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = ()
 
   lit = proc x -> case x of
@@ -112,8 +109,17 @@ instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail Stri
   if_ f g = proc (v1, (x, y)) -> case v1 of
     BoolVal False -> g -< y
     _ -> f -< x
-  emptyList = proc _ -> returnA -< EmptyList
-  -- | SCHEME STANDARD PROCEDURES
+
+  nil_ = proc _ ->
+    returnA -< EmptyList
+
+  cons_ = proc ((v1,_),(v2,_)) -> do
+    a1 <- alloc -< ""
+    a2 <- alloc -< ""
+    write -< (a1,v1)
+    write -< (a2,v2)
+    returnA -< ListVal a1 a2
+
   op1_ = proc (op, x) -> case op of
     Number_ -> do
       case x of
@@ -457,7 +463,7 @@ withOrdEq :: (forall a. (Ord a, Eq a) => a -> a -> Bool) -> (Val, Val)-> Either 
 withOrdEq op (v1, v2) = case (v1, v2) of
   (NumVal x, NumVal y) -> Right $ op x y
   (NumVal x, FloatVal y) -> Right $ op (fromIntegral x) y
-  (NumVal x, RatioVal y) -> Right $ op (fromIntegral x) y
+
   (FloatVal x, NumVal y) -> Right $ op x (fromIntegral y)
   (FloatVal x, FloatVal y) -> Right $ op x y
   (FloatVal x, RatioVal y) -> Right $ op (toRational x) y

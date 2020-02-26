@@ -20,7 +20,7 @@ import LispToHask
 
 import           TypedAnalysis
 
-import           Syntax as S
+import           Syntax as S hiding (Nil)
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.DiscretePowerset (Pow, singleton)
 

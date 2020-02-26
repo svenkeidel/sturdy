@@ -98,8 +98,8 @@ type Out' = (Monotone (Store, (([Expr], Label), Env))
 
 data Addr
   = VarA (Text,Ctx)
-  | CellA (Expr,Ctx)
-  | TopA deriving (Eq,Generic)
+  | LabelA (Label,Ctx)
+  deriving (Eq,Generic)
 
 data Val
   = Top
@@ -145,7 +145,7 @@ evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ :: Interp [Expr] Va
   where
     e0 = generate (sequence e)
     iterationStrategy =
-      -- Fix.traceShow .
+      Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       Fix.filter apply innermost
 
@@ -188,21 +188,15 @@ evalIntervalParallelADI env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       Fix.filter apply parallelADI
 
-instance (ArrowChoice c, ArrowContext Ctx c, ArrowFail e c, IsString e)
-    => ArrowAlloc Addr (ValueT Val c) where
-  alloc = proc x -> case x of
-    Left "Top" -> returnA -< TopA
-    Left var -> do
-      ctx <- Ctx.askContext @Ctx -< ()
-      returnA -< VarA (var,ctx)
-    Right e -> do
-      ctx <- Ctx.askContext @Ctx -< ()
-      returnA -< CellA (e,ctx)
+instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT Val c) where
+  alloc = proc var -> do
+    ctx <- Ctx.askContext @Ctx -< ()
+    returnA -< VarA (var,ctx)
 
-instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, IsString e)
-    => ArrowList Addr Val (ValueT Val c) where
-  list_ = proc (a1,a2) -> returnA -< ListVal (Cons (singleton a1) (singleton a2))
-  cons_ = proc (a1,a2) -> returnA -< ListVal (Cons (singleton a1) (singleton a2))
+allocLabel :: (ArrowContext Ctx c) => c Label Addr
+allocLabel = proc l -> do
+  ctx <- Ctx.askContext @Ctx -< ()
+  returnA -< LabelA (l,ctx)
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
@@ -215,8 +209,9 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
       ClosureVal cls -> Cls.apply f -< (cls,x)
       _ -> failString -< printf "Expected a closure, but got %s" (show v)
 
-instance (ArrowComplete Val c, ArrowEnv Text Addr c, Store.Join Val c, Env.Join Addr c,Store.Join Addr c, IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c)
-    => IsNum Val (ValueT Val c) where
+instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c, ArrowStore Addr Val c, ArrowEnv Text Addr c,
+          Store.Join Val c, Env.Join Addr c,Store.Join Addr c, IsString e)
+    => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)
   lit = proc x -> case x of
     Number _ -> returnA -< IntVal
@@ -235,7 +230,13 @@ instance (ArrowComplete Val c, ArrowEnv Text Addr c, Store.Join Val c, Env.Join 
     BoolVal B.Top -> (f -< x) <⊔> (g -< y)
     _ -> failString -< printf "Expected a bool as condition, but got %s" (show v)
 
-  emptyList = proc _ -> returnA -< ListVal Nil
+  nil_ = proc _ -> returnA -< ListVal Nil
+  cons_ = proc ((v1,l1),(v2,l2)) -> do
+    a1 <- allocLabel -< l1
+    a2 <- allocLabel -< l2
+    write -< (a1,v1)
+    write -< (a2,v2)
+    returnA -< ListVal (Cons (singleton a1) (singleton a2))
 
   op1_ = proc (op, x) -> case op of
     Number_ -> returnA -< case x of
@@ -451,8 +452,7 @@ instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c)
 instance Hashable Addr
 instance Show Addr where
   show (VarA (var,ctx)) = unpack var ++ show ctx
-  show (CellA (expr,ctx)) = show expr ++ show ctx
-  show TopA = "TopA"
+  show (LabelA (l,ctx)) = show l ++ show ctx
 
 instance Hashable Val
 instance Show Val where

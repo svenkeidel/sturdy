@@ -96,7 +96,7 @@ data OpVar_
 data Expr
 -- | Expressions for inner representation and evaluation
   = Lit Literal Label
-  | List [Expr] Label -- '(1 2 3)
+  | Nil Label -- (nil)
   | Cons Expr Expr Label -- (cons z1 z2)
 
   -- | List_ [Expr] Label -- (list z1 z2 z3 ...)
@@ -123,7 +123,8 @@ data Expr
 lit :: Literal -> State Label Expr
 lit x = Lit x <$> fresh
 list :: [State Label Expr] -> State Label Expr
-list xs = List <$> sequence xs <*> fresh
+list [] = Nil <$> fresh
+list (x : xs) = Cons <$> x <*> list xs <*> fresh
 -- list_ :: [State Label Expr] -> State Label Expr 
 -- list_ xs = List_ <$> (sequence xs) <*> fresh 
 cons :: State Label Expr -> State Label Expr ->State Label Expr
@@ -244,8 +245,6 @@ instance Show OpVar_ where
 instance Show Expr where
   showsPrec d e0 = case e0 of
     Lit x _ -> shows x
-    List xs _ -> showString "List " . showList xs
-
     Cons e1 e2 _ -> showString "cons " . showsPrec (app_prec + 1) e1 . showsPrec (app_prec + 1) e2
     Begin es _->
       showString "{"
@@ -309,7 +308,6 @@ instance Show Expr where
 showTopLvl :: Expr -> String
 showTopLvl e = case e of
     Lit x _ -> "Lit " ++ show x
-    List _ _ -> "List "
     Cons _ _ _ -> "Cons"
     Begin _ _-> "Begin"
     App _ _ _ -> "App"
@@ -336,7 +334,6 @@ instance Labellable Expr where
 instance HasLabel Expr where
   label e = case e of
     Lit _ l -> l
-    List _ l -> l
     Cons _ _ l -> l
     Begin _ l -> l
     App _ _ l -> l
