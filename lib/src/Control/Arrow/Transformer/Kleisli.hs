@@ -140,8 +140,8 @@ instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
   {-# INLINE try #-}
 
 instance (ArrowMonad f c, ArrowFail e c) => ArrowFail e (KleisliT f c) where
-  type Join y (KleisliT f c) = Fail.Join y c
-  fail = lift' fail
+  type Join y (KleisliT f c) = Fail.Join (f y) c
+  fail = lift fail
   {-# INLINE fail #-}
 
 instance (ArrowMonad f c, ArrowConst r c) => ArrowConst r (KleisliT f c) where

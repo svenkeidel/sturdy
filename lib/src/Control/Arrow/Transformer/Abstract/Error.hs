@@ -46,6 +46,7 @@ runErrorT = coerce
 {-# INLINE runErrorT #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFail e (ErrorT e c) where
+  type Join x (ErrorT e c) = ()
   fail = lift $ arr Fail
   {-# INLINE fail #-}
 

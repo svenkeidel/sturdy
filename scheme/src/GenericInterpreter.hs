@@ -9,7 +9,8 @@ import           Prelude hiding (succ, pred, fail, map)
 import           Syntax (Literal(..), Expr(..), Op1_(..), Op2_(..), OpVar_(..))
 
 import           Control.Arrow
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail(ArrowFail(fail))
+import qualified Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment(ArrowEnv)
 import           Control.Arrow.LetRec(ArrowLetRec)
@@ -42,6 +43,7 @@ eval :: (ArrowChoice c,
          Env.Join v c,
          Cls.Join v v c,
          Store.Join v c,
+         Fail.Join v c,
          Join v c,
          Show addr,
          ArrowAlloc addr c,
@@ -133,6 +135,8 @@ run_ :: (ArrowChoice c,
          Env.Join addr c,
          Cls.Join v v c,
          Store.Join v c,
+         Fail.Join v c,
+         Fail.Join addr c,
          Join v c,
          ArrowAlloc addr c,
          Show addr)
@@ -169,7 +173,7 @@ run_ = fix $ \run' -> proc es -> case es of
 class ArrowAlloc addr c where
   alloc :: c Text addr
 
-class Arrow c => IsVal v c | c -> v where
+class (Arrow c) => IsVal v c | c -> v where
   type family Join y (c :: * -> * -> *) :: Constraint
   lit :: c Literal v
   if_ :: Join z c => c x z -> c y z -> c (v, (x, y)) z

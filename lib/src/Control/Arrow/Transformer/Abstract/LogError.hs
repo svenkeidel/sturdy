@@ -14,12 +14,14 @@ import Control.Arrow
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
+import Control.Arrow.LetRec
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Trans
 import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.Writer
+import Control.Arrow.Order(ArrowComplete(..),ArrowEffectCommutative)
 import Control.Arrow.Store as Store
 import Control.Arrow.Except as Exc
 import Control.Arrow.Transformer.Writer
@@ -34,7 +36,7 @@ import Data.Order
 newtype LogErrorT e c x y = LogErrorT (WriterT e c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
+            ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b, ArrowLetRec var val,
             ArrowExcept e', ArrowContext ctx)
 
 runLogErrorT :: LogErrorT e c x y -> c x (e,y)
@@ -50,5 +52,8 @@ instance (Monoid e, Arrow c, Profunctor c) => ArrowFail e (LogErrorT e c) where
 instance (Monoid e, ArrowApply c, Profunctor c) => ArrowApply (LogErrorT e c) where
   app = lift (app .# first coerce)
 
-type instance Fix (LogErrorT e c) x y = LogErrorT e (Fix c x y)
+instance (Complete y, Monoid e, ArrowEffectCommutative c, Arrow c, Profunctor c) => ArrowComplete y (LogErrorT e c) where
+  LogErrorT f <⊔> LogErrorT g = LogErrorT (rmap (uncurry (⊔)) (f &&& g))
+
+type instance Fix (LogErrorT e c) x y = LogErrorT e (Fix c x (e,y))
 instance (ArrowChoice c, ArrowFix (Underlying (LogErrorT e c) x y)) => ArrowFix (LogErrorT e c x y)

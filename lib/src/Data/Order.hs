@@ -220,6 +220,9 @@ instance Identifiable a => Complete (HashSet a) where
   xs ⊔ ys = HS.union xs ys
   {-# INLINE (⊔) #-}
 
+instance Identifiable a => LowerBounded (HashSet a) where
+  bottom = HS.empty
+
 instance (Identifiable a, PreOrd b) => PreOrd (HashMap a b) where
   m1 ⊑ m2 = and (HM.intersectionWith (⊑) m1 m2)
   {-# INLINE (⊑) #-}

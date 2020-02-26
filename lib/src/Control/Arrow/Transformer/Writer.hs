@@ -19,6 +19,7 @@ import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Fix.Iterate as Iterate
 import Control.Arrow.Environment as Env
+import Control.Arrow.LetRec as LetRec
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail as Fail
@@ -141,6 +142,10 @@ instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
   extend f = lift $ Env.extend (unlift f)
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
+
+instance ArrowLetRec var val c => ArrowLetRec var val (WriterT w c) where
+  letRec f = lift (letRec (unlift f))
+  {-# INLINE letRec #-}
 
 instance (Monoid w, ArrowClosure expr cls c) => ArrowClosure expr cls (WriterT w c) where
   type Join y cls (WriterT w c) = Cls.Join (w,y) cls c

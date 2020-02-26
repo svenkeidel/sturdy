@@ -17,7 +17,7 @@ module ConcreteInterpreter where
 import Prelude hiding (fail,(.))
 
 import Control.Arrow
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.State as State
 import Control.Arrow.Store as Store
 import Control.Arrow.Store (ArrowStore, read')
@@ -68,8 +68,8 @@ data Val
 
 evalConcrete' :: [State Label Expr] -> (Addr, (Store, Error String Val))
 evalConcrete' es = Trans.run
-    (Generic.run_ ::   
-          ValueT Val 
+    (Generic.run_ ::
+          ValueT Val
             (FailureT String
                 (EnvStoreT Text Addr Val
                   (StateT Addr
@@ -90,7 +90,7 @@ evalConcrete'' exprs = case evalConcrete' exprs of
     Fail str -> Left (store, str)
 
 -- | Concrete instance of the interface for value operations.
-instance (ArrowState Int c, ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail String c)
+instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail String c, Store.Join Val c, Fail.Join Val c)
   => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = ()
 
@@ -334,7 +334,7 @@ instance (ArrowState Int c, ArrowStore Addr Val c, Store.Join Val c, ArrowChoice
 -- | Concrete instance of the interface for closure operations.
 instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
-  type Join y Val (ValueT Val c) = Cls.Join y Cls c
+  type Join y Val (ValueT Val c) = (Cls.Join y Cls c, Fail.Join y c)
   closure = ValueT $ rmap ClosureVal Cls.closure
   apply (ValueT f) = ValueT $ proc (v,x) -> case v of
     ClosureVal cls -> Cls.apply f -< (cls,x)

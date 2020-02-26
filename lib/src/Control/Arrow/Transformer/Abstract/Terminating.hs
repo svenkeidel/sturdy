@@ -15,6 +15,7 @@ import Control.Arrow.Const
 import Control.Arrow.Environment
 import Control.Arrow.Closure
 import Control.Arrow.Store
+import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
 import Control.Arrow.State
@@ -34,7 +35,7 @@ import Data.Coerce
 
 -- | Arrow that propagates non-terminating computations.
 newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,  
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun, ArrowFail e,
             ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore addr val, ArrowContext ctx)
 
