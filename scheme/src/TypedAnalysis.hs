@@ -303,24 +303,24 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Modulo -> intIntToInt -< (op,x,y)
 
   opvar_ =  proc (op, xs) -> case op of
-    EqualS -> numNTo -< (op,xs,BoolVal B.Top)
-    SmallerS -> numNTo -< (op,xs,BoolVal B.Top)
-    GreaterS -> numNTo -< (op,xs,BoolVal B.Top)
-    SmallerEqualS -> numNTo -< (op,xs,BoolVal B.Top)
-    GreaterEqualS -> numNTo -< (op,xs,BoolVal B.Top)
-    Max -> numNTo -< (op,xs,foldr1 numLub xs)
-    Min -> numNTo -< (op,xs,foldr1 numLub xs)
-    Add -> numNTo -< (op,xs,foldr1 numLub xs)
-    Mul -> numNTo -< (op,xs,foldr1 numLub xs)
-    Sub -> numNTo -< (op,xs,foldr1 numLub xs)
+    EqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    SmallerS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    GreaterS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    SmallerEqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    GreaterEqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    Max -> numNTo -< (op,1,xs,foldl1 numLub xs)
+    Min -> numNTo -< (op,1,xs,foldl1 numLub xs)
+    Add -> numNTo -< (op,0,xs,foldl numLub IntVal xs)
+    Mul -> numNTo -< (op,0,xs,foldl numLub IntVal xs)
+    Sub -> numNTo -< (op,1,xs,foldl1 numLub xs)
     Div -> do
       -- (integer? (/ 2 2)) -> #t
       -- (integer? (/ 2 3)) -> #f
       let x = foldr1 numLub xs
       let ret = case x of IntVal -> Top; y -> y
-      numNTo -< (op,xs,ret)
-    Gcd -> numNTo -< (op,xs,foldr1 numLub xs)
-    Lcm -> numNTo -< (op,xs,foldr1 numLub xs)
+      numNTo -< (op,1,xs,ret)
+    Gcd -> numNTo -< (op,0,xs,foldl numLub IntVal xs)
+    Lcm -> numNTo -< (op,0,xs,foldl numLub IntVal xs)
 
 numToNum :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToNum = proc (op,v) -> case v of
@@ -399,31 +399,16 @@ eq v1 v2 = case (v1,v2) of
   (QuoteVal,QuoteVal) -> B.Top
   (_,_) -> B.False
 
--- equal :: (IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, Store.Join Val c) => c (Val,Val) B.Bool
--- equal = proc (v1,v2) -> case (v1,v2) of
---   (ListVal l1,ListVal l2) -> case (l1,l2) of
---     (Nil,Nil) -> returnA -< B.True
---     (Cons _ _,Cons _ _) -> do
---       x1 <- car -< l1
---       y1 <- car -< l2
---       case eq x1 y1 of
---         B.True -> do
---           x2 <- cdr -< l1
---           y2 <- cdr -< l2
---           equal -< (x2,y2)
---         B.False -> returnA -< B.False
---         B.Top -> returnA -< B.Top
---     (ConsNil _ _,_) -> returnA -< B.Top
---     (_,ConsNil _ _) -> returnA -< B.Top
---     (_,_) -> returnA -< B.False
---   (_,_) -> returnA -< eq v1 v2
--- {-# INLINABLE equal #-}
-
-numNTo :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c) => c (OpVar_,[Val],Val) Val
-numNTo = proc (op,xs,ret) ->
-  if all isNum xs
-  then returnA -< ret
-  else failString -< printf "expected a numbers as argument for %s, but got %s" (show op) (show xs)
+numNTo :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (OpVar_,Int,[Val],Val) Val
+numNTo = proc (op,minArity,xs,ret) ->
+  if minArity <= length xs
+  then case lub (map isNum xs) of
+    B.True -> returnA -< ret
+    B.False -> err -< (op,xs)
+    B.Top -> (returnA -< ret) <⊔> (err -< (op,xs))
+  else failString -< printf "the operator %s requires at least %d arguments, but got %d" (show op) minArity
+  where
+    err = proc (op,xs) -> failString -< printf "expected a numbers as argument for %s, but got %s" (show op) (show xs)
 
 numLub :: Val -> Val -> Val
 numLub x y = case (x,y) of
@@ -431,24 +416,16 @@ numLub x y = case (x,y) of
   (IntVal,FloatVal) -> FloatVal
   (FloatVal,IntVal) -> FloatVal
   (IntVal,IntVal) -> IntVal
-  (_,_) -> Top
+  (Top,_) -> Top
+  (_,Top) -> Top
+  (_,_) -> Bottom
 
-isNum :: Val -> Bool
+isNum :: Val -> B.Bool
 isNum v = case v of
-  IntVal -> True
-  FloatVal -> True
-  _ -> False
-
-isBool :: Val -> Maybe B.Bool
-isBool v = case v of
-  BoolVal b -> Just b
-  _ -> Nothing
-
-boolNToBool :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c) => B.Bool -> ([B.Bool] -> B.Bool) -> c (OpVar_,[Val]) Val
-boolNToBool z f = proc (op,xs) -> case traverse isBool xs of
-  Just [] -> returnA -< BoolVal z
-  Just x -> returnA -< BoolVal (f x)
-  Nothing -> failString -< printf "expected booleans as arguments for %s, but got %s" (show op) (show xs)
+  IntVal -> B.True
+  FloatVal -> B.True
+  Top -> B.Top
+  _ -> B.False
 
 instance (ArrowChoice c, IsString e, Fail.Join Val c, ArrowFail e c, ArrowComplete Val c)
     => ArrowComplete Val (ValueT Val c) where
