@@ -8,6 +8,14 @@
    (define *ll* (create-n 200))
    (define (recursive-div2 l) (cond ((null? l) '()) (else (cons (car l) (recursive-div2 (cddr l))))))
    (define result (recursive-div2 *ll*))
+   (define (equal? x y)
+     (if (eq? x y)
+         #t
+         (if (and (null? x) (null? y))
+             #t
+             (if (and (cons? x) (cons? y))
+                 (and (equal? (car x) (car y)) (equal? (cdr x) (cdr y)))
+                 #f))))
    (equal?
     result
     '(()

@@ -49,6 +49,7 @@ data Op1_
 -- | List operations
   | Null -- (null? z)
   | ListS -- (list? z)
+  | ConsS -- (cons? z)
   | Car -- (car z)
   | Cdr -- (cdr z)
   | Caar -- (caar z)
@@ -61,12 +62,10 @@ data Op1_
 data Op2_
 -- | Equivalence predicates
   = Eqv -- (eq? z) / (eqv? z)
-  | Equal -- (equal? z)
 -- | Numerical operations
   | Quotient -- (quotient z1 z2)
   | Remainder -- (remainder z1 z2)
   | Modulo -- (modulo z1 z2)
-  | Assq -- (assq e list)
 -- | List operations
   deriving (Eq)
 
@@ -123,31 +122,31 @@ data Expr
 -- | Expressions for inner representation and evaluation
 lit :: Literal -> State Label Expr
 lit x = Lit x <$> fresh
-list :: [State Label Expr] -> State Label Expr 
-list xs = List <$> (sequence xs) <*> fresh 
+list :: [State Label Expr] -> State Label Expr
+list xs = List <$> sequence xs <*> fresh
 -- list_ :: [State Label Expr] -> State Label Expr 
 -- list_ xs = List_ <$> (sequence xs) <*> fresh 
-cons :: State Label Expr -> State Label Expr ->State Label Expr 
+cons :: State Label Expr -> State Label Expr ->State Label Expr
 cons e1 e2 = Cons <$> e1 <*> e2 <*> fresh
 begin :: [State Label Expr] -> State Label Expr
-begin es = Begin <$> (sequence es) <*> fresh
+begin es = Begin <$> sequence es <*> fresh
 app :: State Label Expr -> [State Label Expr] -> State Label Expr
-app e1 e2 = App <$> e1 <*> (sequence e2) <*> fresh
+app e1 e2 = App <$> e1 <*> sequence e2 <*> fresh
 -- | Scheme expressions
 var_ :: Text -> State Label Expr
 var_ x = Var x <$> fresh
 set :: Text -> State Label Expr -> State Label Expr
 set t e = Set t <$> e <*> fresh
 lam :: [Text] -> [State Label Expr] -> State Label Expr
-lam xs es = Lam xs <$> (sequence es) <*> fresh
+lam xs es = Lam xs <$> sequence es <*> fresh
 if_ :: State Label Expr -> State Label Expr -> State Label Expr -> State Label Expr
 if_ e1 e2 e3 = If <$> e1 <*> e2 <*> e3 <*> fresh
 define :: Text -> State Label Expr -> State Label Expr
 define t e = Define t <$> e <*> fresh
 let_ :: [(Text, State Label Expr)] -> [State Label Expr] -> State Label Expr
-let_ bnds body = Let <$> sequence [(v,) <$> e | (v,e) <- bnds] <*> (sequence body) <*> fresh
+let_ bnds body = Let <$> sequence [(v,) <$> e | (v,e) <- bnds] <*> sequence body <*> fresh
 let_rec :: [(Text, State Label Expr)] -> [State Label Expr] -> State Label Expr
-let_rec bnds body = LetRec <$> sequence [(v,) <$> e | (v,e) <- bnds] <*> (sequence body) <*> fresh
+let_rec bnds body = LetRec <$> sequence [(v,) <$> e | (v,e) <- bnds] <*> sequence body <*> fresh
 -- | Scheme standard procedures
 op1_ :: Op1_ -> State Label Expr -> State Label Expr
 op1_ operation e1 = Op1 operation <$> e1 <*> fresh
@@ -207,6 +206,7 @@ instance Show Op1_ where
     Not -> showString "not "
     Null -> showString "null? "
     ListS -> showString "list? "
+    ConsS -> showString "cons? "
     Car -> showString "car "
     Cdr -> showString "cdr "
     Caar -> showString "caar "
@@ -218,11 +218,9 @@ instance Show Op1_ where
 instance Show Op2_ where
   showsPrec _ e0 = case e0 of
     Eqv -> showString "eq? "
-    Equal -> showString "equal? "
     Quotient -> showString "quotient "
     Remainder -> showString "remainder "
     Modulo -> showString "modulo "
-    Assq -> showString "assq"
 
 instance Show OpVar_ where
   showsPrec _ e0 = case e0 of
@@ -246,8 +244,8 @@ instance Show OpVar_ where
 instance Show Expr where
   showsPrec d e0 = case e0 of
     Lit x _ -> shows x
-    List xs _ -> showString "List " . showList xs 
-      
+    List xs _ -> showString "List " . showList xs
+
     Cons e1 e2 _ -> showString "cons " . showsPrec (app_prec + 1) e1 . showsPrec (app_prec + 1) e2
     Begin es _->
       showString "{"
@@ -308,17 +306,17 @@ instance Show Expr where
       lam_prec = 9
       let_prec = 8
 
-showTopLvl :: Expr -> String 
-showTopLvl e = case e of 
+showTopLvl :: Expr -> String
+showTopLvl e = case e of
     Lit x _ -> "Lit " ++ show x
     List _ _ -> "List "
     Cons _ _ _ -> "Cons"
-    Begin _ _-> "Begin" 
+    Begin _ _-> "Begin"
     App _ _ _ -> "App"
     Apply _ _ -> "Apply"
     Var x _ -> "Var " ++ unpack x
-    Set t _ _ -> "Set " ++ unpack t ++ " := " ++ showTopLvl e  
-    Define t _ _ -> "Define " ++ unpack t ++ " := " ++ showTopLvl e  
+    Set t _ _ -> "Set " ++ unpack t ++ " := " ++ showTopLvl e
+    Define t _ _ -> "Define " ++ unpack t ++ " := " ++ showTopLvl e
     Lam xs e2 _ -> "Lam " ++ unwords (map unpack xs) ++ " -> " ++ unwords (map showTopLvl e2)
     If e1 _ _ _ -> "If(" ++ showTopLvl e1 ++ ")"
     Let _ _ _ -> "Let"
@@ -330,7 +328,7 @@ showTopLvl e = case e of
 instance IsString (State Label Expr) where
   fromString = var_ . fromString
 
-instance Labellable Expr where 
+instance Labellable Expr where
   toLabelValue a = textLabelValue $ pack $ showTopLvl a
 
 --Abstract Interpreter specific-------------------------------------------------

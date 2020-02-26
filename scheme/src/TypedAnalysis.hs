@@ -264,6 +264,11 @@ instance (ArrowComplete Val c, ArrowEnv Text Addr c, Store.Join Val c, Env.Join 
       ListVal _ -> BoolVal B.True
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
+    ConsS -> returnA -< case x of
+      ListVal (Cons _ _) -> BoolVal B.True
+      ListVal (ConsNil _ _) -> BoolVal B.Top
+      Top -> BoolVal B.Top
+      _ -> BoolVal B.False
     Zero -> numToBool -< (op,x)
     Positive -> numToBool -< (op,x)
     Negative -> numToBool -< (op,x)

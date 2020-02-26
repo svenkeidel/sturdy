@@ -229,46 +229,24 @@ instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail Stri
       _ -> fail -< "(fail): contract violation expected string as error msg"
 
   op2_ = proc (op, x, y) -> case op of
-    Eqv -> do
-      case (x, y) of
-        (BoolVal n, BoolVal m) -> returnA -< BoolVal (n == m)
-        (NumVal n, NumVal m) -> returnA -< BoolVal (n == m)
-        (FloatVal n, FloatVal m) -> returnA -< BoolVal (n == m)
-        (RatioVal n, RatioVal m) -> returnA -< BoolVal (n == m)
-        (CharVal n, CharVal m) -> returnA -< BoolVal (n == m)
-        (StringVal n, StringVal m) -> returnA -< BoolVal (n == m)
-        (QuoteVal (SymVal n), QuoteVal (SymVal m)) -> returnA -< BoolVal (n == m)
-        _ -> returnA -< BoolVal False
-    Equal -> do
-      case (x, y) of
-        (EmptyList, EmptyList) -> returnA -< BoolVal True
-        (ListVal a11 a12, ListVal a21 a22) -> do 
-          v11 <- read' -< a11
-          v12 <- read' -< a12
-          v21 <- read' -< a21
-          v22 <- read' -< a22 
-          eq <- op2_ -< (Equal, v11, v21)
-          if (eq /= BoolVal True) 
-            then returnA -< BoolVal False
-            else if (v12 == EmptyList && v22 == EmptyList)
-              then returnA -< BoolVal True
-              else do
-                c1 <- op1_ -< (Cdr, v12)
-                c2 <- op1_ -< (Cdr, v22)
-                op2_ -< (Equal, c1, c2)
-        _ -> op2_ -< (Eqv,x,y)
-    Quotient -> do
-      case (x, y) of
-        (NumVal n, NumVal m) -> returnA -< NumVal (n `quot` m)
-        _ -> fail -< "(remainder): Contract violation, epxected elements of type int"
-    Remainder -> do
-      case (x, y) of
-        (NumVal n, NumVal m) -> returnA -< NumVal (n `rem` m)
-        _ -> fail -< "(remainder): Contract violation, epxected elements of type int"
-    Modulo -> do
-      case (x, y) of
-        (NumVal n, NumVal m) -> returnA -< NumVal (n `mod` m)
-        _ -> fail -< "(modulo): Contract violation, epxected elements of type int"
+    Eqv -> case (x, y) of
+      (BoolVal n, BoolVal m) -> returnA -< BoolVal (n == m)
+      (NumVal n, NumVal m) -> returnA -< BoolVal (n == m)
+      (FloatVal n, FloatVal m) -> returnA -< BoolVal (n == m)
+      (RatioVal n, RatioVal m) -> returnA -< BoolVal (n == m)
+      (CharVal n, CharVal m) -> returnA -< BoolVal (n == m)
+      (StringVal n, StringVal m) -> returnA -< BoolVal (n == m)
+      (QuoteVal (SymVal n), QuoteVal (SymVal m)) -> returnA -< BoolVal (n == m)
+      _ -> returnA -< BoolVal False
+    Quotient -> case (x, y) of
+      (NumVal n, NumVal m) -> returnA -< NumVal (n `quot` m)
+      _ -> fail -< "(remainder): Contract violation, epxected elements of type int"
+    Remainder -> case (x, y) of
+      (NumVal n, NumVal m) -> returnA -< NumVal (n `rem` m)
+      _ -> fail -< "(remainder): Contract violation, epxected elements of type int"
+    Modulo -> case (x, y) of
+      (NumVal n, NumVal m) -> returnA -< NumVal (n `mod` m)
+      _ -> fail -< "(modulo): Contract violation, epxected elements of type int"
     -- Cons -> do
     --   case (x, y) of
     --     (n, ListVal []) -> returnA -< ListVal [n]
@@ -294,53 +272,49 @@ instance (ArrowStore Addr Val c, Store.Join Val c, ArrowChoice c, ArrowFail Stri
       Right a -> returnA -< a
     Max -> case xs of
       [] -> fail -< "(max): Arity missmatch, expected at least one argument"
-      _ -> case foldl (withNum2Fold (max)) (Right $ head xs) (tail xs) of
+      _ -> case foldl (withNum2Fold max) (Right $ head xs) (tail xs) of
         Left a -> fail -< "(max): Contract violation, " ++ a
         Right a -> returnA -< a
     Min -> case xs of
       [] -> fail -< "(min): Arity missmatch, expected at least one argument"
-      _ -> case foldl (withNum2Fold (min)) (Right $ head xs) (tail xs) of
+      _ -> case foldl (withNum2Fold min) (Right $ head xs) (tail xs) of
         Left a -> fail -< "(min): Contract violation, " ++ a
         Right a -> returnA -< a
-    Add -> do
-      case xs of
-        [] -> returnA -< NumVal 0
-        _ -> case foldl (withNum2Fold (+)) (Right $ head xs) (tail xs) of
-          Left a -> fail -< "(+): Contract violation, " ++ a
+    Add -> case xs of
+      [] -> returnA -< NumVal 0
+      _ -> case foldl (withNum2Fold (+)) (Right $ head xs) (tail xs) of
+        Left a -> fail -< "(+): Contract violation, " ++ a
+        Right a -> returnA -< a
+    Mul -> case xs of
+      [] -> returnA -< NumVal 1
+      _ -> case foldl (withNum2Fold (*)) (Right $ head xs) (tail xs) of
+        Left a -> fail -< "(*): Contract violation, " ++ a
+        Right a -> returnA -< a
+    Sub -> case xs of
+      [] -> fail -< "(-): Arity missmatch, expected at least one argument"
+      [NumVal x] -> returnA -< NumVal (0 - x)
+      [FloatVal x] -> returnA -< FloatVal (0 - x)
+      [RatioVal x] -> returnA -< RatioVal (0 - x)
+      _ -> case foldl (withNum2Fold (-)) (Right $ head xs) (tail xs) of
+        Left a -> fail -< "(-): Contract violation, " ++ a
+        Right a -> returnA -< a
+    Div -> case xs of
+      [] -> fail -< "(/): Arity missmatch, expected at least one argument"
+      [NumVal 0] -> fail -< "(/): Divided by zero: " ++ show xs
+      [FloatVal 0] -> fail -< "(/): Divided by zero: " ++ show xs
+      [RatioVal 0] -> fail -< "(/): Divided by zero: " ++ show xs
+      [NumVal n] -> returnA -< RatioVal (1 / toRational n)
+      [FloatVal n] -> returnA -< RatioVal (1 / toRational n)
+      [RatioVal n] -> returnA -< RatioVal (1 / toRational n)
+      _ -> case foldl (||) (head (drop 1 (map checkZero xs))) (tail (map checkZero xs)) of
+        False -> case foldl divHelpFold (Right $ head xs) (tail xs) of
+          Left a -> fail -< "(/): Contract violation, " ++ a
           Right a -> returnA -< a
-    Mul -> do
-      case xs of
-        [] -> returnA -< NumVal 1
-        _ -> case foldl (withNum2Fold (*)) (Right $ head xs) (tail xs) of
-          Left a -> fail -< "(*): Contract violation, " ++ a
-          Right a -> returnA -< a
-    Sub -> do
-      case xs of
-        [] -> fail -< "(-): Arity missmatch, expected at least one argument"
-        NumVal x:[] -> returnA -< NumVal (0 - x)
-        FloatVal x:[] -> returnA -< FloatVal (0 - x)
-        RatioVal x:[] -> returnA -< RatioVal (0 - x)
-        _ -> case foldl (withNum2Fold (-)) (Right $ head xs) (tail xs) of
-          Left a -> fail -< "(-): Contract violation, " ++ a
-          Right a -> returnA -< a
-    Div -> do
-      case xs of
-        [] -> fail -< "(/): Arity missmatch, expected at least one argument"
-        (NumVal 0:[]) -> fail -< "(/): Divided by zero: " ++ show (xs)
-        (FloatVal 0:[]) -> fail -< "(/): Divided by zero: " ++ (show xs)
-        (RatioVal 0:[]) -> fail -< "(/): Divided by zero: " ++ (show xs)
-        (NumVal n:[]) -> returnA -< RatioVal (1 / (toRational n))
-        (FloatVal n:[]) -> returnA -< RatioVal (1 / (toRational n))
-        (RatioVal n:[]) -> returnA -< RatioVal (1 / (toRational n))
-        _ -> case foldl (||) (head (drop 1 (map checkZero xs))) (tail (map checkZero xs)) of
-          False -> case foldl divHelpFold (Right $ head xs) (tail xs) of
-            Left a -> fail -< "(/): Contract violation, " ++ a
-            Right a -> returnA -< a
-          True -> fail -< "(/): Divided by zero: " ++ show (xs)
-    Gcd -> case foldl (withIntFold (gcd)) (Right $ head xs) (tail xs) of
+        True -> fail -< "(/): Divided by zero: " ++ show xs
+    Gcd -> case foldl (withIntFold gcd) (Right $ head xs) (tail xs) of
       Left a -> fail -< "(gcd): Contract violation, " ++ a
       Right a -> returnA -< a
-    Lcm -> case foldl (withIntFold (lcm)) (Right $ head xs) (tail xs) of
+    Lcm -> case foldl (withIntFold lcm) (Right $ head xs) (tail xs) of
       Left a -> fail -< "(lcm): Contract violation, " ++ a
       Right a -> returnA -< a 
     And -> case foldl (withBoolFold (&&)) (Right $ head xs) (tail xs) of

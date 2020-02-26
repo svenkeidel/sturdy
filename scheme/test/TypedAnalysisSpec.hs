@@ -40,34 +40,34 @@ spec = do
   describe "behavior specific to interval analysis" $ do
     it "test lits" $ do
       -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] ["x"] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2), "x"] `shouldBe` Terminating (Success $ singleton IntVal)
+      let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2), "x"] `shouldBe` Terminating (Success IntVal)
       let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2),
                                                 set "x" (lit $ S.Bool True),
-                                                "x"] `shouldBe` Terminating (Success $ fromList [IntVal, BoolVal B.True])
+                                                "x"] `shouldBe` Terminating (Success Top)
 
     it "test closures" $ do
-      let ?sensitivity = 0 in evalInterval' [] [app (lam ["x"] ["x"]) [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton IntVal)
+      let ?sensitivity = 0 in evalInterval' [] [app (lam ["x"] ["x"]) [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
       let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
-                                                app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in evalInterval' [] [define "id" (lit $ S.Bool True),
-                                                set "id" (lam ["x"] ["x"]),
-                                                app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
-                                                set "id" (lit $ S.Bool True),
-                                                app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton IntVal)
+                                                app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
+      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lit $ S.Bool True),
+      --                                           set "id" (lam ["x"] ["x"]),
+      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
+      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
+      --                                           set "id" (lit $ S.Bool True),
+      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
 
     it "should analyze let expression" $
       let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
-      let ?sensitivity = 0 in evalInterval' [] expr `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 1 in evalInterval' [] expr `shouldBe` Terminating (Success $ singleton IntVal)
+      let ?sensitivity = 0 in evalInterval' [] expr `shouldBe` Terminating (Success IntVal)
+      let ?sensitivity = 1 in evalInterval' [] expr `shouldBe` Terminating (Success IntVal)
 
     it "should analyze define" $
       let exprs = [define "x" (lit $ S.Number 1),
                    set "x" (lit $ S.Number 2),
                    set "x" (lit $ S.Number 3),
                    "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ singleton IntVal)
+      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success IntVal)
+      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success IntVal)
 
 
     it "should return unify two different types" $
@@ -75,8 +75,8 @@ spec = do
                    set "x" (lit $ S.Number 2),
                    set "x" (lit $ S.Bool True),
                    "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ fromList [IntVal, BoolVal B.True])
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ fromList [IntVal, BoolVal B.True])
+      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success Top)
+      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success Top)
 
 
     it "should terminate for the non-terminating program LetRec" $
@@ -114,7 +114,7 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
     it "boyer" $ do
       pendingWith "out of memory"
       let inFile = "gabriel//boyer"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.True)
+      let expRes = Terminating (Success $ BoolVal B.True)
       run inFile expRes
 
     it "cpstak" $ do
@@ -122,14 +122,14 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
 --     => TIME: 105 | STATES: 120
       pendingWith "out of memory"
       let inFile = "gabriel//cpstak"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let expRes = Terminating (Success $ IntVal)
       run inFile expRes
 
 
     it "dderiv" $ do
       -- pendingWith "out of memory"
       let inFile = "gabriel//dderiv"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.True)
+      let expRes = Terminating (Success $ BoolVal B.True)
       run inFile expRes
 
     it "deriv" $ do
@@ -137,7 +137,7 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
       pendingWith "out of memory"
       -- most likely wrong ?
       let inFile = "gabriel//deriv"
-      let expRes = Terminating (Success $ singleton Bottom)
+      let expRes = Terminating (Success $ Bottom)
       run inFile expRes
 
     it "diviter" $ do
@@ -146,7 +146,7 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
       -- pendingWith "out of memory"
       let inFile = "gabriel//diviter"
       -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
-      let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.Top])
+      let expRes = Terminating (Success $ BoolVal B.Top)
       run inFile expRes
 
     it "divrec" $ do
@@ -155,7 +155,7 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
       -- pendingWith "out of memory"
       let inFile = "gabriel//divrec"
       -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
-      let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.Top])
+      let expRes = Terminating (Success $ BoolVal B.Top)
       run inFile expRes
 
     it "takl" $ do
@@ -163,7 +163,7 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
       -- pendingWith "out of memory"
       let inFile = "gabriel//takl"
       -- let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top, Bottom])
-      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top, BoolVal B.True])
+      let expRes = Terminating (Success $ BoolVal B.Top)
       run inFile expRes
 
 -- -------------------SCALA-AM BENCHMARKS------------------------------------------
@@ -173,20 +173,20 @@ scalaAM run = describe "Scala-AM-Benchmarks" $ do
 -- => Final Values: Set(Int)
 -- => TIME: 8 | STATES: 431
       let inFile = "scala-am//collatz"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let expRes = Terminating (Success IntVal)
       run inFile expRes
 
     it "gcipd" $ do
 --       => Final Values: Set(Int)
 --       => TIME: 14 | STATES: 1098
       let inFile = "scala-am//gcipd"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let expRes = Terminating (Success IntVal)
       run inFile expRes
 
     it "nqueens" $ do
 -- => TIMEOUT | STATES: 1781142
       let inFile = "scala-am//nqueens"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let expRes = Terminating (Success IntVal)
       run inFile expRes
 
     it "primtest" $ do
@@ -194,7 +194,7 @@ scalaAM run = describe "Scala-AM-Benchmarks" $ do
 -- => TIME: 8 | STATES: 431
       pendingWith "not getting parsed yet"
       let inFile = "scala-am//primtest"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let expRes = Terminating (Success IntVal)
       run inFile expRes
 
     it "rsa" $ do
@@ -210,115 +210,115 @@ customTests :: Runner -> Spec
 customTests run = do
   it "recursion_union_empty_list" $ do
     let inFile = "test_rec_empty"
-    let expRes = Terminating (Success $ singleton EmptyList)
+    let expRes = Terminating (Success $ ListVal Nil)
     run inFile expRes
 
   it "recursion and union with non-empty list" $ do
     let inFile = "test_rec_nonempty"
-    let expRes = Terminating (Success $ singleton IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
   it "should return NV for (car (cdr '(2 3 4)))" $ do
     let inFile = "test_cdr"
-    let expRes = Terminating (Success $ singleton IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
   it "should return correct val for car" $ do
     let inFile = "test_car"
-    let expRes = Terminating (Success $ singleton IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
   it "test_null_cdr" $ do
     let inFile = "test_null"
-    let expRes = Terminating (Success $ singleton $ BoolVal B.True)
+    let expRes = Terminating (Success $ BoolVal B.True)
     run inFile expRes
 
   it "unifying two list of nums of different size should result in list of nums" $ do
     let inFile = "test_faulty_list"
-    let expRes = Terminating (Success $ fromList [IntVal, BoolVal B.False])
+    let expRes = Terminating (Success Top)
     run inFile expRes
 
   it "test_if" $ do
     let inFile = "test_if"
-    let expRes = Terminating (Success $ singleton $ BoolVal B.False)
+    let expRes = Terminating (Success $ BoolVal B.False)
     run inFile expRes
 
   it "test_opvars" $ do
     let inFile = "test_opvars"
-    let expRes = Terminating (Success $ singleton IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
   it "test_equal" $ do
     let inFile = "test_equal"
     -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
-    let expRes = Terminating (Success $ fromList [BoolVal B.True])
+    let expRes = Terminating (Success $ BoolVal B.True)
     run inFile expRes
 
   it "test_cons" $ do
     let inFile = "test_cons"
     -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
-    let expRes = Terminating (Success $ fromList [BoolVal B.True])
+    let expRes = Terminating (Success $ BoolVal B.True)
     run inFile expRes
 
   it "test_closure_gc" $ do
     let inFile = "test_closure_gc"
-    let expRes = Terminating (Success $ singleton IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
   it "lang_scheme_test" $ do
     let inFile = "lang_scheme_test"
-    let expRes = Terminating (Success $ singleton IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
   it "test_inner_define" $ do
     let inFile = "test_inner_define"
-    let expRes = Terminating (Success $ singleton IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
   it "test_unops" $ do
     let inFile = "test_unops"
-    let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.False])
+    let expRes = Terminating (Success $ BoolVal B.Top)
     run inFile expRes
 
   it "test_eq" $ do
     let inFile = "test_eq"
-    let expRes = Terminating (Success $ singleton $ BoolVal B.Top)
+    let expRes = Terminating (Success $ BoolVal B.Top)
     run inFile expRes
 
   it "test_binops" $ do
     let inFile = "test_binops"
-    let expRes = Terminating (Success $ singleton $ Bottom)
+    let expRes = Terminating (Success Bottom)
     run inFile expRes
 
   it "test_opvar_numbool" $ do
     let inFile = "test_opvar_numbool"
-    let expRes = Terminating (Success $ singleton $ Bottom)
+    let expRes = Terminating (Success Bottom)
     run inFile expRes
 
   it "test_opvar_numnum" $ do
     let inFile = "test_opvar_numnum"
-    let expRes = Terminating (Success $ singleton IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
   it "test_opvar_boolbool" $ do
     let inFile = "test_opvar_boolbool"
-    let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.True, StringVal])
+    let expRes = Terminating (Success Top)
     run inFile expRes
 
   it "test_list" $ do
     let inFile = "test_list"
-    let expRes = Terminating (Success $ singleton QuoteVal)
+    let expRes = Terminating (Success QuoteVal)
     run inFile expRes
 
   it "test_factorial" $ do
     let inFile = "test_factorial"
-    let expRes = Terminating (Success $ singleton $ IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
   it "test_random" $ do
     -- pending
     let inFile = "test_random"
-    let expRes = Terminating (Success $ singleton $ IntVal)
+    let expRes = Terminating (Success IntVal)
     run inFile expRes
 
 
