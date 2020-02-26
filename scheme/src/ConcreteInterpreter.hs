@@ -323,13 +323,6 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     Lcm -> case foldl (withIntFold lcm) (Right $ head xs) (tail xs) of
       Left a -> fail -< "(lcm): Contract violation, " ++ a
       Right a -> returnA -< a 
-    And -> case foldl (withBoolFold (&&)) (Right $ head xs) (tail xs) of
-      Left a -> fail -< "(and): Contract violation, " ++ a
-      Right a -> returnA -< a
-    Or -> case foldl (withBoolFold (||)) (Right $ head xs) (tail xs) of
-      Left a -> fail -< "(or): Contract violation, " ++ a
-      Right a -> returnA -< a
-
 
 -- | Concrete instance of the interface for closure operations.
 instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)

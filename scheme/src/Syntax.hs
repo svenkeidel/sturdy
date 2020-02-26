@@ -84,9 +84,6 @@ data OpVar_
   | Div -- (/ z) (/ z1 z2 z3 ...)
   | Gcd -- (gcd z1 ...)
   | Lcm -- (lcm z1 ...)
--- | Boolean operations
-  | And -- (and z1 z2 z3 ...)
-  | Or -- (or z1 z2 z3 ...)
 -- | List operations
   deriving (Eq)
 
@@ -238,8 +235,6 @@ instance Show OpVar_ where
     Div -> showString "/ "
     Gcd -> showString "gcd "
     Lcm -> showString "lcm "
-    And -> showString "and "
-    Or -> showString "or "
     -- List_ -> showString ("list")
 
 instance Show Expr where

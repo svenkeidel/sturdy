@@ -11,6 +11,7 @@ import           Data.Graph.Inductive(Gr)
 import           Data.HashSet (HashSet)
 import           Data.Order (bottom)
 import           Data.Abstract.Terminating hiding (toEither)
+import           Data.Text(Text)
 
 import           Test.Hspec
 
@@ -25,11 +26,7 @@ import           TypedAnalysis
 
 import           Syntax as S hiding (Nil)
 import qualified Data.Abstract.Boolean as B
-import           Data.Abstract.DiscretePowerset (Pow, singleton)
-
-
-import           GHC.Exts(fromList)
-import Control.Arrow.Transformer.Abstract.Fix.Metrics
+import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Text.Printf
 
 main :: IO ()
@@ -250,13 +247,11 @@ customTests run = do
 
   it "test_equal" $ do
     let inFile = "test_equal"
-    -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
     let expRes = success (BoolVal B.True)
     run inFile expRes
 
   it "test_cons" $ do
     let inFile = "test_cons"
-    -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
     let expRes = success (BoolVal B.True)
     run inFile expRes
 
@@ -287,7 +282,7 @@ customTests run = do
 
   it "test_binops" $ do
     let inFile = "test_binops"
-    let expRes = success Bottom
+    let expRes = successOrFail NonTerminating ["expected a two ints as arguments for quotient , but got [Top,Int]","expected a two ints as arguments for quotient , but got [True,String]"]
     run inFile expRes
 
   it "test_opvar_numbool" $ do
@@ -321,16 +316,16 @@ customTests run = do
     let expRes = success IntVal
     run inFile expRes
 
-success :: Val -> (HashSet String, Terminating Val)
+success :: Val -> (HashSet Text, Terminating Val)
 success v = ([],Terminating v)
 
-successOrFail :: Terminating Val -> HashSet String -> (HashSet String, Terminating Val)
+successOrFail :: Terminating Val -> HashSet Text -> (HashSet Text, Terminating Val)
 successOrFail v errs = (errs, v)
 
 -------------------HELPER------------------------------------------------------
 
 
-type Runner = (String -> (HashSet String, Terminating Val) -> IO ())
+type Runner = (String -> (HashSet Text, Terminating Val) -> IO ())
 
 metricFile :: String
 metricFile = "TypedAnalysis.csv"
