@@ -13,7 +13,7 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Cont
 import Control.Arrow.Fix
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Order
 import Control.Arrow.Primitive
 import Control.Arrow.Trans
@@ -122,5 +122,6 @@ instance (ArrowApply c, ArrowWriter w c) => ArrowWriter w (ContT r c) where
   {-# INLINE tell #-}
 
 instance (ArrowApply c, ArrowFail e c) => ArrowFail e (ContT r c) where
+  type Join x (ContT r c) = Fail.Join x c
   fail = lift' fail
   {-# INLINE fail #-}

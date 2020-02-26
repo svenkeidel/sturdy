@@ -11,7 +11,8 @@ import Prelude hiding (lookup,fail,id)
 
 import Control.Category
 import Control.Arrow
-import Control.Arrow.Fail
+import Control.Arrow.Fail (ArrowFail(fail))
+import qualified Control.Arrow.Fail as Fail
 
 import Data.String
 import Data.Profunctor
@@ -35,10 +36,10 @@ class (Arrow c, Profunctor c) => ArrowEnv var val c | c -> var, c -> val where
   extend :: c x y -> c (var,val,x) y
 
 -- | Simpler version of environment lookup.
-lookup' :: (Join val c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
+lookup' :: (Join val c, Fail.Join val c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
 lookup' = lookup'' id
 
-lookup'' :: (Join y c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c val y -> c var y
+lookup'' :: (Join y c, Fail.Join y c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c val y -> c var y
 lookup'' f = proc var ->
   lookup
     (proc (val,_) -> f     -< val)

@@ -8,7 +8,8 @@ module Control.Arrow.Store where
 import Prelude hiding (lookup,id,read,fail)
 
 import Control.Arrow
-import Control.Arrow.Fail
+import Control.Arrow.Fail (ArrowFail(fail))
+import qualified Control.Arrow.Fail as Fail
 import Text.Printf
 import Data.String
 import Data.Profunctor
@@ -27,7 +28,7 @@ class (Arrow c, Profunctor c) => ArrowStore var val c | c -> var, c -> val where
 
 
 -- | Simpler version of 'read'
-read' :: (Show var, Join val c, IsString e, ArrowFail e c, ArrowStore var val c) => c var val
+read' :: (Show var, Join val c, Fail.Join val c, IsString e, ArrowFail e c, ArrowStore var val c) => c var val
 read' = proc var ->
   read (proc (val,_) -> returnA -< val)
        (proc var     -> fail    -< fromString $ printf "variable %s not bound" (show var))

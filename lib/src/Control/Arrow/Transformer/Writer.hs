@@ -21,7 +21,7 @@ import Control.Arrow.Fix.Iterate as Iterate
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Order
 import Control.Arrow.Primitive
@@ -118,6 +118,7 @@ instance (Monoid w, Arrow c, Profunctor c) => ArrowWriter w (WriterT w c) where
   {-# INLINE tell #-}
 
 instance (Monoid w, ArrowFail e c) => ArrowFail e (WriterT w c) where
+  type Join x (WriterT w c) = Fail.Join x c
   fail = lift' fail
   {-# INLINE fail #-}
 

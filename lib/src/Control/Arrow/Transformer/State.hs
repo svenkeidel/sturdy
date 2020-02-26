@@ -125,6 +125,7 @@ instance (Arrow c, Profunctor c) => ArrowState s (StateT s c) where
   {-# INLINE modify #-}
 
 instance (ArrowFail e c, Profunctor c) => ArrowFail e (StateT s c) where
+  type Join x (StateT s c) = Fail.Join (s,x) c
   fail = lift (lmap snd fail)
   {-# INLINE fail #-}
 

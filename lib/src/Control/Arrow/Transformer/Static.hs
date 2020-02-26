@@ -18,7 +18,7 @@ import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Order
 import Control.Arrow.Primitive
 import Control.Arrow.Reader as Reader
@@ -119,6 +119,7 @@ instance (Applicative f, ArrowWriter w c) => ArrowWriter w (StaticT f c) where
   {-# SPECIALIZE instance ArrowWriter e c => ArrowWriter e (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowFail e c) => ArrowFail e (StaticT f c) where
+  type Join x (StaticT f c) = Fail.Join x c
   fail = lift' fail
   {-# INLINE fail #-}
   {-# SPECIALIZE instance ArrowFail e c => ArrowFail e (StaticT ((->) r) c) #-}

@@ -15,7 +15,7 @@ import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Iterate as Iterate
@@ -114,6 +114,7 @@ instance ArrowWriter w c => ArrowWriter w (ReaderT r c) where
   {-# INLINE tell #-}
 
 instance ArrowFail e c => ArrowFail e (ReaderT r c) where
+  type Join x (ReaderT r c) = Fail.Join x c
   fail = lift' fail
   {-# INLINE fail #-}
 

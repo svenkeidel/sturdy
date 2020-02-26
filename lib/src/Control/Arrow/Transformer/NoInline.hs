@@ -12,7 +12,7 @@ import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
@@ -107,6 +107,7 @@ instance ArrowWriter w c => ArrowWriter w (NoInlineT c) where
   {-# NOINLINE tell #-}
 
 instance ArrowFail e c => ArrowFail e (NoInlineT c) where
+  type Join x (NoInlineT c) = Fail.Join x c
   fail = lift fail
   {-# NOINLINE fail #-}
 

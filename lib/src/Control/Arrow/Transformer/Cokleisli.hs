@@ -13,7 +13,7 @@ import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Monad
 import Control.Arrow.Order
@@ -121,6 +121,7 @@ instance (ArrowComonad f c, ArrowExcept e c) => ArrowExcept e (CokleisliT f c) w
   {-# INLINE try #-}
 
 instance (ArrowComonad f c, ArrowFail e c) => ArrowFail e (CokleisliT f c) where
+  type Join y (CokleisliT f c) = Fail.Join y c
   fail = lift' fail
   {-# INLINE fail #-}
 

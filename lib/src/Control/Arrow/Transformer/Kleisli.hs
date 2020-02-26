@@ -16,7 +16,7 @@ import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Monad
 import Control.Arrow.Order as Ord
@@ -140,6 +140,7 @@ instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
   {-# INLINE try #-}
 
 instance (ArrowMonad f c, ArrowFail e c) => ArrowFail e (KleisliT f c) where
+  type Join y (KleisliT f c) = Fail.Join y c
   fail = lift' fail
   {-# INLINE fail #-}
 
