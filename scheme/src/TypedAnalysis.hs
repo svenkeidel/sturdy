@@ -145,7 +145,7 @@ evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ :: Interp [Expr] Va
   where
     e0 = generate (sequence e)
     iterationStrategy =
-      Fix.traceShow .
+      -- Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       Fix.filter apply innermost
 
@@ -530,19 +530,19 @@ instance (Identifiable s, IsString s) => IsString (HashSet s) where
 -- OPERATION HELPER ------------------------------------------------------------
 -- EVALUATION
 evalIntervalChaoticInner' :: (?sensitivity::Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (HashSet String, (Terminating Val)))
-evalIntervalChaoticInner' exprs = let (_,(metrics,res)) = evalIntervalChaoticInner [] exprs in (metrics,_ $ res)
+evalIntervalChaoticInner' exprs = let (_,(metrics,res)) = evalIntervalChaoticInner [] exprs in (metrics,snd res)
 -- {-# INLINE evalIntervalChaoticInner' #-}
 
 evalIntervalChaoticOuter':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (HashSet String, (Terminating Val)))
-evalIntervalChaoticOuter' exprs = let (_,(metrics,res)) = evalIntervalChaoticOuter [] exprs in (metrics,snd $ res)
+evalIntervalChaoticOuter' exprs = let (_,(metrics,res)) = evalIntervalChaoticOuter [] exprs in (metrics,snd res)
 -- {-# INLINE evalIntervalChaoticOuter' #-}
 
 evalIntervalParallel':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (HashSet String, (Terminating Val)))
-evalIntervalParallel' exprs = let (_,(metrics,res)) = evalIntervalParallel [] exprs in (metrics,snd $ res)
+evalIntervalParallel' exprs = let (_,(metrics,res)) = evalIntervalParallel [] exprs in (metrics,snd res)
 -- {-# INLINE evalIntervalParallel' #-}
 
 evalIntervalParallelADI':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (HashSet String, (Terminating Val)))
-evalIntervalParallelADI' exprs = let (_,(metrics,res)) = evalIntervalParallelADI [] exprs in (metrics,snd $ res)
+evalIntervalParallelADI' exprs = let (_,(metrics,res)) = evalIntervalParallelADI [] exprs in (metrics,snd res)
 
 evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (HashSet String, (Terminating Val))
 evalInterval' env exprs = snd $ snd $ snd $ evalIntervalChaoticInner env exprs
