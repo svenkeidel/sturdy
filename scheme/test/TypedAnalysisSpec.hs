@@ -143,7 +143,7 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
       -- pendingWith "out of memory"
       let inFile = "gabriel//diviter"
       -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
-      let expRes = success (BoolVal B.Top)
+      let expRes = successOrFail (Terminating (BoolVal B.True)) ["cannot cdr an empty list"]
       run inFile expRes
 
     it "divrec" $ do

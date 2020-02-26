@@ -223,10 +223,10 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     _ -> returnA -< Bottom
 
   if_ f g = proc (v,(x,y)) -> case v of
-    BoolVal B.True -> f -< x
     BoolVal B.False -> g -< y
     BoolVal B.Top -> (f -< x) <⊔> (g -< y)
-    _ -> failString -< printf "Expected a bool as condition, but got %s" (show v)
+    Top -> (f -< x) <⊔> (g -< y)
+    _ -> f -< x
 
   nil_ = proc _ -> returnA -< ListVal Nil
   cons_ = proc ((v1,l1),(v2,l2)) -> do
@@ -268,6 +268,11 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
       ListVal (ConsNil _ _) -> BoolVal B.Top
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
+    Null -> returnA -< case x of
+      ListVal Nil -> BoolVal B.True
+      ListVal (ConsNil _ _) -> BoolVal B.Top
+      Top -> BoolVal B.Top
+      _ -> BoolVal B.False
     Zero -> numToBool -< (op,x)
     Positive -> numToBool -< (op,x)
     Negative -> numToBool -< (op,x)
@@ -283,11 +288,6 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Not -> case x of
       BoolVal b -> returnA -< BoolVal $ B.not b
       _ -> failString -< printf "expected boolean as argument of not, but got %s" (show x)
-    Null -> returnA -< case x of
-      ListVal Nil -> BoolVal B.True
-      ListVal (ConsNil _ _) -> BoolVal B.Top
-      Top -> BoolVal B.Top
-      _ -> BoolVal B.False
     Car -> car' -< x
     Cdr -> cdr' -< x
     Caar -> car' <<< car' -< x
@@ -429,11 +429,7 @@ isNum v = case v of
 
 instance (ArrowChoice c, IsString e, Fail.Join Val c, ArrowFail e c, ArrowComplete Val c)
     => ArrowComplete Val (ValueT Val c) where
-  ValueT f <⊔> ValueT g = ValueT $ proc x -> do
-    v <- (f -< x) <⊔> (g -< x)
-    case v of
-      Top -> fail -< fromString "encountered top value after joining."
-      _ -> returnA -< v
+  ValueT f <⊔> ValueT g = ValueT $ proc x -> (f -< x) <⊔> (g -< x)
 
 instance Hashable Addr
 instance Show Addr where
