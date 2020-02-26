@@ -245,6 +245,7 @@ instance Show OpVar_ where
 instance Show Expr where
   showsPrec d e0 = case e0 of
     Lit x _ -> shows x
+    Nil _ -> showString "nil"
     Cons e1 e2 _ -> showString "cons " . showsPrec (app_prec + 1) e1 . showsPrec (app_prec + 1) e2
     Begin es _->
       showString "{"
@@ -308,6 +309,7 @@ instance Show Expr where
 showTopLvl :: Expr -> String
 showTopLvl e = case e of
     Lit x _ -> "Lit " ++ show x
+    Nil _ -> "Nil"
     Cons _ _ _ -> "Cons"
     Begin _ _-> "Begin"
     App _ _ _ -> "App"
@@ -334,6 +336,7 @@ instance Labellable Expr where
 instance HasLabel Expr where
   label e = case e of
     Lit _ l -> l
+    Nil l -> l
     Cons _ _ l -> l
     Begin _ l -> l
     App _ _ l -> l
