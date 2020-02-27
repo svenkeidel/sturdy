@@ -26,6 +26,7 @@ getBody (x:xs) = case x of
 
 match :: [LispVal] -> Either String [LispVal]
 match [LT.List [Atom "module", _, _, LT.List(Atom "#%module-begin": LT.List (Atom "module": _): LT.List (Atom "#%require" : _): program)]] = Right program
+match [LT.List [Atom "module", _, _, LT.List(Atom "#%module-begin": LT.List (Atom "module": _): program)]] = Right program
 match xs = Left ("unknown program structure" ++ show xs )
 
 --TODO: should throw error instead of String "undefined" ..
