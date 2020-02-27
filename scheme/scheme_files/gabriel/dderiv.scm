@@ -1,12 +1,20 @@
 #lang scheme
 
+(define (equal? x y)
+  (if (eq? x y)
+      #t
+      (if (and (null? x) (null? y))
+          #t
+          (if (and (cons? x) (cons? y))
+              (and (equal? (car x) (car y)) (equal? (cdr x) (cdr y)))
+              #f))))
+
 (define (map f l)
   (if (null? l)
       l
       (if (pair? l)
           (cons (f (car l)) (map f (cdr l)))
           (error "Cannot map over a non-list"))))
-
 
 (define (lookup key table)
   (letrec ((loop (lambda (x)

@@ -91,10 +91,10 @@ spec = do
 
 testFixpointAlgorithms :: (Runner -> Spec) -> Spec
 testFixpointAlgorithms tests = do
-  describe "Chaotic Iteration" $ do
+  describe "Chaotic" $ do
     describe "Innermost" $ tests innermostRunner
     describe "Outermost" $ tests outermostRunner
-  describe "Parallel Iteration" $ do
+  describe "Parallel" $ do
     describe "ADI" $ tests parallelADIRunner
     describe "Stack" $ tests parallelRunner
 
@@ -105,7 +105,7 @@ benchmarks run = do
 
 -----------------GABRIEL BENCHMARKS---------------------------------------------
 gabrielBenchmarks :: Runner -> Spec
-gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
+gabrielBenchmarks run = describe "Gabriel" $ do
 -- TIMEOUT = 30s
 
     it "boyer" $ do
@@ -131,10 +131,14 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
 
     it "deriv" $ do
 --     => TIMEOUT | STATES: 1645737
-      pendingWith "out of memory"
-      -- most likely wrong ?
+      -- pendingWith "out of memory"
       let inFile = "gabriel//deriv"
-      let expRes = success (BoolVal B.True)
+      let expRes = successOrFail (return (BoolVal B.Top))
+                                 -- because (equals? (list 1 2) (list 1 2)) recursively calls (equals? 1 1)
+                                 [ "error: String"
+                                 , "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
       run inFile expRes
 
     it "diviter" $ do
@@ -143,7 +147,7 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
       -- pendingWith "out of memory"
       let inFile = "gabriel//diviter"
       -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
-      let expRes = successOrFail (Terminating (BoolVal B.True)) ["cannot cdr an empty list"]
+      let expRes = successOrFail (Terminating (BoolVal B.Top)) []
       run inFile expRes
 
     it "divrec" $ do
@@ -157,15 +161,17 @@ gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
 
     it "takl" $ do
 -- => TIMEOUT | STATES: 1959438
-      -- pendingWith "out of memory"
       let inFile = "gabriel//takl"
-      -- let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top, Bottom])
-      let expRes = success (BoolVal B.Top)
+      let expRes = successOrFail (return (BoolVal B.Top))
+                                 -- because (equals? (list 1 2) (list 1 2)) recursively calls (equals? 1 1)
+                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
       run inFile expRes
 
 -- -------------------SCALA-AM BENCHMARKS------------------------------------------
 scalaAM :: Runner -> Spec
-scalaAM run = describe "Scala-AM-Benchmarks" $ do
+scalaAM run = describe "Scala-AM" $ do
     it "collatz" $ do
 -- => Final Values: Set(Int)
 -- => TIME: 8 | STATES: 431
@@ -247,7 +253,8 @@ customTests run = do
 
   it "test_equal" $ do
     let inFile = "test_equal"
-    let expRes = success (BoolVal B.True)
+    -- Higher sensitivity leads to BoolVal B.True
+    let expRes = successOrFail (return (BoolVal B.Top)) ["Excpeted list as argument for cdr, but got Top","Excpeted list as argument for car, but got Top"]
     run inFile expRes
 
   it "test_cons" $ do
@@ -287,12 +294,12 @@ customTests run = do
 
   it "test_opvar_numbool" $ do
     let inFile = "test_opvar_numbool"
-    let expRes = success Bottom
+    let expRes = successOrFail NonTerminating ["expected a numbers as argument for <, but got [String,String]"]
     run inFile expRes
 
   it "test_opvar_numnum" $ do
     let inFile = "test_opvar_numnum"
-    let expRes = success IntVal
+    let expRes = successOrFail (return Top) ["expected a numbers as argument for +, but got [Int,Top]"]
     run inFile expRes
 
   it "test_opvar_boolbool" $ do

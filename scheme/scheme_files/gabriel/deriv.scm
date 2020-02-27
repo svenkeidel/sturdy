@@ -1,5 +1,6 @@
 #lang scheme
 ;;Expected result True PASSES
+
 (define (map f l)
   (if (null? l)
       l
@@ -33,6 +34,15 @@
                                      (caddr a)
                                      (deriv (caddr a)))))
                    (error "No derivation method available")))))))
+
+(define (equal? x y)
+  (if (eq? x y)
+      #t
+      (if (and (null? x) (null? y))
+          #t
+          (if (and (cons? x) (cons? y))
+              (and (equal? (car x) (car y)) (equal? (cdr x) (cdr y)))
+              #f))))
 
 (define result (deriv '(+ (* 3 x x) (* a x x) (* b x) 5)))
 (equal? result '(+ (* (* 3 x x) (+ (/ 0 3) (/ 1 x) (/ 1 x)))
