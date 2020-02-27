@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -13,9 +14,11 @@ import Data.Order
 import Data.Abstract.Stable
 import Data.Abstract.Widening
 
+import Control.DeepSeq
 import GHC.Generics
 
-data Bool = True | False | Top deriving (Eq,Generic)
+data Bool = True | False | Top
+  deriving (Eq,Generic,NFData)
 
 instance Show Bool where
   show True = "True"

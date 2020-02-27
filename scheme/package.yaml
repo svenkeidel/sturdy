@@ -6,6 +6,7 @@ category:            Language
 
 dependencies:
   - base
+  - deepseq
   - hashable
   - mtl
   - profunctors
@@ -44,3 +45,14 @@ tests:
     dependencies:
       - sturdy-scheme
       - hspec
+
+benchmarks:
+  fixpoint:
+    main: FixpointBench.hs
+    source-dirs:
+      - bench
+    dependencies:
+      - sturdy-lib
+      - sturdy-scheme
+      - criterion
+    ghc-options: -O2

@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -15,7 +17,9 @@ import           Data.GraphViz.Attributes
 import           Data.Text.Prettyprint.Doc hiding (list)
 import           Data.Text.Prettyprint.Doc.Render.Text
 
-import Control.Monad.State
+import           Control.Monad.State
+import           Control.DeepSeq
+import           GHC.Generics
 
 -- Literals of Scheme
 data Literal
@@ -28,7 +32,7 @@ data Literal
   | Symbol String
   | Quote Literal
   -- | DottedList [Literal] Literal
-  deriving (Eq)
+  deriving (Eq,Generic,NFData)
 
 data Op1_
 -- | Numerical operations
@@ -59,7 +63,7 @@ data Op1_
   | Cddr -- (cddr z)
   | Caddr -- (caddr z)
   | Error -- (error z)
-  deriving (Eq)
+  deriving (Eq,Generic,NFData)
 
 data Op2_
 -- | Equivalence predicates
@@ -69,7 +73,7 @@ data Op2_
   | Remainder -- (remainder z1 z2)
   | Modulo -- (modulo z1 z2)
 -- | List operations
-  deriving (Eq)
+  deriving (Eq,Generic,NFData)
 
 data OpVar_
 -- | Numerical operations
@@ -87,7 +91,7 @@ data OpVar_
   | Gcd -- (gcd z1 ...)
   | Lcm -- (lcm z1 ...)
 -- | List operations
-  deriving (Eq)
+  deriving (Eq,Generic,NFData)
 
 
 -- | Expressions of Scheme. Each expression has a label, with which the
@@ -114,6 +118,7 @@ data Expr
   | Op1 Op1_ Expr Label
   | Op2 Op2_ Expr Expr Label
   | OpVar OpVar_ [Expr] Label
+  deriving (Generic,NFData)
 
 instance Eq Expr where
   e1 == e2 = label e1 == label e2

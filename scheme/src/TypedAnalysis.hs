@@ -1,8 +1,9 @@
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams #-}
@@ -11,9 +12,9 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC
   -fspecialise-aggressively
@@ -56,6 +57,7 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 
 import           Control.Monad.State hiding (lift,fail)
+import           Control.DeepSeq
 
 import           Data.Hashable
 import           Data.Label
@@ -93,7 +95,8 @@ type Ctx = CallString Label
 data Addr
   = VarA (Text,Ctx)
   | LabelA (Label,Ctx)
-  deriving (Eq,Generic)
+  deriving stock (Eq,Generic)
+  deriving anyclass (NFData)
   deriving PreOrd via Discrete Addr
 
 data Val
@@ -106,105 +109,15 @@ data Val
   | ClosureVal Cls
   | ListVal List
   | Bottom
-  deriving (Eq, Generic)
+  deriving stock (Eq, Generic)
+  deriving anyclass (NFData)
 
 data List
   = Nil
   | Cons (Pow Addr) (Pow Addr)
   | ConsNil (Pow Addr) (Pow Addr)
-  deriving (Eq, Generic)
-
-type Interp x y =
-  Fix
-    (ValueT Val
-      (TerminatingT
-        (LogErrorT (HashSet Text)
-          (EnvStoreT Text Addr Val
-            (FixT () ()
-              (MetricsT In
-                (ComponentT In
-                  (StackT Stack In
-                    (CacheT Monotone In Out
-                      (ContextT Ctx
-                        (->))))))))))) [Expr] Val x y
-
-type In = (Store,(([Expr],Label),Env))
-type Out = (Store, (HashSet Text, Terminating Val))
-type Out' = (Monotone In Out, (Metrics In, Out))
-
-{-# SPECIALIZE Generic.run_ :: Interp [Expr] Val #-}
-{-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
-
-evalIntervalChaoticInner :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    iterationStrategy =
-      Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply innermost
-
-printIn :: (Store,(Env,[Expr])) -> String
-printIn (store,(env,expr)) =
-  show $
-  vsep
-  [ "EXPR:  " <> align (showFirst expr)
-  , "ENV:   " <> align (pretty env)
-  , "STORE: " <> align (pretty store)
-  ]
-  where showFirst (x:_) = pretty x; showFirst [] = "[]"
-
-printOut :: (Store,(HashSet Text,Terminating Val)) -> String
-printOut (store,(errs,val)) =
-  show $
-  vsep
-  [ "RET:   " <> align (pretty val)
-  , "STORE: " <> align (pretty store)
-  , "ERRORS:" <> align (pretty errs)
-  ]
-
-evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    iterationStrategy =
-      -- Fix.traceShow .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply outermost
-
-evalIntervalParallel :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalIntervalParallel env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    iterationStrategy =
-      -- Fix.traceShow .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply parallel
-
-evalIntervalParallelADI :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalIntervalParallelADI env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    iterationStrategy =
-      -- Fix.traceShow .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply parallelADI
+  deriving stock (Eq, Generic)
+  deriving anyclass (NFData)
 
 instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = proc var -> do
@@ -538,22 +451,109 @@ instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- Map.toList m]
 
 -- OPERATION HELPER ------------------------------------------------------------
--- EVALUATION
+type Interp x y =
+  Fix
+    (ValueT Val
+      (TerminatingT
+        (LogErrorT (HashSet Text)
+          (EnvStoreT Text Addr Val
+            (FixT () ()
+              (MetricsT In
+                (ComponentT In
+                  (StackT Stack In
+                    (CacheT Monotone In Out
+                      (ContextT Ctx
+                        (->))))))))))) [Expr] Val x y
+
+type In = (Store,(([Expr],Label),Env))
+type Out = (Store, (HashSet Text, Terminating Val))
+type Out' = (Monotone In Out, (Metrics In, Out))
+
+{-# SPECIALIZE Generic.run_ :: Interp [Expr] Val #-}
+{-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
+
+evalIntervalChaoticInner :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
+    W.finite
+    iterationStrategy
+    (W.finite, W.finite)
+    (Map.empty,(Map.empty,(env0,e0)))
+  where
+    e0 = generate (sequence e)
+    iterationStrategy =
+      Fix.trace printIn printOut .
+      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+      Fix.filter apply innermost
+
+printIn :: (Store,(Env,[Expr])) -> String
+printIn (store,(env,expr)) =
+  show $
+  vsep
+  [ "EXPR:  " <> align (showFirst expr)
+  , "ENV:   " <> align (pretty env)
+  , "STORE: " <> align (pretty store)
+  ]
+  where showFirst (x:_) = pretty x; showFirst [] = "[]"
+
+printOut :: (Store,(HashSet Text,Terminating Val)) -> String
+printOut (store,(errs,val)) =
+  show $
+  vsep
+  [ "RET:   " <> align (pretty val)
+  , "STORE: " <> align (pretty store)
+  , "ERRORS:" <> align (pretty errs)
+  ]
+
+evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
+    W.finite
+    iterationStrategy
+    (W.finite, W.finite)
+    (Map.empty,(Map.empty,(env0,e0)))
+  where
+    e0 = generate (sequence e)
+    iterationStrategy =
+      -- Fix.traceShow .
+      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+      Fix.filter apply outermost
+
+evalIntervalParallel :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+evalIntervalParallel env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
+    W.finite
+    iterationStrategy
+    (W.finite, W.finite)
+    (Map.empty,(Map.empty,(env0,e0)))
+  where
+    e0 = generate (sequence e)
+    iterationStrategy =
+      -- Fix.traceShow .
+      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+      Fix.filter apply parallel
+
+evalIntervalParallelADI :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
+evalIntervalParallelADI env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
+    W.finite
+    iterationStrategy
+    (W.finite, W.finite)
+    (Map.empty,(Map.empty,(env0,e0)))
+  where
+    e0 = generate (sequence e)
+    iterationStrategy =
+      -- Fix.traceShow .
+      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
+      Fix.filter apply parallelADI
+
 evalIntervalChaoticInner' :: (?sensitivity::Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (HashSet Text, Terminating Val))
 evalIntervalChaoticInner' exprs = let (_,(metrics,res)) = evalIntervalChaoticInner [] exprs in (metrics,snd res)
--- {-# INLINE evalIntervalChaoticInner' #-}
 
 evalIntervalChaoticOuter':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (HashSet Text, Terminating Val))
 evalIntervalChaoticOuter' exprs = let (_,(metrics,res)) = evalIntervalChaoticOuter [] exprs in (metrics,snd res)
--- {-# INLINE evalIntervalChaoticOuter' #-}
 
 evalIntervalParallel':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (HashSet Text, Terminating Val))
 evalIntervalParallel' exprs = let (_,(metrics,res)) = evalIntervalParallel [] exprs in (metrics,snd res)
--- {-# INLINE evalIntervalParallel' #-}
 
 evalIntervalParallelADI':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics (Store, (([Expr], Label), Env)), (HashSet Text, Terminating Val))
 evalIntervalParallelADI' exprs = let (_,(metrics,res)) = evalIntervalParallelADI [] exprs in (metrics,snd res)
 
 evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (HashSet Text, Terminating Val)
 evalInterval' env exprs = snd $ snd $ snd $ evalIntervalChaoticInner env exprs
--- {-# INLINE evalInterval' #-}

@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Data.Abstract.CallString(CallString,push,truncate) where
@@ -10,7 +12,11 @@ import           Data.Sequence (Seq,(|>))
 import qualified Data.Sequence as S
 import           Data.Empty
 
+import           Control.DeepSeq
+import           GHC.Generics(Generic)
+
 data CallString lab = CallString { callString :: Seq lab, size :: Int }
+  deriving (Generic,NFData)
 
 instance Show lab => Show (CallString lab) where
   show = show . toList
