@@ -1,5 +1,6 @@
 #lang scheme
-;; Expected result: 1
+(require "../imports.scm")
+
 (define (square x) (* x x))
 (define (modulo-power base exp n)
   (if (= exp 0)

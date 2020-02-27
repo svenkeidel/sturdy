@@ -1,5 +1,5 @@
 #lang scheme
-;;Expected result True PASSES
+(require "../imports.scm")
 
 (define (map f l)
   (if (null? l)

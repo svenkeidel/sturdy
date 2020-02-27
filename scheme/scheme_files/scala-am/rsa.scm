@@ -1,5 +1,6 @@
 #lang scheme
-;; Expected result #t, passes
+(require "../imports.scm")
+
 (define (extended-gcd a b)
   (if (= (modulo a b) 0)
       (cons 0 1)

@@ -1,6 +1,5 @@
 #lang scheme
-
-;; Expected result: True
+(require "../imports.scm")
 
 (begin
    (define (create-n n)

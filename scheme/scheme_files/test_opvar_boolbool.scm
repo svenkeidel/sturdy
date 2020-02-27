@@ -1,5 +1,6 @@
 #lang scheme
 
+(require "imports.scm")
 
 (define x "str")
 (set! x #f)

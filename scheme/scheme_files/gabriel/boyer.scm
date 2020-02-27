@@ -1,4 +1,5 @@
 #lang scheme
+(require "imports.scm")
 
 (define *namelist* '())
 (define *lastlook* '(xxx ()))
@@ -25,11 +26,9 @@
     (if (pair? r)
         (let ((s (assq prop (cdr r))))
           (if (pair? s)
-              ; changed set-cdr! here
-              (set! s (cons (car s) valu))
+              (set-cdr! s valu)
               (let ((item (cons prop valu)))
-                ;changed set-cdr! here
-                (set! r (cons (car r) (cons item (cdr r)))))))
+                (set-cdr! r (cons item (cdr r))))))
         (let ((item (cons prop valu)))
           (set! *namelist* (cons (cons name (cons item '())) *namelist*)))))
   valu)

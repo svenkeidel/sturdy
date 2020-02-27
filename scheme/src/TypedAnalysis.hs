@@ -62,7 +62,7 @@ import           Control.DeepSeq
 import           Data.Hashable
 import           Data.Label
 import           Data.Order
-import           Data.Text (Text, unpack)
+import           Data.Text (Text)
 import           Data.Utils
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.Boolean as B
@@ -104,7 +104,7 @@ data Val
   | IntVal
   | FloatVal
   | StringVal
-  | QuoteVal
+  | QuoteVal (Pow String)
   | BoolVal B.Bool
   | ClosureVal Cls
   | ListVal List
@@ -152,7 +152,7 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Bool False  -> returnA -< BoolVal B.False
     Char _ -> returnA -< StringVal
     String _ -> returnA -< StringVal
-    Quote _ -> returnA -< QuoteVal
+    Quote (Symbol sym) -> returnA -< QuoteVal $ singleton sym
     _ -> returnA -< Bottom
 
   if_ f g = proc (v,(x,y)) -> case v of
@@ -329,7 +329,9 @@ eq v1 v2 = case (v1,v2) of
   (IntVal,IntVal) -> B.Top
   (FloatVal,FloatVal) -> B.Top
   (StringVal,StringVal) -> B.Top
-  (QuoteVal,QuoteVal) -> B.Top
+  (QuoteVal sym1,QuoteVal sym2) -> case (toList sym1, toList sym2) of 
+    ([x], [y]) -> if x == y then B.True else B.False
+    _ -> B.Top
   (_,_) -> B.False
 
 numNTo :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (OpVar_,Int,[Val],Val) Val
@@ -378,7 +380,7 @@ instance Pretty Val where
   pretty (BoolVal b) = viaShow b
   pretty (ClosureVal cls) = viaShow cls
   pretty StringVal = "String"
-  pretty QuoteVal = "Quote"
+  pretty (QuoteVal syms) = "Quote" <> parens (viaShow syms)
   pretty (ListVal l) = pretty l
   pretty Top = "Top"
   pretty Bottom = "Bottom"
@@ -402,7 +404,7 @@ instance PreOrd Val where
   IntVal ⊑ IntVal = True
   FloatVal ⊑ FloatVal = True
   StringVal ⊑ StringVal = True
-  QuoteVal ⊑ QuoteVal = True
+  QuoteVal sym1 ⊑ QuoteVal sym2 = sym1 ⊑ sym2 
   BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
   ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
   ListVal l1 ⊑ ListVal l2 = l1 ⊑ l2
@@ -416,7 +418,7 @@ instance Complete Val where
   BoolVal b1 ⊔ BoolVal b2 = BoolVal (b1 ⊔ b2)
   ClosureVal c1 ⊔ ClosureVal c2 = ClosureVal (c1 ⊔ c2)
   StringVal ⊔ StringVal = StringVal
-  QuoteVal ⊔ QuoteVal = QuoteVal
+  QuoteVal sym1 ⊔ QuoteVal sym2 = QuoteVal (sym1 ⊔ sym2)
   ListVal l1 ⊔ ListVal l2 = ListVal (l1 ⊔ l2)
   _ ⊔ _ = Top
 

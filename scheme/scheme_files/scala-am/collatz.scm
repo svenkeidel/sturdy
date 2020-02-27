@@ -1,5 +1,6 @@
 #lang scheme
-;;Expected result 5, passes
+(require "../imports.scm")
+
 (define (div2* n s)
   (if (= (* 2 n) s)
       n

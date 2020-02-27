@@ -1,6 +1,5 @@
 #lang scheme
-
-;; Expected result : True
+(require "../imports.scm")
 
 (begin
    (define (create-n n) (begin (define ($do-loop0 n a) (if (= n 0) a (begin ($do-loop0 (- n 1) (cons '() a))))) ($do-loop0 n '())))

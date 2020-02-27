@@ -1,4 +1,6 @@
 #lang scheme
+(require "imports.scm")
+
 ;; Taken from https://github.com/jensnicolay/abstractmemo
 ;; Expected result: 6
 (letrec ((tak (lambda (x y z k)

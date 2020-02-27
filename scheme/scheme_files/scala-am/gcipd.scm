@@ -1,6 +1,7 @@
 #lang scheme
 ;; Taken from https://github.com/jensnicolay/abstractmemo
-;; Expected result: 36, passes
+(require "../imports.scm")
+
 (letrec ((id (lambda (x) x))
          (f (lambda (n)
               (if (<= n 1)

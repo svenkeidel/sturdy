@@ -1,4 +1,5 @@
 #lang scheme
+(require "../imports.scm")
 
 (define (equal? x y)
   (if (eq? x y)
@@ -39,9 +40,8 @@
     (if x
         (let ((y (lookup key2 (cdr x))))
           (if y
-              ;changed set-cdr
-              (set! y (cons (car y) val))
-              (set! x (cons (car x) (cons (cons key2 val) (cdr x))))))
+              (set-cdr! y val)
+              (set-cdr! x (cons (cons key2 val) (cdr x)))))
         (set! properties
           (cons (cons key1 (cons (cons key2 val) '())) properties)))))
 (define (dderiv a)

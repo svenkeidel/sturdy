@@ -70,9 +70,6 @@ lispToExpr val = case val of
     if length res == length params_
       then let_rec res (map lispToExpr body_)
       else error "wrong format for params in letrec"
-  -- TODO : Fix scoping, set working but ugly
-  LT.List [Atom "#%app", _, LT.List [Atom "lambda", _, LT.List[Atom "set!", Atom var, val_]], _] ->
-    set (pack var) (lispToExpr val_)
   LT.List [Atom "set!", Atom var, body_] ->
     set (pack var) (lispToExpr body_)
   LT.List [Atom "quote", LT.List xs] -> list (map quoteListHelp xs)

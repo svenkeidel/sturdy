@@ -1,5 +1,6 @@
 #lang scheme
-;;Expected result 92, passes but slow
+(require "../imports.scm")
+
 (define (append l x)
   (if (null? l)
       x

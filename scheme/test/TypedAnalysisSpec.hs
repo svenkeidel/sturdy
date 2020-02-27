@@ -210,118 +210,122 @@ scalaAM run = describe "Scala-AM" $ do
 
 -- -------------------Custom Tests------------------------------------------
 customTests :: Runner -> Spec
-customTests run = do
-  it "recursion_union_empty_list" $ do
-    let inFile = "test_rec_empty"
-    let expRes = success (ListVal Nil)
-    run inFile expRes
+customTests run = describe "Custom-Tests" $ do 
+    it "recursion_union_empty_list" $ do
+      let inFile = "test_rec_empty"
+      let expRes = success (ListVal Nil)
+      run inFile expRes
 
-  it "recursion and union with non-empty list" $ do
-    let inFile = "test_rec_nonempty"
-    let expRes = success IntVal
-    run inFile expRes
+    it "recursion and union with non-empty list" $ do
+      let inFile = "test_rec_nonempty"
+      let expRes = success IntVal
+      run inFile expRes
 
-  it "should return NV for (car (cdr '(2 3 4)))" $ do
-    let inFile = "test_cdr"
-    let expRes = success IntVal
-    run inFile expRes
+    it "should return NV for (car (cdr '(2 3 4)))" $ do
+      let inFile = "test_cdr"
+      let expRes = success IntVal
+      run inFile expRes
 
-  it "should return correct val for car" $ do
-    let inFile = "test_car"
-    let expRes = success IntVal
-    run inFile expRes
+    it "should return correct val for car" $ do
+      let inFile = "test_car"
+      let expRes = success IntVal
+      run inFile expRes
 
-  it "test_null_cdr" $ do
-    let inFile = "test_null"
-    let expRes = success (BoolVal B.True)
-    run inFile expRes
+    it "test_null_cdr" $ do
+      let inFile = "test_null"
+      let expRes = success (BoolVal B.True)
+      run inFile expRes
 
-  it "unifying two list of nums of different size should result in list of nums" $ do
-    let inFile = "test_faulty_list"
-    let expRes = success Top
-    run inFile expRes
+    it "unifying two list of nums of different size should result in list of nums" $ do
+      let inFile = "test_faulty_list"
+      let expRes = success Top
+      run inFile expRes
 
-  it "test_if" $ do
-    let inFile = "test_if"
-    let expRes = success (BoolVal B.False)
-    run inFile expRes
+    it "test_if" $ do
+      let inFile = "test_if"
+      let expRes = success (BoolVal B.False)
+      run inFile expRes
 
-  it "test_opvars" $ do
-    let inFile = "test_opvars"
-    let expRes = success IntVal
-    run inFile expRes
+    it "test_opvars" $ do
+      let inFile = "test_opvars"
+      let expRes = success IntVal
+      run inFile expRes
 
-  it "test_equal" $ do
-    let inFile = "test_equal"
-    -- Higher sensitivity leads to BoolVal B.True
-    let expRes = successOrFail (return (BoolVal B.Top)) ["Excpeted list as argument for cdr, but got Top","Excpeted list as argument for car, but got Top"]
-    run inFile expRes
+    it "test_equal" $ do
+      let inFile = "test_equal"
+      -- Higher sensitivity leads to BoolVal B.True
+      let expRes = successOrFail (return (BoolVal B.Top)) ["Excpeted list as argument for cdr, but got Top","Excpeted list as argument for car, but got Top"]
+      run inFile expRes
 
-  it "test_cons" $ do
-    let inFile = "test_cons"
-    let expRes = success (BoolVal B.True)
-    run inFile expRes
+    it "test_cons" $ do
+      let inFile = "test_cons"
+      let expRes = success (BoolVal B.True)
+      run inFile expRes
 
-  it "test_closure_gc" $ do
-    let inFile = "test_closure_gc"
-    let expRes = success IntVal
-    run inFile expRes
+    it "test_closure_gc" $ do
+      let inFile = "test_closure_gc"
+      let expRes = success IntVal
+      run inFile expRes
 
-  it "lang_scheme_test" $ do
-    let inFile = "lang_scheme_test"
-    let expRes = success IntVal
-    run inFile expRes
+    it "lang_scheme_test" $ do
+      let inFile = "lang_scheme_test"
+      let expRes = success IntVal
+      run inFile expRes
 
-  it "test_inner_define" $ do
-    let inFile = "test_inner_define"
-    let expRes = success IntVal
-    run inFile expRes
+    it "test_inner_define" $ do
+      let inFile = "test_inner_define"
+      let expRes = success IntVal
+      run inFile expRes
 
-  it "test_unops" $ do
-    let inFile = "test_unops"
-    let expRes = success (BoolVal B.Top)
-    run inFile expRes
+    it "test_unops" $ do
+      let inFile = "test_unops"
+      let expRes = success (BoolVal B.Top)
+      run inFile expRes
 
-  it "test_eq" $ do
-    let inFile = "test_eq"
-    let expRes = success (BoolVal B.Top)
-    run inFile expRes
+    it "test_eq" $ do
+      let inFile = "test_eq"
+      let expRes = success (BoolVal B.Top)
+      run inFile expRes
 
-  it "test_binops" $ do
-    let inFile = "test_binops"
-    let expRes = successOrFail NonTerminating ["expected a two ints as arguments for quotient , but got [Top,Int]","expected a two ints as arguments for quotient , but got [True,String]"]
-    run inFile expRes
+    it "test_binops" $ do
+      let inFile = "test_binops"
+      let expRes = successOrFail NonTerminating ["expected a two ints as arguments for quotient , but got [Top,Int]","expected a two ints as arguments for quotient , but got [True,String]"]
+      run inFile expRes
 
-  it "test_opvar_numbool" $ do
-    let inFile = "test_opvar_numbool"
-    let expRes = successOrFail NonTerminating ["expected a numbers as argument for <, but got [String,String]"]
-    run inFile expRes
+    it "test_opvar_numbool" $ do
+      let inFile = "test_opvar_numbool"
+      let expRes = successOrFail NonTerminating ["expected a numbers as argument for <, but got [String,String]"]
+      run inFile expRes
 
-  it "test_opvar_numnum" $ do
-    let inFile = "test_opvar_numnum"
-    let expRes = successOrFail (return Top) ["expected a numbers as argument for +, but got [Int,Top]"]
-    run inFile expRes
+    it "test_opvar_numnum" $ do
+      let inFile = "test_opvar_numnum"
+      let expRes = successOrFail (return Top) ["expected a numbers as argument for +, but got [Int,Top]"]
+      run inFile expRes
 
-  it "test_opvar_boolbool" $ do
-    let inFile = "test_opvar_boolbool"
-    let expRes = success Top
-    run inFile expRes
+    it "test_opvar_boolbool" $ do
+      let inFile = "test_opvar_boolbool"
+      let expRes = success $ BoolVal B.True
+      run inFile expRes
 
-  it "test_list" $ do
-    let inFile = "test_list"
-    let expRes = success QuoteVal
-    run inFile expRes
+    it "test_list" $ do
+      let inFile = "test_list"
+      let expRes = success $ QuoteVal ["+"]
+      run inFile expRes
 
-  it "test_factorial" $ do
-    let inFile = "test_factorial"
-    let expRes = success IntVal
-    run inFile expRes
+    it "test_factorial" $ do
+      let inFile = "test_factorial"
+      let expRes = success IntVal
+      run inFile expRes
 
-  it "test_random" $ do
-    -- pending
-    let inFile = "test_random"
-    let expRes = success IntVal
-    run inFile expRes
+    it "test_symbols" $ do
+      let inFile = "test_symbols"
+      let expRes = success $ QuoteVal ["sym1", "sym2", "sym3"]
+      run inFile expRes
+
+    it "test_random" $ do
+      let inFile = "test_random"
+      let expRes = success IntVal
+      run inFile expRes
 
 success :: Val -> (HashSet Text, Terminating Val)
 success v = ([],Terminating v)
