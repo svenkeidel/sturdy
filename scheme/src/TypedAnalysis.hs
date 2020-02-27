@@ -227,7 +227,7 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Cadr -> cdr' <<< car' -< x
     Cddr -> cdr' <<< cdr' -< x
     Caddr -> cdr' <<< cdr' <<< car' -< x
-    Error -> failString -< printf "error: " (show x)
+    Error -> failString -< printf "error: %s" (show x)
 
   op2_ = proc (op, x, y) -> case op of
     Eqv -> returnA -< BoolVal $ eq x y
@@ -262,7 +262,7 @@ numToNum = proc (op,v) -> case v of
   Top -> (returnA -< Top) <⊔> (err -< (op,v))
   _ -> err -< (op,v)
   where
-    err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s" (show op) (show v)
+    err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s %s" (show op) (show v)
 
 numToBool :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToBool = proc (op,v) -> case v of
@@ -313,7 +313,7 @@ cdr = proc v -> case v of
     vals <- ArrowUtils.map read' -< toList y
     returnA -< lub vals
   Nil -> failString -< "cannot cdr an empty list"
-  ConsNil x y -> car -< Cons x y
+  ConsNil x y -> cdr -< Cons x y
 
 eq :: Val -> Val -> B.Bool
 eq v1 v2 = case (v1,v2) of
@@ -481,7 +481,7 @@ evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ :: Interp [Expr] Va
   where
     e0 = generate (sequence e)
     iterationStrategy =
-      Fix.trace printIn printOut .
+      -- Fix.trace printIn printOut .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       Fix.filter apply innermost
 
