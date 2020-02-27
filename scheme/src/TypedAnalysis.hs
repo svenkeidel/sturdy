@@ -451,7 +451,11 @@ instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- Map.toList m]
 
 -- OPERATION HELPER ------------------------------------------------------------
-type Interp x y =
+type In = (Store,(([Expr],Label),Env))
+type Out = (Store, (HashSet Text, Terminating Val))
+type Out' = (Monotone In Out, (Metrics In, Out))
+
+type InterpChaotic x y =
   Fix
     (ValueT Val
       (TerminatingT
@@ -465,15 +469,27 @@ type Interp x y =
                       (ContextT Ctx
                         (->))))))))))) [Expr] Val x y
 
-type In = (Store,(([Expr],Label),Env))
-type Out = (Store, (HashSet Text, Terminating Val))
-type Out' = (Monotone In Out, (Metrics In, Out))
+{-# SPECIALIZE Generic.run_ :: InterpChaotic [Expr] Val #-}
+{-# SPECIALIZE Generic.eval :: InterpChaotic [Expr] Val -> InterpChaotic Expr Val #-}
 
-{-# SPECIALIZE Generic.run_ :: Interp [Expr] Val #-}
-{-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
+type InterpParallel x y =
+  Fix
+    (ValueT Val
+      (TerminatingT
+        (LogErrorT (HashSet Text)
+          (EnvStoreT Text Addr Val
+            (FixT () ()
+              (MetricsT In
+                (StackT Stack In
+                  (CacheT Monotone In Out
+                    (ContextT Ctx
+                      (->)))))))))) [Expr] Val x y
+
+{-# SPECIALIZE Generic.run_ :: InterpParallel [Expr] Val #-}
+{-# SPECIALIZE Generic.eval :: InterpParallel [Expr] Val -> InterpParallel Expr Val #-}
 
 evalIntervalChaoticInner :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
+evalIntervalChaoticInner env0 e = run (extend' (Generic.run_ :: InterpChaotic [Expr] Val))
     W.finite
     iterationStrategy
     (W.finite, W.finite)
@@ -505,7 +521,7 @@ printOut (store,(errs,val)) =
   ]
 
 evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
+evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ :: InterpChaotic [Expr] Val))
     W.finite
     iterationStrategy
     (W.finite, W.finite)
@@ -518,7 +534,7 @@ evalIntervalChaoticOuter env0 e = run (extend' (Generic.run_ :: Interp [Expr] Va
       Fix.filter apply outermost
 
 evalIntervalParallel :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalIntervalParallel env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
+evalIntervalParallel env0 e = run (extend' (Generic.run_ :: InterpParallel [Expr] Val))
     W.finite
     iterationStrategy
     (W.finite, W.finite)
@@ -526,12 +542,12 @@ evalIntervalParallel env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
   where
     e0 = generate (sequence e)
     iterationStrategy =
-      -- Fix.traceShow .
+      Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       Fix.filter apply parallel
 
 evalIntervalParallelADI :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> Out'
-evalIntervalParallelADI env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val))
+evalIntervalParallelADI env0 e = run (extend' (Generic.run_ :: InterpParallel [Expr] Val))
     W.finite
     iterationStrategy
     (W.finite, W.finite)
@@ -539,7 +555,7 @@ evalIntervalParallelADI env0 e = run (extend' (Generic.run_ :: Interp [Expr] Val
   where
     e0 = generate (sequence e)
     iterationStrategy =
-      -- Fix.traceShow .
+      Fix.traceShow .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
       Fix.filter apply parallelADI
 
