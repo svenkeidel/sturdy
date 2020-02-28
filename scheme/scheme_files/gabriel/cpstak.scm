@@ -1,5 +1,5 @@
 #lang scheme
-(require "imports.scm")
+(require "../imports.scm")
 
 ;; Taken from https://github.com/jensnicolay/abstractmemo
 ;; Expected result: 6

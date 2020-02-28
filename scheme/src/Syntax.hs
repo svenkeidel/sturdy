@@ -63,6 +63,7 @@ data Op1_
   | Cddr -- (cddr z)
   | Caddr -- (caddr z)
   | Error -- (error z)
+  | Random -- (random z)
   deriving (Eq,Generic,NFData)
 
 data Op2_
@@ -204,6 +205,7 @@ instance Pretty Op1_ where
     Cddr -> "cddr"
     Caddr -> "caddr"
     Error -> "error"
+    Random -> "random"
 
 instance Show Op2_ where show = show . pretty
 

@@ -38,15 +38,15 @@ spec = do
   describe "behavior specific to interval analysis" $ do
     it "test lits" $ do
       -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] ["x"] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2), "x"] `shouldBe` ([], Terminating IntVal)
+      let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2), "x"] `shouldBe` ([], Terminating $ NumVal IntVal)
       let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2),
                                                 set "x" (lit $ S.Bool True),
                                                 "x"] `shouldBe` success Top
 
     it "test closures" $ do
-      let ?sensitivity = 0 in evalInterval' [] [app (lam ["x"] ["x"]) [lit $ S.Number 2]] `shouldBe` ([], Terminating IntVal)
+      let ?sensitivity = 0 in evalInterval' [] [app (lam ["x"] ["x"]) [lit $ S.Number 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
       let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
-                                                app "id" [lit $ S.Number 2]] `shouldBe` ([], Terminating IntVal)
+                                                app "id" [lit $ S.Number 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
       -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lit $ S.Bool True),
       --                                           set "id" (lam ["x"] ["x"]),
       --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
@@ -56,16 +56,16 @@ spec = do
 
     it "should analyze let expression" $
       let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
-      let ?sensitivity = 0 in evalInterval' [] expr `shouldBe` success IntVal
-      let ?sensitivity = 1 in evalInterval' [] expr `shouldBe` success IntVal
+      let ?sensitivity = 0 in evalInterval' [] expr `shouldBe` success (NumVal IntVal)
+      let ?sensitivity = 1 in evalInterval' [] expr `shouldBe` success (NumVal IntVal)
 
     it "should analyze define" $
       let exprs = [define "x" (lit $ S.Number 1),
                    set "x" (lit $ S.Number 2),
                    set "x" (lit $ S.Number 3),
                    "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` success IntVal
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` success IntVal
+      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` success (NumVal IntVal)
+      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` success (NumVal IntVal)
 
     it "should return unify two different types" $
       let exprs = [define "x" (lit $ S.Number 1),
@@ -109,7 +109,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 -- TIMEOUT = 30s
 
     it "boyer" $ do
-      pendingWith "out of memory"
+      -- pendingWith "out of memory"
       let inFile = "gabriel//boyer"
       let expRes = success (BoolVal B.True)
       run inFile expRes
@@ -119,7 +119,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 --     => TIME: 105 | STATES: 120
       pendingWith "out of memory"
       let inFile = "gabriel//cpstak"
-      let expRes = success IntVal
+      let expRes = success (NumVal IntVal)
       run inFile expRes
 
 
@@ -176,34 +176,34 @@ scalaAM run = describe "Scala-AM" $ do
 -- => Final Values: Set(Int)
 -- => TIME: 8 | STATES: 431
       let inFile = "scala-am//collatz"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "gcipd" $ do
 --       => Final Values: Set(Int)
 --       => TIME: 14 | STATES: 1098
       let inFile = "scala-am//gcipd"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "nqueens" $ do
 -- => TIMEOUT | STATES: 1781142
       let inFile = "scala-am//nqueens"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "primtest" $ do
 -- => Final Values: Set(Int)
 -- => TIME: 8 | STATES: 431
-      pendingWith "not getting parsed yet"
+      -- pendingWith "not getting parsed yet"
       let inFile = "scala-am//primtest"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "rsa" $ do
 -- => Final Values: Set({#f,#t})
 -- => TIME: 2831 | STATES: 247915
-      pendingWith "only works for parallel, but parallel broken?"
+      -- pendingWith "only works for parallel, but parallel broken?"
       let inFile = "scala-am//rsa"
       let expRes = successOrFail bottom ["Expected elements of type num for op| [List [Num],Num]" <> "Scheme-Error"]
       run inFile expRes
@@ -218,17 +218,17 @@ customTests run = describe "Custom-Tests" $ do
 
     it "recursion and union with non-empty list" $ do
       let inFile = "test_rec_nonempty"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "should return NV for (car (cdr '(2 3 4)))" $ do
       let inFile = "test_cdr"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "should return correct val for car" $ do
       let inFile = "test_car"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_null_cdr" $ do
@@ -248,7 +248,7 @@ customTests run = describe "Custom-Tests" $ do
 
     it "test_opvars" $ do
       let inFile = "test_opvars"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_equal" $ do
@@ -264,17 +264,17 @@ customTests run = describe "Custom-Tests" $ do
 
     it "test_closure_gc" $ do
       let inFile = "test_closure_gc"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "lang_scheme_test" $ do
       let inFile = "lang_scheme_test"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_inner_define" $ do
       let inFile = "test_inner_define"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_unops" $ do
@@ -314,7 +314,7 @@ customTests run = describe "Custom-Tests" $ do
 
     it "test_factorial" $ do
       let inFile = "test_factorial"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_symbols" $ do
@@ -324,7 +324,7 @@ customTests run = describe "Custom-Tests" $ do
 
     it "test_random" $ do
       let inFile = "test_random"
-      let expRes = success IntVal
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
 success :: Val -> (HashSet Text, Terminating Val)

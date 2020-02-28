@@ -111,6 +111,7 @@ lispToExpr val = case val of
     "cddr" -> op1_ Cddr (lispToExpr $ head args)
     "caddr" -> op1_ Caddr (lispToExpr $ head args)
     "error" -> op1_ Error (lispToExpr $ head args)
+    "random" -> op1_ Random (lispToExpr $ head args)
     -- op2
     "eq?" -> op2_ Eqv (lispToExpr $ head args) (lispToExpr $ last args)
     -- "equal?" -> op2_ Equal (lispToExpr $ head args) (lispToExpr $ last args)

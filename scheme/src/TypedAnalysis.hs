@@ -101,8 +101,7 @@ data Addr
 
 data Val
   = Top
-  | IntVal
-  | FloatVal
+  | NumVal Number
   | StringVal
   | QuoteVal (Pow String)
   | BoolVal B.Bool
@@ -116,6 +115,13 @@ data List
   = Nil
   | Cons (Pow Addr) (Pow Addr)
   | ConsNil (Pow Addr) (Pow Addr)
+  deriving stock (Eq, Generic)
+  deriving anyclass (NFData)
+
+data Number 
+  = IntVal 
+  | FloatVal 
+  | NumTop
   deriving stock (Eq, Generic)
   deriving anyclass (NFData)
 
@@ -145,8 +151,8 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = (ArrowComplete y (ValueT Val c),Fail.Join y c)
   lit = proc x -> case x of
-    Number _ -> returnA -< IntVal
-    Float _ -> returnA -< FloatVal
+    Number _ -> returnA -< NumVal $ IntVal 
+    Float _ -> returnA -< NumVal $ FloatVal
     Ratio _ -> returnA -< Bottom
     Bool True  -> returnA -< BoolVal B.True
     Bool False  -> returnA -< BoolVal B.False
@@ -171,21 +177,21 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
 
   op1_ = proc (op, x) -> case op of
     Number_ -> returnA -< case x of
-      IntVal -> BoolVal B.True
-      FloatVal -> BoolVal B.True
+      NumVal _ -> BoolVal B.True
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
     Integer_ -> returnA -< case x of
-      IntVal -> BoolVal B.True
+      NumVal IntVal -> BoolVal B.True
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
     Float_ -> returnA -< case x of
-      FloatVal -> BoolVal B.True
+      NumVal FloatVal -> BoolVal B.True
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
+    -- rational? - should return False or Bottom?
     Ratio_ -> returnA -< case x of
-      IntVal -> BoolVal B.Top
-      FloatVal -> BoolVal B.Top
+      NumVal IntVal -> BoolVal B.Top
+      NumVal FloatVal -> BoolVal B.Top
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
     Boolean -> returnA -< case x of
@@ -215,8 +221,7 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Floor -> numToNum -< (op,x)
     Ceiling -> numToNum -< (op,x)
     Log -> case x of
-      IntVal -> returnA -< FloatVal
-      FloatVal -> returnA -< FloatVal
+      NumVal _ -> returnA -< NumVal FloatVal
       _ -> failString -< printf "expected number as argument of log, but got %s" (show x)
     Not -> case x of
       BoolVal b -> returnA -< BoolVal $ B.not b
@@ -228,6 +233,7 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Cddr -> cdr' <<< cdr' -< x
     Caddr -> cdr' <<< cdr' <<< car' -< x
     Error -> failString -< printf "error: %s" (show x)
+    Random -> intToInt -< (op, x) 
 
   op2_ = proc (op, x, y) -> case op of
     Eqv -> returnA -< BoolVal $ eq x y
@@ -243,31 +249,38 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     GreaterEqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
     Max -> numNTo -< (op,1,xs,foldl1 numLub xs)
     Min -> numNTo -< (op,1,xs,foldl1 numLub xs)
-    Add -> numNTo -< (op,0,xs,foldl numLub IntVal xs)
-    Mul -> numNTo -< (op,0,xs,foldl numLub IntVal xs)
+    Add -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
+    Mul -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
     Sub -> numNTo -< (op,1,xs,foldl1 numLub xs)
     Div -> do
       -- (integer? (/ 2 2)) -> #t
       -- (integer? (/ 2 3)) -> #f
-      let x = foldr1 numLub xs
-      let ret = case x of IntVal -> Top; y -> y
-      numNTo -< (op,1,xs,ret)
-    Gcd -> numNTo -< (op,0,xs,foldl numLub IntVal xs)
-    Lcm -> numNTo -< (op,0,xs,foldl numLub IntVal xs)
+      let x = foldr1 numLubDivision xs
+      numNTo -< (op,1,xs,x)
+    Gcd -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
+    Lcm -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
 
 numToNum :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToNum = proc (op,v) -> case v of
-  IntVal -> returnA -< IntVal
-  FloatVal -> returnA -< FloatVal
+  NumVal IntVal -> returnA -< NumVal IntVal
+  NumVal FloatVal -> returnA -< NumVal FloatVal
   Top -> (returnA -< Top) <⊔> (err -< (op,v))
   _ -> err -< (op,v)
   where
-    err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s %s" (show op) (show v)
+    err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s" (show op) (show v)
+
+
+intToInt :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
+intToInt = proc (op,v) -> case v of
+  NumVal IntVal -> returnA -< NumVal IntVal
+  Top -> (returnA -< Top) <⊔> (err -< (op,v))
+  _ -> err -< (op,v)
+  where
+    err = proc (op,v) -> failString -< printf "expected an integer as argument for %s, but got %s" (show op) (show v)
 
 numToBool :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToBool = proc (op,v) -> case v of
-  IntVal -> returnA -< BoolVal B.Top
-  FloatVal -> returnA -< BoolVal B.Top
+  NumVal _ -> returnA -< BoolVal B.Top 
   Top -> (returnA -< BoolVal B.Top) <⊔> (err -< (op,v))
   _ -> err -< (op,v)
   where
@@ -275,10 +288,10 @@ numToBool = proc (op,v) -> case v of
 
 intIntToInt :: (IsString e, Fail.Join Val c, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => c (Op2_,Val,Val) Val
 intIntToInt = proc (op,v1,v2) -> case (v1,v2) of
-  (IntVal,IntVal) -> returnA -< IntVal
-  (Top,Top) -> (returnA -< IntVal) <⊔> (err -< (op,v1,v2))
-  (Top,IntVal) -> (returnA -< IntVal) <⊔> (err -< (op,v1,v2))
-  (IntVal,Top) -> (returnA -< IntVal) <⊔> (err -< (op,v1,v2))
+  (NumVal IntVal,NumVal IntVal) -> returnA -< NumVal IntVal
+  (Top,Top) -> (returnA -< NumVal IntVal) <⊔> (err -< (op,v1,v2))
+  (Top,NumVal IntVal) -> (returnA -< NumVal IntVal) <⊔> (err -< (op,v1,v2))
+  (NumVal IntVal,Top) -> (returnA -< NumVal IntVal) <⊔> (err -< (op,v1,v2))
   _ -> err -< (op,v1,v2)
   where
     err = proc (op,v1,v2) -> failString -< printf "expected a two ints as arguments for %s, but got %s" (show op) (show [v1,v2])
@@ -326,8 +339,10 @@ eq v1 v2 = case (v1,v2) of
     (B.False,B.False) -> B.True
     (B.True,B.False) -> B.False
     (B.False,B.True) -> B.False
-  (IntVal,IntVal) -> B.Top
-  (FloatVal,FloatVal) -> B.Top
+  (NumVal IntVal,NumVal IntVal) -> B.Top
+  (NumVal FloatVal,NumVal FloatVal) -> B.Top
+  (NumVal NumTop,NumVal _) -> B.Top
+  (NumVal _,NumVal NumTop) -> B.Top
   (StringVal,StringVal) -> B.Top
   (QuoteVal sym1,QuoteVal sym2) -> case (toList sym1, toList sym2) of 
     ([x], [y]) -> if x == y then B.True else B.False
@@ -347,18 +362,31 @@ numNTo = proc (op,minArity,xs,ret) ->
 
 numLub :: Val -> Val -> Val
 numLub x y = case (x,y) of
-  (FloatVal,FloatVal) -> FloatVal
-  (IntVal,FloatVal) -> FloatVal
-  (FloatVal,IntVal) -> FloatVal
-  (IntVal,IntVal) -> IntVal
+  (NumVal FloatVal,NumVal FloatVal) -> NumVal FloatVal
+  (NumVal IntVal,NumVal IntVal) -> NumVal IntVal
+  (NumVal IntVal,NumVal _) -> NumVal NumTop
+  (NumVal _,NumVal IntVal) -> NumVal NumTop
+  (NumVal FloatVal,NumVal _) -> NumVal NumTop
+  (NumVal _,NumVal FloatVal) -> NumVal NumTop
+  (NumVal NumTop,NumVal NumTop) -> NumVal NumTop
+  (Top,_) -> Top
+  (_,Top) -> Top
+  (_,_) -> Bottom
+
+numLubDivision :: Val -> Val -> Val
+numLubDivision x y = case (x,y) of
+  (NumVal FloatVal,NumVal _) -> NumVal FloatVal
+  (NumVal _,NumVal FloatVal) -> NumVal FloatVal
+  (NumVal IntVal,NumVal IntVal) -> NumVal NumTop
+  (NumVal NumTop,NumVal _) -> NumVal NumTop
+  (NumVal _,NumVal NumTop) -> NumVal NumTop
   (Top,_) -> Top
   (_,Top) -> Top
   (_,_) -> Bottom
 
 isNum :: Val -> B.Bool
 isNum v = case v of
-  IntVal -> B.True
-  FloatVal -> B.True
+  NumVal _ -> B.True
   Top -> B.Top
   _ -> B.False
 
@@ -375,8 +403,7 @@ instance Pretty Addr where
 instance Hashable Val
 instance Show Val where show = show . pretty
 instance Pretty Val where
-  pretty IntVal = "Int"
-  pretty FloatVal = "Real"
+  pretty (NumVal nv) = viaShow nv
   pretty (BoolVal b) = viaShow b
   pretty (ClosureVal cls) = viaShow cls
   pretty StringVal = "String"
@@ -389,6 +416,12 @@ instance Pretty List where
   pretty Nil = "Nil"
   pretty (Cons a1 a2) = "Cons" <> parens (pretty a1 <> "," <> pretty a2)
   pretty (ConsNil a1 a2) = "Cons" <> parens (pretty a1 <> "," <> pretty a2) <> " ⊔ Nil"
+instance Hashable Number 
+instance Show Number where show = show . pretty
+instance Pretty Number where
+  pretty IntVal = "Int"
+  pretty FloatVal = "Float"
+  pretty NumTop = "NumTop"
 
 instance IsClosure Val (HashSet Env) where
   mapEnvironment f v = case v of
@@ -401,8 +434,7 @@ instance IsClosure Val (HashSet Env) where
 instance PreOrd Val where
   Bottom ⊑ _ = True
   _ ⊑ Top = True
-  IntVal ⊑ IntVal = True
-  FloatVal ⊑ FloatVal = True
+  NumVal nv1 ⊑ NumVal nv2 = nv1 ⊑ nv2
   StringVal ⊑ StringVal = True
   QuoteVal sym1 ⊑ QuoteVal sym2 = sym1 ⊑ sym2 
   BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
@@ -413,8 +445,7 @@ instance PreOrd Val where
 instance Complete Val where
   Bottom ⊔ x = x
   x ⊔ Bottom = x
-  IntVal ⊔ IntVal = IntVal
-  FloatVal ⊔ FloatVal = FloatVal
+  NumVal nv1 ⊔ NumVal nv2 = NumVal (nv1 ⊔ nv2)
   BoolVal b1 ⊔ BoolVal b2 = BoolVal (b1 ⊔ b2)
   ClosureVal c1 ⊔ ClosureVal c2 = ClosureVal (c1 ⊔ c2)
   StringVal ⊔ StringVal = StringVal
@@ -431,6 +462,12 @@ instance PreOrd List where
   Cons x1 x2 ⊑ ConsNil y1 y2 = x1 ⊑ y1 && x2 ⊑ y2
   _ ⊑ _ = False
 
+instance PreOrd Number where
+  IntVal ⊑ IntVal = True
+  FloatVal ⊑ FloatVal = True
+  _ ⊑ NumTop = True
+  _ ⊑ _ = False
+
 instance Complete List where
   Nil ⊔ Nil = Nil
   Cons x1 x2 ⊔ Cons y1 y2 = Cons (x1 ⊔ y1) (x2 ⊔ y2)
@@ -442,6 +479,15 @@ instance Complete List where
   Cons x1 x2 ⊔ ConsNil y1 y2 = ConsNil (x1 ⊔ y1) (x2 ⊔ y2)
   Nil ⊔ ConsNil y1 y2 = ConsNil y1 y2
   ConsNil y1 y2 ⊔ Nil = ConsNil y1 y2
+
+instance Complete Number where
+  IntVal ⊔ IntVal = IntVal
+  IntVal ⊔ _ = NumTop
+  _ ⊔ IntVal = NumTop
+  FloatVal ⊔ FloatVal = FloatVal
+  FloatVal ⊔ _ = NumTop
+  _ ⊔ FloatVal = NumTop
+  NumTop ⊔ NumTop = NumTop
 
 instance (Identifiable s, IsString s) => IsString (HashSet s) where
   fromString = singleton . fromString

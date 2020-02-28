@@ -1,5 +1,5 @@
 #lang scheme
-(require "imports.scm")
+(require "../imports.scm")
 
 (define *namelist* '())
 (define *lastlook* '(xxx ()))
