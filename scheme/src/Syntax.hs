@@ -243,7 +243,7 @@ instance Pretty Expr where
     Nil _ -> "nil"
     Cons e1 e2 _ -> parens $ "cons" <+> pretty e1 <+> pretty e2
     Begin es _-> parens $ "begin" <+> pretty es
-    App e1 e2 _ -> parens $ pretty e1 <+> pretty e2
+    App e1 e2 _ -> parens $ "apply" <+> pretty e1 <+> pretty e2
     Apply e _ -> parens $ pretty e
     Var x _ -> pretty x
     Set t e _ -> parens $ "set!" <+> pretty t <+> pretty e
@@ -310,3 +310,11 @@ apply = L.prism' (\(store,((es,l),env)) -> (store,(env, [Apply es l])))
                  (\(store,(env,e)) -> case e of
                       Apply es l:_ -> Just (store,((es,l),env))
                       _ -> Nothing)
+{-# INLINE apply #-}
+
+nonEmpty :: Prism' (store,(env,[Expr])) (store,(([Expr],Label),env))
+nonEmpty = L.prism' (\(store,((es,_),env)) -> (store,(env, es)))
+                 (\(store,(env,es)) -> case es of
+                      e:_ -> Just (store,((es,label e),env))
+                      _ -> Nothing)
+{-# INLINE nonEmpty #-}

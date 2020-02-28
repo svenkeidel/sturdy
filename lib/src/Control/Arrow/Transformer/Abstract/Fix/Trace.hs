@@ -30,11 +30,12 @@ import Text.Printf
 
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,
-            ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt)
+            ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt,
+            ArrowTopLevel,ArrowStackDepth,ArrowStackElements a)
 
-instance ArrowIterate a c => ArrowIterate a (TraceT c) where
-  nextIteration = TraceT $ proc a ->
-    nextIteration -< Debug.trace (printf "NEXT ITERATION\n\n") a
+instance ArrowIterate c => ArrowIterate (TraceT c) where
+  nextIteration = TraceT $ proc () ->
+    nextIteration -< Debug.trace (printf "NEXT ITERATION\n\n") ()
 
 instance (Show a, Show b, ArrowCache a b c) => ArrowCache a b (TraceT c) where
   initialize = TraceT $ proc a -> do

@@ -196,5 +196,5 @@ instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
 instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c)
 instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c)
 instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w c)
-instance (Monoid w, ArrowIterate a c) => ArrowIterate a (WriterT w c)
+instance (Monoid w, ArrowIterate c) => ArrowIterate (WriterT w c)
 

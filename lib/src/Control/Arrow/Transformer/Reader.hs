@@ -173,5 +173,5 @@ instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
 
 instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c)
 instance ArrowCache a b c => ArrowCache a b (ReaderT r c)
-instance ArrowIterate a c => ArrowIterate a (ReaderT r c)
+instance ArrowIterate c => ArrowIterate (ReaderT r c)
 instance ArrowControlFlow stmt c => ArrowControlFlow stmt (ReaderT r c)

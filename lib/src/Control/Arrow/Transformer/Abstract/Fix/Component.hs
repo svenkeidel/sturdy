@@ -32,7 +32,7 @@ import           Data.Coerce
 
 newtype ComponentT a c x y = ComponentT (WriterT (Component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowStackDepth,ArrowStackElements a,ArrowCache a b,
-            ArrowState s,ArrowIterate a,ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
+            ArrowState s,ArrowIterate,ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowComponent (Component a) (ComponentT a c) where
   setComponent f = lift (rmap snd (unlift f))

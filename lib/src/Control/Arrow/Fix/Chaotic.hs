@@ -10,7 +10,6 @@ import           Prelude hiding (head,iterate,map)
 
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Iterate
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Utils(map)
@@ -46,7 +45,7 @@ detectLoop iterate = setComponent $ proc a -> do
 {-# INLINE detectLoop #-}
 
 -- | Iterate on the innermost fixpoint component.
-innermost :: forall a b c. (Identifiable a, ArrowChoice c, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c, ArrowIterate a c) => FixpointCombinator c a b
+innermost :: forall a b c. (Identifiable a, ArrowChoice c, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c) => FixpointCombinator c a b
 {-# INLINE innermost #-}
 innermost f = detectLoop (Stack.push iterate)
   where
@@ -61,14 +60,12 @@ innermost f = detectLoop (Stack.push iterate)
               (stable,bNew) <- Cache.update -< (a,b)
               case stable of
                 Stable -> returnA -< (Component { head = H.delete a (head comp), body = H.insert a (body comp) }, bNew)
-                Unstable -> do
-                  nextIteration -< a
-                  iterate -< a
+                Unstable -> iterate -< a
            | otherwise ->
              returnA -< (comp, b)
 
 -- | Iterate on the outermost fixpoint component.
-outermost :: forall a b c. (Identifiable a, ArrowChoice c, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c, ArrowIterate a c) => FixpointCombinator c a b
+outermost :: forall a b c. (Identifiable a, ArrowChoice c, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c) => FixpointCombinator c a b
 {-# INLINE outermost #-}
 outermost f = detectLoop (Stack.push iterate)
   where
@@ -93,9 +90,7 @@ outermost f = detectLoop (Stack.push iterate)
                  returnA -< (empty, bNew)
 
                -- If the head of a fixpoint component is not stable, keep iterating.
-               Unstable -> do
-                 nextIteration -< a
-                 iterate -< a
+               Unstable -> iterate -< a
 
         -- We are inside an  fixpoint component, but its head has not stabilized.
            | otherwise -> do

@@ -15,7 +15,7 @@ import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
 import           Control.Arrow.Fix.Iterate as Iterate
 import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements)
+import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,ArrowTopLevel)
 import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
 import           Control.Arrow.State
@@ -35,17 +35,25 @@ import           Data.Identifiable
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowComplete z,
             ArrowCache a b,ArrowState s,ArrowTrans,ArrowContext ctx, ArrowJoinContext u,
-            ArrowIterate a,ArrowControlFlow stmt)
+            ArrowIterate,ArrowControlFlow stmt)
 
 data Stack a = Stack
   { elems :: HashSet a
   , stack :: [a]
   , depth  :: !Int
+  , isTopLevel :: Bool
   }
 
 instance IsEmpty (Stack a) where
-  empty = Stack { elems = empty, stack = empty, depth = 0 }
+  empty = Stack { elems = empty, stack = empty, depth = 0, isTopLevel = True }
   {-# INLINE empty #-}
+
+instance (ArrowChoice c, Profunctor c) => ArrowTopLevel (StackT Stack a c) where
+  topLevel strat f = lift $ proc (st,a) ->
+    if isTopLevel st
+    then unlift (strat f) -< (st {isTopLevel = False}, a)
+    else unlift f -< (st,a)
+  {-# INLINABLE topLevel #-}
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
   push f = lift $ proc (st,a) -> do

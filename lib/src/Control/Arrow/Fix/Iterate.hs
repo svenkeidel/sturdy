@@ -1,4 +1,3 @@
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DefaultSignatures #-}
@@ -10,12 +9,12 @@ import Control.Arrow.Trans
 import Data.Profunctor
 import Data.Abstract.Stable
 
-class (Arrow c, Profunctor c) => ArrowIterate a c | c -> a where
-  isStable :: c a Stable
-  nextIteration :: c a ()
+class (Arrow c, Profunctor c) => ArrowIterate c where
+  isStable :: c () Stable
+  nextIteration :: c () ()
 
-  default isStable :: (c ~ t c', ArrowLift t, ArrowIterate a c') => c a Stable
-  default nextIteration :: (c ~ t c', ArrowLift t, ArrowIterate a c') => c a ()
+  default isStable :: (c ~ t c', ArrowLift t, ArrowIterate c') => c () Stable
+  default nextIteration :: (c ~ t c', ArrowLift t, ArrowIterate c') => c () ()
 
   isStable = lift' isStable
   nextIteration = lift' nextIteration

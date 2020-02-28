@@ -204,6 +204,7 @@ instance (ArrowCache a b c) => ArrowCache a b (StateT s c)
 instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StateT s c)
 instance ArrowStackDepth c => ArrowStackDepth (StateT s c)
 instance ArrowStackElements a c => ArrowStackElements a (StateT s c)
+instance ArrowTopLevel c => ArrowTopLevel (StateT s c)
 
 instance ArrowComponent a c => ArrowComponent a (StateT s c) where
   setComponent f = lift $ setComponent (rmap shuffle1 (unlift f))

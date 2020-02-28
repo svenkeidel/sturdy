@@ -95,6 +95,12 @@ instance IsEmpty (Cache a b) where
 instance (Show a, Show b) => Show (Cache a b) where
   show (Cache m) = show (M.toList m)
 
+instance (ArrowChoice c, Profunctor c) => ArrowIterate (CacheT Cache a b c) where
+  nextIteration = proc () -> put -< empty
+  isStable = proc _ -> returnA -< error "Don't use Monotone for parallel fixpoint iteration"
+  {-# INLINE nextIteration #-}
+  {-# INLINE isStable #-}
+
 instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c)
   => ArrowCache a b (CacheT Cache a b c) where
   initialize = CacheT $ modify' $ \(a,Cache cache) ->
@@ -124,16 +130,6 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c)
   {-# INLINE update #-}
   {-# INLINE setStable #-}
 
-instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowIterate a (CacheT Cache a b c) where
-  nextIteration = proc _ -> returnA -< ()
-  isStable = proc a -> do
-    m <- lookup -< a
-    returnA -< case m of
-      Just (s,_) -> s
-      Nothing -> Unstable
-  {-# INLINE nextIteration #-}
-  {-# INLINE isStable #-}
-
 instance Identifiable a => IsList (Cache a b) where
   type Item (Cache a b) = (a,b,Stable)
   toList (Cache m) = [ (a,b,s) | (a,(s,b)) <- M.toList m]
@@ -157,15 +153,9 @@ instance (Identifiable k, Arrow c, Profunctor c, ArrowCache a b (CacheT cache a 
   setStable = lmap shuffle1 (withGroup Cache.setStable)
   {-# INLINE initialize #-}
   {-# INLINE lookup #-}
-  {-# INLINE update #-}
+
   {-# INLINE write #-}
   {-# INLINE setStable #-}
-
-instance (Identifiable k, IsEmpty (cache a b), Arrow c, Profunctor c, ArrowIterate a (CacheT cache a b c)) => ArrowIterate (k,a) (CacheT (Group cache) (k,a) b c) where
-  isStable = withGroup isStable
-  nextIteration = withGroup nextIteration
-  {-# INLINE nextIteration #-}
-  {-# INLINE isStable #-}
 
 instance (Identifiable k, IsEmpty (cache a b), ArrowApply c, Profunctor c, ArrowJoinContext a (CacheT cache a b c)) => ArrowJoinContext (k,a) (CacheT (Group cache) (k,a) b c) where
   joinByContext = proc (k,a) -> do
@@ -197,9 +187,11 @@ type instance Widening (Parallel cache a b) = Widening (cache a b)
 instance IsEmpty (cache a b) => IsEmpty (Parallel cache a b) where
   empty = Parallel { old = empty, new = empty, stable = Stable }
 
-instance (IsEmpty (cache a b), Arrow c, Profunctor c) => ArrowIterate a (CacheT (Parallel cache) a b c) where
+instance (Arrow c, Profunctor c, ArrowIterate (CacheT cache a b c)) => ArrowIterate (CacheT (Parallel cache) a b c) where
   isStable = modify' (\(_,p) -> (stable p,p))
-  nextIteration = modify' (\(_,p) -> ((),Parallel { old = new p, new = empty, stable = Stable }))
+  nextIteration = proc a -> do
+    modify' (\(_,p) -> ((),p { old = new p, stable = Stable })) -< ()
+    newCache nextIteration -< a
   {-# INLINE isStable #-}
   {-# INLINE nextIteration #-}
 
@@ -253,18 +245,18 @@ instance IsEmpty s => IsEmpty (Monotone (s,a) (s,b)) where
 instance (Show s, Show a, Show b) => Show (Monotone (s,a) (s,b)) where
   show (Monotone s m) = show (s,m)
 
--- instance (Arrow c, Profunctor c) => ArrowParallel (CacheT Monotone a b c) where
---   isStable = _
---   nextIteration = id
---   {-# INLINE isStable #-}
---   {-# INLINE nextIteration #-}
+instance (ArrowChoice c, Profunctor c) => ArrowIterate (CacheT Monotone (s,a) (s,b) c) where
+  nextIteration = modify' $ \(_,Monotone s _) -> ((),Monotone s empty)
+  isStable = proc _ -> returnA -< error "Don't use Monotone for parallel fixpoint iteration"
+  {-# INLINE nextIteration #-}
+  {-# INLINE isStable #-}
 
 instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowCache (s,a) (s,b) (CacheT Monotone (s,a) (s,b) c) where
   initialize = CacheT $ modify' $ \((s,a),Monotone s' cache) ->
     let cache' = M.insertWith (\_ _old -> _old) a bottom cache
         b = M.lookupDefault bottom a cache
     in ((s,b),Monotone s' cache')
-  lookup = CacheT $ modify' $ \((s,a),m@(Monotone _ cache)) -> do
+  lookup = CacheT $ modify' $ \((s,a),m@(Monotone _ cache)) ->
     ((\b -> (Unstable,(s,b))) <$> M.lookup a cache, m)
   update = CacheT $ askConst $ \(widenS,widenB) -> modify' $ \(((_,a),(sNew,b)),Monotone sOld cache) ->
     let (stable1,sWiden) = widenS sOld sNew
@@ -273,7 +265,7 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowC
           let ~(stable2,b'') = widenB b' b
           in ((stable1 ⊔ stable2, (sWiden,b'')), Monotone sWiden (M.insert a b'' cache))
         Nothing -> ((Unstable,(sWiden,b)),Monotone sWiden (M.insert a b cache))
-  write = CacheT $ proc _ -> returnA -< ()
+  write = CacheT $ modify' $ \(((_, a), (_, b), _),Monotone s cache) -> ((),Monotone s (M.insert a b cache))
   setStable = CacheT $ proc _ -> returnA -< ()
   {-# INLINE initialize #-}
   {-# INLINE lookup #-}
@@ -281,26 +273,11 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowC
   {-# INLINE update #-}
   {-# INLINE setStable #-}
 
-instance (ArrowChoice c, Profunctor c) => ArrowIterate a (CacheT Monotone a b c) where
-  nextIteration = proc _ -> returnA -< ()
-  isStable = proc _ -> returnA -< Unstable
-  {-# INLINE nextIteration #-}
-  {-# INLINE isStable #-}
-
 ------ Product Cache ------
 data (**) cache1 cache2 a b where
   Product :: cache1 a1 b1 -> cache2 a2 b2 -> (**) cache1 cache2 (a1,a2) (b1,b2)
 
 type instance Widening ((cache1 ** cache2) (a1,a2) (b1,b2)) = (Widening (cache1 a1 b1), Widening (cache2 a2 b2))
-
--- instance (Arrow c, Profunctor c, ArrowParallel (CacheT cache1 a1 b1 c), ArrowParallel (CacheT cache2 a2 b2 c)) => ArrowParallel (CacheT (cache1 ** cache2) (a1,a2) (b1,b2) c) where
---   isStable = proc () -> do
---     (s1,s2) <- isStable ** isStable -< ((),())
---     returnA -< s1 ⊔ s2
---   nextIteration = proc () -> do
---     nextIteration ** nextIteration -< ((),())
---     returnA -< ()
---   {-# INLINE nextIteration #-}
 
 instance (IsEmpty (cache1 a1 b1), IsEmpty (cache2 a2 b2)) => IsEmpty ((**) cache1 cache2 (a1,a2) (b1,b2)) where
   empty = Product empty empty
@@ -388,7 +365,7 @@ instance (Arrow c, Profunctor c, ArrowCache a b (CacheT cache a b c)) => ArrowCa
   {-# INLINE write #-}
   {-# INLINE setStable #-}
 
-instance (Arrow c, Profunctor c, ArrowIterate a (CacheT cache a b c)) => ArrowIterate a (CacheT (Context ctx cache) a b c) where
+instance (Arrow c, Profunctor c, ArrowIterate (CacheT cache a b c)) => ArrowIterate (CacheT (Context ctx cache) a b c) where
   nextIteration = withCache nextIteration
   isStable = withCache isStable
   {-# INLINE nextIteration #-}

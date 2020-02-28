@@ -39,15 +39,16 @@ import           Data.Coerce
 import           Text.Printf
 
 newtype MetricsT a c x y = MetricsT (StateT (Metrics a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComponent comp,ArrowControlFlow stmt,ArrowStackDepth,ArrowStackElements a,ArrowContext ctx)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComponent comp,ArrowControlFlow stmt,
+            ArrowStackDepth,ArrowStackElements a,ArrowContext ctx,ArrowTopLevel)
 
-newtype Metrics a = Metrics { metricCache :: HashMap a Metric }
+data Metrics a = Metrics { iteration :: !Int, metricCache :: HashMap a Metric }
 
-data Metric = Metric { filtered :: !Int, stackLookups :: !Int, cacheEntries :: !Int, iteration :: !Int, cacheLookups :: !Int, updates :: !Int } deriving (Show)
+data Metric = Metric { filtered :: !Int, stackLookups :: !Int, cacheEntries :: !Int, cacheLookups :: !Int, updates :: !Int } deriving (Show)
 instance Semigroup Metric where
-  Metric f1 s1 e1 i1 l1 u1 <> Metric f2 s2 e2 i2 l2 u2 = Metric (f1 + f2) (s1 + s2) (e1 + e2) (i1 + i2) (l1 + l2) (u1 + u2)
+  Metric f1 s1 e1 l1 u1 <> Metric f2 s2 e2 l2 u2 = Metric (f1 + f2) (s1 + s2) (e1 + e2) (l1 + l2) (u1 + u2)
 instance Monoid Metric where
-  mempty = Metric 0 0 0 0 0 0
+  mempty = Metric 0 0 0 0 0
   mappend = (<>)
   {-# INLINE mappend #-}
 
@@ -55,12 +56,12 @@ csvHeader :: String
 csvHeader = "Filtered,Stack Lookups,Cache Entries,Iteration,Cache Lookups,Cache Updates"
 
 toCSV :: Metrics a -> String
-toCSV (Metrics m) =
-  let Metric f s e i l u = fold m
+toCSV (Metrics i m) =
+  let Metric f s e l u = fold m
   in printf "%d,%d,%d,%d,%d,%d" f s e i l u
 
 instance IsEmpty (Metrics a) where
-  empty = Metrics empty
+  empty = Metrics 0 empty
 
 instance (Identifiable a, Arrow c,Profunctor c) => ArrowFiltered a (MetricsT a c) where
   filtered = MetricsT $ proc a ->
@@ -93,14 +94,14 @@ instance (Identifiable a, ArrowChoice c, Profunctor c, ArrowCache a b c) => Arro
   {-# INLINE update #-}
   {-# INLINE write #-}
 
-instance (Identifiable a, Profunctor c, Arrow c, ArrowIterate a c) => ArrowIterate a (MetricsT a c) where
+instance (Identifiable a, Profunctor c, Arrow c, ArrowIterate c) => ArrowIterate (MetricsT a c) where
   nextIteration = MetricsT $ proc a -> do
-    modifyMetric incrementIterations -< a
+    modify' (\((),Metrics i c) -> ((),Metrics (i + 1) c)) -< ()
     lift' nextIteration -< a
   {-# INLINE nextIteration #-}
 
 modifyMetric :: (Identifiable a, ArrowState (Metrics a) c) => (Metric -> Metric) -> c a ()
-modifyMetric f = modify' (\(a,Metrics m) -> ((),Metrics (upsert f a m)))
+modifyMetric f = modify' (\(a,Metrics i m) -> ((),Metrics i (upsert f a m)))
 {-# INLINE modifyMetric #-}
 
 setFiltered :: Metric -> Metric
@@ -117,9 +118,6 @@ incrementStackLookups m@Metric{..} = m { stackLookups = stackLookups + 1 }
 
 incrementUpdates :: Metric -> Metric
 incrementUpdates m@Metric{..} = m { cacheEntries = 1, updates = updates + 1 }
-
-incrementIterations :: Metric -> Metric
-incrementIterations m@Metric{..} = m { iteration = iteration + 1 }
 
 upsert :: Identifiable a => Monoid b => (b -> b) -> a -> HashMap a b -> HashMap a b
 upsert f a = M.insertWith (\_ _old -> f _old) a mempty

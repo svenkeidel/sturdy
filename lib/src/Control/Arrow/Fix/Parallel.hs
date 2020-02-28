@@ -1,37 +1,34 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Fix.Parallel where
+-- | Parallel fixpoint iteration.
+module Control.Arrow.Fix.Parallel(parallel,parallelADI) where
 
-import Prelude hiding (iterate)
+import           Prelude hiding (iterate)
 
-import Control.Arrow hiding (loop)
-import Control.Arrow.Fix
-import Control.Arrow.Fix.Iterate
-import Control.Arrow.Fix.Stack as Stack
-import Control.Arrow.Fix.Cache (ArrowCache)
+import           Control.Arrow hiding (loop)
+import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Iterate
+import           Control.Arrow.Fix.Stack as Stack
+import           Control.Arrow.Fix.Cache (ArrowCache)
 import qualified Control.Arrow.Fix.Cache as Cache
 
-import Data.Abstract.Stable
+import           Data.Abstract.Stable
 
-parallel :: forall a b c. (ArrowIterate a c, ArrowStack a c, ArrowStackDepth c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
-parallel f = proc a -> do
-  n <- Stack.depth -< ()
-  if n == 0
-  then iterate -< a
-  else update -< a
+iterate :: forall a b c. (ArrowIterate c, ArrowChoice c) => FixpointCombinator c a b
+iterate f = proc a -> do
+  b <- f -< a
+  s <- isStable -< ()
+  case s of
+    Stable -> returnA -< b
+    Unstable -> do
+      nextIteration -< ()
+      iterate f -< a
 
+parallel :: forall a b c. (ArrowChoice c, ArrowTopLevel c, ArrowIterate c, ArrowStack a c, ArrowCache a b c) => FixpointCombinator c a b
+parallel = topLevel iterate . update
   where
-    iterate = proc a -> do
-      b <- update -< a
-      s <- isStable -< a
-      case s of
-        Stable -> returnA -< b
-        Unstable -> do
-          nextIteration -< a
-          iterate -< a
-
-    update = proc a -> do
+    update f = proc a -> do
       loop <- Stack.elem -< a
       if loop
       then do
@@ -45,27 +42,13 @@ parallel f = proc a -> do
             returnA -< b'
       else
         Stack.push f -< a
-{-# INLINE parallel #-}
+{-# INLINABLE parallel #-}
 
 -- Implements the fixpoint algorithm in the ADI paper.
-parallelADI :: forall a b c. (ArrowIterate a c, ArrowStack a c, ArrowStackDepth c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
-parallelADI f = proc a -> do
-  n <- Stack.depth -< ()
-  if n == 0
-  then iterate -< a
-  else update -< a
-
+parallelADI :: forall a b c. (ArrowChoice c, ArrowTopLevel c, ArrowStack a c, ArrowIterate c, ArrowCache a b c) => FixpointCombinator c a b
+parallelADI = topLevel iterate . update
   where
-    iterate = proc a -> do
-      b <- update -< a
-      s <- isStable -< a
-      case s of
-        Stable -> returnA -< b
-        Unstable -> do
-          nextIteration -< a
-          iterate -< a
-
-    update = proc a -> do
+    update f = proc a -> do
       m <- Cache.lookup -< a
       case m of
         Just (_,b) -> returnA -< b

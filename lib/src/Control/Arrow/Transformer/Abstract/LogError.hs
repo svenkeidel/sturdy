@@ -5,6 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
+{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 module Control.Arrow.Transformer.Abstract.LogError(LogErrorT,runLogErrorT) where
 
 import Prelude hiding (id,(.),lookup,read)
