@@ -47,10 +47,11 @@ class (Arrow c, Profunctor c) => ArrowStackElements a c where
   {-# INLINE peek #-}
 
 class (Arrow c, Profunctor c) => ArrowTopLevel c where
-  topLevel :: FixpointCombinator c a b -> FixpointCombinator c a b
+  topLevel :: FixpointCombinator c a b -> FixpointCombinator c a b -> FixpointCombinator c a b
 
-  default topLevel :: (Underlying c a b ~ c' a' b', ArrowTrans c, ArrowTopLevel c') => FixpointCombinator c a b -> FixpointCombinator c a b
-  topLevel strat f = lift $ topLevel (unlift . strat . lift) (unlift f)
+  default topLevel :: (Underlying c a b ~ c' a' b', ArrowTrans c, ArrowTopLevel c') => FixpointCombinator c a b -> FixpointCombinator c a b -> FixpointCombinator c a b
+  topLevel stratTop stratLower f = lift $ topLevel (unlift1 stratTop) (unlift1 stratLower) (unlift f)
+  {-# INLINE topLevel #-}
 
 maxDepth :: (ArrowChoice c, ArrowStackDepth c) => Int -> FixpointCombinator c a b -> FixpointCombinator c a b
 maxDepth limit strat f = proc a -> do

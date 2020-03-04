@@ -46,7 +46,7 @@ type instance Fix (PowT c) x y = PowT (Fix c x (A.Pow y))
 instance (Identifiable y, Profunctor c, ArrowFix (Underlying (PowT c) x y)) => ArrowFix (PowT c x y) where
   fix f = lift $ rmap A.dedup (fix (coerce f))
 
-instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded (PowT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded y (PowT c) where
   bottom = lift $ arr (const A.empty)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where

@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -172,8 +173,8 @@ instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
   {-# INLINE throw #-}
   {-# INLINE try #-}
 
-instance (ArrowLowerBounded c) => ArrowLowerBounded (StateT s c) where
-  bottom = lift bottom
+instance (ArrowLowerBounded y c) => ArrowLowerBounded y (StateT s c) where
+  bottom = lift' bottom
   {-# INLINE bottom #-}
 
 instance (ArrowJoin c, O.Complete s) => ArrowJoin (StateT s c) where
@@ -200,17 +201,19 @@ instance ArrowWidening y c => ArrowWidening y (StateT s c) where
   widening = lift' widening
   {-# INLINE widening #-}
 
-instance (ArrowCache a b c) => ArrowCache a b (StateT s c)
+instance ArrowCache a b c => ArrowCache a b (StateT s c)
+instance ArrowParallelCache a b c => ArrowParallelCache a b (StateT s c)
+instance ArrowIterateCache c => ArrowIterateCache (StateT s c)
 instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StateT s c)
 instance ArrowStackDepth c => ArrowStackDepth (StateT s c)
 instance ArrowStackElements a c => ArrowStackElements a (StateT s c)
 instance ArrowTopLevel c => ArrowTopLevel (StateT s c)
-
-instance ArrowComponent a c => ArrowComponent a (StateT s c) where
-  setComponent f = lift $ setComponent (rmap shuffle1 (unlift f))
-  getComponent f = lift $ rmap shuffle1 (getComponent (unlift f))
-  {-# INLINE setComponent #-}
-  {-# INLINE getComponent #-}
+instance (ArrowJoinContext a c) => ArrowJoinContext a (StateT s c)
+instance ArrowComponent a c => ArrowComponent a (StateT s c)
+instance ArrowInComponent a c => ArrowInComponent a (StateT s c)
+instance (ArrowApply c, ArrowStack a c) => ArrowStack a (StateT s c) where
+  push f = lift $ proc (s,a) -> push (proc a' -> unlift f -< (s,a')) -<< a
+  {-# INLINE push #-}
 
 instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
   => ArrowEffectCommutative (StateT s c)

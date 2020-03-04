@@ -18,7 +18,6 @@ import Control.Arrow.Except as Exc
 import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Fix.ControlFlow as CF
-import Control.Arrow.Fix.Iterate as Iterate
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
 import Control.Arrow.Order
@@ -149,13 +148,13 @@ instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
   {-# INLINE throw #-}
   {-# INLINE try #-}
 
-instance ArrowLowerBounded c => ArrowLowerBounded (ReaderT r c) where
-  bottom = ReaderT bottom
-  {-# INLINE bottom #-}
-
 instance ArrowJoin c => ArrowJoin (ReaderT r c) where
   joinSecond lub f g = lift $ joinSecond lub (f . snd) (unlift g)
   {-# INLINE joinSecond #-}
+
+instance ArrowLowerBounded y c => ArrowLowerBounded y (ReaderT r c) where
+  bottom = ReaderT bottom
+  {-# INLINE bottom #-}
 
 instance ArrowComplete y c => ArrowComplete y (ReaderT r c) where
   f <⊔> g = lift $ unlift f <⊔> unlift g
@@ -173,5 +172,6 @@ instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
 
 instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c)
 instance ArrowCache a b c => ArrowCache a b (ReaderT r c)
-instance ArrowIterate c => ArrowIterate (ReaderT r c)
+instance ArrowParallelCache a b c => ArrowParallelCache a b (ReaderT r c)
+instance ArrowIterateCache c => ArrowIterateCache (ReaderT r c)
 instance ArrowControlFlow stmt c => ArrowControlFlow stmt (ReaderT r c)

@@ -43,7 +43,7 @@ import Data.Coerce
 
 -- | Passes along constant data.
 newtype ConstT r c x y = ConstT (StaticT ((->) r) c x y)
-  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded,ArrowLift,ArrowJoin,ArrowPrimitive,
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded a,ArrowLift,ArrowJoin,ArrowPrimitive,
             ArrowState s,ArrowReader r',ArrowWriter w, ArrowLetRec var val,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val,
             ArrowFail e, ArrowExcept e,
@@ -60,6 +60,10 @@ runConstT r (ConstT (StaticT f)) = f r
 liftConstT :: (c x y -> c' x' y') -> ConstT r c x y -> ConstT r c' x' y'
 liftConstT f g = lift $ \r -> f (unlift g r)
 {-# INLINE liftConstT #-}
+
+unliftConstT :: r -> (ConstT r c x y -> ConstT r c' x' y') -> (c x y -> c' x' y')
+unliftConstT r f x = runConstT r (f (constT $ const x))
+{-# INLINE unliftConstT #-}
 
 mapConstT :: (r' -> r) -> (ConstT r c x y -> ConstT r' c x y)
 mapConstT g (ConstT (StaticT f)) = constT $ \r' -> f (g r')

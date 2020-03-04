@@ -17,7 +17,6 @@ import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
-import Control.Arrow.Fix.Iterate as Iterate
 import Control.Arrow.Environment as Env
 import Control.Arrow.LetRec as LetRec
 import Control.Arrow.Closure as Cls
@@ -162,8 +161,8 @@ instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) wh
 type instance Fix (WriterT w c) x y  = WriterT w (Fix c x (w,y))
 deriving instance ArrowFix (Underlying (WriterT w c) x y) => ArrowFix (WriterT w c x y)
 
-instance (Monoid w, ArrowLowerBounded c) => ArrowLowerBounded (WriterT w c) where
-  bottom = lift bottom
+instance (Monoid w, ArrowLowerBounded y c) => ArrowLowerBounded y (WriterT w c) where
+  bottom = lift' bottom
   {-# INLINE bottom #-}
 
 instance (Monoid w, O.Complete w, ArrowJoin c) => ArrowJoin (WriterT w c) where
@@ -196,5 +195,4 @@ instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
 instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c)
 instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c)
 instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w c)
-instance (Monoid w, ArrowIterate c) => ArrowIterate (WriterT w c)
 

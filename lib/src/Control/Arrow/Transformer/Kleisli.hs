@@ -152,8 +152,9 @@ instance (ArrowMonad f c, ArrowComplete (f y) c) => ArrowComplete y (KleisliT f 
   f <⊔> g = lift $ unlift f <⊔> unlift g
   {-# INLINE (<⊔>) #-}
 
-instance (ArrowMonad f c, ArrowLowerBounded c) => ArrowLowerBounded (KleisliT f c) where
-  bottom = lift Ord.bottom
+instance (ArrowMonad f c, ArrowLowerBounded y c) => ArrowLowerBounded y (KleisliT f c) where
+  bottom = lift' Ord.bottom
+  {-# INLINE bottom #-}
 
 instance (ArrowMonad f c, ArrowContext ctx c) => ArrowContext ctx (KleisliT f c) where
   localContext (KleisliT f) = KleisliT (localContext f)

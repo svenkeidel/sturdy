@@ -1,13 +1,14 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Fix(Fix,Fix',ArrowFix(..),FixpointCombinator,transform,filter,filter',trace,trace',traceShow,traceCache) where
+module Control.Arrow.Fix(Fix,Fix',ArrowFix(..),FixpointAlgorithm,FixpointCombinator,fixpointCombinator,transform,filter,filter',trace,trace',traceShow,traceCache) where
 
 import           Prelude hiding (filter,pred)
 
@@ -17,8 +18,10 @@ import qualified Control.Arrow.State as State
 import           Control.Arrow.Trans
 import           Control.Arrow.Fix.Metrics
 
+import qualified Data.Function as Function
 import           Data.Profunctor
 import           Data.Lens(Iso',from,get,Prism',getMaybe,set)
+import           Data.Text.Prettyprint.Doc
 
 import qualified Debug.Trace as Debug
 import           Text.Printf
@@ -38,9 +41,15 @@ class ArrowFix c where
 
 type instance Fix (->) x y = (->)
 instance ArrowFix (x -> y) where
-  fix f = f (fix f)
+  fix = Function.fix
+  {-# INLINE fix #-}
 
-type FixpointCombinator c x y = c x y -> c x y
+type FixpointAlgorithm c a b = (c a b -> c a b) -> c a b
+type FixpointCombinator c a b = c a b -> c a b
+
+fixpointCombinator :: FixpointCombinator c x y -> FixpointAlgorithm c x y
+fixpointCombinator combinator eval = Function.fix (combinator . eval)
+{-# INLINE fixpointCombinator #-}
 
 transform :: Profunctor c => Iso' a a' -> FixpointCombinator c a' b -> FixpointCombinator c a b
 transform iso strat f = lmap (get iso)
@@ -62,10 +71,10 @@ filter' pred strat f = proc a -> case getMaybe pred a of
   Nothing -> f -< a
 {-# INLINE filter' #-}
 
-trace :: (Arrow c) => (a -> String) -> (b -> String) -> FixpointCombinator c a b
+trace :: (Arrow c) => (a -> Doc ann) -> (b -> Doc ann) -> FixpointCombinator c a b
 trace showA showB f = proc x -> do
-  y <- f -< Debug.trace (printf "CALL\n%s\n\n" (showA x)) x
-  returnA -< Debug.trace (printf "RETURN\n%s\n%s\n\n" (showA x) (showB y)) y
+  y <- f -< Debug.trace (show (vsep ["CALL", showA x, line])) x
+  returnA -< Debug.trace (show (vsep ["RETURN", showA x, showB y,line])) y
 {-# INLINE trace #-}
 
 trace' :: (Eq a, ArrowApply c) => (a -> String) -> (b -> String) -> FixpointCombinator c a b -> FixpointCombinator c a b
@@ -76,8 +85,8 @@ trace' showA showB strat f = proc x -> do
   returnA -< Debug.trace (printf "RETURN\n%s\n%s\n\n" (showA x) (showB y)) y
 {-# INLINE trace' #-}
 
-traceShow :: (Show a, Show b, Arrow c) => FixpointCombinator c a b
-traceShow = trace show show
+traceShow :: (Pretty a, Pretty b, Arrow c) => FixpointCombinator c a b
+traceShow = trace pretty pretty
 {-# INLINE traceShow #-}
 
 traceCache :: ArrowState cache c => (cache -> String) -> FixpointCombinator c a b

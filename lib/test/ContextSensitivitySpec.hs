@@ -20,12 +20,11 @@ module ContextSensitivitySpec where
 
 import           Prelude hiding (lookup,Bounded,fail,Bool)
 
-import           TestPrograms
+import           TestPrograms hiding (Fun(..))
 
 import           Control.Monad(forM_)
 import           Control.Arrow
 import           Control.Arrow.Fix as F
-import           Control.Arrow.Fix.Iterate
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Chaotic
 import qualified Control.Arrow.Trans as Arrow
@@ -33,7 +32,7 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable hiding (Widening)
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 
 import qualified Data.Abstract.Boolean as Abs
@@ -47,6 +46,7 @@ import           Data.Boolean
 import           Data.Identifiable
 import           Data.Order
 import           Data.Hashable
+import           Data.Text.Prettyprint.Doc
 
 import           GHC.Generics
 
@@ -61,11 +61,12 @@ spec =
   --describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
   describe "Chaotic" $ do
     describe "inner component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . innermost) (?widenA, T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (fixpointCombinator (callsiteSensitive ?sensitivity fst . chaotic innermost)) (?widenA, T.widening ?widenB) a)
     describe "outer component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst . outermost) (?widenA, T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (fixpointCombinator (callsiteSensitive ?sensitivity fst . chaotic outermost)) (?widenA, T.widening ?widenB) a)
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)
+instance Pretty Val where pretty = viaShow
 
 type Line = Int
 
@@ -155,9 +156,9 @@ instance PreOrd Fun where
 toChaotic :: (Identifiable lab, Identifiable a, Complete b)
           => Arr (lab,a) b -> TerminatingT
                           (FixT (lab,a) (Terminating b)
-                            (ComponentT (lab,a)
+                            (ComponentT Component (lab,a)
                               (StackT Stack (lab,a)
-                                (CacheT (Context (Proj2 (CtxCache (CallString lab))) Cache) (lab,a) (Terminating b)
+                                (CacheT (Context (Cache.Proj2 (CtxCache (CallString lab))) Cache) (lab,a) (Terminating b)
                                   (ContextT (CallString lab)
                                     (->)))))) (lab,a) b
 toChaotic x = x

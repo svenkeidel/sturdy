@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -26,9 +27,8 @@ import GHC.Generics
 data Terminating a = NonTerminating | Terminating a deriving (Eq,Functor,Traversable,Foldable,Generic)
 instance NFData a => NFData (Terminating a)
 
-instance Show a => Show (Terminating a) where
-  show NonTerminating = "NonTerminating"
-  show (Terminating a) = show a
+instance Pretty a => Show (Terminating a) where
+  show = show . pretty
 
 instance Pretty a => Pretty (Terminating a) where
   pretty NonTerminating = "NonTerminating"
@@ -50,11 +50,17 @@ instance Monad Terminating where
   {-# INLINE (>>=) #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor Terminating c where
-  mapA f = lmap toEither (arr (\_ -> NonTerminating) ||| rmap Terminating f)
+  -- mapA f = lmap toEither (arr (\_ -> NonTerminating) ||| rmap Terminating f)
+  mapA f = proc t -> case t of
+    Terminating x -> rmap Terminating f -< x
+    NonTerminating -> returnA -< NonTerminating
   {-# INLINE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad Terminating c where
-  mapJoinA f = lmap toEither (arr (\_ -> NonTerminating) ||| f)
+  -- mapJoinA f = lmap toEither (arr (\_ -> NonTerminating) ||| f)
+  mapJoinA f = proc t -> case t of
+    Terminating x -> f -< x
+    NonTerminating -> returnA -< NonTerminating
   {-# INLINE mapJoinA #-}
 
 toEither :: Terminating a -> Either () a
@@ -64,8 +70,8 @@ toEither NonTerminating = Left ()
 
 instance PreOrd a => PreOrd (Terminating a) where
   NonTerminating ⊑ _ = True
-  _ ⊑ NonTerminating = False
   Terminating a ⊑ Terminating b = a ⊑ b
+  _ ⊑ _ = False
 
   NonTerminating ≈ NonTerminating = True
   Terminating a ≈ Terminating b = a ≈ b

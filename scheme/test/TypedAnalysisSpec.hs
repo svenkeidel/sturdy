@@ -23,6 +23,8 @@ import           LispParser
 import           LispToHask
 
 import           TypedAnalysis
+import           TypedAnalysis.Chaotic
+import           TypedAnalysis.Parallel
 
 import           Syntax as S hiding (Nil)
 import qualified Data.Abstract.Boolean as B
@@ -34,7 +36,6 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-
   describe "behavior specific to interval analysis" $ do
     it "test lits" $ do
       -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] ["x"] `shouldBe` Terminating (Success $ singleton IntVal)
@@ -86,8 +87,9 @@ spec = do
     it "should terminate for the non-terminating program Define" $
       pending
 
-  describe "Benchmarks" $ testFixpointAlgorithms benchmarks
-  describe "Tests" $ testFixpointAlgorithms customTests
+  beforeAll (writeFile metricFile (printf "Function,Algorithm,%s\n" csvHeader)) $ do
+    describe "Benchmarks" $ testFixpointAlgorithms benchmarks
+    describe "Tests" $ testFixpointAlgorithms customTests
 
 testFixpointAlgorithms :: (Runner -> Spec) -> Spec
 testFixpointAlgorithms tests = do
@@ -109,7 +111,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 -- TIMEOUT = 30s
 
     it "boyer" $ do
-      -- pendingWith "out of memory"
+      pendingWith "out of memory"
       let inFile = "gabriel//boyer"
       let expRes = success (BoolVal B.True)
       run inFile expRes
@@ -124,7 +126,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 
 
     it "dderiv" $ do
-      -- pendingWith "out of memory"
+      pendingWith "out of memory (only parallel)"
       let inFile = "gabriel//dderiv"
       let expRes = success (BoolVal B.True)
       run inFile expRes
@@ -132,6 +134,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
     it "deriv" $ do
 --     => TIMEOUT | STATES: 1645737
       -- pendingWith "out of memory"
+      pendingWith "out of memory (only parallel)"
       let inFile = "gabriel//deriv"
       let expRes = successOrFail (return (BoolVal B.Top))
                                  -- because (equals? (list 1 2) (list 1 2)) recursively calls (equals? 1 1)
@@ -210,7 +213,7 @@ scalaAM run = describe "Scala-AM" $ do
 
 -- -------------------Custom Tests------------------------------------------
 customTests :: Runner -> Spec
-customTests run = describe "Custom-Tests" $ do 
+customTests run = do
     it "recursion_union_empty_list" $ do
       let inFile = "test_rec_empty"
       let expRes = success (ListVal Nil)
@@ -395,7 +398,7 @@ parallelADIRunner inFile expRes = do
         Right b -> do
           let ?sensitivity = 0
           let (metric,res) = evalIntervalParallelADI' [let_rec (getTopDefinesLam b) (getBody b)]
-          let csv = printf "\"%s\",parallel,%s\n" inFile (toCSV metric)
+          let csv = printf "\"%s\",parallel-adi,%s\n" inFile (toCSV metric)
           appendFile metricFile csv
           res`shouldBe` expRes
         Left b -> print b

@@ -40,7 +40,7 @@ import           Data.Utils
 newtype ReachingDefsT (f :: * -> *) c x y = ReachingDefsT (ReaderT (Maybe Label) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
             ArrowState s, ArrowEnv var val, ArrowClosure expr cls,
-            ArrowFail e,ArrowExcept e, ArrowLowerBounded, ArrowComplete z)
+            ArrowFail e,ArrowExcept e, ArrowLowerBounded a, ArrowComplete z)
 
 reachingDefsT :: c (Maybe Label,x) y -> ReachingDefsT f c x y
 reachingDefsT = lift

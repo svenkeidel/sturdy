@@ -39,7 +39,7 @@ newtype ErrorT e c x y = ErrorT (KleisliT (Error e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore a b, ArrowContext ctx,
-            ArrowExcept e')
+            ArrowExcept e', ArrowLowerBounded a)
 
 runErrorT :: ErrorT e c x y -> c x (Error e y)
 runErrorT = coerce
@@ -56,10 +56,6 @@ instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ErrorT e c) 
 
 type instance Fix (ErrorT e c) x y = ErrorT e (Fix c x (Error e y))
 deriving instance (ArrowFix (Underlying (ErrorT e c) x y)) => ArrowFix (ErrorT e c x y)
-
-instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (ErrorT e c) where
-  bottom = lift bottom
-  {-# INLINE bottom #-}
 
 deriving instance (ArrowChoice c, ArrowComplete (Error e y) c) => ArrowComplete y (ErrorT e c)
 

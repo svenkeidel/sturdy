@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.Abstract.Interval where
 
 import Prelude hiding (div,Bool(..),(==),(/),(<),Ordering)
@@ -13,6 +14,7 @@ import Data.Hashable
 import Data.Order
 import Data.Metric
 import Data.Numeric
+import Data.Text.Prettyprint.Doc
 
 import Data.Abstract.Boolean
 import Data.Abstract.Equality
@@ -29,8 +31,9 @@ import GHC.Generics
 data Interval n = Interval n n
   deriving (Eq,Generic)
 
-instance Show n => Show (Interval n) where
-  show (Interval n m) = "["++ show n ++ "," ++ show m ++"]"
+instance Pretty n => Show (Interval n) where show = show . pretty
+instance Pretty n => Pretty (Interval n) where
+  pretty (Interval n m) = "[" <> pretty n <> "," <> pretty m <> "]"
 
 instance Ord x => PreOrd (Interval x) where
   Interval i1 i2 ⊑ Interval j1 j2 = j1 <= i1 && i2 <= j2

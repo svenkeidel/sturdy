@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -23,7 +24,6 @@ import           Control.Arrow.Fix.Chaotic as Chaotic
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context(ArrowContext)
-import           Control.Arrow.Fix.Iterate as Iterate
 
 import           Control.Arrow.Transformer.State
 
@@ -39,7 +39,8 @@ import           Data.Coerce
 import           Text.Printf
 
 newtype MetricsT a c x y = MetricsT (StateT (Metrics a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowComponent comp,ArrowControlFlow stmt,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded z,
+            ArrowComponent a,ArrowInComponent a,ArrowControlFlow stmt,
             ArrowStackDepth,ArrowStackElements a,ArrowContext ctx,ArrowTopLevel)
 
 data Metrics a = Metrics { iteration :: !Int, metricCache :: HashMap a Metric }
@@ -94,11 +95,22 @@ instance (Identifiable a, ArrowChoice c, Profunctor c, ArrowCache a b c) => Arro
   {-# INLINE update #-}
   {-# INLINE write #-}
 
-instance (Identifiable a, Profunctor c, Arrow c, ArrowIterate c) => ArrowIterate (MetricsT a c) where
+instance ArrowIterateCache c => ArrowIterateCache (MetricsT a c) where
   nextIteration = MetricsT $ proc a -> do
     modify' (\((),Metrics i c) -> ((),Metrics (i + 1) c)) -< ()
     lift' nextIteration -< a
   {-# INLINE nextIteration #-}
+
+instance (Identifiable a, ArrowParallelCache a b c) => ArrowParallelCache a b (MetricsT a c) where
+  lookupOldCache = MetricsT $ proc a -> do
+    modifyMetric incrementCacheLookups -< a
+    Cache.lookupOldCache -< a
+  lookupNewCache = MetricsT $ proc a -> do
+    modifyMetric incrementCacheLookups -< a
+    Cache.lookupNewCache -< a
+  updateNewCache = MetricsT $ proc (a,b) -> do
+    modifyMetric incrementUpdates -< a
+    Cache.updateNewCache -< (a,b)
 
 modifyMetric :: (Identifiable a, ArrowState (Metrics a) c) => (Metric -> Metric) -> c a ()
 modifyMetric f = modify' (\(a,Metrics i m) -> ((),Metrics i (upsert f a m)))

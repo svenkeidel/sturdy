@@ -159,10 +159,10 @@ instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f 
   {-# INLINE write #-}
   {-# SPECIALIZE instance ArrowStore var val c => ArrowStore var val (StaticT ((->) r) c) #-}
 
-instance (Applicative f, ArrowLowerBounded c) => ArrowLowerBounded (StaticT f c) where
+instance (Applicative f, ArrowLowerBounded y c) => ArrowLowerBounded y (StaticT f c) where
   bottom = StaticT (pure bottom)
   {-# INLINE bottom #-}
-  {-# SPECIALIZE instance ArrowLowerBounded c => ArrowLowerBounded (StaticT ((->) r) c) #-}
+  {-# SPECIALIZE instance ArrowLowerBounded y c => ArrowLowerBounded y (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowJoin c) => ArrowJoin (StaticT f c) where
   joinSecond lub f (StaticT g) = StaticT $ joinSecond lub f <$> g
@@ -188,9 +188,6 @@ instance (Applicative f, ArrowCache a b c) => ArrowCache a b (StaticT f c) where
   {-# SPECIALIZE instance ArrowCache a b c => ArrowCache a b (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowComponent comp c) => ArrowComponent comp (StaticT f c) where
-  getComponent (StaticT f) = StaticT $ Chaotic.getComponent <$> f
-  setComponent (StaticT f) = StaticT $ Chaotic.setComponent <$> f
-  {-# INLINE getComponent #-}
   {-# SPECIALIZE instance ArrowComponent comp c => ArrowComponent comp (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowControlFlow stmt c) => ArrowControlFlow stmt (StaticT f c) where

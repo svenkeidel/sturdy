@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE RankNTypes #-}
@@ -6,7 +8,7 @@
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 module TestPrograms where
 
-import           Prelude hiding (lookup,Bounded,Bool(..),fail)
+import           Prelude hiding (lookup,Bounded,Bool(..),fail,not,and)
 
 import           Control.Arrow
 import           Control.Arrow.Fix as F
@@ -15,7 +17,7 @@ import           Control.Arrow.Fix.Stack
 import           Control.Arrow.Order hiding (bottom)
 
 import           Data.Boolean(Logic(..))
-import           Data.Abstract.Boolean(Bool)
+import           Data.Abstract.Boolean(Bool(..))
 import           Data.Abstract.InfiniteNumbers as Inf
 import           Data.Abstract.Interval (Interval)
 import qualified Data.Abstract.Interval as I
@@ -26,6 +28,7 @@ import qualified Data.Metric as M
 import           Data.Order
 import           Data.Hashable
 import           Data.Profunctor
+import           Data.Text.Prettyprint.Doc
 
 import           GHC.Generics
 
@@ -58,6 +61,10 @@ ackermann = fix $ \f -> proc (m,n) ->
     -<< m
 {-# INLINE ackermann #-}
 
+data EvenOdd = Even | Odd deriving (Eq,Generic,Show,Hashable)
+instance Pretty EvenOdd where pretty = viaShow
+instance PreOrd EvenOdd where e1 ⊑ e2 = e1 == e2
+
 evenOdd :: Arr (EvenOdd,IV) Bool
 evenOdd = fix $ \f -> proc (e,x) -> case e of
   Even -> ifLowerThan 0 (proc _ -> returnA -< true)
@@ -73,6 +80,28 @@ diverge = fix $ \f -> proc n -> case n of
   0 -> f -< 0
   _ -> f -< (n-1)
 {-# INLINE diverge #-}
+
+data Fun = Main | F | G Bool Bool | H Bool | HF deriving (Eq,Show,Generic,Hashable)
+instance Pretty Fun where pretty = viaShow
+
+-- | Example program that demonstrates unsoundness of a fixpoint algorithm without a stack.
+-- Pretty printed the program looks like this:
+-- main = g(f(x),f(x))
+-- f(x) = h(f(x)) ⊔ c
+unsoundExample :: Arr Fun Bool
+unsoundExample = fix $ \call -> proc fun -> case fun of
+  Main -> do
+    x <- call -< F
+    y <- call -< F
+    call -< G x y
+  F -> (call -< HF) <⊔> (returnA -< c)
+  G x y -> returnA -< y `implies` x
+  H x -> returnA -< not x
+  HF -> do
+    y <- call -< F
+    call -< H y
+  where
+    c = True
 
 type Arr x y = forall c. (ArrowChoice c, Profunctor c, ArrowApply c, ArrowComplete y c, ArrowFix (c x y)) => c x y
 newtype Strat x y = Strat { getStrat :: forall c. (ArrowChoice c, Profunctor c, ArrowApply c, ArrowComplete (Terminating y) c, ArrowStack x c, ArrowStackDepth c, ArrowStackElements x c, ArrowCache x (Terminating y) c) => FixpointCombinator c x (Terminating y)}
@@ -95,7 +124,3 @@ euclid :: Metric IV (Product (InfiniteNumber Int) (InfiniteNumber Int))
 euclid = I.metric (Inf.metric M.euclid)
 {-# INLINE euclid #-}
 
-data EvenOdd = Even | Odd deriving (Eq,Generic,Show)
-instance Hashable EvenOdd
-instance PreOrd EvenOdd where
-  e1 ⊑ e2 = e1 == e2

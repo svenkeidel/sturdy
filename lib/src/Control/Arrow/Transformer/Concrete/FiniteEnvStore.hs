@@ -50,7 +50,7 @@ import Data.Coerce
 import Data.Maybe(mapMaybe)
 
 newtype EnvStoreT var addr val c x y = EnvStoreT (ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded a,
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
             ArrowContext ctx)
 

@@ -2,11 +2,9 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -17,8 +15,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC
-  -fspecialise-aggressively
-  -flate-specialise
   -fsimpl-tick-factor=500
   -fno-warn-orphans
   -fno-warn-partial-type-signatures
@@ -33,12 +29,7 @@ import           Control.Category
 import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Environment as Env
-import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(innermost,outermost)
-import           Control.Arrow.Fix.Parallel
-import           Control.Arrow.Fix.Stack as Stack
 import qualified Control.Arrow.Fix.Context as Ctx
-import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
 import qualified Control.Arrow.Closure as Cls
 import           Control.Arrow.Order
@@ -47,17 +38,7 @@ import qualified Control.Arrow.Store as Store
 import qualified Control.Arrow.Utils as ArrowUtils
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Transformer.Value
-import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
-import           Control.Arrow.Transformer.Abstract.LogError
-import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Component
-import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Parallel,Monotone)
-import           Control.Arrow.Transformer.Abstract.Terminating
-import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 
-import           Control.Monad.State hiding (lift,fail)
 import           Control.DeepSeq
 
 import           Data.Hashable
@@ -73,7 +54,6 @@ import           Data.Identifiable
 import           Data.Text.Prettyprint.Doc
 
 import qualified Data.Abstract.Boolean as B
-import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
 import           Data.Abstract.Closure (Closure)
 import           Data.Abstract.DiscretePowerset (Pow)
@@ -84,7 +64,7 @@ import           GHC.Generics(Generic)
 
 import           Text.Printf
 
-import           Syntax (Expr(App),Literal(..) ,Op1_(..),Op2_(..),OpVar_(..), apply, nonEmpty)
+import           Syntax (Expr,Literal(..) ,Op1_(..),Op2_(..),OpVar_(..))
 import           GenericInterpreter as Generic
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
@@ -130,11 +110,13 @@ instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = proc var -> do
     ctx <- Ctx.askContext @Ctx -< ()
     returnA -< VarA (var,ctx)
+  {-# INLINEABLE alloc #-}
 
 allocLabel :: (ArrowContext Ctx c) => c Label Addr
 allocLabel = proc l -> do
   ctx <- Ctx.askContext @Ctx -< ()
   returnA -< LabelA (l,ctx)
+{-# INLINEABLE allocLabel #-}
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
@@ -146,14 +128,16 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     case v of
       ClosureVal cls -> Cls.apply f -< (cls,x)
       _ -> failString -< printf "Expected a closure, but got %s" (show v)
+  {-# INLINEABLE closure #-}
+  {-# INLINEABLE apply #-}
 
 instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c, ArrowStore Addr Val c, ArrowEnv Text Addr c,
           Store.Join Val c, Env.Join Addr c,Store.Join Addr c,Fail.Join Val c,IsString e)
     => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = (ArrowComplete y (ValueT Val c),Fail.Join y c)
   lit = proc x -> case x of
-    Number _ -> returnA -< NumVal $ IntVal 
-    Float _ -> returnA -< NumVal $ FloatVal
+    Number _ -> returnA -< NumVal IntVal
+    Float _ -> returnA -< NumVal FloatVal
     Ratio _ -> returnA -< Bottom
     Bool True  -> returnA -< BoolVal B.True
     Bool False  -> returnA -< BoolVal B.False
@@ -161,20 +145,24 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     String _ -> returnA -< StringVal
     Quote (Symbol sym) -> returnA -< QuoteVal $ singleton sym
     _ -> returnA -< Bottom
+  {-# INLINEABLE lit #-}
 
   if_ f g = proc (v,(x,y)) -> case v of
     BoolVal B.False -> g -< y
     BoolVal B.Top -> (f -< x) <⊔> (g -< y)
     Top -> (f -< x) <⊔> (g -< y)
     _ -> f -< x
+  {-# INLINEABLE if_ #-}
 
   nil_ = proc _ -> returnA -< ListVal Nil
+  {-# INLINE nil_ #-}
   cons_ = proc ((v1,l1),(v2,l2)) -> do
     a1 <- allocLabel -< l1
     a2 <- allocLabel -< l2
     write -< (a1,v1)
     write -< (a2,v2)
     returnA -< ListVal (Cons (singleton a1) (singleton a2))
+  {-# INLINEABLE cons_ #-}
 
   op1_ = proc (op, x) -> case op of
     Number_ -> returnA -< case x of
@@ -235,12 +223,14 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Caddr -> cdr' <<< cdr' <<< car' -< x
     Error -> failString -< printf "error: %s" (show x)
     Random -> intToInt -< (op, x) 
+  {-# INLINABLE op1_ #-}
 
   op2_ = proc (op, x, y) -> case op of
     Eqv -> returnA -< BoolVal $ eq x y
     Quotient -> intIntToInt -< (op,x,y)
     Remainder -> intIntToInt -< (op,x,y)
     Modulo -> intIntToInt -< (op,x,y)
+  {-# INLINEABLE op2_ #-}
 
   opvar_ =  proc (op, xs) -> case op of
     EqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
@@ -260,6 +250,7 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
       numNTo -< (op,1,xs,x)
     Gcd -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
     Lcm -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
+  {-# INLINEABLE opvar_ #-}
 
 numToNum :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToNum = proc (op,v) -> case v of
@@ -269,6 +260,7 @@ numToNum = proc (op,v) -> case v of
   _ -> err -< (op,v)
   where
     err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s" (show op) (show v)
+{-# INLINEABLE numToNum #-}
 
 
 intToInt :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
@@ -278,6 +270,7 @@ intToInt = proc (op,v) -> case v of
   _ -> err -< (op,v)
   where
     err = proc (op,v) -> failString -< printf "expected an integer as argument for %s, but got %s" (show op) (show v)
+{-# INLINEABLE intToInt #-}
 
 numToBool :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToBool = proc (op,v) -> case v of
@@ -286,6 +279,7 @@ numToBool = proc (op,v) -> case v of
   _ -> err -< (op,v)
   where
     err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s" (show op) (show v)
+{-# INLINEABLE numToBool #-}
 
 intIntToInt :: (IsString e, Fail.Join Val c, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => c (Op2_,Val,Val) Val
 intIntToInt = proc (op,v1,v2) -> case (v1,v2) of
@@ -296,6 +290,7 @@ intIntToInt = proc (op,v1,v2) -> case (v1,v2) of
   _ -> err -< (op,v1,v2)
   where
     err = proc (op,v1,v2) -> failString -< printf "expected a two ints as arguments for %s, but got %s" (show op) (show [v1,v2])
+{-# INLINEABLE intIntToInt #-}
 
 car' :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, ArrowComplete Val c) => c Val Val
 car' = proc v -> case v of
@@ -304,6 +299,7 @@ car' = proc v -> case v of
   _ -> err -< v
   where
     err = proc v -> failString -< printf "Excpeted list as argument for car, but got %s" (show v)
+{-# INLINEABLE car' #-}
 
 car :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c) => c List Val
 car = proc v -> case v of
@@ -312,6 +308,7 @@ car = proc v -> case v of
     returnA -< lub vals
   Nil -> failString -< "cannot car an empty list"
   ConsNil x y -> car -< Cons x y
+{-# INLINEABLE car #-}
 
 cdr' :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, ArrowComplete Val c) => c Val Val
 cdr' = proc v -> case v of
@@ -320,6 +317,7 @@ cdr' = proc v -> case v of
   _ -> err -< v
   where
     err = proc v -> failString -< printf "Excpeted list as argument for cdr, but got %s" (show v)
+{-# INLINEABLE cdr' #-}
 
 cdr :: (IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, Fail.Join Val c, Store.Join Val c) => c List Val
 cdr = proc v -> case v of
@@ -328,6 +326,7 @@ cdr = proc v -> case v of
     returnA -< lub vals
   Nil -> failString -< "cannot cdr an empty list"
   ConsNil x y -> cdr -< Cons x y
+{-# INLINEABLE cdr #-}
 
 eq :: Val -> Val -> B.Bool
 eq v1 v2 = case (v1,v2) of
@@ -360,6 +359,7 @@ numNTo = proc (op,minArity,xs,ret) ->
   else failString -< printf "the operator %s requires at least %d arguments, but got %d" (show op) minArity
   where
     err = proc (op,xs) -> failString -< printf "expected a numbers as argument for %s, but got %s" (show op) (show xs)
+{-# INLINEABLE numNTo #-}
 
 numLub :: Val -> Val -> Val
 numLub x y = case (x,y) of
@@ -394,6 +394,7 @@ isNum v = case v of
 instance (ArrowChoice c, IsString e, Fail.Join Val c, ArrowFail e c, ArrowComplete Val c)
     => ArrowComplete Val (ValueT Val c) where
   ValueT f <⊔> ValueT g = ValueT $ proc x -> (f -< x) <⊔> (g -< x)
+  {-# INLINEABLE (<⊔>) #-}
 
 instance Hashable Addr
 instance Show Addr where show = show . pretty
@@ -502,107 +503,6 @@ instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
 -- OPERATION HELPER ------------------------------------------------------------
 type In = (Store,(([Expr],Label),Env))
 type Out = (Store, (HashSet Text, Terminating Val))
-type InterpChaotic x y =
-  Fix
-    (ValueT Val
-      (TerminatingT
-        (LogErrorT (HashSet Text)
-          (EnvStoreT Text Addr Val
-            (FixT () ()
-              (MetricsT In
-                (ComponentT In
-                  (StackT Stack In
-                    (CacheT Monotone In Out
-                      (ContextT Ctx
-                        (->))))))))))) [Expr] Val x y
-
-{-# SPECIALIZE Generic.run_ :: InterpChaotic [Expr] Val #-}
-{-# SPECIALIZE Generic.eval :: InterpChaotic [Expr] Val -> InterpChaotic Expr Val #-}
-
-type InterpParallel x y =
-  Fix
-    (ValueT Val
-      (TerminatingT
-        (LogErrorT (HashSet Text)
-          (EnvStoreT Text Addr Val
-            (FixT () ()
-              (MetricsT In
-                (StackT Stack In
-                  (CacheT (Parallel Monotone) In Out
-                    (ContextT Ctx
-                      (->)))))))))) [Expr] Val x y
-
-{-# SPECIALIZE Generic.run_ :: InterpParallel [Expr] Val #-}
-{-# SPECIALIZE Generic.eval :: InterpParallel [Expr] Val -> InterpParallel Expr Val #-}
-
-evalIntervalChaoticInner :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
-evalIntervalChaoticInner env0 e = snd $ run (extend' (Generic.run_ :: InterpChaotic [Expr] Val))
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    iterationStrategy =
-      -- Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply innermost
-
-evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
-evalIntervalChaoticOuter env0 e = snd $ run (extend' (Generic.run_ :: InterpChaotic [Expr] Val))
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    iterationStrategy =
-      -- Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply outermost
-
-evalIntervalParallel :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
-evalIntervalParallel env0 e = snd $ run (extend' (Generic.run_ :: InterpParallel [Expr] Val))
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    iterationStrategy =
-      -- Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Stack.topLevel (Fix.filter nonEmpty parallel) .
-      Fix.filter apply parallel
-
-evalIntervalParallelADI :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
-evalIntervalParallelADI env0 e = snd $ run (extend' (Generic.run_ :: InterpParallel [Expr] Val))
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    iterationStrategy =
-      -- Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Stack.topLevel (Fix.filter nonEmpty parallelADI) .
-      Fix.filter apply parallelADI
-
-evalIntervalChaoticInner' :: (?sensitivity::Int) => [State Label Expr] -> (Metrics In, (HashSet Text, Terminating Val))
-evalIntervalChaoticInner' exprs = let (metrics,res) = evalIntervalChaoticInner [] exprs in (metrics,snd res)
-
-evalIntervalChaoticOuter':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics In, (HashSet Text, Terminating Val))
-evalIntervalChaoticOuter' exprs = let (metrics,res) = evalIntervalChaoticOuter [] exprs in (metrics,snd res)
-
-evalIntervalParallel':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics In, (HashSet Text, Terminating Val))
-evalIntervalParallel' exprs = let (metrics,res) = evalIntervalParallel [] exprs in (metrics,snd res)
-
-evalIntervalParallelADI':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics In, (HashSet Text, Terminating Val))
-evalIntervalParallelADI' exprs = let (metrics,res) = evalIntervalParallelADI [] exprs in (metrics,snd res)
-
-evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (HashSet Text, Terminating Val)
-evalInterval' env exprs = snd $ snd $ evalIntervalChaoticInner env exprs
 
 printIn :: (Store,(Env,[Expr])) -> String
 printIn (store,(env,expr)) =

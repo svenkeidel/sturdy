@@ -57,7 +57,7 @@ eval run' = proc e0 -> case e0 of
     v <- run' -< [x]
     vs <- run' -< [xs]
     cons_ -< ((v,label x),(vs, label xs))
-  Begin es _ -> do
+  Begin es _ ->
     run' -< es
   App e1 e2 _ -> do
     fun <- run' -< [e1]
@@ -93,10 +93,10 @@ eval run' = proc e0 -> case e0 of
   where
     -- Helper function used to apply closure or a suspended fixpoint computation to its argument.
     applyClosure' = Cls.apply $ proc (e, args) -> case e of  -- args = [(argVal, argLabel)]
-      Lam xs body l -> do
+      Lam xs body l ->
         if eqLength xs args
           then do
-            addrs <- map alloc -< map (\x -> x) xs
+            addrs <- map alloc -< xs
             map write -< zip addrs args
             Env.extend' run' -< (zip xs addrs, [Apply body l])
           else fail -< fromString $ printf "Applied a function with %d arguments to %d arguments" (length xs) (length args)
@@ -108,7 +108,7 @@ eval run' = proc e0 -> case e0 of
         val <- run' -< [expr]
         addr <- alloc -< var
         write -< (addr,val)
-        vs <- Env.extend (evalBindings) -< (var, addr, bnds')
+        vs <- Env.extend evalBindings -< (var, addr, bnds')
         returnA -< (var,addr) : vs
 
     evalBindings' = proc bnds -> case bnds of
@@ -118,7 +118,7 @@ eval run' = proc e0 -> case e0 of
         addr <- alloc -< var
         write -< (addr,val)
         --only adds closure to its own env so it can call itself recursively
-        vs <- Env.extend (LetRec.letRec (evalBindings')) -< (var,addr,([(var,val)],bnds')) 
+        vs <- Env.extend (LetRec.letRec evalBindings') -< (var,addr,([(var,val)],bnds')) 
         returnA -< (var,addr,val) : vs
 {-# INLINEABLE eval #-}
 

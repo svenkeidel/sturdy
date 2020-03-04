@@ -41,7 +41,7 @@ newtype StoreT store c x y = StoreT (StateT store c x y)
             ArrowCont, ArrowConst r, ArrowReader r,
             ArrowEnv var' val', ArrowClosure expr cls,
             ArrowFail e, ArrowExcept e, ArrowState store,
-            ArrowLowerBounded, ArrowRun, ArrowJoin)
+            ArrowLowerBounded a, ArrowRun, ArrowJoin)
 
 runStoreT :: StoreT store c x y -> c (store, x) (store, y)
 runStoreT = coerce

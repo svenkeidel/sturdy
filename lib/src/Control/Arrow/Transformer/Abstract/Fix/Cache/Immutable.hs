@@ -1,30 +1,31 @@
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable where
 
 import           Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,elem,product,(**))
 
 import           Control.Category
-import           Control.Arrow
+import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Const
 import           Control.Arrow.Trans
 import           Control.Arrow.State
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
 import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Iterate as Iterate
-import           Control.Arrow.Order (ArrowJoin(..),ArrowComplete(..),ArrowEffectCommutative)
+import           Control.Arrow.Order (ArrowJoin(..),ArrowComplete(..),ArrowLowerBounded,ArrowEffectCommutative)
+import qualified Control.Arrow.Order as Order
 
 import           Control.Arrow.Transformer.Const
 import           Control.Arrow.Transformer.Static
@@ -39,6 +40,7 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Monoidal
 import           Data.Maybe
+import           Data.Text.Prettyprint.Doc
 
 import           Data.Abstract.Stable
 import qualified Data.Abstract.Widening as W
@@ -50,9 +52,6 @@ type family Widening c :: *
 newtype CacheT cache a b c x y = CacheT { unCacheT :: ConstT (Widening (cache a b)) (StateT (cache a b) c) x y}
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowState (cache a b),ArrowControlFlow stmt)
 
-instance ArrowTrans (CacheT cache a b c) where
-  type Underlying (CacheT cache a b c) x y = Widening (cache a b) -> c (cache a b, x) (cache a b, y)
-
 runCacheT :: (IsEmpty (cache a b), Profunctor c) => Widening (cache a b) -> CacheT cache a b c x y -> c x (cache a b,y)
 runCacheT widen (CacheT f) = lmap (empty,) (runStateT (runConstT widen f))
 {-# INLINE runCacheT #-}
@@ -61,6 +60,9 @@ instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) wher
   type Run (CacheT cache a b c) x y = Widening (cache a b) -> Run c x (cache a b,y)
   run f widen = run (runCacheT widen f)
   {-# INLINE run #-}
+
+instance ArrowTrans (CacheT cache a b c) where
+  type Underlying (CacheT cache a b c) x y = Widening (cache a b) -> c (cache a b, x) (cache a b, y)
 
 instance ArrowLift (CacheT cache a b) where
   lift' = CacheT . lift' . lift'
@@ -95,11 +97,11 @@ instance IsEmpty (Cache a b) where
 instance (Show a, Show b) => Show (Cache a b) where
   show (Cache m) = show (M.toList m)
 
-instance (ArrowChoice c, Profunctor c) => ArrowIterate (CacheT Cache a b c) where
-  nextIteration = proc () -> put -< empty
-  isStable = proc _ -> returnA -< error "Don't use Monotone for parallel fixpoint iteration"
-  {-# INLINE nextIteration #-}
-  {-# INLINE isStable #-}
+instance (Pretty a, Pretty b) => Pretty (Cache a b) where
+  pretty (Cache m) = list [ pretty k <+> prettyStable s <+> pretty v | (k,(s,v)) <- M.toList m]
+    where
+      prettyStable Stable = "->"
+      prettyStable Unstable = "~>"
 
 instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c)
   => ArrowCache a b (CacheT Cache a b c) where
@@ -113,9 +115,7 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c)
   update = CacheT $ askConst $ \widen -> proc (a,b) -> do
     Cache cache <- get -< ()
     case M.lookup a cache of
-      Just (Stable,b') ->
-        returnA -< (Stable,b')
-      Just (Unstable,b') -> do
+      Just (_,b') -> do
         let b'' = widen b' b
         put -< Cache (M.insert a b'' cache)
         returnA -< b''
@@ -129,6 +129,14 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c)
   {-# INLINE write #-}
   {-# INLINE update #-}
   {-# INLINE setStable #-}
+
+instance (Arrow c, Profunctor c) => ArrowIterateCache (CacheT Cache a b c) where
+  nextIteration = CacheT $ proc () -> put -< empty
+  {-# INLINE nextIteration #-}
+
+instance (LowerBounded b, Profunctor c, Arrow c) => ArrowLowerBounded b (CacheT Cache a b c) where
+  bottom = proc _ -> returnA -< bottom
+  {-# INLINE bottom #-}
 
 instance Identifiable a => IsList (Cache a b) where
   type Item (Cache a b) = (a,b,Stable)
@@ -153,7 +161,7 @@ instance (Identifiable k, Arrow c, Profunctor c, ArrowCache a b (CacheT cache a 
   setStable = lmap shuffle1 (withGroup Cache.setStable)
   {-# INLINE initialize #-}
   {-# INLINE lookup #-}
-
+  {-# INLINE update #-}
   {-# INLINE write #-}
   {-# INLINE setStable #-}
 
@@ -180,26 +188,44 @@ instance (Show k, Show (cache a b)) => Show (Group cache (k,a) b) where
 
 ------ Parallel Cache ------
 data Parallel cache a b = Parallel { old :: cache a b, new :: cache a b, stable :: !Stable }
-  deriving (Show)
+
+instance Pretty (cache a b) => Show (Parallel cache a b)   where show = show . pretty
+instance Pretty (cache a b) => Pretty (Parallel cache a b) where
+  pretty (Parallel o n s) = vsep ["Parallel", "Old:" <+> align (pretty o), "New:" <+> align (pretty n), "Stable:" <> viaShow s]
 
 type instance Widening (Parallel cache a b) = Widening (cache a b)
 
 instance IsEmpty (cache a b) => IsEmpty (Parallel cache a b) where
   empty = Parallel { old = empty, new = empty, stable = Stable }
 
-instance (Arrow c, Profunctor c, ArrowIterate (CacheT cache a b c)) => ArrowIterate (CacheT (Parallel cache) a b c) where
+instance (Profunctor c, Arrow c, ArrowLowerBounded b (CacheT cache a b c)) => ArrowLowerBounded b (CacheT (Parallel cache) a b c) where
+  bottom = newCache Order.bottom
+  {-# INLINE bottom #-}
+
+instance (Profunctor c, ArrowChoice c, ArrowLowerBounded b (CacheT cache a b c), ArrowIterateCache (CacheT cache a b c), ArrowCache a b (CacheT cache a b c))
+    => ArrowParallelCache a b (CacheT (Parallel cache) a b c) where
+  lookupOldCache = proc a -> do
+    m <- oldCache lookup -< a; case m of
+      Just (_,b) -> returnA -< b
+      Nothing    -> oldCache Order.bottom -< a
+  lookupNewCache = newCache (rmap (fmap snd) lookup)
+  updateNewCache = update
   isStable = modify' (\(_,p) -> (stable p,p))
-  nextIteration = proc a -> do
-    modify' (\(_,p) -> ((),p { old = new p, stable = Stable })) -< ()
-    newCache nextIteration -< a
+  {-# INLINE lookupOldCache #-}
+  {-# INLINE lookupNewCache #-}
+  {-# INLINE updateNewCache #-}
   {-# INLINE isStable #-}
+
+instance (Profunctor c, ArrowChoice c, ArrowIterateCache (CacheT cache a b c)) => ArrowIterateCache (CacheT (Parallel cache) a b c) where
+  nextIteration = proc () -> do
+    modify' (\(_,p) -> ((),p { old = new p, stable = Stable })) -< ()
+    newCache nextIteration -< ()
   {-# INLINE nextIteration #-}
 
 instance (ArrowChoice c, Profunctor c, ArrowCache a b (CacheT cache a b c))
   => ArrowCache a b (CacheT (Parallel cache) a b c) where
   initialize = proc a -> do
-    m <- oldCache lookup -< a
-    case m of
+    m <- oldCache lookup -< a; case m of
       Just (s,b) -> do
         newCache write -< (a,b,s)
         returnA -< b
@@ -245,11 +271,14 @@ instance IsEmpty s => IsEmpty (Monotone (s,a) (s,b)) where
 instance (Show s, Show a, Show b) => Show (Monotone (s,a) (s,b)) where
   show (Monotone s m) = show (s,m)
 
-instance (ArrowChoice c, Profunctor c) => ArrowIterate (CacheT Monotone (s,a) (s,b) c) where
-  nextIteration = modify' $ \(_,Monotone s _) -> ((),Monotone s empty)
-  isStable = proc _ -> returnA -< error "Don't use Monotone for parallel fixpoint iteration"
-  {-# INLINE nextIteration #-}
-  {-# INLINE isStable #-}
+instance (Pretty s, Pretty a, Pretty b) => Pretty (Monotone (s,a) (s,b)) where
+  pretty (Monotone s m) = vsep ["Monotone:" <+> pretty s, "NonMonotone:" <+> align (list [ pretty k <+> "->" <+> pretty v | (k,v) <- M.toList m])]
+
+-- instance (ArrowChoice c, Profunctor c) => ArrowIterate (CacheT Monotone (s,a) (s,b) c) where
+--   nextIteration = proc () -> modify' (\(_,Monotone s _) -> ((),Monotone s empty)) -< ()
+--   isStable = proc _ -> returnA -< error "Don't use Monotone for parallel fixpoint iteration"
+--   {-# INLINE nextIteration #-}
+--   {-# INLINE isStable #-}
 
 instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowCache (s,a) (s,b) (CacheT Monotone (s,a) (s,b) c) where
   initialize = CacheT $ modify' $ \((s,a),Monotone s' cache) ->
@@ -272,6 +301,10 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowC
   {-# INLINE write #-}
   {-# INLINE update #-}
   {-# INLINE setStable #-}
+
+instance (Arrow c, Profunctor c) => ArrowIterateCache (CacheT Monotone (s,a) (s,b) c) where
+  nextIteration = proc () -> modify' (\((),Monotone s _) -> ((),Monotone s empty)) -< ()
+  {-# INLINE nextIteration #-}
 
 ------ Product Cache ------
 data (**) cache1 cache2 a b where
@@ -365,11 +398,11 @@ instance (Arrow c, Profunctor c, ArrowCache a b (CacheT cache a b c)) => ArrowCa
   {-# INLINE write #-}
   {-# INLINE setStable #-}
 
-instance (Arrow c, Profunctor c, ArrowIterate (CacheT cache a b c)) => ArrowIterate (CacheT (Context ctx cache) a b c) where
-  nextIteration = withCache nextIteration
-  isStable = withCache isStable
-  {-# INLINE nextIteration #-}
-  {-# INLINE isStable #-}
+-- instance (Arrow c, Profunctor c, ArrowIterate (CacheT cache a b c)) => ArrowIterate (CacheT (Context ctx cache) a b c) where
+--   nextIteration = withCache nextIteration
+--   isStable = withCache isStable
+--   {-# INLINE nextIteration #-}
+--   {-# INLINE isStable #-}
 
 instance (Arrow c, Profunctor c, ArrowJoinContext a (CacheT ctx a b c)) => ArrowJoinContext a (CacheT (Context ctx cache) a b c) where
   joinByContext = withCtx joinByContext

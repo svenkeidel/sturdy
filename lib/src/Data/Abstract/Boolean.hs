@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -10,6 +11,7 @@ import qualified Prelude as P
 import Data.Boolean
 import Data.Hashable
 import Data.Order
+import Data.Text.Prettyprint.Doc
 
 import Data.Abstract.Stable
 import Data.Abstract.Widening
@@ -20,10 +22,11 @@ import GHC.Generics
 data Bool = True | False | Top
   deriving (Eq,Generic,NFData)
 
-instance Show Bool where
-  show True = "True"
-  show False = "False"
-  show Top = "⊤"
+instance Show Bool where show = show . pretty
+instance Pretty Bool where
+  pretty True = "True"
+  pretty False = "False"
+  pretty Top = "⊤"
 
 instance Logic Bool where
   true = True
@@ -38,15 +41,16 @@ instance Logic Bool where
     (_,True) -> True
     (False,False) -> False
     (_,_) -> Top
+  implies b1 b2 = case (b1,b2) of
+    (True,False) -> False
+    (True,True) -> True
+    (False,_) -> True
+    (_,True) -> True
+    (_,_) -> Top
   not b = case b of
     True -> False
     False -> True
     Top -> Top
-  {-# INLINE true #-}
-  {-# INLINE false #-}
-  {-# INLINE and #-}
-  {-# INLINE or #-}
-  {-# INLINE not #-}
 
 instance PreOrd Bool where
   _ ⊑ Top = P.True

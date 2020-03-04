@@ -146,13 +146,13 @@ instance ArrowExcept e c => ArrowExcept e (NoInlineT c) where
   {-# NOINLINE throw #-}
   {-# NOINLINE try #-}
 
-instance ArrowLowerBounded c => ArrowLowerBounded (NoInlineT c) where
-  bottom = lift bottom
-  {-# NOINLINE bottom #-}
-
 instance ArrowJoin c => ArrowJoin (NoInlineT c) where
   joinSecond lub f g = lift $ joinSecond lub f (unlift g)
   {-# NOINLINE joinSecond #-}
+
+instance ArrowLowerBounded y c => ArrowLowerBounded y (NoInlineT c) where
+  bottom = lift bottom
+  {-# NOINLINE bottom #-}
 
 instance ArrowComplete y c => ArrowComplete y (NoInlineT c) where
   f <⊔> g = lift $ unlift f <⊔> unlift g

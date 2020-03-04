@@ -49,7 +49,7 @@ type instance Fix (CompletionT c) x y = CompletionT (Fix c x (FreeCompletion y))
 deriving instance (ArrowFix (Underlying (CompletionT c) x y)) => ArrowFix (CompletionT c x y)
 
 deriving instance (ArrowChoice c, ArrowComplete (FreeCompletion y) c) => ArrowComplete y (CompletionT c)
-deriving instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (CompletionT c)
+deriving instance (ArrowChoice c, ArrowLowerBounded y c) => ArrowLowerBounded y (CompletionT c)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where
   joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (return . f) (unlift g)
