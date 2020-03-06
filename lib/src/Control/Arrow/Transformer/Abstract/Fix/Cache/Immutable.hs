@@ -202,12 +202,9 @@ instance (Profunctor c, Arrow c, ArrowLowerBounded b (CacheT cache a b c)) => Ar
   bottom = newCache Order.bottom
   {-# INLINE bottom #-}
 
-instance (Profunctor c, ArrowChoice c, ArrowLowerBounded b (CacheT cache a b c), ArrowIterateCache (CacheT cache a b c), ArrowCache a b (CacheT cache a b c))
+instance (Profunctor c, ArrowChoice c, ArrowIterateCache (CacheT cache a b c), ArrowCache a b (CacheT cache a b c))
     => ArrowParallelCache a b (CacheT (Parallel cache) a b c) where
-  lookupOldCache = proc a -> do
-    m <- oldCache lookup -< a; case m of
-      Just (_,b) -> returnA -< b
-      Nothing    -> oldCache Order.bottom -< a
+  lookupOldCache = oldCache (rmap (fmap snd) lookup)
   lookupNewCache = newCache (rmap (fmap snd) lookup)
   updateNewCache = update
   isStable = modify' (\(_,p) -> (stable p,p))

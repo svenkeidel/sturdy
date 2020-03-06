@@ -200,7 +200,8 @@ scalaAM run = describe "Scala-AM" $ do
 -- => TIME: 8 | STATES: 431
       -- pendingWith "not getting parsed yet"
       let inFile = "scala-am//primtest"
-      let expRes = success $ NumVal IntVal
+      let expRes = successOrFail (return (NumVal IntVal))
+                                 ["expected an integer as argument for random, but got NumTop"]
       run inFile expRes
 
     it "rsa" $ do

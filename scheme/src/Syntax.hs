@@ -11,8 +11,6 @@ import           Data.Text (Text)
 import           Data.Hashable
 import           Data.Label
 import           Data.String
-import           Data.Lens (Prism')
-import qualified Data.Lens as L
 import           Data.GraphViz.Attributes
 import           Data.Text.Prettyprint.Doc hiding (list)
 import           Data.Text.Prettyprint.Doc.Render.Text
@@ -305,16 +303,3 @@ instance HasLabel Expr where
 instance Hashable Expr where
   hashWithSalt s e = s `hashWithSalt` label e
 
-apply :: Prism' (store,(env,[Expr])) (store,(([Expr],Label),env))
-apply = L.prism' (\(store,((es,l),env)) -> (store,(env, [Apply es l])))
-                 (\(store,(env,e)) -> case e of
-                      Apply es l:_ -> Just (store,((es,l),env))
-                      _ -> Nothing)
-{-# INLINE apply #-}
-
-nonEmpty :: Prism' (store,(env,[Expr])) (store,(([Expr],Label),env))
-nonEmpty = L.prism' (\(store,((es,_),env)) -> (store,(env, es)))
-                 (\(store,(env,es)) -> case es of
-                      e:_ -> Just (store,((es,label e),env))
-                      _ -> Nothing)
-{-# INLINE nonEmpty #-}

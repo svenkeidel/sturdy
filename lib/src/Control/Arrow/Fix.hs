@@ -8,7 +8,14 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Fix(Fix,Fix',ArrowFix(..),FixpointAlgorithm,FixpointCombinator,fixpointCombinator,transform,filter,filter',trace,trace',traceShow,traceCache) where
+module Control.Arrow.Fix
+  (
+    Fix,Fix',ArrowFix(..),
+    FixpointAlgorithm,transform,fixpointAlgorithm,
+    FixpointCombinator,
+    filter,filter',filterPrism,filterPrism',
+    trace,trace',traceShow,traceCache
+  ) where
 
 import           Prelude hiding (filter,pred)
 
@@ -45,31 +52,51 @@ instance ArrowFix (x -> y) where
   {-# INLINE fix #-}
 
 type FixpointAlgorithm c a b = (c a b -> c a b) -> c a b
-type FixpointCombinator c a b = c a b -> c a b
 
-fixpointCombinator :: FixpointCombinator c x y -> FixpointAlgorithm c x y
-fixpointCombinator combinator eval = Function.fix (combinator . eval)
-{-# INLINE fixpointCombinator #-}
-
-transform :: Profunctor c => Iso' a a' -> FixpointCombinator c a' b -> FixpointCombinator c a b
-transform iso strat f = lmap (get iso)
-                      $ strat
-                      $ lmap (get (from iso)) f
+transform :: Profunctor c => Iso' a a' -> FixpointAlgorithm c a' b -> FixpointAlgorithm c a b
+transform iso algorithm eval = toIso $ algorithm (fromIso . eval . toIso)
+  where
+    fromIso = lmap (get (from iso))
+    toIso = lmap (get iso)
+    {-# INLINE fromIso #-}
+    {-# INLINE toIso #-}
 {-# INLINE transform #-}
 
-filter :: forall a a' b c. (Profunctor c, ArrowChoice c, ArrowApply c) => Prism' a a' -> FixpointCombinator c a' b -> FixpointCombinator c a b
-filter pred strat f = proc a -> case getMaybe pred a of
-  Just a' -> strat (lmap (\x -> set pred x a) f) -<< a'
-  Nothing -> f -< a
+type FixpointCombinator c a b = c a b -> c a b
+
+fixpointAlgorithm :: FixpointCombinator c x y -> FixpointAlgorithm c x y
+fixpointAlgorithm combinator eval = Function.fix (combinator . eval)
+{-# INLINE fixpointAlgorithm #-}
+
+filter :: ArrowChoice c => (a -> Bool) -> FixpointCombinator c a b -> FixpointCombinator c a b
+filter pred combinator f = proc a ->
+  if pred a
+  then combinator f -< a
+  else f -< a
 {-# INLINE filter #-}
 
-filter' :: forall a a' b c. (ArrowChoice c, ArrowApply c, ArrowFiltered a' c) => Prism' a a' -> FixpointCombinator c a' b -> FixpointCombinator c a b
-filter' pred strat f = proc a -> case getMaybe pred a of
-  Just a' -> do
-    filtered -< a'
-    strat (lmap (\x -> set pred x a) f) -<< a'
-  Nothing -> f -< a
+filter' :: (ArrowChoice c, ArrowFiltered a c) => (a -> Bool) -> FixpointCombinator c a b -> FixpointCombinator c a b
+filter' pred combinator f = proc a ->
+  if pred a
+  then combinator f -< a
+  else do
+    filtered -< a
+    f -< a
 {-# INLINE filter' #-}
+
+filterPrism :: forall a a' b c. (Profunctor c, ArrowChoice c, ArrowApply c) => Prism' a a' -> FixpointCombinator c a' b -> FixpointCombinator c a b
+filterPrism pred combinator f = proc a -> case getMaybe pred a of
+  Just a' -> combinator (lmap (\x -> set pred x a) f) -<< a'
+  Nothing -> f -< a
+{-# INLINE filterPrism #-}
+
+filterPrism' :: forall a a' b c. (ArrowChoice c, ArrowApply c, ArrowFiltered a c) => Prism' a a' -> FixpointCombinator c a' b -> FixpointCombinator c a b
+filterPrism' pred strat f = proc a -> case getMaybe pred a of
+  Just a' -> strat (lmap (\x -> set pred x a) f) -<< a'
+  Nothing -> do
+    filtered -< a
+    f -< a
+{-# INLINE filterPrism' #-}
 
 trace :: (Arrow c) => (a -> Doc ann) -> (b -> Doc ann) -> FixpointCombinator c a b
 trace showA showB f = proc x -> do

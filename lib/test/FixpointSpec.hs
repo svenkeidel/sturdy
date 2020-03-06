@@ -136,11 +136,11 @@ runParallel :: (forall a b c cache. (Pretty a, Pretty b, Pretty cache, Identifia
                                      ArrowState cache c, ArrowChoice c, ArrowLowerBounded b c,
                                      ArrowStack a c, ArrowStackDepth c, ArrowStackElements a c,
                                      ArrowParallelCache a b c, ArrowCache a b c) =>
-                FixpointCombinator c a b -> FixpointAlgorithm c a b)
+                (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm c a b)
             -> (forall a b. (Pretty a, Pretty b, Identifiable a, Complete b,
                              ?strat :: Strat a b, ?widen :: Widening b) =>
                 Arr a b -> a -> (Metrics a,Terminating b))
-runParallel algorithm f a = snd $ Arrow.run (toParallel f) (algorithm (getStrat ?strat)) (T.widening ?widen) a
+runParallel algorithm f a = snd $ Arrow.run (toParallel f) (algorithm (getStrat ?strat .)) (T.widening ?widen) a
 {-# INLINE runParallel #-}
 
 toChaotic :: (Identifiable a, Complete b)
@@ -154,5 +154,5 @@ runChaotic :: (forall a b c. (Pretty a, Pretty b, Identifiable a, ArrowChoice c,
            -> (forall a b. (Pretty a, Pretty b, Identifiable a, Complete b,
                             ?strat :: Strat a b, ?widen :: Widening b) =>
                Arr a b -> a -> (Metrics a,Terminating b))
-runChaotic algorithm f a = snd $ Arrow.run (toChaotic f) (fixpointCombinator (getStrat ?strat . algorithm)) (T.widening ?widen) a
+runChaotic algorithm f a = snd $ Arrow.run (toChaotic f) (fixpointAlgorithm (getStrat ?strat . algorithm)) (T.widening ?widen) a
 {-# INLINE runChaotic #-}

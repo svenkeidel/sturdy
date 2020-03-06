@@ -64,7 +64,7 @@ import           GHC.Generics(Generic)
 
 import           Text.Printf
 
-import           Syntax (Expr,Literal(..) ,Op1_(..),Op2_(..),OpVar_(..))
+import           Syntax (Expr(Apply),Literal(..) ,Op1_(..),Op2_(..),OpVar_(..))
 import           GenericInterpreter as Generic
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
@@ -500,9 +500,14 @@ instance (Identifiable s, Pretty s) => Pretty (HashSet s) where
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- Map.toList m]
 
--- OPERATION HELPER ------------------------------------------------------------
-type In = (Store,(([Expr],Label),Env))
+type In = (Store,(Env,[Expr]))
 type Out = (Store, (HashSet Text, Terminating Val))
+
+isFunctionBody :: In -> Bool
+isFunctionBody (_,(_,e)) = case e of
+  Apply _ _:_ -> True
+  _ -> False
+{-# INLINE isFunctionBody #-}
 
 printIn :: (Store,(Env,[Expr])) -> String
 printIn (store,(env,expr)) =

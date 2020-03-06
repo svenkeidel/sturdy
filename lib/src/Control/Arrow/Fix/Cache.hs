@@ -44,12 +44,12 @@ class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
   {-# INLINE setStable #-}
 
 class ArrowIterateCache c => ArrowParallelCache a b c | c -> a, c -> b where
-  lookupOldCache :: c a b
+  lookupOldCache :: c a (Maybe b)
   lookupNewCache :: c a (Maybe b)
   updateNewCache :: c (a,b) (Stable,b)
   isStable :: c () Stable
 
-  default lookupOldCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c a b
+  default lookupOldCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c a (Maybe b)
   default lookupNewCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c a (Maybe b)
   default updateNewCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c (a,b) (Stable,b)
   default isStable :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c () Stable

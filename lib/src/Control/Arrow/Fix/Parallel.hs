@@ -16,42 +16,50 @@ import qualified Control.Arrow.Fix.Cache as Cache
 import           Data.Abstract.Stable
 import qualified Data.Function as Function
 
-parallel :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => FixpointCombinator c a b -> FixpointAlgorithm c a b
+parallel :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm c a b
 parallel combinator eval = iterate
   where
     iterate = proc a -> do
-      b <- Function.fix (combinator . update . eval) -< a
+      b <- Function.fix (combinator update . eval) -< a
       st <- Cache.isStable -< (); case st of
-        Stable -> returnA -< b
+        Stable   -> returnA -< b
         Unstable -> do
           Cache.nextIteration -< ()
           iterate -< a
 
     update f = proc a -> do
-      m <- Cache.lookupNewCache -< a; case m of
-        Just _ -> Cache.lookupOldCache -< a
-        Nothing -> do
+      recurrentCall <- Stack.elem -< a
+      if recurrentCall
+        then do
+          m <- Cache.lookupOldCache -< a; case m of
+            Just b  -> returnA -< b
+            Nothing -> Cache.initialize -< a
+        else do
           Cache.initialize -< a
           b <- Stack.push f -< a
           (_,b') <- Cache.updateNewCache -< (a,b)
           returnA -< b'
 {-# INLINE parallel #-}
 
-adi :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => FixpointCombinator c a b -> FixpointAlgorithm c a b
+adi :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm c a b
 adi combinator eval = iterate
   where
     iterate = proc a -> do
-      b <- Function.fix (combinator . update . eval) -< a
+      b <- Function.fix (combinator update . eval) -< a
       st <- Cache.isStable -< (); case st of
-        Stable -> returnA -< b
+        Stable   -> returnA -< b
         Unstable -> do
           Cache.nextIteration -< ()
           iterate -< a
 
     update f = proc a -> do
-      m <- Cache.lookupNewCache -< a; case m of
-        Just b -> returnA -< b
-        Nothing -> do
+      recurrentCall <- Stack.elem -< a
+      if recurrentCall
+        then do
+          m <- Cache.lookupNewCache -< a; case m of
+            Just b  -> returnA -< b
+            Nothing -> Cache.initialize -< a
+        else do
           Cache.initialize -< a
           b <- Stack.push f -< a
           (_,b') <- Cache.updateNewCache -< (a,b)

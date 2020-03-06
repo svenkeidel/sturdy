@@ -24,7 +24,7 @@ import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 import           Control.Category
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(innermost,outermost)
+import           Control.Arrow.Fix.Chaotic(chaotic,innermost,outermost)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Value
@@ -49,7 +49,7 @@ import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
 
 import           TypedAnalysis
-import           Syntax (Expr(App),apply)
+import           Syntax (Expr(App))
 import           GenericInterpreter as Generic
 
 type InterpChaotic x y =
@@ -72,28 +72,28 @@ type InterpChaotic x y =
 evalIntervalChaoticInner :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
 evalIntervalChaoticInner env0 e = snd $ run (extend' (Generic.run_ :: InterpChaotic [Expr] Val))
     W.finite
-    iterationStrategy
+    algorithm
     (W.finite, W.finite)
     (Map.empty,(Map.empty,(env0,e0)))
   where
     e0 = generate (sequence e)
-    iterationStrategy =
+    algorithm = Fix.fixpointAlgorithm $
       -- Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter' apply innermost
+      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+      Fix.filter' isFunctionBody (chaotic innermost)
 
 evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
 evalIntervalChaoticOuter env0 e = snd $ run (extend' (Generic.run_ :: InterpChaotic [Expr] Val))
     W.finite
-    iterationStrategy
+    algorithm
     (W.finite, W.finite)
     (Map.empty,(Map.empty,(env0,e0)))
   where
     e0 = generate (sequence e)
-    iterationStrategy =
+    algorithm = Fix.fixpointAlgorithm $
       -- Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter' apply outermost
+      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+      Fix.filter' isFunctionBody (chaotic outermost)
 
 evalIntervalChaoticInner' :: (?sensitivity::Int) => [State Label Expr] -> (Metrics In, (HashSet Text, Terminating Val))
 evalIntervalChaoticInner' exprs = let (metrics,res) = evalIntervalChaoticInner [] exprs in (metrics,snd res)

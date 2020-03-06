@@ -29,7 +29,6 @@ import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Trans
-import Control.Arrow.Order
 import Control.Arrow.Environment
 import Control.Arrow.Store
 import Control.Arrow.Except

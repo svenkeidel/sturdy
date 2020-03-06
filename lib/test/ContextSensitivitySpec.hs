@@ -61,9 +61,9 @@ spec =
   --describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
   describe "Chaotic" $ do
     describe "inner component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (fixpointCombinator (callsiteSensitive ?sensitivity fst . chaotic innermost)) (?widenA, T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (fixpointAlgorithm (callsiteSensitive ?sensitivity fst . chaotic innermost)) (?widenA, T.widening ?widenB) a)
     describe "outer component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (fixpointCombinator (callsiteSensitive ?sensitivity fst . chaotic outermost)) (?widenA, T.widening ?widenB) a)
+      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (fixpointAlgorithm (callsiteSensitive ?sensitivity fst . chaotic outermost)) (?widenA, T.widening ?widenB) a)
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)
 instance Pretty Val where pretty = viaShow
