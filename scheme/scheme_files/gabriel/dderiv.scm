@@ -1,14 +1,4 @@
-#lang scheme
-(require "../imports.scm")
-
-(define (equal? x y)
-  (if (eq? x y)
-      #t
-      (if (and (null? x) (null? y))
-          #t
-          (if (and (cons? x) (cons? y))
-              (and (equal? (car x) (car y)) (equal? (cdr x) (cdr y)))
-              #f))))
+(include-equals)
 
 (define (map f l)
   (if (null? l)
@@ -26,7 +16,9 @@
                              pair
                              (loop (cdr x))))))))
     (loop table)))
+
 (define properties '())
+
 (define (get key1 key2)
   (let ((x (lookup key1 properties)))
     (if x
@@ -35,6 +27,7 @@
               (cdr y)
               #f))
         #f)))
+
 (define (put key1 key2 val)
   (let ((x (lookup key1 properties)))
     (if x
@@ -44,6 +37,7 @@
               (set-cdr! x (cons (cons key2 val) (cdr x)))))
         (set! properties
           (cons (cons key1 (cons (cons key2 val) '())) properties)))))
+
 (define (dderiv a)
   (if (not (pair? a))
       (if (eq? a 'x) 1 0)
@@ -81,10 +75,12 @@
                                                               '()))))
                                       '())))
                     '()))))
+
 (put '+ 'dderiv my+dderiv)
 (put '- 'dderiv my-dderiv)
 (put '* 'dderiv *dderiv)
 (put '/ 'dderiv /dderiv)
+
 (let ((arg '(+ (* 3 x x) (* a x x) (* b x) 5))
       (result '(+ (* (* 3 x x) (+ (/ 0 3) (/ 1 x) (/ 1 x)))
                   (* (* a x x) (+ (/ 0 a) (/ 1 x) (/ 1 x)))

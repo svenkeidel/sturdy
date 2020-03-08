@@ -1,5 +1,4 @@
-#lang scheme
-(require "../imports.scm")
+(include-equals)
 
 (define (map f l)
   (if (null? l)

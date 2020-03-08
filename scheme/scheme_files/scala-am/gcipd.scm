@@ -1,7 +1,4 @@
-#lang scheme
 ;; Taken from https://github.com/jensnicolay/abstractmemo
-(require "../imports.scm")
-
 (letrec ((id (lambda (x) x))
          (f (lambda (n)
               (if (<= n 1)

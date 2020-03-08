@@ -1,5 +1,3 @@
-#lang scheme 
-
 (let ((double (lambda (x) (+ x x)))
       (square (lambda (y) (* y y)))
       (apply-fn (lambda (f n) (f n))))

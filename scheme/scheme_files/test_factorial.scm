@@ -1,5 +1,3 @@
-#lang scheme
-
 (define (fac n) 
     (if (= n 1) 
         1

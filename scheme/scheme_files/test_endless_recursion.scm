@@ -1,5 +1,3 @@
-#lang scheme
-
 (define (factorial n)
   (if (null? n) 
       (factorial (car (cons n '())))

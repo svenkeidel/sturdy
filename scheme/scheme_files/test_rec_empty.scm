@@ -1,5 +1,3 @@
-#lang scheme
-
 (define (remove xs)
   (if (null? xs)
       '()

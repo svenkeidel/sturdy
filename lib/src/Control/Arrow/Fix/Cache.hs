@@ -20,7 +20,7 @@ class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
   write :: c (a,b,Stable) ()
 
   -- | Update an existing entry in the cache.
-  update :: c (a,b) (Stable,b)
+  update :: c (a,b) (Stable,a,b)
 
   -- | Set a given entry to stable or unstable.
   setStable :: c (Stable,a) ()
@@ -28,7 +28,7 @@ class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
   default initialize :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c a b
   default lookup :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c a (Maybe (Stable,b))
   default write :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c (a,b,Stable) ()
-  default update :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c (a,b) (Stable,b)
+  default update :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c (a,b) (Stable,a,b)
   default setStable :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c (Stable,a) ()
 
   initialize = lift' initialize
@@ -46,12 +46,12 @@ class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
 class ArrowIterateCache c => ArrowParallelCache a b c | c -> a, c -> b where
   lookupOldCache :: c a (Maybe b)
   lookupNewCache :: c a (Maybe b)
-  updateNewCache :: c (a,b) (Stable,b)
+  updateNewCache :: c (a,b) b
   isStable :: c () Stable
 
   default lookupOldCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c a (Maybe b)
   default lookupNewCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c a (Maybe b)
-  default updateNewCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c (a,b) (Stable,b)
+  default updateNewCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c (a,b) b
   default isStable :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c () Stable
 
   lookupOldCache = lift' lookupOldCache

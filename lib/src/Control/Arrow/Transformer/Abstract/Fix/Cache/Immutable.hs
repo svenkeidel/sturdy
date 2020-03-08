@@ -116,12 +116,12 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c)
     Cache cache <- get -< ()
     case M.lookup a cache of
       Just (_,b') -> do
-        let b'' = widen b' b
-        put -< Cache (M.insert a b'' cache)
-        returnA -< b''
+        let (st,b'') = widen b' b
+        put -< Cache (M.insert a (st,b'') cache)
+        returnA -< (st,a,b'')
       Nothing -> do
         put -< Cache (M.insert a (Unstable,b) cache)
-        returnA -< (Unstable,b)
+        returnA -< (Unstable,a,b)
   write = CacheT $ modify' (\((a,b,s),Cache cache) -> ((),Cache (M.insert a (s,b) cache)))
   setStable = CacheT $ modify' $ \((s,a),Cache cache) -> ((),Cache (M.adjust (first (const s)) a cache))
   {-# INLINE initialize #-}
@@ -156,7 +156,9 @@ instance IsEmpty (Group cache (k,a) b) where
 instance (Identifiable k, Arrow c, Profunctor c, ArrowCache a b (CacheT cache a b c), IsEmpty (cache a b)) => ArrowCache (k,a) b (CacheT (Group cache) (k,a) b c) where
   initialize = withGroup Cache.initialize
   lookup = withGroup Cache.lookup
-  update = lmap assoc2 (withGroup Cache.update)
+  update = proc ((k,a),b) -> do
+    (st,a',b') <- withGroup Cache.update -< (k,(a,b))
+    returnA -< (st,(k,a'),b')
   write = lmap (\((k,a),b,s) -> (k,(a,b,s))) (withGroup Cache.write)
   setStable = lmap shuffle1 (withGroup Cache.setStable)
   {-# INLINE initialize #-}
@@ -206,7 +208,7 @@ instance (Profunctor c, ArrowChoice c, ArrowIterateCache (CacheT cache a b c), A
     => ArrowParallelCache a b (CacheT (Parallel cache) a b c) where
   lookupOldCache = oldCache (rmap (fmap snd) lookup)
   lookupNewCache = newCache (rmap (fmap snd) lookup)
-  updateNewCache = update
+  updateNewCache = rmap (\(_,_,b) -> b) update
   isStable = modify' (\(_,p) -> (stable p,p))
   {-# INLINE lookupOldCache #-}
   {-# INLINE lookupNewCache #-}
@@ -231,9 +233,9 @@ instance (ArrowChoice c, Profunctor c, ArrowCache a b (CacheT cache a b c))
         newCache initialize -< a
   lookup = newCache lookup
   update = proc (a,b) -> do
-    (s,b') <- newCache update -< (a,b)
+    (s,a',b') <- newCache update -< (a,b)
     s' <- modify' (\(s,cache) -> let s' = stable cache ⊔ s in (s',cache { stable = s' })) -< s
-    returnA -< (s',b')
+    returnA -< (s',a',b')
   write = newCache write
   setStable = newCache setStable
   {-# INLINE initialize #-}
@@ -289,8 +291,8 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowC
     in case M.lookup a cache of
         Just b' ->
           let ~(stable2,b'') = widenB b' b
-          in ((stable1 ⊔ stable2, (sWiden,b'')), Monotone sWiden (M.insert a b'' cache))
-        Nothing -> ((Unstable,(sWiden,b)),Monotone sWiden (M.insert a b cache))
+          in ((stable1 ⊔ stable2, (sWiden,a), (sWiden,b'')), Monotone sWiden (M.insert a b'' cache))
+        Nothing -> ((Unstable,(sWiden,a), (sWiden,b)),Monotone sWiden (M.insert a b cache))
   write = CacheT $ modify' $ \(((_, a), (_, b), _),Monotone s cache) -> ((),Monotone s (M.insert a b cache))
   setStable = CacheT $ proc _ -> returnA -< ()
   {-# INLINE initialize #-}
@@ -333,11 +335,11 @@ instance (Arrow c, Profunctor c, ArrowCache a1 b1 (CacheT cache1 a1 b1 c), Arrow
 {-# INLINE (**) #-}
 
 lubMaybe :: (Maybe (Stable,b1), Maybe (Stable,b2)) -> Maybe (Stable,(b1,b2))
-lubMaybe (Just x, Just y) = Just (lubStable (x,y))
+lubMaybe (Just (s1,b1), Just (s2,b2)) = Just (s1 ⊔ s2,(b1,b2))
 lubMaybe _ = Nothing
 
-lubStable :: ((Stable,b1),(Stable,b2)) -> (Stable,(b1,b2))
-lubStable ((s1,b1),(s2,b2)) = (s1 ⊔ s2, (b1,b2))
+lubStable :: ((Stable,a1,b1),(Stable,a2,b2)) -> (Stable,(a1,a2),(b1,b2))
+lubStable ((s1,a1,b1),(s2,a2,b2)) = (s1 ⊔ s2,(a1,a2),(b1,b2))
 {-# INLINE lubStable #-}
 
 ------ Second Projection ------

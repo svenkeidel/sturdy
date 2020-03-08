@@ -36,7 +36,7 @@ import Data.Concrete.Error
 import Data.Concrete.Closure
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
-import Data.Text (Text)
+import Data.Text (Text,unpack)
 import Data.Profunctor
 import Data.Label
 import Data.Either
@@ -58,8 +58,8 @@ data Val
   | RatioVal Rational
   | BoolVal Bool
   | CharVal Char
-  | StringVal String
-  | SymVal String
+  | StringVal Text
+  | SymVal Text
   | QuoteVal Val
   | ListVal Addr Addr
   | EmptyList 
@@ -104,7 +104,7 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     Quote n -> returnA -< evalQuote n
     -- List ns -> returnA -< ListVal (map litsToVals ns)
     -- DottedList ns n -> returnA -< DottedListVal (map litsToVals ns) (litsToVals n)
-    _ -> fail -< "(lit): Expected type didn't match with given type" ++ show (x)
+    _ -> fail -< "(lit): Expected type didn't match with given type" ++ show x
 
   if_ f g = proc (v1, (x, y)) -> case v1 of
     BoolVal False -> g -< y
@@ -121,103 +121,88 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     returnA -< ListVal a1 a2
 
   op1_ = proc (op, x) -> case op of
-    Number_ -> do
-      case x of
-        (NumVal _) -> returnA -< BoolVal (True)
-        (FloatVal _) -> returnA -< BoolVal (True)
-        (RatioVal _) -> returnA -< BoolVal (True)
-        _ -> returnA -< BoolVal (False)
-    Integer_ -> do
-      case x of
-        (NumVal _) -> returnA -< BoolVal (True)
-        _ -> returnA -< BoolVal(False)
-    Float_ -> do
-      case x of
-        (NumVal _) -> returnA -< BoolVal (True)
-        (FloatVal _) -> returnA -< BoolVal (True)
-        _ -> returnA -< BoolVal(False)
-    Ratio_ -> do
-      case x of
-        (NumVal _) -> returnA -< BoolVal (True)
-        (FloatVal _) -> returnA -< BoolVal (True)
-        (RatioVal _) -> returnA -< BoolVal (True)
-        _ -> returnA -< BoolVal(False)
-    Zero -> do
-      case x of
-        (NumVal n) -> returnA -< BoolVal (n == 0)
-        (FloatVal n) -> returnA -< BoolVal (n == 0)
-        (RatioVal n) -> returnA -< BoolVal (n == 0)
-        _ -> fail -< "(zero?): Contract violation, expecte element of type number"
-    Positive -> do
-      case x of
-        (NumVal n) -> returnA -< BoolVal (n > 0)
-        (FloatVal n) -> returnA -< BoolVal (n > 0)
-        (RatioVal n) -> returnA -< BoolVal (n > 0)
-        _ -> fail -< "(positive?): Contract violation, expecte element of type number"
-    Negative -> do
-      case x of
-        (NumVal n) -> returnA -< BoolVal (n < 0)
-        (FloatVal n) -> returnA -< BoolVal (n < 0)
-        (RatioVal n) -> returnA -< BoolVal (n < 0)
-        _ -> fail -< "(negative?): Contract violation, expecte element of type number"
-    Odd -> do
-      case x of
-        (NumVal n) -> returnA -< BoolVal (n `mod` 2 == 1)
-        _ -> fail -< "(odd?): Contract violation, expecte element of type int: " ++ show (x)
-    Even -> do
-      case x of
-        (NumVal n) -> returnA -< BoolVal (n `mod` 2 == 0)
-        _ -> fail -< "(even?): Contract violation, expecte element of type int"
-    Abs -> do
-      case x of
-        _ -> case withNum1 (abs) x of
-          (Left a) -> fail -< a ++ " *"
-          (Right a) -> returnA -< a
-    Floor -> do
-      case x of
-        (NumVal n) -> returnA -< NumVal n
-        (FloatVal n) -> returnA -< NumVal (floor n)
-        (RatioVal n) -> returnA -< NumVal (floor n)
-        _ -> fail -< "(floor): Contract violation, epxected elements of type number"
-    Ceiling -> do
-      case x of
-        (NumVal n) -> returnA -< NumVal n
-        (FloatVal n) -> returnA -< NumVal (ceiling n)
-        (RatioVal n) -> returnA -< NumVal (ceiling n)
-        _ -> fail -< "(ceiling): Contract violation, epxected elements of type number"
-    Log -> do
-      case x of
-        (NumVal n) -> returnA -< FloatVal (log (fromIntegral n))
-        (FloatVal n) -> returnA -< FloatVal (log n)
-        (RatioVal n) -> returnA -< FloatVal (log (fromRational n))
-        _ -> fail -< "(log): Contract violation, epxected element of type number"
-    Boolean -> do
-      case x of
-        (BoolVal _) -> returnA -< BoolVal True
-        _ -> returnA -< BoolVal False
-    Not -> do
-      case x of
-        (BoolVal n) -> returnA -< BoolVal (not n)
-        _ -> returnA -< BoolVal False
-    Null -> do
-      case x of
-        EmptyList -> returnA -< BoolVal True
-        _ -> returnA -< BoolVal False
-    ListS -> do
-      case x of
-        (ListVal _ _) -> returnA -< BoolVal True
-        EmptyList -> returnA -< BoolVal True
-        _ -> returnA -< BoolVal False
+    Number_ -> case x of
+      NumVal _ -> returnA -< BoolVal True
+      FloatVal _ -> returnA -< BoolVal True
+      RatioVal _ -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
+    Integer_ -> case x of
+      (NumVal _) -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
+    Float_ -> case x of
+      NumVal _ -> returnA -< BoolVal True
+      FloatVal _ -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
+    Ratio_ -> case x of
+      NumVal _ -> returnA -< BoolVal True
+      FloatVal _ -> returnA -< BoolVal True
+      RatioVal _ -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
+    Zero -> case x of
+      NumVal n -> returnA -< BoolVal (n == 0)
+      FloatVal n -> returnA -< BoolVal (n == 0)
+      RatioVal n -> returnA -< BoolVal (n == 0)
+      _ -> fail -< "(zero?): Contract violation, expecte element of type number"
+    Positive -> case x of
+      NumVal n -> returnA -< BoolVal (n > 0)
+      FloatVal n -> returnA -< BoolVal (n > 0)
+      RatioVal n -> returnA -< BoolVal (n > 0)
+      _ -> fail -< "(positive?): Contract violation, expecte element of type number"
+    Negative -> case x of
+      NumVal n -> returnA -< BoolVal (n < 0)
+      FloatVal n -> returnA -< BoolVal (n < 0)
+      RatioVal n -> returnA -< BoolVal (n < 0)
+      _ -> fail -< "(negative?): Contract violation, expecte element of type number"
+    Odd -> case x of
+      NumVal n -> returnA -< BoolVal (n `mod` 2 == 1)
+      _ -> fail -< "(odd?): Contract violation, expecte element of type int: " ++ show x
+    Even -> case x of
+      NumVal n -> returnA -< BoolVal (n `mod` 2 == 0)
+      _ -> fail -< "(even?): Contract violation, expecte element of type int"
+    Abs -> case withNum1 abs x of
+      Left a -> fail -< a ++ " *"
+      Right a -> returnA -< a
+    Floor -> case x of
+      NumVal n -> returnA -< NumVal n
+      FloatVal n -> returnA -< NumVal (floor n)
+      RatioVal n -> returnA -< NumVal (floor n)
+      _ -> fail -< "(floor): Contract violation, epxected elements of type number"
+    Ceiling -> case x of
+      NumVal n -> returnA -< NumVal n
+      FloatVal n -> returnA -< NumVal (ceiling n)
+      RatioVal n -> returnA -< NumVal (ceiling n)
+      _ -> fail -< "(ceiling): Contract violation, epxected elements of type number"
+    Log -> case x of
+      NumVal n -> returnA -< FloatVal $ log (fromIntegral n)
+      FloatVal n -> returnA -< FloatVal $ log n
+      RatioVal n -> returnA -< FloatVal $ log (fromRational n)
+      _ -> fail -< "(log): Contract violation, epxected element of type number"
+    Boolean -> case x of
+      BoolVal _ -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
+    Not -> case x of
+      BoolVal n -> returnA -< BoolVal (not n)
+      _ -> returnA -< BoolVal False
+    Null -> case x of
+      EmptyList -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
+    ListS -> case x of
+      ListVal _ _ -> returnA -< BoolVal True
+      EmptyList -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
+    ConsS -> case x of
+      ListVal _ _ -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
     Car -> case x of
-        (ListVal a1 _)  -> do 
+        ListVal a1 _  -> do
           v <- read' -< a1
           returnA -< v
         _ -> fail -< "(car): Bad form" ++ show x
     Cdr -> case x of
-        (ListVal _ a2) -> do
-          v <- read' -< a2 
+        ListVal _ a2 -> do
+          v <- read' -< a2
           returnA -< v
-        _ -> fail -< "(cdr): Bad form: " ++ show (x)
+        _ -> fail -< "(cdr): Bad form: " ++ show x
     Caar -> do
       v1 <- op1_ -< (Car, x)
       op1_ -< (Car, v1)
@@ -231,7 +216,7 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
       v2 <- op1_ -< (Cdr, x)
       op1_ -< (Car, v2)
     Error -> case x of 
-      StringVal s -> fail -< s
+      StringVal s -> fail -< unpack s
       _ -> fail -< "(fail): contract violation expected string as error msg"
 
   op2_ = proc (op, x, y) -> case op of
@@ -298,9 +283,9 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
         Right a -> returnA -< a
     Sub -> case xs of
       [] -> fail -< "(-): Arity missmatch, expected at least one argument"
-      [NumVal x] -> returnA -< NumVal (0 - x)
-      [FloatVal x] -> returnA -< FloatVal (0 - x)
-      [RatioVal x] -> returnA -< RatioVal (0 - x)
+      [NumVal x] -> returnA -< NumVal (negate x)
+      [FloatVal x] -> returnA -< FloatVal (negate x)
+      [RatioVal x] -> returnA -< RatioVal (negate x)
       _ -> case foldl (withNum2Fold (-)) (Right $ head xs) (tail xs) of
         Left a -> fail -< "(-): Contract violation, " ++ a
         Right a -> returnA -< a
@@ -345,7 +330,7 @@ instance IsClosure Val Env where
   traverseEnvironment _ (SymVal n) = pure $ SymVal n
   traverseEnvironment _ (QuoteVal n) = pure $ QuoteVal n
   traverseEnvironment _ (ListVal a1 a2) = pure $ ListVal a1 a2
-  traverseEnvironment _ EmptyList = pure $ EmptyList
+  traverseEnvironment _ EmptyList = pure EmptyList
   traverseEnvironment f (ClosureVal cl) = ClosureVal <$> traverse f cl
 
   mapEnvironment _ (NumVal n) = NumVal n

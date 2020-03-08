@@ -24,7 +24,7 @@ import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 import           Control.Category
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(chaotic,innermost,outermost)
+import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost,outermost)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Value
@@ -49,28 +49,27 @@ import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
 
 import           TypedAnalysis
-import           Syntax (Expr(App))
+import           Syntax (LExpr,Expr(App))
 import           GenericInterpreter as Generic
 
 type InterpChaotic x y =
-  Fix
-    (ValueT Val
-      (TerminatingT
-        (LogErrorT (HashSet Text)
-          (EnvStoreT Text Addr Val
-            (FixT () ()
-              (MetricsT In
-                (ComponentT Component In
-                  (StackT Stack In
-                    (CacheT Monotone In Out
-                      (ContextT Ctx
-                        (->))))))))))) [Expr] Val x y
+  (ValueT Val
+    (TerminatingT
+      (LogErrorT (HashSet Text)
+        (EnvStoreT Text Addr Val
+          (FixT In Out
+            (MetricsT In
+              (ComponentT Component In
+                (StackT Stack In
+                  (CacheT Monotone In Out
+                    (ContextT Ctx
+                      (->))))))))))) x y
 
 {-# SPECIALIZE Generic.run_ :: InterpChaotic [Expr] Val #-}
 {-# SPECIALIZE Generic.eval :: InterpChaotic [Expr] Val -> InterpChaotic Expr Val #-}
 
-evalIntervalChaoticInner :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
-evalIntervalChaoticInner env0 e = snd $ run (extend' (Generic.run_ :: InterpChaotic [Expr] Val))
+evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
+evalChaotic iterationStrat env0 e = snd $ run (extend' (Generic.run_ :: InterpChaotic [Expr] Val))
     W.finite
     algorithm
     (W.finite, W.finite)
@@ -78,28 +77,22 @@ evalIntervalChaoticInner env0 e = snd $ run (extend' (Generic.run_ :: InterpChao
   where
     e0 = generate (sequence e)
     algorithm = Fix.fixpointAlgorithm $
-      -- Fix.trace printIn printOut .
+      Fix.trace printIn printOut .
       Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-      Fix.filter' isFunctionBody (chaotic innermost)
+      Fix.filter' isFunctionBody (chaotic iterationStrat)
+{-# INLINE evalChaotic #-}
 
-evalIntervalChaoticOuter :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
-evalIntervalChaoticOuter env0 e = snd $ run (extend' (Generic.run_ :: InterpChaotic [Expr] Val))
-    W.finite
-    algorithm
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    algorithm = Fix.fixpointAlgorithm $
-      -- Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-      Fix.filter' isFunctionBody (chaotic outermost)
+evalInner :: Eval
+evalInner = evalChaotic innermost
 
-evalIntervalChaoticInner' :: (?sensitivity::Int) => [State Label Expr] -> (Metrics In, (HashSet Text, Terminating Val))
-evalIntervalChaoticInner' exprs = let (metrics,res) = evalIntervalChaoticInner [] exprs in (metrics,snd res)
+evalOuter :: Eval
+evalOuter = evalChaotic outermost
 
-evalIntervalChaoticOuter':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics In, (HashSet Text, Terminating Val))
-evalIntervalChaoticOuter' exprs = let (metrics,res) = evalIntervalChaoticOuter [] exprs in (metrics,snd res)
+evalInner' :: Eval'
+evalInner' exprs = let (metrics,res) = evalInner [] exprs in (metrics,snd res)
 
-evalInterval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (HashSet Text, Terminating Val)
-evalInterval' env exprs = snd $ snd $ evalIntervalChaoticInner env exprs
+evalOuter':: Eval'
+evalOuter' exprs = let (metrics,res) = evalOuter [] exprs in (metrics,snd res)
+
+eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (HashSet Text,Terminating Val)
+eval' env exprs = snd $ snd $ evalInner env exprs

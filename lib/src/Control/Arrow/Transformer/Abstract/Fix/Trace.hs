@@ -45,8 +45,8 @@ instance (Pretty a, Pretty b, ArrowCache a b c) => ArrowCache a b (TraceT c) whe
     returnA -< Debug.trace (show (vsep ["LOOKUP", "x:" <+> pretty a, "y:" <+> pretty b] <> line)) b
   update = TraceT $ proc (a,b) -> do
     bOld  <- lookup -< a
-    (s,b') <- update -< (a,b)
-    returnA -< Debug.trace (show (vsep ["UPDATE", "x:" <+> pretty a, "y:" <+> pretty bOld <+> "⊔" <+> pretty b <+> showArrow s <+> pretty b'] <> line)) (s,b')
+    (s,a',b') <- update -< (a,b)
+    returnA -< Debug.trace (show (vsep ["UPDATE", "x:" <+> pretty a <+> "->" <+> pretty a', "y:" <+> pretty bOld <+> "⊔" <+> pretty b <+> showArrow s <+> pretty b'] <> line)) (s,a',b')
   write = TraceT $ proc (a,b,s) -> do
     bOld  <- lookup -< a
     write -< Debug.trace (show (vsep ["WRITE", "x:" <+> pretty a, "y:" <+> pretty bOld <+> showArrow s <+> pretty b] <> line)) (a,b,s)
@@ -66,8 +66,8 @@ instance (Pretty a, Pretty b, ArrowParallelCache a b c) => ArrowParallelCache a 
     returnA -< Debug.trace (show (vsep ["LOOKUP_NEW", "x:" <+> pretty a, "y:" <+> pretty b] <> line)) b
   updateNewCache = TraceT $ proc (a,b) -> do
     bOld  <- lookupNewCache -< a
-    (s,b') <- updateNewCache -< (a,b)
-    returnA -< Debug.trace (show (vsep ["UPDATE_NEW", "x:" <+> pretty a, "y:" <+> pretty bOld <+> "∇" <+> pretty b <+> showArrow s <+> pretty b'] <> line)) (s,b')
+    b' <- updateNewCache -< (a,b)
+    returnA -< Debug.trace (show (vsep ["UPDATE_NEW", "x:" <+> pretty a, "y:" <+> pretty bOld <+> "∇" <+> pretty b <+> "->" <+> pretty b'] <> line)) b'
   isStable = TraceT $ proc () -> do
     stable  <- isStable -< ()
     returnA -< Debug.trace (show ("IS_STABLE:" <+> pretty stable <> line)) stable

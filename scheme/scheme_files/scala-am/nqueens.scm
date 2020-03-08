@@ -1,6 +1,3 @@
-#lang scheme
-(require "../imports.scm")
-
 (define (append l x)
   (if (null? l)
       x

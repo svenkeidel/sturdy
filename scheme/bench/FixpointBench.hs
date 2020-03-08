@@ -64,4 +64,4 @@ helper_import :: String -> IO String
 helper_import inFile = do
   root <- getCurrentDirectory
   let root' = root ++ "//scheme_files//" ++  inFile ++ ".scm"
-  readCreateProcess (shell $ "raco expand " ++ root') ""
+  readCreateProcess (shell $ "/nix/store/5yw6qgbbmjyqymzqckzzkyhk8c41s796-racket-7.4/bin/raco expand " ++ root') ""

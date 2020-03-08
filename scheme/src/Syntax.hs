@@ -26,8 +26,8 @@ data Literal
   | Ratio Rational
   | Bool Bool
   | Char Char --single character and single quotation (')
-  | String String -- any amount of chars and double quotation (")
-  | Symbol String
+  | String Text -- any amount of chars and double quotation (")
+  | Symbol Text
   | Quote Literal
   -- | DottedList [Literal] Literal
   deriving (Eq,Generic,NFData)
@@ -122,42 +122,44 @@ data Expr
 instance Eq Expr where
   e1 == e2 = label e1 == label e2
 
+type LExpr = State Label Expr
+
 -- Smart constructors that build labeled Scheme expressions.
 -- | Expressions for inner representation and evaluation
-lit :: Literal -> State Label Expr
+lit :: Literal -> LExpr
 lit x = Lit x <$> fresh
-list :: [State Label Expr] -> State Label Expr
+list :: [LExpr] -> LExpr
 list [] = Nil <$> fresh
 list (x : xs) = Cons <$> x <*> list xs <*> fresh
 -- list_ :: [State Label Expr] -> State Label Expr 
 -- list_ xs = List_ <$> (sequence xs) <*> fresh 
-cons :: State Label Expr -> State Label Expr ->State Label Expr
+cons :: LExpr -> LExpr ->LExpr
 cons e1 e2 = Cons <$> e1 <*> e2 <*> fresh
-begin :: [State Label Expr] -> State Label Expr
+begin :: [LExpr] -> LExpr
 begin es = Begin <$> sequence es <*> fresh
-app :: State Label Expr -> [State Label Expr] -> State Label Expr
+app :: LExpr -> [LExpr] -> LExpr
 app e1 e2 = App <$> e1 <*> sequence e2 <*> fresh
 -- | Scheme expressions
-var_ :: Text -> State Label Expr
+var_ :: Text -> LExpr
 var_ x = Var x <$> fresh
-set :: Text -> State Label Expr -> State Label Expr
+set :: Text -> LExpr -> LExpr
 set t e = Set t <$> e <*> fresh
-lam :: [Text] -> [State Label Expr] -> State Label Expr
+lam :: [Text] -> [LExpr] -> LExpr
 lam xs es = Lam xs <$> sequence es <*> fresh
-if_ :: State Label Expr -> State Label Expr -> State Label Expr -> State Label Expr
+if_ :: LExpr -> LExpr -> LExpr -> LExpr
 if_ e1 e2 e3 = If <$> e1 <*> e2 <*> e3 <*> fresh
-define :: Text -> State Label Expr -> State Label Expr
+define :: Text -> LExpr -> LExpr
 define t e = Define t <$> e <*> fresh
-let_ :: [(Text, State Label Expr)] -> [State Label Expr] -> State Label Expr
+let_ :: [(Text, LExpr)] -> [LExpr] -> LExpr
 let_ bnds body = Let <$> sequence [(v,) <$> e | (v,e) <- bnds] <*> sequence body <*> fresh
-let_rec :: [(Text, State Label Expr)] -> [State Label Expr] -> State Label Expr
+let_rec :: [(Text, LExpr)] -> [LExpr] -> LExpr
 let_rec bnds body = LetRec <$> sequence [(v,) <$> e | (v,e) <- bnds] <*> sequence body <*> fresh
 -- | Scheme standard procedures
-op1_ :: Op1_ -> State Label Expr -> State Label Expr
+op1_ :: Op1_ -> LExpr -> LExpr
 op1_ operation e1 = Op1 operation <$> e1 <*> fresh
-op2_ :: Op2_ -> State Label Expr -> State Label Expr -> State Label Expr
+op2_ :: Op2_ -> LExpr -> LExpr -> LExpr
 op2_ operation e1 e2 = Op2 operation <$> e1 <*> e2 <*> fresh
-opvar_ :: OpVar_ -> [State Label Expr] -> State Label Expr
+opvar_ :: OpVar_ -> [LExpr] -> LExpr
 opvar_ operation es = OpVar operation <$> (sequence es) <*> fresh
 
 instance Show Literal where show = show . pretty
@@ -171,7 +173,7 @@ instance Pretty Literal where
     Char x -> squotes (pretty x)
     String x -> dquotes (pretty x)
     Symbol x -> pretty x
-    Quote x -> pretty x
+    Quote x -> "'" <> pretty x
     -- DottedList xs x -> showString ("DottedList ") . showList(xs) . showString (" . ") . shows (x)
 
 instance Show Op1_ where show = show . pretty
@@ -236,40 +238,46 @@ instance Pretty OpVar_ where
 instance Show Expr where show = show . pretty
 
 instance Pretty Expr where
-  pretty e0 = case e0 of
-    Lit x _ -> pretty x
-    Nil _ -> "nil"
-    Cons e1 e2 _ -> parens $ "cons" <+> pretty e1 <+> pretty e2
-    Begin es _-> parens $ "begin" <+> pretty es
-    App e1 e2 _ -> parens $ "apply" <+> pretty e1 <+> pretty e2
-    Apply e _ -> parens $ pretty e
-    Var x _ -> pretty x
-    Set t e _ -> parens $ "set!" <+> pretty t <+> pretty e
-    Define t e _ -> parens $ "define" <+> pretty t <+> pretty e
-    Lam xs e2 _ -> parens $ "lambda" <+> prettyList xs <> "." <+> pretty e2
-    If e1 e2 e3 _ -> parens $ "if" <+> pretty e1 <+> pretty e2 <+> pretty e3
-    Let bnds body _ -> parens $ "let" <+> prettyList bnds <+> pretty body
-    LetRec bnds body _ -> parens $ "letrec" <+> prettyList bnds <+> pretty body
-    Op1 op1 e _ -> parens $ pretty op1 <+> pretty e
-    Op2 op2 e1 e2 _ -> parens $ pretty op2 <+> pretty e1 <+> pretty e2
-    OpVar opvar es _ -> parens $ pretty opvar <+> hsep (map pretty es)
+  pretty e = flatAlt (prettyExpr e) (parens (showTopLvl e <> "..."))
+
+prettyExpr :: Expr -> Doc ann
+prettyExpr e0 = case e0 of
+  Lit x _ -> pretty x
+  Nil _ -> "nil"
+  Cons e1 e2 _ -> parens $ "cons" <+> prettyExpr e1 <+> prettyExpr e2
+  Begin es _-> parens $ "begin" <+> prettyExprList es
+  App e1 e2 _ -> parens $ prettyExpr e1 <+> prettyExprList e2
+  Apply e _ -> parens $ prettyExprList e
+  Var x _ -> pretty x
+  Set t e _ -> parens $ "set!" <+> pretty t <+> prettyExpr e
+  Define t e _ -> parens $ "define" <+> pretty t <+> prettyExpr e
+  Lam xs e2 _ -> parens $ "lambda" <+> hsep (map pretty xs) <> "." <+> prettyExprList e2
+  If e1 e2 e3 _ -> parens $ "if" <+> prettyExpr e1 <+> prettyExpr e2 <+> prettyExpr e3
+  Let bnds body _ -> parens $ "let" <+> brackets (align (vcat [ pretty var <+> prettyExpr expr | (var,expr) <- bnds])) <+> prettyExprList body
+  LetRec bnds body _ -> parens $ "letrec" <+> brackets (align (vcat [ pretty var <+> prettyExpr expr | (var,expr) <- bnds])) <+> pretty body
+  Op1 op1 e _ -> parens $ pretty op1 <+> prettyExpr e
+  Op2 op2 e1 e2 _ -> parens $ pretty op2 <> prettyExpr e1 <+> prettyExpr e2
+  OpVar opvar es _ -> parens $ pretty opvar <+> prettyExprList es
+
+prettyExprList :: [Expr] -> Doc ann
+prettyExprList expr = hsep (map prettyExpr expr)
 
 showTopLvl :: Expr -> Doc ann
 showTopLvl e = case e of
-    Lit x _ -> "Lit" <+> pretty x
-    Nil _ -> "Nil"
-    Cons {} -> "Cons"
-    Begin {} -> "Begin"
-    App {} -> "App"
-    Apply {} -> "Apply"
-    Var x _ -> "Var" <+> pretty x
-    Set t _ _ -> "Set" <+> pretty t <+> showTopLvl e
-    Define t _ _ -> "Define" <+> pretty t <+> showTopLvl e
-    Lam xs e2 _ -> "Lam" <+> hsep (map pretty xs) <+> "->" <+> hsep (map showTopLvl e2)
-    If e1 _ _ _ -> "If" <+> parens (showTopLvl e1)
-    Let {} -> "Let"
-    LetRec {} -> "LetRec"
-    Op1 op1 _ _ -> pretty op1 <+> parens (showTopLvl e)
+    Lit x _ -> pretty x
+    Nil _ -> "nil"
+    Cons {} -> "cons"
+    Begin {} -> "begin"
+    App {} -> "app"
+    Apply {} -> "apply"
+    Var x _ -> "var" <+> pretty x
+    Set t _ _ -> "set!" <+> pretty t <+> showTopLvl e
+    Define t _ _ -> "define" <+> pretty t <+> showTopLvl e
+    Lam xs _ _ -> "lambda" <+> hsep (map pretty xs)
+    If e1 _ _ _ -> "if" <+> showTopLvl e1
+    Let {} -> "let"
+    LetRec {} -> "letrec"
+    Op1 op1 e1 _ -> pretty op1 <+> parens (showTopLvl e1)
     Op2 op2 e1 e2 _ -> pretty op2 <+> parens (showTopLvl e1 <> "," <> showTopLvl e2)
     OpVar opvar es _ -> pretty opvar <+> parens (hsep (map showTopLvl es))
 

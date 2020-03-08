@@ -22,8 +22,11 @@ module TypedAnalysis.Parallel where
 import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 
 import           Control.Category
+import           Control.Arrow
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Cache(ArrowCache,ArrowParallelCache)
+import           Control.Arrow.Fix.Stack(ArrowStack)
 import           Control.Arrow.Fix.Parallel as Par
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
@@ -47,31 +50,32 @@ import           Data.HashSet(HashSet)
 -- import           Data.Text.Prettyprint.Doc
 
 import qualified Data.Abstract.Widening as W
-import           Data.Abstract.Terminating(Terminating)
 
 
 import           Syntax (Expr(App))
-import           GenericInterpreter as Generic
+import qualified GenericInterpreter as Generic
 import           TypedAnalysis
 
 type InterpParallel x y =
-  Fix
-    (ValueT Val
-      (TerminatingT
-        (LogErrorT (HashSet Text)
-          (EnvStoreT Text Addr Val
-            (FixT () ()
-              (MetricsT In
-                (StackT Stack In
-                  (CacheT (Parallel Monotone) In Out
-                    (ContextT Ctx
-                      (->)))))))))) [Expr] Val x y
+  ValueT Val
+    (TerminatingT
+      (LogErrorT (HashSet Text)
+        (EnvStoreT Text Addr Val
+          (FixT In Out
+            (MetricsT In
+              (StackT Stack In
+                (CacheT (Parallel Monotone) In Out
+                  (ContextT Ctx
+                    (->))))))))) x y
 
 {-# SPECIALIZE Generic.run_ :: InterpParallel [Expr] Val #-}
 {-# SPECIALIZE Generic.eval :: InterpParallel [Expr] Val -> InterpParallel Expr Val #-}
 
-evalIntervalParallel :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
-evalIntervalParallel env0 e = snd $ run (extend' (Generic.run_ :: InterpParallel [Expr] Val))
+eval :: (?sensitivity :: Int)
+     => (forall c. (ArrowChoice c, ArrowStack In c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
+                   (FixpointCombinator c In Out -> FixpointCombinator c In Out) -> FixpointAlgorithm c In Out)
+     -> [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
+eval algo env0 e = snd $ run (extend' (Generic.run_ :: InterpParallel [Expr] Val))
     W.finite
     algorithm
     (W.finite, W.finite)
@@ -79,29 +83,21 @@ evalIntervalParallel env0 e = snd $ run (extend' (Generic.run_ :: InterpParallel
   where
     e0 = generate (sequence e)
     algorithm =
-      Par.parallel $ \update ->
+      algo $ \update ->
         -- Fix.trace printIn printOut .
         -- Fix.traceCache (show . pretty) .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter' isFunctionBody update
+{-# INLINE eval #-}
 
-evalIntervalParallelADI :: (?sensitivity :: Int) => [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
-evalIntervalParallelADI env0 e = snd $ run (extend' (Generic.run_ :: InterpParallel [Expr] Val))
-    W.finite
-    algorithm
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    algorithm =
-      Par.adi $ \update ->
-        -- Fix.trace printIn printOut .
-        -- Fix.traceCache (show . pretty) .
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.filter' isFunctionBody update
+evalParallel :: Eval
+evalParallel = eval Par.parallel
 
-evalIntervalParallel':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics In, (HashSet Text, Terminating Val))
-evalIntervalParallel' exprs = let (metrics,res) = evalIntervalParallel [] exprs in (metrics,snd res)
+evalADI :: Eval
+evalADI = eval Par.adi
 
-evalIntervalParallelADI':: (?sensitivity :: Int) => [State Label Expr] -> (Metrics In, (HashSet Text, Terminating Val))
-evalIntervalParallelADI' exprs = let (metrics,res) = evalIntervalParallelADI [] exprs in (metrics,snd res)
+evalParallel':: Eval'
+evalParallel' exprs = let (metrics,res) = evalParallel [] exprs in (metrics,snd res)
+
+evalADI':: Eval'
+evalADI' exprs = let (metrics,res) = evalADI [] exprs in (metrics,snd res)

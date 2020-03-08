@@ -37,8 +37,7 @@ parallel combinator eval = iterate
         else do
           Cache.initialize -< a
           b <- Stack.push f -< a
-          (_,b') <- Cache.updateNewCache -< (a,b)
-          returnA -< b'
+          Cache.updateNewCache -< (a,b)
 {-# INLINE parallel #-}
 
 adi :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm c a b
@@ -62,6 +61,5 @@ adi combinator eval = iterate
         else do
           Cache.initialize -< a
           b <- Stack.push f -< a
-          (_,b') <- Cache.updateNewCache -< (a,b)
-          returnA -< b'
+          Cache.updateNewCache -< (a,b)
 {-# INLINE adi #-}

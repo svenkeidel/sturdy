@@ -37,6 +37,7 @@ data Nesting = Inner | Outermost
 
 class ArrowComponent a c => ArrowInComponent a c where
   inComponent :: c a InComponent
+
   default inComponent :: (c ~ t c', ArrowLift t, ArrowInComponent a c') => c a InComponent
   inComponent = lift' inComponent
   {-# INLINE inComponent #-}
@@ -86,11 +87,11 @@ chaotic iterationStrategy f = proc a -> do
         addToComponent -< a
         returnA -< b
   else
-    Stack.push iterate -< a
+    iterate -< a
   where
-    iterate = iterationStrategy f $ proc (a,b) -> do
-      (stable,bNew) <- Cache.update -< (a,b)
+    iterate = iterationStrategy (Stack.push f) $ proc (a,b) -> do
+      (stable,aNew,bNew) <- Cache.update -< (a,b)
       case stable of
         Stable   -> returnA -< bNew
-        Unstable -> iterate -< a
+        Unstable -> iterate -< aNew
 {-# INLINE chaotic #-}

@@ -5,6 +5,7 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -38,6 +39,7 @@ import qualified Control.Arrow.Store as Store
 import qualified Control.Arrow.Utils as ArrowUtils
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Transformer.Value
+import           Control.Arrow.Transformer.Abstract.Fix.Metrics(Metrics)
 
 import           Control.DeepSeq
 
@@ -64,7 +66,7 @@ import           GHC.Generics(Generic)
 
 import           Text.Printf
 
-import           Syntax (Expr(Apply),Literal(..) ,Op1_(..),Op2_(..),OpVar_(..))
+import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1_(..),Op2_(..),OpVar_(..))
 import           GenericInterpreter as Generic
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
@@ -80,11 +82,13 @@ data Addr
   deriving anyclass (NFData)
   deriving PreOrd via Discrete Addr
 
+type Symbol = Text
+
 data Val
   = Top
   | NumVal Number
   | StringVal
-  | QuoteVal (Pow String)
+  | QuoteVal (Pow Symbol)
   | BoolVal B.Bool
   | ClosureVal Cls
   | ListVal List
@@ -99,9 +103,9 @@ data List
   deriving stock (Eq, Generic)
   deriving anyclass (NFData)
 
-data Number 
-  = IntVal 
-  | FloatVal 
+data Number
+  = IntVal
+  | FloatVal
   | NumTop
   deriving stock (Eq, Generic)
   deriving anyclass (NFData)
@@ -405,9 +409,9 @@ instance Pretty Addr where
 instance Hashable Val
 instance Show Val where show = show . pretty
 instance Pretty Val where
-  pretty (NumVal nv) = viaShow nv
-  pretty (BoolVal b) = viaShow b
-  pretty (ClosureVal cls) = viaShow cls
+  pretty (NumVal nv) = pretty nv
+  pretty (BoolVal b) = pretty b
+  pretty (ClosureVal cls) = pretty cls
   pretty StringVal = "String"
   pretty (QuoteVal syms) = "Quote" <> parens (viaShow syms)
   pretty (ListVal l) = pretty l
@@ -418,7 +422,7 @@ instance Pretty List where
   pretty Nil = "Nil"
   pretty (Cons a1 a2) = "Cons" <> parens (pretty a1 <> "," <> pretty a2)
   pretty (ConsNil a1 a2) = "Cons" <> parens (pretty a1 <> "," <> pretty a2) <> " ⊔ Nil"
-instance Hashable Number 
+instance Hashable Number
 instance Show Number where show = show . pretty
 instance Pretty Number where
   pretty IntVal = "Int"
@@ -438,7 +442,7 @@ instance PreOrd Val where
   _ ⊑ Top = True
   NumVal nv1 ⊑ NumVal nv2 = nv1 ⊑ nv2
   StringVal ⊑ StringVal = True
-  QuoteVal sym1 ⊑ QuoteVal sym2 = sym1 ⊑ sym2 
+  QuoteVal sym1 ⊑ QuoteVal sym2 = sym1 ⊑ sym2
   BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
   ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
   ListVal l1 ⊑ ListVal l2 = l1 ⊑ l2
@@ -502,6 +506,8 @@ instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
 
 type In = (Store,(Env,[Expr]))
 type Out = (Store, (HashSet Text, Terminating Val))
+type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Metrics In, Out)
+type Eval' = (?sensitivity :: Int) => [LExpr] -> (Metrics In, (HashSet Text,Terminating Val))
 
 isFunctionBody :: In -> Bool
 isFunctionBody (_,(_,e)) = case e of
@@ -509,21 +515,19 @@ isFunctionBody (_,(_,e)) = case e of
   _ -> False
 {-# INLINE isFunctionBody #-}
 
-printIn :: (Store,(Env,[Expr])) -> String
+printIn :: (Store,(Env,[Expr])) -> Doc ann
 printIn (store,(env,expr)) =
-  show $
   vsep
-  [ "EXPR:  " <> align (showFirst expr)
+  [ "EXPR:  " <> showFirst expr
   , "ENV:   " <> align (pretty env)
   , "STORE: " <> align (pretty store)
   ]
   where showFirst (x:_) = pretty x; showFirst [] = "[]"
 
-printOut :: (Store,(HashSet Text,Terminating Val)) -> String
+printOut :: (Store,(HashSet Text,Terminating Val)) -> Doc ann
 printOut (store,(errs,val)) =
-  show $
   vsep
-  [ "RET:   " <> align (pretty val)
+  [ "RET:   " <> pretty val
   , "STORE: " <> align (pretty store)
   , "ERRORS:" <> align (pretty errs)
   ]

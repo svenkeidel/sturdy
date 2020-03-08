@@ -11,7 +11,7 @@
 module Control.Arrow.Fix
   (
     Fix,Fix',ArrowFix(..),
-    FixpointAlgorithm,transform,fixpointAlgorithm,
+    FixpointAlgorithm,fixpointAlgorithm,transform,
     FixpointCombinator,
     filter,filter',filterPrism,filterPrism',
     trace,trace',traceShow,traceCache
