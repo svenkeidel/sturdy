@@ -40,6 +40,7 @@ import qualified Control.Arrow.Utils as ArrowUtils
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics(Metrics)
+import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
 import           Control.DeepSeq
 
@@ -111,16 +112,16 @@ data Number
   deriving anyclass (NFData)
 
 instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT Val c) where
-  alloc = proc var -> do
+  alloc = {-# SCC "alloc" #-} proc var -> do
     ctx <- Ctx.askContext @Ctx -< ()
     returnA -< VarA (var,ctx)
-  {-# INLINEABLE alloc #-}
+  {-# INLINE alloc #-}
 
 allocLabel :: (ArrowContext Ctx c) => c Label Addr
 allocLabel = proc l -> do
   ctx <- Ctx.askContext @Ctx -< ()
   returnA -< LabelA (l,ctx)
-{-# INLINEABLE allocLabel #-}
+{-# INLINE allocLabel #-}
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
@@ -128,18 +129,18 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
   closure = ValueT $ proc e -> do
     cls <- Cls.closure -< e
     returnA -< ClosureVal cls
-  apply (ValueT f) = ValueT $ proc (v,x) ->
+  apply (ValueT f) = {-# SCC "applyClosure" #-} ValueT $ proc (v,x) ->
     case v of
       ClosureVal cls -> Cls.apply f -< (cls,x)
       _ -> failString -< printf "Expected a closure, but got %s" (show v)
-  {-# INLINEABLE closure #-}
-  {-# INLINEABLE apply #-}
+  {-# INLINE closure #-}
+  {-# INLINE apply #-}
 
 instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c, ArrowStore Addr Val c, ArrowEnv Text Addr c,
           Store.Join Val c, Env.Join Addr c,Store.Join Addr c,Fail.Join Val c,IsString e)
     => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = (ArrowComplete y (ValueT Val c),Fail.Join y c)
-  lit = proc x -> case x of
+  lit = {-# SCC "lit" #-} proc x -> case x of
     Number _ -> returnA -< NumVal IntVal
     Float _ -> returnA -< NumVal FloatVal
     Ratio _ -> returnA -< Bottom
@@ -149,9 +150,9 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     String _ -> returnA -< StringVal
     Quote (Symbol sym) -> returnA -< QuoteVal $ singleton sym
     _ -> returnA -< Bottom
-  {-# INLINEABLE lit #-}
+  {-# INLINE lit #-}
 
-  if_ f g = proc (v,(x,y)) -> case v of
+  if_ f g = {-# SCC "if_" #-} proc (v,(x,y)) -> case v of
     BoolVal B.False -> g -< y
     BoolVal B.Top -> (f -< x) <⊔> (g -< y)
     Top -> (f -< x) <⊔> (g -< y)
@@ -160,15 +161,16 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
 
   nil_ = proc _ -> returnA -< ListVal Nil
   {-# INLINE nil_ #-}
-  cons_ = proc ((v1,l1),(v2,l2)) -> do
+
+  cons_ = {-# SCC "cons_" #-} proc ((v1,l1),(v2,l2)) -> do
     a1 <- allocLabel -< l1
     a2 <- allocLabel -< l2
     write -< (a1,v1)
     write -< (a2,v2)
     returnA -< ListVal (Cons (singleton a1) (singleton a2))
-  {-# INLINEABLE cons_ #-}
+  {-# INLINE cons_ #-}
 
-  op1_ = proc (op, x) -> case op of
+  op1_ = {-# SCC "op1" #-} proc (op, x) -> case op of
     Number_ -> returnA -< case x of
       NumVal _ -> BoolVal B.True
       Top -> BoolVal B.Top
@@ -229,14 +231,14 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Random -> intToInt -< (op, x) 
   {-# INLINABLE op1_ #-}
 
-  op2_ = proc (op, x, y) -> case op of
+  op2_ = {-# SCC "op2" #-} proc (op, x, y) -> case op of
     Eqv -> returnA -< BoolVal $ eq x y
     Quotient -> intIntToInt -< (op,x,y)
     Remainder -> intIntToInt -< (op,x,y)
     Modulo -> intIntToInt -< (op,x,y)
   {-# INLINEABLE op2_ #-}
 
-  opvar_ =  proc (op, xs) -> case op of
+  opvar_ =  {-# SCC "opvar" #-} proc (op, xs) -> case op of
     EqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
     SmallerS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
     GreaterS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
@@ -278,7 +280,7 @@ intToInt = proc (op,v) -> case v of
 
 numToBool :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToBool = proc (op,v) -> case v of
-  NumVal _ -> returnA -< BoolVal B.Top 
+  NumVal _ -> returnA -< BoolVal B.Top
   Top -> (returnA -< BoolVal B.Top) <⊔> (err -< (op,v))
   _ -> err -< (op,v)
   where
@@ -306,7 +308,7 @@ car' = proc v -> case v of
 {-# INLINEABLE car' #-}
 
 car :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c) => c List Val
-car = proc v -> case v of
+car = {-# SCC "car" #-} proc v -> case v of
   Cons x _ -> do
     vals <- ArrowUtils.map read' -< toList x
     returnA -< lub vals
@@ -324,7 +326,7 @@ cdr' = proc v -> case v of
 {-# INLINEABLE cdr' #-}
 
 cdr :: (IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, Fail.Join Val c, Store.Join Val c) => c List Val
-cdr = proc v -> case v of
+cdr = {-# SCC "cdr" #-} proc v -> case v of
   Cons _ y -> do
     vals <- ArrowUtils.map read' -< toList y
     returnA -< lub vals
@@ -333,7 +335,7 @@ cdr = proc v -> case v of
 {-# INLINEABLE cdr #-}
 
 eq :: Val -> Val -> B.Bool
-eq v1 v2 = case (v1,v2) of
+eq v1 v2 = {-# SCC "eq" #-} case (v1,v2) of
   (Top,_) -> B.Top
   (_,Top) -> B.Top
   (BoolVal b1,BoolVal b2) -> case (b1,b2) of
@@ -506,8 +508,8 @@ instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
 
 type In = (Store,(Env,[Expr]))
 type Out = (Store, (HashSet Text, Terminating Val))
-type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Metrics In, Out)
-type Eval' = (?sensitivity :: Int) => [LExpr] -> (Metrics In, (HashSet Text,Terminating Val))
+type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metrics In, Out))
+type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metrics In, (HashSet Text,Terminating Val)))
 
 isFunctionBody :: In -> Bool
 isFunctionBody (_,(_,e)) = case e of

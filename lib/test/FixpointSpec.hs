@@ -15,8 +15,6 @@ import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackE
 import           Control.Arrow.Fix.Cache (ArrowCache,ArrowParallelCache)
 import           Control.Arrow.Fix.Chaotic (ArrowInComponent,chaotic,innermost,outermost)
 import           Control.Arrow.Fix.Parallel (parallel,adi)
-import           Control.Arrow.State
-import           Control.Arrow.Order(ArrowLowerBounded)
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
@@ -128,31 +126,32 @@ sharedSpec run = do
     {-# INLINE shouldBe' #-}
 {-# INLINE sharedSpec #-}
 
-toParallel :: Complete b => Arr a b -> TerminatingT (FixT a (Terminating b) (MetricsT a (StackT Stack a (CacheT (Parallel Cache) a (Terminating b) (->))))) a b
-toParallel x = x
-{-# INLINE toParallel #-}
+type ParallelT a b = TerminatingT (FixT (MetricsT a (StackT Stack a (CacheT (Parallel Cache) a (Terminating b) (->))))) a b
 
-runParallel :: (forall a b c cache. (Pretty a, Pretty b, Pretty cache, Identifiable a,
-                                     ArrowState cache c, ArrowChoice c, ArrowLowerBounded b c,
-                                     ArrowStack a c, ArrowStackDepth c, ArrowStackElements a c,
-                                     ArrowParallelCache a b c, ArrowCache a b c) =>
-                (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm c a b)
-            -> (forall a b. (Pretty a, Pretty b, Identifiable a, Complete b,
+runParallel :: forall a b.
+               (forall x y c. (Pretty x, Pretty y, Identifiable x, ArrowChoice c,
+                               ArrowStack x c, ArrowStackDepth c, ArrowStackElements x c,
+                               ArrowParallelCache x y c, ArrowCache x y c) =>
+                (FixpointCombinator c x y -> FixpointCombinator c x y) -> FixpointAlgorithm c x y)
+            -> ((Pretty a, Pretty b, Identifiable a, Complete b,
                              ?strat :: Strat a b, ?widen :: Widening b) =>
                 Arr a b -> a -> (Metrics a,Terminating b))
-runParallel algorithm f a = snd $ Arrow.run (toParallel f) (algorithm (getStrat ?strat .)) (T.widening ?widen) a
+runParallel algorithm f a =
+  let ?fixpointAlgorithm = algorithm (\update -> getStrat ?strat . update)
+  in snd $ Arrow.run (f :: ParallelT a b) (T.widening ?widen) a
 {-# INLINE runParallel #-}
 
-toChaotic :: (Identifiable a, Complete b)
-          => Arr a b -> TerminatingT (FixT a (Terminating b) (MetricsT a (ComponentT Component a (StackT Stack a (CacheT Cache a (Terminating b) (->)))))) a b
-toChaotic x = x
-{-# INLINE toChaotic #-}
+type ChaoticT a b = TerminatingT (FixT (MetricsT a (ComponentT Component a (StackT Stack a (CacheT Cache a (Terminating b) (->)))))) a b
 
-runChaotic :: (forall a b c. (Pretty a, Pretty b, Identifiable a, ArrowChoice c, ArrowStack a c,
-                              ArrowInComponent a c, ArrowCache a b c) =>
-               FixpointCombinator c a b)
-           -> (forall a b. (Pretty a, Pretty b, Identifiable a, Complete b,
-                            ?strat :: Strat a b, ?widen :: Widening b) =>
+runChaotic :: forall a b.
+               (forall x y c. (Pretty x, Pretty y, Identifiable x, ArrowChoice c,
+                               ArrowStack x c, ArrowStackDepth c, ArrowStackElements x c,
+                               ArrowInComponent x c, ArrowCache x y c) =>
+                FixpointCombinator c x y)
+           -> ((Pretty a, Pretty b, Identifiable a, Complete b,
+               ?strat :: Strat a b, ?widen :: Widening b) =>
                Arr a b -> a -> (Metrics a,Terminating b))
-runChaotic algorithm f a = snd $ Arrow.run (toChaotic f) (fixpointAlgorithm (getStrat ?strat . algorithm)) (T.widening ?widen) a
+runChaotic algorithm f a =
+  let ?fixpointAlgorithm = fixpointAlgorithm (getStrat ?strat . algorithm)
+  in snd $ Arrow.run (f :: ChaoticT a b) (T.widening ?widen) a
 {-# INLINE runChaotic #-}

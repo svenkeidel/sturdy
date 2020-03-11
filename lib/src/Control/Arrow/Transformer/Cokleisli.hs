@@ -110,8 +110,8 @@ instance (ArrowComonad f c, ArrowStore var val c) => ArrowStore var val (Cokleis
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix (CokleisliT f c) x y = CokleisliT f (Fix c (f x) y)
-instance (ArrowComonad f c, ArrowFix (Underlying (CokleisliT f c) x y)) => ArrowFix (CokleisliT f c x y)
+instance (ArrowComonad f c, ArrowFix (Underlying (CokleisliT f c) x y)) => ArrowFix (CokleisliT f c x y) where
+  type Fix (CokleisliT f c x y) = Fix (Underlying (CokleisliT f c) x y)
 
 instance (ArrowComonad f c, ArrowExcept e c) => ArrowExcept e (CokleisliT f c) where
   type Join y (CokleisliT f c) = Exc.Join y c

@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 module GenericInterpreter where
@@ -51,7 +52,6 @@ eval :: (ArrowChoice c,
          Env.Join addr c)
      => c [Expr] v -> c Expr v
 eval run' = proc e0 -> case e0 of
-  -- inner representation and evaluation
   Lit x _ -> lit -< x
   Nil l -> nil_ -< l
   Cons x xs _ -> do
@@ -123,7 +123,8 @@ eval run' = proc e0 -> case e0 of
         returnA -< (var,addr,val) : vs
 {-# INLINEABLE eval #-}
 
-run_ :: (ArrowChoice c,
+run_ :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Expr] v)),
+         ArrowChoice c,
          ArrowFix (c [Expr] v),
          ArrowEnv Text addr c,
          ArrowStore addr v c,
@@ -145,24 +146,24 @@ run_ :: (ArrowChoice c,
 run_ = fix $ \run' -> proc es -> case es of
   [] ->
     fail -< fromString "Empty program"
-  Set x e l:rest -> do
+  Set x e _:rest -> do
     v <- run' -< [e]
     addr <- Env.lookup (proc (addr, _) -> returnA -< addr)
                (proc var -> fail -< fromString $ printf "(set): Variable %s not bound when setting" (show var))
                  -< (x, x)
     write -< (addr,v)
-    if null rest
-      then run' -< [Lit (String "#<void>") l]
-      else run' -< rest
-  Define x e l: rest -> do
-    -- Not used except by test cases, which explicitly use define expression 
-    -- TODO: Check whether pre_val == Undefined if so continue else => Error "Var has already been defined"
+    -- if null rest
+    --   then run' -< [Lit (String "#<void>") l]
+    --   else
+    run' -< rest
+  Define x e _: rest -> do
     cls <- run' -< [e]
     addr <- alloc -< x
     write -< (addr,cls)
-    if null rest
-      then Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)], [Lit (String "#<void>") l]))
-      else Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)],rest))
+    -- if null rest
+    --   then Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)], [Lit (String "#<void>") l]))
+    --   else
+    Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)],rest))
   e:[] ->
     eval run' -< e
   e:rest -> do

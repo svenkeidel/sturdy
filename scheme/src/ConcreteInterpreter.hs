@@ -1,16 +1,14 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 -- | Concrete semantics of Scheme.
 module ConcreteInterpreter where
 
@@ -40,6 +38,7 @@ import Data.Text (Text,unpack)
 import Data.Profunctor
 import Data.Label
 import Data.Either
+import qualified Data.Function as Function
 
 import GHC.Generics(Generic)
 
@@ -47,9 +46,8 @@ import Syntax (Literal(..), Expr(..), Op1_(..), Op2_(..), OpVar_(..))
 import GenericInterpreter
 import qualified GenericInterpreter as Generic
 
-
 type Env = HashMap Text Addr
-type Store = HashMap Addr Val 
+type Store = HashMap Addr Val
 type Addr = Int
 type Cls = Closure Expr Env
 data Val
@@ -62,30 +60,32 @@ data Val
   | SymVal Text
   | QuoteVal Val
   | ListVal Addr Addr
-  | EmptyList 
+  | EmptyList
   | ClosureVal Cls
   deriving (Generic, Eq)
 
 evalConcrete' :: [State Label Expr] -> (Addr, (Store, Error String Val))
-evalConcrete' es = Trans.run
-    (Generic.run_ ::
-          ValueT Val
-            (FailureT String
-                (EnvStoreT Text Addr Val
-                  (StateT Addr
-                      (->)))) [Expr] Val)
-      (0, (M.empty, (M.empty, generate <$> es)))
+evalConcrete' es =
+  let ?fixpointAlgorithm = Function.fix
+  in Trans.run
+       (Generic.run_ ::
+             ValueT Val
+               (FailureT String
+                   (EnvStoreT Text Addr Val
+                     (StateT Addr
+                         (->)))) [Expr] Val)
+         (0, (M.empty, (M.empty, generate <$> es)))
 
 
 instance (ArrowChoice c, Profunctor c, ArrowState Int c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = proc _ -> do
-      nextAddr <- get -< () 
+      nextAddr <- get -< ()
       put -< nextAddr + 1
       returnA -< nextAddr
 
 evalConcrete'' :: [State Label Expr] -> (Either (Store, String) Val)
 evalConcrete'' exprs = case evalConcrete' exprs of
-  (_, (store, err)) -> case err of 
+  (_, (store, err)) -> case err of
     Success val -> Right val
     Fail str -> Left (store, str)
 
@@ -359,7 +359,7 @@ instance Show Val where
   show EmptyList = "'()"
   show (ClosureVal n) = show n
 
-  
+
 -- FOLD HELPER -----------------------------------------------------------------
 withIntFold :: (forall n. Integral n => n -> n -> n) -> Either String Val -> Val -> Either String Val
 withIntFold op v1 v2 = case (v1, v2) of

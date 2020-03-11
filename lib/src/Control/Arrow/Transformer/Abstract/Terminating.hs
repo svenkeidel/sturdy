@@ -47,8 +47,8 @@ instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (TerminatingT
   app = lift (app .# first coerce)
   {-# INLINE app #-}
 
-type instance Fix (TerminatingT c) x y = TerminatingT (Fix c x (Terminating y))
 instance (ArrowChoice c, ArrowFix (Underlying (TerminatingT c) x y), Profunctor c) => ArrowFix (TerminatingT c x y) where
+  type Fix (TerminatingT c x y) = Fix (Underlying (TerminatingT c) x y)
 
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded y (TerminatingT c) where
   bottom = lift $ arr (const NonTerminating)

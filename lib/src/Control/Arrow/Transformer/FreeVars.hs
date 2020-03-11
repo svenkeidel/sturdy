@@ -56,6 +56,7 @@ instance (Identifiable var, ArrowEnv var val c, Profunctor c) => ArrowEnv var va
 instance (Identifiable var,ArrowApply c, Profunctor c) => ArrowApply (FreeVarsT var c) where
   app = FreeVarsT (app .# first coerce)
 
-type instance Fix (FreeVarsT var c) x y = FreeVarsT var (Fix c x (HashSet var,y))
-instance (ArrowFix (Underlying (FreeVarsT var c) x y)) => ArrowFix (FreeVarsT var c x y)
+instance (ArrowFix (Underlying (FreeVarsT var c) x y)) => ArrowFix (FreeVarsT var c x y) where
+  type Fix (FreeVarsT var c x y) = Fix (Underlying (FreeVarsT var c) x y)
+
 deriving instance (Identifiable var,ArrowComplete (HashSet var,y) c) => ArrowComplete y (FreeVarsT var c)

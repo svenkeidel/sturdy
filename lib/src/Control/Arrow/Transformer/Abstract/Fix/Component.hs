@@ -8,7 +8,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-module Control.Arrow.Transformer.Abstract.Fix.Component(ComponentT,runComponentT,Component,Proj2) where
+module Control.Arrow.Transformer.Abstract.Fix.Component(ComponentT,runComponentT,Component) where
 
 import           Prelude hiding (id,pred,lookup,map,head,iterate,(.),elem)
 
@@ -34,15 +34,13 @@ import           Data.Order hiding (lub)
 import           Data.HashSet(HashSet)
 import qualified Data.HashSet as H
 
-
--- newtype ComponentT a c x y = ComponentT (WriterT (Component a) c x y)
 newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowStackDepth,ArrowStackElements a,
             ArrowCache a b,ArrowParallelCache a b,ArrowIterateCache,
             ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
 
 runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> c x y
-runComponentT (ComponentT f) = dimap (empty,) snd (runStateT f)
+runComponentT (ComponentT f) = dimap (\x -> (empty,x)) snd (runStateT f)
 {-# INLINE runComponentT #-}
 
 instance ArrowLift (ComponentT comp a) where
@@ -96,25 +94,25 @@ instance (Identifiable a, Arrow c, Profunctor c) => ArrowInComponent a (Componen
   {-# INLINE inComponent #-}
 
 -- Second Projection ----------------------------------------------------------------------------------
-data Proj2 comp b where
-  Proj2 :: comp b -> Proj2 comp (a,b)
+-- data Proj2 comp b where
+--   Proj2 :: comp b -> Proj2 comp (a,b)
 
-instance IsEmpty (comp b) => IsEmpty (Proj2 comp (a,b)) where
-  empty = Proj2 empty
+-- instance IsEmpty (comp b) => IsEmpty (Proj2 comp (a,b)) where
+--   empty = Proj2 empty
 
-instance (Arrow c, Profunctor c, ArrowComponent b (ComponentT comp b c)) => ArrowComponent (a,b) (ComponentT (Proj2 comp) (a,b) c) where
-  addToComponent = lift (lmap snd addToComponent)
-  removeFromComponent = lift (lmap snd removeFromComponent)
-  {-# INLINE addToComponent #-}
-  {-# INLINE removeFromComponent #-}
+-- instance (Arrow c, Profunctor c, ArrowComponent b (ComponentT comp b c)) => ArrowComponent (a,b) (ComponentT (Proj2 comp) (a,b) c) where
+--   addToComponent = lift (lmap snd addToComponent)
+--   removeFromComponent = lift (lmap snd removeFromComponent)
+--   {-# INLINE addToComponent #-}
+--   {-# INLINE removeFromComponent #-}
 
-instance (Profunctor c, Arrow c, ArrowInComponent b (ComponentT comp b c)) => ArrowInComponent (a,b) (ComponentT (Proj2 comp) (a,b) c) where
-  inComponent = lift (lmap snd inComponent)
-  {-# INLINE inComponent #-}
+-- instance (Profunctor c, Arrow c, ArrowInComponent b (ComponentT comp b c)) => ArrowInComponent (a,b) (ComponentT (Proj2 comp) (a,b) c) where
+--   inComponent = lift (lmap snd inComponent)
+--   {-# INLINE inComponent #-}
 
-instance Profunctor c => ArrowTrans (ComponentT (Proj2 comp) (a,b) c) where
-  type Underlying (ComponentT (Proj2 comp) (a,b) c) x y = ComponentT comp b c x y
-  lift (ComponentT f) = ComponentT $ lift $ dimap (first (\(Proj2 c) -> c)) (first Proj2) (unlift f)
-  unlift (ComponentT f) = ComponentT $ lift $ dimap (first Proj2) (first (\(Proj2 c) -> c)) (unlift f)
-  {-# INLINE lift #-}
-  {-# INLINE unlift #-}
+-- instance Profunctor c => ArrowTrans (ComponentT (Proj2 comp) (a,b) c) where
+--   type Underlying (ComponentT (Proj2 comp) (a,b) c) x y = ComponentT comp b c x y
+--   lift (ComponentT f) = ComponentT $ lift $ dimap (first (\(Proj2 c) -> c)) (first Proj2) (unlift f)
+--   unlift (ComponentT f) = ComponentT $ lift $ dimap (first Proj2) (first (\(Proj2 c) -> c)) (unlift f)
+--   {-# INLINE lift #-}
+--   {-# INLINE unlift #-}

@@ -60,8 +60,9 @@ instance (O.Complete e, ArrowJoin c, ArrowChoice c, ArrowApply c, Profunctor c) 
   app = lift (app .# first coerce)
   {-# INLINE app #-}
 
-type instance Fix (ExceptT e c) x y = ExceptT e (Fix c x (Except e y))
-instance ArrowFix (Underlying (ExceptT e c) x y) => ArrowFix (ExceptT e c x y)
+instance ArrowFix (Underlying (ExceptT e c) x y) => ArrowFix (ExceptT e c x y) where
+  type Fix (ExceptT e c x y) = Fix (Underlying (ExceptT e c) x y)
+
 deriving instance (O.Complete e, ArrowChoice c, ArrowJoin c, ArrowComplete (Except e y) c) => ArrowComplete y (ExceptT e c)
 
 instance (O.Complete e, ArrowChoice c, ArrowJoin c) => ArrowJoin (ExceptT e c) where

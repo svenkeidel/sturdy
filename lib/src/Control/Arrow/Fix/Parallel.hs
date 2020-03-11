@@ -16,7 +16,7 @@ import qualified Control.Arrow.Fix.Cache as Cache
 import           Data.Abstract.Stable
 import qualified Data.Function as Function
 
-parallel :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm c a b
+parallel :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm (c a b)
 parallel combinator eval = iterate
   where
     iterate = proc a -> do
@@ -36,11 +36,11 @@ parallel combinator eval = iterate
             Nothing -> Cache.initialize -< a
         else do
           Cache.initialize -< a
-          b <- Stack.push f -< a
+          b <- Stack.push' f -< a
           Cache.updateNewCache -< (a,b)
 {-# INLINE parallel #-}
 
-adi :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm c a b
+adi :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm (c a b)
 adi combinator eval = iterate
   where
     iterate = proc a -> do
@@ -60,6 +60,6 @@ adi combinator eval = iterate
             Nothing -> Cache.initialize -< a
         else do
           Cache.initialize -< a
-          b <- Stack.push f -< a
+          b <- Stack.push' f -< a
           Cache.updateNewCache -< (a,b)
 {-# INLINE adi #-}

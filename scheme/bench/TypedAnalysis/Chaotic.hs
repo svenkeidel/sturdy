@@ -13,7 +13,8 @@
 {-# OPTIONS_GHC
   -fspecialise-aggressively
   -flate-specialise
-  -fsimpl-tick-factor=500
+  -funfolding-use-threshold=3000
+  -fsimpl-tick-factor=1000
   -fno-warn-orphans
   -fno-warn-partial-type-signatures
 #-}
@@ -23,7 +24,7 @@ import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 
 import           Control.Category
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(innermost,outermost)
+import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost,outermost)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Value
@@ -44,45 +45,40 @@ import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
 
 import           TypedAnalysis
-import           Syntax (Expr(App),apply)
+import           Syntax (Expr(App))
 import           GenericInterpreter as Generic
 
-type InterpChaotic x y =
-  Fix
-    (ValueT Val
-      (TerminatingT
-        (LogErrorT (HashSet Text)
-          (EnvStoreT Text Addr Val
-            (FixT () ()
-              (ComponentT Component In
-                (StackT Stack In
-                  (CacheT Monotone In Out
-                    (ContextT Ctx
-                      (->)))))))))) [Expr] Val x y
+type InterpChaotic =
+  ValueT Val
+    (TerminatingT
+      (LogErrorT (HashSet Text)
+        (EnvStoreT Text Addr Val
+          (FixT
+            (ComponentT Component In
+              (StackT Stack In
+                (CacheT Monotone In Out
+                  (ContextT Ctx
+                    (->)))))))))
 
-{-# SPECIALIZE Generic.run_ :: InterpChaotic [Expr] Val #-}
+{-# SPECIALIZE Generic.run_ :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (InterpChaotic [Expr] Val)))
+                            => InterpChaotic [Expr] Val #-}
 {-# SPECIALIZE Generic.eval :: InterpChaotic [Expr] Val -> InterpChaotic Expr Val #-}
 
-evalInnermost :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
-evalInnermost e = snd $ snd $ run (Generic.run_ :: InterpChaotic [Expr] Val)
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,[e]))
-  where
-    iterationStrategy =
-      -- Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply innermost
+evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> Expr -> (HashSet Text, Terminating Val)
+evalChaotic iterationStrat e =
+  let ?fixpointAlgorithm =
+        {-# SCC "fixpointAlgorithm" #-}
+        Fix.fixpointAlgorithm $
+          -- Fix.trace printIn printOut .
+          Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+          Fix.filter isFunctionBody (chaotic iterationStrat)
+  in snd $ snd $ run (Generic.run_ :: InterpChaotic [Expr] Val)
+       W.finite ({-# SCC "wideningStore" #-} W.finite, W.finite)
+       (Map.empty,(Map.empty,[e]))
+{-# INLINE evalChaotic #-}
 
-evalOutermost :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
-evalOutermost e = snd $ snd $ run (Generic.run_ :: InterpChaotic [Expr] Val)
-    W.finite
-    iterationStrategy
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,[e]))
-  where
-    iterationStrategy =
-      -- Fix.trace printIn printOut .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of [App _ _ l] -> Just l; _ -> Nothing) .
-      Fix.filter apply outermost
+evalInner :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
+evalInner = evalChaotic innermost
+
+evalOuter :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
+evalOuter = evalChaotic outermost

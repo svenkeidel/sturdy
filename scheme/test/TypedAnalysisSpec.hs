@@ -8,13 +8,11 @@ module TypedAnalysisSpec where
 import           Prelude hiding (succ,pred,id)
 
 import           Data.GraphViz hiding (diamond)
-import           Data.Graph.Inductive(Gr)
 import           Data.HashSet (HashSet)
 import           Data.Order (bottom)
 import           Data.Abstract.Terminating hiding (toEither)
 import           Data.Text(Text)
 
-import           System.Process
 import           System.Directory
 
 import           Parser(loadSchemeFile)
@@ -25,6 +23,7 @@ import           TypedAnalysis.Parallel(evalParallel',evalADI')
 import           Syntax as S hiding (Nil)
 import qualified Data.Abstract.Boolean as B
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics
+import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Text.Printf
 
 import           Test.Hspec
@@ -34,54 +33,6 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "behavior specific to interval analysis" $ do
-    it "test lits" $ do
-      -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] ["x"] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Number 2), "x"] `shouldBe` ([], Terminating $ NumVal IntVal)
-      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Number 2),
-                                        set "x" (lit $ S.Bool True),
-                                        "x"] `shouldBe` success Top
-
-    it "test closures" $ do
-      let ?sensitivity = 0 in eval' [] [app (lam ["x"] ["x"]) [lit $ S.Number 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
-      let ?sensitivity = 0 in eval' [] [define "id" (lam ["x"] ["x"]),
-                                        app "id" [lit $ S.Number 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
-      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lit $ S.Bool True),
-      --                                           set "id" (lam ["x"] ["x"]),
-      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
-      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
-      --                                           set "id" (lit $ S.Bool True),
-      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
-
-    it "should analyze let expression" $
-      let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
-      let ?sensitivity = 0 in eval' [] expr `shouldBe` success (NumVal IntVal)
-      let ?sensitivity = 1 in eval' [] expr `shouldBe` success (NumVal IntVal)
-
-    it "should analyze define" $
-      let exprs = [define "x" (lit $ S.Number 1),
-                   set "x" (lit $ S.Number 2),
-                   set "x" (lit $ S.Number 3),
-                   "x"] in do
-      let ?sensitivity = 0 in eval' [] exprs `shouldBe` success (NumVal IntVal)
-      let ?sensitivity = 2 in eval' [] exprs `shouldBe` success (NumVal IntVal)
-
-    it "should return unify two different types" $
-      let exprs = [define "x" (lit $ S.Number 1),
-                   set "x" (lit $ S.Number 2),
-                   set "x" (lit $ S.Bool True),
-                   "x"] in do
-      let ?sensitivity = 0 in eval' [] exprs `shouldBe` success Top
-      let ?sensitivity = 2 in eval' [] exprs `shouldBe` success Top
-
-
-    it "should terminate for the non-terminating program LetRec" $
-      let ?sensitivity = 0
-      in eval' [] [let_rec [("id", lam ["x"] ["x"]),
-                            ("fix",lam ["x"] [app "fix" ["x"]])]
-                           [app "fix" ["id"]]]
-           `shouldBe` ([], NonTerminating)
-
   beforeAll (writeFile metricFile (printf "Function,Algorithm,%s\n" csvHeader)) $ do
     describe "Benchmarks" $ testFixpointAlgorithms benchmarks
     describe "Tests" $ testFixpointAlgorithms customTests
@@ -324,6 +275,52 @@ customTests run = do
       let expRes = success $ NumVal IntVal
       run inFile expRes
 
+    it "test lits" $ do
+      -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] ["x"] `shouldBe` Terminating (Success $ singleton IntVal)
+      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Number 2), "x"] `shouldBe` ([], Terminating $ NumVal IntVal)
+      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Number 2),
+                                        set "x" (lit $ S.Bool True),
+                                        "x"] `shouldBe` success Top
+
+    it "test closures" $ do
+      let ?sensitivity = 0 in eval' [] [app (lam ["x"] ["x"]) [lit $ S.Number 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
+      let ?sensitivity = 0 in eval' [] [define "id" (lam ["x"] ["x"]),
+                                        app "id" [lit $ S.Number 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
+      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lit $ S.Bool True),
+      --                                           set "id" (lam ["x"] ["x"]),
+      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
+      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
+      --                                           set "id" (lit $ S.Bool True),
+      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
+
+    it "should analyze let expression" $
+      let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
+      let ?sensitivity = 0 in eval' [] expr `shouldBe` success (NumVal IntVal)
+      let ?sensitivity = 1 in eval' [] expr `shouldBe` success (NumVal IntVal)
+
+    it "should analyze define" $
+      let exprs = [define "x" (lit $ S.Number 1),
+                   set "x" (lit $ S.Number 2),
+                   set "x" (lit $ S.Number 3),
+                   "x"] in do
+      let ?sensitivity = 0 in eval' [] exprs `shouldBe` success (NumVal IntVal)
+      let ?sensitivity = 2 in eval' [] exprs `shouldBe` success (NumVal IntVal)
+
+    it "should return unify two different types" $
+      let exprs = [define "x" (lit $ S.Number 1),
+                   set "x" (lit $ S.Number 2),
+                   set "x" (lit $ S.Bool True),
+                   "x"] in do
+      let ?sensitivity = 0 in eval' [] exprs `shouldBe` success Top
+      let ?sensitivity = 2 in eval' [] exprs `shouldBe` success Top
+
+
+    it "should terminate for the non-terminating program LetRec" $
+      let ?sensitivity = 0
+      in eval' [] [let_rec [("id", lam ["x"] ["x"]),
+                            ("fix",lam ["x"] [app "fix" ["x"]])]
+                           [app "fix" ["id"]]]
+           `shouldBe` ([], NonTerminating)
 success :: Val -> (HashSet Text, Terminating Val)
 success v = ([],Terminating v)
 
@@ -339,22 +336,20 @@ runner :: String -> Eval' -> Runner
 runner algorithm eval inFile expRes = do
   prog <- loadSchemeFile inFile
   let ?sensitivity = 0
-  let (metric,res) = eval [prog]
+  let (cfg,(metric,res)) = eval [prog]
   let csv = printf "\"%s\",%s,%s\n" inFile algorithm (toCSV metric)
   appendFile metricFile csv
+  renderCFG inFile cfg
   res`shouldBe` expRes
 
-macroExpand :: String -> IO String
-macroExpand inFile = do
-  root <- getCurrentDirectory
-  readProcess "raco" ["expand", root ++ "//scheme_files//" ++  inFile ++ ".scm"] ""
-
-drawGraph :: String -> Gr Expr () -> IO FilePath
-drawGraph inFile graph = do
+renderCFG :: String -> CFG Expr -> IO ()
+renderCFG inFile (CFG graph) = do
   let dotGraph = graphToDot fileGraphParams graph
   root <- getCurrentDirectory
   let outPath = root ++ "//graph_files//" ++ inFile ++ ".png"
-  runGraphvizCommand Dot dotGraph Png outPath
+  print outPath
+  _ <- runGraphvizCommand Dot dotGraph Png outPath
+  return ()
 
 -- visualize node labels (expr) as actual node labels
 fileGraphParams :: GraphvizParams Int Expr () () Expr

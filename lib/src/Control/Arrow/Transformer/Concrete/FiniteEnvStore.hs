@@ -117,5 +117,5 @@ instance ArrowState s c => ArrowState s (EnvStoreT var addr val c) where
   get = lift' State.get
   put = lift' State.put
 
-type instance Fix (EnvStoreT var addr val c) x y = EnvStoreT var addr val (Fix c (HashMap addr val,(HashMap var addr,x)) (HashMap addr val,y))
-deriving instance (Profunctor c, Arrow c, ArrowFix (c (HashMap addr val,(HashMap var addr,x)) (HashMap addr val,y))) => ArrowFix (EnvStoreT var addr val c x y)
+instance (Profunctor c, Arrow c, ArrowFix (Underlying (EnvStoreT var addr val c) x y)) => ArrowFix (EnvStoreT var addr val c x y) where
+  type Fix (EnvStoreT var addr val c x y) = Fix (Underlying (EnvStoreT var addr val c) x y)

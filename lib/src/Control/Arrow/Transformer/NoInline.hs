@@ -136,8 +136,8 @@ instance ArrowStore var val c => ArrowStore var val (NoInlineT c) where
   {-# NOINLINE read #-}
   {-# NOINLINE write #-}
 
-type instance Fix (NoInlineT c) x y = NoInlineT (Fix c x y)
-instance ArrowFix (Underlying (NoInlineT c) x y) => ArrowFix (NoInlineT c x y)
+instance ArrowFix (Underlying (NoInlineT c) x y) => ArrowFix (NoInlineT c x y) where
+  type Fix (NoInlineT c x y) = Fix (Underlying (NoInlineT c) x y)
 
 instance ArrowExcept e c => ArrowExcept e (NoInlineT c) where
   type Join z (NoInlineT c) = Exc.Join z c

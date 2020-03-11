@@ -32,9 +32,10 @@ import Data.Text.Prettyprint.Doc
 
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,
-            ArrowEffectCommutative,ArrowComponent a,ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt,
+            ArrowComponent a, ArrowInComponent a,
+            ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt,
             ArrowTopLevel,ArrowStackDepth,ArrowStackElements a, ArrowFiltered a,
-            ArrowLowerBounded b)
+            ArrowEffectCommutative, ArrowLowerBounded b)
 
 instance (Pretty a, Pretty b, ArrowCache a b c) => ArrowCache a b (TraceT c) where
   initialize = TraceT $ proc a -> do

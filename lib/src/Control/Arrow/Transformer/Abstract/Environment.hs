@@ -110,5 +110,5 @@ instance ArrowReader r c => ArrowReader r (EnvT env c) where
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
-type instance Fix (EnvT env c) x y = EnvT env (Fix c (env,x) y)
-deriving instance ArrowFix (Underlying (EnvT env c) x y) => ArrowFix (EnvT env c x y)
+instance ArrowFix (Underlying (EnvT env c) x y) => ArrowFix (EnvT env c x y) where
+  type Fix (EnvT env c x y) = Fix (Underlying (EnvT env c) x y)

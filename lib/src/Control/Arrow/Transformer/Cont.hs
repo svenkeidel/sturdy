@@ -94,8 +94,8 @@ instance ArrowApply c => ArrowApply (ContT r c) where
   app = lift $ \k -> proc (f,x) -> app -< (unlift f k, x)
   {-# INLINE app #-}
 
-type instance Fix (ContT _ c) x y = ContT y (Fix c x y)
 instance ArrowFix (c x r) => ArrowFix (ContT r c x y) where
+  type Fix (ContT r c x y) = Fix (c x r)
   fix f = lift $ \k -> fix $ \g -> unlift1 f (const g) k
   {-# INLINE fix #-}
 

@@ -191,5 +191,7 @@ instance (Applicative f, ArrowComponent comp c) => ArrowComponent comp (StaticT 
   {-# SPECIALIZE instance ArrowComponent comp c => ArrowComponent comp (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowControlFlow stmt c) => ArrowControlFlow stmt (StaticT f c) where
+  nextStatement (StaticT f) = StaticT $ nextStatement <$> f
+  {-# INLINE nextStatement #-}
   {-# SPECIALIZE instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StaticT ((->) r) c) #-}
 

@@ -54,8 +54,8 @@ instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ErrorT e c) 
   app = lift (app .# first coerce)
   {-# INLINE app #-}
 
-type instance Fix (ErrorT e c) x y = ErrorT e (Fix c x (Error e y))
-deriving instance (ArrowFix (Underlying (ErrorT e c) x y)) => ArrowFix (ErrorT e c x y)
+instance (ArrowFix (Underlying (ErrorT e c) x y)) => ArrowFix (ErrorT e c x y) where
+  type Fix (ErrorT e c x y) = Fix (Underlying (ErrorT e c) x y)
 
 deriving instance (ArrowChoice c, ArrowComplete (Error e y) c) => ArrowComplete y (ErrorT e c)
 

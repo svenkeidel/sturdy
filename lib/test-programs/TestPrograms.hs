@@ -1,10 +1,11 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 module TestPrograms where
 
@@ -103,7 +104,9 @@ unsoundExample = fix $ \call -> proc fun -> case fun of
   where
     c = True
 
-type Arr x y = forall c. (ArrowChoice c, Profunctor c, ArrowApply c, ArrowComplete y c, ArrowFix (c x y)) => c x y
+type Arr x y = forall c. (?fixpointAlgorithm :: (Fix (c x y) -> Fix (c x y)) -> Fix (c x y),
+                          ArrowChoice c, Profunctor c, ArrowApply c, ArrowComplete y c, ArrowFix (c x y))
+                          => c x y
 newtype Strat x y = Strat { getStrat :: forall c. (ArrowChoice c, Profunctor c, ArrowApply c, ArrowComplete (Terminating y) c, ArrowStack x c, ArrowStackDepth c, ArrowStackElements x c, ArrowCache x (Terminating y) c) => FixpointCombinator c x (Terminating y)}
 type IV = Interval (InfiniteNumber Int)
 

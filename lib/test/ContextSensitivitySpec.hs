@@ -61,9 +61,13 @@ spec =
   --describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
   describe "Chaotic" $ do
     describe "inner component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (fixpointAlgorithm (callsiteSensitive ?sensitivity fst . chaotic innermost)) (?widenA, T.widening ?widenB) a)
+      callsiteSpec $ \f a ->
+        let ?fixpointAlgorithm = fixpointAlgorithm (callsiteSensitive ?sensitivity fst . chaotic innermost)
+        in snd $ Arrow.run (f :: ChaoticT _ _ _) (?widenA, T.widening ?widenB) a
     describe "outer component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (fixpointAlgorithm (callsiteSensitive ?sensitivity fst . chaotic outermost)) (?widenA, T.widening ?widenB) a)
+      callsiteSpec $ \f a ->
+        let ?fixpointAlgorithm = fixpointAlgorithm (callsiteSensitive ?sensitivity fst . chaotic outermost)
+        in snd $ Arrow.run (f :: ChaoticT _ _ _) (?widenA, T.widening ?widenB) a
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)
 instance Pretty Val where pretty = viaShow
@@ -153,13 +157,22 @@ instance Hashable Fun
 instance PreOrd Fun where
   e1 ⊑ e2 = e1 == e2
 
-toChaotic :: (Identifiable lab, Identifiable a, Complete b)
-          => Arr (lab,a) b -> TerminatingT
-                          (FixT (lab,a) (Terminating b)
-                            (ComponentT Component (lab,a)
-                              (StackT Stack (lab,a)
-                                (CacheT (Context (Cache.Proj2 (CtxCache (CallString lab))) Cache) (lab,a) (Terminating b)
-                                  (ContextT (CallString lab)
-                                    (->)))))) (lab,a) b
-toChaotic x = x
-{-# INLINE toChaotic #-}
+type ChaoticT lab a b =
+  TerminatingT
+    (FixT
+      (ComponentT Component (lab,a)
+        (StackT Stack (lab,a)
+          (CacheT (Context (Cache.Proj2 (CtxCache (CallString lab))) Cache) (lab,a) (Terminating b)
+            (ContextT (CallString lab)
+              (->)))))) (lab,a) b
+
+-- toChaotic :: (Identifiable lab, Identifiable a, Complete b)
+--           => Arr (lab,a) b -> TerminatingT
+--                           (FixT (lab,a) (Terminating b)
+--                             (ComponentT Component (lab,a)
+--                               (StackT Stack (lab,a)
+--                                 (CacheT (Context (Cache.Proj2 (CtxCache (CallString lab))) Cache) (lab,a) (Terminating b)
+--                                   (ContextT (CallString lab)
+--                                     (->)))))) (lab,a) b
+-- toChaotic x = x
+-- {-# INLINE toChaotic #-}

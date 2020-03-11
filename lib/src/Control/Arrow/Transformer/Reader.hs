@@ -17,9 +17,12 @@ import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
 import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
+import Control.Arrow.Fix.Metrics as M
+import Control.Arrow.Fix.Chaotic as Chaotic
 import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
+import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Order
 import Control.Arrow.Primitive
 import Control.Arrow.Reader as Reader
@@ -138,8 +141,8 @@ instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix (ReaderT r c) x y = ReaderT r (Fix c (r,x) y)
-instance ArrowFix (Underlying (ReaderT r c) x y) => ArrowFix (ReaderT r c x y)
+instance ArrowFix (Underlying (ReaderT r c) x y) => ArrowFix (ReaderT r c x y) where
+  type Fix (ReaderT r c x y) = Fix (Underlying (ReaderT r c) x y)
 
 instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
   type Join z (ReaderT r c) = Exc.Join z c
@@ -170,8 +173,20 @@ instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
   localContext f = lift $ lmap shuffle1 (localContext (unlift f))
   {-# INLINE localContext #-}
 
+instance ArrowControlFlow stmt c => ArrowControlFlow stmt (ReaderT r c) where
+  nextStatement f = lift $ lmap shuffle1 (nextStatement (unlift f))
+  {-# INLINE nextStatement #-}
+
+instance ArrowStack a c => ArrowStack a (ReaderT r c) where
+  push f = lift $ lmap shuffle1 (push (unlift f))
+  {-# INLINE push #-}
+
+instance ArrowStackDepth c => ArrowStackDepth (ReaderT r c)
+instance ArrowStackElements a c => ArrowStackElements a (ReaderT r c)
 instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c)
 instance ArrowCache a b c => ArrowCache a b (ReaderT r c)
 instance ArrowParallelCache a b c => ArrowParallelCache a b (ReaderT r c)
 instance ArrowIterateCache c => ArrowIterateCache (ReaderT r c)
-instance ArrowControlFlow stmt c => ArrowControlFlow stmt (ReaderT r c)
+instance ArrowFiltered a c => ArrowFiltered a (ReaderT r c)
+instance ArrowComponent a c => ArrowComponent a (ReaderT r c)
+instance ArrowInComponent a c => ArrowInComponent a (ReaderT r c)

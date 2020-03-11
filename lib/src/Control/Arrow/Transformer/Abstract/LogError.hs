@@ -49,12 +49,15 @@ instance (Monoid e, Arrow c, Profunctor c) => ArrowFail e (LogErrorT e c) where
   fail = LogErrorT $ proc e -> do
     tell -< e
     returnA -< bottom
+  {-# INLINE fail #-}
 
 instance (Monoid e, ArrowApply c, Profunctor c) => ArrowApply (LogErrorT e c) where
   app = lift (app .# first coerce)
+  {-# INLINE app #-}
 
 instance (Complete y, Monoid e, ArrowEffectCommutative c, Arrow c, Profunctor c) => ArrowComplete y (LogErrorT e c) where
   LogErrorT f <⊔> LogErrorT g = LogErrorT (rmap (uncurry (⊔)) (f &&& g))
+  {-# INLINE (<⊔>) #-}
 
-type instance Fix (LogErrorT e c) x y = LogErrorT e (Fix c x (e,y))
-instance (ArrowChoice c, ArrowFix (Underlying (LogErrorT e c) x y)) => ArrowFix (LogErrorT e c x y)
+instance (ArrowChoice c, ArrowFix (Underlying (LogErrorT e c) x y)) => ArrowFix (LogErrorT e c x y) where
+  type Fix (LogErrorT e c x y) = Fix (Underlying (LogErrorT e c) x y)

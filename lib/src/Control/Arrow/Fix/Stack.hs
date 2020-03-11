@@ -19,12 +19,15 @@ import Data.Maybe
 import Text.Printf
 
 class (Arrow c, Profunctor c) => ArrowStack a c | c -> a where
-  push :: c a b -> c a b
+  push :: c x y -> c (a,x) y
   elem :: c a Bool
 
   default elem :: (c ~ t c', ArrowLift t, ArrowStack a c') => c a Bool
   elem = lift' elem
   {-# INLINE elem #-}
+
+push' :: ArrowStack a c => c a b -> c a b
+push' f = lmap (\a -> (a,a)) (push f)
 
 class (Arrow c, Profunctor c) => ArrowStackDepth c where
   depth :: c () Int

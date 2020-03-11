@@ -129,8 +129,8 @@ instance (ArrowMonad f c, ArrowStore var val c) => ArrowStore var val (KleisliT 
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix (KleisliT f c) x y = KleisliT f (Fix c y (f y))
 instance ArrowFix (c x (f y)) => ArrowFix (KleisliT f c x y) where
+  type Fix (KleisliT f c x y) = Fix (Underlying (KleisliT f c) x y)
 
 instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
   type Join y (KleisliT f c) = Exc.Join (f y) c

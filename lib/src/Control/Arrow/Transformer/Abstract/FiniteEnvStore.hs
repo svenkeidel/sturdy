@@ -19,6 +19,7 @@ import Control.Arrow
 import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Transformer.Const
+import Control.Arrow.Transformer.Static
 import Control.Arrow.Transformer.Reader
 import Control.Arrow.Reader as Reader
 import Control.Arrow.Transformer.State
@@ -52,11 +53,14 @@ import Data.Maybe(mapMaybe)
 
 
 newtype EnvStoreT var addr val c x y = EnvStoreT (ConstT (Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded a,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded a,
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
             ArrowContext ctx, ArrowControlFlow stmt)
 
-instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutative c, ArrowChoice c, Profunctor c) 
+instance ArrowTrans (EnvStoreT var addr val c) where
+  type Underlying (EnvStoreT var addr val c) x y = ConstT (Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y
+
+instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutative c, ArrowChoice c, Profunctor c)
     => ArrowEnv var addr (EnvStoreT var addr val c) where
   type Join y (EnvStoreT var addr val c) = ()
   lookup (EnvStoreT f) (EnvStoreT g) = EnvStoreT $ proc (var,x) -> do
@@ -126,8 +130,9 @@ instance ArrowLift (EnvStoreT var addr val) where
 
 instance (Complete y, ArrowEffectCommutative c, Arrow c, Profunctor c) => ArrowComplete y (EnvStoreT var addr val c) where
   EnvStoreT f <⊔> EnvStoreT g = EnvStoreT (rmap (uncurry (⊔)) (f &&& g))
+  {-# INLINE (<⊔>) #-}
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (EnvStoreT var addr val c)
 
-type instance Fix (EnvStoreT var addr val c) x y = EnvStoreT var addr val (Fix c (HashMap addr val,(HashMap var addr,x)) (HashMap addr val,y))
-deriving instance (Profunctor c, Arrow c, ArrowFix (c (HashMap addr val,(HashMap var addr,x)) (HashMap addr val,y))) => ArrowFix (EnvStoreT var addr val c x y)
+instance (Profunctor c, Arrow c, ArrowFix (Underlying (EnvStoreT var addr val c) x y)) => ArrowFix (EnvStoreT var addr val c x y) where
+  type Fix (EnvStoreT var addr val c x y) = Fix (Underlying (EnvStoreT var addr val c) x y)

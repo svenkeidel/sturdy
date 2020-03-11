@@ -62,7 +62,7 @@ outermost f iterate = proc a -> do
     Head Outermost -> do
       removeFromComponent -< a
       iterate -< (a,b)
-    Head _ -> do
+    Head Inner -> do
       removeFromComponent -< a
       returnA -< b
     _ ->
@@ -89,7 +89,7 @@ chaotic iterationStrategy f = proc a -> do
   else
     iterate -< a
   where
-    iterate = iterationStrategy (Stack.push f) $ proc (a,b) -> do
+    iterate = iterationStrategy (Stack.push' f) $ proc (a,b) -> do
       (stable,aNew,bNew) <- Cache.update -< (a,b)
       case stable of
         Stable   -> returnA -< bNew

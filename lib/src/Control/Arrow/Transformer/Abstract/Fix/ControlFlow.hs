@@ -1,4 +1,3 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Arrows #-}
@@ -13,9 +12,14 @@ import           Control.Arrow
 import           Control.Arrow.Order
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Fix.Chaotic as Chaotic
+import           Control.Arrow.Fix.Cache as Cache
+import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
 import           Control.Arrow.Fix.ControlFlow
+import           Control.Arrow.Fix.Metrics
+import           Control.Arrow.Fix.Stack (ArrowStackDepth,ArrowStackElements)
 import           Control.Category
-
 
 import           Data.Label
 import           Data.Coerce
@@ -25,45 +29,52 @@ import           Data.Profunctor.Unsafe
 import           Data.Graph.Inductive (Gr)
 import qualified Data.Graph.Inductive as G
 
-data CFG stmt = CFG
-  { graph :: Gr stmt ()
-  , predecessor :: Maybe stmt
-  }
+newtype CFG stmt = CFG (Gr stmt ())
 
 instance IsEmpty (CFG stmt) where
-  empty = CFG { graph = G.empty
-              , predecessor = Nothing
-              }
+  empty = CFG G.empty
 
-newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice)
+newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Maybe stmt) c) x y)
+  deriving (
+    Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
+    ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache,
+    ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
+    ArrowFiltered a, ArrowComponent a, ArrowInComponent a
+    )
 
 instance (HasLabel stmt, Arrow c, Profunctor c) => ArrowControlFlow stmt (ControlFlowT stmt c) where
-  nextStatement = lift $ proc (cfg,nextStmt) -> do
-    let cfg' = cfg { graph = addEdge (predecessor cfg) nextStmt (graph cfg)
-                   , predecessor = Just nextStmt
-                   }
-    returnA -< (cfg', ())
+  nextStatement f = lift $ proc (predecessor, (cfg, (nextStmt, x))) ->
+    unlift f -< (nextStmt, (addEdge predecessor nextStmt cfg, x))
     where
-      addEdge :: HasLabel stmt => Maybe stmt -> stmt -> Gr stmt () -> Gr stmt ()
-      addEdge pred next cfg = case pred of  
-        Just pred' -> do 
-          let cfg' = G.insEdge (labelVal $ label pred', labelVal $ label next, ()) cfg
-          G.insNode (labelVal $ label next, next) cfg'
-        Nothing -> G.insNode (labelVal $ label next, next) cfg
+      addEdge :: HasLabel stmt => Maybe stmt -> Maybe stmt -> CFG stmt -> CFG stmt
+      addEdge pred next (CFG graph) = CFG $ case (pred,next) of
+        (Just pred', Just next') -> insEdge pred' next' graph
+        _ -> graph
+
+      insEdge :: HasLabel stmt => stmt -> stmt -> Gr stmt () -> Gr stmt ()
+      insEdge pred next gr
+        | G.hasEdge gr (lp,ln) = gr
+        | otherwise            = G.insEdge (lp, ln, ()) $ insNode pred $ insNode next gr
+        where
+          lp = labelVal $ label pred
+          ln = labelVal $ label next
+
+      insNode :: HasLabel stmt => stmt -> Gr stmt () -> Gr stmt ()
+      insNode stmt gr = case G.lab gr (labelVal (label stmt)) of
+        Just _ -> gr
+        Nothing -> G.insNode (labelVal $ label stmt, stmt) gr
+  {-# INLINE nextStatement #-}
 
 instance (ArrowRun c) => ArrowRun (ControlFlowT stmt c) where
-  type Run (ControlFlowT stmt c) x y = Run c x (Gr stmt (),y)
-  run f = run (dimap (empty,) (first graph) (unlift f))
+  type Run (ControlFlowT stmt c) x y = Run c x (CFG stmt,y)
+  run f = run (lmap (\x ->(Nothing,(empty,x))) (unlift f))
   {-# INLINE run #-}
 
 instance ArrowTrans (ControlFlowT stmt c) where
-  type Underlying (ControlFlowT stmt c) x y = c (CFG stmt,x) (CFG stmt,y)
+  type Underlying (ControlFlowT stmt c) x y = c (Maybe stmt, (CFG stmt,x)) (CFG stmt,y)
 
 instance ArrowEffectCommutative c => ArrowEffectCommutative (ControlFlowT stmt c)
 
-
--- !
 instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (ControlFlowT stmt c) where
   ControlFlowT f <⊔> ControlFlowT g = ControlFlowT $ rmap (uncurry (⊔)) (f &&& g)
   {-# INLINE (<⊔>) #-}

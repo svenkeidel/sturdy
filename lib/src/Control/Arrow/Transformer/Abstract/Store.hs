@@ -70,5 +70,5 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT store c) where
   app = StoreT (app .# first coerce)
   {-# INLINE app #-}
 
-type instance Fix (StoreT store c) x y = StoreT store (Fix c (store,x) (store,y))
-deriving instance ArrowFix (Underlying (StoreT store c) x y) => ArrowFix (StoreT store c x y)
+instance ArrowFix (Underlying (StoreT store c) x y) => ArrowFix (StoreT store c x y) where
+  type Fix (StoreT store c x y) = Fix (Underlying (StoreT store c) x y)

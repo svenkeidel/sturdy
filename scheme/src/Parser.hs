@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-warnings-deprecations #-}
-module Parser(loadSchemeFile) where
+module Parser(loadSchemeFile,loadSchemeFile') where
 
 import           Prelude hiding (fail)
 
@@ -31,10 +31,15 @@ loadSchemeFile file = do
     Left err -> throwLispError err
     Right val -> do
      expanded <- macroExpand (List val)
-     print expanded
+     -- print expanded
      let expr = parseTopLevelSExpr expanded
-     print (generate expr)
+     -- print (generate expr)
      return expr
+
+loadSchemeFile' :: String -> IO Expr
+loadSchemeFile' file = do
+  lexpr <- loadSchemeFile file
+  return $ generate lexpr
 
 macroExpand :: LispVal -> IO LispVal
 macroExpand program = do

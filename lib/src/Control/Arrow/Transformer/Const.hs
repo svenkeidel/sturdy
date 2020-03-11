@@ -86,6 +86,7 @@ instance (Arrow c, Profunctor c) => ArrowConst r (ConstT r c) where
   {-# INLINE askConst #-}
 
 instance (Arrow c, Profunctor c, ArrowFix (c x y)) => ArrowFix (ConstT r c x y) where
+  type Fix (ConstT r c x y) = Fix (c x y)
   fix f = ConstT $ StaticT $ \r -> fix (runConstT r . f . lift')
   {-# INLINE fix #-}
 
@@ -100,5 +101,3 @@ instance ArrowCont c => ArrowCont (ConstT r c) where
   {-# INLINE callCC #-}
 
 deriving instance ArrowComplete y c =>  ArrowComplete y (ConstT r c)
-
-type instance Fix (ConstT r c) x y = ConstT r (Fix c x y)

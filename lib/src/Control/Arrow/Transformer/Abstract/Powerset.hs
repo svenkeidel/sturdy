@@ -42,8 +42,8 @@ runPowT = coerce
 instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (PowT c) where
   app = lift (app .# first coerce)
 
-type instance Fix (PowT c) x y = PowT (Fix c x (A.Pow y))
 instance (Identifiable y, Profunctor c, ArrowFix (Underlying (PowT c) x y)) => ArrowFix (PowT c x y) where
+  type Fix (PowT c x y) = Fix (Underlying (PowT c) x y)
   fix f = lift $ rmap A.dedup (fix (coerce f))
 
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded y (PowT c) where

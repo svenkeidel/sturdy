@@ -1,4 +1,3 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -19,6 +18,7 @@ import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Metrics
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Fix.Chaotic as Chaotic
@@ -132,7 +132,7 @@ instance (ArrowFail e c, Profunctor c) => ArrowFail e (StateT s c) where
 
 instance ArrowReader r c => ArrowReader r (StateT s c) where
   ask = lift' Reader.ask
-  local f = lift $ lmap (\(s,(r,x)) -> (r,(s,x))) (Reader.local (unlift f))
+  local f = lift $ lmap shuffle1 (Reader.local (unlift f))
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
@@ -142,8 +142,8 @@ instance ArrowWriter w c => ArrowWriter w (StateT s c) where
 
 instance (ArrowEnv var val c) => ArrowEnv var val (StateT s c) where
   type Join y (StateT s c) = Env.Join (s,y) c
-  lookup f g = lift $ lmap (\(s,(v,a)) -> (v,(s,a)))
-                    $ Env.lookup (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
+  lookup f g = lift $ lmap shuffle1
+                    $ Env.lookup (lmap shuffle1 (unlift f))
                              (unlift g)
   extend f = lift $ lmap (\(s,(var,val,x)) -> (var,val,(s,x))) (Env.extend (unlift f))
   {-# INLINE lookup #-}
@@ -163,8 +163,9 @@ instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix (StateT s c) x y = StateT s (Fix c (s,x) (s,y))
-instance ArrowFix (Underlying (StateT s c) x y) => ArrowFix (StateT s c x y)
+instance ArrowFix (Underlying (StateT s c) x y) => ArrowFix (StateT s c x y) where
+  type Fix (StateT s c x y) = Fix (Underlying (StateT s c) x y)
+
 
 instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
   type Join y (StateT s c) = Exc.Join (s,y) c
@@ -201,19 +202,24 @@ instance ArrowWidening y c => ArrowWidening y (StateT s c) where
   widening = lift' widening
   {-# INLINE widening #-}
 
+instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StateT s c) where
+  nextStatement f = lift $ lmap shuffle1 (nextStatement (unlift f))
+  {-# INLINE nextStatement #-}
+
+instance ArrowStack a c => ArrowStack a (StateT s c) where
+  push f = lift $ lmap shuffle1 (push (unlift f))
+  {-# INLINE push #-}
+
 instance ArrowCache a b c => ArrowCache a b (StateT s c)
 instance ArrowParallelCache a b c => ArrowParallelCache a b (StateT s c)
 instance ArrowIterateCache c => ArrowIterateCache (StateT s c)
-instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StateT s c)
+instance ArrowFiltered a c => ArrowFiltered a (StateT s c)
 instance ArrowStackDepth c => ArrowStackDepth (StateT s c)
 instance ArrowStackElements a c => ArrowStackElements a (StateT s c)
 instance ArrowTopLevel c => ArrowTopLevel (StateT s c)
 instance (ArrowJoinContext a c) => ArrowJoinContext a (StateT s c)
 instance ArrowComponent a c => ArrowComponent a (StateT s c)
 instance ArrowInComponent a c => ArrowInComponent a (StateT s c)
-instance (ArrowApply c, ArrowStack a c) => ArrowStack a (StateT s c) where
-  push f = lift $ proc (s,a) -> push (proc a' -> unlift f -< (s,a')) -<< a
-  {-# INLINE push #-}
 
 instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
   => ArrowEffectCommutative (StateT s c)

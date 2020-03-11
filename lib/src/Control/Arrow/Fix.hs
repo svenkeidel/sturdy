@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -10,7 +11,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Fix
   (
-    Fix,Fix',ArrowFix(..),
+    ArrowFix(..),
     FixpointAlgorithm,fixpointAlgorithm,transform,
     FixpointCombinator,
     filter,filter',filterPrism,filterPrism',
@@ -33,27 +34,25 @@ import           Data.Text.Prettyprint.Doc
 import qualified Debug.Trace as Debug
 import           Text.Printf
 
--- | Type family that computes the type of the fixpoint.
-type family Fix (c :: * -> * -> *) x y :: * -> * -> *
-type Fix' c x y = Fix c x y x y
-
 -- | Interface for describing fixpoint computations.
 class ArrowFix c where
   -- | Computes the fixpoint of an arrow computation.
-  fix :: (c -> c) -> c
+  type Fix c
+  fix :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix c)) => (c -> c) -> c
 
-  default fix :: (c ~ c' x y, ArrowTrans c', Underlying c' x y ~ c'' x' y', ArrowFix (c'' x' y')) => (c -> c) -> c
+  default fix :: (c ~ c' x y, ArrowTrans c', Underlying c' x y ~ d,
+                  ?fixpointAlgorithm :: FixpointAlgorithm (Fix d), ArrowFix d) => (c -> c) -> c
   fix f = lift (fix (unlift . f . lift))
   {-# INLINE fix #-}
 
-type instance Fix (->) x y = (->)
 instance ArrowFix (x -> y) where
-  fix = Function.fix
+  type Fix (x -> y) = (x -> y)
+  fix = ?fixpointAlgorithm
   {-# INLINE fix #-}
 
-type FixpointAlgorithm c a b = (c a b -> c a b) -> c a b
+type FixpointAlgorithm c = (c -> c) -> c
 
-transform :: Profunctor c => Iso' a a' -> FixpointAlgorithm c a' b -> FixpointAlgorithm c a b
+transform :: Profunctor c => Iso' a a' -> FixpointAlgorithm (c a' b) -> FixpointAlgorithm (c a b)
 transform iso algorithm eval = toIso $ algorithm (fromIso . eval . toIso)
   where
     fromIso = lmap (get (from iso))
@@ -64,7 +63,7 @@ transform iso algorithm eval = toIso $ algorithm (fromIso . eval . toIso)
 
 type FixpointCombinator c a b = c a b -> c a b
 
-fixpointAlgorithm :: FixpointCombinator c x y -> FixpointAlgorithm c x y
+fixpointAlgorithm :: FixpointCombinator c x y -> FixpointAlgorithm (c x y)
 fixpointAlgorithm combinator eval = Function.fix (combinator . eval)
 {-# INLINE fixpointAlgorithm #-}
 

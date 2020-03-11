@@ -270,22 +270,27 @@ showTopLvl e = case e of
     Begin {} -> "begin"
     App {} -> "app"
     Apply {} -> "apply"
-    Var x _ -> "var" <+> pretty x
+    Var x _ -> pretty x
     Set t _ _ -> "set!" <+> pretty t <+> showTopLvl e
     Define t _ _ -> "define" <+> pretty t <+> showTopLvl e
-    Lam xs _ _ -> "lambda" <+> hsep (map pretty xs)
-    If e1 _ _ _ -> "if" <+> showTopLvl e1
+    Lam xs _ _ -> "λ" <+> hsep (map pretty xs)
+    If e1 _ _ _ -> "if" <+> pretty e1
     Let {} -> "let"
     LetRec {} -> "letrec"
-    Op1 op1 e1 _ -> pretty op1 <+> parens (showTopLvl e1)
-    Op2 op2 e1 e2 _ -> pretty op2 <+> parens (showTopLvl e1 <> "," <> showTopLvl e2)
-    OpVar opvar es _ -> pretty opvar <+> parens (hsep (map showTopLvl es))
+    Op1 op1 e1 _ -> pretty op1 <+> showTopLvl e1
+    Op2 op2 e1 e2 _ -> pretty op2 <+> showTopLvl e1 <> "," <> showTopLvl e2
+    OpVar opvar es _ -> pretty opvar <+> hsep (map showTopLvl es)
+
+controlFlow :: Expr -> Maybe Expr
+controlFlow e = case e of
+  App {} -> Just e
+  _ -> Nothing
 
 instance IsString (State Label Expr) where
   fromString = var_ . fromString
 
 instance Labellable Expr where
-  toLabelValue a = textLabelValue $ renderLazy $ layoutPretty defaultLayoutOptions $ showTopLvl a
+  toLabelValue a = textLabelValue $ renderLazy $ layoutPretty defaultLayoutOptions $ pretty a
 
 instance HasLabel Expr where
   label e = case e of

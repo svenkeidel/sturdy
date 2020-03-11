@@ -39,6 +39,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Parallel,Monotone)
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics
+import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 -- import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
 import           Control.Monad.State hiding (lift,fail)
@@ -61,12 +62,13 @@ type InterpParallel x y =
     (TerminatingT
       (LogErrorT (HashSet Text)
         (EnvStoreT Text Addr Val
-          (FixT In Out
+          (FixT
             (MetricsT In
               (StackT Stack In
                 (CacheT (Parallel Monotone) In Out
                   (ContextT Ctx
-                    (->))))))))) x y
+                    (ControlFlowT Expr
+                      (->)))))))))) x y
 
 {-# SPECIALIZE Generic.run_ :: InterpParallel [Expr] Val #-}
 {-# SPECIALIZE Generic.eval :: InterpParallel [Expr] Val -> InterpParallel Expr Val #-}
@@ -74,20 +76,16 @@ type InterpParallel x y =
 eval :: (?sensitivity :: Int)
      => (forall c. (ArrowChoice c, ArrowStack In c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
                    (FixpointCombinator c In Out -> FixpointCombinator c In Out) -> FixpointAlgorithm c In Out)
-     -> [(Text,Addr)] -> [State Label Expr] -> (Metrics In, Out)
-eval algo env0 e = snd $ run (extend' (Generic.run_ :: InterpParallel [Expr] Val))
-    W.finite
-    algorithm
-    (W.finite, W.finite)
-    (Map.empty,(Map.empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-    algorithm =
-      algo $ \update ->
+     -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metrics In, Out))
+eval algo env0 e =
+  let ?fixpointAlgorithm = algo $ \update ->
         -- Fix.trace printIn printOut .
         -- Fix.traceCache (show . pretty) .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter' isFunctionBody update
+  in second snd $ run (extend' (Generic.run_ :: InterpParallel [Expr] Val)) W.finite (W.finite, W.finite) (Map.empty,(Map.empty,(env0,e0)))
+  where
+    e0 = generate (sequence e)
 {-# INLINE eval #-}
 
 evalParallel :: Eval
@@ -97,7 +95,7 @@ evalADI :: Eval
 evalADI = eval Par.adi
 
 evalParallel':: Eval'
-evalParallel' exprs = let (metrics,res) = evalParallel [] exprs in (metrics,snd res)
+evalParallel' exprs = let (metrics,(cfg,res)) = evalParallel [] exprs in (metrics,(cfg,snd res))
 
 evalADI':: Eval'
-evalADI' exprs = let (metrics,res) = evalADI [] exprs in (metrics,snd res)
+evalADI' exprs = let (metrics,(cfg,res)) = evalADI [] exprs in (metrics,(cfg,snd res))

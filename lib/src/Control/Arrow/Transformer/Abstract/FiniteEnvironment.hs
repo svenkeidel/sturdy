@@ -110,5 +110,5 @@ instance ArrowLift (EnvT var addr val) where
 instance (Complete y, ArrowEffectCommutative c, Arrow c, Profunctor c) => ArrowComplete y (EnvT var addr val c) where
   EnvT f <⊔> EnvT g = EnvT (rmap (uncurry (⊔)) (f &&& g))
 
-type instance Fix (EnvT var addr val c) x y = EnvT var addr val (Fix c (HashMap addr val,(HashMap var addr,x)) (HashMap addr val,y))
-deriving instance (Profunctor c, Arrow c, ArrowFix (c (HashMap addr val,(HashMap var addr,x)) (HashMap addr val,y))) => ArrowFix (EnvT var addr val c x y)
+instance (Profunctor c, Arrow c, ArrowFix (Underlying (EnvT var addr val c) x y)) => ArrowFix (EnvT var addr val c x y) where
+  type Fix (EnvT var addr val c x y) = Fix (Underlying (EnvT var addr val c) x y)
