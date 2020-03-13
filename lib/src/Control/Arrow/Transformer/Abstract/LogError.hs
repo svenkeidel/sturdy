@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -20,44 +21,50 @@ import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Trans
 import Control.Arrow.Reader
-import Control.Arrow.State
-import Control.Arrow.Writer
-import Control.Arrow.Order(ArrowComplete(..),ArrowEffectCommutative)
+import Control.Arrow.Order(ArrowComplete(..))
 import Control.Arrow.Store as Store
 import Control.Arrow.Except as Exc
-import Control.Arrow.Transformer.Writer
+import Control.Arrow.Transformer.State
 import Control.Arrow.Fix.Context
 
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 import Data.Order
+import Data.Identifiable
+import Data.Empty
+import Data.HashSet(HashSet)
+import qualified Data.HashSet as Set
 
 -- | Describes computations that can fail.
-newtype LogErrorT e c x y = LogErrorT (WriterT e c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
-            ArrowConst r, ArrowState s, ArrowReader r,
+newtype LogErrorT e c x y = LogErrorT (StateT (HashSet e) c x y)
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift,
+            ArrowConst r, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b, ArrowLetRec var val,
             ArrowExcept e', ArrowContext ctx)
 
-runLogErrorT :: LogErrorT e c x y -> c x (e,y)
-runLogErrorT = coerce
+runLogErrorT :: Profunctor c => LogErrorT e c x y -> c x (HashSet e,y)
+runLogErrorT f = lmap (\x -> (empty,x)) (unlift f)
 {-# INLINE runLogErrorT #-}
 
-instance (Monoid e, Arrow c, Profunctor c) => ArrowFail e (LogErrorT e c) where
+instance ArrowRun c => ArrowRun (LogErrorT e c) where
+  type Run (LogErrorT e c) x y = Run c x (HashSet e,y)
+  run = run . runLogErrorT
+  {-# INLINE run #-}
+
+instance (Identifiable e, Arrow c, Profunctor c) => ArrowFail e (LogErrorT e c) where
   type Join x (LogErrorT e c) = LowerBounded x
-  fail = LogErrorT $ proc e -> do
-    tell -< e
-    returnA -< bottom
+  fail = lift $ proc (errs,e) -> returnA -< (Set.insert e errs, bottom)
   {-# INLINE fail #-}
 
-instance (Monoid e, ArrowApply c, Profunctor c) => ArrowApply (LogErrorT e c) where
-  app = lift (app .# first coerce)
+instance (ArrowApply c, Profunctor c) => ArrowApply (LogErrorT e c) where
+  app = LogErrorT (app .# first coerce)
   {-# INLINE app #-}
 
-instance (Complete y, Monoid e, ArrowEffectCommutative c, Arrow c, Profunctor c) => ArrowComplete y (LogErrorT e c) where
-  LogErrorT f <⊔> LogErrorT g = LogErrorT (rmap (uncurry (⊔)) (f &&& g))
-  {-# INLINE (<⊔>) #-}
+deriving instance (ArrowComplete (HashSet e, y) c) => ArrowComplete y (LogErrorT e c)
+--   LogErrorT f <⊔> LogErrorT g = LogErrorT (rmap (uncurry (⊔)) (f &&& g))
+--   {-# INLINE (<⊔>) #-}
 
-instance (ArrowChoice c, ArrowFix (Underlying (LogErrorT e c) x y)) => ArrowFix (LogErrorT e c x y) where
-  type Fix (LogErrorT e c x y) = Fix (Underlying (LogErrorT e c) x y)
+instance (Profunctor c, ArrowApply c, ArrowFix (c x (HashSet e, y))) => ArrowFix (LogErrorT e c x y) where
+  type Fix (LogErrorT e c x y) = Fix (c x (HashSet e, y))
+  fix f = lift $ proc (errs,x) -> fix (\g -> proc x' -> unlift1 f (lmap snd g) -< (errs,x')) -<< x

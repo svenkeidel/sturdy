@@ -1,13 +1,12 @@
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE Arrows #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Metrics where
 
 import           Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,elem,product,(**))
@@ -33,7 +32,6 @@ import           Data.Identifiable
 import           Data.Profunctor.Unsafe
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
-import           Data.Order
 import           Data.Coerce
 
 import           Text.Printf
@@ -78,6 +76,7 @@ instance (Identifiable a, ArrowApply c, ArrowStack a c) => ArrowStack a (Metrics
   {-# INLINE push #-}
 
 instance (Identifiable a, ArrowChoice c, Profunctor c, ArrowCache a b c) => ArrowCache a b (MetricsT a c) where
+  type Widening (MetricsT a c) = Cache.Widening c
   initialize = MetricsT $ proc a -> do
     modifyMetric incrementInitializes -< a
     initialize -< a
@@ -145,12 +144,6 @@ instance ArrowTrans (MetricsT a c) where
 instance ArrowLift (MetricsT a) where
   lift' = MetricsT . lift'
   {-# INLINE lift' #-}
-
-instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (MetricsT a c) where
-  MetricsT f <⊔> MetricsT g = MetricsT $ rmap (uncurry (⊔)) (f &&& g)
-  {-# INLINE (<⊔>) #-}
-
-instance ArrowEffectCommutative c => ArrowEffectCommutative (MetricsT a c)
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (MetricsT a c) where
   app = MetricsT (app .# first coerce)

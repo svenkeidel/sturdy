@@ -162,13 +162,12 @@ instance ArrowConst x c => ArrowConst x (NoInlineT c) where
   askConst f = lift (askConst (unlift . f))
   {-# NOINLINE askConst #-}
 
-instance ArrowEffectCommutative c => ArrowEffectCommutative (NoInlineT c)
-
 instance ArrowContext ctx c => ArrowContext ctx (NoInlineT c) where
   localContext f = lift (localContext (unlift f))
   {-# NOINLINE localContext #-}
 
 instance ArrowCache a b c => ArrowCache a b (NoInlineT c) where
+  type Widening (NoInlineT c) = Cache.Widening c
   initialize = lift Cache.initialize
   lookup = lift Cache.lookup
   write = lift Cache.write

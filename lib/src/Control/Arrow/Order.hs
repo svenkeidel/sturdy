@@ -20,21 +20,6 @@ instance Complete y => ArrowComplete y (->) where
   (<⊔>) f g x = f x ⊔ g x
   {-# INLINE (<⊔>) #-}
 
--- | An arrow computation @c@ is effect commutative iff for all @f, g :: c x y@,
---
--- > (f ⊔ g) ⊑ (proc x -> do y1 <- f -< x
--- >                         y2 <- g -< x
--- >                         returnA -< y1 ⊔ y2)
---
--- and
---
--- > (f ⊔ g) ⊑ (proc x -> do y1 <- g -< x
--- >                         y2 <- f -< x
--- >                         returnA -< y1 ⊔ y2)
---
-class (Arrow c, Profunctor c) => ArrowEffectCommutative c
-instance ArrowEffectCommutative (->)
-
 class (Arrow c, Profunctor c) => ArrowJoin c where
   joinSecond :: (y -> y -> y) -> (x -> y) -> c x y -> c x y
 

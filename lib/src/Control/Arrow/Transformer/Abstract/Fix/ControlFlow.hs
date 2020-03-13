@@ -1,15 +1,16 @@
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.ControlFlow where
 
-import           Prelude hiding(pred)
+import           Prelude hiding(pred,(.))
 
 import           Control.Arrow
-import           Control.Arrow.Order
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Reader
@@ -24,7 +25,6 @@ import           Control.Category
 import           Data.Label
 import           Data.Coerce
 import           Data.Empty
-import           Data.Order
 import           Data.Profunctor.Unsafe
 import           Data.Graph.Inductive (Gr)
 import qualified Data.Graph.Inductive as G
@@ -70,14 +70,12 @@ instance (ArrowRun c) => ArrowRun (ControlFlowT stmt c) where
   run f = run (lmap (\x ->(Nothing,(empty,x))) (unlift f))
   {-# INLINE run #-}
 
+instance ArrowLift (ControlFlowT stmt) where
+  lift' = ControlFlowT . lift' . lift'
+  {-# INLINE lift' #-}
+
 instance ArrowTrans (ControlFlowT stmt c) where
   type Underlying (ControlFlowT stmt c) x y = c (Maybe stmt, (CFG stmt,x)) (CFG stmt,y)
-
-instance ArrowEffectCommutative c => ArrowEffectCommutative (ControlFlowT stmt c)
-
-instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (ControlFlowT stmt c) where
-  ControlFlowT f <⊔> ControlFlowT g = ControlFlowT $ rmap (uncurry (⊔)) (f &&& g)
-  {-# INLINE (<⊔>) #-}
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (ControlFlowT stmt c) where
   app = ControlFlowT (app .# first coerce)

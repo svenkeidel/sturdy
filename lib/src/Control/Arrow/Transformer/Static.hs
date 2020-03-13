@@ -186,6 +186,7 @@ instance (Applicative f, ArrowStack a c) => ArrowStack a (StaticT f c) where
   {-# SPECIALIZE instance ArrowStack a c => ArrowStack a (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowCache a b c) => ArrowCache a b (StaticT f c) where
+  type Widening (StaticT f c) = Cache.Widening c
   {-# SPECIALIZE instance ArrowCache a b c => ArrowCache a b (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowComponent comp c) => ArrowComponent comp (StaticT f c) where

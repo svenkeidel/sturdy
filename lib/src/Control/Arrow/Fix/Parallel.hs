@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 -- | Parallel fixpoint iteration.
@@ -10,13 +11,13 @@ import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Stack (ArrowStack)
 import qualified Control.Arrow.Fix.Stack as Stack
-import           Control.Arrow.Fix.Cache (ArrowParallelCache,ArrowCache)
+import           Control.Arrow.Fix.Cache (ArrowParallelCache,ArrowCache,Widening)
 import qualified Control.Arrow.Fix.Cache as Cache
 
 import           Data.Abstract.Stable
 import qualified Data.Function as Function
 
-parallel :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm (c a b)
+parallel :: forall a b c. (?cacheWidening :: Widening c, ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm (c a b)
 parallel combinator eval = iterate
   where
     iterate = proc a -> do
@@ -40,7 +41,7 @@ parallel combinator eval = iterate
           Cache.updateNewCache -< (a,b)
 {-# INLINE parallel #-}
 
-adi :: forall a b c. (ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm (c a b)
+adi :: forall a b c. (?cacheWidening :: Widening c, ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm (c a b)
 adi combinator eval = iterate
   where
     iterate = proc a -> do

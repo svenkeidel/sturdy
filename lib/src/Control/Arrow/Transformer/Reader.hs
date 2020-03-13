@@ -168,8 +168,6 @@ instance ArrowConst x c => ArrowConst x (ReaderT r c) where
   askConst f = lift (askConst (unlift . f))
   {-# INLINE askConst #-}
 
-instance ArrowEffectCommutative c => ArrowEffectCommutative (ReaderT r c)
-
 instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
   localContext f = lift $ lmap shuffle1 (localContext (unlift f))
   {-# INLINE localContext #-}
@@ -182,10 +180,14 @@ instance ArrowStack a c => ArrowStack a (ReaderT r c) where
   push f = lift $ lmap shuffle1 (push (unlift f))
   {-# INLINE push #-}
 
+instance ArrowCache a b c => ArrowCache a b (ReaderT r c) where
+  type Widening (ReaderT r c) = Cache.Widening c
+
+instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c) where
+  type Widening (ReaderT r c) = Context.Widening c
+
 instance ArrowStackDepth c => ArrowStackDepth (ReaderT r c)
 instance ArrowStackElements a c => ArrowStackElements a (ReaderT r c)
-instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c)
-instance ArrowCache a b c => ArrowCache a b (ReaderT r c)
 instance ArrowParallelCache a b c => ArrowParallelCache a b (ReaderT r c)
 instance ArrowIterateCache c => ArrowIterateCache (ReaderT r c)
 instance ArrowFiltered a c => ArrowFiltered a (ReaderT r c)

@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -21,7 +22,7 @@ import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
 import           Control.Arrow.State
 import           Control.Arrow.Trans
-import           Control.Arrow.Order (ArrowJoin(..),ArrowComplete(..),ArrowLowerBounded,ArrowEffectCommutative)
+import           Control.Arrow.Order (ArrowLowerBounded)
 
 import           Control.Arrow.Transformer.Reader
 
@@ -37,9 +38,9 @@ import qualified Data.HashMap.Strict as M
 import           Data.Order
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowStrict,
-            ArrowLowerBounded z, ArrowComplete z,
-            ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,
+            ArrowStrict,ArrowLift, ArrowLowerBounded z,
+            ArrowParallelCache a b, ArrowIterateCache,
             ArrowState s,ArrowContext ctx, ArrowJoinContext u,
             ArrowControlFlow stmt)
 
@@ -59,7 +60,8 @@ instance (Profunctor c,ArrowApply c) => ArrowApply (StackT stack a c) where
   app = StackT (app .# first coerce)
   {-# INLINE app #-}
 
-instance ArrowEffectCommutative c => ArrowEffectCommutative (StackT stack a c)
+instance ArrowCache a b c => ArrowCache a b (StackT stack a c) where
+  type Widening (StackT stack a c) = Widening c
 
 -- Standard Stack -----------------------------------------------------------------------
 data Stack a = Stack

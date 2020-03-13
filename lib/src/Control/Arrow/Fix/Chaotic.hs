@@ -1,4 +1,5 @@
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE RankNTypes #-}
@@ -64,7 +65,7 @@ outermost f iterate = proc a -> do
 {-# SCC outermost #-}
 
 -- | Iterate on the innermost fixpoint component.
-chaotic :: forall a b c. (ArrowChoice c, ArrowComponent a c, ArrowStack a c, ArrowCache a b c)
+chaotic :: (?cacheWidening :: Widening c, ArrowChoice c, ArrowComponent a c, ArrowStack a c, ArrowCache a b c)
         => IterationStrategy c a b -> FixpointCombinator c a b
 chaotic iterationStrategy f = proc a -> do
   loop <- Stack.elem -< a

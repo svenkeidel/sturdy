@@ -157,12 +157,8 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
   {-# INLINE lit #-}
   {-# SCC lit #-}
 
-  if_ f g = proc (v,(x,y)) -> case v of
-    BoolVal B.False -> g -< y
-    BoolVal B.Top -> (f -< x) <⊔> (g -< y)
-    Top -> (f -< x) <⊔> (g -< y)
-    _ -> f -< x
-  {-# INLINEABLE if_ #-}
+  if_ = if__
+  {-# INLINE if_ #-}
   {-# SCC if_ #-}
 
   nil_ = proc _ -> returnA -< ListVal Nil
@@ -268,6 +264,14 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Lcm -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
   {-# INLINEABLE opvar_ #-}
   {-# SCC opvar_ #-}
+
+if__ :: (ArrowChoice c, ArrowComplete z c) => c x z -> c y z -> c (Val,(x,y)) z
+if__ f g = proc (v,(x,y)) -> case v of
+    BoolVal B.False -> g -< y
+    BoolVal B.Top -> (f -< x) <⊔> (g -< y)
+    Top -> (f -< x) <⊔> (g -< y)
+    _ -> f -< x
+{-# INLINEABLE if__ #-}
 
 numToNum :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToNum = proc (op,v) -> case v of
@@ -534,7 +538,7 @@ instance (Identifiable s, Pretty s) => Pretty (HashSet s) where
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- Map.toList m]
 
-type In = (Store,(Env,[Expr]))
+type In = (Store, (Env,[Expr]))
 type Out = (Store, (HashSet Text, Terminating Val))
 type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metrics In, Out))
 type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metrics In, (HashSet Text,Terminating Val)))

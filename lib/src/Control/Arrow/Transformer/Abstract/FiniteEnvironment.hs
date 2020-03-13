@@ -27,7 +27,7 @@ import Control.Arrow.Store
 import Control.Arrow.Fail
 import Control.Arrow.Except
 import Control.Arrow.Trans
-import Control.Arrow.Fix.Context
+import Control.Arrow.Fix.Context hiding (Widening)
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure
 import Control.Arrow.Fix
@@ -55,7 +55,7 @@ newtype EnvT var addr val c x y = EnvT (ConstT (Alloc var addr val c, Widening v
             ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowRun, ArrowCont,
             ArrowContext ctx)
 
-instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutative c, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT var addr val c) where
+instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT var addr val c) where
   type Join y (EnvT var addr val c) = ()
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- Reader.ask -< ()
@@ -77,7 +77,7 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutat
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowEffectCommutative c, ArrowChoice c, Profunctor c) =>
+instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowChoice c, Profunctor c) =>
   ArrowClosure expr (Closure expr (HashSet (HashMap var addr))) (EnvT var addr val c) where
   type Join y (Closure expr (HashSet (HashMap var addr))) (EnvT var addr val c) = Complete y
   closure = EnvT $ proc expr -> do
@@ -89,7 +89,7 @@ instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowEffectCom
   {-# INLINE closure #-}
   {-# INLINE apply #-}
 
-instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowEffectCommutative c, ArrowChoice c, Profunctor c) => ArrowLetRec var val (EnvT var addr val c) where
+instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowChoice c, Profunctor c) => ArrowLetRec var val (EnvT var addr val c) where
   letRec (EnvT f) = EnvT $ askConst $ \(EnvT alloc,widening) -> proc (bindings,x) -> do
     env <- Reader.ask -< ()
     addrs <- map alloc -< bindings
@@ -107,7 +107,7 @@ instance ArrowLift (EnvT var addr val) where
   lift' = EnvT . lift' . lift' . lift'
   {-# INLINE lift' #-}
 
-instance (Complete y, ArrowEffectCommutative c, Arrow c, Profunctor c) => ArrowComplete y (EnvT var addr val c) where
+instance (Complete y, Arrow c, Profunctor c) => ArrowComplete y (EnvT var addr val c) where
   EnvT f <⊔> EnvT g = EnvT (rmap (uncurry (⊔)) (f &&& g))
 
 instance (Profunctor c, Arrow c, ArrowFix (Underlying (EnvT var addr val c) x y)) => ArrowFix (EnvT var addr val c x y) where

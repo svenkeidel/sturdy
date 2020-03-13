@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -21,7 +21,7 @@ import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Fix.Stack
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Metrics
-import           Control.Arrow.Order(ArrowEffectCommutative,ArrowComplete,ArrowJoin)
+import           Control.Arrow.Order(ArrowComplete,ArrowJoin)
 import           Control.Arrow.Trans
 
 import           Data.Profunctor
@@ -60,5 +60,3 @@ instance (Profunctor c,ArrowApply c) => ArrowApply (FixT c) where
 instance ArrowLift FixT where
   lift' = FixT
   {-# INLINE lift' #-}
-
-instance ArrowEffectCommutative c => ArrowEffectCommutative (FixT c)

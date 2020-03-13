@@ -3,6 +3,7 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Fix.Context where
 
@@ -24,17 +25,19 @@ class (Arrow c, Profunctor c) => ArrowContext ctx c | c -> ctx where
   {-# INLINE askContext #-}
 
 class (Arrow c, Profunctor c) => ArrowJoinContext a c | c -> a where
-  joinByContext :: c a a
+  type Widening c
 
-  default joinByContext :: (c ~ t c', ArrowLift t, ArrowJoinContext a c') => c a a
+  joinByContext :: (?widening :: Widening c) => c a a
+
+  default joinByContext :: (c ~ t c', ArrowLift t, ArrowJoinContext a c', ?widening :: Widening c') => c a a
   joinByContext = lift' joinByContext
   {-# INLINE joinByContext #-}
 
-callsiteSensitive :: forall a lab b c. (ArrowContext (CallString lab) c, ArrowJoinContext a c) => Int -> (a -> lab) -> FixpointCombinator c a b
+callsiteSensitive :: forall a lab b c. (?widening :: Widening c, ArrowContext (CallString lab) c, ArrowJoinContext a c) => Int -> (a -> lab) -> FixpointCombinator c a b
 callsiteSensitive k getLabel = callsiteSensitive' k (Just . getLabel)
 {-# INLINE callsiteSensitive #-}
 
-callsiteSensitive' :: forall a lab b c. (ArrowContext (CallString lab) c, ArrowJoinContext a c) => Int -> (a -> Maybe lab) -> FixpointCombinator c a b
+callsiteSensitive' :: forall a lab b c. (?widening :: Widening c, ArrowContext (CallString lab) c, ArrowJoinContext a c) => Int -> (a -> Maybe lab) -> FixpointCombinator c a b
 callsiteSensitive' k getLabel f = recordCallsite k getLabel $ f . joinByContext
 {-# INLINE callsiteSensitive' #-}
 

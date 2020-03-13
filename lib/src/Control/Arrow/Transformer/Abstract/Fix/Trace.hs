@@ -31,13 +31,13 @@ import Debug.Trace as Debug
 import Data.Text.Prettyprint.Doc
 
 newtype TraceT c x y = TraceT (c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowComplete z,ArrowJoin,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded b,
             ArrowComponent a, ArrowInComponent a,
             ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt,
-            ArrowTopLevel,ArrowStackDepth,ArrowStackElements a, ArrowFiltered a,
-            ArrowEffectCommutative, ArrowLowerBounded b)
+            ArrowTopLevel,ArrowStackDepth,ArrowStackElements a, ArrowFiltered a)
 
 instance (Pretty a, Pretty b, ArrowCache a b c) => ArrowCache a b (TraceT c) where
+  type Widening (TraceT c) = Cache.Widening c
   initialize = TraceT $ proc a -> do
     b  <- initialize -< a
     returnA -< Debug.trace (show (vsep ["INITIALIZE", "x:" <+> pretty a, "y:" <+> pretty b] <> line)) b

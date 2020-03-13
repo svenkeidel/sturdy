@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -21,7 +22,6 @@ import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.State
 import           Control.Arrow.Trans
-import           Control.Arrow.Order
 
 -- import           Control.Arrow.Transformer.Writer
 import           Control.Arrow.Transformer.State
@@ -39,7 +39,7 @@ import qualified Data.HashMap.Strict as M
 newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
             ArrowStack a,ArrowStackDepth,ArrowStackElements a,
-            ArrowCache a b,ArrowParallelCache a b,ArrowIterateCache,
+            ArrowCache a b, ArrowParallelCache a b,ArrowIterateCache,
             ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
 
 runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> c x y
@@ -67,16 +67,6 @@ instance ArrowState s c => ArrowState s (ComponentT comp a c) where
   put = lift' put
   {-# INLINE get #-}
   {-# INLINE put #-}
-
-instance (Arrow c, Profunctor c) => ArrowJoin (ComponentT comp a c) where
-  joinSecond lub f (ComponentT g) = ComponentT (rmap (\(x,y) -> f x `lub` y) (id &&& g))
-  {-# INLINE joinSecond #-}
-
-instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (ComponentT comp a c) where
-  ComponentT f <⊔> ComponentT g = ComponentT $ rmap (uncurry (⊔)) (f &&& g)
-  {-# INLINE (<⊔>) #-}
-
-instance (Identifiable a, ArrowEffectCommutative c) => ArrowEffectCommutative (ComponentT comp a c)
 
 -- Standard Component ----------------------------------------------------------------------------------
 newtype Component a = Component (HashSet a) deriving (Eq,PreOrd,Complete,IsEmpty)

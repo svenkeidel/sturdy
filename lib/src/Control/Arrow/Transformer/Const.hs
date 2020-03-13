@@ -20,7 +20,7 @@ import Control.Arrow.Except as Exc
 import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Fix.ControlFlow
-import Control.Arrow.Fix.Cache
+import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Chaotic
 import Control.Arrow.Fix.Context
 import Control.Arrow.Fix.Stack
@@ -224,5 +224,7 @@ instance (ArrowStrict c) => ArrowStrict (ConstT r c) where
   force f = lift $ \r -> force (unlift f r)
   {-# INLINE force #-}
 
-instance ArrowCache a b c => ArrowCache a b (ConstT r c)
+instance ArrowCache a b c => ArrowCache a b (ConstT r c) where
+  type Widening (ConstT r c) = Cache.Widening c
+
 instance ArrowComponent comp c => ArrowComponent comp (ConstT r c)

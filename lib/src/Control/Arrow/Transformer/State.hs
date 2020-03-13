@@ -14,6 +14,7 @@ import           Control.Arrow
 import           Control.Arrow.Strict
 import           Control.Arrow.Cont
 import           Control.Arrow.Const
+import           Control.Arrow.LetRec
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Except as Exc
@@ -150,6 +151,10 @@ instance (ArrowEnv var val c) => ArrowEnv var val (StateT s c) where
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
+instance (Profunctor c, ArrowLetRec var val c) => ArrowLetRec var val (StateT s c) where
+  letRec f = lift $ lmap (\(s,(vs,x)) -> (vs,(s,x))) (letRec (unlift f))
+  {-# INLINE letRec #-}
+
 instance ArrowClosure expr cls c => ArrowClosure expr cls (StateT s c) where
   type Join y cls (StateT s c) = Cls.Join (s,y) cls c
   apply f = lift $ lmap shuffle1 (Cls.apply (lmap shuffle1 (unlift f)))
@@ -211,20 +216,21 @@ instance ArrowStack a c => ArrowStack a (StateT s c) where
   push f = lift $ lmap shuffle1 (push (unlift f))
   {-# INLINE push #-}
 
-instance ArrowCache a b c => ArrowCache a b (StateT s c)
+instance ArrowCache a b c => ArrowCache a b (StateT s c) where
+  type Widening (StateT s c) = Cache.Widening c
+
+instance ArrowJoinContext a c => ArrowJoinContext a (StateT s c) where
+  type Widening (StateT s c) = Context.Widening c
+
 instance ArrowParallelCache a b c => ArrowParallelCache a b (StateT s c)
 instance ArrowIterateCache c => ArrowIterateCache (StateT s c)
 instance ArrowFiltered a c => ArrowFiltered a (StateT s c)
 instance ArrowStackDepth c => ArrowStackDepth (StateT s c)
 instance ArrowStackElements a c => ArrowStackElements a (StateT s c)
 instance ArrowTopLevel c => ArrowTopLevel (StateT s c)
-instance (ArrowJoinContext a c) => ArrowJoinContext a (StateT s c)
 instance ArrowComponent a c => ArrowComponent a (StateT s c)
 instance ArrowInComponent a c => ArrowInComponent a (StateT s c)
 instance ArrowStrict c => ArrowStrict (StateT s c)
-
-instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
-  => ArrowEffectCommutative (StateT s c)
 
 second' :: (x -> y) -> ((z,x) -> (z,y))
 second' f (x,y) = (x,f y)

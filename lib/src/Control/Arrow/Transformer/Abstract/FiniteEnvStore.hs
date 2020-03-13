@@ -17,9 +17,6 @@ import qualified Prelude as P
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Cont
-import Control.Arrow.Const
-import Control.Arrow.Transformer.Const
-import Control.Arrow.Transformer.Static
 import Control.Arrow.Transformer.Reader
 import Control.Arrow.Reader as Reader
 import Control.Arrow.Transformer.State
@@ -28,7 +25,7 @@ import Control.Arrow.Store
 import Control.Arrow.Fail
 import Control.Arrow.Except
 import Control.Arrow.Trans
-import Control.Arrow.Fix.Context
+import Control.Arrow.Fix.Context hiding (Widening)
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure
 import Control.Arrow.Fix
@@ -36,7 +33,6 @@ import Control.Arrow.Order
 import Control.Arrow.Fix.ControlFlow
 import Control.Arrow.LetRec
 
-import Data.Abstract.Widening (Widening)
 import Data.Abstract.Closure (Closure)
 import qualified Data.Abstract.Closure as Cls
 
@@ -52,15 +48,15 @@ import Data.Coerce
 import Data.Maybe(mapMaybe)
 
 
-newtype EnvStoreT var addr val c x y = EnvStoreT (ConstT (Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y)
+newtype EnvStoreT var addr val c x y = EnvStoreT (ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded a,
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
             ArrowContext ctx, ArrowControlFlow stmt)
 
 instance ArrowTrans (EnvStoreT var addr val c) where
-  type Underlying (EnvStoreT var addr val c) x y = ConstT (Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y
+  type Underlying (EnvStoreT var addr val c) x y = ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y
 
-instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutative c, ArrowChoice c, Profunctor c)
+instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c)
     => ArrowEnv var addr (EnvStoreT var addr val c) where
   type Join y (EnvStoreT var addr val c) = ()
   lookup (EnvStoreT f) (EnvStoreT g) = EnvStoreT $ proc (var,x) -> do
@@ -76,7 +72,7 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutat
   {-# SCC lookup #-}
   {-# SCC extend #-}
 
-instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c) 
+instance (Complete val, Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c) 
     => ArrowStore addr val (EnvStoreT var addr val c) where
   type Join y (EnvStoreT var addr val c) = ()
   read (EnvStoreT f) (EnvStoreT g) = EnvStoreT $ proc (addr,x) -> do
@@ -84,16 +80,16 @@ instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c)
     case Map.lookup addr store of
       P.Just val -> f -< (val,x)
       P.Nothing -> g -< x
-  write = EnvStoreT $ askConst $ \widening -> proc (addr, val) -> do
+  write = EnvStoreT $ proc (addr, val) -> do
     store <- State.get -< ()
-    State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
+    State.put -< Map.insertWith (\old new -> (old ⊔ new)) addr val store
   {-# INLINE read #-}
   {-# INLINE write #-}
   {-# SCC read #-}
   {-# SCC write #-}
 
 
-instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowEffectCommutative c, ArrowChoice c, Profunctor c) =>
+instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowChoice c, Profunctor c) =>
   ArrowClosure expr (Closure expr (HashSet (HashMap var addr))) (EnvStoreT var addr val c) where
   type Join y (Closure expr (HashSet (HashMap var addr))) (EnvStoreT var addr val c) = Complete y
   closure = EnvStoreT $ proc expr -> do
@@ -107,7 +103,7 @@ instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowEffectCom
   {-# SCC closure #-}
   {-# SCC apply #-}
 
-instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowEffectCommutative c, ArrowChoice c, Profunctor c) 
+instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowChoice c, Profunctor c) 
     => ArrowLetRec var val (EnvStoreT var addr val c) where
   -- letRec (EnvStoreT f) = undefined
     -- EnvStoreT $ proc (bindings,x) -> do
@@ -132,14 +128,12 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (EnvStoreT var addr val c) w
   {-# INLINE app #-}
 
 instance ArrowLift (EnvStoreT var addr val) where
-  lift' = EnvStoreT . lift' . lift' . lift'
+  lift' = EnvStoreT . lift' . lift'
   {-# INLINE lift' #-}
 
-instance (Complete y, ArrowEffectCommutative c, Arrow c, Profunctor c) => ArrowComplete y (EnvStoreT var addr val c) where
+instance (Complete y, Arrow c, Profunctor c) => ArrowComplete y (EnvStoreT var addr val c) where
   EnvStoreT f <⊔> EnvStoreT g = EnvStoreT (rmap (uncurry (⊔)) (f &&& g))
   {-# INLINE (<⊔>) #-}
-
-instance ArrowEffectCommutative c => ArrowEffectCommutative (EnvStoreT var addr val c)
 
 instance (Profunctor c, Arrow c, ArrowFix (Underlying (EnvStoreT var addr val c) x y)) => ArrowFix (EnvStoreT var addr val c x y) where
   type Fix (EnvStoreT var addr val c x y) = Fix (Underlying (EnvStoreT var addr val c) x y)

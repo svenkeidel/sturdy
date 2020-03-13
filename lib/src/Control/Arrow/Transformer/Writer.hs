@@ -192,8 +192,12 @@ instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
   localContext f = lift (Context.localContext (unlift f))
   {-# INLINE localContext #-}
 
-instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c)
-instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c)
+instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c) where
+  type Widening (WriterT w c) = Context.Widening c
+
+instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c) where
+  type Widening (WriterT w c) = Cache.Widening c
+
 instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w c) where
   nextStatement f = lift (nextStatement (unlift f))
   {-# INLINE nextStatement #-}
