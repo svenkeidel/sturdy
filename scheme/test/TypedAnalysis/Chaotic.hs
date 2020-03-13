@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
@@ -36,7 +37,7 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Component as Comp
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -62,9 +63,9 @@ type InterpChaotic x y =
         (EnvStoreT Text Addr Val
           (FixT
             (MetricsT In
-              (ComponentT Component In
-                (StackT Stack In
-                  (CacheT Monotone In Out
+              (ComponentT Comp.Monotone In
+                (StackT Stack.Monotone In
+                  (CacheT Cache.Monotone In Out
                     (ContextT Ctx
                       (ControlFlowT Expr (->)))))))))))) x y
 

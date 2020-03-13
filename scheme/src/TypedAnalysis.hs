@@ -112,16 +112,18 @@ data Number
   deriving anyclass (NFData)
 
 instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT Val c) where
-  alloc = {-# SCC "alloc" #-} proc var -> do
+  alloc = proc var -> do
     ctx <- Ctx.askContext @Ctx -< ()
     returnA -< VarA (var,ctx)
   {-# INLINE alloc #-}
+  {-# SCC alloc #-}
 
 allocLabel :: (ArrowContext Ctx c) => c Label Addr
 allocLabel = proc l -> do
   ctx <- Ctx.askContext @Ctx -< ()
   returnA -< LabelA (l,ctx)
 {-# INLINE allocLabel #-}
+{-# SCC allocLabel #-}
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
@@ -129,18 +131,20 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
   closure = ValueT $ proc e -> do
     cls <- Cls.closure -< e
     returnA -< ClosureVal cls
-  apply (ValueT f) = {-# SCC "applyClosure" #-} ValueT $ proc (v,x) ->
+  apply (ValueT f) = ValueT $ proc (v,x) ->
     case v of
       ClosureVal cls -> Cls.apply f -< (cls,x)
       _ -> failString -< printf "Expected a closure, but got %s" (show v)
   {-# INLINE closure #-}
   {-# INLINE apply #-}
+  {-# SCC closure #-}
+  {-# SCC apply #-}
 
 instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c, ArrowStore Addr Val c, ArrowEnv Text Addr c,
           Store.Join Val c, Env.Join Addr c,Store.Join Addr c,Fail.Join Val c,IsString e)
     => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = (ArrowComplete y (ValueT Val c),Fail.Join y c)
-  lit = {-# SCC "lit" #-} proc x -> case x of
+  lit = proc x -> case x of
     Number _ -> returnA -< NumVal IntVal
     Float _ -> returnA -< NumVal FloatVal
     Ratio _ -> returnA -< Bottom
@@ -151,26 +155,30 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Quote (Symbol sym) -> returnA -< QuoteVal $ singleton sym
     _ -> returnA -< Bottom
   {-# INLINE lit #-}
+  {-# SCC lit #-}
 
-  if_ f g = {-# SCC "if_" #-} proc (v,(x,y)) -> case v of
+  if_ f g = proc (v,(x,y)) -> case v of
     BoolVal B.False -> g -< y
     BoolVal B.Top -> (f -< x) <⊔> (g -< y)
     Top -> (f -< x) <⊔> (g -< y)
     _ -> f -< x
   {-# INLINEABLE if_ #-}
+  {-# SCC if_ #-}
 
   nil_ = proc _ -> returnA -< ListVal Nil
   {-# INLINE nil_ #-}
+  {-# SCC nil_ #-}
 
-  cons_ = {-# SCC "cons_" #-} proc ((v1,l1),(v2,l2)) -> do
+  cons_ = proc ((v1,l1),(v2,l2)) -> do
     a1 <- allocLabel -< l1
     a2 <- allocLabel -< l2
     write -< (a1,v1)
     write -< (a2,v2)
     returnA -< ListVal (Cons (singleton a1) (singleton a2))
   {-# INLINE cons_ #-}
+  {-# SCC cons_ #-}
 
-  op1_ = {-# SCC "op1" #-} proc (op, x) -> case op of
+  op1_ = proc (op, x) -> case op of
     Number_ -> returnA -< case x of
       NumVal _ -> BoolVal B.True
       Top -> BoolVal B.Top
@@ -230,15 +238,17 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Error -> failString -< printf "error: %s" (show x)
     Random -> intToInt -< (op, x) 
   {-# INLINABLE op1_ #-}
+  {-# SCC op1_ #-}
 
-  op2_ = {-# SCC "op2" #-} proc (op, x, y) -> case op of
+  op2_ = proc (op, x, y) -> case op of
     Eqv -> returnA -< BoolVal $ eq x y
     Quotient -> intIntToInt -< (op,x,y)
     Remainder -> intIntToInt -< (op,x,y)
     Modulo -> intIntToInt -< (op,x,y)
   {-# INLINEABLE op2_ #-}
+  {-# SCC op2_ #-}
 
-  opvar_ =  {-# SCC "opvar" #-} proc (op, xs) -> case op of
+  opvar_ = proc (op, xs) -> case op of
     EqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
     SmallerS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
     GreaterS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
@@ -257,6 +267,7 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Gcd -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
     Lcm -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
   {-# INLINEABLE opvar_ #-}
+  {-# SCC opvar_ #-}
 
 numToNum :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToNum = proc (op,v) -> case v of
@@ -267,6 +278,7 @@ numToNum = proc (op,v) -> case v of
   where
     err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s" (show op) (show v)
 {-# INLINEABLE numToNum #-}
+{-# SCC numToNum #-}
 
 
 intToInt :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
@@ -277,6 +289,7 @@ intToInt = proc (op,v) -> case v of
   where
     err = proc (op,v) -> failString -< printf "expected an integer as argument for %s, but got %s" (show op) (show v)
 {-# INLINEABLE intToInt #-}
+{-# SCC intToInt #-}
 
 numToBool :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
 numToBool = proc (op,v) -> case v of
@@ -286,6 +299,7 @@ numToBool = proc (op,v) -> case v of
   where
     err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s" (show op) (show v)
 {-# INLINEABLE numToBool #-}
+{-# SCC numToBool #-}
 
 intIntToInt :: (IsString e, Fail.Join Val c, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => c (Op2_,Val,Val) Val
 intIntToInt = proc (op,v1,v2) -> case (v1,v2) of
@@ -297,6 +311,7 @@ intIntToInt = proc (op,v1,v2) -> case (v1,v2) of
   where
     err = proc (op,v1,v2) -> failString -< printf "expected a two ints as arguments for %s, but got %s" (show op) (show [v1,v2])
 {-# INLINEABLE intIntToInt #-}
+{-# SCC intIntToInt #-}
 
 car' :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, ArrowComplete Val c) => c Val Val
 car' = proc v -> case v of
@@ -306,15 +321,17 @@ car' = proc v -> case v of
   where
     err = proc v -> failString -< printf "Excpeted list as argument for car, but got %s" (show v)
 {-# INLINEABLE car' #-}
+{-# SCC car' #-}
 
 car :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c) => c List Val
-car = {-# SCC "car" #-} proc v -> case v of
+car = proc v -> case v of
   Cons x _ -> do
     vals <- ArrowUtils.map read' -< toList x
     returnA -< lub vals
   Nil -> failString -< "cannot car an empty list"
   ConsNil x y -> car -< Cons x y
 {-# INLINEABLE car #-}
+{-# SCC car #-}
 
 cdr' :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, ArrowComplete Val c) => c Val Val
 cdr' = proc v -> case v of
@@ -324,18 +341,20 @@ cdr' = proc v -> case v of
   where
     err = proc v -> failString -< printf "Excpeted list as argument for cdr, but got %s" (show v)
 {-# INLINEABLE cdr' #-}
+{-# SCC cdr' #-}
 
 cdr :: (IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, Fail.Join Val c, Store.Join Val c) => c List Val
-cdr = {-# SCC "cdr" #-} proc v -> case v of
+cdr = proc v -> case v of
   Cons _ y -> do
     vals <- ArrowUtils.map read' -< toList y
     returnA -< lub vals
   Nil -> failString -< "cannot cdr an empty list"
   ConsNil x y -> cdr -< Cons x y
 {-# INLINEABLE cdr #-}
+{-# SCC cdr #-}
 
 eq :: Val -> Val -> B.Bool
-eq v1 v2 = {-# SCC "eq" #-} case (v1,v2) of
+eq v1 v2 = case (v1, v2) of
   (Top,_) -> B.Top
   (_,Top) -> B.Top
   (BoolVal b1,BoolVal b2) -> case (b1,b2) of
@@ -354,6 +373,7 @@ eq v1 v2 = {-# SCC "eq" #-} case (v1,v2) of
     ([x], [y]) -> if x == y then B.True else B.False
     _ -> B.Top
   (_,_) -> B.False
+{-# SCC eq #-}
 
 numNTo :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (OpVar_,Int,[Val],Val) Val
 numNTo = proc (op,minArity,xs,ret) ->
@@ -366,6 +386,7 @@ numNTo = proc (op,minArity,xs,ret) ->
   where
     err = proc (op,xs) -> failString -< printf "expected a numbers as argument for %s, but got %s" (show op) (show xs)
 {-# INLINEABLE numNTo #-}
+{-# SCC numNTo #-}
 
 numLub :: Val -> Val -> Val
 numLub x y = case (x,y) of
@@ -379,6 +400,7 @@ numLub x y = case (x,y) of
   (Top,_) -> Top
   (_,Top) -> Top
   (_,_) -> Bottom
+{-# SCC numLub #-}
 
 numLubDivision :: Val -> Val -> Val
 numLubDivision x y = case (x,y) of
@@ -390,12 +412,14 @@ numLubDivision x y = case (x,y) of
   (Top,_) -> Top
   (_,Top) -> Top
   (_,_) -> Bottom
+{-# SCC numLubDivision #-}
 
 isNum :: Val -> B.Bool
 isNum v = case v of
   NumVal _ -> B.True
   Top -> B.Top
   _ -> B.False
+{-# SCC isNum #-}
 
 instance (ArrowChoice c, IsString e, Fail.Join Val c, ArrowFail e c, ArrowComplete Val c)
     => ArrowComplete Val (ValueT Val c) where
@@ -438,6 +462,8 @@ instance IsClosure Val (HashSet Env) where
   traverseEnvironment f v = case v of
     ClosureVal c -> ClosureVal <$> traverseEnvironment f c
     _ -> pure v
+  {-# SCC mapEnvironment #-}
+  {-# SCC traverseEnvironment #-}
 
 instance PreOrd Val where
   Bottom ⊑ _ = True
@@ -449,6 +475,7 @@ instance PreOrd Val where
   ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
   ListVal l1 ⊑ ListVal l2 = l1 ⊑ l2
   _ ⊑ _ = False
+  {-# SCC (⊑) #-}
 
 instance Complete Val where
   Bottom ⊔ x = x
@@ -460,6 +487,7 @@ instance Complete Val where
   QuoteVal sym1 ⊔ QuoteVal sym2 = QuoteVal (sym1 ⊔ sym2)
   ListVal l1 ⊔ ListVal l2 = ListVal (l1 ⊔ l2)
   _ ⊔ _ = Top
+  {-# SCC (⊔) #-}
 
 instance PreOrd List where
   Nil ⊑ Nil = True
@@ -517,19 +545,30 @@ isFunctionBody (_,(_,e)) = case e of
   _ -> False
 {-# INLINE isFunctionBody #-}
 
-printIn :: (Store,(Env,[Expr])) -> Doc ann
+-- Pretty Printing of inputs and outputs
+
+printIn :: In -> Doc ann
 printIn (store,(env,expr)) =
   vsep
   [ "EXPR:  " <> showFirst expr
   , "ENV:   " <> align (pretty env)
   , "STORE: " <> align (pretty store)
   ]
-  where showFirst (x:_) = pretty x; showFirst [] = "[]"
 
-printOut :: (Store,(HashSet Text,Terminating Val)) -> Doc ann
+printOut :: Out -> Doc ann
 printOut (store,(errs,val)) =
   vsep
   [ "RET:   " <> pretty val
   , "STORE: " <> align (pretty store)
   , "ERRORS:" <> align (pretty errs)
   ]
+
+printInExpr :: In -> Doc ann
+printInExpr (_,(_,expr)) = "EXPR:" <+> showFirst expr
+
+printOutVal :: Out -> Doc ann
+printOutVal (_,(_,val)) = "RET:" <+> pretty val
+
+showFirst :: Pretty x => [x] -> Doc ann
+showFirst (x:_) = pretty x
+showFirst [] = "[]"

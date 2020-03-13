@@ -48,26 +48,20 @@ innermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 innermost f iterate = proc a -> do
   b <- f -< a
   inComp <- inComponent -< a; case inComp of
-    Head _ -> do
-      removeFromComponent -< a
-      iterate -< (a,b)
-    _ ->
-      returnA -< b
+    Head _ -> iterate -< (a,b)
+    _ -> returnA -< b
 {-# INLINE innermost #-}
+{-# SCC innermost #-}
 
 outermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 outermost f iterate = proc a -> do
   b <- f -< a
   inComp <- inComponent -< a; case inComp of
-    Head Outermost -> do
-      removeFromComponent -< a
-      iterate -< (a,b)
-    Head Inner -> do
-      removeFromComponent -< a
-      returnA -< b
-    _ ->
-      returnA -< b
+    Head Outermost -> iterate -< (a,b)
+    Head Inner -> returnA -< b
+    _ -> returnA -< b
 {-# INLINE outermost #-}
+{-# SCC outermost #-}
 
 -- | Iterate on the innermost fixpoint component.
 chaotic :: forall a b c. (ArrowChoice c, ArrowComponent a c, ArrowStack a c, ArrowCache a b c)
@@ -90,8 +84,11 @@ chaotic iterationStrategy f = proc a -> do
     iterate -< a
   where
     iterate = iterationStrategy (Stack.push' f) $ proc (a,b) -> do
+      removeFromComponent -< a
       (stable,aNew,bNew) <- Cache.update -< (a,b)
       case stable of
         Stable   -> returnA -< bNew
         Unstable -> iterate -< aNew
+    {-# SCC iterate #-}
 {-# INLINE chaotic #-}
+{-# SCC chaotic #-}

@@ -50,17 +50,17 @@ instance Monad Terminating where
   {-# INLINE (>>=) #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor Terminating c where
-  -- mapA f = lmap toEither (arr (\_ -> NonTerminating) ||| rmap Terminating f)
-  mapA f = proc t -> case t of
-    Terminating x -> rmap Terminating f -< x
-    NonTerminating -> returnA -< NonTerminating
+  mapA f = lmap toEither (arr (\() -> NonTerminating) ||| rmap Terminating f)
+  -- mapA f = proc t -> case t of
+  --   Terminating x -> rmap Terminating f -< x
+  --   NonTerminating -> returnA -< NonTerminating
   {-# INLINE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad Terminating c where
-  -- mapJoinA f = lmap toEither (arr (\_ -> NonTerminating) ||| f)
-  mapJoinA f = proc t -> case t of
-    Terminating x -> f -< x
-    NonTerminating -> returnA -< NonTerminating
+  mapJoinA f = lmap toEither (arr (\() -> NonTerminating) ||| f)
+  -- mapJoinA f = proc t -> case t of
+  --   Terminating x -> f -< x
+  --   NonTerminating -> returnA -< NonTerminating
   {-# INLINE mapJoinA #-}
 
 toEither :: Terminating a -> Either () a

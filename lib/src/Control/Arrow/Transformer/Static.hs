@@ -10,6 +10,7 @@ import Prelude hiding (id,(.),lookup,read,fail,elem)
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Strict
 import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Chaotic as Chaotic
 import Control.Arrow.Fix.Cache as Cache
@@ -195,3 +196,7 @@ instance (Applicative f, ArrowControlFlow stmt c) => ArrowControlFlow stmt (Stat
   {-# INLINE nextStatement #-}
   {-# SPECIALIZE instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StaticT ((->) r) c) #-}
 
+instance (Applicative f, ArrowStrict c) => ArrowStrict (StaticT f c) where
+  force (StaticT f) = StaticT $ force <$> f
+  {-# INLINE force #-}
+  {-# SPECIALIZE instance ArrowStrict c => ArrowStrict (StaticT ((->) r) c) #-}

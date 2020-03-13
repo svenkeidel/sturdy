@@ -10,6 +10,7 @@ import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Strict
 import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
@@ -190,3 +191,4 @@ instance ArrowIterateCache c => ArrowIterateCache (ReaderT r c)
 instance ArrowFiltered a c => ArrowFiltered a (ReaderT r c)
 instance ArrowComponent a c => ArrowComponent a (ReaderT r c)
 instance ArrowInComponent a c => ArrowInComponent a (ReaderT r c)
+instance ArrowStrict c => ArrowStrict (ReaderT r c)

@@ -347,7 +347,6 @@ renderCFG inFile (CFG graph) = do
   let dotGraph = graphToDot fileGraphParams graph
   root <- getCurrentDirectory
   let outPath = root ++ "//graph_files//" ++ inFile ++ ".png"
-  print outPath
   _ <- runGraphvizCommand Dot dotGraph Png outPath
   return ()
 

@@ -14,6 +14,7 @@ import           Prelude hiding (id,(.),const,head,iterate,lookup)
 
 import           Control.Category
 import           Control.Arrow hiding (loop)
+import           Control.Arrow.Strict
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Cache
 import           Control.Arrow.Fix.Chaotic
@@ -34,7 +35,7 @@ newtype FixT c x y = FixT (c x y)
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth,
             ArrowComponent a, ArrowInComponent a,
-            ArrowFiltered a)
+            ArrowFiltered a, ArrowStrict)
 
 runFixT :: FixT c x y -> c x y
 runFixT (FixT f) = f
@@ -48,8 +49,9 @@ instance ArrowTrans (FixT c) where
 
 instance ArrowFix (FixT c a b) where
   type Fix (FixT c a b) = FixT c a b
-  fix = {-# SCC "Fix.fix" #-} ?fixpointAlgorithm
+  fix = ?fixpointAlgorithm
   {-# INLINABLE fix #-}
+  {-# SCC fix #-}
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (FixT c) where
   app = FixT (app .# first coerce)

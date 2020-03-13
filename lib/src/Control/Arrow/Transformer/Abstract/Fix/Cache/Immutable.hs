@@ -17,6 +17,7 @@ import           Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,el
 
 import           Control.Category
 import           Control.Arrow hiding ((<+>))
+import           Control.Arrow.Strict
 import           Control.Arrow.Const
 import           Control.Arrow.Trans
 import           Control.Arrow.State
@@ -35,8 +36,8 @@ import           Data.Empty
 import           Data.Order hiding (lub)
 import           Data.Coerce
 import           Data.Identifiable
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as M
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as M
 import           Data.Monoidal
 import           Data.Maybe
 import           Data.Text.Prettyprint.Doc
@@ -49,7 +50,8 @@ import           GHC.Exts
 type family Widening c :: *
 
 newtype CacheT cache a b c x y = CacheT { unCacheT :: ConstT (Widening (cache a b)) (StateT (cache a b) c) x y}
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowState (cache a b),ArrowControlFlow stmt)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
+            ArrowState (cache a b),ArrowControlFlow stmt)
 
 instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) where
   type Run (CacheT cache a b c) x y = Widening (cache a b) -> Run c x (cache a b,y)
@@ -275,26 +277,31 @@ instance (Pretty s, Pretty a, Pretty b) => Pretty (Monotone (s,a) (s,b)) where
 --   {-# INLINE isStable #-}
 
 instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowCache (s,a) (s,b) (CacheT Monotone (s,a) (s,b) c) where
-  initialize = {-# SCC "Cache.Monotone.initilize" #-} CacheT $ modify' $ \((s,a),Monotone s' cache) ->
+  initialize = CacheT $ modify' $ \((s,a),Monotone s' cache) ->
     let cache' = M.insertWith (\_ _old -> _old) a bottom cache
         b = M.lookupDefault bottom a cache
     in ((s,b),Monotone s' cache')
-  lookup = {-# SCC "Cache.Monotone.lookup" #-} CacheT $ modify' $ \((s,a),m@(Monotone _ cache)) ->
+  lookup = CacheT $ modify' $ \((s,a),m@(Monotone _ cache)) ->
     ((\b -> (Unstable,(s,b))) <$> M.lookup a cache, m)
-  update = {-# SCC "Cache.Monotone.update" #-} CacheT $ askConst $ \(widenS,widenB) -> modify' $ \(((_,a),(sNew,b)),Monotone sOld cache) ->
+  update = CacheT $ askConst $ \(widenS,widenB) -> modify' $ \(((_,a),(sNew,b)),Monotone sOld cache) ->
     let (stable1,sWiden) = widenS sOld sNew
     in case M.lookup a cache of
         Just b' ->
           let ~(stable2,b'') = widenB b' b
           in ((stable1 ⊔ stable2, (sWiden,a), (sWiden,b'')), Monotone sWiden (M.insert a b'' cache))
         Nothing -> ((Unstable,(sWiden,a), (sWiden,b)),Monotone sWiden (M.insert a b cache))
-  write = {-# SCC "Cache.Monotone.write" #-} CacheT $ modify' $ \(((_, a), (_, b), _),Monotone s cache) -> ((),Monotone s (M.insert a b cache))
-  setStable = {-# SCC "Cache.Monotone.setStable" #-} CacheT $ proc _ -> returnA -< ()
+  write = CacheT $ modify' $ \(((_, a), (_, b), _),Monotone s cache) -> ((),Monotone s (M.insert a b cache))
+  setStable = CacheT $ proc _ -> returnA -< ()
   {-# INLINE initialize #-}
   {-# INLINE lookup #-}
   {-# INLINE write #-}
   {-# INLINE update #-}
   {-# INLINE setStable #-}
+  {-# SCC initialize #-}
+  {-# SCC lookup #-}
+  {-# SCC write #-}
+  {-# SCC update #-}
+  {-# SCC setStable #-}
 
 instance (Arrow c, Profunctor c) => ArrowIterateCache (CacheT Monotone (s,a) (s,b) c) where
   nextIteration = proc () -> modify' (\((),Monotone s _) -> ((),Monotone s empty)) -< ()

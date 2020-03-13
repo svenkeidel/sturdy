@@ -73,6 +73,8 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowEffectCommutat
     Reader.local f -< (Map.insert var addr env, x)
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
+  {-# SCC lookup #-}
+  {-# SCC extend #-}
 
 instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c) 
     => ArrowStore addr val (EnvStoreT var addr val c) where
@@ -87,6 +89,8 @@ instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c)
     State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
   {-# INLINE read #-}
   {-# INLINE write #-}
+  {-# SCC read #-}
+  {-# SCC write #-}
 
 
 instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowEffectCommutative c, ArrowChoice c, Profunctor c) =>
@@ -100,6 +104,8 @@ instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowEffectCom
                 (\env -> EnvStoreT (Reader.local f) -< (env,(expr,x))) |) (Set.toList envs)
   {-# INLINE closure #-}
   {-# INLINE apply #-}
+  {-# SCC closure #-}
+  {-# SCC apply #-}
 
 instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowEffectCommutative c, ArrowChoice c, Profunctor c) 
     => ArrowLetRec var val (EnvStoreT var addr val c) where
@@ -118,6 +124,7 @@ instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (Hash
     State.modify' (\(val,store) -> ((), Map.union val store)) -< val'
     Reader.local f -< (env',x)
   {-# INLINE letRec #-}
+  {-# SCC letRec #-}
 
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (EnvStoreT var addr val c) where

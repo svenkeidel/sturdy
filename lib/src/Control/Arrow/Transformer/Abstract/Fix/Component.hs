@@ -1,19 +1,19 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-module Control.Arrow.Transformer.Abstract.Fix.Component(ComponentT,runComponentT,Component) where
+module Control.Arrow.Transformer.Abstract.Fix.Component(ComponentT,runComponentT,Component,Monotone) where
 
 import           Prelude hiding (id,pred,lookup,map,head,iterate,(.),elem)
 
 import           Control.Category
 import           Control.Arrow hiding (loop)
+import           Control.Arrow.Strict
 import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.ControlFlow
@@ -33,15 +33,21 @@ import           Data.Empty
 import           Data.Order hiding (lub)
 import           Data.HashSet(HashSet)
 import qualified Data.HashSet as H
+import           Data.HashMap.Strict(HashMap)
+import qualified Data.HashMap.Strict as M
 
 newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStack a,ArrowStackDepth,ArrowStackElements a,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
+            ArrowStack a,ArrowStackDepth,ArrowStackElements a,
             ArrowCache a b,ArrowParallelCache a b,ArrowIterateCache,
             ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
 
 runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> c x y
 runComponentT (ComponentT f) = dimap (\x -> (empty,x)) snd (runStateT f)
 {-# INLINE runComponentT #-}
+
+instance ArrowTrans (ComponentT comp a c) where
+  type Underlying (ComponentT comp a c) x y = c (comp a,x) (comp a,y)
 
 instance ArrowLift (ComponentT comp a) where
   lift' f = ComponentT (lift' f)
@@ -75,9 +81,6 @@ instance (Identifiable a, ArrowEffectCommutative c) => ArrowEffectCommutative (C
 -- Standard Component ----------------------------------------------------------------------------------
 newtype Component a = Component (HashSet a) deriving (Eq,PreOrd,Complete,IsEmpty)
 
-instance ArrowTrans (ComponentT Component a c) where
-  type Underlying (ComponentT Component a c) x y = c (Component a,x) (Component a,y)
-
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowComponent a (ComponentT Component a c) where
   addToComponent = lift $ arr $ \(Component c,a) -> (Component (H.insert a c),())
   removeFromComponent = lift $ arr $ \(Component c,a) -> (Component (H.delete a c),())
@@ -93,26 +96,25 @@ instance (Identifiable a, Arrow c, Profunctor c) => ArrowInComponent a (Componen
     in (Component c,comp)
   {-# INLINE inComponent #-}
 
--- Second Projection ----------------------------------------------------------------------------------
--- data Proj2 comp b where
---   Proj2 :: comp b -> Proj2 comp (a,b)
+-- Component with a mononone part ------------------------------------------------------------------
+data Monotone b where
+  Monotone :: HashMap b a -> Monotone (a,b)
 
--- instance IsEmpty (comp b) => IsEmpty (Proj2 comp (a,b)) where
---   empty = Proj2 empty
+instance IsEmpty (Monotone (a,b)) where
+  empty = Monotone empty
 
--- instance (Arrow c, Profunctor c, ArrowComponent b (ComponentT comp b c)) => ArrowComponent (a,b) (ComponentT (Proj2 comp) (a,b) c) where
---   addToComponent = lift (lmap snd addToComponent)
---   removeFromComponent = lift (lmap snd removeFromComponent)
---   {-# INLINE addToComponent #-}
---   {-# INLINE removeFromComponent #-}
+instance (PreOrd a, Identifiable b, Arrow c, Profunctor c) => ArrowComponent (a,b) (ComponentT Monotone (a,b) c) where
+  addToComponent      = lift $ arr $ \(Monotone m,(a,b)) -> (Monotone (M.insert b a m), ())
+  removeFromComponent = lift $ arr $ \(Monotone m,(a,b)) ->
+    (Monotone (M.update (\a' -> let pred = a' ⊑ a in pred `seq` if pred then Nothing else Just a') b m), ())
+  {-# INLINE addToComponent #-}
+  {-# INLINE removeFromComponent #-}
 
--- instance (Profunctor c, Arrow c, ArrowInComponent b (ComponentT comp b c)) => ArrowInComponent (a,b) (ComponentT (Proj2 comp) (a,b) c) where
---   inComponent = lift (lmap snd inComponent)
---   {-# INLINE inComponent #-}
+instance (PreOrd a, Identifiable b, Profunctor c, Arrow c) => ArrowInComponent (a,b) (ComponentT Monotone (a,b) c) where
+  inComponent = lift $ arr $ \(Monotone m,(a,b)) ->
+    let comp | M.null m = Empty
+             | Just a ⊑ M.lookup b m = Head $ if M.size m == 1 then Outermost else Inner
+             | otherwise = Body
+    in (Monotone m,comp)
+  {-# INLINE inComponent #-}
 
--- instance Profunctor c => ArrowTrans (ComponentT (Proj2 comp) (a,b) c) where
---   type Underlying (ComponentT (Proj2 comp) (a,b) c) x y = ComponentT comp b c x y
---   lift (ComponentT f) = ComponentT $ lift $ dimap (first (\(Proj2 c) -> c)) (first Proj2) (unlift f)
---   unlift (ComponentT f) = ComponentT $ lift $ dimap (first Proj2) (first (\(Proj2 c) -> c)) (unlift f)
---   {-# INLINE lift #-}
---   {-# INLINE unlift #-}

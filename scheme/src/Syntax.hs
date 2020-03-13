@@ -271,8 +271,8 @@ showTopLvl e = case e of
     App {} -> "app"
     Apply {} -> "apply"
     Var x _ -> pretty x
-    Set t _ _ -> "set!" <+> pretty t <+> showTopLvl e
-    Define t _ _ -> "define" <+> pretty t <+> showTopLvl e
+    Set t _ _ -> "set!" <+> pretty t
+    Define t _ _ -> "define" <+> pretty t
     Lam xs _ _ -> "λ" <+> hsep (map pretty xs)
     If e1 _ _ _ -> "if" <+> pretty e1
     Let {} -> "let"

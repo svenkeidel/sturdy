@@ -7,12 +7,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Abstract.Fix.Stack(StackT,Stack) where
+module Control.Arrow.Transformer.Abstract.Fix.Stack(StackT,Stack,Monotone) where
 
 import           Prelude hiding (pred,lookup,map,head,iterate,(.),elem)
 
 import           Control.Category
 import           Control.Arrow hiding (loop)
+import           Control.Arrow.Strict
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements)
@@ -28,12 +29,15 @@ import           Data.Profunctor
 import           Data.Profunctor.Unsafe ((.#))
 import           Data.Coerce
 import           Data.Empty
+import           Data.Identifiable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as Set
-import           Data.Identifiable
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as M
+import           Data.Order
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowJoin,ArrowStrict,
             ArrowLowerBounded z, ArrowComplete z,
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache,
             ArrowState s,ArrowContext ctx, ArrowJoinContext u,
@@ -42,6 +46,9 @@ newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
 runStackT :: (IsEmpty (stack a), Profunctor c) => StackT stack a c x y -> c x y
 runStackT (StackT f) = lmap (\x -> (empty,x)) (runReaderT f)
 {-# INLINE runStackT #-}
+
+instance Profunctor c => ArrowTrans (StackT stack a c) where
+  type Underlying (StackT stack a c) x y = c (stack a, x) y
 
 instance (IsEmpty (stack a), ArrowRun c) => ArrowRun (StackT stack a c) where
   type Run (StackT stack a c) x y = Run c x y
@@ -59,15 +66,11 @@ data Stack a = Stack
   { elems :: HashSet a
   , stack :: [a]
   , depth  :: !Int
-  , isTopLevel :: Bool
   }
 
 instance IsEmpty (Stack a) where
-  empty = Stack { elems = empty, stack = empty, depth = 0, isTopLevel = True }
+  empty = Stack { elems = empty, stack = empty, depth = 0 }
   {-# INLINE empty #-}
-
-instance ArrowTrans (StackT Stack a c) where
-  type Underlying (StackT Stack a c) x y = Underlying (ReaderT (Stack a) c) x y
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
   push f = {-# SCC "Stack.push" #-} lift $ proc (st,(a,x)) -> do
@@ -90,31 +93,16 @@ instance (Arrow c, Profunctor c) => ArrowStackElements a (StackT Stack a c) wher
   {-# INLINE peek #-}
   {-# INLINE elems #-}
 
--- Second Projection -----------------------------------------------------------------------
--- data Proj2 stack b where
---   Proj2 :: stack b -> Proj2 stack (a,b)
+-- Stack with a monotone component ------------------------------------------------------
+data Monotone b where
+  Monotone :: HashMap b a -> Monotone (a,b)
 
--- instance IsEmpty (stack b) => IsEmpty (Proj2 stack (a,b)) where
---   empty = Proj2 empty
---   {-# INLINE empty #-}
+instance IsEmpty (Monotone (a,b)) where
+  empty = Monotone empty
+  {-# INLINE empty #-}
 
--- instance (Arrow c, Profunctor c, ArrowTopLevel (StackT stack b c)) => ArrowTopLevel (StackT (Proj2 stack) (a,b) c) where
---   topLevel combTop combLower = lift1 $ Stack.topLevel (unlift1 combTop) (unlift1 combLower)
---   {-# INLINE topLevel #-}
-
--- instance (ArrowApply c, Profunctor c, ArrowStack b (StackT stack b c)) => ArrowStack (a,b) (StackT (Proj2 stack) (a,b) c) where
---   elem = lift (lmap snd Stack.elem)
---   push f = lift $ proc (a,b) -> Stack.push (proc b' -> unlift f -< (a,b')) -<< b
---   {-# INLINE elem #-}
---   {-# INLINE push #-}
-
--- instance (Arrow c, Profunctor c, ArrowStackDepth (StackT stack b c)) => ArrowStackDepth (StackT (Proj2 stack) (a,b) c) where
---   depth = lift Stack.depth
---   {-# INLINE depth #-}
-
--- instance Profunctor c => ArrowTrans (StackT (Proj2 stack) (a,b) c) where
---   type Underlying (StackT (Proj2 stack) (a,b) c) x y = StackT stack b c x y
---   lift (StackT f) = StackT $ lift $ lmap (first (\(Proj2 st) -> st)) (unlift f)
---   unlift (StackT f) = StackT $ lift $ lmap (first Proj2) (unlift f)
---   {-# INLINE lift #-}
---   {-# INLINE unlift #-}
+instance (PreOrd a, Identifiable b, Profunctor c, Arrow c) => ArrowStack (a,b) (StackT Monotone (a,b) c) where
+  elem = lift $ arr $ \(Monotone m, (a,b)) -> Just a ⊑ M.lookup b m
+  push f = lift $ lmap (\(Monotone m, ((a, b), x)) -> (Monotone (M.insert b a m), x)) (unlift f)
+  {-# INLINE elem #-}
+  {-# INLINE push #-}

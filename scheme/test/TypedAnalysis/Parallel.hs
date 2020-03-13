@@ -36,8 +36,8 @@ import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Parallel,Monotone)
+import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 -- import           Control.Arrow.Transformer.Abstract.Fix.Trace
@@ -64,8 +64,8 @@ type InterpParallel x y =
         (EnvStoreT Text Addr Val
           (FixT
             (MetricsT In
-              (StackT Stack In
-                (CacheT (Parallel Monotone) In Out
+              (StackT Stack.Monotone In
+                (CacheT (Parallel Cache.Monotone) In Out
                   (ContextT Ctx
                     (ControlFlowT Expr
                       (->)))))))))) x y
@@ -75,7 +75,7 @@ type InterpParallel x y =
 
 eval :: (?sensitivity :: Int)
      => (forall c. (ArrowChoice c, ArrowStack In c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
-                   (FixpointCombinator c In Out -> FixpointCombinator c In Out) -> FixpointAlgorithm c In Out)
+                   (FixpointCombinator c In Out -> FixpointCombinator c In Out) -> FixpointAlgorithm (c In Out))
      -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metrics In, Out))
 eval algo env0 e =
   let ?fixpointAlgorithm = algo $ \update ->

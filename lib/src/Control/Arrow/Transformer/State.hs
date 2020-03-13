@@ -11,6 +11,7 @@ import           Prelude hiding (id,(.),lookup,read,fail)
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Strict
 import           Control.Arrow.Cont
 import           Control.Arrow.Const
 import           Control.Arrow.Environment as Env
@@ -220,6 +221,7 @@ instance ArrowTopLevel c => ArrowTopLevel (StateT s c)
 instance (ArrowJoinContext a c) => ArrowJoinContext a (StateT s c)
 instance ArrowComponent a c => ArrowComponent a (StateT s c)
 instance ArrowInComponent a c => ArrowInComponent a (StateT s c)
+instance ArrowStrict c => ArrowStrict (StateT s c)
 
 instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
   => ArrowEffectCommutative (StateT s c)

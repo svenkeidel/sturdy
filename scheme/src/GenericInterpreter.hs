@@ -102,6 +102,7 @@ eval run' = proc e0 -> case e0 of
             Env.extend' run' -< (zip xs addrs, [Apply body l])
           else fail -< fromString $ printf "Applied a function with %d arguments to %d arguments" (length xs) (length args)
       _ -> fail -< fromString $ "found unexpected epxression in closure: " ++ show e
+    {-# SCC applyClosure' #-}
 
     evalBindings = proc bnds -> case bnds of
       [] -> returnA -< []
@@ -111,6 +112,7 @@ eval run' = proc e0 -> case e0 of
         write -< (addr,val)
         vs <- Env.extend evalBindings -< (var, addr, bnds')
         returnA -< (var,addr) : vs
+    {-# SCC evalBindings #-}
 
     evalBindings' = proc bnds -> case bnds of
       [] -> returnA -< []
@@ -121,7 +123,10 @@ eval run' = proc e0 -> case e0 of
         --only adds closure to its own env so it can call itself recursively
         vs <- Env.extend (LetRec.letRec evalBindings') -< (var,addr,([(var,val)],bnds')) 
         returnA -< (var,addr,val) : vs
+    {-# SCC evalBindings' #-}
+
 {-# INLINEABLE eval #-}
+{-# SCC eval #-}
 
 run_ :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Expr] v)),
          ArrowChoice c,
@@ -146,30 +151,29 @@ run_ :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Expr] v)),
 run_ = fix $ \run' -> proc es -> case es of
   [] ->
     fail -< fromString "Empty program"
-  Set x e _:rest -> do
+  Set x e l:rest -> do
     v <- run' -< [e]
     addr <- Env.lookup (proc (addr, _) -> returnA -< addr)
                (proc var -> fail -< fromString $ printf "(set): Variable %s not bound when setting" (show var))
                  -< (x, x)
     write -< (addr,v)
-    -- if null rest
-    --   then run' -< [Lit (String "#<void>") l]
-    --   else
-    run' -< rest
-  Define x e _: rest -> do
+    if null rest
+      then run' -< [Lit (String "#<void>") l]
+      else run' -< rest
+  Define x e l: rest -> do
     cls <- run' -< [e]
     addr <- alloc -< x
     write -< (addr,cls)
-    -- if null rest
-    --   then Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)], [Lit (String "#<void>") l]))
-    --   else
-    Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)],rest))
+    if null rest
+      then Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)], [Lit (String "#<void>") l]))
+      else Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)],rest))
   e:[] ->
     eval run' -< e
   e:rest -> do
     eval run' -< e
     run' -< rest
 {-# INLINEABLE run_ #-}
+{-# SCC run_ #-}
 
 
 class ArrowAlloc addr c where

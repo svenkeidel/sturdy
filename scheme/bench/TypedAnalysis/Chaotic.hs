@@ -13,8 +13,15 @@
 {-# OPTIONS_GHC
   -fspecialise-aggressively
   -flate-specialise
-  -funfolding-use-threshold=3000
-  -fsimpl-tick-factor=1000
+  -funfolding-dict-discount=200
+  -funfolding-fun-discount=200
+  -funfolding-keeness-factor=3
+  -funfolding-use-threshold=10000
+  -funfolding-creation-threshold=10000
+  -flate-dmd-anal
+  -fsimpl-tick-factor=10000
+  -fmax-simplifier-iterations=10
+  -fexpose-all-unfoldings
   -fno-warn-orphans
   -fno-warn-partial-type-signatures
 #-}
@@ -31,10 +38,10 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Component
+import           Control.Arrow.Transformer.Abstract.Fix.Component as Comp
 import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
+import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Data.Text (Text)
@@ -54,9 +61,9 @@ type InterpChaotic =
       (LogErrorT (HashSet Text)
         (EnvStoreT Text Addr Val
           (FixT
-            (ComponentT Component In
-              (StackT Stack In
-                (CacheT Monotone In Out
+            (ComponentT Comp.Monotone In
+              (StackT Stack.Monotone In
+                (CacheT Cache.Monotone In Out
                   (ContextT Ctx
                     (->)))))))))
 
@@ -69,7 +76,7 @@ evalChaotic iterationStrat e =
   let ?fixpointAlgorithm =
         {-# SCC "fixpointAlgorithm" #-}
         Fix.fixpointAlgorithm $
-          -- Fix.trace printIn printOut .
+          -- Fix.trace printInExpr printOutVal .
           Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
           Fix.filter isFunctionBody (chaotic iterationStrat)
   in snd $ snd $ run (Generic.run_ :: InterpChaotic [Expr] Val)

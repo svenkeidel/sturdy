@@ -34,8 +34,8 @@ import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Parallel,Monotone)
+import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Data.Text (Text)
@@ -56,8 +56,8 @@ type InterpParallel =
       (LogErrorT (HashSet Text)
         (EnvStoreT Text Addr Val
           (FixT
-            (StackT Stack In
-              (CacheT (Parallel Monotone) In Out
+            (StackT Stack.Monotone In
+              (CacheT (Parallel Cache.Monotone) In Out
                 (ContextT Ctx
                   (->))))))))
 
