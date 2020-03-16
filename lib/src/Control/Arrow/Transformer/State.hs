@@ -42,8 +42,6 @@ import           Data.Monoidal
 import           Data.Profunctor hiding (Strong(..))
 import           Data.Profunctor.Unsafe
 
-import           GHC.TypeLits
-
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype StateT s c x y = StateT { runStateT :: c (s,x) (s,y) }
 

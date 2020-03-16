@@ -10,21 +10,25 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
--- {-# OPTIONS_GHC
---   -fspecialise-aggressively
---   -flate-specialise
---   -fsimpl-tick-factor=1000
--- #-}
 {-# OPTIONS_GHC
   -fno-warn-orphans
   -fno-warn-partial-type-signatures
 #-}
+
+-- {-# OPTIONS_GHC
+--   -fspecialise-aggressively
+--   -flate-specialise
+--   -funfolding-use-threshold=1000
+--   -fsimpl-tick-factor=50000
+--   -fmax-simplifier-iterations=10
+-- #-}
 module TypedAnalysis.Parallel where
 
 import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Order
 import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Parallel as Par
@@ -63,6 +67,8 @@ type InterpParallel =
                 (ContextT Ctx
                   (->))))))))
 
+{-# SPECIALIZE if__ :: (ArrowComplete z InterpParallel)
+                    => InterpParallel x z -> InterpParallel y z -> InterpParallel (Val,(x,y)) z #-}
 {-# SPECIALIZE Generic.run_ :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (InterpParallel [Expr] Val))) => InterpParallel [Expr] Val #-}
 {-# SPECIALIZE Generic.eval :: InterpParallel [Expr] Val -> InterpParallel Expr Val #-}
 
