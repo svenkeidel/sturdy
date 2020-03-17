@@ -128,27 +128,25 @@ eval run' = proc e0 -> case e0 of
 {-# INLINEABLE eval #-}
 {-# SCC eval #-}
 
-run_ :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Expr] v)),
-         ArrowChoice c,
-         ArrowFix (c [Expr] v),
-         ArrowEnv Text addr c,
-         ArrowStore addr v c,
-         ArrowLetRec Text v c,
-         ArrowFail e c,
-         IsString e,
-         ArrowClosure Expr v c,
-         IsVal v c,
-         Env.Join v c,
-         Env.Join addr c,
-         Cls.Join v v c,
-         Store.Join v c,
-         Fail.Join v c,
-         Fail.Join addr c,
-         Join v c,
-         ArrowAlloc addr c,
-         Show addr)
-    => c [Expr] v
-run_ = fix $ \run' -> proc es -> case es of
+run :: (ArrowChoice c,
+        ArrowEnv Text addr c,
+        ArrowStore addr v c,
+        ArrowLetRec Text v c,
+        ArrowFail e c,
+        IsString e,
+        ArrowClosure Expr v c,
+        IsVal v c,
+        Env.Join v c,
+        Env.Join addr c,
+        Cls.Join v v c,
+        Store.Join v c,
+        Fail.Join v c,
+        Fail.Join addr c,
+        Join v c,
+        ArrowAlloc addr c,
+        Show addr)
+    => c Expr v -> c [Expr] v -> c [Expr] v
+run eval' run' = proc es -> case es of
   [] ->
     fail -< fromString "Empty program"
   Set x e l:rest -> do
@@ -168,13 +166,36 @@ run_ = fix $ \run' -> proc es -> case es of
       then Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)], [Lit (String "#<void>") l]))
       else Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)],rest))
   e:[] ->
-    eval run' -< e
+    eval' -< e
   e:rest -> do
-    eval run' -< e
+    eval' -< e
     run' -< rest
-{-# INLINEABLE run_ #-}
-{-# SCC run_ #-}
+{-# INLINEABLE run #-}
+{-# SCC run #-}
 
+runFixed :: (
+  ArrowFix (c [Expr] v),
+  ArrowChoice c,
+  ArrowEnv Text addr c,
+  ArrowStore addr v c,
+  ArrowLetRec Text v c,
+  ArrowFail e c,
+  IsString e,
+  ArrowClosure Expr v c,
+  IsVal v c,
+  Env.Join v c,
+  Env.Join addr c,
+  Cls.Join v v c,
+  Store.Join v c,
+  Fail.Join v c,
+  Fail.Join addr c,
+  Join v c,
+  ArrowAlloc addr c,
+  Show addr
+  ) =>
+  FixpointAlgorithm (Fix (c [Expr] v)) -> c [Expr] v
+runFixed algo = fix algo $ \run' -> run (eval run') run'
+{-# INLINE runFixed #-}
 
 class ArrowAlloc addr c where
   alloc :: c Text addr

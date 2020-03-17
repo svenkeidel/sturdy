@@ -25,11 +25,11 @@ import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Environment as Env
-import           Control.Arrow.Fix as Fix
+import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost,outermost)
 import qualified Control.Arrow.Fix.Context as Ctx
 import qualified Control.Arrow.Fix.ControlFlow as CFlow
-import           Control.Arrow.Trans
+import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
@@ -59,28 +59,29 @@ import           GenericInterpreter as Generic
 type InterpChaotic x y =
   (ValueT Val
     (TerminatingT
-      (LogErrorT (HashSet Text)
+      (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT
             (MetricsT In
-              (ComponentT Comp.Monotone In
+              (ComponentT Comp.Component In
                 (StackT Stack.Monotone In
                   (CacheT Cache.Monotone In Out
                     (ContextT Ctx
                       (ControlFlowT Expr (->)))))))))))) x y
 
-{-# SPECIALIZE Generic.run_ :: InterpChaotic [Expr] Val #-}
-{-# SPECIALIZE Generic.eval :: InterpChaotic [Expr] Val -> InterpChaotic Expr Val #-}
-
-evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metrics In, Out))
+evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metrics In, Out'))
 evalChaotic iterationStrat env0 e =
-  let ?fixpointAlgorithm = Fix.fixpointAlgorithm $
+  second snd $ Trans.run (extend' (Generic.runFixed algorithm :: InterpChaotic [Expr] Val)) (Map.empty,(Map.empty,(env0,e0)))
+  where
+    algorithm =
+      let ?cacheWidening = (W.finite, W.finite) in
+      transform $
+        Fix.fixpointAlgorithm $
         -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        -- CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> controlFlow e'; _ -> Nothing) .
+        CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
+        -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
         Fix.filter' isFunctionBody (chaotic iterationStrat)
-  in second snd $ run (extend' (Generic.run_ :: InterpChaotic [Expr] Val)) W.finite (W.finite, W.finite) (Map.empty,(Map.empty,(env0,e0)))
-  where
     e0 = generate (sequence e)
 {-# INLINE evalChaotic #-}
 

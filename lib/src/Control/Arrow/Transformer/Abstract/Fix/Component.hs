@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -38,13 +39,19 @@ import qualified Data.HashMap.Strict as M
 
 newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
-            ArrowStack a,ArrowStackDepth,ArrowStackElements a,
+            ArrowStackDepth,ArrowStackElements a,
             ArrowCache a b, ArrowParallelCache a b,ArrowIterateCache,
             ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
 
 runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> c x y
 runComponentT (ComponentT f) = dimap (\x -> (empty,x)) snd (runStateT f)
 {-# INLINE runComponentT #-}
+
+instance (Monoid (comp a), ArrowStack a c) => ArrowStack a (ComponentT comp a c) where
+  push f = lift $ proc (comp,(a,x)) -> do
+    (comp',y) <- push (lmap (\x -> (mempty,x)) (unlift f)) -< (a,x)
+    returnA -< (comp <> comp', y)
+  {-# INLINE push #-}
 
 instance ArrowTrans (ComponentT comp a c) where
   type Underlying (ComponentT comp a c) x y = c (comp a,x) (comp a,y)
@@ -69,7 +76,7 @@ instance ArrowState s c => ArrowState s (ComponentT comp a c) where
   {-# INLINE put #-}
 
 -- Standard Component ----------------------------------------------------------------------------------
-newtype Component a = Component (HashSet a) deriving (Eq,PreOrd,Complete,IsEmpty)
+newtype Component a = Component (HashSet a) deriving (Eq,IsEmpty,Monoid,Semigroup)
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowComponent a (ComponentT Component a c) where
   addToComponent = lift $ arr $ \(Component c,a) -> (Component (H.insert a c),())
@@ -93,18 +100,25 @@ data Monotone b where
 instance IsEmpty (Monotone (a,b)) where
   empty = Monotone empty
 
+instance Identifiable b => Semigroup (Monotone (a,b)) where
+  Monotone m1 <> Monotone m2 = Monotone (M.union m2 m1)
+
+instance Identifiable b => Monoid (Monotone (a,b)) where
+  mempty = empty
+  mappend = (<>)
+
 instance (PreOrd a, Identifiable b, Arrow c, Profunctor c) => ArrowComponent (a,b) (ComponentT Monotone (a,b) c) where
   addToComponent      = lift $ arr $ \(Monotone m,(a,b)) -> (Monotone (M.insert b a m), ())
   removeFromComponent = lift $ arr $ \(Monotone m,(a,b)) ->
-    (Monotone (M.update (\a' -> let pred = a' ⊑ a in pred `seq` if pred then Nothing else Just a') b m), ())
+    (Monotone (M.update (\a' -> if a' ⊑ a then Nothing else Just a') b m), ())
   {-# INLINE addToComponent #-}
   {-# INLINE removeFromComponent #-}
 
 instance (PreOrd a, Identifiable b, Profunctor c, Arrow c) => ArrowInComponent (a,b) (ComponentT Monotone (a,b) c) where
   inComponent = lift $ arr $ \(Monotone m,(a,b)) ->
-    let comp | M.null m = Empty
+    let comp | M.null m              = Empty
              | Just a ⊑ M.lookup b m = Head $ if M.size m == 1 then Outermost else Inner
-             | otherwise = Body
+             | otherwise             = Body
     in (Monotone m,comp)
   {-# INLINE inComponent #-}
 

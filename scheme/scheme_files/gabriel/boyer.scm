@@ -1,27 +1,33 @@
-(define *namelist* '())
-(define *lastlook* '(xxx ()))
+(include-equals)
 
-(define (nameprop name)
-  (if (eq? name (car *lastlook*))
-      *lastlook*
-      (let ((pair (assq name *namelist*)))
-        (if pair
-          (set! *lastlook* pair)
-          ; added null here
-          null)
-        pair)))
+(define (member x list)
+  (if (null? list) #f
+      (if (equal? x (car list)) list
+          (member x (cdr list)))))
+
+(define (lookup key table)
+  (letrec ((loop (lambda (x)
+                   (if (null? x)
+                       #f
+                       (let ((pair (car x)))
+                         (if (eq? (car pair) key)
+                             pair
+                             (loop (cdr x))))))))
+    (loop table)))
+
 (define (get name prop)
   (let ((r (nameprop name)))
     (if (pair? r)
-        (let ((s (assq prop (cdr r))))
+        (let ((s (lookup prop (cdr r))))
           (if (pair? s)
               (cdr s)
               #f))
         #f)))
+
 (define (put name prop valu)
   (let ((r (nameprop name)))
     (if (pair? r)
-        (let ((s (assq prop (cdr r))))
+        (let ((s (lookup prop (cdr r))))
           (if (pair? s)
               (set-cdr! s valu)
               (let ((item (cons prop valu)))
@@ -29,6 +35,20 @@
         (let ((item (cons prop valu)))
           (set! *namelist* (cons (cons name (cons item '())) *namelist*)))))
   valu)
+
+(define *namelist* '())
+(define *lastlook* '(xxx ()))
+
+(define (nameprop name)
+  (if (eq? name (car *lastlook*))
+      *lastlook*
+      (let ((pair (lookup name *namelist*)))
+        (if pair
+            (set! *lastlook* pair)
+                                        ; added null here
+            null)
+        pair)))
+
 (define reinit-prop!
   (lambda ()
     (set! *namelist* '())
@@ -58,7 +78,7 @@
 
 (define (apply-subst alist term)
   (cond ((not (pair? term))
-         (cond ((begin (set! temp-temp (assq term alist))
+         (cond ((begin (set! temp-temp (lookup term alist))
                        temp-temp)
                 (cdr temp-temp))
                (else term)))
@@ -81,7 +101,7 @@
 
 (define (one-way-unify1 term1 term2)
   (cond ((not (pair? term2))
-         (cond ((begin (set! temp-temp (assq term2 unify-subst))
+         (cond ((begin (set! temp-temp (lookup term2 unify-subst))
                        temp-temp)
                 (equal? term1 (cdr temp-temp)))
                (else (set! unify-subst (cons (cons term2 term1)
@@ -564,7 +584,8 @@
 (define (trans-of-implies1 n)
   (cond ((equal? n 1)
          (cons 'implies (cons 0 (cons 1 '()))))
-        (else (cons 'and (cons (cons 'implies (cons (- n 1) (cons n '()))) (cons (trans-of-implies1 (- n 1)) '()))))))
+        (else (cons 'and (cons (cons 'implies (cons (- n 1) (cons n '())))
+                               (cons (trans-of-implies1 (- n 1)) '()))))))
 
 (define (truep x lst)
   (or (equal? x (quote (t)))

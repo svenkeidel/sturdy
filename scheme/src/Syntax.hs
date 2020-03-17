@@ -60,6 +60,7 @@ data Op1_
   | Cadr -- (cadr z)
   | Cddr -- (cddr z)
   | Caddr -- (caddr z)
+  | Cadddr -- (cadddr z)
   | Error -- (error z)
   | Random -- (random z)
   deriving (Eq,Generic,NFData)
@@ -290,7 +291,7 @@ instance IsString (State Label Expr) where
   fromString = var_ . fromString
 
 instance Labellable Expr where
-  toLabelValue a = textLabelValue $ renderLazy $ layoutPretty defaultLayoutOptions $ pretty a
+  toLabelValue a = textLabelValue $ renderLazy $ layoutPretty defaultLayoutOptions $ showTopLvl a
 
 instance HasLabel Expr where
   label e = case e of

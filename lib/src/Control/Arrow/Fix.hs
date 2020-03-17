@@ -38,25 +38,25 @@ import           Text.Printf
 class ArrowFix c where
   -- | Computes the fixpoint of an arrow computation.
   type Fix c
-  fix :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix c)) => (c -> c) -> c
+  fix :: FixpointAlgorithm (Fix c) -> (c -> c) -> c
 
-  default fix :: (c ~ c' x y, ArrowTrans c', Underlying c' x y ~ d,
-                  ?fixpointAlgorithm :: FixpointAlgorithm (Fix d), ArrowFix d) => (c -> c) -> c
-  fix f = lift (fix (unlift . f . lift))
+  default fix :: (c ~ c' x y, ArrowTrans c', Underlying c' x y ~ d, Fix (c' x y) ~ Fix d, ArrowFix d)
+              => FixpointAlgorithm (Fix c) -> (c -> c) -> c
+  fix algo f = lift (fix algo (unlift . f . lift))
   {-# INLINE fix #-}
 
 instance ArrowFix (x -> y) where
   type Fix (x -> y) = (x -> y)
-  fix = ?fixpointAlgorithm
+  fix algo = algo
   {-# INLINE fix #-}
 
 type FixpointAlgorithm c = (c -> c) -> c
 
-transform :: Profunctor c => Iso' a a' -> FixpointAlgorithm (c a' b) -> FixpointAlgorithm (c a b)
-transform iso algorithm eval = toIso $ algorithm (fromIso . eval . toIso)
+transform :: Profunctor c => Iso' a a' -> Iso' b b' -> FixpointAlgorithm (c a' b') -> FixpointAlgorithm (c a b)
+transform isoA isoB algorithm eval = toIso $ algorithm (fromIso . eval . toIso)
   where
-    fromIso = lmap (get (from iso))
-    toIso = lmap (get iso)
+    fromIso = dimap (get (from isoA)) (get isoB)
+    toIso = dimap (get isoA) (get (from isoB))
     {-# INLINE fromIso #-}
     {-# INLINE toIso #-}
 {-# INLINE transform #-}

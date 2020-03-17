@@ -9,6 +9,11 @@
     ((set-cdr! location value)
      (set! location (cons (car location) value)))))
 
+(define-syntax set-car!
+  (syntax-rules ()
+    ((set-car! location value)
+     (set! location (cons (car location) value)))))
+
 (define-syntax include-equals
   (syntax-rules ()
     ((include-equals)

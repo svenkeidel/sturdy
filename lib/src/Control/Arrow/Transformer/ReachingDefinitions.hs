@@ -57,23 +57,30 @@ runReachingDefsT' = unlift
 instance ArrowRun c => ArrowRun (ReachingDefsT f c) where
   type Run (ReachingDefsT f c) x y = Run c x y
   run = run . runReachingDefsT
+  {-# INLINE run #-}
 
 instance (ArrowStore var (val,f Label) c, IsEmpty (f Label), IsSingleton (f Label), Elem (f Label) ~ Label) =>
     ArrowStore var val (ReachingDefsT f c) where
   type Join y (ReachingDefsT f c) = Store.Join y c
   read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read (lmap (\((v,_),x) -> (v,x)) f) g
   write = reachingDefsT $ lmap (\(lab,(var,val)) -> (var,(val,fromMaybe lab))) write
+  {-# INLINE read #-}
+  {-# INLINE write #-}
 
 instance (HasLabel x, Arrow c, ArrowFix (c x y), Profunctor c) => ArrowFix (ReachingDefsT f c x y) where
   type Fix (ReachingDefsT f c x y) = Fix (c x y)
-  fix f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix (unwrap . f . lift') -< x
+  fix algo f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix algo (unwrap . f . lift') -< x
     where
       unwrap :: ReachingDefsT f c x y -> c x y
       unwrap g = lmap (\x -> (Just (label x),x)) (runReachingDefsT' g)
+  {-# INLINE fix #-}
 
 instance (ArrowApply c,Profunctor c) => ArrowApply (ReachingDefsT f c) where
   app = ReachingDefsT (app .# first coerce)
+  {-# INLINE app #-}
 
 instance ArrowReader r c => ArrowReader r (ReachingDefsT f c) where
   ask = lift' Reader.ask
   local f = lift $ lmap (\(m,(r,a)) -> (r,(m,a))) (Reader.local (unlift f))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}

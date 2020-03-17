@@ -28,6 +28,7 @@ import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 
 import           Control.Category
 import           Control.Arrow hiding ((<+>))
+import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Environment as Env
 import qualified Control.Arrow.Fix.Context as Ctx
@@ -50,11 +51,13 @@ import           Data.Order
 import           Data.Text (Text)
 import           Data.Utils
 import           Data.HashMap.Lazy (HashMap)
-import qualified Data.Boolean as B
 import qualified Data.HashMap.Lazy as Map
+import qualified Data.Boolean as B
 import           Data.HashSet(HashSet)
 import           Data.Identifiable
 import           Data.Text.Prettyprint.Doc
+import           Data.Profunctor
+import qualified Data.Lens as L
 
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Terminating(Terminating)
@@ -70,9 +73,10 @@ import           Text.Printf
 import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1_(..),Op2_(..),OpVar_(..))
 import           GenericInterpreter as Generic
 
-type Cls = Closure Expr (HashSet (HashMap Text Addr))
+type Cls = Closure Expr (HashSet Env)
 type Env = HashMap Text Addr
 type Store = HashMap Addr Val
+type Errors = HashSet Text
 type Ctx = CallString Label
 -- -- Input and output type of the fixpoint.
 
@@ -228,9 +232,10 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Car -> car' -< x
     Cdr -> cdr' -< x
     Caar -> car' <<< car' -< x
-    Cadr -> cdr' <<< car' -< x
+    Cadr -> car' <<< cdr' -< x
     Cddr -> cdr' <<< cdr' -< x
-    Caddr -> cdr' <<< cdr' <<< car' -< x
+    Caddr -> car' <<< cdr' <<< cdr' -< x
+    Cadddr -> car' <<< cdr' <<< cdr' <<< cdr' -< x
     Error -> failString -< printf "error: %s" (show x)
     Random -> intToInt -< (op, x) 
   {-# INLINABLE op1_ #-}
@@ -443,7 +448,7 @@ instance Pretty Val where
   pretty (BoolVal b) = pretty b
   pretty (ClosureVal cls) = pretty cls
   pretty StringVal = "String"
-  pretty (QuoteVal syms) = "Quote" <> parens (viaShow syms)
+  pretty (QuoteVal syms) = pretty ["'" <> sym | sym <- toList syms]
   pretty (ListVal l) = pretty l
   pretty Top = "Top"
   pretty Bottom = "Bottom"
@@ -538,10 +543,19 @@ instance (Identifiable s, Pretty s) => Pretty (HashSet s) where
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- Map.toList m]
 
-type In = (Store, (Env,[Expr]))
-type Out = (Store, (HashSet Text, Terminating Val))
-type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metrics In, Out))
-type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metrics In, (HashSet Text,Terminating Val)))
+type In = ((Store,Errors),(Env,[Expr]))
+type Out = ((Store,Errors), Terminating Val)
+type In' = (Store,(Env,(Errors,[Expr])))
+type Out' = (Store,(Errors,Terminating Val))
+type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metrics In, Out'))
+type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metrics In, (Errors,Terminating Val)))
+
+transform :: Profunctor c => Fix.FixpointAlgorithm (c In Out) -> Fix.FixpointAlgorithm (c In' Out')
+transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(env,exprs)))
+                                 (\((store,errs),(env,exprs)) -> (store,(env,(errs,exprs)))))
+                          (L.iso (\(store,(errs,val)) -> ((store,errs),val))
+                                 (\((store,errs),val) -> (store,(errs,val))))
+{-# INLINE transform #-}
 
 isFunctionBody :: In -> Bool
 isFunctionBody (_,(_,e)) = case e of
@@ -552,7 +566,7 @@ isFunctionBody (_,(_,e)) = case e of
 -- Pretty Printing of inputs and outputs
 
 printIn :: In -> Doc ann
-printIn (store,(env,expr)) =
+printIn ((store,_),(env,expr)) =
   vsep
   [ "EXPR:  " <> showFirst expr
   , "ENV:   " <> align (pretty env)
@@ -560,7 +574,7 @@ printIn (store,(env,expr)) =
   ]
 
 printOut :: Out -> Doc ann
-printOut (store,(errs,val)) =
+printOut ((store,errs),val) =
   vsep
   [ "RET:   " <> pretty val
   , "STORE: " <> align (pretty store)
@@ -571,7 +585,7 @@ printInExpr :: In -> Doc ann
 printInExpr (_,(_,expr)) = "EXPR:" <+> showFirst expr
 
 printOutVal :: Out -> Doc ann
-printOutVal (_,(_,val)) = "RET:" <+> pretty val
+printOutVal (_,val) = "RET:" <+> pretty val
 
 showFirst :: Pretty x => [x] -> Doc ann
 showFirst (x:_) = pretty x

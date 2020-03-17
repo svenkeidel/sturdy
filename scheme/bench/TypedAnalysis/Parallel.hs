@@ -11,30 +11,29 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC
+  -fspecialise-aggressively
+  -flate-specialise
+  -flate-dmd-anal
+  -funfolding-use-threshold=5000
+  -fexpose-all-unfoldings
+  -fsimpl-tick-factor=50000
+  -fmax-simplifier-iterations=10
+#-}
+{-# OPTIONS_GHC
   -fno-warn-orphans
   -fno-warn-partial-type-signatures
 #-}
-
--- {-# OPTIONS_GHC
---   -fspecialise-aggressively
---   -flate-specialise
---   -funfolding-use-threshold=1000
---   -fsimpl-tick-factor=50000
---   -fmax-simplifier-iterations=10
--- #-}
 module TypedAnalysis.Parallel where
 
 import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 
 import           Control.Category
-import           Control.Arrow
 import           Control.Arrow.Order
-import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Cache as Cache
+import           Control.Arrow.Fix (ArrowFix(..),FixpointAlgorithm)
+import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Parallel as Par
-import           Control.Arrow.Fix.Stack as Stack
 import qualified Control.Arrow.Fix.Context as Ctx
-import           Control.Arrow.Trans
+import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
@@ -56,7 +55,7 @@ import           Syntax (Expr(App))
 import           GenericInterpreter as Generic
 import           TypedAnalysis
 
-type InterpParallel =
+type Interp =
   ValueT Val
     (TerminatingT
       (LogErrorT Text
@@ -67,24 +66,30 @@ type InterpParallel =
                 (ContextT Ctx
                   (->))))))))
 
-{-# SPECIALIZE if__ :: (ArrowComplete z InterpParallel)
-                    => InterpParallel x z -> InterpParallel y z -> InterpParallel (Val,(x,y)) z #-}
-{-# SPECIALIZE Generic.run_ :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (InterpParallel [Expr] Val))) => InterpParallel [Expr] Val #-}
-{-# SPECIALIZE Generic.eval :: InterpParallel [Expr] Val -> InterpParallel Expr Val #-}
+{-# SPECIALIZE if__ :: (ArrowComplete z Interp)
+                    => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}
+{-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
+{-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
+{-# SPECIALIZE Generic.runFixed :: FixpointAlgorithm (Fix (Interp [Expr] Val)) -> Interp [Expr] Val #-}
 
-evalParallel :: (?sensitivity :: Int)
-             => (forall c. (?cacheWidening :: Cache.Widening c, ArrowChoice c, ArrowStack In c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
-                           (FixpointCombinator c In Out -> FixpointCombinator c In Out) -> FixpointAlgorithm (c In Out))
-             -> Expr -> (HashSet Text, Terminating Val)
-evalParallel algo e =
-  let ?cacheWidening = (W.finite, W.finite) in
-  let ?fixpointAlgorithm = algo $ \update_ ->
+evalParallel :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
+evalParallel e =
+  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (Map.empty,(Map.empty,[e]))
+  where
+    algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
+    algorithm =
+      let ?cacheWidening = (W.finite, W.finite) in
+      transform $ Par.parallel $ \update_ ->
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody update_
-  in snd $ snd $ run (Generic.run_ :: InterpParallel [Expr] Val) (Map.empty,(Map.empty,[e]))
-
-evalPar :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
-evalPar = evalParallel Par.parallel
 
 evalADI :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
-evalADI = evalParallel Par.adi
+evalADI e =
+  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (Map.empty,(Map.empty,[e]))
+  where
+    algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
+    algorithm =
+      let ?cacheWidening = (W.finite, W.finite) in
+      transform $ Par.adi $ \update_ ->
+        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        Fix.filter isFunctionBody update_

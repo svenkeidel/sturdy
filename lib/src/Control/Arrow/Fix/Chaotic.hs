@@ -1,10 +1,11 @@
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Fix.Chaotic where
 
 import           Prelude hiding (head,iterate,map)
@@ -65,7 +66,8 @@ outermost f iterate = proc a -> do
 {-# SCC outermost #-}
 
 -- | Iterate on the innermost fixpoint component.
-chaotic :: (?cacheWidening :: Widening c, ArrowChoice c, ArrowComponent a c, ArrowStack a c, ArrowCache a b c)
+chaotic :: forall a b c.
+           (?cacheWidening :: Widening c, ArrowChoice c, ArrowComponent a c, ArrowStack a c, ArrowCache a b c)
         => IterationStrategy c a b -> FixpointCombinator c a b
 chaotic iterationStrategy f = proc a -> do
   loop <- Stack.elem -< a
@@ -84,6 +86,7 @@ chaotic iterationStrategy f = proc a -> do
   else
     iterate -< a
   where
+    iterate :: c a b
     iterate = iterationStrategy (Stack.push' f) $ proc (a,b) -> do
       removeFromComponent -< a
       (stable,aNew,bNew) <- Cache.update -< (a,b)
@@ -91,5 +94,6 @@ chaotic iterationStrategy f = proc a -> do
         Stable   -> returnA -< bNew
         Unstable -> iterate -< aNew
     {-# SCC iterate #-}
+    {-# INLINABLE iterate #-}
 {-# INLINE chaotic #-}
 {-# SCC chaotic #-}

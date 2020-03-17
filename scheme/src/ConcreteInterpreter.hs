@@ -2,7 +2,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -66,16 +65,14 @@ data Val
 
 evalConcrete' :: [State Label Expr] -> (Addr, (Store, Error String Val))
 evalConcrete' es =
-  let ?fixpointAlgorithm = Function.fix
-  in Trans.run
-       (Generic.run_ ::
-             ValueT Val
-               (FailureT String
-                   (EnvStoreT Text Addr Val
-                     (StateT Addr
-                         (->)))) [Expr] Val)
+  Trans.run
+    (Generic.runFixed Function.fix ::
+       ValueT Val
+         (FailureT String
+           (EnvStoreT Text Addr Val
+             (StateT Addr
+               (->)))) [Expr] Val)
          (0, (M.empty, (M.empty, generate <$> es)))
-
 
 instance (ArrowChoice c, Profunctor c, ArrowState Int c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = proc _ -> do
@@ -83,7 +80,7 @@ instance (ArrowChoice c, Profunctor c, ArrowState Int c) => ArrowAlloc Addr (Val
       put -< nextAddr + 1
       returnA -< nextAddr
 
-evalConcrete'' :: [State Label Expr] -> (Either (Store, String) Val)
+evalConcrete'' :: [State Label Expr] -> Either (Store, String) Val
 evalConcrete'' exprs = case evalConcrete' exprs of
   (_, (store, err)) -> case err of
     Success val -> Right val
@@ -193,31 +190,28 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     ConsS -> case x of
       ListVal _ _ -> returnA -< BoolVal True
       _ -> returnA -< BoolVal False
-    Car -> case x of
+    Car -> car -< x
+    Cdr -> cdr -< x
+    Caar -> car <<< car -< x
+    Cadr -> car <<< cdr -< x
+    Cddr -> cdr <<< cdr -< x
+    Caddr -> car <<< cdr <<< cdr -< x
+    Cadddr -> car <<< cdr <<< cdr <<< cdr -< x
+    Error -> case x of
+      StringVal s -> fail -< unpack s
+      _ -> fail -< "(fail): contract violation expected string as error msg"
+    Random -> fail -< "random is not implemented"
+    where
+      car = proc x -> case x of
         ListVal a1 _  -> do
           v <- read' -< a1
           returnA -< v
         _ -> fail -< "(car): Bad form" ++ show x
-    Cdr -> case x of
+      cdr = proc x -> case x of
         ListVal _ a2 -> do
           v <- read' -< a2
           returnA -< v
         _ -> fail -< "(cdr): Bad form: " ++ show x
-    Caar -> do
-      v1 <- op1_ -< (Car, x)
-      op1_ -< (Car, v1)
-    Cadr -> do
-      v1 <- op1_ -< (Cdr, x)
-      op1_ -< (Car, v1)
-    Cddr -> do
-      v1 <- op1_ -< (Cdr, x)
-      op1_ -< (Cdr, v1)
-    Caddr -> do
-      v2 <- op1_ -< (Cdr, x)
-      op1_ -< (Car, v2)
-    Error -> case x of 
-      StringVal s -> fail -< unpack s
-      _ -> fail -< "(fail): contract violation expected string as error msg"
 
   op2_ = proc (op, x, y) -> case op of
     Eqv -> case (x, y) of
@@ -297,17 +291,17 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
       [NumVal n] -> returnA -< RatioVal (1 / toRational n)
       [FloatVal n] -> returnA -< RatioVal (1 / toRational n)
       [RatioVal n] -> returnA -< RatioVal (1 / toRational n)
-      _ -> case foldl (||) (head (drop 1 (map checkZero xs))) (tail (map checkZero xs)) of
-        False -> case foldl divHelpFold (Right $ head xs) (tail xs) of
-          Left a -> fail -< "(/): Contract violation, " ++ a
-          Right a -> returnA -< a
-        True -> fail -< "(/): Divided by zero: " ++ show xs
+      _ -> if foldl (||) (map checkZero xs !! 1) (tail (map checkZero xs))
+           then fail -< "(/): Divided by zero: " ++ show xs
+           else case foldl divHelpFold (Right $ head xs) (tail xs) of
+             Left a -> fail -< "(/): Contract violation, " ++ a
+             Right a -> returnA -< a
     Gcd -> case foldl (withIntFold gcd) (Right $ head xs) (tail xs) of
       Left a -> fail -< "(gcd): Contract violation, " ++ a
       Right a -> returnA -< a
     Lcm -> case foldl (withIntFold lcm) (Right $ head xs) (tail xs) of
       Left a -> fail -< "(lcm): Contract violation, " ++ a
-      Right a -> returnA -< a 
+      Right a -> returnA -< a
 
 -- | Concrete instance of the interface for closure operations.
 instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)

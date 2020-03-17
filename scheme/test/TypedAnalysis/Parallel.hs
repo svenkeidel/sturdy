@@ -24,12 +24,13 @@ import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Environment as Env
-import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Cache(ArrowCache,ArrowParallelCache)
+import           Control.Arrow.Fix(FixpointAlgorithm,FixpointCombinator)
+import qualified Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Cache(ArrowCache,ArrowParallelCache,Widening)
 import           Control.Arrow.Fix.Stack(ArrowStack)
 import           Control.Arrow.Fix.Parallel as Par
 import qualified Control.Arrow.Fix.Context as Ctx
-import           Control.Arrow.Trans
+import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
@@ -47,7 +48,6 @@ import           Control.Monad.State hiding (lift,fail)
 import           Data.Label
 import           Data.Text (Text)
 import qualified Data.HashMap.Lazy as Map
-import           Data.HashSet(HashSet)
 -- import           Data.Text.Prettyprint.Doc
 
 import qualified Data.Abstract.Widening as W
@@ -57,10 +57,10 @@ import           Syntax (Expr(App))
 import qualified GenericInterpreter as Generic
 import           TypedAnalysis
 
-type InterpParallel x y =
+type Interp x y =
   ValueT Val
     (TerminatingT
-      (LogErrorT (HashSet Text)
+      (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT
             (MetricsT In
@@ -70,21 +70,19 @@ type InterpParallel x y =
                     (ControlFlowT Expr
                       (->)))))))))) x y
 
-{-# SPECIALIZE Generic.run_ :: InterpParallel [Expr] Val #-}
-{-# SPECIALIZE Generic.eval :: InterpParallel [Expr] Val -> InterpParallel Expr Val #-}
-
 eval :: (?sensitivity :: Int)
-     => (forall c. (ArrowChoice c, ArrowStack In c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
+     => (forall c. (?cacheWidening :: Widening c, ArrowChoice c, ArrowStack In c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
                    (FixpointCombinator c In Out -> FixpointCombinator c In Out) -> FixpointAlgorithm (c In Out))
-     -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metrics In, Out))
+     -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metrics In, Out'))
 eval algo env0 e =
-  let ?fixpointAlgorithm = algo $ \update ->
-        -- Fix.trace printIn printOut .
-        -- Fix.traceCache (show . pretty) .
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.filter' isFunctionBody update
-  in second snd $ run (extend' (Generic.run_ :: InterpParallel [Expr] Val)) W.finite (W.finite, W.finite) (Map.empty,(Map.empty,(env0,e0)))
+  second snd $ Trans.run (extend' (Generic.runFixed algorithm :: Interp [Expr] Val)) (Map.empty,(Map.empty,(env0,e0)))
   where
+    algorithm =
+      let ?cacheWidening = (W.finite, W.finite) in
+      transform $ algo $ \update_ ->
+        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        Fix.filter' isFunctionBody update_
+
     e0 = generate (sequence e)
 {-# INLINE eval #-}
 

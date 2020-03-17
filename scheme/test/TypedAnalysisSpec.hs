@@ -1,29 +1,32 @@
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 module TypedAnalysisSpec where
 
 import           Prelude hiding (succ,pred,id)
 
+import           Control.Monad(when)
+import           Control.Arrow.Transformer.Abstract.Fix.Metrics
+import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
+
 import           Data.GraphViz hiding (diamond)
 import           Data.HashSet (HashSet)
 import           Data.Order (bottom)
-import           Data.Abstract.Terminating hiding (toEither)
 import           Data.Text(Text)
+
+import           Data.Abstract.Terminating hiding (toEither)
+import qualified Data.Abstract.Boolean as B
 
 import           System.Directory
 
+import           Syntax as S hiding (Nil)
 import           Parser(loadSchemeFile)
 import           TypedAnalysis
 import           TypedAnalysis.Chaotic(evalInner',evalOuter',eval')
 import           TypedAnalysis.Parallel(evalParallel',evalADI')
 
-import           Syntax as S hiding (Nil)
-import qualified Data.Abstract.Boolean as B
-import           Control.Arrow.Transformer.Abstract.Fix.Metrics
-import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Text.Printf
 
 import           Test.Hspec
@@ -32,53 +35,60 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = do
+spec =
   beforeAll (writeFile metricFile (printf "Function,Algorithm,%s\n" csvHeader)) $ do
     describe "Benchmarks" $ testFixpointAlgorithms benchmarks
     describe "Tests" $ testFixpointAlgorithms customTests
 
-testFixpointAlgorithms :: (Runner -> Spec) -> Spec
+testFixpointAlgorithms :: ((?algorithm :: Algorithm) => Runner -> Spec) -> Spec
 testFixpointAlgorithms tests = do
   describe "Chaotic" $ do
-    describe "Innermost" $ tests (runner "Chaotic.inner" evalInner')
-    describe "Outermost" $ tests (runner "Chaotic.outer" evalOuter')
-  describe "Parallel" $ tests (runner "parallel" evalParallel')
-  describe "ADI" $ tests (runner "adi" evalADI')
+    describe "Innermost" $ let ?algorithm = ChaoticInner in tests (runner evalInner')
+    describe "Outermost" $ let ?algorithm = ChaoticOuter in tests (runner evalOuter')
+  describe "Parallel" $ let ?algorithm = Parallel in tests (runner evalParallel')
+  describe "ADI" $ let ?algorithm = ADI in tests (runner evalADI')
 
-benchmarks :: Runner -> Spec
+benchmarks :: (?algorithm :: Algorithm) => Runner -> Spec
 benchmarks run = do
   gabrielBenchmarks run
   scalaAM run
 
+data Algorithm = ChaoticInner | ChaoticOuter | Parallel | ADI deriving (Show,Eq)
+
 -----------------GABRIEL BENCHMARKS---------------------------------------------
-gabrielBenchmarks :: Runner -> Spec
+gabrielBenchmarks :: (?algorithm :: Algorithm) => Runner -> Spec
 gabrielBenchmarks run = describe "Gabriel" $ do
 -- TIMEOUT = 30s
 
     it "boyer" $ do
-      pendingWith "out of memory"
+      -- pendingWith "out of memory"
       let inFile = "gabriel/boyer.scm"
-      let expRes = success (BoolVal B.True)
+      let expRes = successOrFail (return (BoolVal B.Top))
+                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
       run inFile expRes
 
     it "cpstak" $ do
 --     => Final Values: Set(Int)
 --     => TIME: 105 | STATES: 120
-      -- pendingWith "out of memory"
       let inFile = "gabriel/cpstak.scm"
       let expRes = success (NumVal IntVal)
       run inFile expRes
 
 
     it "dderiv" $ do
-      -- pendingWith "out of memory (only parallel)"
       let inFile = "gabriel/dderiv.scm"
       let expRes = success (BoolVal B.True)
+
+      pendingWith "too imprecise"
       run inFile expRes
 
     it "deriv" $ do
 --     => TIMEOUT | STATES: 1645737
-      -- pendingWith "out of memory (only parallel)"
+      when (?algorithm == Parallel) $
+        pendingWith "out of memory"
+
       let inFile = "gabriel/deriv.scm"
       let expRes = successOrFail (return (BoolVal B.Top))
                                  -- because (equals? (list 1 2) (list 1 2)) recursively calls (equals? 1 1)
@@ -95,6 +105,15 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       let inFile = "gabriel/diviter.scm"
       -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
       let expRes = successOrFail (Terminating (BoolVal B.Top)) []
+      run inFile expRes
+
+    it "destruc" $ do
+      let inFile = "gabriel/destruc.scm"
+      let expRes = successOrFail (Terminating (BoolVal B.Top))
+                                 [ "Excpeted list as argument for cdr, but got Top",
+                                   "Excpeted list as argument for car, but got Top",
+                                   "Empty program"
+                                 ]
       run inFile expRes
 
     it "divrec" $ do
@@ -117,7 +136,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       run inFile expRes
 
 -- -------------------SCALA-AM BENCHMARKS------------------------------------------
-scalaAM :: Runner -> Spec
+scalaAM :: (?algorithm :: Algorithm) => Runner -> Spec
 scalaAM run = describe "Scala-AM" $ do
     it "collatz" $ do
 -- => Final Values: Set(Int)
@@ -153,11 +172,11 @@ scalaAM run = describe "Scala-AM" $ do
 -- => TIME: 2831 | STATES: 247915
       -- pendingWith "only works for parallel, but parallel broken?"
       let inFile = "scala-am/rsa.scm"
-      let expRes = successOrFail bottom ["Expected elements of type num for op| [List [Num],Num]" <> "Scheme-Error"]
+      let expRes = successOrFail (return (BoolVal B.Top)) ["error: String"]
       run inFile expRes
 
 -- -------------------Custom Tests------------------------------------------
-customTests :: Runner -> Spec
+customTests :: (?algorithm :: Algorithm) => Runner -> Spec
 customTests run = do
     it "recursion_union_empty_list" $ do
       let inFile = "test_rec_empty.scm"
@@ -332,12 +351,12 @@ type Runner = (String -> (HashSet Text, Terminating Val) -> IO ())
 metricFile :: String
 metricFile = "TypedAnalysis.csv"
 
-runner :: String -> Eval' -> Runner
-runner algorithm eval inFile expRes = do
+runner :: (?algorithm :: Algorithm) => Eval' -> Runner
+runner eval inFile expRes = do
   prog <- loadSchemeFile inFile
   let ?sensitivity = 0
   let (cfg,(metric,res)) = eval [prog]
-  let csv = printf "\"%s\",%s,%s\n" inFile algorithm (toCSV metric)
+  let csv = printf "\"%s\",%s,%s\n" inFile (show ?algorithm) (toCSV metric)
   appendFile metricFile csv
   renderCFG inFile cfg
   res`shouldBe` expRes

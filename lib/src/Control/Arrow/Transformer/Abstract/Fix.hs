@@ -18,9 +18,10 @@ import           Control.Arrow.Strict
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Cache
 import           Control.Arrow.Fix.Chaotic
-import           Control.Arrow.Fix.Stack
+import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Metrics
+import           Control.Arrow.Fix.Stack
 import           Control.Arrow.Order(ArrowComplete,ArrowJoin)
 import           Control.Arrow.Trans
 
@@ -31,7 +32,7 @@ import           Data.Coerce
 newtype FixT c x y = FixT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowComplete z,ArrowJoin,
-            ArrowContext ctx, ArrowJoinContext a,
+            ArrowContext ctx, ArrowJoinContext a, ArrowControlFlow a,
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth,
             ArrowComponent a, ArrowInComponent a,
@@ -49,8 +50,8 @@ instance ArrowTrans (FixT c) where
 
 instance ArrowFix (FixT c a b) where
   type Fix (FixT c a b) = FixT c a b
-  fix = ?fixpointAlgorithm
-  {-# INLINABLE fix #-}
+  fix algo = algo
+  {-# INLINE fix #-}
   {-# SCC fix #-}
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (FixT c) where

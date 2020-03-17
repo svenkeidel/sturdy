@@ -57,14 +57,10 @@ instance (Identifiable e, Arrow c, Profunctor c) => ArrowFail e (LogErrorT e c) 
   fail = lift $ proc (errs,e) -> returnA -< (Set.insert e errs, bottom)
   {-# INLINE fail #-}
 
-instance (ArrowApply c, Profunctor c) => ArrowApply (LogErrorT e c) where
-  app = LogErrorT (app .# first coerce)
-  {-# INLINE app #-}
+-- instance (ArrowApply c, Profunctor c) => ArrowApply (LogErrorT e c) where
+--   app = LogErrorT (app .# first coerce)
+--   {-# INLINE app #-}
 
-deriving instance (ArrowComplete (HashSet e, y) c) => ArrowComplete y (LogErrorT e c)
---   LogErrorT f <⊔> LogErrorT g = LogErrorT (rmap (uncurry (⊔)) (f &&& g))
---   {-# INLINE (<⊔>) #-}
-
-instance (Profunctor c, ArrowApply c, ArrowFix (c x (HashSet e, y))) => ArrowFix (LogErrorT e c x y) where
-  type Fix (LogErrorT e c x y) = Fix (c x (HashSet e, y))
-  fix f = lift $ proc (errs,x) -> fix (\g -> proc x' -> unlift1 f (lmap snd g) -< (errs,x')) -<< x
+deriving instance ArrowComplete (HashSet e, y) c => ArrowComplete y (LogErrorT e c)
+instance ArrowFix (Underlying (LogErrorT e c) x y) => ArrowFix (LogErrorT e c x y) where
+  type Fix (LogErrorT e c x y) = Fix (Underlying (LogErrorT e c) x y)

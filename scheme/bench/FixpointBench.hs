@@ -18,20 +18,20 @@ main :: IO ()
 main = defaultMain
     [
       bgroup "Gabriel" [
-        -- benchAlgos "boyer" "gabriel//boyer",
-        -- benchAlgos "cpstak" "gabriel//cpstak",
-        -- benchAlgos "dderiv" "gabriel//dderiv",
-        -- benchAlgos "deriv" "gabriel//deriv",
-        benchAlgos "diviter" "gabriel//diviter.scm",
-        benchAlgos "divrec" "gabriel//divrec.scm",
-        benchAlgos "takl" "gabriel//takl.scm"
+        benchAlgos "boyer" "gabriel/boyer.scm",
+        benchAlgos "cpstak" "gabriel/cpstak.scm",
+        benchAlgos "dderiv" "gabriel/dderiv.scm",
+        benchAlgos "deriv" "gabriel/deriv.scm",
+        benchAlgos "diviter" "gabriel/diviter.scm",
+        benchAlgos "divrec" "gabriel/divrec.scm",
+        benchAlgos "takl" "gabriel/takl.scm"
       ],
       bgroup "Scala-AM" [
-        benchAlgos "collatz" "scala-am//collatz.scm",
-        benchAlgos "gcipd" "scala-am//gcipd.scm",
-        benchAlgos "nqueens" "scala-am//nqueens.scm"
-        -- benchAlgos "primtest" "scala-am//primtest",
-        -- benchAlgos "rsa" "scala-am//rsa"
+        benchAlgos "collatz" "scala-am/collatz.scm",
+        benchAlgos "gcipd" "scala-am/gcipd.scm",
+        benchAlgos "nqueens" "scala-am/nqueens.scm",
+        benchAlgos "primtest" "scala-am/primtest.scm",
+        benchAlgos "rsa" "scala-am/rsa.scm"
       ]
     ]
   where
@@ -41,6 +41,6 @@ main = defaultMain
         bgroup name [
           bench "chaotic.innermost" $ nf evalInner expr,
           bench "chaotic.outermost" $ nf evalOuter expr,
-          bench "parallel" $ nf evalPar expr,
+          bench "parallel" $ nf evalParallel expr,
           bench "ADI" $ nf evalADI expr
         ]

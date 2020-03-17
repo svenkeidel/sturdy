@@ -80,8 +80,10 @@ parseTopLevelSExpr expr = error $ "cannot parse s-expression: " ++ show expr
 parseDefinitions :: [LispVal] -> ([(Text,LExpr)],[LExpr])
 parseDefinitions (LT.List [Atom "define", Atom var, body] : defs) =
   (pack var, parseSExpr body) <+ parseDefinitions defs
-parseDefinitions (LT.List [Atom "define", LT.List (Atom var: args), body] : defs) =
-  (pack var, lam [ pack x | Atom x <- args ] [parseSExpr body]) <+ parseDefinitions defs
+parseDefinitions (LT.List (Atom "define": Atom var: body) : defs) =
+  (pack var, begin (map parseSExpr body)) <+ parseDefinitions defs
+parseDefinitions (LT.List (Atom "define": LT.List (Atom var: args): body) : defs) =
+  (pack var, lam [ pack x | Atom x <- args ] (map parseSExpr body)) <+ parseDefinitions defs
 parseDefinitions (sexpr : defs) =
   parseSExpr sexpr +> parseDefinitions defs
 parseDefinitions [] = ([],[])
@@ -100,8 +102,10 @@ parseSExpr val = case val of
   LT.Atom x -> var_ (pack x)
   LT.List [Atom "define", Atom var, body] ->
     define (pack var) (parseSExpr body)
-  LT.List [Atom "define", LT.List (Atom var: args), body] ->
-    define (pack var) (lam [ pack x | Atom x <- args ] [parseSExpr body])
+  LT.List (Atom "define": Atom var: body) ->
+    define (pack var) (begin (map parseSExpr body))
+  LT.List (Atom "define": LT.List (Atom var: args): body) ->
+    define (pack var) (lam [ pack x | Atom x <- args ] (map parseSExpr body))
   -- TODO : add lambdas with variable amount of arguments if only one arguement is given
   LT.List (Atom "lambda": Atom var: body_) ->
     lam [ pack var ] (map parseSExpr body_)
@@ -110,6 +114,8 @@ parseSExpr val = case val of
   -- case lambda
   LT.List [Atom "if", cond, then_branch, else_branch] ->
     if_ (parseSExpr cond) (parseSExpr then_branch) (parseSExpr else_branch)
+  LT.List [Atom "if", cond, then_branch] ->
+    if_ (parseSExpr cond) (parseSExpr then_branch) (list [])
   -- begin
   LT.List (Atom "begin": body_) ->
     begin (map parseSExpr body_)
@@ -153,6 +159,7 @@ parseSExpr val = case val of
   LT.List [Atom "cadr", e] -> op1_ Cadr (parseSExpr e)
   LT.List [Atom "cddr", e] -> op1_ Cddr (parseSExpr e)
   LT.List [Atom "caddr", e] -> op1_ Caddr (parseSExpr e)
+  LT.List [Atom "cadddr", e] -> op1_ Cadddr (parseSExpr e)
   LT.List [Atom "error", e] -> op1_ Error (parseSExpr e)
   LT.List [Atom "random", e] -> op1_ Random (parseSExpr e)
   -- op2
