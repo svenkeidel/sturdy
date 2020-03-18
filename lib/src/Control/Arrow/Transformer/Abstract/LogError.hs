@@ -4,6 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
@@ -28,8 +29,6 @@ import Control.Arrow.Transformer.State
 import Control.Arrow.Fix.Context
 
 import Data.Profunctor
-import Data.Profunctor.Unsafe((.#))
-import Data.Coerce
 import Data.Order
 import Data.Identifiable
 import Data.Empty
@@ -44,7 +43,7 @@ newtype LogErrorT e c x y = LogErrorT (StateT (HashSet e) c x y)
             ArrowExcept e', ArrowContext ctx)
 
 runLogErrorT :: Profunctor c => LogErrorT e c x y -> c x (HashSet e,y)
-runLogErrorT f = lmap (\x -> (empty,x)) (unlift f)
+runLogErrorT f = lmap (empty,) (unlift f)
 {-# INLINE runLogErrorT #-}
 
 instance ArrowRun c => ArrowRun (LogErrorT e c) where

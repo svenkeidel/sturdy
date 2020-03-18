@@ -267,6 +267,7 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
       numNTo -< (op,1,xs,x)
     Gcd -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
     Lcm -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
+    StringAppend -> stringNToString -< xs
   {-# INLINEABLE opvar_ #-}
   {-# SCC opvar_ #-}
 
@@ -396,6 +397,12 @@ numNTo = proc (op,minArity,xs,ret) ->
     err = proc (op,xs) -> failString -< printf "expected a numbers as argument for %s, but got %s" (show op) (show xs)
 {-# INLINEABLE numNTo #-}
 {-# SCC numNTo #-}
+
+stringNToString :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c [Val] Val
+stringNToString = proc xs -> case xs of
+  (StringVal:ys) -> stringNToString -< ys
+  [] -> returnA -< StringVal
+  (x:_) -> failString -< printf "Expected a String, but got %s" (show x)
 
 numLub :: Val -> Val -> Val
 numLub x y = case (x,y) of

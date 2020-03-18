@@ -1,5 +1,3 @@
-(define append string-append)
-
 (define (lookup key table)
   (begin
     (define (loop x)
@@ -142,7 +140,7 @@
        ((eq? (string-ref (symbol->string (car pat)) 0) #\*)
         (let ((val (assq (car pat) alist)))
           (cond
-           (val (my-match (append (cdr val) (cdr pat)) dat alist))
+           (val (my-match (string-append (cdr val) (cdr pat)) dat alist))
            (else
             (begin
               (define ($do-loop8 l e d)

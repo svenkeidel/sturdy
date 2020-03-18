@@ -30,7 +30,6 @@ import Data.Abstract.Terminating
 import Data.Abstract.Widening
 
 import Data.Profunctor
-import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 -- | Arrow that propagates non-terminating computations.

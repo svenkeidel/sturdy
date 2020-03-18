@@ -88,8 +88,9 @@ data OpVar_
   | Mul -- (*) (* z) (* z1 z2 z3 ...)
   | Sub -- (- z) (- z1 z2 z3 ...)
   | Div -- (/ z) (/ z1 z2 z3 ...)
-  | Gcd -- (gcd z1 ...)
-  | Lcm -- (lcm z1 ...)
+  | Gcd -- (gcd z1 z2 z3 ...)
+  | Lcm -- (lcm z1 z2 z3 ...)
+  | StringAppend -- (string-append z1 z2 z3 ...)
 -- | List operations
   deriving (Eq,Generic,NFData)
 
@@ -161,7 +162,7 @@ op1_ operation e1 = Op1 operation <$> e1 <*> fresh
 op2_ :: Op2_ -> LExpr -> LExpr -> LExpr
 op2_ operation e1 e2 = Op2 operation <$> e1 <*> e2 <*> fresh
 opvar_ :: OpVar_ -> [LExpr] -> LExpr
-opvar_ operation es = OpVar operation <$> (sequence es) <*> fresh
+opvar_ operation es = OpVar operation <$> sequence es <*> fresh
 
 instance Show Literal where show = show . pretty
 
@@ -205,6 +206,7 @@ instance Pretty Op1_ where
     Cadr -> "cadr"
     Cddr -> "cddr"
     Caddr -> "caddr"
+    Cadddr -> "cadddr"
     Error -> "error"
     Random -> "random"
 
@@ -234,6 +236,7 @@ instance Pretty OpVar_ where
     Div -> "/"
     Gcd -> "gcd"
     Lcm -> "lcm"
+    StringAppend -> "string-append"
     -- List_ -> showString ("list")
 
 instance Show Expr where show = show . pretty

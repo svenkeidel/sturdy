@@ -24,7 +24,6 @@ import Control.Arrow.Store as Store
 import Control.Arrow.Trans
 
 import Data.Monoidal
-import Data.Profunctor (Profunctor(..))
 import Data.Profunctor.Unsafe
 import Unsafe.Coerce
 import Control.Comonad

@@ -1,15 +1,14 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.ReachingDefinitions(
   ReachingDefsT(..),
   runReachingDefsT,
@@ -31,13 +30,14 @@ import           Control.Arrow.Closure
 import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Reader
 
+import           Data.Kind
 import           Data.Label
 import           Data.Profunctor
 import           Data.Profunctor.Unsafe((.#))
 import           Data.Coerce
 import           Data.Utils
 
-newtype ReachingDefsT (f :: * -> *) c x y = ReachingDefsT (ReaderT (Maybe Label) c x y)
+newtype ReachingDefsT (f :: Type -> Type) c x y = ReachingDefsT (ReaderT (Maybe Label) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
             ArrowState s, ArrowEnv var val, ArrowClosure expr cls,
             ArrowFail e,ArrowExcept e, ArrowLowerBounded a, ArrowComplete z)
@@ -47,7 +47,7 @@ reachingDefsT = lift
 {-# INLINE reachingDefsT #-}
 
 runReachingDefsT :: Profunctor c => ReachingDefsT f c x y -> c x y
-runReachingDefsT f = lmap (\x -> (Nothing,x)) (unlift f)
+runReachingDefsT f = lmap (Nothing,) (unlift f)
 {-# INLINE runReachingDefsT #-}
 
 runReachingDefsT' :: ReachingDefsT f c x y -> c (Maybe Label,x) y

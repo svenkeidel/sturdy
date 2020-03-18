@@ -12,12 +12,11 @@ import Control.Category
 import Control.Arrow
 
 import Data.Profunctor
-
 import GHC.Exts (Constraint)
 
 -- | Arrow-based interface for exception handling.
 class (Arrow c, Profunctor c) => ArrowExcept e c | c -> e where
-  type family Join y (c :: * -> * -> *) :: Constraint
+  type family Join y c :: Constraint
 
   -- | Opertion that throws an exception that can be handled with 'catch'.
   throw :: c e a

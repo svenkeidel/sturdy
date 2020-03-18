@@ -26,7 +26,7 @@ class ArrowLift t where
 
 -- | Lifts an inner computation into an arrow transformer and vice versa.
 class ArrowTrans c where
-  type Underlying c x y :: *
+  type Underlying c x y
   lift :: Underlying c x y -> c x y
   unlift :: c x y -> Underlying c x y
 

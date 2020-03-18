@@ -7,7 +7,7 @@ module TypedAnalysisSpec where
 
 import           Prelude hiding (succ,pred,id)
 
-import           Control.Monad(when)
+import           Control.Monad(when,forM_)
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
@@ -68,6 +68,15 @@ gabrielBenchmarks run = describe "Gabriel" $ do
                                  , "Excpeted list as argument for car, but got Top"
                                  ]
       run inFile expRes
+
+    it "browse" $ do
+      let inFile = "gabriel/browse.scm"
+      let expRes = successOrFail (return (BoolVal B.Top))
+                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
+      run inFile expRes
+
 
     it "cpstak" $ do
 --     => Final Values: Set(Int)
@@ -365,7 +374,9 @@ renderCFG :: String -> CFG Expr -> IO ()
 renderCFG inFile (CFG graph) = do
   let dotGraph = graphToDot fileGraphParams graph
   root <- getCurrentDirectory
-  let outPath = root ++ "//graph_files//" ++ inFile ++ ".png"
+  forM_ (["gabriel", "scala-am"] :: [FilePath]) $ \dir ->
+    createDirectoryIfMissing True (root ++ "/graph_files/" ++ dir)
+  let outPath = root ++ "/graph_files/" ++ inFile ++ ".png"
   _ <- runGraphvizCommand Dot dotGraph Png outPath
   return ()
 

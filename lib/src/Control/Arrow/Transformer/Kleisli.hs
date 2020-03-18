@@ -29,7 +29,6 @@ import Control.Arrow.LetRec
 import Control.Arrow.Fix.Context
 
 import Data.Monoidal
-import Data.Profunctor (Profunctor(..))
 import Data.Profunctor.Unsafe
 import Data.Coerce
 import Unsafe.Coerce

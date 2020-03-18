@@ -4,7 +4,7 @@ module Parser(loadSchemeFile,loadSchemeFile') where
 import           Prelude hiding (fail)
 
 import           Control.Monad.State hiding (fail)
-import           Control.Monad.Error
+import           Control.Monad.Except
 
 import           Data.Label
 import           Data.Text (Text, pack)
@@ -19,8 +19,6 @@ import qualified Language.Scheme.Macro as Macro
 import           Paths_sturdy_scheme
 
 import           Syntax as S
-
-import           System.IO (readFile)
 
 import           Text.Printf
 
@@ -61,7 +59,7 @@ macroExpand program = do
 
 runErrorIO :: IOThrowsError a -> IO a
 runErrorIO m = do
-  e <- runErrorT m
+  e <- runExceptT m
   case e of
     Right val -> return val
     Left err  -> throwLispError err
@@ -182,7 +180,9 @@ parseSExpr val = case val of
   LT.List (Atom "/": args) -> opvar_ Div (map parseSExpr args)
   LT.List (Atom "gcd": args) -> opvar_ Gcd (map parseSExpr args)
   LT.List (Atom "lcm": args) -> opvar_ Lcm (map parseSExpr args)
+  LT.List (Atom "string-append": args) -> opvar_ StringAppend (map parseSExpr args)
   LT.List (Atom "list": args) -> list (map parseSExpr args)
+
   LT.List (Atom x: args) -> app (var_ (pack x)) (map parseSExpr args)
   LT.List (fun: args) -> app (parseSExpr fun) (map parseSExpr args)
   _ -> error $ "cannot parse s-expression: " ++ show val

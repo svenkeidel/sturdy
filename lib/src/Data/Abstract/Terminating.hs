@@ -1,4 +1,3 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -12,7 +11,6 @@ import Control.Arrow.Monad
 import Control.Monad
 import Control.Applicative
 import Control.DeepSeq
-import Control.Arrow(second)
 
 import Data.Profunctor
 import Data.Order

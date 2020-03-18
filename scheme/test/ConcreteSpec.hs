@@ -6,7 +6,7 @@ import           Prelude hiding (succ,pred)
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 
-import           Syntax as S
+import           Syntax as S hiding (Nil)
 import           Parser
 import           ConcreteInterpreter
 
@@ -27,26 +27,26 @@ spec = do
 
     it "test simple let" $ do
       let es' = [let_ [("y", lit $ S.Number 3)] ["y"] ]
-      run es' `shouldBe` Right (NumVal 3)
+      run es' `shouldBe` Right (IntVal 3)
 
     it "test simple letrec" $ do
       let es' = [let_rec [("y", lit $ S.Number 3)] ["y"] ]
-      run es' `shouldBe` Right (NumVal 3)
+      run es' `shouldBe` Right (IntVal 3)
 
     it "test simple lambda" $ do
       let es' = [app (lam ["x"] ["x"]) [lit $ S.Number 3]]
-      run es' `shouldBe` Right (NumVal 3)
+      run es' `shouldBe` Right (IntVal 3)
 
 
     it "test define with lambda body  " $ do
       let es' = [let_rec [("y", lam ["y"] ["y"])]
                       [app "y" [lit $ S.Number 3]]]
-      run es' `shouldBe` Right (NumVal 3)
+      run es' `shouldBe` Right (IntVal 3)
 
     it "test define with lambda body  " $ do
       let es' = [let_ [("x", lam ["y"] ["y"])]
                       [app "x" [lit $ S.Number 3]]]
-      run es' `shouldBe` Right (NumVal 3)
+      run es' `shouldBe` Right (IntVal 3)
 
 
     it "demonstrate need for stepwise evaluation of letrec bindings" $ do
@@ -54,7 +54,7 @@ spec = do
                           ("y", "x")]
                       --  [lam ["x"] ["x"]]]
                           ["y"]]
-      run es' `shouldBe` Right (NumVal 4)
+      run es' `shouldBe` Right (IntVal 4)
 
     it "test define with lambda body  " $ do
       let es = [define "y" (lam ["x"] ["x"]),
@@ -62,40 +62,40 @@ spec = do
                 define "z1" (lit $ S.Number 5),
                 define "k" (lit $ S.Number 6),
                 app "y" [lit $ S.Number 3]]
-      run es `shouldBe` Right (NumVal 3)
+      run es `shouldBe` Right (IntVal 3)
 
     it "test define with lambda body  " $
       run [define "x" (lam ["n"] [app (lam ["x"] ["x"]) ["n"]]),
           app "x" [lit $ S.Number 2],
-          app "x" [lit $ S.Number 3]] `shouldBe` Right (NumVal 3)
+          app "x" [lit $ S.Number 3]] `shouldBe` Right (IntVal 3)
 
     it "test define with lambda body  " $ do
       let es = [define "x" (lam ["x"] ["x"]),
                 app "x" [lit $ S.Number 3]]
-      run es `shouldBe` Right (NumVal 3)
+      run es `shouldBe` Right (IntVal 3)
 
     it "test define with lambda body  " $ do
       let es = [let_ [("y", lam ["y"] ["y"])]
                      [define "x" (lam ["x"] ["x"]),
                      app "x" [lit $ S.Number 3]]]
-      run es `shouldBe` Right (NumVal 3)
+      run es `shouldBe` Right (IntVal 3)
 
     it "illustrate necessity of store" $
       run [define "x" (lit $ S.Number 2),
           app
             (lam [] [set "x" (lit $ S.Number 3)])
             [],
-            "x"] `shouldBe` Right (NumVal 3)
+            "x"] `shouldBe` Right (IntVal 3)
 
     it "correctly evaluate sequential letrec" $
       run [let_rec [("x", lit $ S.Number 3),
                     ("y", lam [] ["x"])]
-              [app "y" []]] `shouldBe` Right (NumVal 3)
+              [app "y" []]] `shouldBe` Right (IntVal 3)
 
     it "correctly evaluate mutually recursive letrec" $
       run [let_rec [("y", lam [] ["x"]),
                     ("x", lit $ S.Number 3)]
-              [app "y" []]] `shouldBe` Right (NumVal 3)
+              [app "y" []]] `shouldBe` Right (IntVal 3)
 
     it "should fail define the same var twice" $ do
       pendingWith "need to fix check in define "
@@ -110,7 +110,7 @@ spec = do
       "gabriel/boyer.scm" `shouldEvaluateTo` Right (BoolVal True)
 
     it "cpstak" $
-      "gabriel/cpstak.scm" `shouldEvaluateTo` Right (NumVal 6)
+      "gabriel/cpstak.scm" `shouldEvaluateTo` Right (IntVal 6)
 
     it "deriv" $
       "gabriel/deriv.scm" `shouldEvaluateTo` Right (BoolVal True)
@@ -127,13 +127,13 @@ spec = do
   -------------------SCALA-AM BENCHMARKS------------------------------------------
   describe "Scala-AM-Benchmarks" $ do
     it "collatz" $
-      "scala-am/collatz.scm" `shouldEvaluateTo` Right (NumVal 5)
+      "scala-am/collatz.scm" `shouldEvaluateTo` Right (IntVal 5)
 
     it "gcipd" $
-      "scala-am/gcipd.scm" `shouldEvaluateTo` Right (NumVal 36)
+      "scala-am/gcipd.scm" `shouldEvaluateTo` Right (IntVal 36)
 
     it "nqueens" $
-      "scala-am/nqueens.scm" `shouldEvaluateTo` Right (NumVal 92)
+      "scala-am/nqueens.scm" `shouldEvaluateTo` Right (IntVal 92)
 
     it "rsa" $
       "scala-am/rsa.scm" `shouldEvaluateTo` Right (BoolVal True)
@@ -141,16 +141,16 @@ spec = do
   ------------------------------------------CUSTOMS--------------------------------------------
   describe "Custom_Tests" $ do
       it "recursion and union with empty list" $
-        "test_rec_empty.scm" `shouldEvaluateTo` Right EmptyList
+        "test_rec_empty.scm" `shouldEvaluateTo` Right (ListVal Nil)
 
       it "recursion and union with non-empty list" $
-        "test_rec_nonempty.scm" `shouldEvaluateTo` Right (NumVal 1)
+        "test_rec_nonempty.scm" `shouldEvaluateTo` Right (IntVal 1)
 
       it "should return 3 for (car (cdr '(2 3 4)))" $
-        "test_cdr.scm" `shouldEvaluateTo` Right (NumVal 3)
+        "test_cdr.scm" `shouldEvaluateTo` Right (IntVal 3)
 
       it "should return correct val for car" $
-        "test_car.scm" `shouldEvaluateTo` Right (NumVal 1)
+        "test_car.scm" `shouldEvaluateTo` Right (IntVal 1)
 
       it "should return true for null? cdr cdr '(1 2)" $
         "test_null.scm" `shouldEvaluateTo` Right (BoolVal True)
@@ -164,7 +164,7 @@ spec = do
         "test_if.scm" `shouldEvaluateTo` Right (BoolVal False)
 
       it "test_opvars" $
-        "test_opvars.scm" `shouldEvaluateTo` Right (NumVal 10)
+        "test_opvars.scm" `shouldEvaluateTo` Right (IntVal 10)
 
       it "test_equal" $
         "test_equal.scm" `shouldEvaluateTo` Right (BoolVal True)
@@ -173,29 +173,29 @@ spec = do
         "test_cons.scm" `shouldEvaluateTo` Right (BoolVal True)
 
       it "test_closures_gc" $
-        "test_closure_gc.scm" `shouldEvaluateTo` Right (NumVal 16)
+        "test_closure_gc.scm" `shouldEvaluateTo` Right (IntVal 16)
 
       it "lang_scheme_test" $
-        "lang_scheme_test.scm" `shouldEvaluateTo` Right (NumVal 8)
+        "lang_scheme_test.scm" `shouldEvaluateTo` Right (IntVal 8)
 
       it "test_inner_define" $
-        "test_inner_define.scm" `shouldEvaluateTo` Right (NumVal 10)
+        "test_inner_define.scm" `shouldEvaluateTo` Right (IntVal 10)
 
       it "test_subtraction" $
-        "test_subtraction.scm" `shouldEvaluateTo` Right (NumVal (-4))
+        "test_subtraction.scm" `shouldEvaluateTo` Right (IntVal (-4))
 
       it "test_lits" $
-        "test_lits.scm" `shouldEvaluateTo` Right (NumVal 3)
+        "test_lits.scm" `shouldEvaluateTo` Right (IntVal 3)
 
       it "test_simple_floats" $
         "test_simple_floats.scm" `shouldEvaluateTo` Right (BoolVal False)
 
       it "test_rec_defines" $
-        "test_rec_defines.scm" `shouldEvaluateTo` Right (NumVal 720)
+        "test_rec_defines.scm" `shouldEvaluateTo` Right (IntVal 720)
 
       -- it "test_random" $ do
       --   let inFile = "test_random"
-      --   let expRes = Right $ NumVal 1
+      --   let expRes = Right $ IntVal 1
       --   helper_test run inFile expRes
 
 
