@@ -8,7 +8,7 @@
 module GenericInterpreter where
 
 import           Prelude hiding (succ, pred, fail, map)
-import           Syntax (Literal(..), Expr(..), Op1_(..), Op2_(..), OpVar_(..))
+import           Syntax (Literal(..), Expr(..), Op1(..), Op2(..), OpVar(..))
 
 import           Control.Arrow
 import           Control.Arrow.Fail(ArrowFail(fail))
@@ -22,7 +22,7 @@ import           Control.Arrow.Closure (ArrowClosure)
 import qualified Control.Arrow.Closure as Cls
 import           Control.Arrow.Store (ArrowStore,write,read')
 import qualified Control.Arrow.Store as Store 
-import           Control.Arrow.Utils
+import           Control.Arrow.Utils (map)
 
 import           Data.Utils(eqLength)
 import           Data.Text (Text)
@@ -100,8 +100,9 @@ eval run' = proc e0 -> case e0 of
             addrs <- map alloc -< xs
             map write -< zip addrs args
             Env.extend' run' -< (zip xs addrs, [Apply body l])
-          else fail -< fromString $ printf "Applied a function with %d arguments to %d arguments" (length xs) (length args)
-      _ -> fail -< fromString $ "found unexpected epxression in closure: " ++ show e
+          else
+            fail -< fromString $ printf "Applied the function %s with %d arguments to %d arguments" (show e) (length xs) (length args)
+      _ -> fail -< fromString $ printf "Expected a function, but got %s" (show e)
     {-# SCC applyClosure' #-}
 
     evalBindings = proc bnds -> case bnds of
@@ -147,24 +148,20 @@ run :: (ArrowChoice c,
         Show addr)
     => c Expr v -> c [Expr] v -> c [Expr] v
 run eval' run' = proc es -> case es of
-  [] ->
-    fail -< fromString "Empty program"
-  Set x e l:rest -> do
+  Set x e _:rest -> do
     v <- run' -< [e]
     addr <- Env.lookup (proc (addr, _) -> returnA -< addr)
-               (proc var -> fail -< fromString $ printf "(set): Variable %s not bound when setting" (show var))
+               (proc var -> fail -< fromString $ printf "(set!): cannot set variable %s before its definition" (show var))
                  -< (x, x)
     write -< (addr,v)
-    if null rest
-      then run' -< [Lit (String "#<void>") l]
-      else run' -< rest
-  Define x e l: rest -> do
+    run' -< rest
+  Define x e _: rest -> do
     cls <- run' -< [e]
     addr <- alloc -< x
     write -< (addr,cls)
-    if null rest
-      then Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)], [Lit (String "#<void>") l]))
-      else Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)],rest))
+    Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)],rest))
+  [] ->
+    void -< ()
   e:[] ->
     eval' -< e
   e:rest -> do
@@ -205,9 +202,10 @@ class (Arrow c) => IsVal v c | c -> v where
   lit :: c Literal v
   if_ :: Join z c => c x z -> c y z -> c (v, (x, y)) z
 
+  void :: c () v
   nil_ :: c Label v
   cons_ :: c ((v, Label), (v, Label)) v
 
-  op1_ :: c (Op1_, v) v
-  op2_ :: c (Op2_, v, v) v
-  opvar_ :: c (OpVar_, [v]) v
+  op1_ :: c (Op1, v) v
+  op2_ :: c (Op2, v, v) v
+  opvar_ :: c (OpVar, [v]) v

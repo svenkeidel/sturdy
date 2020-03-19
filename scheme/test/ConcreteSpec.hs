@@ -21,36 +21,36 @@ spec = do
     let run = evalConcrete''
 
     it "test set! " $
-      run [define "x" (lit $ S.Number 2),
-          define "y" (lit $ S.Number 3),
-          set "y" (lit $ S.Number 3)] `shouldBe` Right (StringVal "#<void>")
+      run [define "x" (lit $ S.Int 2),
+          define "y" (lit $ S.Int 3),
+          set "y" (lit $ S.Int 3)] `shouldBe` Right (StringVal "#<void>")
 
     it "test simple let" $ do
-      let es' = [let_ [("y", lit $ S.Number 3)] ["y"] ]
+      let es' = [let_ [("y", lit $ S.Int 3)] ["y"] ]
       run es' `shouldBe` Right (IntVal 3)
 
     it "test simple letrec" $ do
-      let es' = [let_rec [("y", lit $ S.Number 3)] ["y"] ]
+      let es' = [let_rec [("y", lit $ S.Int 3)] ["y"] ]
       run es' `shouldBe` Right (IntVal 3)
 
     it "test simple lambda" $ do
-      let es' = [app (lam ["x"] ["x"]) [lit $ S.Number 3]]
+      let es' = [app (lam ["x"] ["x"]) [lit $ S.Int 3]]
       run es' `shouldBe` Right (IntVal 3)
 
 
     it "test define with lambda body  " $ do
       let es' = [let_rec [("y", lam ["y"] ["y"])]
-                      [app "y" [lit $ S.Number 3]]]
+                      [app "y" [lit $ S.Int 3]]]
       run es' `shouldBe` Right (IntVal 3)
 
     it "test define with lambda body  " $ do
       let es' = [let_ [("x", lam ["y"] ["y"])]
-                      [app "x" [lit $ S.Number 3]]]
+                      [app "x" [lit $ S.Int 3]]]
       run es' `shouldBe` Right (IntVal 3)
 
 
     it "demonstrate need for stepwise evaluation of letrec bindings" $ do
-      let es' = [let_rec [("x", lit $ S.Number 4),
+      let es' = [let_rec [("x", lit $ S.Int 4),
                           ("y", "x")]
                       --  [lam ["x"] ["x"]]]
                           ["y"]]
@@ -58,49 +58,49 @@ spec = do
 
     it "test define with lambda body  " $ do
       let es = [define "y" (lam ["x"] ["x"]),
-                define "z" (lit $ S.Number 4),
-                define "z1" (lit $ S.Number 5),
-                define "k" (lit $ S.Number 6),
-                app "y" [lit $ S.Number 3]]
+                define "z" (lit $ S.Int 4),
+                define "z1" (lit $ S.Int 5),
+                define "k" (lit $ S.Int 6),
+                app "y" [lit $ S.Int 3]]
       run es `shouldBe` Right (IntVal 3)
 
     it "test define with lambda body  " $
       run [define "x" (lam ["n"] [app (lam ["x"] ["x"]) ["n"]]),
-          app "x" [lit $ S.Number 2],
-          app "x" [lit $ S.Number 3]] `shouldBe` Right (IntVal 3)
+          app "x" [lit $ S.Int 2],
+          app "x" [lit $ S.Int 3]] `shouldBe` Right (IntVal 3)
 
     it "test define with lambda body  " $ do
       let es = [define "x" (lam ["x"] ["x"]),
-                app "x" [lit $ S.Number 3]]
+                app "x" [lit $ S.Int 3]]
       run es `shouldBe` Right (IntVal 3)
 
     it "test define with lambda body  " $ do
       let es = [let_ [("y", lam ["y"] ["y"])]
                      [define "x" (lam ["x"] ["x"]),
-                     app "x" [lit $ S.Number 3]]]
+                     app "x" [lit $ S.Int 3]]]
       run es `shouldBe` Right (IntVal 3)
 
     it "illustrate necessity of store" $
-      run [define "x" (lit $ S.Number 2),
+      run [define "x" (lit $ S.Int 2),
           app
-            (lam [] [set "x" (lit $ S.Number 3)])
+            (lam [] [set "x" (lit $ S.Int 3)])
             [],
             "x"] `shouldBe` Right (IntVal 3)
 
     it "correctly evaluate sequential letrec" $
-      run [let_rec [("x", lit $ S.Number 3),
+      run [let_rec [("x", lit $ S.Int 3),
                     ("y", lam [] ["x"])]
               [app "y" []]] `shouldBe` Right (IntVal 3)
 
     it "correctly evaluate mutually recursive letrec" $
       run [let_rec [("y", lam [] ["x"]),
-                    ("x", lit $ S.Number 3)]
+                    ("x", lit $ S.Int 3)]
               [app "y" []]] `shouldBe` Right (IntVal 3)
 
     it "should fail define the same var twice" $ do
       pendingWith "need to fix check in define "
-      run [define "x" (lit $ S.Number 2),
-          define "x" (lit $ S.Number 3)] `shouldBe` Left (M.fromList [], "Variable \"x\" already exists")
+      run [define "x" (lit $ S.Int 2),
+          define "x" (lit $ S.Int 3)] `shouldBe` Left (M.fromList [], "Variable \"x\" already exists")
 
   -----------------GABRIEL BENCHMARKS---------------------------------------------
   describe "Gabriel-Benchmarks" $ do

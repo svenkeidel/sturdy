@@ -32,7 +32,7 @@ import           Data.Concrete.Error
 import           Data.Concrete.Closure
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
-import           Data.Text (Text,unpack)
+import           Data.Text (Text,unpack,pack)
 import qualified Data.Text as T
 import           Data.Profunctor
 import           Data.Label
@@ -41,7 +41,7 @@ import qualified Data.Function as Function
 
 import           GHC.Generics (Generic)
 
-import           Syntax (Expr,Literal(..) ,Op1_(..),Op2_(..),OpVar_(..))
+import           Syntax (Expr,Literal(..) ,Op1(..),Op2(..),OpVar(..))
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
@@ -60,6 +60,7 @@ data Val
   | QuoteVal Val
   | ListVal List
   | ClosureVal Cls
+  | VoidVal
   deriving (Generic, Eq)
 
 data List = Cons Addr Addr | Nil
@@ -94,9 +95,9 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
   type Join y (ValueT Val c) = ()
 
   lit = proc x -> case x of
-    Number n -> returnA -< IntVal n
+    Int n -> returnA -< IntVal n
     Float n -> returnA -< FloatVal n
-    Ratio n -> returnA -< RatioVal n
+    Rational n -> returnA -< RatioVal n
     Bool n -> returnA -< BoolVal n
     Char n -> returnA -< CharVal n
     String n -> returnA -< StringVal n
@@ -119,45 +120,56 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     write -< (a2,v2)
     returnA -< ListVal (Cons a1 a2)
 
+  void = proc () -> returnA -< VoidVal
+
   op1_ = proc (op, x) -> case op of
-    Number_ -> case x of
+    IsNumber -> case x of
       IntVal _ -> returnA -< BoolVal True
       FloatVal _ -> returnA -< BoolVal True
       RatioVal _ -> returnA -< BoolVal True
       _ -> returnA -< BoolVal False
-    Integer_ -> case x of
+    IsInteger -> case x of
       (IntVal _) -> returnA -< BoolVal True
       _ -> returnA -< BoolVal False
-    Float_ -> case x of
+    IsFloat -> case x of
       IntVal _ -> returnA -< BoolVal True
       FloatVal _ -> returnA -< BoolVal True
       _ -> returnA -< BoolVal False
-    Ratio_ -> case x of
+    IsRational -> case x of
       IntVal _ -> returnA -< BoolVal True
       FloatVal _ -> returnA -< BoolVal True
       RatioVal _ -> returnA -< BoolVal True
       _ -> returnA -< BoolVal False
-    Zero -> case x of
+    IsZero -> case x of
       IntVal n -> returnA -< BoolVal (n == 0)
       FloatVal n -> returnA -< BoolVal (n == 0)
       RatioVal n -> returnA -< BoolVal (n == 0)
       _ -> fail -< "(zero?): Contract violation, expecte element of type number"
-    Positive -> case x of
+    IsPositive -> case x of
       IntVal n -> returnA -< BoolVal (n > 0)
       FloatVal n -> returnA -< BoolVal (n > 0)
       RatioVal n -> returnA -< BoolVal (n > 0)
       _ -> fail -< "(positive?): Contract violation, expecte element of type number"
-    Negative -> case x of
+    IsNegative -> case x of
       IntVal n -> returnA -< BoolVal (n < 0)
       FloatVal n -> returnA -< BoolVal (n < 0)
       RatioVal n -> returnA -< BoolVal (n < 0)
       _ -> fail -< "(negative?): Contract violation, expecte element of type number"
-    Odd -> case x of
+    IsOdd -> case x of
       IntVal n -> returnA -< BoolVal (n `mod` 2 == 1)
       _ -> fail -< "(odd?): Contract violation, expecte element of type int: " ++ show x
-    Even -> case x of
+    IsEven -> case x of
       IntVal n -> returnA -< BoolVal (n `mod` 2 == 0)
       _ -> fail -< "(even?): Contract violation, expecte element of type int"
+    IsBoolean -> case x of
+      BoolVal _ -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
+    IsNull -> case x of
+      ListVal Nil -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
+    IsCons -> case x of
+      ListVal (Cons _ _) -> returnA -< BoolVal True
+      _ -> returnA -< BoolVal False
     Abs -> case withNum1 abs x of
       Left a -> fail -< a ++ " *"
       Right a -> returnA -< a
@@ -176,21 +188,8 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
       FloatVal n -> returnA -< FloatVal $ log n
       RatioVal n -> returnA -< FloatVal $ log (fromRational n)
       _ -> fail -< "(log): Contract violation, epxected element of type number"
-    Boolean -> case x of
-      BoolVal _ -> returnA -< BoolVal True
-      _ -> returnA -< BoolVal False
     Not -> case x of
       BoolVal n -> returnA -< BoolVal (not n)
-      _ -> returnA -< BoolVal False
-    Null -> case x of
-      ListVal Nil -> returnA -< BoolVal True
-      _ -> returnA -< BoolVal False
-    ListS -> case x of
-      ListVal (Cons _ _) -> returnA -< BoolVal True
-      ListVal Nil -> returnA -< BoolVal True
-      _ -> returnA -< BoolVal False
-    ConsS -> case x of
-      ListVal (Cons _ _) -> returnA -< BoolVal True
       _ -> returnA -< BoolVal False
     Car -> car -< x
     Cdr -> cdr -< x
@@ -199,6 +198,17 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     Cddr -> cdr <<< cdr -< x
     Caddr -> car <<< cdr <<< cdr -< x
     Cadddr -> car <<< cdr <<< cdr <<< cdr -< x
+    NumberToString -> case x of
+      IntVal n -> returnA -< StringVal (pack (show n))
+      FloatVal n -> returnA -< StringVal (pack (show n))
+      RatioVal n -> returnA -< StringVal (pack (show n))
+      _ -> fail -< "(number->string): Contract violation, expected a number, but got: " ++ show x
+    StringToSymbol -> case x of
+      StringVal s -> returnA -< QuoteVal (SymVal s)
+      _ -> fail -< "(string->symbol): Contract violation, expected a string, but got: " ++ show x
+    SymbolToString -> case x of
+      QuoteVal (SymVal s) -> returnA -< StringVal (pack (show s))
+      _ -> fail -< "(symbol->string): Contract violation, expected a symbol, but got: " ++ show x
     Error -> case x of
       StringVal s -> fail -< unpack s
       _ -> fail -< "(fail): contract violation expected string as error msg"
@@ -227,13 +237,18 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
       _ -> returnA -< BoolVal False
     Quotient -> case (x, y) of
       (IntVal n, IntVal m) -> returnA -< IntVal (n `quot` m)
-      _ -> fail -< "(remainder): Contract violation, epxected elements of type int"
+      _ -> fail -< "(quotient): Contract violation, epxected elements of type int"
     Remainder -> case (x, y) of
       (IntVal n, IntVal m) -> returnA -< IntVal (n `rem` m)
       _ -> fail -< "(remainder): Contract violation, epxected elements of type int"
     Modulo -> case (x, y) of
       (IntVal n, IntVal m) -> returnA -< IntVal (n `mod` m)
       _ -> fail -< "(modulo): Contract violation, epxected elements of type int"
+    StringRef -> case (x, y) of
+      (StringVal s, IntVal n)
+        | n < T.length s -> returnA -< CharVal (T.index s n)
+        | otherwise      -> fail -< "string-ref: index out of range"
+      _ -> fail -< "(string-ref): Contract violation, epxected elements of type string and int"
     -- Cons -> do
     --   case (x, y) of
     --     (n, ListVal []) -> returnA -< ListVal [n]
@@ -242,19 +257,19 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     --     (n, m) -> returnA -< DottedListVal [n] m
 
   opvar_ =  proc (op, xs) -> case op of
-    EqualS -> case (withOrdEqHelp (==) xs) of
+    Equal -> case (withOrdEqHelp (==) xs) of
       Left a -> fail -< "(=): Contract violation, " ++ a
       Right a -> returnA -< a
-    SmallerS -> case (withOrdEqHelp (<) xs) of
+    Smaller -> case (withOrdEqHelp (<) xs) of
       Left a -> fail -< "(<): Contract violation, " ++ a
       Right a -> returnA -< a
-    GreaterS -> case (withOrdEqHelp (>) xs) of
+    Greater -> case (withOrdEqHelp (>) xs) of
       Left a -> fail -< "(>): Contract violation, " ++ a
       Right a -> returnA -< a
-    SmallerEqualS -> case (withOrdEqHelp (<=) xs) of
+    SmallerEqual -> case (withOrdEqHelp (<=) xs) of
       Left a -> fail -< "(<=): Contract violation, " ++ a
       Right a -> returnA -< a
-    GreaterEqualS -> case (withOrdEqHelp (>=) xs) of
+    GreaterEqual -> case (withOrdEqHelp (>=) xs) of
       Left a -> fail -< "(>=): Contract violation, " ++ a
       Right a -> returnA -< a
     Max -> case xs of
@@ -331,7 +346,7 @@ instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)
 
 instance IsClosure Val Env where
   traverseEnvironment f (ClosureVal cl) = ClosureVal <$> traverse f cl
-  traverseEnvironment _ v = pure $ v
+  traverseEnvironment _ v = pure v
 
   mapEnvironment f (ClosureVal (Closure expr env)) = ClosureVal (Closure expr (f env))
   mapEnvironment _ v = v
@@ -347,6 +362,7 @@ instance Show Val where
   show (QuoteVal n) = "'" ++ show n
   show (ListVal list) = show list
   show (ClosureVal n) = show n
+  show VoidVal = "#<void>"
 
 
 -- FOLD HELPER -----------------------------------------------------------------
@@ -372,12 +388,12 @@ divHelpFold v1 v2 = case (v1, v2) of
 
 withOrdEqHelp :: (forall a. (Ord a, Eq a) => a -> a -> Bool) -> [Val] -> Either String Val
 withOrdEqHelp _ [] = Right $ BoolVal True
-withOrdEqHelp _ (_:[]) = Right $ BoolVal True
+withOrdEqHelp _ [_] = Right $ BoolVal True
 withOrdEqHelp op xs = do
   let xs' = zip xs (tail xs)
   let res = map (withOrdEq op) xs'
   let res' = rights res
-  if (length res' == length xs - 1)
+  if length res' == length xs - 1
     then Right $ BoolVal $ foldl (&&) (head res') (tail res')
     else Left "Expected elements of type ord for operation"
 
@@ -416,13 +432,13 @@ divHelp :: Val -> Val -> Either String Val
 divHelp v1 v2 = case (v1, v2) of
   (IntVal x, IntVal y) | x `mod` y == 0 -> Right $ IntVal $ div x y
                        | otherwise -> Right $ RatioVal $ (toRational x) / (toRational y)
-  (IntVal x, FloatVal y) -> Right $ FloatVal $ (fromIntegral x) / y
-  (IntVal x, RatioVal y) -> Right $ RatioVal $ (fromIntegral x) / y
-  (FloatVal x, IntVal y) -> Right $ FloatVal $ x /(fromIntegral y)
+  (IntVal x, FloatVal y) -> Right $ FloatVal $ fromIntegral x / y
+  (IntVal x, RatioVal y) -> Right $ RatioVal $ fromIntegral x / y
+  (FloatVal x, IntVal y) -> Right $ FloatVal $ x /fromIntegral y
   (FloatVal x, FloatVal y) -> Right $ FloatVal $ x / y
-  (FloatVal x, RatioVal y) -> Right $ RatioVal $ (toRational x) / y
-  (RatioVal x, IntVal y) -> Right $ RatioVal $ x / (fromIntegral y)
-  (RatioVal x, FloatVal y) -> Right $ RatioVal $ x / (toRational y)
+  (FloatVal x, RatioVal y) -> Right $ RatioVal $ toRational x / y
+  (RatioVal x, IntVal y) -> Right $ RatioVal $ x / fromIntegral y
+  (RatioVal x, FloatVal y) -> Right $ RatioVal $ x / toRational y
   (RatioVal x, RatioVal y) -> Right $ RatioVal $ x / y
   _ -> Left "Expected elements of type num for operation"
 
@@ -437,15 +453,15 @@ withOrdEq op (v1, v2) = case (v1, v2) of
   (RatioVal x, IntVal y) -> Right $ op x (fromIntegral y)
   (RatioVal x, FloatVal y) -> Right $ op x (toRational y)
   (RatioVal x, RatioVal y) -> Right $ op x y
-  _ -> Left $ "Expected elements of type ord for operation"
+  _ -> Left "Expected elements of type ord for operation"
 
 -- self-evaluation for Num,Bool,String,Char,Quote
 -- quote-evaluation for Symbols
 -- for list apply function to all elements
 evalQuote :: Literal -> Val
-evalQuote (Number n) = IntVal n
+evalQuote (Int n) = IntVal n
 evalQuote (Float n) = FloatVal n
-evalQuote (Ratio n) = RatioVal n
+evalQuote (Rational n) = RatioVal n
 evalQuote (Bool n) = BoolVal n
 evalQuote (Char n) = CharVal n
 evalQuote (String n) = StringVal n
@@ -455,9 +471,9 @@ evalQuote (Quote n) = QuoteVal $ litsToVals n
 -- evalQuote (DottedList ns n) = DottedListVal (map evalQuote ns) (evalQuote n)
 
 litsToVals :: Literal -> Val
-litsToVals (Number n) = IntVal n
+litsToVals (Int n) = IntVal n
 litsToVals (Float n) = FloatVal n
-litsToVals (Ratio n) = RatioVal n
+litsToVals (Rational n) = RatioVal n
 litsToVals (Bool n) = BoolVal n
 litsToVals (Char n) = CharVal n
 litsToVals (String n) = StringVal n

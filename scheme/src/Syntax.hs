@@ -21,9 +21,9 @@ import           GHC.Generics
 
 -- Literals of Scheme
 data Literal
-  = Number Int
+  = Int Int
   | Float Double
-  | Ratio Rational
+  | Rational Rational
   | Bool Bool
   | Char Char --single character and single quotation (')
   | String Text -- any amount of chars and double quotation (")
@@ -32,28 +32,28 @@ data Literal
   -- | DottedList [Literal] Literal
   deriving (Eq,Generic,NFData)
 
-data Op1_
--- | Numerical operations
-  = Number_ -- (number? z)
-  | Integer_ -- (integer? z)
-  | Float_ -- (float? z)
-  | Ratio_ -- (rational? z)
-  | Zero -- (zero? z)
-  | Positive -- (positive? z)
-  | Negative -- (negative? z)
-  | Odd -- (odd? z)
-  | Even-- (even? z)
+data Op1
+-- | Check operations
+  = IsNumber -- (number? z)
+  | IsInteger -- (integer? z)
+  | IsFloat -- (float? z)
+  | IsRational -- (rational? z)
+  | IsZero -- (zero? z)
+  | IsPositive -- (positive? z)
+  | IsNegative -- (negative? z)
+  | IsOdd -- (odd? z)
+  | IsEven-- (even? z)
+  | IsNull -- (null? z)
+  | IsCons -- (cons? z)
+  | IsBoolean -- (boolean? z)
+-- | Numeric Operations
   | Abs -- (abs z)
   | Floor -- (floor z)
   | Ceiling -- (ceiling z)
   | Log -- (log z) base e
 -- | Boolean operations
-  | Boolean -- (boolean? z)
   | Not -- (not z)
 -- | List operations
-  | Null -- (null? z)
-  | ListS -- (list? z)
-  | ConsS -- (cons? z)
   | Car -- (car z)
   | Cdr -- (cdr z)
   | Caar -- (caar z)
@@ -61,27 +61,33 @@ data Op1_
   | Cddr -- (cddr z)
   | Caddr -- (caddr z)
   | Cadddr -- (cadddr z)
+-- | String Operations
+  | NumberToString -- (number->string z)
+  | StringToSymbol -- (string->symbol z)
+  | SymbolToString -- (symbol->string z)
+-- | Miscellaneous operations
   | Error -- (error z)
   | Random -- (random z)
   deriving (Eq,Generic,NFData)
 
-data Op2_
+data Op2
 -- | Equivalence predicates
   = Eqv -- (eq? z) / (eqv? z)
 -- | Numerical operations
   | Quotient -- (quotient z1 z2)
   | Remainder -- (remainder z1 z2)
   | Modulo -- (modulo z1 z2)
--- | List operations
+-- | String operations
+  | StringRef -- (string-ref z1 z2)
   deriving (Eq,Generic,NFData)
 
-data OpVar_
+data OpVar
 -- | Numerical operations
-  = EqualS -- (= z1 z2 z3 ...)
-  | SmallerS -- (< z1 z2 z3 ...)
-  | GreaterS -- (> z1 z2 z3 ...)
-  | SmallerEqualS -- (<= z1 z2 z3 ...)
-  | GreaterEqualS -- (>= z1 z2 z3 ...)
+  = Equal -- (= z1 z2 z3 ...)
+  | Smaller -- (< z1 z2 z3 ...)
+  | Greater -- (> z1 z2 z3 ...)
+  | SmallerEqual -- (<= z1 z2 z3 ...)
+  | GreaterEqual -- (>= z1 z2 z3 ...)
   | Max -- (max z1 z2 z3 ...)
   | Min -- (max z1 z2 z3 ...)
   | Add -- (+) (+ z) (+ z1 z2 z3 ...)
@@ -116,9 +122,9 @@ data Expr
   | Let [(Text, Expr)] [Expr] Label
   | LetRec [(Text, Expr)] [Expr] Label
 -- | Scheme standard procedures
-  | Op1 Op1_ Expr Label
-  | Op2 Op2_ Expr Expr Label
-  | OpVar OpVar_ [Expr] Label
+  | Op1 Op1 Expr Label
+  | Op2 Op2 Expr Expr Label
+  | OpVar OpVar [Expr] Label
   deriving (Generic,NFData)
 
 instance Eq Expr where
@@ -157,20 +163,20 @@ let_ bnds body = Let <$> sequence [(v,) <$> e | (v,e) <- bnds] <*> sequence body
 let_rec :: [(Text, LExpr)] -> [LExpr] -> LExpr
 let_rec bnds body = LetRec <$> sequence [(v,) <$> e | (v,e) <- bnds] <*> sequence body <*> fresh
 -- | Scheme standard procedures
-op1_ :: Op1_ -> LExpr -> LExpr
+op1_ :: Op1 -> LExpr -> LExpr
 op1_ operation e1 = Op1 operation <$> e1 <*> fresh
-op2_ :: Op2_ -> LExpr -> LExpr -> LExpr
+op2_ :: Op2 -> LExpr -> LExpr -> LExpr
 op2_ operation e1 e2 = Op2 operation <$> e1 <*> e2 <*> fresh
-opvar_ :: OpVar_ -> [LExpr] -> LExpr
+opvar_ :: OpVar -> [LExpr] -> LExpr
 opvar_ operation es = OpVar operation <$> sequence es <*> fresh
 
 instance Show Literal where show = show . pretty
 
 instance Pretty Literal where
   pretty e0 = case e0 of
-    Number x -> pretty x
+    Int x -> pretty x
     Float x -> pretty x
-    Ratio x -> pretty (show x)
+    Rational x -> pretty (show x)
     Bool x -> pretty x
     Char x -> squotes (pretty x)
     String x -> dquotes (pretty x)
@@ -178,28 +184,27 @@ instance Pretty Literal where
     Quote x -> "'" <> pretty x
     -- DottedList xs x -> showString ("DottedList ") . showList(xs) . showString (" . ") . shows (x)
 
-instance Show Op1_ where show = show . pretty
+instance Show Op1 where show = show . pretty
 
-instance Pretty Op1_ where
+instance Pretty Op1 where
   pretty e0 = case e0 of
-    Number_ -> "number?"
-    Integer_ -> "integer?"
-    Float_ -> "float?"
-    Ratio_ -> "rational?"
-    Zero -> "zero?"
-    Positive -> "positive?"
-    Negative -> "negative?"
-    Odd -> "odd?"
-    Even -> "even?"
+    IsNumber -> "number?"
+    IsInteger -> "integer?"
+    IsFloat -> "float?"
+    IsRational -> "rational?"
+    IsZero -> "zero?"
+    IsPositive -> "positive?"
+    IsNegative -> "negative?"
+    IsOdd -> "odd?"
+    IsEven -> "even?"
+    IsBoolean -> "boolean?"
+    IsNull -> "null?"
+    IsCons -> "cons?"
     Abs -> "abs"
     Floor -> "floor"
     Ceiling -> "ceiling"
     Log -> "log"
-    Boolean -> "boolean?"
     Not -> "not"
-    Null -> "null?"
-    ListS -> "list?"
-    ConsS -> "cons?"
     Car -> "car"
     Cdr -> "cdr"
     Caar -> "caar"
@@ -209,25 +214,29 @@ instance Pretty Op1_ where
     Cadddr -> "cadddr"
     Error -> "error"
     Random -> "random"
+    StringToSymbol -> "string->symbol"
+    SymbolToString -> "symbol->string"
+    NumberToString -> "number->string"
 
-instance Show Op2_ where show = show . pretty
+instance Show Op2 where show = show . pretty
 
-instance Pretty Op2_ where
+instance Pretty Op2 where
   pretty e0 = case e0 of
     Eqv -> "eq?"
     Quotient -> "quotient "
     Remainder -> "remainder "
     Modulo -> "modulo "
+    StringRef -> "string-ref "
 
-instance Show OpVar_ where show = show . pretty
+instance Show OpVar where show = show . pretty
 
-instance Pretty OpVar_ where
+instance Pretty OpVar where
   pretty e0 = case e0 of
-    EqualS -> "="
-    SmallerS -> "<"
-    GreaterS -> ">"
-    SmallerEqualS -> "<="
-    GreaterEqualS -> ">="
+    Equal -> "="
+    Smaller -> "<"
+    Greater -> ">"
+    SmallerEqual -> "<="
+    GreaterEqual -> ">="
     Max -> "max"
     Min -> "min"
     Add -> "+"

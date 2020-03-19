@@ -1,12 +1,22 @@
+(define (length list)
+  (begin
+    (define (loop1 l n)
+      (if (cons? l)
+          (loop1 (cdr l) (+ n 1))
+          (if (null? l)
+              n
+              (error "(length): contract violation, expected list"))))
+    (loop1 list 0)))
+
 (define (lookup key table)
   (begin
-    (define (loop x)
+    (define (loop2 x)
       (if (null? x) #f
           (let ((pair (car x)))
             (if (eq? (car pair) key)
                 pair
-                (loop (cdr x))))))
-    (loop table)))
+                (loop2 (cdr x))))))
+    (loop2 table)))
 
 (define properties '())
 

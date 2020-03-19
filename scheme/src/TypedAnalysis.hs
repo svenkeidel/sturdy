@@ -64,13 +64,15 @@ import           Data.Abstract.Terminating(Terminating)
 import           Data.Abstract.Closure (Closure)
 import           Data.Abstract.DiscretePowerset (Pow)
 import           Data.Abstract.CallString(CallString)
+import qualified Data.Abstract.Widening as W
+import           Data.Abstract.Stable
 
 import           GHC.Exts(IsString(..),toList)
 import           GHC.Generics(Generic)
 
 import           Text.Printf
 
-import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1_(..),Op2_(..),OpVar_(..))
+import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1(..),Op2(..),OpVar(..))
 import           GenericInterpreter as Generic
 
 type Cls = Closure Expr (HashSet Env)
@@ -93,10 +95,12 @@ data Val
   = Top
   | NumVal Number
   | StringVal
+  | CharVal
   | QuoteVal (Pow Symbol)
   | BoolVal B.Bool
   | ClosureVal Cls
   | ListVal List
+  | VoidVal
   | Bottom
   deriving stock (Eq, Generic)
   deriving anyclass (NFData)
@@ -149,9 +153,9 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = (ArrowComplete y (ValueT Val c),Fail.Join y c)
   lit = proc x -> case x of
-    Number _ -> returnA -< NumVal IntVal
+    Int _ -> returnA -< NumVal IntVal
     Float _ -> returnA -< NumVal FloatVal
-    Ratio _ -> returnA -< Bottom
+    Rational _ -> returnA -< Bottom
     Bool True  -> returnA -< BoolVal B.True
     Bool False  -> returnA -< BoolVal B.False
     Char _ -> returnA -< StringVal
@@ -178,57 +182,50 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
   {-# INLINE cons_ #-}
   {-# SCC cons_ #-}
 
+  void = proc _ -> returnA -< VoidVal
+
   op1_ = proc (op, x) -> case op of
-    Number_ -> returnA -< case x of
+    IsNumber -> returnA -< case x of
       NumVal _ -> BoolVal B.True
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
-    Integer_ -> returnA -< case x of
+    IsInteger -> returnA -< case x of
       NumVal IntVal -> BoolVal B.True
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
-    Float_ -> returnA -< case x of
+    IsFloat -> returnA -< case x of
       NumVal FloatVal -> BoolVal B.True
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
-    -- rational? - should return False or Bottom?
-    Ratio_ -> returnA -< case x of
-      NumVal IntVal -> BoolVal B.Top
-      NumVal FloatVal -> BoolVal B.Top
+    IsRational -> returnA -< case x of
+      NumVal IntVal -> BoolVal B.True
+      NumVal FloatVal -> BoolVal B.True
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
-    Boolean -> returnA -< case x of
+    IsBoolean -> returnA -< case x of
       BoolVal _ -> BoolVal B.True
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
-    ListS -> returnA -< case x of
-      ListVal _ -> BoolVal B.True
-      Top -> BoolVal B.Top
-      _ -> BoolVal B.False
-    ConsS -> returnA -< case x of
+    IsCons -> returnA -< case x of
       ListVal (Cons _ _) -> BoolVal B.True
       ListVal (ConsNil _ _) -> BoolVal B.Top
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
-    Null -> returnA -< case x of
+    IsNull -> returnA -< case x of
       ListVal Nil -> BoolVal B.True
       ListVal (ConsNil _ _) -> BoolVal B.Top
       Top -> BoolVal B.Top
       _ -> BoolVal B.False
-    Zero -> numToBool -< (op,x)
-    Positive -> numToBool -< (op,x)
-    Negative -> numToBool -< (op,x)
-    Odd -> numToBool -< (op,x)
-    Even -> numToBool -< (op,x)
+    IsZero -> numToBool -< (op,x)
+    IsPositive -> numToBool -< (op,x)
+    IsNegative -> numToBool -< (op,x)
+    IsOdd -> numToBool -< (op,x)
+    IsEven -> numToBool -< (op,x)
     Abs -> numToNum -< (op,x)
     Floor -> numToNum -< (op,x)
     Ceiling -> numToNum -< (op,x)
-    Log -> case x of
-      NumVal _ -> returnA -< NumVal FloatVal
-      _ -> failString -< printf "expected number as argument of log, but got %s" (show x)
-    Not -> case x of
-      BoolVal b -> returnA -< BoolVal $ B.not b
-      _ -> failString -< printf "expected boolean as argument of not, but got %s" (show x)
+    Log -> numToFloat -< (op,x)
+    Not -> boolToBool B.not -< (op,x)
     Car -> car' -< x
     Cdr -> cdr' -< x
     Caar -> car' <<< car' -< x
@@ -237,7 +234,10 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Caddr -> car' <<< cdr' <<< cdr' -< x
     Cadddr -> car' <<< cdr' <<< cdr' <<< cdr' -< x
     Error -> failString -< printf "error: %s" (show x)
-    Random -> intToInt -< (op, x) 
+    Random -> intToInt -< (op, x)
+    NumberToString -> numToString -< (op, x)
+    StringToSymbol -> stringToSym -< (op, x)
+    SymbolToString -> symToString -< (op, x)
   {-# INLINABLE op1_ #-}
   {-# SCC op1_ #-}
 
@@ -246,25 +246,23 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Quotient -> intIntToInt -< (op,x,y)
     Remainder -> intIntToInt -< (op,x,y)
     Modulo -> intIntToInt -< (op,x,y)
+    StringRef -> stringIntToChar -< (op,x,y)
   {-# INLINEABLE op2_ #-}
   {-# SCC op2_ #-}
 
   opvar_ = proc (op, xs) -> case op of
-    EqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
-    SmallerS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
-    GreaterS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
-    SmallerEqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
-    GreaterEqualS -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    Equal -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    Smaller -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    Greater -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    SmallerEqual -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+    GreaterEqual -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
     Max -> numNTo -< (op,1,xs,foldl1 numLub xs)
     Min -> numNTo -< (op,1,xs,foldl1 numLub xs)
     Add -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
     Mul -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
     Sub -> numNTo -< (op,1,xs,foldl1 numLub xs)
     Div -> do
-      -- (integer? (/ 2 2)) -> #t
-      -- (integer? (/ 2 3)) -> #f
-      let x = foldr1 numLubDivision xs
-      numNTo -< (op,1,xs,x)
+      numNTo -< (op,1,xs,foldl1 numLubDivision xs)
     Gcd -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
     Lcm -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
     StringAppend -> stringNToString -< xs
@@ -279,7 +277,7 @@ if__ f g = proc (v,(x,y)) -> case v of
     _ -> f -< x
 {-# INLINEABLE if__ #-}
 
-numToNum :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
+numToNum :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
 numToNum = proc (op,v) -> case v of
   NumVal IntVal -> returnA -< NumVal IntVal
   NumVal FloatVal -> returnA -< NumVal FloatVal
@@ -291,7 +289,7 @@ numToNum = proc (op,v) -> case v of
 {-# SCC numToNum #-}
 
 
-intToInt :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
+intToInt :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
 intToInt = proc (op,v) -> case v of
   NumVal IntVal -> returnA -< NumVal IntVal
   Top -> (returnA -< Top) <⊔> (err -< (op,v))
@@ -301,7 +299,17 @@ intToInt = proc (op,v) -> case v of
 {-# INLINEABLE intToInt #-}
 {-# SCC intToInt #-}
 
-numToBool :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1_,Val) Val
+numToFloat :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
+numToFloat = proc (op,v) -> case v of
+  NumVal _ -> returnA -< NumVal FloatVal
+  Top -> (returnA -< NumVal FloatVal) <⊔> (err -< (op,v))
+  _ -> err -< (op,v)
+  where
+    err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s" (show op) (show v)
+{-# INLINEABLE numToFloat #-}
+{-# SCC numToFloat #-}
+
+numToBool :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
 numToBool = proc (op,v) -> case v of
   NumVal _ -> returnA -< BoolVal B.Top
   Top -> (returnA -< BoolVal B.Top) <⊔> (err -< (op,v))
@@ -311,7 +319,47 @@ numToBool = proc (op,v) -> case v of
 {-# INLINEABLE numToBool #-}
 {-# SCC numToBool #-}
 
-intIntToInt :: (IsString e, Fail.Join Val c, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => c (Op2_,Val,Val) Val
+boolToBool :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => (B.Bool -> B.Bool) -> c (Op1,Val) Val
+boolToBool f = proc (op,v) -> case v of
+  BoolVal b -> returnA -< BoolVal (f b)
+  Top -> (returnA -< BoolVal B.Top) <⊔> (err -< (op,v))
+  _ -> err -< (op,v)
+  where
+    err = proc (op,v) -> failString -< printf "expected a bool as argument for %s, but got %s" (show op) (show v)
+{-# INLINEABLE boolToBool #-}
+{-# SCC boolToBool #-}
+
+numToString :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
+numToString = proc (op,v) -> case v of
+  NumVal _ -> returnA -< StringVal
+  Top -> (returnA -< StringVal) <⊔> (err -< (op,v))
+  _ -> err -< (op,v)
+  where
+    err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s" (show op) (show v)
+{-# INLINEABLE numToString #-}
+{-# SCC numToString #-}
+
+stringToSym :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
+stringToSym = proc (op,v) -> case v of
+  StringVal -> returnA -< QuoteVal top
+  Top -> (returnA -< QuoteVal top) <⊔> (err -< (op,v))
+  _ -> err -< (op,v)
+  where
+    err = proc (op,v) -> failString -< printf "expected a string as argument for %s, but got %s" (show op) (show v)
+{-# INLINEABLE stringToSym #-}
+{-# SCC stringToSym #-}
+
+symToString :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
+symToString = proc (op,v) -> case v of
+  QuoteVal _ -> returnA -< StringVal
+  Top -> (returnA -< StringVal) <⊔> (err -< (op,v))
+  _ -> err -< (op,v)
+  where
+    err = proc (op,v) -> failString -< printf "expected a quote as argument for %s, but got %s" (show op) (show v)
+{-# INLINEABLE symToString #-}
+{-# SCC symToString #-}
+
+intIntToInt :: (IsString e, Fail.Join Val c, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => c (Op2,Val,Val) Val
 intIntToInt = proc (op,v1,v2) -> case (v1,v2) of
   (NumVal IntVal,NumVal IntVal) -> returnA -< NumVal IntVal
   (Top,Top) -> (returnA -< NumVal IntVal) <⊔> (err -< (op,v1,v2))
@@ -322,6 +370,18 @@ intIntToInt = proc (op,v1,v2) -> case (v1,v2) of
     err = proc (op,v1,v2) -> failString -< printf "expected a two ints as arguments for %s, but got %s" (show op) (show [v1,v2])
 {-# INLINEABLE intIntToInt #-}
 {-# SCC intIntToInt #-}
+
+stringIntToChar :: (IsString e, Fail.Join Val c, ArrowChoice c, ArrowFail e c, ArrowComplete Val c) => c (Op2,Val,Val) Val
+stringIntToChar = proc (op,v1,v2) -> case (v1,v2) of
+  (StringVal, NumVal IntVal) -> returnA -< CharVal
+  (Top,Top) -> (returnA -< CharVal) <⊔> (err -< (op,v1,v2))
+  (Top,NumVal IntVal) -> (returnA -< CharVal) <⊔> (err -< (op,v1,v2))
+  (StringVal,Top) -> (returnA -< CharVal) <⊔> (err -< (op,v1,v2))
+  _ -> err -< (op,v1,v2)
+  where
+    err = proc (op,v1,v2) -> failString -< printf "expected a two string and an int as arguments for %s, but got %s" (show op) (show [v1,v2])
+{-# INLINEABLE stringIntToChar #-}
+{-# SCC stringIntToChar #-}
 
 car' :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, ArrowComplete Val c) => c Val Val
 car' = proc v -> case v of
@@ -385,7 +445,7 @@ eq v1 v2 = case (v1, v2) of
   (_,_) -> B.False
 {-# SCC eq #-}
 
-numNTo :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (OpVar_,Int,[Val],Val) Val
+numNTo :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (OpVar,Int,[Val],Val) Val
 numNTo = proc (op,minArity,xs,ret) ->
   if minArity <= length xs
   then case lub (map isNum xs) of
@@ -418,6 +478,12 @@ numLub x y = case (x,y) of
   (_,_) -> Bottom
 {-# SCC numLub #-}
 
+-- | Handles the case that the result of a division may be a whole number or a
+-- floating point number:
+-- @
+--   (integer? (/ 2 2)) -> #t
+--   (integer? (/ 2 3)) -> #f
+-- @
 numLubDivision :: Val -> Val -> Val
 numLubDivision x y = case (x,y) of
   (NumVal FloatVal,NumVal _) -> NumVal FloatVal
@@ -454,9 +520,11 @@ instance Pretty Val where
   pretty (NumVal nv) = pretty nv
   pretty (BoolVal b) = pretty b
   pretty (ClosureVal cls) = pretty cls
-  pretty StringVal = "String"
+  pretty StringVal = "string"
+  pretty CharVal = "char"
   pretty (QuoteVal syms) = pretty ["'" <> sym | sym <- toList syms]
   pretty (ListVal l) = pretty l
+  pretty VoidVal = "#<void>"
   pretty Top = "Top"
   pretty Bottom = "Bottom"
 instance Hashable List
@@ -481,15 +549,23 @@ instance IsClosure Val (HashSet Env) where
   {-# SCC mapEnvironment #-}
   {-# SCC traverseEnvironment #-}
 
+storeWidening :: W.Widening Store
+storeWidening s1 s2 =
+  -- Because the store grows monotonically, we can assume that s1 ⊑ s2. For
+  -- stabilization it remains to check that s2 ⊑ s1.
+  (if s2 ⊑ s1 then Stable else Unstable, s2)
+
 instance PreOrd Val where
   Bottom ⊑ _ = True
   _ ⊑ Top = True
   NumVal nv1 ⊑ NumVal nv2 = nv1 ⊑ nv2
   StringVal ⊑ StringVal = True
+  CharVal ⊑ CharVal = True
   QuoteVal sym1 ⊑ QuoteVal sym2 = sym1 ⊑ sym2
   BoolVal b1 ⊑ BoolVal b2 = b1 ⊑ b2
   ClosureVal c1 ⊑ ClosureVal c2 = c1 ⊑ c2
   ListVal l1 ⊑ ListVal l2 = l1 ⊑ l2
+  VoidVal ⊑ VoidVal = True
   _ ⊑ _ = False
   {-# SCC (⊑) #-}
 
@@ -497,11 +573,13 @@ instance Complete Val where
   Bottom ⊔ x = x
   x ⊔ Bottom = x
   NumVal nv1 ⊔ NumVal nv2 = NumVal (nv1 ⊔ nv2)
+  StringVal ⊔ StringVal = StringVal
+  CharVal ⊔ CharVal = CharVal
+  QuoteVal sym1 ⊔ QuoteVal sym2 = QuoteVal (sym1 ⊔ sym2)
   BoolVal b1 ⊔ BoolVal b2 = BoolVal (b1 ⊔ b2)
   ClosureVal c1 ⊔ ClosureVal c2 = ClosureVal (c1 ⊔ c2)
-  StringVal ⊔ StringVal = StringVal
-  QuoteVal sym1 ⊔ QuoteVal sym2 = QuoteVal (sym1 ⊔ sym2)
   ListVal l1 ⊔ ListVal l2 = ListVal (l1 ⊔ l2)
+  VoidVal ⊔ VoidVal = VoidVal
   _ ⊔ _ = Top
   {-# SCC (⊔) #-}
 

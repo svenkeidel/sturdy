@@ -53,7 +53,7 @@ import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
 
 import           TypedAnalysis
-import           Syntax (LExpr,Expr(App),controlFlow)
+import           Syntax (LExpr,Expr(App))
 import           GenericInterpreter as Generic
 
 type InterpChaotic x y =

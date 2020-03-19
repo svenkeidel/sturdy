@@ -88,9 +88,9 @@ parseDefinitions [] = ([],[])
 
 parseSExpr :: LispVal -> LExpr
 parseSExpr val = case val of
-  LT.Number x -> lit $ S.Number $ fromIntegral x
+  LT.Number x -> lit $ S.Int $ fromIntegral x
   LT.Float x -> lit $ S.Float x
-  LT.Rational x -> lit $ S.Ratio x
+  LT.Rational x -> lit $ S.Rational x
   LT.Bool x -> lit $ S.Bool x
   LT.Char x -> lit $ S.Char x
   LT.String x -> lit $ S.String (pack x)
@@ -132,20 +132,19 @@ parseSExpr val = case val of
     app (parseSExpr (LT.List(Atom "lambda" : rest))) (map parseSExpr args)
   -- LT.List [Atom "call-with-values", generator, _] ->
   --   app (parseSExpr generator) []
-  LT.List [Atom "number?", e] -> op1_ Number_ (parseSExpr e)
-  LT.List [Atom "integer?", e] -> op1_ Integer_ (parseSExpr e)
-  LT.List [Atom "float?", e] -> op1_ Float_ (parseSExpr e)
-  LT.List [Atom "rational?", e] -> op1_ Ratio_ (parseSExpr e)
-  LT.List [Atom "zero?", e] -> op1_ Zero (parseSExpr e)
-  LT.List [Atom "positive?", e] -> op1_ Positive (parseSExpr e)
-  LT.List [Atom "negative?", e] -> op1_ Negative (parseSExpr e)
-  LT.List [Atom "even?", e] -> op1_ Even (parseSExpr e)
-  LT.List [Atom "odd?", e] -> op1_ Odd (parseSExpr e)
-  LT.List [Atom "boolean?", e] -> op1_ Boolean (parseSExpr e)
-  LT.List [Atom "null?", e] -> op1_ Null (parseSExpr e)
-  LT.List [Atom "list?", e] -> op1_ ListS (parseSExpr e)
-  LT.List [Atom "pair?", e] -> op1_ ConsS (parseSExpr e)
-  LT.List [Atom "cons?", e] -> op1_ ConsS (parseSExpr e)
+  LT.List [Atom "number?", e] -> op1_ IsNumber (parseSExpr e)
+  LT.List [Atom "integer?", e] -> op1_ IsInteger (parseSExpr e)
+  LT.List [Atom "float?", e] -> op1_ IsFloat (parseSExpr e)
+  LT.List [Atom "rational?", e] -> op1_ IsRational (parseSExpr e)
+  LT.List [Atom "zero?", e] -> op1_ IsZero (parseSExpr e)
+  LT.List [Atom "positive?", e] -> op1_ IsPositive (parseSExpr e)
+  LT.List [Atom "negative?", e] -> op1_ IsNegative (parseSExpr e)
+  LT.List [Atom "even?", e] -> op1_ IsEven (parseSExpr e)
+  LT.List [Atom "odd?", e] -> op1_ IsOdd (parseSExpr e)
+  LT.List [Atom "boolean?", e] -> op1_ IsBoolean (parseSExpr e)
+  LT.List [Atom "null?", e] -> op1_ IsNull (parseSExpr e)
+  LT.List [Atom "pair?", e] -> op1_ IsCons (parseSExpr e)
+  LT.List [Atom "cons?", e] -> op1_ IsCons (parseSExpr e)
   LT.List [Atom "abs", e] -> op1_ Abs (parseSExpr e)
   LT.List [Atom "floor", e] -> op1_ Floor (parseSExpr e)
   LT.List [Atom "ceiling", e] -> op1_ Ceiling (parseSExpr e)
@@ -160,18 +159,22 @@ parseSExpr val = case val of
   LT.List [Atom "cadddr", e] -> op1_ Cadddr (parseSExpr e)
   LT.List [Atom "error", e] -> op1_ Error (parseSExpr e)
   LT.List [Atom "random", e] -> op1_ Random (parseSExpr e)
+  LT.List [Atom "string->symbol", e] -> op1_ StringToSymbol (parseSExpr e)
+  LT.List [Atom "symbol->string", e] -> op1_ SymbolToString (parseSExpr e)
+  LT.List [Atom "number->string", e] -> op1_ NumberToString (parseSExpr e)
   -- op2
   LT.List [Atom "eq?", e1, e2] -> op2_ Eqv (parseSExpr e1) (parseSExpr e2)
   LT.List [Atom "quotient", e1, e2] -> op2_ Quotient (parseSExpr e1) (parseSExpr e2)
   LT.List [Atom "remainder", e1, e2] -> op2_ Remainder (parseSExpr e1) (parseSExpr e2)
   LT.List [Atom "modulo", e1, e2] -> op2_ Modulo (parseSExpr e1) (parseSExpr e2)
+  LT.List [Atom "string-ref", e1, e2] -> op2_ StringRef (parseSExpr e1) (parseSExpr e2)
   LT.List [Atom "cons", e1, e2] -> cons (parseSExpr e1) (parseSExpr e2)
   -- opvar
-  LT.List (Atom "=": args) -> opvar_ EqualS (map parseSExpr args)
-  LT.List (Atom "<": args) -> opvar_ SmallerS (map parseSExpr args)
-  LT.List (Atom ">": args) -> opvar_ GreaterS (map parseSExpr args)
-  LT.List (Atom "<=": args) -> opvar_ SmallerEqualS (map parseSExpr args)
-  LT.List (Atom ">=": args) -> opvar_ GreaterEqualS (map parseSExpr args)
+  LT.List (Atom "=": args) -> opvar_ Equal (map parseSExpr args)
+  LT.List (Atom "<": args) -> opvar_ Smaller (map parseSExpr args)
+  LT.List (Atom ">": args) -> opvar_ Greater (map parseSExpr args)
+  LT.List (Atom "<=": args) -> opvar_ SmallerEqual (map parseSExpr args)
+  LT.List (Atom ">=": args) -> opvar_ GreaterEqual (map parseSExpr args)
   LT.List (Atom "max": args) -> opvar_ Max (map parseSExpr args)
   LT.List (Atom "min": args) -> opvar_ Min (map parseSExpr args)
   LT.List (Atom "+": args) -> opvar_ Add (map parseSExpr args)
@@ -194,9 +197,9 @@ extractBinding _ = error "Error when extracting tuple"
 --TODO: resolve remaining lispvals
 parseLits :: LispVal -> Literal
 parseLits val = case val of
-  LT.Number x -> S.Number $ fromIntegral x
+  LT.Number x -> S.Int $ fromIntegral x
   LT.Float x -> S.Float x
-  LT.Rational x -> S.Ratio x
+  LT.Rational x -> S.Rational x
   LT.Bool x -> S.Bool x
   LT.Char x -> S.Char x
   LT.String x -> S.String (pack x)
@@ -209,9 +212,9 @@ parseLits val = case val of
 
 quoteListHelp :: LispVal -> LExpr
 quoteListHelp val = case val of
-  LT.Number x -> lit $ S.Number $ fromIntegral x
+  LT.Number x -> lit $ S.Int $ fromIntegral x
   LT.Float x -> lit $ S.Float x
-  LT.Rational x -> lit $ S.Ratio x
+  LT.Rational x -> lit $ S.Rational x
   LT.Bool x -> lit $ S.Bool x
   LT.Char x -> lit $ S.Char x
   LT.String x -> lit $ S.String (pack x)

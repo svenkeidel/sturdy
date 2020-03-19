@@ -13,7 +13,6 @@ import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
 import           Data.GraphViz hiding (diamond)
 import           Data.HashSet (HashSet)
-import           Data.Order (bottom)
 import           Data.Text(Text)
 
 import           Data.Abstract.Terminating hiding (toEither)
@@ -71,12 +70,13 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 
     it "browse" $ do
       let inFile = "gabriel/browse.scm"
-      let expRes = successOrFail (return (BoolVal B.Top))
+      let expRes = successOrFail (return (NumVal IntVal))
                                  [ "Excpeted list as argument for cdr, but got Top"
                                  , "Excpeted list as argument for car, but got Top"
+                                 , "error: string"
+                                 , "expected a quote as argument for symbol->string, but got Top"
                                  ]
       run inFile expRes
-
 
     it "cpstak" $ do
 --     => Final Values: Set(Int)
@@ -85,23 +85,21 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       let expRes = success (NumVal IntVal)
       run inFile expRes
 
-
     it "dderiv" $ do
       let inFile = "gabriel/dderiv.scm"
       let expRes = success (BoolVal B.True)
-
-      pendingWith "too imprecise"
+      -- pendingWith "too imprecise"
       run inFile expRes
 
     it "deriv" $ do
 --     => TIMEOUT | STATES: 1645737
-      when (?algorithm == Parallel) $
+      when (?algorithm == Parallel || ?algorithm == ADI) $
         pendingWith "out of memory"
 
       let inFile = "gabriel/deriv.scm"
       let expRes = successOrFail (return (BoolVal B.Top))
                                  -- because (equals? (list 1 2) (list 1 2)) recursively calls (equals? 1 1)
-                                 [ "error: String"
+                                 [ "error: string"
                                  , "Excpeted list as argument for cdr, but got Top"
                                  , "Excpeted list as argument for car, but got Top"
                                  ]
@@ -120,8 +118,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       let inFile = "gabriel/destruc.scm"
       let expRes = successOrFail (Terminating (BoolVal B.Top))
                                  [ "Excpeted list as argument for cdr, but got Top",
-                                   "Excpeted list as argument for car, but got Top",
-                                   "Empty program"
+                                   "Excpeted list as argument for car, but got Top"
                                  ]
       run inFile expRes
 
@@ -181,7 +178,7 @@ scalaAM run = describe "Scala-AM" $ do
 -- => TIME: 2831 | STATES: 247915
       -- pendingWith "only works for parallel, but parallel broken?"
       let inFile = "scala-am/rsa.scm"
-      let expRes = successOrFail (return (BoolVal B.Top)) ["error: String"]
+      let expRes = successOrFail (return (BoolVal B.Top)) ["error: string"]
       run inFile expRes
 
 -- -------------------Custom Tests------------------------------------------
@@ -305,15 +302,15 @@ customTests run = do
 
     it "test lits" $ do
       -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] ["x"] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Number 2), "x"] `shouldBe` ([], Terminating $ NumVal IntVal)
-      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Number 2),
+      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Int 2), "x"] `shouldBe` ([], Terminating $ NumVal IntVal)
+      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Int 2),
                                         set "x" (lit $ S.Bool True),
                                         "x"] `shouldBe` success Top
 
     it "test closures" $ do
-      let ?sensitivity = 0 in eval' [] [app (lam ["x"] ["x"]) [lit $ S.Number 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
+      let ?sensitivity = 0 in eval' [] [app (lam ["x"] ["x"]) [lit $ S.Int 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
       let ?sensitivity = 0 in eval' [] [define "id" (lam ["x"] ["x"]),
-                                        app "id" [lit $ S.Number 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
+                                        app "id" [lit $ S.Int 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
       -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lit $ S.Bool True),
       --                                           set "id" (lam ["x"] ["x"]),
       --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
@@ -322,21 +319,21 @@ customTests run = do
       --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
 
     it "should analyze let expression" $
-      let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
+      let expr = [let_ [("x", lit $ S.Int 1)] ["x"]] in do
       let ?sensitivity = 0 in eval' [] expr `shouldBe` success (NumVal IntVal)
       let ?sensitivity = 1 in eval' [] expr `shouldBe` success (NumVal IntVal)
 
     it "should analyze define" $
-      let exprs = [define "x" (lit $ S.Number 1),
-                   set "x" (lit $ S.Number 2),
-                   set "x" (lit $ S.Number 3),
+      let exprs = [define "x" (lit $ S.Int 1),
+                   set "x" (lit $ S.Int 2),
+                   set "x" (lit $ S.Int 3),
                    "x"] in do
       let ?sensitivity = 0 in eval' [] exprs `shouldBe` success (NumVal IntVal)
       let ?sensitivity = 2 in eval' [] exprs `shouldBe` success (NumVal IntVal)
 
     it "should return unify two different types" $
-      let exprs = [define "x" (lit $ S.Number 1),
-                   set "x" (lit $ S.Number 2),
+      let exprs = [define "x" (lit $ S.Int 1),
+                   set "x" (lit $ S.Int 2),
                    set "x" (lit $ S.Bool True),
                    "x"] in do
       let ?sensitivity = 0 in eval' [] exprs `shouldBe` success Top

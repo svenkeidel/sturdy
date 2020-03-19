@@ -26,4 +26,8 @@
                    (and (equal? (car x) (car y)) (equal? (cdr x) (cdr y)))
                    #f)))))))
 
-
+(define-syntax include-list?
+  (syntax-rules ()
+    ((include-list?)
+     (define (list? l)
+       (if (cons? l) (list? (cdr l)) (null? l))))))
