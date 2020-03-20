@@ -222,8 +222,8 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     IsOdd -> numToBool -< (op,x)
     IsEven -> numToBool -< (op,x)
     Abs -> numToNum -< (op,x)
-    Floor -> numToNum -< (op,x)
-    Ceiling -> numToNum -< (op,x)
+    Floor -> numToNum' -< (op,x)
+    Ceiling -> numToNum' -< (op,x)
     Log -> numToFloat -< (op,x)
     Not -> boolToBool B.not -< (op,x)
     Car -> car' -< x
@@ -288,6 +288,15 @@ numToNum = proc (op,v) -> case v of
 {-# INLINEABLE numToNum #-}
 {-# SCC numToNum #-}
 
+numToNum' :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
+numToNum' = proc (op,v) -> case v of
+  NumVal _ -> returnA -< NumVal IntVal
+  Top -> (returnA -< Top) <⊔> (err -< (op,v))
+  _ -> err -< (op,v)
+  where
+    err = proc (op,v) -> failString -< printf "expected a number as argument for %s, but got %s" (show op) (show v)
+{-# INLINEABLE numToNum' #-}
+{-# SCC numToNum' #-}
 
 intToInt :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
 intToInt = proc (op,v) -> case v of

@@ -63,7 +63,7 @@ eval run' = proc e0 -> case e0 of
   App e1 e2 _ -> do
     fun <- run' -< [e1]
     args <- map run' -< chunksOf 1 e2
-    applyClosure' -< (fun, args)
+    Cls.apply applyClosure' -< (fun, args)
   Apply es _ -> run' -< es
   -- Scheme expression
   Var x _ -> Env.lookup'' read' -< x
@@ -72,9 +72,10 @@ eval run' = proc e0 -> case e0 of
     vs <- evalBindings -< bnds
     Env.extend' run' -< (vs,body)
   LetRec bnds body _ -> do
-    vs <- evalBindings' -< bnds
-    addrs <- map alloc -< [var | (var,_,_) <- vs]
-    Env.extend' (LetRec.letRec run') -< ([(var,addr) | ((var,_,_),addr) <- zip vs addrs], ([(var,val) | (var,_,val) <- vs], body))
+    addrs <- map alloc -< [(var) | (var,_) <- bnds]
+    let envbnds = [(var,addr) | ((var,_),addr) <- zip bnds addrs]
+    let storebnds = [(addr,expr) | ((_,expr),addr) <- zip bnds addrs]
+    Env.extend' evalBindings' -< (envbnds,(storebnds,body))
   Set x e l -> run' -< [Set x e l]
   Define xs e l -> run' -< [Define xs e l]
   If e1 e2 e3 _ -> do
@@ -93,7 +94,7 @@ eval run' = proc e0 -> case e0 of
     opvar_ -< (x, vs)
   where
     -- Helper function used to apply closure or a suspended fixpoint computation to its argument.
-    applyClosure' = Cls.apply $ proc (e, args) -> case e of  -- args = [(argVal, argLabel)]
+    applyClosure' = proc (e, args) -> case e of  -- args = [(argVal, argLabel)]
       Lam xs body l ->
         if eqLength xs args
           then do
@@ -111,21 +112,16 @@ eval run' = proc e0 -> case e0 of
         val <- run' -< [expr]
         addr <- alloc -< var
         write -< (addr,val)
-        vs <- Env.extend evalBindings -< (var, addr, bnds')
+        vs <- evalBindings -< bnds' 
         returnA -< (var,addr) : vs
     {-# SCC evalBindings #-}
 
-    evalBindings' = proc bnds -> case bnds of
-      [] -> returnA -< []
-      (var,expr) : bnds' -> do
+    evalBindings' = proc (bnds,body) -> case bnds of 
+      [] -> run' -< body
+      (addr,expr) : bnds' -> do 
         val <- run' -< [expr]
-        addr <- alloc -< var
-        write -< (addr,val)
-        --only adds closure to its own env so it can call itself recursively
-        vs <- Env.extend (LetRec.letRec evalBindings') -< (var,addr,([(var,val)],bnds')) 
-        returnA -< (var,addr,val) : vs
-    {-# SCC evalBindings' #-}
-
+        write -< (addr,val)     
+        evalBindings' -< (bnds',body) 
 {-# INLINEABLE eval #-}
 {-# SCC eval #-}
 
