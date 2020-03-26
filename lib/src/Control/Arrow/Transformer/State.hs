@@ -221,7 +221,7 @@ instance ArrowJoinContext a c => ArrowJoinContext a (StateT s c) where
   type Widening (StateT s c) = Context.Widening c
 
 instance ArrowParallelCache a b c => ArrowParallelCache a b (StateT s c)
-instance ArrowIterateCache c => ArrowIterateCache (StateT s c)
+instance ArrowIterateCache a b c => ArrowIterateCache a b (StateT s c)
 instance ArrowFiltered a c => ArrowFiltered a (StateT s c)
 instance ArrowStackDepth c => ArrowStackDepth (StateT s c)
 instance ArrowStackElements a c => ArrowStackElements a (StateT s c)

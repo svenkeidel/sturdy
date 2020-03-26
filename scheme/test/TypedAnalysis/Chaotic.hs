@@ -38,7 +38,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Component as Comp
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
-import           Control.Arrow.Transformer.Abstract.Fix.Metrics
+import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Terminating
 
@@ -62,19 +62,19 @@ type InterpChaotic x y =
       (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT
-            (MetricsT In
+            (MetricsT Metric.Monotone In
               (ComponentT Comp.Component In
                 (StackT Stack.Monotone In
                   (CacheT Cache.Monotone In Out
                     (ContextT Ctx
                       (ControlFlowT Expr (->)))))))))))) x y
 
-evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metrics In, Out'))
+evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metric.Monotone In, Out'))
 evalChaotic iterationStrat env0 e =
   second snd $ Trans.run (extend' (Generic.runFixed algorithm :: InterpChaotic [Expr] Val)) (Map.empty,(Map.empty,(env0,e0)))
   where
     algorithm =
-      let ?cacheWidening = (W.finite, W.finite) in
+      let ?cacheWidening = (storeErrWidening, W.finite) in
       transform $
         Fix.fixpointAlgorithm $
         -- Fix.trace printIn printOut .

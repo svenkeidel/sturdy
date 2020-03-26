@@ -49,7 +49,9 @@ type IterationStrategy c a b = c a b -> c (a,b) b -> c a b
 innermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 innermost f iterate = proc a -> do
   b <- f -< a
-  inComp <- inComponent -< a; case inComp of
+  inComp <- inComponent -< a
+  removeFromComponent -< a
+  case inComp of
     Head _ -> iterate -< (a,b)
     _ -> returnA -< b
 {-# INLINE innermost #-}
@@ -58,7 +60,9 @@ innermost f iterate = proc a -> do
 outermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 outermost f iterate = proc a -> do
   b <- f -< a
-  inComp <- inComponent -< a; case inComp of
+  inComp <- inComponent -< a
+  removeFromComponent -< a
+  case inComp of
     Head Outermost -> iterate -< (a,b)
     Head Inner -> returnA -< b
     _ -> returnA -< b
@@ -88,7 +92,6 @@ chaotic iterationStrategy f = proc a -> do
   where
     iterate :: c a b
     iterate = iterationStrategy (Stack.push' f) $ proc (a,b) -> do
-      removeFromComponent -< a
       (stable,aNew,bNew) <- Cache.update -< (a,b)
       case stable of
         Stable   -> returnA -< bNew

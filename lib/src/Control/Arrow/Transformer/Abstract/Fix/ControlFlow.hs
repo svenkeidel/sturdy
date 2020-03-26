@@ -37,7 +37,7 @@ instance IsEmpty (CFG stmt) where
 newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Maybe stmt) c) x y)
   deriving (
     Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
-    ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache,
+    ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
     ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
     ArrowFiltered a, ArrowComponent a, ArrowInComponent a
     )

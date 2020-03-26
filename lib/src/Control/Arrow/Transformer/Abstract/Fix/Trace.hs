@@ -10,7 +10,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Control.Arrow.Transformer.Abstract.Fix.Trace where
 
-import Prelude hiding (pred,lookup,map,head,iterate,(.),truncate)
+import Prelude hiding (pred,lookup,map,head,iterate,(.),truncate,log)
 
 import Control.Category
 import Control.Arrow hiding ((<+>))
@@ -36,23 +36,32 @@ newtype TraceT c x y = TraceT (c x y)
             ArrowStack a,ArrowContext ctx,ArrowState s,ArrowControlFlow stmt,
             ArrowTopLevel,ArrowStackDepth,ArrowStackElements a, ArrowFiltered a)
 
+log :: Arrow c => c (Doc ann) ()
+log = proc s -> do
+  returnA -< Debug.trace (show s) ()
+
 instance (Pretty a, Pretty b, ArrowCache a b c) => ArrowCache a b (TraceT c) where
   type Widening (TraceT c) = Cache.Widening c
   initialize = TraceT $ proc a -> do
     b  <- initialize -< a
-    returnA -< Debug.trace (show (vsep ["INITIALIZE", "x:" <+> pretty a, "y:" <+> pretty b] <> line)) b
+    () <- log -< vsep ["INITIALIZE", "x:" <+> pretty a, "y:" <+> pretty b] <> line
+    returnA -< b
   lookup = TraceT $ proc a -> do
     b  <- lookup -< a
-    returnA -< Debug.trace (show (vsep ["LOOKUP", "x:" <+> pretty a, "y:" <+> pretty b] <> line)) b
+    () <- log -< vsep ["LOOKUP", "x:" <+> pretty a, "y:" <+> pretty b] <> line
+    returnA -< b
   update = TraceT $ proc (a,b) -> do
     bOld  <- lookup -< a
     (s,a',b') <- update -< (a,b)
-    returnA -< Debug.trace (show (vsep ["UPDATE", "x:" <+> pretty a <+> "->" <+> pretty a', "y:" <+> pretty bOld <+> "⊔" <+> pretty b <+> showArrow s <+> pretty b'] <> line)) (s,a',b')
+    () <- log -< vsep ["UPDATE", "x:" <+> pretty a <+> "->" <+> pretty a', "y:" <+> pretty bOld <+> "⊔" <+> pretty b <+> showArrow s <+> pretty b'] <> line
+    returnA -< (s,a',b')
   write = TraceT $ proc (a,b,s) -> do
     bOld  <- lookup -< a
-    write -< Debug.trace (show (vsep ["WRITE", "x:" <+> pretty a, "y:" <+> pretty bOld <+> showArrow s <+> pretty b] <> line)) (a,b,s)
-  setStable = TraceT $ proc (s,a) ->
-    setStable -< Debug.trace (show (vsep ["SET STABLE", "x:" <+> pretty a, pretty s] <> line)) (s,a)
+    () <- log -< vsep ["WRITE", "x:" <+> pretty a, "y:" <+> pretty bOld <+> showArrow s <+> pretty b] <> line
+    write -< (a,b,s)
+  setStable = TraceT $ proc (s,a) -> do
+    () <- log -< vsep ["SET STABLE", "x:" <+> pretty a, pretty s] <> line
+    setStable -< (s,a)
   {-# INLINE lookup #-}
   {-# INLINE update #-}
   {-# INLINE write #-}
@@ -61,25 +70,31 @@ instance (Pretty a, Pretty b, ArrowCache a b c) => ArrowCache a b (TraceT c) whe
 instance (Pretty a, Pretty b, ArrowParallelCache a b c) => ArrowParallelCache a b (TraceT c) where
   lookupOldCache = TraceT $ proc a -> do
     b  <- lookupOldCache -< a
-    returnA -< Debug.trace (show (vsep ["LOOKUP_OLD", "x:" <+> pretty a, "y:" <+> pretty b] <> line)) b
+    () <- log -< vsep ["LOOKUP_OLD", "x:" <+> pretty a, "y:" <+> pretty b] <> line
+    returnA -< b
   lookupNewCache = TraceT $ proc a -> do
     b  <- lookupNewCache -< a
-    returnA -< Debug.trace (show (vsep ["LOOKUP_NEW", "x:" <+> pretty a, "y:" <+> pretty b] <> line)) b
+    () <- log -< vsep ["LOOKUP_NEW", "x:" <+> pretty a, "y:" <+> pretty b] <> line
+    returnA -<  b
   updateNewCache = TraceT $ proc (a,b) -> do
     bOld  <- lookupNewCache -< a
     b' <- updateNewCache -< (a,b)
-    returnA -< Debug.trace (show (vsep ["UPDATE_NEW", "x:" <+> pretty a, "y:" <+> pretty bOld <+> "∇" <+> pretty b <+> "->" <+> pretty b'] <> line)) b'
+    () <- log -< vsep ["UPDATE_NEW", "x:" <+> align (pretty a), "y:" <+> align (pretty bOld <+> "∇" <+> pretty b <+> "->" <+> pretty b')] <> line
+    returnA -<  b'
   isStable = TraceT $ proc () -> do
     stable  <- isStable -< ()
-    returnA -< Debug.trace (show ("IS_STABLE:" <+> pretty stable <> line)) stable
+    () <- log -< "IS_STABLE:" <+> pretty stable <> line
+    returnA -< stable
   {-# INLINE lookupOldCache #-}
   {-# INLINE lookupNewCache #-}
   {-# INLINE updateNewCache #-}
   {-# INLINE isStable #-}
 
-instance ArrowIterateCache c => ArrowIterateCache (TraceT c) where
-  nextIteration = TraceT $ proc () ->
-    nextIteration -< Debug.trace (show ("NEXT_ITERATION" <> line)) ()
+instance (Pretty a, Pretty b, ArrowIterateCache a b c) => ArrowIterateCache a b (TraceT c) where
+  nextIteration = TraceT $ proc x -> do
+    x' <- nextIteration -< x
+    () <- log -< "NEXT_ITERATION:" <> line <> pretty x <> line <> pretty x' <> line
+    returnA -< x'
   {-# INLINE nextIteration #-}
 
 runTraceT :: TraceT c x y -> c x y

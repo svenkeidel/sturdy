@@ -33,7 +33,7 @@ newtype FixT c x y = FixT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowComplete z,ArrowJoin,
             ArrowContext ctx, ArrowJoinContext a, ArrowControlFlow a,
-            ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache,
+            ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth,
             ArrowComponent a, ArrowInComponent a,
             ArrowFiltered a, ArrowStrict)

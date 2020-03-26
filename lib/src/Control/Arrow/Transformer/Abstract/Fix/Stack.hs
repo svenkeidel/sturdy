@@ -40,7 +40,7 @@ import           Data.Order
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowStrict,ArrowLift, ArrowLowerBounded z,
-            ArrowParallelCache a b, ArrowIterateCache,
+            ArrowParallelCache a b, ArrowIterateCache a b,
             ArrowState s,ArrowContext ctx, ArrowJoinContext u,
             ArrowControlFlow stmt)
 

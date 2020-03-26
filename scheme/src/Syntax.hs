@@ -297,6 +297,7 @@ showTopLvl e = case e of
 controlFlow :: Expr -> Maybe Expr
 controlFlow e = case e of
   App {} -> Just e
+  LetRec {} -> Just e
   _ -> Nothing
 
 instance IsString (State Label Expr) where

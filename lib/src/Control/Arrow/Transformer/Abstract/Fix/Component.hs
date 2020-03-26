@@ -40,7 +40,7 @@ import qualified Data.HashMap.Strict as M
 newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
             ArrowStackDepth,ArrowStackElements a,
-            ArrowCache a b, ArrowParallelCache a b,ArrowIterateCache,
+            ArrowCache a b, ArrowParallelCache a b,ArrowIterateCache a b,
             ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
 
 runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> c x y

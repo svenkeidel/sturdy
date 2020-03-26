@@ -39,9 +39,9 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
-import           Control.Arrow.Transformer.Abstract.Fix.Metrics
+import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
--- import           Control.Arrow.Transformer.Abstract.Fix.Trace
+import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
 import           Control.Monad.State hiding (lift,fail)
 
@@ -63,7 +63,7 @@ type Interp x y =
       (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT
-            (MetricsT In
+            (MetricsT Metric.Monotone In
               (StackT Stack.Monotone In
                 (CacheT (Parallel Cache.Monotone) In Out
                   (ContextT Ctx
@@ -73,13 +73,14 @@ type Interp x y =
 eval :: (?sensitivity :: Int)
      => (forall c. (?cacheWidening :: Widening c, ArrowChoice c, ArrowStack In c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
                    (FixpointCombinator c In Out -> FixpointCombinator c In Out) -> FixpointAlgorithm (c In Out))
-     -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metrics In, Out'))
+     -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metric.Monotone In, Out'))
 eval algo env0 e =
   second snd $ Trans.run (extend' (Generic.runFixed algorithm :: Interp [Expr] Val)) (Map.empty,(Map.empty,(env0,e0)))
   where
     algorithm =
-      let ?cacheWidening = (W.finite, W.finite) in
+      let ?cacheWidening = (storeErrWidening, W.finite) in
       transform $ algo $ \update_ ->
+        -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter' isFunctionBody update_
 

@@ -40,7 +40,7 @@ import qualified Control.Arrow.Store as Store
 import qualified Control.Arrow.Utils as ArrowUtils
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Transformer.Value
-import           Control.Arrow.Transformer.Abstract.Fix.Metrics(Metrics)
+import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
 import           Control.DeepSeq
@@ -54,6 +54,7 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
 import qualified Data.Boolean as B
 import           Data.HashSet(HashSet)
+import qualified Data.HashSet as Set
 import           Data.Identifiable
 import           Data.Text.Prettyprint.Doc
 import           Data.Profunctor
@@ -74,6 +75,7 @@ import           Text.Printf
 
 import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1(..),Op2(..),OpVar(..))
 import           GenericInterpreter as Generic
+import qualified Debug.Trace as Debug
 
 type Cls = Closure Expr (HashSet Env)
 type Env = HashMap Text Addr
@@ -142,6 +144,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
   apply (ValueT f) = ValueT $ proc (v,x) ->
     case v of
       ClosureVal cls -> Cls.apply f -< (cls,x)
+      Top -> returnA -< error "Tried to apply a function, but the closure was Top. Continuing at this point would mean that the analysis result is unsound."
       _ -> failString -< printf "Expected a closure, but got %s" (show v)
   {-# INLINE closure #-}
   {-# INLINE apply #-}
@@ -558,11 +561,11 @@ instance IsClosure Val (HashSet Env) where
   {-# SCC mapEnvironment #-}
   {-# SCC traverseEnvironment #-}
 
-storeWidening :: W.Widening Store
-storeWidening s1 s2 =
+storeErrWidening :: W.Widening (Store,Errors)
+storeErrWidening (s1,e1) (s2,e2) =
   -- Because the store grows monotonically, we can assume that s1 ⊑ s2. For
   -- stabilization it remains to check that s2 ⊑ s1.
-  (if s2 ⊑ s1 then Stable else Unstable, s2)
+  (if (s2,e2) ⊑ (s1,e1) then Stable else Unstable, (s2,e2))
 
 instance PreOrd Val where
   Bottom ⊑ _ = True
@@ -621,12 +624,8 @@ instance Complete List where
 
 instance Complete Number where
   IntVal ⊔ IntVal = IntVal
-  IntVal ⊔ _ = NumTop
-  _ ⊔ IntVal = NumTop
   FloatVal ⊔ FloatVal = FloatVal
-  FloatVal ⊔ _ = NumTop
-  _ ⊔ FloatVal = NumTop
-  NumTop ⊔ NumTop = NumTop
+  _ ⊔ _ = NumTop
 
 instance (Identifiable s, IsString s) => IsString (HashSet s) where
   fromString = singleton . fromString
@@ -641,8 +640,8 @@ type In = ((Store,Errors),(Env,[Expr]))
 type Out = ((Store,Errors), Terminating Val)
 type In' = (Store,(Env,(Errors,[Expr])))
 type Out' = (Store,(Errors,Terminating Val))
-type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metrics In, Out'))
-type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metrics In, (Errors,Terminating Val)))
+type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
+type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Monotone In, (Errors,Terminating Val)))
 
 transform :: Profunctor c => Fix.FixpointAlgorithm (c In Out) -> Fix.FixpointAlgorithm (c In' Out')
 transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(env,exprs)))

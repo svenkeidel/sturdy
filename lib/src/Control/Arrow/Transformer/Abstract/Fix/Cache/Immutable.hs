@@ -108,8 +108,10 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c)
   {-# INLINE update #-}
   {-# INLINE setStable #-}
 
-instance (Arrow c, Profunctor c) => ArrowIterateCache (CacheT Cache a b c) where
-  nextIteration = CacheT $ proc () -> put -< empty
+instance (Arrow c, Profunctor c) => ArrowIterateCache a b (CacheT Cache a b c) where
+  nextIteration = CacheT $ proc x -> do
+    put -< empty
+    returnA -< x
   {-# INLINE nextIteration #-}
 
 instance (LowerBounded b, Profunctor c, Arrow c) => ArrowLowerBounded b (CacheT Cache a b c) where
@@ -151,7 +153,9 @@ instance (Identifiable k, IsEmpty (cache a b), ArrowApply c, Profunctor c, Arrow
     returnA -< (k,a')
   {-# INLINE joinByContext #-}
 
-withGroup :: (Identifiable k, IsEmpty (cache a b), Arrow c, Profunctor c) => CacheT cache a b c x y -> CacheT (Group cache) (k,a) b c (k,x) y
+withGroup :: (Identifiable k, IsEmpty (cache a b),
+              Profunctor c, Arrow c)
+          => CacheT cache a b c x y -> CacheT (Group cache) (k,a) b c (k,x) y
 withGroup f = lift $
   dimap (\(Groups groups,(k,x)) -> ((groups,k),(fromMaybe empty (M.lookup k groups),x)))
         (\((groups,k),(cache,y)) -> (Groups (M.insert k cache groups), y))
@@ -167,20 +171,33 @@ instance (Show k, Show (cache a b)) => Show (Group cache (k,a) b) where
   show (Groups m) = show (M.toList m)
 
 ------ Parallel Cache ------
-data Parallel cache a b = Parallel { old :: cache a b, new :: cache a b, stable :: !Stable }
+data Parallel cache a b =
+  Parallel { old :: cache a b
+           , new :: cache a b
+           , stable :: !Stable
+           }
 
 instance Pretty (cache a b) => Show (Parallel cache a b)   where show = show . pretty
 instance Pretty (cache a b) => Pretty (Parallel cache a b) where
-  pretty (Parallel o n s) = vsep ["Parallel", "Old:" <+> align (pretty o), "New:" <+> align (pretty n), "Stable:" <> viaShow s]
+  pretty (Parallel o n s) =
+    vsep ["Parallel",
+          "Old:" <+> align (pretty o),
+          "New:" <+> align (pretty n),
+          "Stable:" <> viaShow s
+         ]
 
 instance IsEmpty (cache a b) => IsEmpty (Parallel cache a b) where
   empty = Parallel { old = empty, new = empty, stable = Stable }
 
-instance (Profunctor c, Arrow c, ArrowLowerBounded b (CacheT cache a b c)) => ArrowLowerBounded b (CacheT (Parallel cache) a b c) where
+instance (Profunctor c, Arrow c,
+          ArrowLowerBounded b (CacheT cache a b c))
+    => ArrowLowerBounded b (CacheT (Parallel cache) a b c) where
   bottom = newCache Order.bottom
   {-# INLINE bottom #-}
 
-instance (Profunctor c, ArrowChoice c, ArrowIterateCache (CacheT cache a b c), ArrowCache a b (CacheT cache a b c))
+instance (Profunctor c, ArrowChoice c,
+          ArrowIterateCache a b (CacheT cache a b c),
+          ArrowCache a b (CacheT cache a b c))
     => ArrowParallelCache a b (CacheT (Parallel cache) a b c) where
   lookupOldCache = oldCache (rmap (fmap snd) lookup)
   lookupNewCache = newCache (rmap (fmap snd) lookup)
@@ -191,14 +208,17 @@ instance (Profunctor c, ArrowChoice c, ArrowIterateCache (CacheT cache a b c), A
   {-# INLINE updateNewCache #-}
   {-# INLINE isStable #-}
 
-instance (Profunctor c, ArrowChoice c, ArrowIterateCache (CacheT cache a b c)) => ArrowIterateCache (CacheT (Parallel cache) a b c) where
-  nextIteration = proc () -> do
+instance (Profunctor c, ArrowChoice c,
+          ArrowIterateCache a b (CacheT cache a b c))
+    => ArrowIterateCache a b (CacheT (Parallel cache) a b c) where
+  nextIteration = proc x -> do
     modify' (\(_,p) -> ((),p { old = new p, stable = Stable })) -< ()
-    newCache nextIteration -< ()
+    newCache nextIteration -< x
   {-# INLINE nextIteration #-}
 
-instance (ArrowChoice c, Profunctor c, ArrowCache a b (CacheT cache a b c))
-  => ArrowCache a b (CacheT (Parallel cache) a b c) where
+instance (Profunctor c, ArrowChoice c,
+          ArrowCache a b (CacheT cache a b c))
+    => ArrowCache a b (CacheT (Parallel cache) a b c) where
   type Widening (CacheT (Parallel cache) a b c) = Cache.Widening (CacheT cache a b c)
   initialize = proc a -> do
     m <- oldCache lookup -< a; case m of
@@ -246,15 +266,14 @@ instance (Show s, Show a, Show b) => Show (Monotone (s,a) (s,b)) where
   show (Monotone s m) = show (s,m)
 
 instance (Pretty s, Pretty a, Pretty b) => Pretty (Monotone (s,a) (s,b)) where
-  pretty (Monotone s m) = vsep ["Monotone:" <+> pretty s, "NonMonotone:" <+> align (list [ pretty k <+> "->" <+> pretty v | (k,v) <- M.toList m])]
+  pretty (Monotone s m) =
+    vsep [ "Monotone:" <+> pretty s
+         , "NonMonotone:" <+> align (list [ pretty k <+> "->" <+> pretty v | (k,v) <- M.toList m])
+         ]
 
--- instance (ArrowChoice c, Profunctor c) => ArrowIterate (CacheT Monotone (s,a) (s,b) c) where
---   nextIteration = proc () -> modify' (\(_,Monotone s _) -> ((),Monotone s empty)) -< ()
---   isStable = proc _ -> returnA -< error "Don't use Monotone for parallel fixpoint iteration"
---   {-# INLINE nextIteration #-}
---   {-# INLINE isStable #-}
-
-instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowCache (s,a) (s,b) (CacheT Monotone (s,a) (s,b) c) where
+instance (Identifiable a, LowerBounded b,
+          ArrowChoice c, Profunctor c)
+    => ArrowCache (s,a) (s,b) (CacheT Monotone (s,a) (s,b) c) where
   type Widening (CacheT Monotone (s,a) (s,b) c) = (W.Widening s,W.Widening b)
   initialize = CacheT $ modify' $ \((s,a),Monotone s' cache) ->
     let cache' = M.insertWith (\_ _old -> _old) a bottom cache
@@ -283,8 +302,10 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c) => ArrowC
   {-# SCC update #-}
   {-# SCC setStable #-}
 
-instance (Arrow c, Profunctor c) => ArrowIterateCache (CacheT Monotone (s,a) (s,b) c) where
-  nextIteration = proc () -> modify' (\((),Monotone s _) -> ((),Monotone s empty)) -< ()
+instance (Arrow c, Profunctor c) => ArrowIterateCache (s,a) (s,b) (CacheT Monotone (s,a) (s,b) c) where
+  nextIteration = CacheT $ proc ((_,a),(sNew,b)) -> do
+    put -< Monotone sNew empty
+    returnA -< ((sNew,a),(sNew,b))
   {-# INLINE nextIteration #-}
 
 ------ Product Cache ------

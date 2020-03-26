@@ -25,8 +25,8 @@ parallel combinator eval = iterate
       st <- Cache.isStable -< (); case st of
         Stable   -> returnA -< b
         Unstable -> do
-          Cache.nextIteration -< ()
-          iterate -< a
+          (a',_) <- Cache.nextIteration -< (a,b)
+          iterate -< a'
 
     update f = proc a -> do
       recurrentCall <- Stack.elem -< a
@@ -34,9 +34,11 @@ parallel combinator eval = iterate
         then do
           m <- Cache.lookupOldCache -< a; case m of
             Just b  -> returnA -< b
-            Nothing -> Cache.initialize -< a
+            Nothing -> do
+              b <- Cache.initialize -< a
+              returnA -< b
         else do
-          Cache.initialize -< a
+          _ <- Cache.initialize -< a
           b <- Stack.push' f -< a
           Cache.updateNewCache -< (a,b)
 {-# INLINE parallel #-}
@@ -49,8 +51,8 @@ adi combinator eval = iterate
       st <- Cache.isStable -< (); case st of
         Stable   -> returnA -< b
         Unstable -> do
-          Cache.nextIteration -< ()
-          iterate -< a
+          (a',_) <- Cache.nextIteration -< (a,b)
+          iterate -< a'
 
     update f = proc a -> do
       recurrentCall <- Stack.elem -< a

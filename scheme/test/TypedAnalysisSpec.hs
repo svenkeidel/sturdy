@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -60,7 +61,6 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 -- TIMEOUT = 30s
 
     it "boyer" $ do
-      -- pendingWith "out of memory"
       let inFile = "gabriel/boyer.scm"
       let expRes = successOrFail (return (BoolVal B.Top))
                                  [ "Excpeted list as argument for cdr, but got Top"
@@ -86,6 +86,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       run inFile expRes
 
     it "dderiv" $ do
+      pendingWith "The analysis is too imprecise to typecheck. The analysis tries to call a function, whose closure is top. Continuing at this point would be unsound because the analysis would not soundly approximate the control-flow of the program."
       let inFile = "gabriel/dderiv.scm"
       let expRes = success (BoolVal B.True)
       -- pendingWith "too imprecise"
@@ -93,8 +94,8 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 
     it "deriv" $ do
 --     => TIMEOUT | STATES: 1645737
-      when (?algorithm == Parallel || ?algorithm == ADI) $
-        pendingWith "out of memory"
+      -- when (?algorithm == Parallel || ?algorithm == ADI) $
+      --   pendingWith "out of memory"
 
       let inFile = "gabriel/deriv.scm"
       let expRes = successOrFail (return (BoolVal B.Top))
@@ -361,7 +362,7 @@ runner :: (?algorithm :: Algorithm) => Eval' -> Runner
 runner eval inFile expRes = do
   prog <- loadSchemeFile inFile
   let ?sensitivity = 0
-  let (cfg,(metric,res)) = eval [prog]
+  let (cfg,(Monotone metric,res)) = eval [prog]
   let csv = printf "\"%s\",%s,%s\n" inFile (show ?algorithm) (toCSV metric)
   appendFile metricFile csv
   renderCFG inFile cfg

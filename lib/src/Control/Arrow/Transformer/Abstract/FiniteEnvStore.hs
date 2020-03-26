@@ -45,7 +45,6 @@ import Data.Identifiable
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
-import Data.Maybe(mapMaybe)
 
 
 newtype EnvStoreT var addr val c x y = EnvStoreT (ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y)
@@ -82,7 +81,7 @@ instance (Complete val, Identifiable var, Identifiable addr, ArrowChoice c, Prof
       P.Nothing -> g -< x
   write = EnvStoreT $ proc (addr, val) -> do
     store <- State.get -< ()
-    State.put -< Map.insertWith (\old new -> (old ⊔ new)) addr val store
+    State.put -< Map.insertWith (⊔) addr val store
   {-# INLINE read #-}
   {-# INLINE write #-}
   {-# SCC read #-}
@@ -103,22 +102,20 @@ instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowChoice c,
   {-# SCC closure #-}
   {-# SCC apply #-}
 
-instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowChoice c, Profunctor c) 
-    => ArrowLetRec var val (EnvStoreT var addr val c) where
-  -- letRec (EnvStoreT f) = undefined
-    -- EnvStoreT $ proc (bindings,x) -> do
-    -- env <- Reader.ask -< ()
-    -- let env' = Map.fromList bindings `Map.union` env
-    -- --     vals = Map.fromList [ (addr, setEnvironment (Set.singleton env') val) | (addr, (_,val)) <- zip addrs bindings ]
-    -- -- State.modify' (\(vals,store) -> ((), Map.unionWith (\old new -> snd (widening old new)) store vals)) -< vals
-    -- Reader.local f -< (env',x)
+instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (HashSet (HashMap var addr)), ArrowChoice c, Profunctor c)
+    => ArrowLetRec addr val (EnvStoreT var addr val c) where
   letRec (EnvStoreT f) = EnvStoreT $ proc (bindings,x) -> do
-    env <- Reader.ask -< ()
-    let addrs = mapMaybe (\var -> Map.lookup var env) [var | (var,_) <- bindings]
-    let env' = Map.fromList [(var, addr) | ((var,_),addr) <- zip bindings addrs] `Map.union` env
-        val' = Map.fromList [(addr, setEnvironment (Set.singleton env') val) | ((_,val),addr) <- zip bindings addrs]
-    State.modify' (\(val,store) -> ((), Map.union val store)) -< val'
-    Reader.local f -< (env',x)
+    go -< bindings
+    f -< x
+    where
+      go = proc bindings -> case bindings of
+        (addr,val):bs -> do
+          env <- Reader.ask -< ()
+          State.modify' (\((addr,val,env),store) ->
+                           ((),Map.insertWith (⊔) addr (setEnvironment (Set.singleton env) val) store))
+            -< (addr,val,env)
+          go -< bs
+        [] -> returnA -< []
   {-# INLINE letRec #-}
   {-# SCC letRec #-}
 
