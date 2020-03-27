@@ -12,6 +12,8 @@ import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
 import           Data.GraphViz hiding (diamond)
+import           Data.GraphViz.Attributes
+import           Data.GraphViz.Attributes.Complete
 import           Data.HashSet (HashSet)
 import           Data.Text(Text)
 
@@ -60,7 +62,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 -- TIMEOUT = 30s
 
     it "boyer" $ do
-      -- pendingWith "out of memory"
+      -- pendingWith "takes too long"
       let inFile = "gabriel/boyer.scm"
       let expRes = successOrFail (return (BoolVal B.Top))
                                  [ "Excpeted list as argument for cdr, but got Top"
@@ -69,6 +71,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       run inFile expRes
 
     it "browse" $ do
+      -- pendingWith "takes too long"
       let inFile = "gabriel/browse.scm"
       let expRes = successOrFail (return (NumVal IntVal))
                                  [ "Excpeted list as argument for cdr, but got Top"
@@ -293,6 +296,11 @@ customTests run = do
     it "test_symbols" $ do
       let inFile = "test_symbols.scm"
       let expRes = success $ QuoteVal ["sym1", "sym2", "sym3"]
+      run inFile expRes
+
+    it "test_endless_nums" $ do
+      let inFile = "test_endless_nums.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_random" $ do

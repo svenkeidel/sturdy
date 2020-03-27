@@ -193,10 +193,8 @@ spec = do
       it "test_rec_defines" $
         "test_rec_defines.scm" `shouldEvaluateTo` Right (IntVal 720)
 
-      -- it "test_random" $ do
-      --   let inFile = "test_random"
-      --   let expRes = Right $ IntVal 1
-      --   helper_test run inFile expRes
+      it "test_random" $
+        "test_random.scm" `shouldEvaluateTo` Right (IntVal 720)
 
 
 shouldEvaluateTo :: String -> Either (HashMap Addr Val, String) Val -> IO ()
