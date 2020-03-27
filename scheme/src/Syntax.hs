@@ -8,7 +8,6 @@
 module Syntax where
 
 import           Data.Text (Text)
-import qualified Data.Text as Text
 import           Data.Hashable
 import           Data.Label
 import           Data.String
@@ -260,10 +259,9 @@ prettyExpr e0 = case e0 of
   Nil _ -> "nil"
   Cons e1 e2 _ -> parens $ "cons" <+> prettyExpr e1 <+> prettyExpr e2
   Begin es _-> parens $ "begin" <+> prettyExprList es
-  App e1 [] _ -> parens $ prettyExpr e1
   App e1 e2 _ -> parens $ prettyExpr e1 <+> prettyExprList e2
   Apply e _ -> parens $ prettyExprList e
-  Var x _ -> pretty (Text.head x)
+  Var x _ -> pretty x
   Set t e _ -> parens $ "set!" <+> pretty t <+> prettyExpr e
   Define t e _ -> parens $ "define" <+> pretty t <+> prettyExpr e
   Lam xs e2 _ -> parens $ "lambda" <+> hsep (map pretty xs) <> "." <+> prettyExprList e2
@@ -283,19 +281,18 @@ showTopLvl e = case e of
     Nil _ -> "nil"
     Cons {} -> "cons"
     Begin {} -> "begin"
-    App e1 e2 _ -> pretty e --"(" <+> pretty e1 <+> pretty (head e2) <> ")" 
-    Apply {} -> "apply function"
-    Var x _ -> pretty e
+    App {} -> "app"
+    Apply {} -> "apply"
+    Var x _ -> pretty x
     Set t _ _ -> "set!" <+> pretty t
     Define t _ _ -> "define" <+> pretty t
-    Lam [] _ _ -> "λ"-- <+> hsep (map pretty [])
-    Lam xs e _ -> "λ" <+> "(" <> pretty (Text.head $ head xs) <> ")" <+> pretty (head e)
+    Lam xs _ _ -> "λ" <+> hsep (map pretty xs)
     If e1 _ _ _ -> "if" <+> pretty e1
     Let {} -> "let"
     LetRec {} -> "letrec"
-    Op1 op1 e1 _ -> "(" <> pretty op1 <+> showTopLvl e1 <> ")"
-    Op2 op2 e1 e2 _ -> "(" <> pretty op2 <+> showTopLvl e1 <> "," <> showTopLvl e2 <> ")"
-    OpVar opvar es _ -> "(" <> pretty opvar <+> hsep (map showTopLvl es) <> ")"
+    Op1 op1 e1 _ -> pretty op1 <+> showTopLvl e1
+    Op2 op2 e1 e2 _ -> pretty op2 <+> showTopLvl e1 <> "," <> showTopLvl e2
+    OpVar opvar es _ -> pretty opvar <+> hsep (map showTopLvl es)
 
 controlFlow :: Expr -> Maybe Expr
 controlFlow e = case e of

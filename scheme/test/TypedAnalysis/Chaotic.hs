@@ -53,7 +53,7 @@ import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
 
 import           TypedAnalysis
-import           Syntax (LExpr,Expr(App,LetRec,Apply))
+import           Syntax (LExpr,Expr(App))
 import           GenericInterpreter as Generic
 
 type InterpChaotic x y =
@@ -77,12 +77,9 @@ evalChaotic iterationStrat env0 e =
       let ?cacheWidening = (W.finite, W.finite) in
       transform $
         Fix.fixpointAlgorithm $
-        Fix.trace printIn printOut .
+        -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of LetRec _ _ _:e -> Nothing; 
-                                                                      --  (Apply _ _:e':e) -> Just e';
-                                                                       e':_ -> Just e'; 
-                                                                       _ -> Nothing) .
+        CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
         -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
         Fix.filter' isFunctionBody (chaotic iterationStrat)
     e0 = generate (sequence e)

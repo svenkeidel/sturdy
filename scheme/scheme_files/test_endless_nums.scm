@@ -2,4 +2,4 @@
   (if (= n 0) 
     1
     (* n (factorial (- n 1)))))
-(factorial 10000)
+(factorial 2)
