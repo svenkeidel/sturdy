@@ -12,7 +12,7 @@
 (define-syntax set-car!
   (syntax-rules ()
     ((set-car! location value)
-     (set! location (cons (car location) value)))))
+     (set! location (cons value (cdr location))))))
 
 (define-syntax include-equals
   (syntax-rules ()

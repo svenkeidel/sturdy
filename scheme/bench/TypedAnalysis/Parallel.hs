@@ -14,14 +14,8 @@
   -fspecialise-aggressively
   -flate-specialise
   -flate-dmd-anal
-  -funfolding-use-threshold=5000
-  -fexpose-all-unfoldings
   -fsimpl-tick-factor=50000
   -fmax-simplifier-iterations=10
-#-}
-{-# OPTIONS_GHC
-  -fno-warn-orphans
-  -fno-warn-partial-type-signatures
 #-}
 module TypedAnalysis.Parallel where
 
@@ -46,6 +40,7 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 import           Data.Text (Text)
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
+import           Data.Empty
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
@@ -72,9 +67,9 @@ type Interp =
 {-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
 {-# SPECIALIZE Generic.runFixed :: FixpointAlgorithm (Fix (Interp [Expr] Val)) -> Interp [Expr] Val #-}
 
-evalParallel :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
+evalParallel :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalParallel e =
-  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (Map.empty,(Map.empty,[e]))
+  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (empty,(empty,[e]))
   where
     algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
     algorithm =
@@ -83,9 +78,9 @@ evalParallel e =
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody update_
 
-evalADI :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
+evalADI :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalADI e =
-  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (Map.empty,(Map.empty,[e]))
+  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (empty,(empty,[e]))
   where
     algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
     algorithm =

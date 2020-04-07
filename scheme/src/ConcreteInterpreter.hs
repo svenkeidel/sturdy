@@ -32,7 +32,7 @@ import           Data.Concrete.Error
 import           Data.Concrete.Closure
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
-import           Data.Text (Text,unpack,pack)
+import           Data.Text (Text,pack)
 import qualified Data.Text as T
 import           Data.Profunctor
 import           Data.Label
@@ -113,9 +113,9 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
   nil_ = proc _ ->
     returnA -< ListVal Nil
 
-  cons_ = proc ((v1,_),(v2,_)) -> do
-    a1 <- alloc -< ""
-    a2 <- alloc -< ""
+  cons_ = proc ((v1,l1),(v2,l2)) -> do
+    a1 <- alloc -< ("",l1)
+    a2 <- alloc -< ("",l2)
     write -< (a1,v1)
     write -< (a2,v2)
     returnA -< ListVal (Cons a1 a2)
@@ -209,9 +209,9 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     SymbolToString -> case x of
       QuoteVal (SymVal s) -> returnA -< StringVal (pack (show s))
       _ -> fail -< "(symbol->string): Contract violation, expected a symbol, but got: " ++ show x
-    Error -> case x of
-      StringVal s -> fail -< unpack s
-      _ -> fail -< "(fail): contract violation expected string as error msg"
+    -- Error -> case x of
+    --   StringVal s -> fail -< unpack s
+    --   _ -> fail -< "(fail): contract violation expected string as error msg"
     Random -> fail -< "random is not implemented"
     where
       car = proc x -> case x of

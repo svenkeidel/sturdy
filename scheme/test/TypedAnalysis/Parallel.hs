@@ -41,7 +41,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
+-- import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
 import           Control.Monad.State hiding (lift,fail)
 

@@ -47,12 +47,6 @@ runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> 
 runComponentT (ComponentT f) = dimap (\x -> (empty,x)) snd (runStateT f)
 {-# INLINE runComponentT #-}
 
-instance (Monoid (comp a), ArrowStack a c) => ArrowStack a (ComponentT comp a c) where
-  push f = lift $ proc (comp,(a,x)) -> do
-    (comp',y) <- push (lmap (\x -> (mempty,x)) (unlift f)) -< (a,x)
-    returnA -< (comp <> comp', y)
-  {-# INLINE push #-}
-
 instance ArrowTrans (ComponentT comp a c) where
   type Underlying (ComponentT comp a c) x y = c (comp a,x) (comp a,y)
 
@@ -93,6 +87,12 @@ instance (Identifiable a, Arrow c, Profunctor c) => ArrowInComponent a (Componen
     in (Component c,comp)
   {-# INLINE inComponent #-}
 
+instance (Identifiable a, ArrowStack a c) => ArrowStack a (ComponentT Component a c) where
+  push f = lift $ proc (comp,(a,x)) -> do
+    (comp',y) <- push (lmap (\x -> (mempty,x)) (unlift f)) -< (a,x)
+    returnA -< (comp <> comp', y)
+  {-# INLINE push #-}
+
 -- Component with a mononone part ------------------------------------------------------------------
 data Monotone b where
   Monotone :: HashMap b a -> Monotone (a,b)
@@ -122,3 +122,6 @@ instance (PreOrd a, Identifiable b, Profunctor c, Arrow c) => ArrowInComponent (
     in (Monotone m,comp)
   {-# INLINE inComponent #-}
 
+instance (ArrowStack a c) => ArrowStack a (ComponentT Monotone a c) where
+  push f = lift $ proc (comp,(a,x)) -> push (unlift f) -< (a,(comp,x))
+  {-# INLINE push #-}

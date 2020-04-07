@@ -1,9 +1,4 @@
 {-# LANGUAGE ImplicitParams #-}
-{-# OPTIONS_GHC
-  -fspecialise-aggressively
-  -flate-specialise
-  -fsimpl-tick-factor=500
-#-}
 module Main where
 
 import           Criterion
@@ -21,7 +16,7 @@ main = defaultMain
         benchAlgos "boyer" "gabriel/boyer.scm",
         benchAlgos "browse" "gabriel/browse.scm",
         benchAlgos "cpstak" "gabriel/cpstak.scm",
-        benchAlgos "dderiv" "gabriel/dderiv.scm",
+        -- benchAlgos "dderiv" "gabriel/dderiv.scm",
         benchAlgos "deriv" "gabriel/deriv.scm",
         benchAlgos "diviter" "gabriel/diviter.scm",
         benchAlgos "destruc" "gabriel/destruc.scm",

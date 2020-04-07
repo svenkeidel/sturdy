@@ -1,5 +1,15 @@
 (include-equals)
 
+(define (length list)
+  (begin
+    (define (loop1 l n)
+      (if (cons? l)
+          (loop1 (cdr l) (+ n 1))
+          (if (null? l)
+              n
+              (error "(length): contract violation, expected list"))))
+    (loop1 list 0)))
+
 (define (append-to-tail! x y)
   (if (null? x)
       y
@@ -50,28 +60,28 @@
                     (if (null? l2)
                         (begin)
                         (begin
-                          (set-cdr!
-                           (begin
-                             (define ($do-loop5 j a)
-                               (if (zero? j)
-                                   a
-                                   (begin
-                                     (set-car! a i)
-                                     ($do-loop5 (- j 1) (cdr a)))))
-                             ($do-loop5 (quotient (length (car l2)) 2) (car l2)))
-                           (let ((n (quotient (length (car l1)) 2)))
-                             (cond
-                              ((= n 0) (set-car! l1 '()) (car l1))
-                              (else
-                               (begin
-                                 (define ($do-loop6 j a)
-                                   (if (= j 1)
-                                       (let ((x (cdr a)))
-                                         (set-cdr! a '()) x)
-                                       (begin
-                                         (set-car! a i)
-                                         ($do-loop6 (- j 1) (cdr a)))))
-                                 ($do-loop6 n (car l1)))))))
+                          (define ($do-loop5 j a)
+                            (if (zero? j)
+                                a
+                                (begin
+                                  (set-car! a i)
+                                  ($do-loop5 (- j 1) (cdr a)))))
+                          (let ((ret ($do-loop5 (quotient (length (car l2)) 2) (car l2))))
+                           (set-cdr!
+                            ret
+                            (let ((n (quotient (length (car l1)) 2)))
+                              (cond
+                               ((= n 0) (set-car! l1 '()) (car l1))
+                               (else
+                                (begin
+                                  (define ($do-loop6 j a)
+                                    (if (= j 1)
+                                        (let ((x (cdr a)))
+                                          (set-cdr! a '()) x)
+                                        (begin
+                                          (set-car! a i)
+                                          ($do-loop6 (- j 1) (cdr a)))))
+                                  ($do-loop6 n (car l1))))))))
                           ($do-loop4 (cdr l1) (cdr l2)))))
                   ($do-loop4 l (cdr l)))))
               ($do-loop1 (- i 1)))))

@@ -126,6 +126,7 @@ parseSExpr val = case val of
     in let_rec bnds (map parseSExpr body_)
   LT.List [Atom "set!", Atom var, body_] ->
     set (pack var) (parseSExpr body_)
+  LT.List (Atom "set!": _) -> error $ "cannot parse set!: " ++ show val
   LT.List [Atom "quote", LT.List xs] -> list (map quoteListHelp xs)
   LT.List [Atom "quote", val_] -> lit $ parseLits val_
   LT.List (LT.List(Atom "lambda": rest): args) ->
@@ -157,7 +158,6 @@ parseSExpr val = case val of
   LT.List [Atom "cddr", e] -> op1_ Cddr (parseSExpr e)
   LT.List [Atom "caddr", e] -> op1_ Caddr (parseSExpr e)
   LT.List [Atom "cadddr", e] -> op1_ Cadddr (parseSExpr e)
-  LT.List [Atom "error", e] -> op1_ Error (parseSExpr e)
   LT.List [Atom "random", e] -> op1_ Random (parseSExpr e)
   LT.List [Atom "string->symbol", e] -> op1_ StringToSymbol (parseSExpr e)
   LT.List [Atom "symbol->string", e] -> op1_ SymbolToString (parseSExpr e)
@@ -185,6 +185,7 @@ parseSExpr val = case val of
   LT.List (Atom "lcm": args) -> opvar_ Lcm (map parseSExpr args)
   LT.List (Atom "string-append": args) -> opvar_ StringAppend (map parseSExpr args)
   LT.List (Atom "list": args) -> list (map parseSExpr args)
+  LT.List [Atom "error", LT.String err] -> error_ err
 
   LT.List (Atom x: args) -> app (var_ (pack x)) (map parseSExpr args)
   LT.List (fun: args) -> app (parseSExpr fun) (map parseSExpr args)

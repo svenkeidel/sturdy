@@ -66,7 +66,7 @@ data Op1
   | StringToSymbol -- (string->symbol z)
   | SymbolToString -- (symbol->string z)
 -- | Miscellaneous operations
-  | Error -- (error z)
+  -- | Error -- (error z)
   | Random -- (random z)
   deriving (Eq,Generic,NFData)
 
@@ -125,6 +125,7 @@ data Expr
   | Op1 Op1 Expr Label
   | Op2 Op2 Expr Expr Label
   | OpVar OpVar [Expr] Label
+  | Error String Label
   deriving (Generic,NFData)
 
 instance Eq Expr where
@@ -169,6 +170,9 @@ op2_ :: Op2 -> LExpr -> LExpr -> LExpr
 op2_ operation e1 e2 = Op2 operation <$> e1 <*> e2 <*> fresh
 opvar_ :: OpVar -> [LExpr] -> LExpr
 opvar_ operation es = OpVar operation <$> sequence es <*> fresh
+error_ :: String -> LExpr
+error_ err = Error err <$> fresh
+
 
 instance Show Literal where show = show . pretty
 
@@ -212,7 +216,7 @@ instance Pretty Op1 where
     Cddr -> "cddr"
     Caddr -> "caddr"
     Cadddr -> "cadddr"
-    Error -> "error"
+    -- Error -> "error"
     Random -> "random"
     StringToSymbol -> "string->symbol"
     SymbolToString -> "symbol->string"
@@ -271,6 +275,7 @@ prettyExpr e0 = case e0 of
   Op1 op1 e _ -> parens $ pretty op1 <+> prettyExpr e
   Op2 op2 e1 e2 _ -> parens $ pretty op2 <> prettyExpr e1 <+> prettyExpr e2
   OpVar opvar es _ -> parens $ pretty opvar <+> prettyExprList es
+  Error err _ -> parens $ "error " <+> dquotes (pretty err)
 
 prettyExprList :: [Expr] -> Doc ann
 prettyExprList expr = hsep (map prettyExpr expr)
@@ -293,6 +298,7 @@ showTopLvl e = case e of
     Op1 op1 e1 _ -> pretty op1 <+> showTopLvl e1
     Op2 op2 e1 e2 _ -> pretty op2 <+> showTopLvl e1 <> "," <> showTopLvl e2
     OpVar opvar es _ -> pretty opvar <+> hsep (map showTopLvl es)
+    Error _ _ -> "error"
 
 controlFlow :: Expr -> Maybe Expr
 controlFlow e = case e of
@@ -326,6 +332,7 @@ instance HasLabel Expr where
     Op1 _ _ l -> l
     Op2 _ _ _ l -> l
     OpVar _ _ l -> l
+    Error _ l -> l
 
 instance Hashable Expr where
   hashWithSalt s e = s `hashWithSalt` label e

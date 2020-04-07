@@ -8,7 +8,7 @@ module TypedAnalysisSpec where
 
 import           Prelude hiding (succ,pred,id)
 
-import           Control.Monad(when,forM_)
+import           Control.Monad(forM_)
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
@@ -18,6 +18,8 @@ import           Data.Text(Text)
 
 import           Data.Abstract.Terminating hiding (toEither)
 import qualified Data.Abstract.Boolean as B
+
+import           GHC.Exts
 
 import           System.Directory
 
@@ -63,33 +65,38 @@ gabrielBenchmarks run = describe "Gabriel" $ do
     it "boyer" $ do
       let inFile = "gabriel/boyer.scm"
       let expRes = successOrFail (return (BoolVal B.Top))
-                                 [ "Excpeted list as argument for cdr, but got Top"
-                                 , "Excpeted list as argument for car, but got Top"
-                                 ]
+                                 ([ "Excpeted list as argument for cdr, but got Top"
+                                  , "Excpeted list as argument for car, but got Top"
+                                  ]
+                                  <>
+                                  when (?algorithm == Parallel || ?algorithm == ADI)
+                                    [ "error: ADD-LEMMA did not like the given term" ]
+                                 )
       run inFile expRes
 
     it "browse" $ do
       let inFile = "gabriel/browse.scm"
       let expRes = successOrFail (return (NumVal IntVal))
-                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 [ "error: (length): contract violation, expected list"
+                                 , "Excpeted list as argument for cdr, but got Top"
                                  , "Excpeted list as argument for car, but got Top"
-                                 , "error: string"
                                  , "expected a quote as argument for symbol->string, but got Top"
                                  ]
       run inFile expRes
 
     it "cpstak" $ do
---     => Final Values: Set(Int)
---     => TIME: 105 | STATES: 120
+      -- TIME: 105 | STATES: 120
       let inFile = "gabriel/cpstak.scm"
       let expRes = success (NumVal IntVal)
       run inFile expRes
 
     it "dderiv" $ do
-      pendingWith "The analysis is too imprecise to typecheck. The analysis tries to call a function, whose closure is top. Continuing at this point would be unsound because the analysis would not soundly approximate the control-flow of the program."
+      pendingWith "The analysis is too imprecise to typecheck. \
+                  \The analysis tries to call a function, whose closure is top. \
+                  \Continuing at this point would be unsound because the analysis\
+                  \would not soundly approximate the control-flow of the program."
       let inFile = "gabriel/dderiv.scm"
       let expRes = success (BoolVal B.True)
-      -- pendingWith "too imprecise"
       run inFile expRes
 
     it "deriv" $ do
@@ -100,7 +107,8 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       let inFile = "gabriel/deriv.scm"
       let expRes = successOrFail (return (BoolVal B.Top))
                                  -- because (equals? (list 1 2) (list 1 2)) recursively calls (equals? 1 1)
-                                 [ "error: string"
+                                 [ "error: No derivation method available"
+                                 , "error: Cannot map over a non-list"
                                  , "Excpeted list as argument for cdr, but got Top"
                                  , "Excpeted list as argument for car, but got Top"
                                  ]
@@ -118,8 +126,9 @@ gabrielBenchmarks run = describe "Gabriel" $ do
     it "destruc" $ do
       let inFile = "gabriel/destruc.scm"
       let expRes = successOrFail (Terminating (BoolVal B.Top))
-                                 [ "Excpeted list as argument for cdr, but got Top",
-                                   "Excpeted list as argument for car, but got Top"
+                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 , "error: (length): contract violation, expected list"
                                  ]
       run inFile expRes
 
@@ -170,8 +179,7 @@ scalaAM run = describe "Scala-AM" $ do
 -- => TIME: 8 | STATES: 431
       -- pendingWith "not getting parsed yet"
       let inFile = "scala-am/primtest.scm"
-      let expRes = successOrFail (return (NumVal IntVal))
-                                 ["expected an integer as argument for random, but got NumTop"]
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "rsa" $ do
@@ -179,7 +187,10 @@ scalaAM run = describe "Scala-AM" $ do
 -- => TIME: 2831 | STATES: 247915
       -- pendingWith "only works for parallel, but parallel broken?"
       let inFile = "scala-am/rsa.scm"
-      let expRes = successOrFail (return (BoolVal B.Top)) ["error: string"]
+      let expRes = successOrFail (return (BoolVal B.Top))
+                                 [ "error: Not a legal public exponent for that modulus."
+                                 , "error: The modulus is too small to encrypt the message."
+                                 ]
       run inFile expRes
 
 -- -------------------Custom Tests------------------------------------------
@@ -381,3 +392,7 @@ renderCFG inFile (CFG graph) = do
 -- visualize node labels (expr) as actual node labels
 fileGraphParams :: GraphvizParams Int Expr () () Expr
 fileGraphParams = defaultParams {fmtNode = \(_, vl) -> [toLabel vl]}
+
+when :: IsList l => Bool -> l -> l
+when True l = l
+when False _ = fromList []

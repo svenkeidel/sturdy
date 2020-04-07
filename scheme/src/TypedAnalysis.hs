@@ -45,7 +45,8 @@ import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
 import           Control.DeepSeq
 
-import           Data.Hashable
+import           Data.Hashed.Lazy
+import           Data.Hashable(Hashable(..))
 import           Data.Label
 import           Data.Order
 import           Data.Text (Text)
@@ -54,7 +55,6 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
 import qualified Data.Boolean as B
 import           Data.HashSet(HashSet)
-import qualified Data.HashSet as Set
 import           Data.Identifiable
 import           Data.Text.Prettyprint.Doc
 import           Data.Profunctor
@@ -75,17 +75,19 @@ import           Text.Printf
 
 import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1(..),Op2(..),OpVar(..))
 import           GenericInterpreter as Generic
-import qualified Debug.Trace as Debug
+
+type Map a b = Hashed (HashMap a b)
+type Set a = Hashed (HashSet a)
 
 type Cls = Closure Expr (HashSet Env)
-type Env = HashMap Text Addr
-type Store = HashMap Addr Val
-type Errors = HashSet Text
+type Env = Map Text Addr
+type Store = Map Addr Val
+type Errors = Set Text
 type Ctx = CallString Label
 -- -- Input and output type of the fixpoint.
 
 data Addr
-  = VarA (Text,Ctx)
+  = VarA (Text,Label,Ctx)
   | LabelA (Label,Ctx)
   deriving stock (Eq,Generic)
   deriving anyclass (NFData)
@@ -122,9 +124,9 @@ data Number
   deriving anyclass (NFData)
 
 instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT Val c) where
-  alloc = proc var -> do
+  alloc = proc (var,lab) -> do
     ctx <- Ctx.askContext @Ctx -< ()
-    returnA -< VarA (var,ctx)
+    returnA -< VarA (var,lab,ctx)
   {-# INLINE alloc #-}
   {-# SCC alloc #-}
 
@@ -236,7 +238,7 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Cddr -> cdr' <<< cdr' -< x
     Caddr -> car' <<< cdr' <<< cdr' -< x
     Cadddr -> car' <<< cdr' <<< cdr' <<< cdr' -< x
-    Error -> failString -< printf "error: %s" (show x)
+    -- Error -> failString -< printf "error: %s" (show x)
     Random -> intToInt -< (op, x)
     NumberToString -> numToString -< (op, x)
     StringToSymbol -> stringToSym -< (op, x)
@@ -523,7 +525,7 @@ instance (ArrowChoice c, IsString e, Fail.Join Val c, ArrowFail e c, ArrowComple
 instance Hashable Addr
 instance Show Addr where show = show . pretty
 instance Pretty Addr where
-  pretty (VarA (var,ctx)) = pretty var <> viaShow ctx
+  pretty (VarA (var,l,ctx)) = pretty var <> pretty l <> viaShow ctx
   pretty (LabelA (l,ctx)) = pretty (labelVal l) <> viaShow ctx
 
 instance Hashable Val
@@ -662,16 +664,16 @@ printIn :: In -> Doc ann
 printIn ((store,_),(env,expr)) =
   vsep
   [ "EXPR:  " <> showFirst expr
-  , "ENV:   " <> align (pretty env)
-  , "STORE: " <> align (pretty store)
+  , "ENV:   " <> align (pretty (unhashed env))
+  , "STORE: " <> align (pretty (unhashed store))
   ]
 
 printOut :: Out -> Doc ann
 printOut ((store,errs),val) =
   vsep
   [ "RET:   " <> pretty val
-  , "STORE: " <> align (pretty store)
-  , "ERRORS:" <> align (pretty errs)
+  , "STORE: " <> align (pretty (unhashed store))
+  , "ERRORS:" <> align (pretty (unhashed errs))
   ]
 
 printInExpr :: In -> Doc ann

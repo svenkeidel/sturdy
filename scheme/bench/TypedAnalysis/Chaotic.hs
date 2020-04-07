@@ -14,15 +14,15 @@
   -fspecialise-aggressively
   -flate-specialise
   -flate-dmd-anal
-  -funfolding-use-threshold=5000
-  -fexpose-all-unfoldings
   -fsimpl-tick-factor=50000
   -fmax-simplifier-iterations=10
-  -fno-warn-orphans
-  -fno-warn-partial-type-signatures
 #-}
 {-
  Don't use these!!!!
+  -funfolding-dict-discount=1000
+  -fexpose-all-unfoldings
+  -funfolding-use-threshold=1000
+
   -funfolding-creation-threshold=100000
   -funfolding-dict-discount=1000
   -funfolding-fun-discount=1000
@@ -56,6 +56,7 @@ import           Data.Text (Text)
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
 import           Data.Profunctor
+import           Data.Empty
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
@@ -72,7 +73,7 @@ type Interp =
       (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT
-            (ComponentT Comp.Component In
+            (ComponentT Comp.Monotone {-Comp.Component-} In
               (StackT Stack.Monotone In
                 (CacheT Cache.Monotone In Out
                   (ContextT Ctx
@@ -84,9 +85,9 @@ type Interp =
 {-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
 {-# SPECIALIZE Generic.runFixed :: FixpointAlgorithm (Fix (Interp [Expr] Val)) -> Interp [Expr] Val #-}
 
-evalInner :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
+evalInner :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalInner e =
-  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (Map.empty,(Map.empty,[e]))
+  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (empty,(empty,[e]))
   where
     algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
     algorithm =
@@ -96,9 +97,9 @@ evalInner e =
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody (chaotic innermost)
 
-evalOuter :: (?sensitivity :: Int) => Expr -> (HashSet Text, Terminating Val)
+evalOuter :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalOuter e =
-  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (Map.empty,(Map.empty,[e]))
+  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (empty,(empty,[e]))
   where
     algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
     algorithm =
@@ -108,30 +109,3 @@ evalOuter e =
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody (chaotic outermost)
 
--- type InterpFix = (FixT
---             (ComponentT Comp.Monotone In
---               (StackT Stack.Monotone In
---                 (CacheT Cache.Monotone In Out
---                   (ContextT Ctx
---                     (->))))))
--- inner :: (?sensitivity :: Int, ?cacheWidening :: Widening c,
---           ArrowChoice c, Ctx.ArrowContext Ctx c, ArrowStack In c,
---           ArrowComponent In c, ArrowInComponent In c, ArrowCache In Out c)
---       => FixpointCombinator c In Out
--- inner x =
---   -- Fix.trace printInExpr printOutVal .
---   Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) $
---   Fix.filter isFunctionBody chaoticInner $
---   x
-
--- {-# SPECIALIZE inner :: (?sensitivity :: Int,
---                          ?cacheWidening :: (W.Widening (Store,Errors), W.Widening (Terminating Val)))
---                      => InterpFix In Out -> InterpFix In Out #-}
-
--- chaoticInner :: (?cacheWidening :: Widening c,
---           ArrowChoice c, ArrowStack In c,
---           ArrowComponent In c, ArrowInComponent In c, ArrowCache In Out c)
---       => FixpointCombinator c In Out
--- chaoticInner x = inline chaotic (inline innermost) x
--- {-# SPECIALIZE chaoticInner :: (?cacheWidening :: (W.Widening (Store,Errors), W.Widening (Terminating Val)))
---                      => InterpFix In Out -> InterpFix In Out #-}

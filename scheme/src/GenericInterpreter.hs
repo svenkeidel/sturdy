@@ -11,12 +11,10 @@ import           Prelude hiding (succ, pred, fail, map)
 import           Syntax (Literal(..), Expr(..), Op1(..), Op2(..), OpVar(..))
 
 import           Control.Arrow
-import           Control.Arrow.Fail(ArrowFail(fail))
+import           Control.Arrow.Fail(ArrowFail,failString)
 import qualified Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment(ArrowEnv)
-import           Control.Arrow.LetRec(ArrowLetRec)
-import qualified Control.Arrow.LetRec as LetRec
 import qualified Control.Arrow.Environment as Env
 import           Control.Arrow.Closure (ArrowClosure)
 import qualified Control.Arrow.Closure as Cls
@@ -40,7 +38,6 @@ eval :: (ArrowChoice c,
          ArrowFail e c,
          IsString e,
          ArrowClosure Expr v c,
-         ArrowLetRec Text v c,
          IsVal v c,
          Env.Join v c,
          Cls.Join v v c,
@@ -68,11 +65,11 @@ eval run' = proc e0 -> case e0 of
   -- Scheme expression
   Var x _ -> Env.lookup'' read' -< x
   Lam xs es l -> Cls.closure -< Lam xs es l
-  Let bnds body _ -> do -- iterative evaluation of bindings really necessary?
-    vs <- evalBindings -< bnds
+  Let bnds body l -> do -- iterative evaluation of bindings really necessary?
+    vs <- evalBindings -< (bnds,l)
     Env.extend' run' -< (vs,body)
-  LetRec bnds body _ -> do
-    addrs <- map alloc -< [(var) | (var,_) <- bnds]
+  LetRec bnds body l -> do
+    addrs <- map alloc -< [(var,l) | (var,_) <- bnds]
     let envbnds = [(var,addr) | ((var,_),addr) <- zip bnds addrs]
     let storebnds = [(addr,expr) | ((_,expr),addr) <- zip bnds addrs]
     Env.extend' evalBindings' -< (envbnds,(storebnds,body))
@@ -92,43 +89,44 @@ eval run' = proc e0 -> case e0 of
   OpVar x es _ -> do
     vs <- map run' -< chunksOf 1 es
     opvar_ -< (x, vs)
+  Error err _ ->
+    failString -< "error: " ++ err
   where
     -- Helper function used to apply closure or a suspended fixpoint computation to its argument.
     applyClosure' = proc (e, args) -> case e of  -- args = [(argVal, argLabel)]
       Lam xs body l ->
         if eqLength xs args
           then do
-            addrs <- map alloc -< xs
+            addrs <- map alloc -< [ (x,l) | x <- xs]
             map write -< zip addrs args
             Env.extend' run' -< (zip xs addrs, [Apply body l])
           else
-            fail -< fromString $ printf "Applied the function %s with %d arguments to %d arguments" (show e) (length xs) (length args)
-      _ -> fail -< fromString $ printf "Expected a function, but got %s" (show e)
+            failString -< printf "Applied the function %s with %d arguments to %d arguments" (show e) (length xs) (length args)
+      _ -> failString -< printf "Expected a function, but got %s" (show e)
     {-# SCC applyClosure' #-}
 
-    evalBindings = proc bnds -> case bnds of
+    evalBindings = proc (bnds,lab) -> case bnds of
       [] -> returnA -< []
       (var,expr) : bnds' -> do
         val <- run' -< [expr]
-        addr <- alloc -< var
+        addr <- alloc -< (var,lab)
         write -< (addr,val)
-        vs <- evalBindings -< bnds' 
+        vs <- evalBindings -< (bnds',lab) 
         returnA -< (var,addr) : vs
     {-# SCC evalBindings #-}
 
-    evalBindings' = proc (bnds,body) -> case bnds of 
+    evalBindings' = proc (bnds,body) -> case bnds of
       [] -> run' -< body
-      (addr,expr) : bnds' -> do 
+      (addr,expr) : bnds' -> do
         val <- run' -< [expr]
-        write -< (addr,val)     
-        evalBindings' -< (bnds',body) 
+        write -< (addr,val)
+        evalBindings' -< (bnds',body)
 {-# INLINEABLE eval #-}
 {-# SCC eval #-}
 
 run :: (ArrowChoice c,
         ArrowEnv Text addr c,
         ArrowStore addr v c,
-        ArrowLetRec Text v c,
         ArrowFail e c,
         IsString e,
         ArrowClosure Expr v c,
@@ -147,15 +145,17 @@ run eval' run' = proc es -> case es of
   Set x e _:rest -> do
     v <- run' -< [e]
     addr <- Env.lookup (proc (addr, _) -> returnA -< addr)
-               (proc var -> fail -< fromString $ printf "(set!): cannot set variable %s before its definition" (show var))
+               (proc var -> failString -< printf "(set!): cannot set variable %s before its definition" (show var))
                  -< (x, x)
     write -< (addr,v)
     run' -< rest
-  Define x e _: rest -> do
-    cls <- run' -< [e]
-    addr <- alloc -< x
-    write -< (addr,cls)
-    Env.extend (LetRec.letRec run') -< (x,addr,([(x,cls)],rest))
+  Define x e l: rest -> do
+    addr <- alloc -< (x,l)
+    Env.extend (proc (e,addr,rest) -> do
+        val <- run' -< [e]
+        write -< (addr,val)
+        run' -< rest
+      ) -< (x,addr, (e,addr,rest))
   [] ->
     void -< ()
   e:[] ->
@@ -171,7 +171,6 @@ runFixed :: (
   ArrowChoice c,
   ArrowEnv Text addr c,
   ArrowStore addr v c,
-  ArrowLetRec Text v c,
   ArrowFail e c,
   IsString e,
   ArrowClosure Expr v c,
@@ -191,7 +190,7 @@ runFixed algo = fix algo $ \run' -> run (eval run') run'
 {-# INLINE runFixed #-}
 
 class ArrowAlloc addr c where
-  alloc :: c Text addr
+  alloc :: c (Text,Label) addr
 
 class (Arrow c) => IsVal v c | c -> v where
   type family Join y (c :: * -> * -> *) :: Constraint
