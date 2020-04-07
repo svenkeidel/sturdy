@@ -441,7 +441,7 @@ instance (Identifiable ctx, PreOrd a, Profunctor c, ArrowChoice c, ArrowContext 
         | otherwise ->
           -- If there exists the actual input is not smaller than the cached
           -- input, widen the input.
-          let (_,a'') = ?widening a' a
+          let (_,a'') = ?contextWidening a' a
           in (CtxCache (M.insert ctx a'' cache),a'')
       Nothing -> (CtxCache (M.insert ctx a cache),a)
   {-# INLINE joinByContext #-}

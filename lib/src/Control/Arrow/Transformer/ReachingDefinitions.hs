@@ -69,7 +69,7 @@ instance (ArrowStore var (val,f Label) c, IsEmpty (f Label), IsSingleton (f Labe
 
 instance (HasLabel x, Arrow c, ArrowFix (c x y), Profunctor c) => ArrowFix (ReachingDefsT f c x y) where
   type Fix (ReachingDefsT f c x y) = Fix (c x y)
-  fix algo f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix algo (unwrap . f . lift') -< x
+  fix f = ReachingDefsT $ ReaderT $ proc (_,x) -> fix (unwrap . f . lift') -< x
     where
       unwrap :: ReachingDefsT f c x y -> c x y
       unwrap g = lmap (\x -> (Just (label x),x)) (runReachingDefsT' g)

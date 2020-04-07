@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 module Data.Abstract.FreeCompletion where
 
@@ -16,6 +17,7 @@ import Control.DeepSeq
 import Data.Abstract.Widening
 import Data.Abstract.Stable
 
+import Data.Text.Prettyprint.Doc
 import Data.Profunctor
 import Data.Hashable
 import Data.Order
@@ -29,6 +31,10 @@ data FreeCompletion a = Lower a | Top deriving (Eq,Functor,Traversable,Foldable,
 instance Show a => Show (FreeCompletion a) where
   show Top = "⊤"
   show (Lower a) = show a
+
+instance Pretty a => Pretty (FreeCompletion a) where
+  pretty Top = "⊤"
+  pretty (Lower a) = pretty a
 
 instance NFData a => NFData (FreeCompletion a)
 

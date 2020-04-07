@@ -5,7 +5,7 @@ packages:
 - 'lib'
 - 'pcf'
 - 'scheme'
-# - 'while'
+- 'while'
 # - 'stratego'
 # - 'jimple'
 # - 'tutorial'

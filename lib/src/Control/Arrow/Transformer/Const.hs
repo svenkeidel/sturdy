@@ -83,7 +83,7 @@ instance (Arrow c, Profunctor c) => ArrowConst r (ConstT r c) where
 
 instance (Arrow c, Profunctor c, ArrowFix (c x y)) => ArrowFix (ConstT r c x y) where
   type Fix (ConstT r c x y) = Fix (c x y)
-  fix algo f = lift $ \r -> fix algo (runConstT r . f . lift')
+  fix f = lift $ \r -> fix (runConstT r . f . lift')
   {-# INLINE fix #-}
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ConstT r c) where

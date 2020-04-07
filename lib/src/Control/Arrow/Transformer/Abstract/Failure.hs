@@ -53,5 +53,5 @@ instance (ArrowChoice c, ArrowFix (Underlying (FailureT e c) x y)) => ArrowFix (
   type Fix (FailureT e c x y) = Fix (Underlying (FailureT e c) x y)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (FailureT e c) where
-  joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (Success . f) (unlift g)
+  joinSecond lub f g = lift $ joinSecond (toJoin1 widening lub) (Success . f) (unlift g)
   {-# INLINE joinSecond #-}

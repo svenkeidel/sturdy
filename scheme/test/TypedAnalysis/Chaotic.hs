@@ -44,10 +44,9 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
 
+import           Data.Empty
 import           Data.Label
 import           Data.Text (Text)
-import qualified Data.HashMap.Lazy as Map
-import           Data.HashSet(HashSet)
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
@@ -71,17 +70,16 @@ type InterpChaotic x y =
 
 evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metric.Monotone In, Out'))
 evalChaotic iterationStrat env0 e =
-  second snd $ Trans.run (extend' (Generic.runFixed algorithm :: InterpChaotic [Expr] Val)) (Map.empty,(Map.empty,(env0,e0)))
-  where
-    algorithm =
-      let ?cacheWidening = (storeErrWidening, W.finite) in
-      transform $
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $
         Fix.fixpointAlgorithm $
         -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
         -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
-        Fix.filter' isFunctionBody (chaotic iterationStrat)
+        Fix.filter' isFunctionBody (chaotic iterationStrat) in
+  second snd $ Trans.run (extend' (Generic.runFixed :: InterpChaotic [Expr] Val)) (empty,(empty,(env0,e0)))
+  where
     e0 = generate (sequence e)
 {-# INLINE evalChaotic #-}
 
@@ -97,5 +95,5 @@ evalInner' exprs = let (metrics,(cfg,res)) = evalInner [] exprs in (metrics,(cfg
 evalOuter':: Eval'
 evalOuter' exprs = let (metrics,(cfg,res)) = evalOuter [] exprs in (metrics,(cfg,snd res))
 
-eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (HashSet Text,Terminating Val)
+eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors,Terminating Val)
 eval' env exprs = snd $ snd $ snd $ evalInner env exprs

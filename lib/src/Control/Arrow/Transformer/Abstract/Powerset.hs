@@ -45,7 +45,7 @@ instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (PowT c) wher
 
 instance (Identifiable y, Profunctor c, ArrowFix (Underlying (PowT c) x y)) => ArrowFix (PowT c x y) where
   type Fix (PowT c x y) = Fix (Underlying (PowT c) x y)
-  fix algo f = lift $ rmap A.dedup (fix algo (unlift1 f))
+  fix f = lift $ rmap A.dedup (fix (unlift1 f))
   {-# INLINE fix #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded y (PowT c) where

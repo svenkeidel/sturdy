@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -68,8 +69,9 @@ data List = Cons Addr Addr | Nil
 
 evalConcrete' :: [State Label Expr] -> (Addr, (Store, Error String Val))
 evalConcrete' es =
+  let ?fixpointAlgorithm = Function.fix in
   Trans.run
-    (Generic.runFixed Function.fix ::
+    (Generic.runFixed ::
        ValueT Val
          (FailureT String
            (EnvStoreT Text Addr Val

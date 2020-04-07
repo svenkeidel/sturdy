@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 module Data.Hashed.Lazy where
 
 import Data.Hashable(Hashable(..))
@@ -5,6 +6,8 @@ import Data.Order
 import Data.Empty
 
 import Control.DeepSeq
+
+import GHC.Exts
 
 -- | Lazy version of Data.Hashable.Hashed. This datatype caches the hash of the
 -- wrapped type.
@@ -32,6 +35,11 @@ instance Hashable (Hashed a) where
 instance (Hashable a, IsEmpty a) => IsEmpty (Hashed a) where
   empty = hashed empty
 
+instance (Hashable a, IsList a) => IsList (Hashed a) where
+  type Item (Hashed a) = Item a
+  fromList = hashed . fromList
+  toList = toList . unhashed
+
 instance PreOrd a => PreOrd (Hashed a) where
   a ⊑ b = unhashed a ⊑ unhashed b
   a ≈ b = unhashed a ≈ unhashed b
@@ -42,3 +50,5 @@ instance (Hashable a, Complete a) => Complete (Hashed a) where
 instance NFData a => NFData (Hashed a) where
   rnf (Hashed a _) = rnf a
 
+instance (Hashable a, Semigroup a) => Semigroup (Hashed a) where
+  a <> b = hashed (unhashed a <> unhashed b)

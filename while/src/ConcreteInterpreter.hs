@@ -2,9 +2,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 -- | Concrete interpreter of the While language.
@@ -24,16 +23,14 @@ import qualified Data.HashMap.Lazy as M
 import           Data.Text (Text)
 import           Data.Label
 import           Data.Profunctor
+import qualified Data.Function as Function
 
 import           Control.Category
 import           Control.Arrow
-import           Control.Arrow.Except
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Environment
-import           Control.Arrow.Store
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Random
 import           Control.Arrow.Trans as Trans
+import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Environment
 import           Control.Arrow.Transformer.Concrete.Random
@@ -56,10 +53,11 @@ type Exception = (Text,Val)
 -- environments ('EnvT'), random numbers ('RandomT'), and values ('ConcreteT').
 run :: [LStatement] -> Error String (Error Exception (HashMap Addr Val))
 run ss =
+  let ?fixpointAlgorithm = Function.fix in 
   fmap fst <$>
     Trans.run
       (Generic.run ::
-        ConcreteT
+        ValueT Val
           (RandomT
             (EnvT Env
               (StoreT Store
@@ -68,17 +66,11 @@ run ss =
                     (->)))))) [Statement] ())
       (M.empty,(M.empty,(R.mkStdGen 0, generate <$> ss)))
 
--- | The 'ConcreteT' transformer defines the value operations for the While language.
-newtype ConcreteT c x y = ConcreteT { runConcreteT :: c x y }
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowFail e, ArrowEnv var addr, ArrowStore addr val,ArrowExcept exc)
-deriving instance ArrowFix (c x y) => ArrowFix (ConcreteT c x y)
-deriving instance ArrowRand v c => ArrowRand v (ConcreteT c)
-
-instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ConcreteT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = arr $ \(_,_,l) -> l
 
-instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
-  type JoinVal y (ConcreteT c) = ()
+instance (ArrowChoice c, ArrowFail String c, Fail.Join Val c) => IsVal Val (ValueT Val c) where
+  type JoinVal y (ValueT Val c) = (Fail.Join y c)
 
   boolLit = arr BoolVal
   and = proc (v1,v2) -> case (v1,v2) of
@@ -115,17 +107,18 @@ instance (ArrowChoice c, ArrowFail String c) => IsVal Val (ConcreteT c) where
     BoolVal False -> f2 -< y
     _ -> fail -< "Expected boolean as argument for 'if'"
 
-instance ArrowRun c => ArrowRun (ConcreteT c) where
-  type Run (ConcreteT c) x y = Run c x y
-  run = Trans.run . runConcreteT
+instance (Profunctor c, ArrowRand Int c) => ArrowRand Val (ValueT Val c) where
+  random = ValueT $ proc () -> do
+    r <- random -< ()
+    returnA -< NumVal r
 
 instance R.Random Val where
   randomR (NumVal x,NumVal y) = first NumVal . R.randomR (x,y)
   randomR _ = error "random not defined for other values than numerical"
   random = first NumVal . R.random
 
-instance ArrowChoice c => IsException Exception Val (ConcreteT c) where
-  type JoinExc y (ConcreteT c) = ()
+instance ArrowChoice c => IsException Exception Val (ValueT Val c) where
+  type JoinExc y (ValueT Val c) = ()
   namedException = id
   matchException f g = proc (name,(name',v),x) ->
     if (name == name')

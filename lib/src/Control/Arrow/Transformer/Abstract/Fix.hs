@@ -22,16 +22,16 @@ import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Metrics
 import           Control.Arrow.Fix.Stack
-import           Control.Arrow.Order(ArrowComplete,ArrowJoin)
+import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..))
 import           Control.Arrow.Trans
 
 import           Data.Profunctor
 import           Data.Profunctor.Unsafe((.#))
 import           Data.Coerce
+import           Data.Order hiding (lub)
 
 newtype FixT c x y = FixT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
-            ArrowComplete z,ArrowJoin,
             ArrowContext ctx, ArrowJoinContext a, ArrowControlFlow a,
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth,
@@ -50,7 +50,7 @@ instance ArrowTrans (FixT c) where
 
 instance ArrowFix (FixT c a b) where
   type Fix (FixT c a b) = FixT c a b
-  fix algo = algo
+  fix = ?fixpointAlgorithm
   {-# INLINE fix #-}
   {-# SCC fix #-}
 
@@ -61,3 +61,10 @@ instance (Profunctor c,ArrowApply c) => ArrowApply (FixT c) where
 instance ArrowLift FixT where
   lift' = FixT
   {-# INLINE lift' #-}
+
+instance (Complete y, Profunctor c, Arrow c) => ArrowComplete y (FixT c) where
+  FixT f <⊔> FixT g = FixT (rmap (uncurry (⊔)) (f &&& g))
+  {-# INLINE (<⊔>) #-}
+
+instance (Profunctor c, Arrow c) => ArrowJoin (FixT c) where
+  joinSecond lub f (FixT g) = FixT (dimap (\x -> (x, x)) (\(x,y) -> (lub (f x) y)) (second g))

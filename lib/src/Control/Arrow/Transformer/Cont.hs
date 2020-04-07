@@ -96,7 +96,7 @@ instance ArrowApply c => ArrowApply (ContT r c) where
 
 instance ArrowFix (c x r) => ArrowFix (ContT r c x y) where
   type Fix (ContT r c x y) = Fix (c x r)
-  fix algo f = lift $ \k -> fix algo $ \g -> unlift1 f (const g) k
+  fix f = lift $ \k -> fix $ \g -> unlift1 f (const g) k
   {-# INLINE fix #-}
 
 -- instance (ArrowApply c, ArrowJoin c, ArrowComplete r c) => ArrowJoin (ContT r c) where

@@ -55,6 +55,7 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
 import qualified Data.Boolean as B
 import           Data.HashSet(HashSet)
+import qualified Data.HashSet as Set
 import           Data.Identifiable
 import           Data.Text.Prettyprint.Doc
 import           Data.Profunctor
@@ -63,7 +64,7 @@ import qualified Data.Lens as L
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Terminating(Terminating)
 import           Data.Abstract.Closure (Closure)
-import           Data.Abstract.DiscretePowerset (Pow)
+import           Data.Abstract.DiscretePowerset (Pow(Pow))
 import           Data.Abstract.CallString(CallString)
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Stable
@@ -453,8 +454,8 @@ eq v1 v2 = case (v1, v2) of
   (NumVal NumTop,NumVal _) -> B.Top
   (NumVal _,NumVal NumTop) -> B.Top
   (StringVal,StringVal) -> B.Top
-  (QuoteVal sym1,QuoteVal sym2) -> case (toList sym1, toList sym2) of 
-    ([x], [y]) -> if x == y then B.True else B.False
+  (QuoteVal sym1,QuoteVal sym2) -> case (sym1, sym2) of
+    (Pow xs, Pow ys) | Set.size xs == 1 && Set.size ys == 1 -> if xs == ys then B.True else B.False
     _ -> B.Top
   (_,_) -> B.False
 {-# SCC eq #-}

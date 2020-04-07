@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TupleSections #-}
 module Data.Abstract.Map (
@@ -12,7 +13,7 @@ module Data.Abstract.Map (
 
 import           Prelude hiding (lookup,map,Either(..),(**))
 
-import           Control.Arrow
+import           Control.Arrow hiding ((<+>))
 
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as H
@@ -21,6 +22,7 @@ import           Data.Order
 import           Data.Identifiable
 import           Data.Maybe (fromJust)
 import           Data.Empty
+import           Data.Text.Prettyprint.Doc
 
 import qualified Data.Abstract.Maybe as M
 import           Data.Abstract.There (There(..))
@@ -41,12 +43,16 @@ instance (Show a,Show b) => Show (Map a b) where
     | H.null h = "[]"
     | otherwise = "[" ++ init (unwords [ printf "%s%s -> %s," (show k) (show t) (show v) | (k,(t,v)) <- H.toList h]) ++ "]"
 
+instance (Pretty k, Pretty v) => Pretty (Map k v) where
+  pretty (Map m) = list [ pretty k <> pretty t <+> " -> " <> pretty v | (k, (t,v)) <- H.toList m ]
+
+
 instance (Identifiable a, PreOrd b) => PreOrd (Map a b) where
   m1 ⊑ Map m2 = all (\(k,(t,v)) -> lookup k m1 ⊑ (case t of Must -> M.Just v; May -> M.JustNothing v))
                     (H.toList m2)
 
 instance (Identifiable a, Complete b) => Complete (Map a b) where
-  (⊔) = toJoin widening (⊔)
+  (⊔) = toJoin1 widening (⊔)
 
 widening :: Identifiable a => Widening b -> Widening (Map a b)
 widening w (Map m1) (Map m2)

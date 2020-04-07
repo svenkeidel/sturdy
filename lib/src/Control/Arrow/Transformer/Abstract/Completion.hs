@@ -53,5 +53,5 @@ deriving instance (ArrowChoice c, ArrowComplete (FreeCompletion y) c) => ArrowCo
 deriving instance (ArrowChoice c, ArrowLowerBounded y c) => ArrowLowerBounded y (CompletionT c)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where
-  joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (return . f) (unlift g)
+  joinSecond lub f g = lift $ joinSecond (toJoin1 widening lub) (return . f) (unlift g)
   {-# INLINE joinSecond #-}

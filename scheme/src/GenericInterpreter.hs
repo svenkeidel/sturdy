@@ -167,6 +167,7 @@ run eval' run' = proc es -> case es of
 {-# SCC run #-}
 
 runFixed :: (
+  ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Expr] v)),
   ArrowFix (c [Expr] v),
   ArrowChoice c,
   ArrowEnv Text addr c,
@@ -185,8 +186,8 @@ runFixed :: (
   ArrowAlloc addr c,
   Show addr
   ) =>
-  FixpointAlgorithm (Fix (c [Expr] v)) -> c [Expr] v
-runFixed algo = fix algo $ \run' -> run (eval run') run'
+  c [Expr] v
+runFixed = fix $ \run' -> run (eval run') run'
 {-# INLINE runFixed #-}
 
 class ArrowAlloc addr c where

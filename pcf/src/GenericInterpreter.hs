@@ -1,6 +1,7 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TypeFamilies #-}
 module GenericInterpreter where
 
@@ -10,7 +11,8 @@ import           Syntax (Expr(..))
 import           Control.Arrow
 import           Control.Arrow.Utils
 import           Control.Arrow.Fix
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail (ArrowFail,failString)
+import qualified Control.Arrow.Fail as Fail
 import           Control.Arrow.Closure (ArrowClosure)
 import qualified Control.Arrow.Closure as Cls
 import           Control.Arrow.Environment (ArrowEnv)
@@ -25,8 +27,19 @@ import           Text.Printf
 import           GHC.Exts (IsString(..),Constraint)
 
 -- | Shared interpreter for PCF.
-eval :: (ArrowChoice c, ArrowFix (c Expr v), ArrowEnv Text v c, ArrowFail e c, IsString e,
-         ArrowClosure Expr v c, ArrowLetRec Text v c, IsVal v c, Env.Join v c, Cls.Join v v c, Join v c)
+eval :: (IsString e,
+         IsVal v c,
+         ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c Expr v)),
+         ArrowChoice c,
+         ArrowFix (c Expr v),
+         ArrowEnv Text v c,
+         ArrowFail e c,
+         ArrowClosure Expr v c,
+         ArrowLetRec Text v c,
+         Env.Join v c,
+         Cls.Join v v c,
+         Fail.Join v c,
+         Join v c)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> Env.lookup' -< x
@@ -59,9 +72,9 @@ eval = fix $ \ev -> proc e0 -> case e0 of
       Lam xs body l
         | length xs == length args -> Env.extend' ev -< (zip xs args,Apply body l)
         | otherwise ->
-            fail -< fromString $ printf "Try to apply a function with %s parameters to %s arguments"
-                                        (show (length xs)) (show (length xs))
-      _ -> fail -< fromString $ "Expected a function but got " ++ show e
+            failString -< printf "Try to apply a function with %s parameters to %s arguments"
+                                 (show (length xs)) (show (length xs))
+      _ -> failString -< fromString $ "Expected a function but got " ++ show e
 
 -- | Interface for numeric operations
 class IsVal v c | c -> v where

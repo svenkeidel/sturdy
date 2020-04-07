@@ -109,6 +109,9 @@ instance ArrowLift (EnvT var addr val) where
 
 instance (Complete y, Arrow c, Profunctor c) => ArrowComplete y (EnvT var addr val c) where
   EnvT f <⊔> EnvT g = EnvT (rmap (uncurry (⊔)) (f &&& g))
+  {-# INLINE (<⊔>) #-}
 
-instance (Profunctor c, Arrow c, ArrowFix (Underlying (EnvT var addr val c) x y)) => ArrowFix (EnvT var addr val c x y) where
-  type Fix (EnvT var addr val c x y) = Fix (Underlying (EnvT var addr val c) x y)
+instance (Profunctor c, Arrow c, ArrowFix (ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y)) => ArrowFix (EnvT var addr val c x y) where
+  type Fix (EnvT var addr val c x y) = Fix (ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y)
+  fix f = EnvT (fix (coerce f))
+  {-# INLINE fix #-}

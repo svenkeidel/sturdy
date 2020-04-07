@@ -45,9 +45,9 @@ import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
 import           Control.Monad.State hiding (lift,fail)
 
+import           Data.Empty
 import           Data.Label
 import           Data.Text (Text)
-import qualified Data.HashMap.Lazy as Map
 -- import           Data.Text.Prettyprint.Doc
 
 import qualified Data.Abstract.Widening as W
@@ -75,14 +75,13 @@ eval :: (?sensitivity :: Int)
                    (FixpointCombinator c In Out -> FixpointCombinator c In Out) -> FixpointAlgorithm (c In Out))
      -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metric.Monotone In, Out'))
 eval algo env0 e =
-  second snd $ Trans.run (extend' (Generic.runFixed algorithm :: Interp [Expr] Val)) (Map.empty,(Map.empty,(env0,e0)))
-  where
-    algorithm =
-      let ?cacheWidening = (storeErrWidening, W.finite) in
-      transform $ algo $ \update_ ->
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $ algo $ \update_ ->
         -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.filter' isFunctionBody update_
+        Fix.filter' isFunctionBody update_ in
+  second snd $ Trans.run (extend' (Generic.runFixed :: Interp [Expr] Val)) (empty,(empty,(env0,e0)))
+  where
 
     e0 = generate (sequence e)
 {-# INLINE eval #-}

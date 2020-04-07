@@ -9,6 +9,7 @@ dependencies:
   - hashable
   - mtl
   - profunctors
+  - prettyprinter
   - sturdy-lib
   - random
   - text

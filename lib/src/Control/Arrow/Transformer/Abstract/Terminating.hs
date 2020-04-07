@@ -29,7 +29,7 @@ import Control.Arrow.Fix.Context
 import Data.Abstract.Terminating
 import Data.Abstract.Widening
 
-import Data.Profunctor
+import Data.Profunctor.Unsafe
 import Data.Coerce
 
 -- | Arrow that propagates non-terminating computations.
@@ -42,9 +42,9 @@ runTerminatingT :: TerminatingT c x y -> c x (Terminating y)
 runTerminatingT = coerce
 {-# INLINE runTerminatingT #-}
 
--- instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (TerminatingT c) where
---   app = lift (app .# first coerce)
---   {-# INLINE app #-}
+instance (ArrowChoice c, Profunctor c, ArrowApply c) => ArrowApply (TerminatingT c) where
+  app = lift (app .# first coerce)
+  {-# INLINE app #-}
 
 instance (ArrowFix (Underlying (TerminatingT c) x y), Profunctor c) => ArrowFix (TerminatingT c x y) where
   type Fix (TerminatingT c x y) = Fix (Underlying (TerminatingT c) x y)
@@ -56,5 +56,5 @@ instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded y (TerminatingT c) w
 deriving instance (ArrowChoice c, ArrowComplete (Terminating y) c) => ArrowComplete y (TerminatingT c)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (TerminatingT c) where
-  joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (return . f) (unlift g)
+  joinSecond lub f g = lift $ joinSecond (toJoin1 widening lub) (return . f) (unlift g)
   {-# INLINE joinSecond #-}

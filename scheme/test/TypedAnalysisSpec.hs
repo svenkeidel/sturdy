@@ -13,8 +13,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
 import           Data.GraphViz hiding (diamond)
-import           Data.HashSet (HashSet)
-import           Data.Text(Text)
+import           Data.Hashed.Lazy(hashed)
 
 import           Data.Abstract.Terminating hiding (toEither)
 import qualified Data.Abstract.Boolean as B
@@ -65,13 +64,9 @@ gabrielBenchmarks run = describe "Gabriel" $ do
     it "boyer" $ do
       let inFile = "gabriel/boyer.scm"
       let expRes = successOrFail (return (BoolVal B.Top))
-                                 ([ "Excpeted list as argument for cdr, but got Top"
-                                  , "Excpeted list as argument for car, but got Top"
-                                  ]
-                                  <>
-                                  when (?algorithm == Parallel || ?algorithm == ADI)
-                                    [ "error: ADD-LEMMA did not like the given term" ]
-                                 )
+                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
       run inFile expRes
 
     it "browse" $ do
@@ -128,7 +123,6 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       let expRes = successOrFail (Terminating (BoolVal B.Top))
                                  [ "Excpeted list as argument for cdr, but got Top"
                                  , "Excpeted list as argument for car, but got Top"
-                                 , "error: (length): contract violation, expected list"
                                  ]
       run inFile expRes
 
@@ -274,12 +268,12 @@ customTests run = do
 
     it "test_binops" $ do
       let inFile = "test_binops.scm"
-      let expRes = successOrFail NonTerminating ["expected a two ints as arguments for quotient , but got [Top,Int]","expected a two ints as arguments for quotient , but got [True,String]"]
+      let expRes = successOrFail NonTerminating ["expected a two ints as arguments for quotient , but got [Top,Int]","expected a two ints as arguments for quotient , but got [True,string]"]
       run inFile expRes
 
     it "test_opvar_numbool" $ do
       let inFile = "test_opvar_numbool.scm"
-      let expRes = successOrFail NonTerminating ["expected a numbers as argument for <, but got [String,String]"]
+      let expRes = successOrFail NonTerminating ["expected a numbers as argument for <, but got [string,string]"]
       run inFile expRes
 
     it "test_opvar_numnum" $ do
@@ -358,13 +352,13 @@ customTests run = do
                             ("fix",lam ["x"] [app "fix" ["x"]])]
                            [app "fix" ["id"]]]
            `shouldBe` ([], NonTerminating)
-success :: Val -> (HashSet Text, Terminating Val)
-success v = ([],Terminating v)
+success :: Val -> (Errors, Terminating Val)
+success v = (hashed [],Terminating v)
 
-successOrFail :: Terminating Val -> HashSet Text -> (HashSet Text, Terminating Val)
+successOrFail :: Terminating Val -> Errors -> (Errors, Terminating Val)
 successOrFail v errs = (errs, v)
 
-type Runner = (String -> (HashSet Text, Terminating Val) -> IO ())
+type Runner = (String -> (Errors, Terminating Val) -> IO ())
 
 metricFile :: String
 metricFile = "TypedAnalysis.csv"

@@ -5,13 +5,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
 module Data.Abstract.Except where
 
 import Prelude hiding (id,(.))
 
-import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow hiding (ArrowMonad,(<+>))
 import Control.Arrow.Monad
 import qualified Control.Arrow.Order as O
 
@@ -23,6 +24,7 @@ import Data.Bifunctor (Bifunctor(bimap))
 import Data.Hashable
 import Data.Order hiding (lub)
 import Data.Traversable
+import Data.Text.Prettyprint.Doc
 
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
@@ -44,6 +46,11 @@ instance (Show x, Show e) => Show (Except e x) where
   show (Success x) = show x
   show (Fail e) = "Fail " ++ show e
   show (SuccessOrFail e x) = "Success " ++ show x ++ " ⊔ Fail " ++ show e
+
+instance (Pretty e, Pretty a) => Pretty (Except e a) where
+  pretty (Fail e) = "Fail" <+> pretty e
+  pretty (Success a) = pretty a
+  pretty (SuccessOrFail e x) = "Success" <+> pretty x <+> "⊔" <+> "Fail" <+> pretty e
 
 instance (O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c where
   mapA f =
