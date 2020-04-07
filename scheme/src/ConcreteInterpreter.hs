@@ -363,7 +363,7 @@ instance Show Val where
   show (SymVal n) = show n
   show (QuoteVal n) = "'" ++ show n
   show (ListVal list) = show list
-  show (ClosureVal n) = show n
+  show (ClosureVal (Closure expr _)) = "Closure " ++ show expr
   show VoidVal = "#<void>"
 
 

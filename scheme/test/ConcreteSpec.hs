@@ -23,7 +23,7 @@ spec = do
     it "test set! " $
       run [define "x" (lit $ S.Int 2),
           define "y" (lit $ S.Int 3),
-          set "y" (lit $ S.Int 3)] `shouldBe` Right (StringVal "#<void>")
+          set "y" (lit $ S.Int 3)] `shouldBe` Right VoidVal
 
     it "test simple let" $ do
       let es' = [let_ [("y", lit $ S.Int 3)] ["y"] ]
@@ -109,11 +109,22 @@ spec = do
       pendingWith "no random"
       "gabriel/boyer.scm" `shouldEvaluateTo` Right (BoolVal True)
 
+    it "browse" $ do
+      pendingWith "currently returns left"
+      "gabriel/browse.scm" `shouldEvaluateTo` Right (BoolVal True)
+
     it "cpstak" $
       "gabriel/cpstak.scm" `shouldEvaluateTo` Right (IntVal 6)
 
+    it "destruc" $ do
+      pendingWith "currently returns false"
+      "gabriel/destruc.scm" `shouldEvaluateTo` Right (BoolVal True)
+
     it "deriv" $
       "gabriel/deriv.scm" `shouldEvaluateTo` Right (BoolVal True)
+
+    it "dderiv" $
+      "gabriel/dderiv.scm" `shouldEvaluateTo` Right (BoolVal True)
 
     it "diviter" $
       "gabriel/diviter.scm" `shouldEvaluateTo` Right (BoolVal True)

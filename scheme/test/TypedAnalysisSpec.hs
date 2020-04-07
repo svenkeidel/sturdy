@@ -85,6 +85,14 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       let expRes = success (NumVal IntVal)
       run inFile expRes
 
+    it "destruc" $ do
+      let inFile = "gabriel/destruc.scm"
+      let expRes = successOrFail (Terminating (BoolVal B.Top))
+                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
+      run inFile expRes
+
     it "dderiv" $ do
       pendingWith "The analysis is too imprecise to typecheck. \
                   \The analysis tries to call a function, whose closure is top. \
@@ -116,14 +124,6 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       let inFile = "gabriel/diviter.scm"
       -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
       let expRes = successOrFail (Terminating (BoolVal B.Top)) []
-      run inFile expRes
-
-    it "destruc" $ do
-      let inFile = "gabriel/destruc.scm"
-      let expRes = successOrFail (Terminating (BoolVal B.Top))
-                                 [ "Excpeted list as argument for cdr, but got Top"
-                                 , "Excpeted list as argument for car, but got Top"
-                                 ]
       run inFile expRes
 
     it "divrec" $ do
