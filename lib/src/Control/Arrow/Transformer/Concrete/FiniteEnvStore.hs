@@ -50,7 +50,7 @@ import Data.Coerce
 import Data.Maybe(mapMaybe)
 
 newtype EnvStoreT var addr val c x y = EnvStoreT (ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded a,
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
             ArrowContext ctx)
 
@@ -81,7 +81,7 @@ instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c)
     State.put -< Map.insert addr val store
   {-# INLINE read #-}
   {-# INLINE write #-}
-    
+
 
 instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowChoice c, Profunctor c) =>
   ArrowClosure expr (Closure expr (HashMap var addr)) (EnvStoreT var addr val c) where
@@ -94,16 +94,22 @@ instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowChoice c,
   {-# INLINE closure #-}
   {-# INLINE apply #-}
 
-
 instance (Identifiable var, Identifiable addr, IsClosure val (HashMap var addr), ArrowChoice c, Profunctor c) 
-    => ArrowLetRec var val (EnvStoreT var addr val c) where
+    => ArrowLetRec addr val (EnvStoreT var addr val c) where
   letRec (EnvStoreT f) = EnvStoreT $ proc (bindings,x) -> do
-    env <- Reader.ask -< ()
-    let addrs = mapMaybe (\var -> Map.lookup var env) [var | (var,_) <- bindings]
-    let env' = Map.fromList [(var, addr) | ((var,_),addr) <- zip bindings addrs] `Map.union` env
-        val' = Map.fromList [(addr, setEnvironment env' val) | ((_,val),addr) <- zip bindings addrs]
-    State.modify' (\(val,store) -> ((), Map.union val store)) -< val'
-    Reader.local f -< (env',x)
+    go -< bindings
+    f -< x
+    where
+      go = proc bindings -> case bindings of
+        (addr,val):bs -> do
+          env <- Reader.ask -< ()
+          State.modify' (\((addr,val,env),store) ->
+                           ((),Map.insert addr (setEnvironment env val) store))
+            -< (addr,val,env)
+          go -< bs
+        [] -> returnA -< []
+  {-# INLINE letRec #-}
+  {-# SCC letRec #-}
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (EnvStoreT var addr val c) where
   app = EnvStoreT (app .# first coerce)
@@ -117,5 +123,5 @@ instance ArrowState s c => ArrowState s (EnvStoreT var addr val c) where
   get = lift' State.get
   put = lift' State.put
 
-type instance Fix (EnvStoreT var addr val c) x y = EnvStoreT var addr val (Fix c (HashMap addr val,(HashMap var addr,x)) (HashMap addr val,y))
-deriving instance (Profunctor c, Arrow c, ArrowFix (c (HashMap addr val,(HashMap var addr,x)) (HashMap addr val,y))) => ArrowFix (EnvStoreT var addr val c x y)
+instance (Profunctor c, Arrow c, ArrowFix (Underlying (EnvStoreT var addr val c) x y)) => ArrowFix (EnvStoreT var addr val c x y) where
+  type Fix (EnvStoreT var addr val c x y) = Fix (Underlying (EnvStoreT var addr val c) x y)

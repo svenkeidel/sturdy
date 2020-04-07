@@ -1,5 +1,3 @@
-#lang scheme
-
 (define (factorial n)
   (if (= n 0) 
     1

@@ -20,11 +20,11 @@ module IntervalAnalysis where
 import           Prelude hiding (Bounded,fail,(.),exp,filter)
 
 import           Control.Category
-import           Control.Arrow
-import           Control.Arrow.Fail
+import           Control.Arrow hiding ((<+>))
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Environment(extend')
-import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Chaotic(innermost)
+import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Chaotic(chaotic,innermost)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -37,7 +37,8 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT,Monotone)
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT)
+import qualified Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -52,6 +53,7 @@ import           Data.Profunctor
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
+import           Data.Text.Prettyprint.Doc
 
 import           Data.Abstract.Error (Error)
 import qualified Data.Abstract.Error as E
@@ -72,7 +74,7 @@ import           GHC.Exts(IsString(..))
 import           GHC.Generics(Generic)
 import           Text.Printf
 
-import           Syntax (Expr(..),apply)
+import           Syntax (Expr(..),isFunctionBody)
 import           GenericInterpreter as Generic
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
@@ -86,43 +88,41 @@ type Ctx = CallString Label
 data Val = NumVal IV | ClosureVal Cls | TypeError (Pow String) deriving (Eq, Generic)
 
 -- Input and output type of the fixpoint.
-type In  = (Store, ((Expr,Label),Env))
+type In = (Store, (Env, Expr))
 type Out = (Store, Terminating (Error (Pow String) Val))
+
+type Interp = 
+  (ValueT Val
+    (ErrorT (Pow String)
+      (TerminatingT
+        (EnvT Text Addr Val
+          (FixT
+            (ComponentT Component In
+              (StackT Stack In
+                (CacheT Cache.Monotone In Out
+                  (ContextT Ctx
+                    (->))))))))))
 
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
 -- an environment, and the input of the computation.
 evalInterval :: (?sensitivity :: Int, ?bound :: IV) => [(Text,Val)] -> State Label Expr -> (Store, Terminating (Error (Pow String) Val))
-evalInterval env0 e = snd $
-  run (extend' (Generic.eval ::
-      Fix'
-        (ValueT Val
-          (ErrorT (Pow String)
-            (TerminatingT
-              (EnvT Text Addr Val
-                (FixT _ _
-                  (ComponentT In
-                    (-- TraceT
-                      (StackT Stack In
-                        (CacheT Monotone In Out
-                          (ContextT Ctx
-                            (->))))))))))) Expr Val))
-    (alloc, widenVal)
-    iterationStrategy
-    (widenStore widenVal, T.widening (E.widening W.finite widenVal))
-    (Map.empty,(Map.empty,(env0,e0)))
+evalInterval env0 e =
+  let ?cacheWidening = (widenStore widenVal, T.widening (E.widening W.finite widenVal)) in
+  let ?fixpointAlgorithm =
+        Fix.fixpointAlgorithm $
+        -- traceShow .
+        -- traceCache show .
+        Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
+        filter isFunctionBody (chaotic innermost)
+  in
+  snd $ run (extend' (Generic.eval :: Interp Expr Val)) (alloc,widenVal) (Map.empty,(Map.empty,(env0,e0)))
   where
     e0 = generate e
 
     alloc = proc (var,_) -> do
       ctx <- Ctx.askContext @Ctx -< ()
       returnA -< (var,ctx)
-
-    iterationStrategy =
-      -- traceShow .
-      -- traceCache show .
-      Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
-      filter apply innermost
 
     widenVal :: Widening Val
     widenVal = widening (I.bounded ?bound)
@@ -131,20 +131,20 @@ evalInterval' :: (?sensitivity :: Int, ?bound :: IV) => [(Text,Val)] -> State La
 evalInterval' env expr = snd $ evalInterval env expr
 {-# INLINE evalInterval' #-}
 
-instance (IsString e, ArrowChoice c, ArrowFail e c) => IsVal Val (ValueT Val c) where
-  type Join y (ValueT Val c) = ArrowComplete y (ValueT Val c)
+instance (IsString e, ArrowChoice c, ArrowFail e c, Fail.Join Val c) => IsVal Val (ValueT Val c) where
+  type Join y (ValueT Val c) = (ArrowComplete y (ValueT Val c), Fail.Join y c)
 
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal $ n + 1 -- uses the `Num` instance of intervals
-    _ -> fail -< "Expected a number as argument for 'succ'"
+    _ -> failString -< "Expected a number as argument for 'succ'"
 
   pred = proc x -> case x of
     NumVal n -> returnA -< NumVal $ n - 1
-    _ -> fail -< "Expected a number as argument for 'pred'"
+    _ -> failString -< "Expected a number as argument for 'pred'"
 
   mult = proc x -> case x of
     (NumVal n, NumVal m) -> returnA -< NumVal $ n * m
-    _ -> fail -< "Expected two numbers as argument for 'mult'"
+    _ -> failString -< "Expected two numbers as argument for 'mult'"
 
   zero = proc _ -> returnA -< NumVal 0
 
@@ -153,15 +153,15 @@ instance (IsString e, ArrowChoice c, ArrowFail e c) => IsVal Val (ValueT Val c) 
       | (i1, i2) == (0, 0) -> f -< x                -- case the interval is exactly zero
       | i1 > 0 || i2 < 0   -> g -< y                -- case the interval does not contain zero
       | otherwise          -> (f -< x) <⊔> (g -< y) -- case the interval contains zero and other numbers.
-    _ -> fail -< "Expected a number as condition for 'ifZero'"
+    _ -> failString -< "Expected a number as condition for 'ifZero'"
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
-  type Join y Val (ValueT Val c) = Cls.Join y Cls c
+  type Join y Val (ValueT Val c) = (Cls.Join y Cls c, Fail.Join y c)
   closure = ValueT $ rmap ClosureVal Cls.closure
   apply (ValueT f) = ValueT $ proc (v,x) -> case v of
     ClosureVal cls -> Cls.apply f -< (cls,x)
-    _ -> fail -< "Expected a closure"
+    _ -> failString -< "Expected a closure"
   {-# INLINE closure #-}
   {-# INLINE apply #-}
 
@@ -170,11 +170,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
 --   {-# INLINE letRec #-}
 
 instance (ArrowChoice c, IsString e, ArrowFail e c, ArrowComplete Val c) => ArrowComplete Val (ValueT Val c) where
-  ValueT f <⊔> ValueT g = ValueT $ proc x -> do
-    v <- (f -< x) <⊔> (g -< x)
-    case v of
-      TypeError m -> fail -< fromString (show m)
-      _           -> returnA -< v
+  ValueT f <⊔> ValueT g = ValueT $ proc x -> (f -< x) <⊔> (g -< x)
 
 instance PreOrd Val where
   _ ⊑ TypeError _ = True
@@ -183,7 +179,7 @@ instance PreOrd Val where
   _ ⊑ _ = False
 
 instance Complete Val where
-  (⊔) = W.toJoin widening (⊔)
+  (⊔) = W.toJoin1 widening (⊔)
 
 instance UpperBounded Val where
   top = TypeError (singleton "Value outside the allowed range of the analysis")
@@ -199,15 +195,20 @@ widening _ _ (TypeError m2) = (Stable,TypeError m2)
 widening _ (TypeError m1) _ = (Stable,TypeError m1)
 
 widenStore :: Identifiable addr => Widening val -> Widening (HashMap addr val)
-widenStore w m1 m2
-  | Map.keys m1 == Map.keys m2 = sequenceA $ Map.intersectionWith w m1 m2
-  | otherwise = (Unstable,Map.unionWith (\x y -> snd (w x y)) m1 m2)
+widenStore widenVal s1 s2
+  | Map.size s1 == Map.size s2 = sequence $ Map.intersectionWith widenVal s1 s2
+  | otherwise = (Unstable, Map.unionWith (W.toJoin widenVal) s1 s2)
 
 instance Hashable Val
 instance Show Val where
   show (NumVal iv) = show iv
   show (ClosureVal cls) = show cls
   show (TypeError m) = printf "TypeError: %s" (show m)
+
+instance Pretty Val where
+  pretty (NumVal iv) = pretty iv
+  pretty (ClosureVal cls) = pretty cls
+  pretty (TypeError m) = "TypeError:" <+> pretty m
 
 type IV = Interval (InfiniteNumber Int)
 

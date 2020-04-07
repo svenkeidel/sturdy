@@ -2,12 +2,13 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.Abstract.Error where
 
-import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow hiding (ArrowMonad,(<+>))
 import Control.Arrow.Monad
 import Control.Monad
 import Control.Monad.Except
@@ -21,6 +22,7 @@ import Data.GaloisConnection
 import Data.Concrete.Powerset as C
 import Data.Identifiable
 import qualified Data.Concrete.Error as C
+import Data.Text.Prettyprint.Doc
 
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
@@ -35,6 +37,10 @@ data Error e a = Fail e | Success a
 instance (Show e,Show a) => Show (Error e a) where
   show (Fail e) = "Error " ++ show e
   show (Success a) = show a
+
+instance (Pretty e, Pretty a) => Pretty (Error e a) where
+  pretty (Fail e) = "Error" <+> pretty e
+  pretty (Success a) = pretty a
 
 instance (Hashable e, Hashable a) => Hashable (Error e a) where
   hashWithSalt s (Fail e)  = s `hashWithSalt` (0::Int) `hashWithSalt` e

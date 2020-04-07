@@ -40,10 +40,11 @@ runFailureT = coerce
 {-# INLINE runFailureT #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFail e (FailureT e c) where
+  type Join x (FailureT e c) = ()
   fail = lift (arr Fail)
 
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FailureT e c) where
   app = lift (app .# first coerce)
 
-type instance Fix (FailureT e c) x y = FailureT e (Fix c x (Error e y))
-instance (ArrowChoice c, ArrowFix (Underlying (FailureT e c) x y)) => ArrowFix (FailureT e c x y)
+instance (ArrowChoice c, ArrowFix (Underlying (FailureT e c) x y)) => ArrowFix (FailureT e c x y) where
+  type Fix (FailureT e c x y) = Fix (Underlying (FailureT e c) x y)

@@ -1,5 +1,3 @@
-#lang scheme
-;;Expected result 92, passes but slow
 (define (append l x)
   (if (null? l)
       x

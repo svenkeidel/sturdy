@@ -1,14 +1,19 @@
 flags: {}
 extra-package-dbs: []
-resolver: lts-14.15
+resolver: lts-15.3
 packages:
 - 'lib'
 - 'pcf'
 - 'scheme'
-# - 'while'
+- 'while'
 # - 'stratego'
 # - 'jimple'
 # - 'tutorial'
+allow-newer: true
 extra-deps:
-  - dump-core-0.1.3.2
+  - git: https://github.com/svenkeidel/dump-core/
+    commit: 0c07091a7413cf808c2e01e2011589c1ed175667
   - monadLib-3.10
+  - git: https://github.com/svenkeidel/husk-scheme/
+    commit: ca59598b11065eb29a45af7ffca27fc42a49abe5
+  - knob-0.1.1

@@ -45,12 +45,13 @@ runCompletionT = coerce
 
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (CompletionT c) where
   app = lift (app .# first coerce)
-type instance Fix (CompletionT c) x y = CompletionT (Fix c x (FreeCompletion y))
-deriving instance (ArrowFix (Underlying (CompletionT c) x y)) => ArrowFix (CompletionT c x y)
+
+instance (ArrowFix (Underlying (CompletionT c) x y)) => ArrowFix (CompletionT c x y) where
+  type Fix (CompletionT c x y) = Fix (Underlying (CompletionT c) x y)
 
 deriving instance (ArrowChoice c, ArrowComplete (FreeCompletion y) c) => ArrowComplete y (CompletionT c)
-deriving instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (CompletionT c)
+deriving instance (ArrowChoice c, ArrowLowerBounded y c) => ArrowLowerBounded y (CompletionT c)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where
-  joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (return . f) (unlift g)
+  joinSecond lub f g = lift $ joinSecond (toJoin1 widening lub) (return . f) (unlift g)
   {-# INLINE joinSecond #-}

@@ -1,6 +1,3 @@
-#lang scheme
-
-
 (define x "str")
 (set! x #f)
 (define y #t)

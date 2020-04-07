@@ -29,7 +29,6 @@ import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Trans
-import Control.Arrow.Order
 import Control.Arrow.Environment
 import Control.Arrow.Store
 import Control.Arrow.Except
@@ -45,7 +44,7 @@ newtype ValueT val c x y = ValueT { runValueT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice, ArrowConst r,
             ArrowEnv var val', ArrowLetRec var val', ArrowStore addr val',
             ArrowExcept exc,ArrowFail e,
-            ArrowLowerBounded, ArrowReader r, ArrowState s, ArrowCont, ArrowContext ctx)
+            ArrowReader r, ArrowState s, ArrowCont, ArrowContext ctx)
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ValueT val c) where
   app = lift (app .# first coerce)
@@ -53,6 +52,5 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (ValueT val c) where
 
 instance ArrowRun c => ArrowRun (ValueT val c) where type Run (ValueT val c) x y = Run c x y
 instance ArrowTrans (ValueT val c) where type Underlying (ValueT val c) x y = c x y
-type instance Fix (ValueT val c) x y  = ValueT val (Fix c x y)
-instance ArrowFix (Underlying (ValueT val c) x y) => ArrowFix (ValueT val c x y)
-
+instance ArrowFix (c x y) => ArrowFix (ValueT val c x y) where
+  type Fix (ValueT val c x y) = Fix (Underlying (ValueT val c) x y)

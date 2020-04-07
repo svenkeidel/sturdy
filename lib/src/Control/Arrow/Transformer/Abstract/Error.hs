@@ -39,13 +39,14 @@ newtype ErrorT e c x y = ErrorT (KleisliT (Error e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
             ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore a b, ArrowContext ctx,
-            ArrowExcept e')
+            ArrowExcept e', ArrowLowerBounded a)
 
 runErrorT :: ErrorT e c x y -> c x (Error e y)
 runErrorT = coerce
 {-# INLINE runErrorT #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFail e (ErrorT e c) where
+  type Join x (ErrorT e c) = ()
   fail = lift $ arr Fail
   {-# INLINE fail #-}
 
@@ -53,12 +54,8 @@ instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ErrorT e c) 
   app = lift (app .# first coerce)
   {-# INLINE app #-}
 
-type instance Fix (ErrorT e c) x y = ErrorT e (Fix c x (Error e y))
-deriving instance (ArrowFix (Underlying (ErrorT e c) x y)) => ArrowFix (ErrorT e c x y)
-
-instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (ErrorT e c) where
-  bottom = lift bottom
-  {-# INLINE bottom #-}
+instance (ArrowFix (Underlying (ErrorT e c) x y)) => ArrowFix (ErrorT e c x y) where
+  type Fix (ErrorT e c x y) = Fix (Underlying (ErrorT e c) x y)
 
 deriving instance (ArrowChoice c, ArrowComplete (Error e y) c) => ArrowComplete y (ErrorT e c)
 

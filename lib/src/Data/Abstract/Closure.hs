@@ -19,6 +19,7 @@ import           Data.Coerce
 import           Data.Abstract.Widening
 import           Data.Foldable
 import           Data.Traversable
+import           Data.Text.Prettyprint.Doc
 
 import           GHC.Exts
 import           Text.Printf
@@ -53,6 +54,9 @@ instance (Show a,Show b) => Show (Closure a b) where
   show (Closure h)
     | M.null h = "{}"
     | otherwise = "{" ++ init (unwords [ printf "%s -> %s," (show k) (show v) | (k,v) <- M.toList h]) ++ "}"
+
+instance (Pretty a) => Pretty (Closure a b) where
+  pretty (Closure h) = prettyList (M.keys h)
 
 instance (Identifiable expr, Complete env) => IsList (Closure expr env) where
   type Item (Closure expr env) = (expr,env)

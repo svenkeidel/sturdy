@@ -1,134 +1,102 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Fix.Chaotic where
 
 import           Prelude hiding (head,iterate,map)
 
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Iterate
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Utils(map)
+import           Control.Arrow.Trans
 
 import           Data.Abstract.Stable
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as H
-import           Data.Identifiable
 import           Data.Profunctor
-import           Data.Order
-import           Data.Empty
 
-import           Text.Printf
 
-class (Arrow c, Profunctor c) => ArrowComponent component c | c -> component where
-  setComponent :: c x (component,y) -> c x y
-  getComponent :: c x y -> c x (component,y)
+class (Arrow c, Profunctor c) => ArrowComponent a c | c -> a where
+  addToComponent :: c a ()
+  removeFromComponent :: c a ()
 
-detectLoop :: (Identifiable a, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c, ArrowChoice c) => c a (Component a,b) -> c a b
-detectLoop iterate = setComponent $ proc a -> do
+  default addToComponent :: (c ~ t c', ArrowLift t, ArrowComponent a c') => c a ()
+  default removeFromComponent :: (c ~ t c', ArrowLift t, ArrowComponent a c') => c a ()
+
+  addToComponent = lift' addToComponent
+  removeFromComponent = lift' removeFromComponent
+
+  {-# INLINE addToComponent #-}
+  {-# INLINE removeFromComponent #-}
+
+
+data InComponent = Empty | Head Nesting | Body
+data Nesting = Inner | Outermost
+
+class ArrowComponent a c => ArrowInComponent a c where
+  inComponent :: c a InComponent
+
+  default inComponent :: (c ~ t c', ArrowLift t, ArrowInComponent a c') => c a InComponent
+  inComponent = lift' inComponent
+  {-# INLINE inComponent #-}
+
+type IterationStrategy c a b = c a b -> c (a,b) b -> c a b
+
+innermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
+innermost f iterate = proc a -> do
+  b <- f -< a
+  inComp <- inComponent -< a
+  removeFromComponent -< a
+  case inComp of
+    Head _ -> iterate -< (a,b)
+    _ -> returnA -< b
+{-# INLINE innermost #-}
+{-# SCC innermost #-}
+
+outermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
+outermost f iterate = proc a -> do
+  b <- f -< a
+  inComp <- inComponent -< a
+  removeFromComponent -< a
+  case inComp of
+    Head Outermost -> iterate -< (a,b)
+    Head Inner -> returnA -< b
+    _ -> returnA -< b
+{-# INLINE outermost #-}
+{-# SCC outermost #-}
+
+-- | Iterate on the innermost fixpoint component.
+chaotic :: forall a b c.
+           (?cacheWidening :: Widening c, ArrowChoice c, ArrowComponent a c, ArrowStack a c, ArrowCache a b c)
+        => IterationStrategy c a b -> FixpointCombinator c a b
+chaotic iterationStrategy f = proc a -> do
   loop <- Stack.elem -< a
   if loop
   then do
     m <- Cache.lookup -< a
     case m of
-      Just (Stable,b) -> returnA -< (empty, b)
-      Just (Unstable,b) -> returnA -< (empty { head = H.singleton a }, b)
+      Just (Stable,b) -> returnA -< b
+      Just (Unstable,b) -> do
+        addToComponent -< a
+        returnA -< b
       Nothing -> do
         b <- Cache.initialize -< a
-        returnA -< (mempty { head = H.singleton a }, b)
+        addToComponent -< a
+        returnA -< b
   else
     iterate -< a
-{-# INLINE detectLoop #-}
-
--- | Iterate on the innermost fixpoint component.
-innermost :: forall a b c. (Identifiable a, ArrowChoice c, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c, ArrowIterate a c) => FixpointCombinator c a b
-{-# INLINE innermost #-}
-innermost f = detectLoop (Stack.push iterate)
   where
-    iterate = proc a -> do
-      (comp,b) <- getComponent f -< a
-
-      -- The call did not depend on any unstable calls. This means
-      -- we are done and don't need to iterate.
-      case () of
-        () | H.null (head comp) -> returnA -< (empty, b)
-           | H.member a (head comp) -> do
-              (stable,bNew) <- Cache.update -< (a,b)
-              case stable of
-                Stable -> returnA -< (Component { head = H.delete a (head comp), body = H.insert a (body comp) }, bNew)
-                Unstable -> do
-                  nextIteration -< a
-                  iterate -< a
-           | otherwise ->
-             returnA -< (comp, b)
-
--- | Iterate on the outermost fixpoint component.
-outermost :: forall a b c. (Identifiable a, ArrowChoice c, ArrowComponent (Component a) c, ArrowStack a c, ArrowCache a b c, ArrowIterate a c) => FixpointCombinator c a b
-{-# INLINE outermost #-}
-outermost f = detectLoop (Stack.push iterate)
-  where
-    iterate = proc a -> do
-      (component,b) <- getComponent f -< a
-      case () of
-        -- The call did not depend on any unstable calls. This means
-        -- we are done and don't need to iterate.
-        () | H.null (head component) -> returnA -< (empty, b)
-
-        -- We are at the head of a fixpoint component. This means, we
-        -- have to iterate until the head stabilized.
-           | head component == H.singleton a -> do
-             (stable,bNew) <- Cache.update -< (a,b)
-
-             case stable of
-               -- If the head of a fixpoint component is stable, set
-               -- all elements in the body of the component as stable
-               -- too and return.
-               Stable -> do
-                 map Cache.setStable -< H.toList $ H.map (Stable,) (body component)
-                 returnA -< (empty, bNew)
-
-               -- If the head of a fixpoint component is not stable, keep iterating.
-               Unstable -> do
-                 nextIteration -< a
-                 iterate -< a
-
-        -- We are inside an  fixpoint component, but its head has not stabilized.
-           | otherwise -> do
-             let comp = Component { head = H.delete a (head component), body = H.insert a (body component) }
-             returnA -< (comp, b)
-
-data Component a = Component { head :: HashSet a, body :: HashSet a } deriving (Eq)
-
-instance Identifiable a => PreOrd (Component a) where
-  c1 ⊑ c2 = head c1 ⊑ head c2 && body c1 ⊑ body c2
-  {-# INLINE (⊑) #-}
-
-instance Identifiable a => Complete (Component a) where
-  c1 ⊔ c2 = c1 <> c2
-  {-# INLINE (⊔) #-}
-
-instance Identifiable a => Semigroup (Component a) where
-  Component h1 b1 <> Component h2 b2 = Component { head = h1 <> h2, body = b1 <> b2 }
-  {-# INLINE (<>) #-}
-
-instance IsEmpty (Component a) where
-  empty = Component { head = H.empty, body = H.empty }
-  {-# INLINE empty #-}
-
-instance Identifiable a => Monoid (Component a) where
-  mempty = empty
-  mappend = (<>)
-  {-# INLINE mempty #-}
-  {-# INLINE mappend #-}
-
-singleton :: Identifiable a => a -> Component a
-singleton a = Component { head = H.singleton a, body = H.empty }
-{-# INLINE singleton #-}
-
-instance Show a => Show (Component a) where
-  show (Component h b) = printf "Component { head = %s, body = %s }" (show (H.toList h)) (show (H.toList b))
+    iterate :: c a b
+    iterate = iterationStrategy (Stack.push' f) $ proc (a,b) -> do
+      (stable,aNew,bNew) <- Cache.update -< (a,b)
+      case stable of
+        Stable   -> returnA -< bNew
+        Unstable -> iterate -< aNew
+    {-# SCC iterate #-}
+    {-# INLINABLE iterate #-}
+{-# INLINE chaotic #-}
+{-# SCC chaotic #-}

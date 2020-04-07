@@ -13,6 +13,7 @@ dependencies:
   - text
   - transformers
   - unordered-containers
+  - prettyprinter
 
 library:
   source-dirs:

@@ -16,7 +16,7 @@ import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Monad
 import Control.Arrow.Order as Ord
@@ -29,7 +29,6 @@ import Control.Arrow.LetRec
 import Control.Arrow.Fix.Context
 
 import Data.Monoidal
-import Data.Profunctor (Profunctor(..))
 import Data.Profunctor.Unsafe
 import Data.Coerce
 import Unsafe.Coerce
@@ -129,8 +128,8 @@ instance (ArrowMonad f c, ArrowStore var val c) => ArrowStore var val (KleisliT 
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix (KleisliT f c) x y = KleisliT f (Fix c y (f y))
 instance ArrowFix (c x (f y)) => ArrowFix (KleisliT f c x y) where
+  type Fix (KleisliT f c x y) = Fix (Underlying (KleisliT f c) x y)
 
 instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
   type Join y (KleisliT f c) = Exc.Join (f y) c
@@ -140,7 +139,8 @@ instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
   {-# INLINE try #-}
 
 instance (ArrowMonad f c, ArrowFail e c) => ArrowFail e (KleisliT f c) where
-  fail = lift' fail
+  type Join y (KleisliT f c) = Fail.Join (f y) c
+  fail = lift fail
   {-# INLINE fail #-}
 
 instance (ArrowMonad f c, ArrowConst r c) => ArrowConst r (KleisliT f c) where
@@ -151,8 +151,9 @@ instance (ArrowMonad f c, ArrowComplete (f y) c) => ArrowComplete y (KleisliT f 
   f <⊔> g = lift $ unlift f <⊔> unlift g
   {-# INLINE (<⊔>) #-}
 
-instance (ArrowMonad f c, ArrowLowerBounded c) => ArrowLowerBounded (KleisliT f c) where
-  bottom = lift Ord.bottom
+instance (ArrowMonad f c, ArrowLowerBounded y c) => ArrowLowerBounded y (KleisliT f c) where
+  bottom = lift' Ord.bottom
+  {-# INLINE bottom #-}
 
 instance (ArrowMonad f c, ArrowContext ctx c) => ArrowContext ctx (KleisliT f c) where
   localContext (KleisliT f) = KleisliT (localContext f)

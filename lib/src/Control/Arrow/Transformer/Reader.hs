@@ -10,17 +10,20 @@ import Prelude hiding (id,(.),lookup,read,fail)
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Strict
 import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
+import Control.Arrow.Fix.Metrics as M
+import Control.Arrow.Fix.Chaotic as Chaotic
 import Control.Arrow.Fix.ControlFlow as CF
-import Control.Arrow.Fix.Iterate as Iterate
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
+import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Order
 import Control.Arrow.Primitive
 import Control.Arrow.Reader as Reader
@@ -114,6 +117,7 @@ instance ArrowWriter w c => ArrowWriter w (ReaderT r c) where
   {-# INLINE tell #-}
 
 instance ArrowFail e c => ArrowFail e (ReaderT r c) where
+  type Join x (ReaderT r c) = Fail.Join x c
   fail = lift' fail
   {-# INLINE fail #-}
 
@@ -138,8 +142,8 @@ instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix (ReaderT r c) x y = ReaderT r (Fix c (r,x) y)
-instance ArrowFix (Underlying (ReaderT r c) x y) => ArrowFix (ReaderT r c x y)
+instance ArrowFix (Underlying (ReaderT r c) x y) => ArrowFix (ReaderT r c x y) where
+  type Fix (ReaderT r c x y) = Fix (Underlying (ReaderT r c) x y)
 
 instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
   type Join z (ReaderT r c) = Exc.Join z c
@@ -148,13 +152,13 @@ instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
   {-# INLINE throw #-}
   {-# INLINE try #-}
 
-instance ArrowLowerBounded c => ArrowLowerBounded (ReaderT r c) where
-  bottom = ReaderT bottom
-  {-# INLINE bottom #-}
-
 instance ArrowJoin c => ArrowJoin (ReaderT r c) where
   joinSecond lub f g = lift $ joinSecond lub (f . snd) (unlift g)
   {-# INLINE joinSecond #-}
+
+instance ArrowLowerBounded y c => ArrowLowerBounded y (ReaderT r c) where
+  bottom = ReaderT bottom
+  {-# INLINE bottom #-}
 
 instance ArrowComplete y c => ArrowComplete y (ReaderT r c) where
   f <⊔> g = lift $ unlift f <⊔> unlift g
@@ -164,13 +168,29 @@ instance ArrowConst x c => ArrowConst x (ReaderT r c) where
   askConst f = lift (askConst (unlift . f))
   {-# INLINE askConst #-}
 
-instance ArrowEffectCommutative c => ArrowEffectCommutative (ReaderT r c)
-
 instance ArrowContext ctx c => ArrowContext ctx (ReaderT r c) where
   localContext f = lift $ lmap shuffle1 (localContext (unlift f))
   {-# INLINE localContext #-}
 
-instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c)
-instance ArrowCache a b c => ArrowCache a b (ReaderT r c)
-instance ArrowIterate a c => ArrowIterate a (ReaderT r c)
-instance ArrowControlFlow stmt c => ArrowControlFlow stmt (ReaderT r c)
+instance ArrowControlFlow stmt c => ArrowControlFlow stmt (ReaderT r c) where
+  nextStatement f = lift $ lmap shuffle1 (nextStatement (unlift f))
+  {-# INLINE nextStatement #-}
+
+instance ArrowStack a c => ArrowStack a (ReaderT r c) where
+  push f = lift $ lmap shuffle1 (push (unlift f))
+  {-# INLINE push #-}
+
+instance ArrowCache a b c => ArrowCache a b (ReaderT r c) where
+  type Widening (ReaderT r c) = Cache.Widening c
+
+instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c) where
+  type Widening (ReaderT r c) = Context.Widening c
+
+instance ArrowStackDepth c => ArrowStackDepth (ReaderT r c)
+instance ArrowStackElements a c => ArrowStackElements a (ReaderT r c)
+instance ArrowParallelCache a b c => ArrowParallelCache a b (ReaderT r c)
+instance ArrowIterateCache a b c => ArrowIterateCache a b (ReaderT r c)
+instance ArrowFiltered a c => ArrowFiltered a (ReaderT r c)
+instance ArrowComponent a c => ArrowComponent a (ReaderT r c)
+instance ArrowInComponent a c => ArrowInComponent a (ReaderT r c)
+instance ArrowStrict c => ArrowStrict (ReaderT r c)

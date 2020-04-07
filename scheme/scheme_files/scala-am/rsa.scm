@@ -1,5 +1,3 @@
-#lang scheme
-;; Expected result #t, passes
 (define (extended-gcd a b)
   (if (= (modulo a b) 0)
       (cons 0 1)

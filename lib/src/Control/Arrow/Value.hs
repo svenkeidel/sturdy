@@ -8,7 +8,8 @@ module Control.Arrow.Value where
 import Prelude hiding (fail)
 
 import Control.Arrow
-import Control.Arrow.Fail
+import Control.Arrow.Fail(ArrowFail(fail))
+import qualified Control.Arrow.Fail as Fail
 
 import Data.Profunctor
 import Data.Typeable
@@ -24,7 +25,7 @@ class (ArrowChoice c, Profunctor c, IsValue a val) => ArrowValue a val c where
   type Join y c :: Constraint
   match :: Join y c => c (a,x) y -> c x y -> c (val,x) y
 
-with :: forall a val c e. (Typeable a, Show val, Join val c, ArrowValue a val c, ArrowFail e c, IsString e) => c a a -> c val val
+with :: forall a val c e. (Typeable a, Show val, Join val c, Fail.Join val c, ArrowValue a val c, ArrowFail e c, IsString e) => c a a -> c val val
 with f = proc val ->
   match (proc (a,_) -> rmap value f -< a)
         (proc val -> fail -< fromString $ printf "Expected %s but got " (show (typeRep (Proxy :: Proxy a))) (show val))

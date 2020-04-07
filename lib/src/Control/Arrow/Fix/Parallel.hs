@@ -1,77 +1,68 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Fix.Parallel where
+-- | Parallel fixpoint iteration.
+module Control.Arrow.Fix.Parallel(parallel,adi) where
 
-import Prelude hiding (iterate)
+import           Prelude hiding (map,iterate,lookup)
 
-import Control.Arrow hiding (loop)
-import Control.Arrow.Fix
-import Control.Arrow.Fix.Iterate
-import Control.Arrow.Fix.Stack as Stack
-import Control.Arrow.Fix.Cache (ArrowCache)
+import           Control.Arrow hiding (loop)
+import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Stack (ArrowStack)
+import qualified Control.Arrow.Fix.Stack as Stack
+import           Control.Arrow.Fix.Cache (ArrowParallelCache,ArrowCache,Widening)
 import qualified Control.Arrow.Fix.Cache as Cache
 
-import Data.Abstract.Stable
+import           Data.Abstract.Stable
+import qualified Data.Function as Function
 
-parallel :: forall a b c. (ArrowIterate a c, ArrowStack a c, ArrowStackDepth c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
-parallel f = proc a -> do
-  n <- Stack.depth -< ()
-  if n == 0
-  then iterate -< a
-  else update -< a
-
+parallel :: forall a b c. (?cacheWidening :: Widening c, ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm (c a b)
+parallel combinator eval = iterate
   where
     iterate = proc a -> do
-      b <- update -< a
-      s <- isStable -< a
-      case s of
-        Stable -> returnA -< b
+      b <- Function.fix (combinator update . eval) -< a
+      st <- Cache.isStable -< (); case st of
+        Stable   -> returnA -< b
         Unstable -> do
-          nextIteration -< a
-          iterate -< a
+          (a',_) <- Cache.nextIteration -< (a,b)
+          iterate -< a'
 
-    update = proc a -> do
-      loop <- Stack.elem -< a
-      if loop
-      then do
-        m <- Cache.lookup -< a
-        case m of
-          Just (_,b) -> returnA -< b
-          Nothing -> do
-            Cache.initialize -< a
-            b <- Stack.push f -< a
-            (_,b') <- Cache.update -< (a,b)
-            returnA -< b'
-      else
-        Stack.push f -< a
+    update f = proc a -> do
+      recurrentCall <- Stack.elem -< a
+      if recurrentCall
+        then do
+          m <- Cache.lookupOldCache -< a; case m of
+            Just b  -> returnA -< b
+            Nothing -> do
+              b <- Cache.initialize -< a
+              returnA -< b
+        else do
+          _ <- Cache.initialize -< a
+          b <- Stack.push' f -< a
+          Cache.updateNewCache -< (a,b)
 {-# INLINE parallel #-}
 
--- Implements the fixpoint algorithm in the ADI paper.
-parallelADI :: forall a b c. (ArrowIterate a c, ArrowStack a c, ArrowStackDepth c, ArrowCache a b c, ArrowChoice c) => FixpointCombinator c a b
-parallelADI f = proc a -> do
-  n <- Stack.depth -< ()
-  if n == 0
-  then iterate -< a
-  else update -< a
-
+adi :: forall a b c. (?cacheWidening :: Widening c, ArrowChoice c, ArrowStack a c, ArrowCache a b c, ArrowParallelCache a b c) => (FixpointCombinator c a b -> FixpointCombinator c a b) -> FixpointAlgorithm (c a b)
+adi combinator eval = iterate
   where
     iterate = proc a -> do
-      b <- update -< a
-      s <- isStable -< a
-      case s of
-        Stable -> returnA -< b
+      b <- Function.fix (combinator update . eval) -< a
+      st <- Cache.isStable -< (); case st of
+        Stable   -> returnA -< b
         Unstable -> do
-          nextIteration -< a
-          iterate -< a
+          (a',_) <- Cache.nextIteration -< (a,b)
+          iterate -< a'
 
-    update = proc a -> do
-      m <- Cache.lookup -< a
-      case m of
-        Just (_,b) -> returnA -< b
-        Nothing -> do
+    update f = proc a -> do
+      recurrentCall <- Stack.elem -< a
+      if recurrentCall
+        then do
+          m <- Cache.lookupNewCache -< a; case m of
+            Just b  -> returnA -< b
+            Nothing -> Cache.initialize -< a
+        else do
           Cache.initialize -< a
-          b <- Stack.push f -< a
-          (_,b') <- Cache.update -< (a,b)
-          returnA -< b'
-{-# INLINE parallelADI #-}
+          b <- Stack.push' f -< a
+          Cache.updateNewCache -< (a,b)
+{-# INLINE adi #-}

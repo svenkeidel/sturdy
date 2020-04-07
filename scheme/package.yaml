@@ -5,28 +5,33 @@ maintainer:          Sven Keidel <svenkeidel@gmail.com>
 category:            Language
 
 dependencies:
+  - array
   - base
+  - containers
+  - deepseq
+  - directory
+  - fgl
+  - graphviz
   - hashable
+  - husk-scheme
   - mtl
+  - parsec
+  - prettyprinter
+  - process
   - profunctors
+  - random
+  - split
   - sturdy-lib
   - text
   - transformers
   - unordered-containers
-  - parsec
-  - array
-  - random
-  - split
-  - process
-  - directory
-  - fgl
-  - graphviz
+
+data-files:
+  - scheme_files/**/*.scm
 
 library:
   source-dirs:
     - src
-    - parser
-    - scheme_files
 
   ghc-options: -Wall
 
@@ -43,3 +48,16 @@ tests:
     dependencies:
       - sturdy-scheme
       - hspec
+
+benchmarks:
+  fixpoint:
+    main: FixpointBench.hs
+    source-dirs:
+      - bench
+    dependencies:
+      - sturdy-lib
+      - sturdy-scheme
+      - criterion
+      - dump-core
+    ghc-options: -O2 -fplugin=DumpCore -fplugin-opt DumpCore:core-html
+

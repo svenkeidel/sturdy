@@ -13,7 +13,7 @@ import Control.Category
 import Control.Arrow
 import Control.Arrow.Cont
 import Control.Arrow.Fix
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Order
 import Control.Arrow.Primitive
 import Control.Arrow.Trans
@@ -94,8 +94,8 @@ instance ArrowApply c => ArrowApply (ContT r c) where
   app = lift $ \k -> proc (f,x) -> app -< (unlift f k, x)
   {-# INLINE app #-}
 
-type instance Fix (ContT _ c) x y = ContT y (Fix c x y)
 instance ArrowFix (c x r) => ArrowFix (ContT r c x y) where
+  type Fix (ContT r c x y) = Fix (c x r)
   fix f = lift $ \k -> fix $ \g -> unlift1 f (const g) k
   {-# INLINE fix #-}
 
@@ -122,5 +122,6 @@ instance (ArrowApply c, ArrowWriter w c) => ArrowWriter w (ContT r c) where
   {-# INLINE tell #-}
 
 instance (ArrowApply c, ArrowFail e c) => ArrowFail e (ContT r c) where
+  type Join x (ContT r c) = Fail.Join x c
   fail = lift' fail
   {-# INLINE fail #-}

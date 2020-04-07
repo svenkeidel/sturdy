@@ -1,5 +1,3 @@
-#lang scheme
-;; Expected result: 1
 (define (square x) (* x x))
 (define (modulo-power base exp n)
   (if (= exp 0)
@@ -20,8 +18,7 @@
 (define (is-fermat-prime? n iterations)
   (or (<= iterations 0)
       (let* ((byte-size (ceiling (/ (log n) (log 2))))
-             ; added 1 to byte size
-             (a (random (+ 1 byte-size))))
+             (a (random byte-size)))
         (if (= (modulo-power a (- n 1) n) 1)
             (is-fermat-prime? n (- iterations 1))
             #f))))

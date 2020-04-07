@@ -70,6 +70,53 @@ glb :: (CoComplete x) => x -> [x] -> x
 glb x [] = x
 glb _ l = glb1 l
 
+-------- Instances ---------
+instance PreOrd a => PreOrd (Hashed a) where
+  a ⊑ b = unhashed a ⊑ unhashed b
+  a ≈ b = unhashed a ≈ unhashed b
+
+instance (Identifiable a, Complete a) => Complete (Hashed a) where
+  xs ⊔ ys = hashed (unhashed xs ⊔ unhashed ys)
+
+instance Identifiable a => PreOrd (HashSet a) where
+  xs ⊑ ys = all (\x -> HS.member x ys) xs
+
+instance Identifiable a => Complete (HashSet a) where
+  xs ⊔ ys = HS.union xs ys
+
+instance Identifiable a => LowerBounded (HashSet a) where
+  bottom = HS.empty
+
+instance (Identifiable a, PreOrd b) => PreOrd (HashMap a b) where
+  m1 ⊑ m2 =
+    -- FIXME: Data.HashMap does not have a convenient `mergeBy` function like Data.Map.
+    -- Therefore we implement the ordering with `intersection`, because it is
+    -- the next best function to implement the ordering efficiently.
+    let intersection = HM.intersectionWith (⊑) m1 m2
+    in -- Each key in m1 needs to be in m2, i.e., HM.keys m1 ⊑ HM.keys m2
+       HM.size m1 == HM.size intersection &&
+       -- All values in m1 need to be smaller than the corresponding values in m2.
+       and intersection
+
+instance (Identifiable a, PreOrd b) => LowerBounded (HashMap a b) where
+  bottom = HM.empty
+
+instance (Identifiable a, Complete b) => Complete (HashMap a b) where
+  (⊔) = HM.unionWith (⊔)
+
+instance (Ord k,PreOrd v) => PreOrd (Map k v) where
+  c1 ⊑ c2 = M.keysSet c1 `S.isSubsetOf` M.keysSet c2 && all (\k -> (c1 M.! k) ⊑ (c2 M.! k)) (M.keys c1)
+
+instance (Ord k, PreOrd v) => LowerBounded (Map k v) where
+  bottom = M.empty
+
+instance PreOrd v => PreOrd (IntMap v) where
+  c1 ⊑ c2 = IM.keysSet c1 `IS.isSubsetOf` IM.keysSet c2 && all (\k -> (c1 IM.! k) ⊑ (c2 IM.! k)) (IM.keys c1)
+
+instance (Ord k, Complete v) => Complete (Map k v) where
+  (⊔) = M.unionWith (⊔)
+
+
 instance (PreOrd e, PreOrd a) => PreOrd (Either e a) where
   Left e1 ⊑ Left e2 = e1 ⊑ e2
   Right a1 ⊑ Right a2 = a1 ⊑ a2
@@ -95,7 +142,6 @@ instance (Ord a, PreOrd a) => CoComplete (Set a) where
 
 instance PreOrd () where
   () ⊑ () = True
-  {-# INLINE (⊑) #-}
 
 instance LowerBounded () where
   bottom = ()
@@ -105,11 +151,9 @@ instance UpperBounded () where
 
 instance Complete () where
   () ⊔ () = ()
-  {-# INLINE (⊔) #-}
 
 instance (PreOrd a,PreOrd b) => PreOrd (a,b) where
   (a1,b1) ⊑ (a2,b2) = a1 ⊑ a2 && b1 ⊑ b2
-  {-# INLINE (⊑) #-}
 
 instance (LowerBounded a,LowerBounded b) => LowerBounded (a,b) where
   bottom = (bottom,bottom)
@@ -119,11 +163,9 @@ instance (UpperBounded a,UpperBounded b) => UpperBounded (a,b) where
 
 instance (Complete a, Complete b) => Complete (a,b) where
   (a1,b1) ⊔ (a2,b2) = (a1 ⊔ a2, b1 ⊔ b2)
-  {-# INLINE (⊔) #-}
 
 instance (CoComplete a, CoComplete b) => CoComplete (a,b) where
   (a1,b1) ⊓ (a2,b2) = (a1 ⊓ a2, b1 ⊓ b2)
-  {-# INLINE (⊓) #-}
 
 instance (PreOrd a,PreOrd b,PreOrd c) => PreOrd (a,b,c) where
   (a1,b1,c1) ⊑ (a2,b2,c2) = a1 ⊑ a2 && b1 ⊑ b2 && c1 ⊑ c2
@@ -151,23 +193,9 @@ instance UpperBounded b => UpperBounded (a -> b) where
 
 instance Complete b => Complete (a -> b) where
   f ⊔ g = \x -> f x ⊔ g x
-  {-# INLINE (⊔) #-}
 
 instance CoComplete b => CoComplete (a -> b) where
   f ⊓ g = \x -> f x ⊓ g x
-  {-# INLINE (⊓) #-}
-
-instance (Ord k,PreOrd v) => PreOrd (Map k v) where
-  c1 ⊑ c2 = M.keysSet c1 `S.isSubsetOf` M.keysSet c2 && all (\k -> (c1 M.! k) ⊑ (c2 M.! k)) (M.keys c1)
-  {-# INLINE (⊑) #-}
-
-instance PreOrd v => PreOrd (IntMap v) where
-  c1 ⊑ c2 = IM.keysSet c1 `IS.isSubsetOf` IM.keysSet c2 && all (\k -> (c1 IM.! k) ⊑ (c2 IM.! k)) (IM.keys c1)
-  {-# INLINE (⊑) #-}
-
-instance (Ord k, Complete v) => Complete (Map k v) where
-  (⊔) = M.unionWith (⊔)
-  {-# INLINE (⊔) #-}
 
 instance PreOrd Char where
   (⊑) = (==)
@@ -202,38 +230,9 @@ instance Complete a => Complete (Maybe a) where
 
 instance PreOrd a => LowerBounded (Maybe a) where
   bottom = Nothing
-  {-# INLINE bottom #-}
 
 instance PreOrd a => LowerBounded (Set a) where
   bottom = S.empty
-  {-# INLINE bottom #-}
-
-instance PreOrd a => PreOrd (Hashed a) where
-  a ⊑ b = unhashed a ⊑ unhashed b
-  a ≈ b = unhashed a ≈ unhashed b
-
-instance Identifiable a => PreOrd (HashSet a) where
-  xs ⊑ ys = all (\x -> HS.member x ys) xs
-  {-# INLINE (⊑) #-}
-
-instance Identifiable a => Complete (HashSet a) where
-  xs ⊔ ys = HS.union xs ys
-  {-# INLINE (⊔) #-}
-
-instance (Identifiable a, PreOrd b) => PreOrd (HashMap a b) where
-  m1 ⊑ m2 = and (HM.intersectionWith (⊑) m1 m2)
-  {-# INLINE (⊑) #-}
-
-instance (Identifiable a, PreOrd b) => LowerBounded (HashMap a b) where
-  bottom = HM.empty
-  {-# INLINE bottom #-}
-
-instance (Identifiable a, Complete b) => Complete (HashMap a b) where
-  (⊔) = HM.unionWith (⊔)
-  {-# INLINE (⊔) #-}
-
-instance (Ord k, PreOrd v) => LowerBounded (Map k v) where
-  bottom = M.empty
 
 newtype Discrete a = Discrete a deriving (Eq)
 instance Eq a => PreOrd (Discrete a) where

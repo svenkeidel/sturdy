@@ -17,11 +17,11 @@ import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Fix.Context as Context
-import Control.Arrow.Fix.Iterate as Iterate
 import Control.Arrow.Environment as Env
+import Control.Arrow.LetRec as LetRec
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Order
 import Control.Arrow.Primitive
@@ -118,6 +118,7 @@ instance (Monoid w, Arrow c, Profunctor c) => ArrowWriter w (WriterT w c) where
   {-# INLINE tell #-}
 
 instance (Monoid w, ArrowFail e c) => ArrowFail e (WriterT w c) where
+  type Join x (WriterT w c) = Fail.Join x c
   fail = lift' fail
   {-# INLINE fail #-}
 
@@ -141,6 +142,10 @@ instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
+instance ArrowLetRec var val c => ArrowLetRec var val (WriterT w c) where
+  letRec f = lift (letRec (unlift f))
+  {-# INLINE letRec #-}
+
 instance (Monoid w, ArrowClosure expr cls c) => ArrowClosure expr cls (WriterT w c) where
   type Join y cls (WriterT w c) = Cls.Join (w,y) cls c
   apply f = lift (Cls.apply (unlift f))
@@ -153,11 +158,11 @@ instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) wh
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix (WriterT w c) x y  = WriterT w (Fix c x (w,y))
-deriving instance ArrowFix (Underlying (WriterT w c) x y) => ArrowFix (WriterT w c x y)
+instance ArrowFix (Underlying (WriterT w c) x y) => ArrowFix (WriterT w c x y) where
+  type Fix (WriterT w c x y) = Fix (Underlying (WriterT w c) x y)
 
-instance (Monoid w, ArrowLowerBounded c) => ArrowLowerBounded (WriterT w c) where
-  bottom = lift bottom
+instance (Monoid w, ArrowLowerBounded y c) => ArrowLowerBounded y (WriterT w c) where
+  bottom = lift' bottom
   {-# INLINE bottom #-}
 
 instance (Monoid w, O.Complete w, ArrowJoin c) => ArrowJoin (WriterT w c) where
@@ -187,8 +192,13 @@ instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
   localContext f = lift (Context.localContext (unlift f))
   {-# INLINE localContext #-}
 
-instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c)
-instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c)
-instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w c)
-instance (Monoid w, ArrowIterate a c) => ArrowIterate a (WriterT w c)
+instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c) where
+  type Widening (WriterT w c) = Context.Widening c
+
+instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c) where
+  type Widening (WriterT w c) = Cache.Widening c
+
+instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w c) where
+  nextStatement f = lift (nextStatement (unlift f))
+  {-# INLINE nextStatement #-}
 

@@ -17,7 +17,7 @@ import GHC.Exts
 import GHC.ST(ST(..))
 
 class (Arrow c, Profunctor c) => ArrowPrimitive c where
-  type PrimState c :: *
+  type PrimState c
   primitive :: ((# State# (PrimState c), x #) -> (# State# (PrimState c), y #)) -> c x y
 
   default primitive :: (c ~ t c', PrimState c ~ PrimState c', ArrowLift t, ArrowPrimitive c')

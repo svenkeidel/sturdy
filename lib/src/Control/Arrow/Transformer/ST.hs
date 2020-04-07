@@ -98,8 +98,6 @@ instance ArrowApply (ST s) where
   app = lift $ \(# s, (f,x) #) -> unlift f (# s, x #)
   {-# INLINE app #-}
 
-instance ArrowEffectCommutative (ST s)
-
 instance O.Complete y => ArrowComplete y (ST s) where
   f <⊔> g = lift $ \(# s, x #) -> case unlift f (# s, x #) of (# s', y #) -> case unlift g (# s', x #) of (# s'' , y' #) -> (# s'', y O.⊔ y' #)
   {-# INLINE (<⊔>) #-}

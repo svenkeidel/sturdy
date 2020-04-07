@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -10,6 +11,7 @@ import Data.Abstract.FreeCompletion
 import Control.Monad.State
 import Control.DeepSeq
 import Text.Printf
+import Data.Text.Prettyprint.Doc
 
 -- Retrieves label from expression.
 class HasLabel x where
@@ -20,6 +22,9 @@ newtype Label = Label { labelVal :: Int }
 
 instance Show Label where
   show (Label l) = printf "#%d" l
+
+instance Pretty Label where
+  pretty (Label l) = "#" <> pretty l
 
 instance PreOrd Label where
   (⊑) = (==)

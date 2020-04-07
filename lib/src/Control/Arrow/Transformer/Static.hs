@@ -10,6 +10,7 @@ import Prelude hiding (id,(.),lookup,read,fail,elem)
 import Control.Category
 
 import Control.Arrow
+import Control.Arrow.Strict
 import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Chaotic as Chaotic
 import Control.Arrow.Fix.Cache as Cache
@@ -18,7 +19,7 @@ import Control.Arrow.Fix.Stack as Stack
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Order
 import Control.Arrow.Primitive
 import Control.Arrow.Reader as Reader
@@ -119,6 +120,7 @@ instance (Applicative f, ArrowWriter w c) => ArrowWriter w (StaticT f c) where
   {-# SPECIALIZE instance ArrowWriter e c => ArrowWriter e (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowFail e c) => ArrowFail e (StaticT f c) where
+  type Join x (StaticT f c) = Fail.Join x c
   fail = lift' fail
   {-# INLINE fail #-}
   {-# SPECIALIZE instance ArrowFail e c => ArrowFail e (StaticT ((->) r) c) #-}
@@ -158,10 +160,10 @@ instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f 
   {-# INLINE write #-}
   {-# SPECIALIZE instance ArrowStore var val c => ArrowStore var val (StaticT ((->) r) c) #-}
 
-instance (Applicative f, ArrowLowerBounded c) => ArrowLowerBounded (StaticT f c) where
+instance (Applicative f, ArrowLowerBounded y c) => ArrowLowerBounded y (StaticT f c) where
   bottom = StaticT (pure bottom)
   {-# INLINE bottom #-}
-  {-# SPECIALIZE instance ArrowLowerBounded c => ArrowLowerBounded (StaticT ((->) r) c) #-}
+  {-# SPECIALIZE instance ArrowLowerBounded y c => ArrowLowerBounded y (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowJoin c) => ArrowJoin (StaticT f c) where
   joinSecond lub f (StaticT g) = StaticT $ joinSecond lub f <$> g
@@ -184,14 +186,18 @@ instance (Applicative f, ArrowStack a c) => ArrowStack a (StaticT f c) where
   {-# SPECIALIZE instance ArrowStack a c => ArrowStack a (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowCache a b c) => ArrowCache a b (StaticT f c) where
+  type Widening (StaticT f c) = Cache.Widening c
   {-# SPECIALIZE instance ArrowCache a b c => ArrowCache a b (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowComponent comp c) => ArrowComponent comp (StaticT f c) where
-  getComponent (StaticT f) = StaticT $ Chaotic.getComponent <$> f
-  setComponent (StaticT f) = StaticT $ Chaotic.setComponent <$> f
-  {-# INLINE getComponent #-}
   {-# SPECIALIZE instance ArrowComponent comp c => ArrowComponent comp (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowControlFlow stmt c) => ArrowControlFlow stmt (StaticT f c) where
+  nextStatement (StaticT f) = StaticT $ nextStatement <$> f
+  {-# INLINE nextStatement #-}
   {-# SPECIALIZE instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StaticT ((->) r) c) #-}
 
+instance (Applicative f, ArrowStrict c) => ArrowStrict (StaticT f c) where
+  force (StaticT f) = StaticT $ force <$> f
+  {-# INLINE force #-}
+  {-# SPECIALIZE instance ArrowStrict c => ArrowStrict (StaticT ((->) r) c) #-}

@@ -11,13 +11,16 @@ import           Prelude hiding (id,(.),lookup,read,fail)
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Strict
 import           Control.Arrow.Cont
 import           Control.Arrow.Const
+import           Control.Arrow.LetRec
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Metrics
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Fix.Chaotic as Chaotic
@@ -38,8 +41,6 @@ import qualified Data.Order as O
 import           Data.Monoidal
 import           Data.Profunctor hiding (Strong(..))
 import           Data.Profunctor.Unsafe
-
-import           GHC.TypeLits
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
 newtype StateT s c x y = StateT { runStateT :: c (s,x) (s,y) }
@@ -125,12 +126,13 @@ instance (Arrow c, Profunctor c) => ArrowState s (StateT s c) where
   {-# INLINE modify #-}
 
 instance (ArrowFail e c, Profunctor c) => ArrowFail e (StateT s c) where
+  type Join x (StateT s c) = Fail.Join (s,x) c
   fail = lift (lmap snd fail)
   {-# INLINE fail #-}
 
 instance ArrowReader r c => ArrowReader r (StateT s c) where
   ask = lift' Reader.ask
-  local f = lift $ lmap (\(s,(r,x)) -> (r,(s,x))) (Reader.local (unlift f))
+  local f = lift $ lmap shuffle1 (Reader.local (unlift f))
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
@@ -140,12 +142,16 @@ instance ArrowWriter w c => ArrowWriter w (StateT s c) where
 
 instance (ArrowEnv var val c) => ArrowEnv var val (StateT s c) where
   type Join y (StateT s c) = Env.Join (s,y) c
-  lookup f g = lift $ lmap (\(s,(v,a)) -> (v,(s,a)))
-                    $ Env.lookup (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
+  lookup f g = lift $ lmap shuffle1
+                    $ Env.lookup (lmap shuffle1 (unlift f))
                              (unlift g)
   extend f = lift $ lmap (\(s,(var,val,x)) -> (var,val,(s,x))) (Env.extend (unlift f))
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
+
+instance (Profunctor c, ArrowLetRec var val c) => ArrowLetRec var val (StateT s c) where
+  letRec f = lift $ lmap (\(s,(vs,x)) -> (vs,(s,x))) (letRec (unlift f))
+  {-# INLINE letRec #-}
 
 instance ArrowClosure expr cls c => ArrowClosure expr cls (StateT s c) where
   type Join y cls (StateT s c) = Cls.Join (s,y) cls c
@@ -161,8 +167,9 @@ instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix (StateT s c) x y = StateT s (Fix c (s,x) (s,y))
-instance ArrowFix (Underlying (StateT s c) x y) => ArrowFix (StateT s c x y)
+instance ArrowFix (Underlying (StateT s c) x y) => ArrowFix (StateT s c x y) where
+  type Fix (StateT s c x y) = Fix (Underlying (StateT s c) x y)
+
 
 instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
   type Join y (StateT s c) = Exc.Join (s,y) c
@@ -171,8 +178,8 @@ instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
   {-# INLINE throw #-}
   {-# INLINE try #-}
 
-instance (ArrowLowerBounded c) => ArrowLowerBounded (StateT s c) where
-  bottom = lift bottom
+instance (ArrowLowerBounded y c) => ArrowLowerBounded y (StateT s c) where
+  bottom = lift' bottom
   {-# INLINE bottom #-}
 
 instance (ArrowJoin c, O.Complete s) => ArrowJoin (StateT s c) where
@@ -199,19 +206,29 @@ instance ArrowWidening y c => ArrowWidening y (StateT s c) where
   widening = lift' widening
   {-# INLINE widening #-}
 
-instance (ArrowCache a b c) => ArrowCache a b (StateT s c)
-instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StateT s c)
+instance ArrowControlFlow stmt c => ArrowControlFlow stmt (StateT s c) where
+  nextStatement f = lift $ lmap shuffle1 (nextStatement (unlift f))
+  {-# INLINE nextStatement #-}
+
+instance ArrowStack a c => ArrowStack a (StateT s c) where
+  push f = lift $ lmap shuffle1 (push (unlift f))
+  {-# INLINE push #-}
+
+instance ArrowCache a b c => ArrowCache a b (StateT s c) where
+  type Widening (StateT s c) = Cache.Widening c
+
+instance ArrowJoinContext a c => ArrowJoinContext a (StateT s c) where
+  type Widening (StateT s c) = Context.Widening c
+
+instance ArrowParallelCache a b c => ArrowParallelCache a b (StateT s c)
+instance ArrowIterateCache a b c => ArrowIterateCache a b (StateT s c)
+instance ArrowFiltered a c => ArrowFiltered a (StateT s c)
 instance ArrowStackDepth c => ArrowStackDepth (StateT s c)
 instance ArrowStackElements a c => ArrowStackElements a (StateT s c)
-
-instance ArrowComponent a c => ArrowComponent a (StateT s c) where
-  setComponent f = lift $ setComponent (rmap shuffle1 (unlift f))
-  getComponent f = lift $ rmap shuffle1 (getComponent (unlift f))
-  {-# INLINE setComponent #-}
-  {-# INLINE getComponent #-}
-
-instance (TypeError ('Text "StateT is not effect commutative since it allows non-monotonic changes to the state."), Arrow c, Profunctor c)
-  => ArrowEffectCommutative (StateT s c)
+instance ArrowTopLevel c => ArrowTopLevel (StateT s c)
+instance ArrowComponent a c => ArrowComponent a (StateT s c)
+instance ArrowInComponent a c => ArrowInComponent a (StateT s c)
+instance ArrowStrict c => ArrowStrict (StateT s c)
 
 second' :: (x -> y) -> ((z,x) -> (z,y))
 second' f (x,y) = (x,f y)

@@ -10,7 +10,7 @@ import           Control.Arrow
 import           Data.Order(Complete(..))
 import           Data.Profunctor
 
-class (Arrow c, Profunctor c) => ArrowLowerBounded c where
+class (Arrow c, Profunctor c) => ArrowLowerBounded y c where
   bottom :: c x y
 
 class (Arrow c, Profunctor c) => ArrowComplete y c where
@@ -19,21 +19,6 @@ class (Arrow c, Profunctor c) => ArrowComplete y c where
 instance Complete y => ArrowComplete y (->) where
   (<⊔>) f g x = f x ⊔ g x
   {-# INLINE (<⊔>) #-}
-
--- | An arrow computation @c@ is effect commutative iff for all @f, g :: c x y@,
---
--- > (f ⊔ g) ⊑ (proc x -> do y1 <- f -< x
--- >                         y2 <- g -< x
--- >                         returnA -< y1 ⊔ y2)
---
--- and
---
--- > (f ⊔ g) ⊑ (proc x -> do y1 <- g -< x
--- >                         y2 <- f -< x
--- >                         returnA -< y1 ⊔ y2)
---
-class (Arrow c, Profunctor c) => ArrowEffectCommutative c
-instance ArrowEffectCommutative (->)
 
 class (Arrow c, Profunctor c) => ArrowJoin c where
   joinSecond :: (y -> y -> y) -> (x -> y) -> c x y -> c x y
@@ -54,14 +39,14 @@ joinList empty f = proc (e,(l,s)) -> case l of
   (x:xs) -> (f -< (e,(x,s))) <⊔> (joinList empty f -< (e,(xs,s)))
 {-# INLINABLE joinList #-}
 
-joinList1 :: (ArrowChoice c, ArrowLowerBounded c, ArrowComplete y c) => c (e,(x,s)) y -> c (e,([x],s)) y
+joinList1 :: (ArrowChoice c, ArrowLowerBounded y c, ArrowComplete y c) => c (e,(x,s)) y -> c (e,([x],s)) y
 joinList1 f = proc (e,(l,s)) -> case l of
   []     -> bottom -< ()
   [x]    -> f -< (e,(x,s))
   (x:xs) -> (f -< (e,(x,s))) <⊔> (joinList1 f -< (e,(xs,s)))
 {-# INLINABLE joinList1 #-}
 
-joinList1' :: (ArrowChoice c, ArrowLowerBounded c, ArrowComplete y c) => c (x,e) y -> c ([x],e) y
+joinList1' :: (ArrowChoice c, ArrowLowerBounded y c, ArrowComplete y c) => c (x,e) y -> c ([x],e) y
 joinList1' f = proc (l,e) -> case l of
   []     -> bottom -< ()
   [x]    -> f -< (x,e)

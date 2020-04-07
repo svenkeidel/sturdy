@@ -45,7 +45,7 @@ import Data.Coerce
 import GHC.Exts
 
 newtype EnvT env c x y = EnvT (ReaderT env c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded, ArrowComplete z,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded a, ArrowComplete z,
             ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k, ArrowRun, ArrowCont)
 
 runEnvT :: EnvT env c x y -> c (env,x) y
@@ -90,7 +90,7 @@ instance (Identifiable var, Traversable val, Complete (val (Set var)), ArrowChoi
     Reader.local f -< (FM.insertRec ls env,x)
   {-# INLINE letRec #-}
 
-instance (Identifiable expr, ArrowLowerBounded c, ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr env) (EnvT env c) where
+instance (Identifiable expr, ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr env) (EnvT env c) where
   type Join y (Closure expr env) (EnvT env c) = ArrowComplete y c
   closure = EnvT $ proc expr -> do
     env <- Reader.ask -< ()
@@ -110,5 +110,5 @@ instance ArrowReader r c => ArrowReader r (EnvT env c) where
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
-type instance Fix (EnvT env c) x y = EnvT env (Fix c (env,x) y)
-deriving instance ArrowFix (Underlying (EnvT env c) x y) => ArrowFix (EnvT env c x y)
+instance ArrowFix (Underlying (EnvT env c) x y) => ArrowFix (EnvT env c x y) where
+  type Fix (EnvT env c x y) = Fix (Underlying (EnvT env c) x y)

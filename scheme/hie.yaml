@@ -1,0 +1,11 @@
+
+cradle:
+  stack:
+    - path: ./src
+      component: "sturdy-scheme:lib"
+
+    - path: ./test
+      component: "sturdy-scheme:test:spec"
+
+    - path: ./bench
+      component: "sturdy-scheme:bench:fixpoint"

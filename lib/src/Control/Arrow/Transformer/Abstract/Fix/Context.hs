@@ -12,23 +12,22 @@ import Prelude hiding (lookup,truncate,(.),id)
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Strict
 import Control.Arrow.Fix.ControlFlow
 import Control.Arrow.Fix.Context
-import Control.Arrow.Fix.Cache
+import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Trans
 import Control.Arrow.Reader
-import Control.Arrow.Order
 
 import Control.Arrow.Transformer.Reader
 
 import Data.Profunctor.Unsafe
 import Data.Coerce
 import Data.Empty
-import Data.Order hiding (lub)
 
 newtype ContextT ctx c x y = ContextT (ReaderT ctx c x y)
-  deriving (Category,Arrow,ArrowChoice,Profunctor,
-            ArrowTrans,ArrowCache u b,ArrowControlFlow stmt)
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowStrict,
+            ArrowTrans,ArrowControlFlow stmt)
 
 runContextT :: (IsEmpty ctx, Profunctor c) => ContextT ctx c x y -> c x y
 runContextT (ContextT f) = lmap (empty,) (runReaderT f)
@@ -49,15 +48,8 @@ instance (IsEmpty ctx, ArrowRun c) => ArrowRun (ContextT ctx c) where
   run f = run (runContextT f)
   {-# INLINE run #-}
 
-instance (Complete y, ArrowEffectCommutative c) => ArrowComplete y (ContextT ctx c) where
-  ContextT f <⊔> ContextT g = ContextT $ rmap (uncurry (⊔)) (f &&& g)
-  {-# INLINE (<⊔>) #-}
-
-instance (Arrow c, Profunctor c) => ArrowJoin (ContextT ctx c) where
-  joinSecond lub f (ContextT g) = ContextT (rmap (\(x,y) -> f x `lub` y) (id &&& g))
-  {-# INLINE joinSecond #-}
-
-instance ArrowEffectCommutative c => ArrowEffectCommutative (ContextT ctx c)
+instance ArrowCache a b c => ArrowCache a b (ContextT ctx c) where
+  type Widening (ContextT ctx c) = Cache.Widening c
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (ContextT ctx c) where
   app = ContextT (app .# first coerce)

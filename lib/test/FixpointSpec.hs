@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module FixpointSpec where
 
-import           Prelude hiding (id,(.),lookup,Bounded,fail)
+import           Prelude hiding (id,(.),lookup,Bounded,fail,iterate)
 
 import           TestPrograms
 
@@ -12,10 +12,10 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,widenInput,maxDepth,reuseByMetric)
-import           Control.Arrow.Fix.Cache (ArrowCache)
-import           Control.Arrow.Fix.Chaotic (ArrowComponent,Component,innermost,outermost)
-import           Control.Arrow.Fix.Parallel (parallel,parallelADI)
-import           Control.Arrow.Fix.Iterate
+import           Control.Arrow.Fix.Cache (ArrowCache,ArrowParallelCache)
+import qualified Control.Arrow.Fix.Cache as Cache
+import           Control.Arrow.Fix.Chaotic (ArrowInComponent,chaotic,innermost,outermost)
+import           Control.Arrow.Fix.Parallel (parallel,adi)
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
@@ -23,7 +23,6 @@ import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable hiding (Widening)
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
--- import           Control.Arrow.Transformer.Abstract.Fix.Trace
 
 import           Data.Identifiable
 import qualified Data.Metric as M
@@ -33,6 +32,7 @@ import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
+import           Data.Text.Prettyprint.Doc
 
 import           Data.Order
 
@@ -49,22 +49,21 @@ metricFile = "fixpoint.csv"
 spec :: Spec
 spec =
   beforeAll (writeFile metricFile (printf "Function,Algorithm,%s\n" csvHeader)) $ do
-    describe "Parallel" $ do
-      fixpointSpec "parallel" (runParallel parallel)
-      fixpointSpec "parallel-adi" (runParallel parallelADI)
+    describe "Parallel" $ fixpointSpec "parallel" (runParallel parallel)
+    describe "ADI" $ fixpointSpec "adi" (runParallel adi)
     describe "Chaotic" $ do
-      describe "innermost component" $ fixpointSpec "innermost" (runChaotic innermost)
-      describe "outermost component" $ fixpointSpec "outermost" (runChaotic outermost)
+      describe "innermost component" $ fixpointSpec "innermost" (runChaotic (chaotic innermost))
+      describe "outermost component" $ fixpointSpec "outermost" (runChaotic (chaotic outermost))
 
-fixpointSpec :: String -> (forall a b. (Show a, Show b, Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b) => Arr a b -> a -> (Metrics a,Terminating b)) -> Spec
+fixpointSpec :: String -> (forall a b. (Pretty a, Pretty b, Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b) => Arr a b -> a -> (Metrics a,Terminating b)) -> Spec
 fixpointSpec algName eval = sharedSpec $ \name f a -> do
   let (metrics,res) = eval f a
-  let csv = printf "\"%s%s\",%s,%s\n" name (show a) algName (toCSV metrics)
+  let csv = printf "\"%s%s\",%s,%s\n" name (show (pretty a)) algName (toCSV metrics)
   appendFile metricFile csv
   return res
 {-# INLINE fixpointSpec #-}
 
-sharedSpec :: (forall a b. (Show a, Show b, Identifiable a, PreOrd a, Complete b, ?strat :: Strat a b, ?widen :: Widening b)
+sharedSpec :: (forall a b. (Pretty a, Pretty b, Identifiable a, PreOrd a, Complete b, ?strat :: Strat a b, ?widen :: Widening b)
            => String -> Arr a b -> a -> IO (Terminating b)) -> Spec
 sharedSpec run = do
   describe "fibonacci" $ do
@@ -128,21 +127,47 @@ sharedSpec run = do
     {-# INLINE shouldBe' #-}
 {-# INLINE sharedSpec #-}
 
-toParallel :: Complete b => Arr a b -> TerminatingT (FixT a (Terminating b) (MetricsT a (StackT Stack a (CacheT (Parallel Cache) a (Terminating b) (->))))) a b
-toParallel x = x
-{-# INLINE toParallel #-}
+type ParallelT a b =
+  TerminatingT
+    (FixT
+       (MetricsT Metrics a
+          (StackT Stack a
+             (CacheT (Parallel Cache) a (Terminating b) (->))))) a b
 
-runParallel :: (forall a b c. (Show a, Show b, Identifiable a, ArrowChoice c, ArrowIterate a c, ArrowStack a c, ArrowStackDepth c, ArrowStackElements a c, ArrowCache a b c) => FixpointCombinator c a b)
-           -> (forall a b. (Show a, Show b, Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b) => Arr a b -> a -> (Metrics a,Terminating b))
-runParallel algorithm f a = snd $ Arrow.run (toParallel f) (getStrat ?strat . algorithm) (T.widening ?widen) a
+runParallel :: forall a b.
+               (forall x y c. (Pretty x, Pretty y, Identifiable x, ArrowChoice c,
+                               ArrowStack x c, ArrowStackDepth c, ArrowStackElements x c,
+                               ArrowParallelCache x y c, ArrowCache x y c,
+                               ?cacheWidening :: Cache.Widening c) =>
+                (FixpointCombinator c x y -> FixpointCombinator c x y) -> FixpointAlgorithm (c x y))
+            -> ((Pretty a, Pretty b, Identifiable a, Complete b,
+                             ?strat :: Strat a b, ?widen :: Widening b) =>
+                Arr a b -> a -> (Metrics a,Terminating b))
+runParallel algorithm f a =
+  let ?cacheWidening = T.widening ?widen in
+  let ?fixpointAlgorithm = algorithm (\update -> getStrat ?strat . update) in
+  snd $ Arrow.run (f :: ParallelT a b) a
 {-# INLINE runParallel #-}
 
-toChaotic :: (Identifiable a, Complete b)
-          => Arr a b -> TerminatingT (FixT a (Terminating b) (MetricsT a (ComponentT a (StackT Stack a (CacheT Cache a (Terminating b) (->)))))) a b
-toChaotic x = x
-{-# INLINE toChaotic #-}
+type ChaoticT a b =
+  TerminatingT
+    (FixT
+       (MetricsT Metrics a
+          (ComponentT Component a
+             (StackT Stack a
+                (CacheT Cache a (Terminating b) (->)))))) a b
 
-runChaotic :: (forall a b c. (Show a, Show b, Identifiable a, ArrowChoice c, ArrowIterate a c, ArrowStack a c, ArrowComponent (Component a) c, ArrowCache a b c) => FixpointCombinator c a b)
-           -> (forall a b. (Show a, Show b, Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b) => Arr a b -> a -> (Metrics a,Terminating b))
-runChaotic algorithm f a = snd $ Arrow.run (toChaotic f) (getStrat ?strat . algorithm) (T.widening ?widen) a
+runChaotic :: forall a b.
+               (forall x y c. (Pretty x, Pretty y, Identifiable x, ArrowChoice c,
+                               ArrowStack x c, ArrowStackDepth c, ArrowStackElements x c,
+                               ArrowInComponent x c, ArrowCache x y c,
+                               ?cacheWidening :: Cache.Widening c) =>
+                FixpointCombinator c x y)
+           -> ((Pretty a, Pretty b, Identifiable a, Complete b,
+               ?strat :: Strat a b, ?widen :: Widening b) =>
+               Arr a b -> a -> (Metrics a,Terminating b))
+runChaotic algorithm f a =
+  let ?cacheWidening = T.widening ?widen in
+  let ?fixpointAlgorithm = fixpointAlgorithm (getStrat ?strat . algorithm) in
+  snd $ Arrow.run (f :: ChaoticT a b) a
 {-# INLINE runChaotic #-}

@@ -41,7 +41,7 @@ newtype StoreT store c x y = StoreT (StateT store c x y)
             ArrowCont, ArrowConst r, ArrowReader r,
             ArrowEnv var' val', ArrowClosure expr cls,
             ArrowFail e, ArrowExcept e, ArrowState store,
-            ArrowLowerBounded, ArrowRun, ArrowJoin)
+            ArrowLowerBounded a, ArrowRun, ArrowJoin)
 
 runStoreT :: StoreT store c x y -> c (store, x) (store, y)
 runStoreT = coerce
@@ -70,5 +70,5 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT store c) where
   app = StoreT (app .# first coerce)
   {-# INLINE app #-}
 
-type instance Fix (StoreT store c) x y = StoreT store (Fix c (store,x) (store,y))
-deriving instance ArrowFix (Underlying (StoreT store c) x y) => ArrowFix (StoreT store c x y)
+instance ArrowFix (Underlying (StoreT store c) x y) => ArrowFix (StoreT store c x y) where
+  type Fix (StoreT store c x y) = Fix (Underlying (StoreT store c) x y)

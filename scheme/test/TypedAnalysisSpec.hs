@@ -1,419 +1,392 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 module TypedAnalysisSpec where
 
 import           Prelude hiding (succ,pred,id)
 
-import           Data.Abstract.Error hiding (toEither)
-import           Data.Abstract.Terminating hiding (toEither)
-import qualified Data.Abstract.DiscretePowerset as Pow
-
-import           Test.Hspec
-
-import System.Process -- deprecated
-import System.Directory
-
-import LispTypes as LT hiding (Bool)
-import LispParser
-import LispToHask
-
-import           TypedAnalysis
-
-import           Syntax as S
-import qualified Data.Abstract.Boolean as B
-import           Data.Abstract.DiscretePowerset (Pow, singleton)
-
+import           Control.Monad(forM_)
+import           Control.Arrow.Transformer.Abstract.Fix.Metrics
+import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
 import           Data.GraphViz hiding (diamond)
-import           Data.Graph.Inductive(Gr)
-import           GHC.Exts(fromList)
-import Control.Arrow.Transformer.Abstract.Fix.Metrics
+import           Data.Hashed.Lazy(hashed)
+
+import           Data.Abstract.Terminating hiding (toEither)
+import qualified Data.Abstract.Boolean as B
+
+import           GHC.Exts
+
+import           System.Directory
+
+import           Syntax as S hiding (Nil)
+import           Parser(loadSchemeFile)
+import           TypedAnalysis
+import           TypedAnalysis.Chaotic(evalInner',evalOuter',eval')
+import           TypedAnalysis.Parallel(evalParallel',evalADI')
+
 import           Text.Printf
+
+import           Test.Hspec
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = do
+spec =
+  beforeAll (writeFile metricFile (printf "Function,Algorithm,%s\n" csvHeader)) $ do
+    describe "Benchmarks" $ testFixpointAlgorithms benchmarks
+    describe "Tests" $ testFixpointAlgorithms customTests
 
-  describe "behavior specific to interval analysis" $ do
-    it "test lits" $ do
-      -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] ["x"] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2), "x"] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in evalInterval' [] [define "x" (lit $ S.Number 2),
-                                                set "x" (lit $ S.Bool True),
-                                                "x"] `shouldBe` Terminating (Success $ fromList [IntVal, BoolVal B.True])
+testFixpointAlgorithms :: ((?algorithm :: Algorithm) => Runner -> Spec) -> Spec
+testFixpointAlgorithms tests = do
+  describe "Chaotic" $ do
+    describe "Innermost" $ let ?algorithm = ChaoticInner in tests (runner evalInner')
+    describe "Outermost" $ let ?algorithm = ChaoticOuter in tests (runner evalOuter')
+  describe "Parallel" $ let ?algorithm = Parallel in tests (runner evalParallel')
+  describe "ADI" $ let ?algorithm = ADI in tests (runner evalADI')
 
-    it "test closures" $ do
-      let ?sensitivity = 0 in evalInterval' [] [app (lam ["x"] ["x"]) [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
-                                                app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in evalInterval' [] [define "id" (lit $ S.Bool True),
-                                                set "id" (lam ["x"] ["x"]),
-                                                app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
-                                                set "id" (lit $ S.Bool True),
-                                                app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success $ singleton IntVal)
-
-    it "should analyze let expression" $
-      let expr = [let_ [("x", lit $ S.Number 1)] ["x"]] in do
-      let ?sensitivity = 0 in evalInterval' [] expr `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 1 in evalInterval' [] expr `shouldBe` Terminating (Success $ singleton IntVal)
-
-    it "should analyze define" $
-      let exprs = [define "x" (lit $ S.Number 1),
-                   set "x" (lit $ S.Number 2),
-                   set "x" (lit $ S.Number 3),
-                   "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ singleton IntVal)
-
-
-    it "should return unify two different types" $
-      let exprs = [define "x" (lit $ S.Number 1),
-                   set "x" (lit $ S.Number 2),
-                   set "x" (lit $ S.Bool True),
-                   "x"] in do
-      let ?sensitivity = 0 in evalInterval' [] exprs `shouldBe` Terminating (Success $ fromList [IntVal, BoolVal B.True])
-      let ?sensitivity = 2 in evalInterval' [] exprs `shouldBe` Terminating (Success $ fromList [IntVal, BoolVal B.True])
-
-
-    it "should terminate for the non-terminating program LetRec" $
-      let ?sensitivity = 0
-      in evalInterval' [] [let_rec [("id", lam ["x"] ["x"]),
-                                ("fix",lam ["x"] [app "fix" ["x"]])]
-                         [app "fix" ["id"]]]
-           `shouldBe` NonTerminating
-
-    it "should terminate for the non-terminating program Define" $
-      pending
-
-  describe "Benchmarks" $ do
-    describe "Chaotic Iteration" $ do
-      describe "Innermost" $ benchmarks innermostRunner
-      describe "Outermost" $ benchmarks outermostRunner
-    describe "Parallel Iteration" $
-      describe "Stack" $ benchmarks parallelRunner
-
-  describe "Tests" $ do
-    describe "Chaotic Iteration" $ do
-      describe "Innermost" $ customTests innermostRunner
-      describe "Outermost" $ customTests outermostRunner
-    describe "Parallel Iteration" $
-      describe "Stack" $ customTests parallelRunner
-
-benchmarks :: Runner -> Spec
+benchmarks :: (?algorithm :: Algorithm) => Runner -> Spec
 benchmarks run = do
   gabrielBenchmarks run
   scalaAM run
 
+data Algorithm = ChaoticInner | ChaoticOuter | Parallel | ADI deriving (Show,Eq)
+
 -----------------GABRIEL BENCHMARKS---------------------------------------------
-gabrielBenchmarks :: Runner -> Spec
-gabrielBenchmarks run = describe "Gabriel-Benchmarks" $ do
+gabrielBenchmarks :: (?algorithm :: Algorithm) => Runner -> Spec
+gabrielBenchmarks run = describe "Gabriel" $ do
 -- TIMEOUT = 30s
 
     it "boyer" $ do
-      pendingWith "out of memory"
-      let inFile = "gabriel//boyer"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.True)
+      let inFile = "gabriel/boyer.scm"
+      let expRes = successOrFail (return (BoolVal B.Top))
+                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
+      run inFile expRes
+
+    it "browse" $ do
+      let inFile = "gabriel/browse.scm"
+      let expRes = successOrFail (return (NumVal IntVal))
+                                 [ "error: (length): contract violation, expected list"
+                                 , "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 , "expected a quote as argument for symbol->string, but got Top"
+                                 ]
       run inFile expRes
 
     it "cpstak" $ do
---     => Final Values: Set(Int)
---     => TIME: 105 | STATES: 120
-      -- pendingWith "out of memory"
-      let inFile = "gabriel//cpstak"
-      let expRes = Terminating (Success $ singleton IntVal)
+      -- TIME: 105 | STATES: 120
+      let inFile = "gabriel/cpstak.scm"
+      let expRes = success (NumVal IntVal)
       run inFile expRes
 
+    it "destruc" $ do
+      let inFile = "gabriel/destruc.scm"
+      let expRes = successOrFail (Terminating (BoolVal B.Top))
+                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
+      run inFile expRes
 
     it "dderiv" $ do
-      -- pendingWith "out of memory"
-      let inFile = "gabriel//dderiv"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.True)
+      pendingWith "The analysis is too imprecise to typecheck. \
+                  \The analysis tries to call a function, whose closure is top. \
+                  \Continuing at this point would be unsound because the analysis\
+                  \would not soundly approximate the control-flow of the program."
+      let inFile = "gabriel/dderiv.scm"
+      let expRes = success (BoolVal B.True)
       run inFile expRes
 
     it "deriv" $ do
 --     => TIMEOUT | STATES: 1645737
-      pendingWith "out of memory"
-      -- most likely wrong ?
-      let inFile = "gabriel//deriv"
-      let expRes = Terminating (Success $ singleton Bottom)
+      -- when (?algorithm == Parallel || ?algorithm == ADI) $
+      --   pendingWith "out of memory"
+
+      let inFile = "gabriel/deriv.scm"
+      let expRes = successOrFail (return (BoolVal B.Top))
+                                 -- because (equals? (list 1 2) (list 1 2)) recursively calls (equals? 1 1)
+                                 [ "error: No derivation method available"
+                                 , "error: Cannot map over a non-list"
+                                 , "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
       run inFile expRes
 
     it "diviter" $ do
 --     => Final Values: Set(#f, {#f,#t})
 --     => TIME: 163 | STATES: 175
       -- pendingWith "out of memory"
-      let inFile = "gabriel//diviter"
+      let inFile = "gabriel/diviter.scm"
       -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
-      let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.Top])
+      let expRes = successOrFail (Terminating (BoolVal B.Top)) []
       run inFile expRes
 
     it "divrec" $ do
 --       => Final Values: Set(#f, {#f,#t})
 --       => TIME: 59 | STATES: 219
       -- pendingWith "out of memory"
-      let inFile = "gabriel//divrec"
+      let inFile = "gabriel/divrec.scm"
       -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
-      let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.Top])
+      let expRes = success (BoolVal B.Top)
       run inFile expRes
 
     it "takl" $ do
 -- => TIMEOUT | STATES: 1959438
-      -- pendingWith "out of memory"
-      let inFile = "gabriel//takl"
-      -- let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top, Bottom])
-      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.Top, BoolVal B.True])
+      let inFile = "gabriel/takl.scm"
+      let expRes = successOrFail (return (BoolVal B.Top))
+                                 -- because (equals? (list 1 2) (list 1 2)) recursively calls (equals? 1 1)
+                                 [ "Excpeted list as argument for cdr, but got Top"
+                                 , "Excpeted list as argument for car, but got Top"
+                                 ]
       run inFile expRes
 
 -- -------------------SCALA-AM BENCHMARKS------------------------------------------
-scalaAM :: Runner -> Spec
-scalaAM run = describe "Scala-AM-Benchmarks" $ do
+scalaAM :: (?algorithm :: Algorithm) => Runner -> Spec
+scalaAM run = describe "Scala-AM" $ do
     it "collatz" $ do
 -- => Final Values: Set(Int)
 -- => TIME: 8 | STATES: 431
-      let inFile = "scala-am//collatz"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "scala-am/collatz.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "gcipd" $ do
 --       => Final Values: Set(Int)
 --       => TIME: 14 | STATES: 1098
-      let inFile = "scala-am//gcipd"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "scala-am/gcipd.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "nqueens" $ do
 -- => TIMEOUT | STATES: 1781142
-      let inFile = "scala-am//nqueens"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "scala-am/nqueens.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "primtest" $ do
 -- => Final Values: Set(Int)
 -- => TIME: 8 | STATES: 431
-      pendingWith "not getting parsed yet"
-      let inFile = "scala-am//primtest"
-      let expRes = Terminating (Success $ singleton IntVal)
+      -- pendingWith "not getting parsed yet"
+      let inFile = "scala-am/primtest.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "rsa" $ do
 -- => Final Values: Set({#f,#t})
 -- => TIME: 2831 | STATES: 247915
-      pendingWith "only works for parallel, but parallel broken?"
-      let inFile = "scala-am//rsa"
-      let expRes = Terminating (Fail $ Pow.singleton "Expected elements of type num for op| [List [Num],Num]" <> "Scheme-Error")
+      -- pendingWith "only works for parallel, but parallel broken?"
+      let inFile = "scala-am/rsa.scm"
+      let expRes = successOrFail (return (BoolVal B.Top))
+                                 [ "error: Not a legal public exponent for that modulus."
+                                 , "error: The modulus is too small to encrypt the message."
+                                 ]
       run inFile expRes
 
 -- -------------------Custom Tests------------------------------------------
-customTests :: Runner -> Spec
-customTests run =
-  describe "Custom_Tests" $ do
+customTests :: (?algorithm :: Algorithm) => Runner -> Spec
+customTests run = do
     it "recursion_union_empty_list" $ do
-      let inFile = "test_rec_empty"
-      let expRes = Terminating (Success $ singleton EmptyList)
+      let inFile = "test_rec_empty.scm"
+      let expRes = success (ListVal Nil)
       run inFile expRes
 
     it "recursion and union with non-empty list" $ do
-      let inFile = "test_rec_nonempty"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "test_rec_nonempty.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "should return NV for (car (cdr '(2 3 4)))" $ do
-      let inFile = "test_cdr"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "test_cdr.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "should return correct val for car" $ do
-      let inFile = "test_car"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "test_car.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_null_cdr" $ do
-      let inFile = "test_null"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.True)
+      let inFile = "test_null.scm"
+      let expRes = success (BoolVal B.True)
       run inFile expRes
 
     it "unifying two list of nums of different size should result in list of nums" $ do
-      let inFile = "test_faulty_list"
-      let expRes = Terminating (Success $ fromList [IntVal, BoolVal B.False])
+      let inFile = "test_faulty_list.scm"
+      let expRes = success Top
       run inFile expRes
 
     it "test_if" $ do
-      let inFile = "test_if"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.False)
+      let inFile = "test_if.scm"
+      let expRes = success (BoolVal B.False)
       run inFile expRes
 
     it "test_opvars" $ do
-      let inFile = "test_opvars"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "test_opvars.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_equal" $ do
-      let inFile = "test_equal"
-      -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
-      let expRes = Terminating (Success $ fromList [BoolVal B.True])
+      let inFile = "test_equal.scm"
+      -- Higher sensitivity leads to BoolVal B.True
+      let expRes = successOrFail (return (BoolVal B.Top)) ["Excpeted list as argument for cdr, but got Top","Excpeted list as argument for car, but got Top"]
       run inFile expRes
 
     it "test_cons" $ do
-      let inFile = "test_cons"
-      -- let expRes = Terminating (Success $ fromList [BoolVal B.True, Bottom])
-      let expRes = Terminating (Success $ fromList [BoolVal B.True])
+      let inFile = "test_cons.scm"
+      let expRes = success (BoolVal B.True)
       run inFile expRes
 
     it "test_closure_gc" $ do
-      let inFile = "test_closure_gc"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "test_closure_gc.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "lang_scheme_test" $ do
-      let inFile = "lang_scheme_test"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "lang_scheme_test.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_inner_define" $ do
-      let inFile = "test_inner_define"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "test_inner_define.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
     it "test_unops" $ do
-      let inFile = "test_unops"
-      let expRes = Terminating (Success $ fromList [BoolVal B.True, BoolVal B.False])
+      let inFile = "test_unops.scm"
+      let expRes = success (BoolVal B.Top)
       run inFile expRes
 
     it "test_eq" $ do
-      let inFile = "test_eq"
-      let expRes = Terminating (Success $ singleton $ BoolVal B.Top)
+      let inFile = "test_eq.scm"
+      let expRes = success (BoolVal B.Top)
       run inFile expRes
 
     it "test_binops" $ do
-      let inFile = "test_binops"
-      let expRes = Terminating (Success $ singleton $ Bottom)
+      let inFile = "test_binops.scm"
+      let expRes = successOrFail NonTerminating ["expected a two ints as arguments for quotient , but got [Top,Int]","expected a two ints as arguments for quotient , but got [True,string]"]
       run inFile expRes
 
     it "test_opvar_numbool" $ do
-      let inFile = "test_opvar_numbool"
-      let expRes = Terminating (Success $ singleton $ Bottom)
+      let inFile = "test_opvar_numbool.scm"
+      let expRes = successOrFail NonTerminating ["expected a numbers as argument for <, but got [string,string]"]
       run inFile expRes
 
     it "test_opvar_numnum" $ do
-      let inFile = "test_opvar_numnum"
-      let expRes = Terminating (Success $ singleton IntVal)
+      let inFile = "test_opvar_numnum.scm"
+      let expRes = successOrFail (return Top) ["expected a numbers as argument for +, but got [Int,Top]"]
       run inFile expRes
 
     it "test_opvar_boolbool" $ do
-      let inFile = "test_opvar_boolbool"
-      let expRes = Terminating (Success $ fromList [BoolVal B.False, BoolVal B.True, StringVal])
+      let inFile = "test_opvar_boolbool.scm"
+      let expRes = success $ BoolVal B.True
       run inFile expRes
 
     it "test_list" $ do
-      let inFile = "test_list"
-      let expRes = Terminating (Success $ singleton QuoteVal)
+      let inFile = "test_list.scm"
+      let expRes = success $ QuoteVal ["+"]
       run inFile expRes
 
     it "test_factorial" $ do
-      let inFile = "test_factorial"
-      let expRes = Terminating (Success $ singleton $ IntVal)
+      let inFile = "test_factorial.scm"
+      let expRes = success $ NumVal IntVal
+      run inFile expRes
+
+    it "test_symbols" $ do
+      let inFile = "test_symbols.scm"
+      let expRes = success $ QuoteVal ["sym1", "sym2", "sym3"]
       run inFile expRes
 
     it "test_random" $ do
-      -- pending
-      let inFile = "test_random"
-      let expRes = Terminating (Success $ singleton $ IntVal)
+      let inFile = "test_random.scm"
+      let expRes = success $ NumVal IntVal
       run inFile expRes
 
+    it "test lits" $ do
+      -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] ["x"] `shouldBe` Terminating (Success $ singleton IntVal)
+      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Int 2), "x"] `shouldBe` ([], Terminating $ NumVal IntVal)
+      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Int 2),
+                                        set "x" (lit $ S.Bool True),
+                                        "x"] `shouldBe` success Top
 
--------------------HELPER------------------------------------------------------
+    it "test closures" $ do
+      let ?sensitivity = 0 in eval' [] [app (lam ["x"] ["x"]) [lit $ S.Int 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
+      let ?sensitivity = 0 in eval' [] [define "id" (lam ["x"] ["x"]),
+                                        app "id" [lit $ S.Int 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
+      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lit $ S.Bool True),
+      --                                           set "id" (lam ["x"] ["x"]),
+      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
+      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
+      --                                           set "id" (lit $ S.Bool True),
+      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
+
+    it "should analyze let expression" $
+      let expr = [let_ [("x", lit $ S.Int 1)] ["x"]] in do
+      let ?sensitivity = 0 in eval' [] expr `shouldBe` success (NumVal IntVal)
+      let ?sensitivity = 1 in eval' [] expr `shouldBe` success (NumVal IntVal)
+
+    it "should analyze define" $
+      let exprs = [define "x" (lit $ S.Int 1),
+                   set "x" (lit $ S.Int 2),
+                   set "x" (lit $ S.Int 3),
+                   "x"] in do
+      let ?sensitivity = 0 in eval' [] exprs `shouldBe` success (NumVal IntVal)
+      let ?sensitivity = 2 in eval' [] exprs `shouldBe` success (NumVal IntVal)
+
+    it "should return unify two different types" $
+      let exprs = [define "x" (lit $ S.Int 1),
+                   set "x" (lit $ S.Int 2),
+                   set "x" (lit $ S.Bool True),
+                   "x"] in do
+      let ?sensitivity = 0 in eval' [] exprs `shouldBe` success Top
+      let ?sensitivity = 2 in eval' [] exprs `shouldBe` success Top
 
 
-type Runner = (String -> Terminating (Error (Pow String) Val) -> IO ())
+    it "should terminate for the non-terminating program LetRec" $
+      let ?sensitivity = 0
+      in eval' [] [let_rec [("id", lam ["x"] ["x"]),
+                            ("fix",lam ["x"] [app "fix" ["x"]])]
+                           [app "fix" ["id"]]]
+           `shouldBe` ([], NonTerminating)
+success :: Val -> (Errors, Terminating Val)
+success v = (hashed [],Terminating v)
 
--- helperTest :: String -> Terminating (Error (Pow String) Val) -> IO ()
--- helperTest inFile expRes = do
---   helperTestChaoticInner inFile expRes
---   helperTestChaoticOuter inFile expRes
---   -- helperTestParallel inFile expRes
+successOrFail :: Terminating Val -> Errors -> (Errors, Terminating Val)
+successOrFail v errs = (errs, v)
+
+type Runner = (String -> (Errors, Terminating Val) -> IO ())
 
 metricFile :: String
 metricFile = "TypedAnalysis.csv"
 
--- helperTestChaotic :: (?sensitivity :: Int) => String -> Terminating (Error (Pow String) Val) -> IO ()
--- helperTestChaotic inFile expRes = do
---   file_str <- helper_import inFile
---   -- print file_str
---   case readExprList file_str of
---     Right a -> do
---       -- print a
---       case match a of
---         Right b -> do
---           let (metric, res) = evalIntervalChaotic' [let_rec (getTopDefinesLam b) (getBody b)]
---           let csv = printf "\"%s\",chaotic simple,%s\n" inFile (toCSV metric)
---           appendFile metricFile csv
---           res`shouldBe` expRes
---         Left b -> print b
---     Left a -> print $ showError a
+runner :: (?algorithm :: Algorithm) => Eval' -> Runner
+runner eval inFile expRes = do
+  prog <- loadSchemeFile inFile
+  let ?sensitivity = 0
+  let (cfg,(Monotone metric,res)) = eval [prog]
+  let csv = printf "\"%s\",%s,%s\n" inFile (show ?algorithm) (toCSV metric)
+  appendFile metricFile csv
+  renderCFG inFile cfg
+  res`shouldBe` expRes
 
-innermostRunner :: String -> Terminating (Error (Pow String) Val) -> IO ()
-innermostRunner inFile expRes = do
-  file_str <- helper_import inFile
-  case readExprList file_str of
-    Right a ->
-      case match a of
-        Right b -> do
-          let ?sensitivity = 0
-          let (metric,res) = evalIntervalChaoticInner' [let_rec (getTopDefinesLam b) (getBody b)]
-          let csv = printf "\"%s\",chaotic inner,%s\n" inFile (toCSV metric)
-          appendFile metricFile csv
-          res`shouldBe` expRes
-        Left b -> print b
-    Left a -> print $ showError a
-
-outermostRunner :: String -> Terminating (Error (Pow String) Val) -> IO ()
-outermostRunner inFile expRes = do
-  file_str <- helper_import inFile
-  case readExprList file_str of
-    Right a ->
-      case match a of
-        Right b -> do
-          let ?sensitivity = 0
-          let (metric,res) = evalIntervalChaoticOuter' [let_rec (getTopDefinesLam b) (getBody b)]
-          let csv = printf "\"%s\",chaotic outer,%s\n" inFile (toCSV metric)
-          appendFile metricFile csv
-          res`shouldBe` expRes
-        Left b -> print b
-    Left a -> print $ showError a
-
-parallelRunner :: String -> Terminating (Error (Pow String) Val) -> IO ()
-parallelRunner inFile expRes = do
-  file_str <- helper_import inFile
-  case readExprList file_str of
-    Right a ->
-      case match a of
-        Right b -> do
-          let ?sensitivity = 0
-          let (metric,res) = evalIntervalParallel' [let_rec (getTopDefinesLam b) (getBody b)]
-          let csv = printf "\"%s\",parallel,%s\n" inFile (toCSV metric)
-          appendFile metricFile csv
-          res`shouldBe` expRes
-        Left b -> print b
-    Left a -> print $ showError a
-
-
-helper_import :: String -> IO String
-helper_import inFile = do
-  root <- getCurrentDirectory
-  let root' = root ++ "//scheme_files//" ++  inFile ++ ".scm"
-  readCreateProcess (shell $ "raco expand " ++ root') ""
-
-draw_graph :: String -> Gr Expr () -> IO FilePath
-draw_graph inFile graph = do 
+renderCFG :: String -> CFG Expr -> IO ()
+renderCFG inFile (CFG graph) = do
   let dotGraph = graphToDot fileGraphParams graph
-  root <- getCurrentDirectory 
-  let outPath = root ++ "//graph_files//" ++ inFile ++ ".png"
-  runGraphvizCommand Dot dotGraph Png outPath
+  root <- getCurrentDirectory
+  forM_ (["gabriel", "scala-am"] :: [FilePath]) $ \dir ->
+    createDirectoryIfMissing True (root ++ "/graph_files/" ++ dir)
+  let outPath = root ++ "/graph_files/" ++ inFile ++ ".png"
+  _ <- runGraphvizCommand Dot dotGraph Png outPath
+  return ()
 
 -- visualize node labels (expr) as actual node labels
 fileGraphParams :: GraphvizParams Int Expr () () Expr
 fileGraphParams = defaultParams {fmtNode = \(_, vl) -> [toLabel vl]}
+
+when :: IsList l => Bool -> l -> l
+when True l = l
+when False _ = fromList []

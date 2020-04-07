@@ -1,5 +1,6 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 -- | Syntax for the While language
@@ -13,8 +14,6 @@ import           Data.Text (Text,unpack)
 import           Data.Hashable
 import           Data.Order
 import           Data.String
-import           Data.Lens (Prism')
-import qualified Data.Lens as L
 
 import           GHC.Generics
 
@@ -143,6 +142,7 @@ data Statement
   | TryCatch Statement Text Text Statement Label
   | Finally Statement Statement Label
   deriving (Ord,Eq,Generic)
+  deriving PreOrd via Discrete Statement
 
 instance Show Statement where
   showsPrec _ e0 = case e0 of
@@ -163,11 +163,10 @@ while cond body = do
   l <- fresh
   While <$> cond <*> begin body <*> pure l
 
-whileLoops :: Prism' (env,(store,[Statement])) (((Expr,Statement,Label),[Statement]),(env,store))
-whileLoops = L.prism' (\(((c,b,l),ss),(env,store)) -> (env,(store,While c b l:ss)))
-                (\(env,(store,s)) -> case s of
-                   While c b l:ss -> Just (((c,b,l),ss),(env,store))
-                   _ -> Nothing)
+isWhileLoop :: ((env,[Statement]),store) -> Bool
+isWhileLoop ((_, s),_) = case s of
+  While {} : _ -> True
+  _            -> False
 
 ifExpr :: State Label Expr -> [State Label Statement] -> [State Label Statement] -> State Label Statement
 ifExpr cond ifBranch elseBranch = do

@@ -12,7 +12,7 @@ import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Context as Context
@@ -107,6 +107,7 @@ instance ArrowWriter w c => ArrowWriter w (NoInlineT c) where
   {-# NOINLINE tell #-}
 
 instance ArrowFail e c => ArrowFail e (NoInlineT c) where
+  type Join x (NoInlineT c) = Fail.Join x c
   fail = lift fail
   {-# NOINLINE fail #-}
 
@@ -135,8 +136,8 @@ instance ArrowStore var val c => ArrowStore var val (NoInlineT c) where
   {-# NOINLINE read #-}
   {-# NOINLINE write #-}
 
-type instance Fix (NoInlineT c) x y = NoInlineT (Fix c x y)
-instance ArrowFix (Underlying (NoInlineT c) x y) => ArrowFix (NoInlineT c x y)
+instance ArrowFix (Underlying (NoInlineT c) x y) => ArrowFix (NoInlineT c x y) where
+  type Fix (NoInlineT c x y) = Fix (Underlying (NoInlineT c) x y)
 
 instance ArrowExcept e c => ArrowExcept e (NoInlineT c) where
   type Join z (NoInlineT c) = Exc.Join z c
@@ -145,13 +146,13 @@ instance ArrowExcept e c => ArrowExcept e (NoInlineT c) where
   {-# NOINLINE throw #-}
   {-# NOINLINE try #-}
 
-instance ArrowLowerBounded c => ArrowLowerBounded (NoInlineT c) where
-  bottom = lift bottom
-  {-# NOINLINE bottom #-}
-
 instance ArrowJoin c => ArrowJoin (NoInlineT c) where
   joinSecond lub f g = lift $ joinSecond lub f (unlift g)
   {-# NOINLINE joinSecond #-}
+
+instance ArrowLowerBounded y c => ArrowLowerBounded y (NoInlineT c) where
+  bottom = lift bottom
+  {-# NOINLINE bottom #-}
 
 instance ArrowComplete y c => ArrowComplete y (NoInlineT c) where
   f <⊔> g = lift $ unlift f <⊔> unlift g
@@ -161,13 +162,12 @@ instance ArrowConst x c => ArrowConst x (NoInlineT c) where
   askConst f = lift (askConst (unlift . f))
   {-# NOINLINE askConst #-}
 
-instance ArrowEffectCommutative c => ArrowEffectCommutative (NoInlineT c)
-
 instance ArrowContext ctx c => ArrowContext ctx (NoInlineT c) where
   localContext f = lift (localContext (unlift f))
   {-# NOINLINE localContext #-}
 
 instance ArrowCache a b c => ArrowCache a b (NoInlineT c) where
+  type Widening (NoInlineT c) = Cache.Widening c
   initialize = lift Cache.initialize
   lookup = lift Cache.lookup
   write = lift Cache.write

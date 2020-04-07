@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.Abstract.DiscretePowerset where
 
 import           Control.DeepSeq
@@ -24,6 +25,7 @@ import qualified Data.Abstract.FreeCompletion as F
 
 import           GHC.Generics
 import           GHC.Exts
+import           Data.Text.Prettyprint.Doc
 
 data Pow x = Pow (HashSet x) | Top deriving (Eq,Generic)
 instance NFData x => NFData (Pow x)
@@ -63,6 +65,10 @@ fromMaybe m = case m of
 instance Show a => Show (Pow a) where
   show (Pow a) = "{" ++ intercalate ", " (show <$> H.toList a) ++ "}"
   show Top = "⊤"
+
+instance Pretty a => Pretty (Pow a) where
+  pretty (Pow a) = braces $ hsep (punctuate "," (pretty <$> H.toList a))
+  pretty Top = "⊤"
 
 instance Identifiable x => PreOrd (Pow x) where
   Pow xs ⊑ Pow ys = all (\x -> H.member x ys) xs

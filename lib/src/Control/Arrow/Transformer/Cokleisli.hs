@@ -13,7 +13,7 @@ import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Except as Exc
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Fix
 import Control.Arrow.Monad
 import Control.Arrow.Order
@@ -24,7 +24,6 @@ import Control.Arrow.Store as Store
 import Control.Arrow.Trans
 
 import Data.Monoidal
-import Data.Profunctor (Profunctor(..))
 import Data.Profunctor.Unsafe
 import Unsafe.Coerce
 import Control.Comonad
@@ -110,8 +109,8 @@ instance (ArrowComonad f c, ArrowStore var val c) => ArrowStore var val (Cokleis
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-type instance Fix (CokleisliT f c) x y = CokleisliT f (Fix c (f x) y)
-instance (ArrowComonad f c, ArrowFix (Underlying (CokleisliT f c) x y)) => ArrowFix (CokleisliT f c x y)
+instance (ArrowComonad f c, ArrowFix (Underlying (CokleisliT f c) x y)) => ArrowFix (CokleisliT f c x y) where
+  type Fix (CokleisliT f c x y) = Fix (Underlying (CokleisliT f c) x y)
 
 instance (ArrowComonad f c, ArrowExcept e c) => ArrowExcept e (CokleisliT f c) where
   type Join y (CokleisliT f c) = Exc.Join y c
@@ -121,6 +120,7 @@ instance (ArrowComonad f c, ArrowExcept e c) => ArrowExcept e (CokleisliT f c) w
   {-# INLINE try #-}
 
 instance (ArrowComonad f c, ArrowFail e c) => ArrowFail e (CokleisliT f c) where
+  type Join y (CokleisliT f c) = Fail.Join y c
   fail = lift' fail
   {-# INLINE fail #-}
 

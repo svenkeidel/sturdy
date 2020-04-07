@@ -1,5 +1,4 @@
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -9,12 +8,11 @@ import           Data.Text(Text,unpack)
 import           Data.Hashable
 import           Data.Label
 import           Data.String
-import           Data.Lens (Prism')
-import qualified Data.Lens as L
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.HashSet(HashSet)
 import qualified Data.HashSet as H
+import           Data.Text.Prettyprint.Doc
 
 import Control.Monad.State
 
@@ -96,6 +94,9 @@ instance Show Expr where
       lam_prec = 9
       mult_prec = 8
 
+instance Pretty Expr where
+  pretty = viaShow
+
 instance HasLabel Expr where
   label e = case e of
     Var _ l -> l
@@ -115,12 +116,11 @@ instance IsString (State Label Expr) where
 instance Hashable Expr where
   hashWithSalt s e = s `hashWithSalt` label e
 
-apply :: Prism' (store,(env,Expr)) (store,((Expr,Label),env))
-apply = L.prism' (\(store,((e',l),env)) -> (store,(env,Apply e' l)))
-                 (\(store,(env,e)) -> case e of
-                      Apply e' l -> Just (store,((e',l),env))
-                      _ -> Nothing)
-{-# INLINE apply #-}
+isFunctionBody :: (store,(env,Expr)) -> Bool
+isFunctionBody (_,(_,e)) = case e of
+  Apply {} -> True
+  _ -> False
+{-# INLINE isFunctionBody #-}
 
 freeVars :: Expr -> HashMap Expr (HashSet Text)
 freeVars e0 = execState (go e0) M.empty
