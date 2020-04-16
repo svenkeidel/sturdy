@@ -62,7 +62,7 @@ type InterpChaotic x y =
         (EnvStoreT Text Addr Val
           (FixT
             (MetricsT Metric.Monotone In
-              (ComponentT Comp.Monotone {- Comp.Component -} In
+              (ComponentT Comp.Component  In
                 (StackT Stack.Monotone In
                   (CacheT Cache.Monotone In Out
                     (ContextT Ctx

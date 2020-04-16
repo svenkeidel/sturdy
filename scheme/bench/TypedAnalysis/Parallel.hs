@@ -65,26 +65,22 @@ type Interp =
                     => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}
 {-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
 {-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
-{-# SPECIALIZE Generic.runFixed :: FixpointAlgorithm (Fix (Interp [Expr] Val)) -> Interp [Expr] Val #-}
+{-# SPECIALIZE Generic.runFixed :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))) => Interp [Expr] Val #-}
 
 evalParallel :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalParallel e =
-  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (empty,(empty,[e]))
-  where
-    algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
-    algorithm =
-      let ?cacheWidening = (W.finite, W.finite) in
-      transform $ Par.parallel $ \update_ ->
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $ Par.parallel $ \update_ ->
+        -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.filter isFunctionBody update_
+        Fix.filter isFunctionBody update_ in
+  snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
 
 evalADI :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalADI e =
-  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (empty,(empty,[e]))
-  where
-    algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
-    algorithm =
-      let ?cacheWidening = (W.finite, W.finite) in
-      transform $ Par.adi $ \update_ ->
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $ Par.adi $ \update_ ->
+        -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.filter isFunctionBody update_
+        Fix.filter isFunctionBody update_ in
+  snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))

@@ -33,6 +33,8 @@ import           Control.Arrow.Order
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.LetRec
 
+import           Data.Abstract.MonotoneStore(Store)
+import qualified Data.Abstract.MonotoneStore as Store
 import           Data.Abstract.Closure (Closure)
 import qualified Data.Abstract.Closure as Cls
 
@@ -47,15 +49,20 @@ import           Data.Profunctor
 import           Data.Profunctor.Unsafe ((.#))
 import           Data.Coerce
 
-type Map a b = Hashed (HashMap a b)
+type Env a b = Hashed (HashMap a b)
 
-newtype EnvStoreT var addr val c x y = EnvStoreT (ReaderT (Map var addr) (StateT (Map addr val) c) x y)
+newtype EnvStoreT var addr val c x y =
+  EnvStoreT
+    (ReaderT (Env var addr)
+      (StateT (Store addr val)
+         c) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded a,
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
             ArrowContext ctx, ArrowControlFlow stmt)
 
 instance ArrowTrans (EnvStoreT var addr val c) where
-  type Underlying (EnvStoreT var addr val c) x y = ReaderT (Map var addr) (StateT (Map addr val) c) x y
+  type Underlying (EnvStoreT var addr val c) x y =
+    ReaderT (Env var addr) (StateT (Store addr val) c) x y
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c)
     => ArrowEnv var addr (EnvStoreT var addr val c) where
@@ -78,12 +85,12 @@ instance (Identifiable var, Identifiable addr, Identifiable val, Complete val, A
   type Join y (EnvStoreT var addr val c) = ()
   read (EnvStoreT f) (EnvStoreT g) = EnvStoreT $ proc (addr,x) -> do
     store <- State.get -< ()
-    case Map.lookup addr (unhashed store) of
+    case Store.lookup addr store of
       P.Just val -> f -< (val,x)
       P.Nothing -> g -< x
   write = EnvStoreT $ proc (addr, val) -> do
     store <- State.get -< ()
-    State.put -< mapHashed (Map.insertWith (⊔) addr val) store
+    State.put -< Store.insert addr val store
   {-# INLINE read #-}
   {-# INLINE write #-}
   {-# SCC read #-}
@@ -91,8 +98,8 @@ instance (Identifiable var, Identifiable addr, Identifiable val, Complete val, A
 
 
 instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowChoice c, Profunctor c) =>
-  ArrowClosure expr (Closure expr (HashSet (Map var addr))) (EnvStoreT var addr val c) where
-  type Join y (Closure expr (HashSet (Map var addr))) (EnvStoreT var addr val c) = Complete y
+  ArrowClosure expr (Closure expr (HashSet (Env var addr))) (EnvStoreT var addr val c) where
+  type Join y (Closure expr (HashSet (Env var addr))) (EnvStoreT var addr val c) = Complete y
   closure = EnvStoreT $ proc expr -> do
     env <- Reader.ask -< ()
     returnA -< Cls.closure expr (Set.singleton env)
@@ -104,7 +111,7 @@ instance (Identifiable var, Identifiable addr, Identifiable expr, ArrowChoice c,
   {-# SCC closure #-}
   {-# SCC apply #-}
 
-instance (Identifiable var, Identifiable addr, Identifiable val, Complete val, IsClosure val (HashSet (Map var addr)), ArrowChoice c, Profunctor c)
+instance (Identifiable var, Identifiable addr, Identifiable val, Complete val, IsClosure val (HashSet (Env var addr)), ArrowChoice c, Profunctor c)
     => ArrowLetRec addr val (EnvStoreT var addr val c) where
   letRec (EnvStoreT f) = EnvStoreT $ proc (bindings,x) -> do
     go -< bindings
@@ -114,7 +121,7 @@ instance (Identifiable var, Identifiable addr, Identifiable val, Complete val, I
         (addr,val):bs -> do
           env <- Reader.ask -< ()
           State.modify' (\((addr,val,env),store) ->
-                           ((),mapHashed (Map.insertWith (⊔) addr (setEnvironment (Set.singleton env) val)) store))
+                           ((),Store.insert addr (setEnvironment (Set.singleton env) val) store))
             -< (addr,val,env)
           go -< bs
         [] -> returnA -< []

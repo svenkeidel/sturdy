@@ -42,6 +42,7 @@ import           Control.Arrow.Fix.Context
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
+import qualified Control.Arrow.Transformer.Abstract.FiniteEnvStore as M
 
 import           Control.DeepSeq
 
@@ -61,6 +62,7 @@ import           Data.Text.Prettyprint.Doc
 import           Data.Profunctor
 import qualified Data.Lens as L
 
+import qualified Data.Abstract.MonotoneStore as S
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Terminating(Terminating)
 import           Data.Abstract.Closure (Closure)
@@ -77,12 +79,11 @@ import           Text.Printf
 import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1(..),Op2(..),OpVar(..))
 import           GenericInterpreter as Generic
 
-type Map a b = Hashed (HashMap a b)
 type Set a = Hashed (HashSet a)
 
 type Cls = Closure Expr (HashSet Env)
-type Env = Map Text Addr
-type Store = Map Addr Val
+type Env = M.Env Text Addr
+type Store = S.Store Addr Val
 type Errors = Set Text
 type Ctx = CallString Label
 -- -- Input and output type of the fixpoint.
@@ -666,14 +667,14 @@ printIn ((store,_),(env,expr)) =
   vsep
   [ "EXPR:  " <> showFirst expr
   , "ENV:   " <> align (pretty (unhashed env))
-  , "STORE: " <> align (pretty (unhashed store))
+  , "STORE: " <> align (pretty store)
   ]
 
 printOut :: Out -> Doc ann
 printOut ((store,errs),val) =
   vsep
   [ "RET:   " <> pretty val
-  , "STORE: " <> align (pretty (unhashed store))
+  , "STORE: " <> align (pretty store)
   , "ERRORS:" <> align (pretty (unhashed errs))
   ]
 

@@ -12,8 +12,13 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC
   -fspecialise-aggressively
+  -fexpose-all-unfoldings
   -flate-specialise
   -flate-dmd-anal
+  -fspec-constr-keen
+  -fspec-constr
+  -fspec-constr-count=10
+  -fspec-constr-threshold=5000
   -fsimpl-tick-factor=50000
   -fmax-simplifier-iterations=10
 #-}
@@ -73,39 +78,31 @@ type Interp =
       (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT
-            (ComponentT Comp.Monotone {-Comp.Component-} In
+            (ComponentT Comp.Component In
               (StackT Stack.Monotone In
                 (CacheT Cache.Monotone In Out
                   (ContextT Ctx
                     (->)))))))))
 
-{-# SPECIALIZE if__ :: (ArrowComplete z Interp)
-                    => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}
-{-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
-{-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
-{-# SPECIALIZE Generic.runFixed :: FixpointAlgorithm (Fix (Interp [Expr] Val)) -> Interp [Expr] Val #-}
+-- {-# SPECIALIZE if__ :: (ArrowComplete z Interp)
+--                     => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}
+-- {-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
+-- {-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
+-- {-# SPECIALIZE Generic.runFixed :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))) => Interp [Expr] Val #-}
 
 evalInner :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalInner e =
-  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (empty,(empty,[e]))
-  where
-    algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
-    algorithm =
-      let ?cacheWidening = (W.finite, W.finite) in
-      transform $ inline Fix.fixpointAlgorithm $
-        -- Fix.trace printInExpr printOutVal .
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.filter isFunctionBody (chaotic innermost)
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $
+        Fix.fixpointAlgorithm $
+        Fix.filter isFunctionBody (chaotic innermost) in
+  snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
 
 evalOuter :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalOuter e =
-  snd $ snd $ Trans.run (Generic.runFixed algorithm :: Interp [Expr] Val) (empty,(empty,[e]))
-  where
-    algorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))
-    algorithm =
-      let ?cacheWidening = (W.finite, W.finite) in
-      transform $ inline Fix.fixpointAlgorithm $
-        -- Fix.trace printInExpr printOutVal .
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.filter isFunctionBody (chaotic outermost)
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $
+        Fix.fixpointAlgorithm $
+        Fix.filter isFunctionBody (chaotic outermost) in
+  snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
 
