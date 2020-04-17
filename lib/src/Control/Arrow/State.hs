@@ -25,6 +25,8 @@ class (Arrow c, Profunctor c) => ArrowState s c | c -> s where
     (y,s') <- f -< (x,s)
     put -< s'
     returnA -< y
+  {-# INLINE modify #-}
 
 modify' :: ArrowState s c => ((x,s) -> (y,s)) -> c x y
 modify' f = modify (arr f)
+{-# INLINE modify' #-}

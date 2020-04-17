@@ -37,6 +37,7 @@ class (Arrow c, Profunctor c) => ArrowEnv var val c | c -> var, c -> val where
 -- | Simpler version of environment lookup.
 lookup' :: (Join val c, Fail.Join val c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
 lookup' = lookup'' id
+{-# INLINE lookup' #-}
 
 lookup'' :: (Join y c, Fail.Join y c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c val y -> c var y
 lookup'' f = proc var ->
@@ -44,6 +45,7 @@ lookup'' f = proc var ->
     (proc (val,_) -> f     -< val)
     (proc var     -> fail  -< fromString $ printf "Variable %s not bound" (show var))
     -< (var,var)
+{-# INLINE lookup'' #-}
 
 extend' :: (ArrowChoice c, ArrowEnv var val c) => c x y -> c ([(var,val)],x) y
 extend' f = proc (l,x) -> case l of

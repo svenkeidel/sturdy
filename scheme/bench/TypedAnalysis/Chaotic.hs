@@ -10,29 +10,21 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 {-# OPTIONS_GHC
   -fspecialise-aggressively
-  -fexpose-all-unfoldings
   -flate-specialise
   -flate-dmd-anal
   -fspec-constr-keen
   -fspec-constr
-  -fspec-constr-count=10
-  -fspec-constr-threshold=5000
+  -fspec-constr-threshold=3000
   -fsimpl-tick-factor=50000
-  -fmax-simplifier-iterations=10
 #-}
-{-
- Don't use these!!!!
-  -funfolding-dict-discount=1000
-  -fexpose-all-unfoldings
-  -funfolding-use-threshold=1000
-
-  -funfolding-creation-threshold=100000
-  -funfolding-dict-discount=1000
-  -funfolding-fun-discount=1000
-  -funfolding-keeness-factor=30
--}
+-- Expensive:
+-- {-# OPTIONS_GHC
+-- -fexpose-all-unfoldings
+-- -fmax-simplifier-iterations=10
+-- #-}
 module TypedAnalysis.Chaotic where
 
 import           Prelude hiding (not,Bounded,fail,(.),exp,read)

@@ -50,7 +50,7 @@ newtype CacheT cache a b c x y = CacheT { unCacheT :: StateT (cache a b) c x y}
 
 instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) where
   type Run (CacheT cache a b c) x y = Run c x (cache a b,y)
-  run f = {-# SCC "runCacheT" #-} run (lmap (\x -> (empty,x)) (unlift f))
+  run f = run (lmap (\x -> (empty, x)) (unlift f))
   {-# INLINE run #-}
 
 instance ArrowTrans (CacheT cache a b c) where
