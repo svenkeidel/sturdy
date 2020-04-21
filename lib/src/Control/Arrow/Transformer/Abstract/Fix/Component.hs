@@ -77,6 +77,8 @@ instance (Identifiable a, Arrow c, Profunctor c) => ArrowComponent a (ComponentT
   removeFromComponent = lift $ arr $ \(Component c,a) -> (Component (H.delete a c),())
   {-# INLINE addToComponent #-}
   {-# INLINE removeFromComponent #-}
+  {-# SCC addToComponent #-}
+  {-# SCC removeFromComponent #-}
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowInComponent a (ComponentT Component a c) where
   inComponent = lift $ arr $ \(Component c,a) ->
@@ -86,12 +88,14 @@ instance (Identifiable a, Arrow c, Profunctor c) => ArrowInComponent a (Componen
              | otherwise = Body
     in (Component c,comp)
   {-# INLINE inComponent #-}
+  {-# SCC inComponent #-}
 
 instance (Identifiable a, ArrowStack a c) => ArrowStack a (ComponentT Component a c) where
   push f = lift $ proc (comp,(a,x)) -> do
     (comp',y) <- push (lmap (\x -> (mempty,x)) (unlift f)) -< (a,x)
     returnA -< (comp <> comp', y)
   {-# INLINE push #-}
+  {-# SCC push #-}
 
 -- Component with a mononone part ------------------------------------------------------------------
 data Monotone b where
@@ -113,6 +117,8 @@ instance (PreOrd a, Identifiable b, Arrow c, Profunctor c) => ArrowComponent (a,
     (Monotone (M.update (\a' -> if a' ⊑ a then Nothing else Just a') b m), ())
   {-# INLINE addToComponent #-}
   {-# INLINE removeFromComponent #-}
+  {-# SCC addToComponent #-}
+  {-# SCC removeFromComponent #-}
 
 instance (PreOrd a, Identifiable b, Profunctor c, Arrow c) => ArrowInComponent (a,b) (ComponentT Monotone (a,b) c) where
   inComponent = lift $ arr $ \(Monotone m,(a,b)) ->
@@ -121,7 +127,9 @@ instance (PreOrd a, Identifiable b, Profunctor c, Arrow c) => ArrowInComponent (
              | otherwise             = Body
     in (Monotone m,comp)
   {-# INLINE inComponent #-}
+  {-# SCC inComponent #-}
 
 instance (ArrowStack a c) => ArrowStack a (ComponentT Monotone a c) where
   push f = lift $ proc (comp,(a,x)) -> push (unlift f) -< (a,(comp,x))
   {-# INLINE push #-}
+  {-# SCC push #-}

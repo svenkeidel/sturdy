@@ -17,9 +17,10 @@
   -flate-dmd-anal
   -fspec-constr-keen
   -fspec-constr
-  -fspec-constr-threshold=3000
+  -fspec-constr-threshold=10000
   -fsimpl-tick-factor=50000
 #-}
+
 -- Expensive:
 -- {-# OPTIONS_GHC
 -- -fexpose-all-unfoldings

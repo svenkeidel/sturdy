@@ -63,6 +63,7 @@ import           Data.Profunctor
 import qualified Data.Lens as L
 
 import qualified Data.Abstract.MonotoneStore as S
+import qualified Data.Abstract.MonotoneErrors as E
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Terminating(Terminating)
 import           Data.Abstract.Closure (Closure)
@@ -79,12 +80,10 @@ import           Text.Printf
 import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1(..),Op2(..),OpVar(..))
 import           GenericInterpreter as Generic
 
-type Set a = Hashed (HashSet a)
-
 type Cls = Closure Expr (HashSet Env)
 type Env = M.Env Text Addr
 type Store = S.Store Addr Val
-type Errors = Set Text
+type Errors = E.Errors Text
 type Ctx = CallString Label
 -- -- Input and output type of the fixpoint.
 
@@ -675,7 +674,7 @@ printOut ((store,errs),val) =
   vsep
   [ "RET:   " <> pretty val
   , "STORE: " <> align (pretty store)
-  , "ERRORS:" <> align (pretty (unhashed errs))
+  , "ERRORS:" <> align (pretty errs)
   ]
 
 printInExpr :: In -> Doc ann

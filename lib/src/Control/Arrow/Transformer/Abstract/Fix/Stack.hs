@@ -75,15 +75,17 @@ instance IsEmpty (Stack a) where
   {-# INLINE empty #-}
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
-  push f = {-# SCC "Stack.push" #-} lift $ proc (st,(a,x)) -> do
+  push f = lift $ proc (st,(a,x)) -> do
     let st' = st { elems = Set.insert a (elems st)
                  , stack = a : stack st
                  , depth = depth st + 1
                  }
     unlift f -< (st', x)
-  elem = {-# SCC "Stack.elem" #-} lift $ proc (st,a) -> returnA -< Set.member a (elems st)
+  elem = lift $ proc (st,a) -> returnA -< Set.member a (elems st)
   {-# INLINE push #-}
   {-# INLINE elem #-}
+  {-# SCC push #-}
+  {-# SCC elem #-}
 
 instance (Arrow c, Profunctor c) => ArrowStackDepth (StackT Stack a c) where
   depth = lift $ proc (st,()) -> returnA -< depth st
@@ -108,3 +110,5 @@ instance (PreOrd a, Identifiable b, Profunctor c, Arrow c) => ArrowStack (a,b) (
   push f = lift $ lmap (\(Monotone m, ((a, b), x)) -> (Monotone (M.insert b a m), x)) (unlift f)
   {-# INLINE elem #-}
   {-# INLINE push #-}
+  {-# SCC elem #-}
+  {-# SCC push #-}

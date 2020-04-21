@@ -107,6 +107,11 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, Profunctor c)
   {-# INLINE write #-}
   {-# INLINE update #-}
   {-# INLINE setStable #-}
+  {-# SCC initialize #-}
+  {-# SCC lookup #-}
+  {-# SCC write #-}
+  {-# SCC update #-}
+  {-# SCC setStable #-}
 
 instance (Arrow c, Profunctor c) => ArrowIterateCache a b (CacheT Cache a b c) where
   nextIteration = CacheT $ proc x -> do
@@ -145,6 +150,11 @@ instance (Identifiable k, Arrow c, Profunctor c, ArrowCache a b (CacheT cache a 
   {-# INLINE update #-}
   {-# INLINE write #-}
   {-# INLINE setStable #-}
+  {-# SCC initialize #-}
+  {-# SCC lookup #-}
+  {-# SCC write #-}
+  {-# SCC update #-}
+  {-# SCC setStable #-}
 
 instance (Identifiable k, IsEmpty (cache a b), ArrowApply c, Profunctor c, ArrowJoinContext a (CacheT cache a b c)) => ArrowJoinContext (k,a) (CacheT (Group cache) (k,a) b c) where
   type Widening (CacheT (Group cache) (k,a) b c) = Context.Widening (CacheT cache a b c)
@@ -207,6 +217,10 @@ instance (Profunctor c, ArrowChoice c,
   {-# INLINE lookupNewCache #-}
   {-# INLINE updateNewCache #-}
   {-# INLINE isStable #-}
+  {-# SCC lookupOldCache #-}
+  {-# SCC lookupNewCache #-}
+  {-# SCC updateNewCache #-}
+  {-# SCC isStable #-}
 
 instance (Profunctor c, ArrowChoice c,
           ArrowIterateCache a b (CacheT cache a b c))
