@@ -38,54 +38,9 @@ inComponent' :: ArrowInComponent a c => c a b -> c a (InComponent,b)
 inComponent' f = lmap (\a -> (a,a)) (inComponent f)
 {-# INLINE inComponent' #-}
 
-chaoticInnermost :: forall a b c.
-  (?cacheWidening :: Widening c,
-   ArrowChoice c,
-   ArrowInComponent a c,
-   ArrowComponent a c,
-   ArrowStack a c,
-   ArrowCache a b c) =>
-  FixpointCombinator c a b
-chaoticInnermost f = proc a -> do
-  m <- Cache.lookup -< a
-  case m of
-    Just (Stable,b) -> returnA -< b
-    _ -> do
-      recurrentCall <- Stack.elem -< a
-      case recurrentCall of
-        RecurrentCall pointer -> do
-          b <- Cache.initialize -< a
-          addToComponent -< (a,pointer)
-          returnA -< b
-        NoLoop -> do
-          Stack.push' iterate -< a
-  where
-    iterate :: c a b
-    iterate = proc a -> do
-      (inComp, b) <- inComponent' f -< a
-      case inComp of
-        Head _ -> do
-          (stable,aNew,bNew) <- Cache.update -< (a,b)
-          case stable of
-            Unstable -> iterate -< aNew
-            Stable   -> do
-              -- setStable -< (Stable,a)
-              returnA -< bNew
-        -- Head Inner -> do
-        --   (stable,aNew,bNew) <- Cache.update -< (a,b)
-        --   case stable of
-        --     Unstable -> iterate -< aNew
-        --     Stable   -> returnA -< bNew
-        _ -> do
-          returnA -< b
-    {-# SCC iterate #-}
-    {-# INLINABLE iterate #-}
-{-# INLINE chaoticInnermost #-}
-{-# SCC chaoticInnermost #-}
-
 type IterationStrategy c a b = c a b -> c (a,b) b -> c a b
 
-innermost :: (ArrowChoice c, ArrowCache a b c, ArrowInComponent a c) => IterationStrategy c a b
+innermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 innermost f iterate = proc a -> do
   (inComp,b) <- inComponent' f -< a
   case inComp of
@@ -100,7 +55,7 @@ innermost f iterate = proc a -> do
 {-# INLINE innermost #-}
 {-# SCC innermost #-}
 
-outermost :: (ArrowChoice c, ArrowCache a b c, ArrowInComponent a c) => IterationStrategy c a b
+outermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 outermost f iterate = proc a -> do
   (inComp,b) <- inComponent' f -< a
   case inComp of

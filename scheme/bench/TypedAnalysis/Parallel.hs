@@ -12,11 +12,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC
   -fspecialise-aggressively
+  -fexpose-all-unfoldings
+  -funfolding-use-threshold=10000
   -flate-specialise
   -flate-dmd-anal
-  -fspec-constr-keen
-  -fspec-constr
-  -fspec-constr-threshold=10000
   -fsimpl-tick-factor=50000
   -fmax-simplifier-iterations=10
 #-}
@@ -63,17 +62,16 @@ type Interp =
               (ContextT Ctx
                 (->)))))))
 
--- {-# SPECIALIZE if__ :: (ArrowComplete z Interp)
---                     => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}
--- {-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
--- {-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
--- {-# SPECIALIZE Generic.runFixed :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))) => Interp [Expr] Val #-}
+{-# SPECIALIZE if__ :: (ArrowComplete z Interp)
+                    => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}
+{-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
+{-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
+{-# SPECIALIZE Generic.runFixed :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))) => Interp [Expr] Val #-}
 
 evalParallel :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalParallel e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ Par.parallel $ \update_ ->
-        -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody update_ in
   snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
@@ -82,7 +80,6 @@ evalADI :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalADI e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ Par.adi $ \update_ ->
-        -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody update_ in
   snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
