@@ -189,8 +189,8 @@ instance (Applicative f, ArrowCache a b c) => ArrowCache a b (StaticT f c) where
   type Widening (StaticT f c) = Cache.Widening c
   {-# SPECIALIZE instance ArrowCache a b c => ArrowCache a b (StaticT ((->) r) c) #-}
 
-instance (Applicative f, ArrowComponent comp c) => ArrowComponent comp (StaticT f c) where
-  {-# SPECIALIZE instance ArrowComponent comp c => ArrowComponent comp (StaticT ((->) r) c) #-}
+instance (Applicative f, ArrowComponent a c) => ArrowComponent a (StaticT f c) where
+  {-# SPECIALIZE instance ArrowComponent a c => ArrowComponent a (StaticT ((->) r) c) #-}
 
 instance (Applicative f, ArrowControlFlow stmt c) => ArrowControlFlow stmt (StaticT f c) where
   nextStatement (StaticT f) = StaticT $ nextStatement <$> f

@@ -19,6 +19,7 @@
   -fspec-constr
   -fspec-constr-threshold=10000
   -fsimpl-tick-factor=50000
+  -fmax-simplifier-iterations=10
 #-}
 
 -- Expensive:
@@ -72,7 +73,7 @@ type Interp =
         (EnvStoreT Text Addr Val
           (FixT
             (ComponentT Comp.Component In
-              (StackT Stack.Monotone In
+              (StackT Stack.Stack In
                 (CacheT Cache.Monotone In Out
                   (ContextT Ctx
                     (->)))))))))
@@ -88,7 +89,7 @@ evalInner e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
         Fix.fixpointAlgorithm $
-        Fix.filter isFunctionBody (chaotic innermost) in
+        Fix.filter isFunctionBody (chaoticInnermost) in
   snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
 
 evalOuter :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)

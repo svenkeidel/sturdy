@@ -13,9 +13,11 @@ import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 
 import           Data.GraphViz hiding (diamond)
-import           Data.Hashed.Lazy(hashed)
+import           Data.Text(Text)
+import           Data.HashSet(HashSet)
 
 import           Data.Abstract.Terminating hiding (toEither)
+import           Data.Abstract.MonotoneErrors (toSet)
 import qualified Data.Abstract.Boolean as B
 
 import           GHC.Exts
@@ -25,7 +27,7 @@ import           System.Directory
 import           Syntax as S hiding (Nil)
 import           Parser(loadSchemeFile)
 import           TypedAnalysis
-import           TypedAnalysis.Chaotic(evalInner',evalOuter',eval')
+import           TypedAnalysis.Chaotic(evalInner',evalOuter')
 import           TypedAnalysis.Parallel(evalParallel',evalADI')
 
 import           Text.Printf
@@ -306,72 +308,26 @@ customTests run = do
       let expRes = success $ NumVal IntVal
       run inFile expRes
 
-    it "test lits" $ do
-      -- let ?sensitivity = 0 in evalInterval' [("x", singleton IntVal), ("y", singleton IntVal)] ["x"] `shouldBe` Terminating (Success $ singleton IntVal)
-      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Int 2), "x"] `shouldBe` ([], Terminating $ NumVal IntVal)
-      let ?sensitivity = 0 in eval' [] [define "x" (lit $ S.Int 2),
-                                        set "x" (lit $ S.Bool True),
-                                        "x"] `shouldBe` success Top
+success :: Val -> (HashSet Text, Terminating Val)
+success v = ([],Terminating v)
 
-    it "test closures" $ do
-      let ?sensitivity = 0 in eval' [] [app (lam ["x"] ["x"]) [lit $ S.Int 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
-      let ?sensitivity = 0 in eval' [] [define "id" (lam ["x"] ["x"]),
-                                        app "id" [lit $ S.Int 2]] `shouldBe` ([], Terminating $ NumVal IntVal)
-      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lit $ S.Bool True),
-      --                                           set "id" (lam ["x"] ["x"]),
-      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
-      -- let ?sensitivity = 0 in evalInterval' [] [define "id" (lam ["x"] ["x"]),
-      --                                           set "id" (lit $ S.Bool True),
-      --                                           app "id" [lit $ S.Number 2]] `shouldBe` Terminating (Success IntVal)
-
-    it "should analyze let expression" $
-      let expr = [let_ [("x", lit $ S.Int 1)] ["x"]] in do
-      let ?sensitivity = 0 in eval' [] expr `shouldBe` success (NumVal IntVal)
-      let ?sensitivity = 1 in eval' [] expr `shouldBe` success (NumVal IntVal)
-
-    it "should analyze define" $
-      let exprs = [define "x" (lit $ S.Int 1),
-                   set "x" (lit $ S.Int 2),
-                   set "x" (lit $ S.Int 3),
-                   "x"] in do
-      let ?sensitivity = 0 in eval' [] exprs `shouldBe` success (NumVal IntVal)
-      let ?sensitivity = 2 in eval' [] exprs `shouldBe` success (NumVal IntVal)
-
-    it "should return unify two different types" $
-      let exprs = [define "x" (lit $ S.Int 1),
-                   set "x" (lit $ S.Int 2),
-                   set "x" (lit $ S.Bool True),
-                   "x"] in do
-      let ?sensitivity = 0 in eval' [] exprs `shouldBe` success Top
-      let ?sensitivity = 2 in eval' [] exprs `shouldBe` success Top
-
-
-    it "should terminate for the non-terminating program LetRec" $
-      let ?sensitivity = 0
-      in eval' [] [let_rec [("id", lam ["x"] ["x"]),
-                            ("fix",lam ["x"] [app "fix" ["x"]])]
-                           [app "fix" ["id"]]]
-           `shouldBe` ([], NonTerminating)
-success :: Val -> (Errors, Terminating Val)
-success v = (hashed [],Terminating v)
-
-successOrFail :: Terminating Val -> Errors -> (Errors, Terminating Val)
+successOrFail :: Terminating Val -> HashSet Text -> (HashSet Text, Terminating Val)
 successOrFail v errs = (errs, v)
 
-type Runner = (String -> (Errors, Terminating Val) -> IO ())
+type Runner = (String -> (HashSet Text, Terminating Val) -> IO ())
 
 metricFile :: String
-metricFile = "TypedAnalysis.csv"
+metricFile = "metrics.csv"
 
 runner :: (?algorithm :: Algorithm) => Eval' -> Runner
-runner eval inFile expRes = do
+runner eval inFile expected = do
   prog <- loadSchemeFile inFile
   let ?sensitivity = 0
-  let (cfg,(Monotone metric,res)) = eval [prog]
+  let (cfg,(Monotone metric,(errs,res))) = eval [prog]
   let csv = printf "\"%s\",%s,%s\n" inFile (show ?algorithm) (toCSV metric)
   appendFile metricFile csv
   renderCFG inFile cfg
-  res`shouldBe` expRes
+  (toSet errs, res) `shouldBe` expected
 
 renderCFG :: String -> CFG Expr -> IO ()
 renderCFG inFile (CFG graph) = do

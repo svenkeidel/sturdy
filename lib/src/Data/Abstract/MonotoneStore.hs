@@ -20,7 +20,7 @@ import           Data.Text.Prettyprint.Doc
 -- in a linear fashion. More specifically, each store can only be used once and
 -- duplicating the store is **not** allowed.
 newtype Store addr val = Store (Versioned (HashMap addr val))
-  deriving (IsEmpty, PreOrd, Hashable, Eq)
+  deriving (IsEmpty, PreOrd, Hashable, Eq, Show)
 
 insert :: (Identifiable addr, Complete val)
        => addr -> val -> Store addr val -> Store addr val

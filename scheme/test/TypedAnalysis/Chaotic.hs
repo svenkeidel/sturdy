@@ -40,6 +40,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
+import           Control.Arrow.Transformer.Abstract.Fix.Trace
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -50,6 +51,7 @@ import           Data.Text (Text)
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
+import           Data.Text.Prettyprint.Doc
 
 import           TypedAnalysis
 import           Syntax (LExpr,Expr(App))
@@ -62,11 +64,11 @@ type InterpChaotic x y =
         (EnvStoreT Text Addr Val
           (FixT
             (MetricsT Metric.Monotone In
-              (ComponentT Comp.Component  In
-                (StackT Stack.Monotone In
-                  (CacheT Cache.Monotone In Out
-                    (ContextT Ctx
-                      (ControlFlowT Expr (->)))))))))))) x y
+             (ComponentT Comp.Component  In
+               (StackT Stack.Stack In
+                 (CacheT Cache.Monotone In Out
+                   (ContextT Ctx
+                     (ControlFlowT Expr (->)))))))))))) x y
 
 evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metric.Monotone In, Out'))
 evalChaotic iterationStrat env0 e =
@@ -75,7 +77,8 @@ evalChaotic iterationStrat env0 e =
         Fix.fixpointAlgorithm $
         -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
+        Fix.recordEvaluated .
+        -- CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
         -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
         Fix.filter' isFunctionBody (chaotic iterationStrat) in
   second snd $ Trans.run (extend' (Generic.runFixed :: InterpChaotic [Expr] Val)) (empty,(empty,(env0,e0)))

@@ -33,5 +33,24 @@ instance Hashable (Versioned a) where
 instance Eq (Versioned a) where
   s1 == s2 = version s1 == version s2
 
+instance Show a => Show (Versioned a) where
+  -- show a = show (element a) ++ "@" ++ show (version a)
+  show a = show (version a)
+
+{- Just for testing
+   instance PreOrd a => PreOrd (Versioned a) where
+     s1 ⊑ s2 = element s1 ⊑ element s2
+
+   instance Eq a => Eq (Versioned a) where
+     s1 == s2 = element s1 == element s2
+
+   instance Complete a => Complete (Versioned a) where
+     s1 ⊔ s2 = Versioned { element = element  s1 ⊔ element s2, version = 0 }
+
+   instance Hashable a => Hashable (Versioned a) where
+     hashWithSalt salt st = salt `hashWithSalt` element st
+     hash st = hash (element st)
+-}
+
 instance NFData a => NFData (Versioned a) where
   rnf (Versioned a _) = rnf a

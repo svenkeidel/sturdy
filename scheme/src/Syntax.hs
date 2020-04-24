@@ -287,7 +287,8 @@ showTopLvl e = case e of
     Cons {} -> "cons"
     Begin {} -> "begin"
     App {} -> "app"
-    Apply {} -> "apply"
+    -- Apply {} -> "apply"
+    Apply e' _ -> pretty e'
     Var x _ -> pretty x
     Set t _ _ -> "set!" <+> pretty t
     Define t _ _ -> "define" <+> pretty t

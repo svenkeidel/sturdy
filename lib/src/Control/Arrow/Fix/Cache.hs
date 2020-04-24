@@ -47,12 +47,12 @@ class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
   {-# INLINE setStable #-}
 
 class (ArrowIterateCache a b c) => ArrowParallelCache a b c where
-  lookupOldCache :: c a (Maybe b)
+  lookupOldCache :: c a b
   lookupNewCache :: c a (Maybe b)
   updateNewCache :: (?cacheWidening :: Widening c) => c (a,b) b
   isStable :: c () Stable
 
-  default lookupOldCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c a (Maybe b)
+  default lookupOldCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c a b
   default lookupNewCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c a (Maybe b)
   default updateNewCache :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c', ?cacheWidening :: Widening c') => c (a,b) b
   default isStable :: (c ~ t c', ArrowLift t, ArrowParallelCache a b c') => c () Stable
@@ -72,3 +72,9 @@ class (Arrow c, Profunctor c) => ArrowIterateCache a b c | c -> a, c -> b where
   default nextIteration :: (c ~ t c', ArrowLift t, ArrowIterateCache a b c') => c (a,b) (a,b)
   nextIteration = lift' nextIteration
   {-# INLINE nextIteration #-}
+
+class (Arrow c, Profunctor c) => ArrowGetCache cache c where
+  getCache :: c () cache
+  default getCache :: (c ~ t c', ArrowLift t, ArrowGetCache cache c') => c () cache
+  getCache = lift' getCache
+  {-# INLINE getCache #-}

@@ -227,4 +227,4 @@ instance (ArrowStrict c) => ArrowStrict (ConstT r c) where
 instance ArrowCache a b c => ArrowCache a b (ConstT r c) where
   type Widening (ConstT r c) = Cache.Widening c
 
-instance ArrowComponent comp c => ArrowComponent comp (ConstT r c)
+instance ArrowComponent a c => ArrowComponent a (ConstT r c)

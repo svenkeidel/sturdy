@@ -47,7 +47,6 @@ import Data.Identifiable
 import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
-import Data.Maybe(mapMaybe)
 
 newtype EnvStoreT var addr val c x y = EnvStoreT (ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded a,

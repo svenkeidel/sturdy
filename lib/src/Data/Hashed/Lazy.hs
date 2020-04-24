@@ -4,6 +4,7 @@ module Data.Hashed.Lazy where
 import Data.Hashable(Hashable(..))
 import Data.Order
 import Data.Empty
+import Data.Text.Prettyprint.Doc
 
 import Control.DeepSeq
 
@@ -52,3 +53,6 @@ instance NFData a => NFData (Hashed a) where
 
 instance (Hashable a, Semigroup a) => Semigroup (Hashed a) where
   a <> b = hashed (unhashed a <> unhashed b)
+
+instance Pretty a => Pretty (Hashed a) where
+  pretty h = pretty (unhashed h)
