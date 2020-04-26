@@ -27,7 +27,6 @@ import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fix(FixpointAlgorithm,FixpointCombinator)
 import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Cache(ArrowCache,ArrowParallelCache,Widening)
-import           Control.Arrow.Fix.Stack(ArrowStack)
 import           Control.Arrow.Fix.Parallel as Par
 import qualified Control.Arrow.Fix.Context as Ctx
 import qualified Control.Arrow.Trans as Trans
@@ -37,7 +36,6 @@ import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
@@ -64,14 +62,13 @@ type Interp x y =
         (EnvStoreT Text Addr Val
           (FixT
             (MetricsT Metric.Monotone In
-              (StackT Stack.Monotone In
-                (CacheT (Parallel Cache.Monotone) In Out
-                  (ContextT Ctx
-                    (ControlFlowT Expr
-                      (->)))))))))) x y
+              (CacheT (Parallel Cache.Monotone) In Out
+                (ContextT Ctx
+                  (ControlFlowT Expr
+                    (->))))))))) x y
 
 eval :: (?sensitivity :: Int)
-     => (forall c. (?cacheWidening :: Widening c, ArrowChoice c, ArrowStack In c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
+     => (forall c. (?cacheWidening :: Widening c, ArrowChoice c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
                    (FixpointCombinator c In Out -> FixpointCombinator c In Out) -> FixpointAlgorithm (c In Out))
      -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metric.Monotone In, Out'))
 eval algo env0 e =
@@ -79,10 +76,10 @@ eval algo env0 e =
   let ?fixpointAlgorithm = transform $ algo $ \update_ ->
         -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        Fix.recordEvaluated .
         Fix.filter' isFunctionBody update_ in
   second snd $ Trans.run (extend' (Generic.runFixed :: Interp [Expr] Val)) (empty,(empty,(env0,e0)))
   where
-
     e0 = generate (sequence e)
 {-# INLINE eval #-}
 

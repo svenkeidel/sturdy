@@ -56,6 +56,9 @@ instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) wher
 instance ArrowTrans (CacheT cache a b c) where
   type Underlying (CacheT cache a b c) x y = c (cache a b, x) (cache a b, y)
 
+instance (Arrow c, Profunctor c) => ArrowGetCache (cache a b) (CacheT cache a b c) where
+  getCache = CacheT get
+
 instance (Arrow c, ArrowContext ctx c) => ArrowContext ctx (CacheT cache a b c) where
   localContext (CacheT f) = CacheT (localContext f)
   {-# INLINE localContext #-}
@@ -209,7 +212,10 @@ instance (Profunctor c, ArrowChoice c,
           ArrowIterateCache a b (CacheT cache a b c),
           ArrowCache a b (CacheT cache a b c))
     => ArrowParallelCache a b (CacheT (Parallel cache) a b c) where
-  lookupOldCache = oldCache (rmap (fmap snd) lookup)
+  lookupOldCache = oldCache $ proc a -> do
+    m <- lookup -< a; case m of
+      Just (_,b) -> returnA -< b
+      Nothing    -> initialize -< a
   lookupNewCache = newCache (rmap (fmap snd) lookup)
   updateNewCache = rmap (\(_,_,b) -> b) update
   isStable = modify' (\(_,p) -> (stable p,p))
@@ -271,39 +277,44 @@ newCache f = lift $
 
 ------ Monotone Cache ------
 data Monotone a b where
-  Monotone :: s -> HashMap a b -> Monotone (s,a) (s,b)
+  Monotone :: HashMap a (Stable,s,b) -> Monotone (s,a) (s,b)
 
-instance IsEmpty s => IsEmpty (Monotone (s,a) (s,b)) where
-  empty = Monotone empty empty
+instance IsEmpty (Monotone (s,a) (s,b)) where
+  empty = Monotone empty
 
 instance (Show s, Show a, Show b) => Show (Monotone (s,a) (s,b)) where
-  show (Monotone s m) = show (s,m)
+  show (Monotone m) = show m
 
 instance (Pretty s, Pretty a, Pretty b) => Pretty (Monotone (s,a) (s,b)) where
-  pretty (Monotone s m) =
-    vsep [ "Monotone:" <+> pretty s
-         , "NonMonotone:" <+> align (list [ pretty k <+> "->" <+> pretty v | (k,v) <- M.toList m])
-         ]
+  pretty (Monotone m) =
+    align (list [ pretty s <+> "|" <+> pretty a <+> showArrow st <+> pretty b | (a,(st,s,b)) <- M.toList m])
 
-instance (Identifiable a, LowerBounded b,
+instance (Identifiable a, PreOrd s, LowerBounded b,
           ArrowChoice c, Profunctor c)
     => ArrowCache (s,a) (s,b) (CacheT Monotone (s,a) (s,b) c) where
   type Widening (CacheT Monotone (s,a) (s,b) c) = (W.Widening s,W.Widening b)
-  initialize = CacheT $ modify' $ \((s,a),Monotone s' cache) ->
-    let cache' = M.insertWith (\_ _old -> _old) a bottom cache
-        b = M.lookupDefault bottom a cache
-    in ((s,b),Monotone s' cache')
-  lookup = CacheT $ modify' $ \((s,a),m@(Monotone _ cache)) ->
-    ((\b -> (Unstable,(s,b))) <$> M.lookup a cache, m)
-  update = CacheT $ modify' $ \(((_,a),(sNew,b)),Monotone sOld cache) ->
+  initialize = CacheT $ modify' $ \((sNew,a),Monotone cache) ->
+    case M.lookup a cache of
+      Just (_,sOld,b)
+        | sNew ⊑ sOld -> ((sNew,b),      Monotone cache)
+        | otherwise   -> ((sNew,b),      Monotone (M.insert a (Unstable,sNew,b) cache))
+      Nothing         -> ((sNew,bottom), Monotone (M.insert a (Unstable,sNew,bottom) cache))
+  lookup = CacheT $ modify' $ \((s,a),m@(Monotone cache)) ->
+    case M.lookup a cache of
+      Just (st,s',b) | s ⊑ s' -> (Just (st,(s,b)), m)
+      _ -> (Nothing, m)
+  update = CacheT $ modify' $ \(((sNew,a),(sNew',bNew)),Monotone cache) ->
     let (widenS,widenB) = ?cacheWidening
-        (stable1,sWiden) = widenS sOld sNew
     in case M.lookup a cache of
-        Just b' ->
-          let ~(stable2,b'') = widenB b' b
-          in ((stable1 ⊔ stable2, (sWiden,a), (sWiden,b'')), Monotone sWiden (M.insert a b'' cache))
-        Nothing -> ((Unstable,(sWiden,a), (sWiden,b)),Monotone sWiden (M.insert a b cache))
-  write = CacheT $ modify' $ \(((_, a), (_, b), _),Monotone s cache) -> ((),Monotone s (M.insert a b cache))
+      Just (_,sOld,bOld) ->
+          let stable1 = if sNew ⊑ sOld then Stable else Unstable
+              (_,sWiden') = widenS sOld sNew'
+              (stable2,bWiden) = widenB bOld bNew
+              stab = stable1 ⊔ stable2
+          in ((stab, (sWiden',a), (sWiden',bWiden)), Monotone (M.insert a (stab,sNew,bWiden) cache))
+      Nothing -> ((Unstable,(sNew',a),(sNew',bNew)), Monotone (M.insert a (Unstable,sNew',bNew) cache))
+  write = CacheT $ modify' $ \(((s, a), (_,b), st), Monotone cache) ->
+    ((), Monotone (M.insert a (st, s, b) cache))
   setStable = CacheT $ proc _ -> returnA -< ()
   {-# INLINE initialize #-}
   {-# INLINE lookup #-}
@@ -317,8 +328,61 @@ instance (Identifiable a, LowerBounded b,
   {-# SCC setStable #-}
 
 instance (Arrow c, Profunctor c) => ArrowIterateCache (s,a) (s,b) (CacheT Monotone (s,a) (s,b) c) where
+  nextIteration = CacheT $ proc ((_,a),(s,b)) -> do
+    put -< Monotone empty
+    returnA -< ((s,a),(s,b))
+  {-# INLINE nextIteration #-}
+
+------ Monotone Cache that factors out the monotone element ------
+data MonotoneFactor a b where
+  MonotoneFactor :: s -> HashMap a b -> MonotoneFactor (s,a) (s,b)
+
+instance IsEmpty s => IsEmpty (MonotoneFactor (s,a) (s,b)) where
+  empty = MonotoneFactor empty empty
+
+instance (Show s, Show a, Show b) => Show (MonotoneFactor (s,a) (s,b)) where
+  show (MonotoneFactor s m) = show (s,m)
+
+instance (Pretty s, Pretty a, Pretty b) => Pretty (MonotoneFactor (s,a) (s,b)) where
+  pretty (MonotoneFactor s m) =
+    vsep [ "Monotone:" <+> pretty s
+         , "NonMonotone:" <+> align (list [ pretty k <+> "->" <+> pretty v | (k,v) <- M.toList m])
+         ]
+
+instance (Identifiable a, LowerBounded b,
+          ArrowChoice c, Profunctor c)
+    => ArrowCache (s,a) (s,b) (CacheT MonotoneFactor (s,a) (s,b) c) where
+  type Widening (CacheT MonotoneFactor (s,a) (s,b) c) = (W.Widening s,W.Widening b)
+  initialize = CacheT $ modify' $ \((s,a),MonotoneFactor s' cache) ->
+    let cache' = M.insertWith (\_ _old -> _old) a bottom cache
+        b = M.lookupDefault bottom a cache'
+    in ((s,b),MonotoneFactor s' cache')
+  lookup = CacheT $ modify' $ \((s,a),m@(MonotoneFactor _ cache)) ->
+    ((\b -> (Unstable,(s,b))) <$> M.lookup a cache, m)
+  update = CacheT $ modify' $ \(((_,a),(sNew,b)),MonotoneFactor sOld cache) ->
+    let (widenS,widenB) = ?cacheWidening
+        (stable1,sWiden) = widenS sOld sNew
+    in case M.lookup a cache of
+        Just b' ->
+          let ~(stable2,b'') = widenB b' b
+          in ((stable1 ⊔ stable2, (sWiden,a), (sWiden,b'')), MonotoneFactor sWiden (M.insert a b'' cache))
+        Nothing -> ((Unstable,(sWiden,a), (sWiden,b)),MonotoneFactor sWiden (M.insert a b cache))
+  write = CacheT $ modify' $ \(((_, a), (_, b), _),MonotoneFactor s cache) -> ((),MonotoneFactor s (M.insert a b cache))
+  setStable = CacheT $ proc _ -> returnA -< ()
+  {-# INLINE initialize #-}
+  {-# INLINE lookup #-}
+  {-# INLINE write #-}
+  {-# INLINE update #-}
+  {-# INLINE setStable #-}
+  {-# SCC initialize #-}
+  {-# SCC lookup #-}
+  {-# SCC write #-}
+  {-# SCC update #-}
+  {-# SCC setStable #-}
+
+instance (Arrow c, Profunctor c) => ArrowIterateCache (s,a) (s,b) (CacheT MonotoneFactor (s,a) (s,b) c) where
   nextIteration = CacheT $ proc ((_,a),(sNew,b)) -> do
-    put -< Monotone sNew empty
+    put -< MonotoneFactor sNew empty
     returnA -< ((sNew,a),(sNew,b))
   {-# INLINE nextIteration #-}
 

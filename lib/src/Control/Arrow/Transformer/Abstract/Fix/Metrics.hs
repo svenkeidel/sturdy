@@ -17,7 +17,7 @@ import           Control.Arrow
 import           Control.Arrow.Order
 import           Control.Arrow.State
 import           Control.Arrow.Trans
-import           Control.Arrow.Fix.Metrics (ArrowFiltered)
+import           Control.Arrow.Fix.Metrics (ArrowMetrics)
 import qualified Control.Arrow.Fix.Metrics as F
 import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Fix.Chaotic as Chaotic
@@ -40,7 +40,8 @@ import           Text.Printf
 newtype MetricsT metric a c x y = MetricsT (StateT (metric a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded z,
             ArrowComponent a,ArrowInComponent a,ArrowControlFlow stmt,
-            ArrowStackDepth,ArrowStackElements a,ArrowContext ctx,ArrowTopLevel)
+            ArrowStackDepth,ArrowStackElements a,ArrowContext ctx,ArrowTopLevel,
+            ArrowGetCache cache)
 
 instance (IsEmpty (metrics a), ArrowRun c) => ArrowRun (MetricsT metrics a c) where
   type Run (MetricsT metrics a c) x y = Run c x (metrics a,y)
@@ -66,28 +67,41 @@ instance ArrowState s c => ArrowState s (MetricsT metrics a c) where
 -- Basic Metric ----------------------------------------------------------------
 data Metrics a = Metrics { iteration :: !Int, metricCache :: HashMap a Metric }
 
-data Metric = Metric { filtered :: !Int, stackLookups :: !Int, cacheEntries :: !Int, cacheLookups :: !Int, updates :: !Int } deriving (Show)
+data Metric = Metric
+            { filtered :: !Int
+            , evaluated :: !Int
+            , stackLookups :: !Int
+            , cacheEntries :: !Int
+            , cacheLookups :: !Int
+            , updates :: !Int
+            }
+  deriving (Show)
+
 instance Semigroup Metric where
-  Metric f1 s1 e1 l1 u1 <> Metric f2 s2 e2 l2 u2 = Metric (f1 + f2) (s1 + s2) (e1 + e2) (l1 + l2) (u1 + u2)
+  Metric f1 ev1 s1 e1 l1 u1 <> Metric f2 ev2 s2 e2 l2 u2 =
+    Metric (f1 + f2) (ev1 + ev2) (s1 + s2) (e1 + e2) (l1 + l2) (u1 + u2)
+
 instance Monoid Metric where
-  mempty = Metric 0 0 0 0 0
+  mempty = Metric 0 0 0 0 0 0
   mappend = (<>)
   {-# INLINE mappend #-}
 
 csvHeader :: String
-csvHeader = "Filtered,Stack Lookups,Cache Entries,Iteration,Cache Lookups,Cache Updates"
+csvHeader = "Filtered,Evaluated,Stack Lookups,Cache Entries,Iteration,Cache Lookups,Cache Updates"
 
 toCSV :: Metrics a -> String
 toCSV (Metrics i m) =
-  let Metric f s e l u = fold m
-  in printf "%d,%d,%d,%d,%d,%d" f s e i l u
+  let Metric f ev s e l u = fold m
+  in printf "%d,%d,%d,%d,%d,%d,%d" f ev s e i l u
 
 instance IsEmpty (Metrics a) where
   empty = Metrics 0 empty
 
-instance (Identifiable a, Arrow c,Profunctor c) => ArrowFiltered a (MetricsT Metrics a c) where
+instance (Identifiable a, Arrow c,Profunctor c) => ArrowMetrics a (MetricsT Metrics a c) where
   filtered = MetricsT $ proc a ->
     modifyMetric setFiltered -< a
+  evaluated = MetricsT $ proc a ->
+    modifyMetric incrementEvaluated -< a
 
 instance (Identifiable a, ArrowStack a c) => ArrowStack a (MetricsT Metrics a c) where
   elem = MetricsT $ proc a -> do
@@ -143,6 +157,9 @@ modifyMetric f = modify' (\(a,Metrics i m) -> ((),Metrics i (upsert f a m)))
 setFiltered :: Metric -> Metric
 setFiltered m = m { filtered = 1 }
 
+incrementEvaluated :: Metric -> Metric
+incrementEvaluated m@Metric{..} = m { evaluated = evaluated + 1 }
+
 incrementInitializes :: Metric -> Metric
 incrementInitializes m@Metric{..} = m { cacheEntries = 1 }
 
@@ -166,9 +183,13 @@ data Monotone a where
 instance IsEmpty (Monotone (a,b)) where
   empty = Monotone empty
 
-instance (Identifiable b, Arrow c,Profunctor c) => ArrowFiltered (a,b) (MetricsT Monotone (a,b) c) where
+instance (Identifiable b, Arrow c,Profunctor c) => ArrowMetrics (a,b) (MetricsT Monotone (a,b) c) where
   filtered = MetricsT $ proc (_,b) ->
     modifyMetric' setFiltered -< b
+  evaluated = MetricsT $ proc (_,b) ->
+    modifyMetric' incrementEvaluated -< b
+  {-# INLINE filtered #-}
+  {-# INLINE evaluated #-}
 
 instance (Identifiable b, ArrowStack (a,b) c) => ArrowStack (a,b) (MetricsT Monotone (a,b) c) where
   elem = MetricsT $ proc x@(_,b) -> do

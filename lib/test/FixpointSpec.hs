@@ -12,6 +12,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,widenInput,maxDepth,reuseByMetric)
+import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Cache (ArrowCache,ArrowParallelCache)
 import qualified Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Chaotic (ArrowInComponent,chaotic,innermost,outermost)
@@ -145,7 +146,7 @@ runParallel :: forall a b.
                 Arr a b -> a -> (Metrics a,Terminating b))
 runParallel algorithm f a =
   let ?cacheWidening = T.widening ?widen in
-  let ?fixpointAlgorithm = algorithm (\update -> getStrat ?strat . update) in
+  let ?fixpointAlgorithm = algorithm (\update -> getStrat ?strat . update . Stack.push') in
   snd $ Arrow.run (f :: ParallelT a b) a
 {-# INLINE runParallel #-}
 

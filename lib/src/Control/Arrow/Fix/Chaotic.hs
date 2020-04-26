@@ -20,52 +20,54 @@ import           Data.Abstract.Stable
 import           Data.Profunctor
 
 
-class (Arrow c, Profunctor c) => ArrowComponent a c | c -> a where
-  addToComponent :: c a ()
-  removeFromComponent :: c a ()
+class (Arrow c, Profunctor c) => ArrowComponent a c where
+  addToComponent :: c (a,StackPointer) ()
 
-  default addToComponent :: (c ~ t c', ArrowLift t, ArrowComponent a c') => c a ()
-  default removeFromComponent :: (c ~ t c', ArrowLift t, ArrowComponent a c') => c a ()
-
+  default addToComponent :: (c ~ t c', ArrowLift t, ArrowComponent a c') => c (a,StackPointer) ()
   addToComponent = lift' addToComponent
-  removeFromComponent = lift' removeFromComponent
-
   {-# INLINE addToComponent #-}
-  {-# INLINE removeFromComponent #-}
 
 
-data InComponent = Empty | Head Nesting | Body
-data Nesting = Inner | Outermost
+data InComponent = Empty | Head Nesting | Body deriving (Show)
+data Nesting = Inner | Outermost deriving (Show)
 
-class ArrowComponent a c => ArrowInComponent a c where
-  inComponent :: c a InComponent
+class ArrowComponent a c => ArrowInComponent a c | c -> a where
+  inComponent :: c x y -> c (a,x) (InComponent,y)
 
-  default inComponent :: (c ~ t c', ArrowLift t, ArrowInComponent a c') => c a InComponent
-  inComponent = lift' inComponent
-  {-# INLINE inComponent #-}
+inComponent' :: ArrowInComponent a c => c a b -> c a (InComponent,b)
+inComponent' f = lmap (\a -> (a,a)) (inComponent f)
+{-# INLINE inComponent' #-}
 
 type IterationStrategy c a b = c a b -> c (a,b) b -> c a b
 
 innermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 innermost f iterate = proc a -> do
-  b <- f -< a
-  inComp <- inComponent -< a
-  removeFromComponent -< a
+  (inComp,b) <- inComponent' f -< a
   case inComp of
-    Head _ -> iterate -< (a,b)
+    Head Outermost -> do
+      iterate -< (a,b)
+      -- b' <- iterate -< (a,b)
+      -- setStable -< (Stable,a)
+      -- returnA -< b'
+    Head Inner -> do
+      iterate -< (a,b)
     _ -> returnA -< b
 {-# INLINE innermost #-}
 {-# SCC innermost #-}
 
 outermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 outermost f iterate = proc a -> do
-  b <- f -< a
-  inComp <- inComponent -< a
-  removeFromComponent -< a
+  (inComp,b) <- inComponent' f -< a
   case inComp of
-    Head Outermost -> iterate -< (a,b)
-    Head Inner -> returnA -< b
-    _ -> returnA -< b
+    Head Outermost -> do
+      iterate -< (a,b)
+      -- b' <- iterate -< (a,b)
+      -- setStable -< (Stable,a)
+      -- returnA -< b'
+    Head Inner ->
+      returnA -< b
+    _ ->
+      returnA -< b
 {-# INLINE outermost #-}
 {-# SCC outermost #-}
 
@@ -74,21 +76,18 @@ chaotic :: forall a b c.
            (?cacheWidening :: Widening c, ArrowChoice c, ArrowComponent a c, ArrowStack a c, ArrowCache a b c)
         => IterationStrategy c a b -> FixpointCombinator c a b
 chaotic iterationStrategy f = proc a -> do
-  loop <- Stack.elem -< a
-  if loop
-  then do
-    m <- Cache.lookup -< a
-    case m of
-      Just (Stable,b) -> returnA -< b
-      Just (Unstable,b) -> do
-        addToComponent -< a
-        returnA -< b
-      Nothing -> do
-        b <- Cache.initialize -< a
-        addToComponent -< a
-        returnA -< b
-  else
-    iterate -< a
+  m <- Cache.lookup -< a
+  case m of
+    Just (Stable,b) -> returnA -< b
+    _ -> do
+      recurrentCall <- Stack.elem -< a
+      case recurrentCall of
+        RecurrentCall pointer -> do
+          b <- Cache.initialize -< a
+          addToComponent -< (a,pointer)
+          returnA -< b
+        NoLoop -> do
+          iterate -< a
   where
     iterate :: c a b
     iterate = iterationStrategy (Stack.push' f) $ proc (a,b) -> do

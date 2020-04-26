@@ -15,14 +15,13 @@ module Control.Arrow.Fix
     FixpointAlgorithm,fixpointAlgorithm,transform,
     FixpointCombinator,
     filter,filter',filterPrism,filterPrism',
-    trace,trace',traceShow,traceCache
+    recordEvaluated,trace,trace',traceShow,traceCache
   ) where
 
 import           Prelude hiding (filter,pred)
 
 import           Control.Arrow
-import           Control.Arrow.State (ArrowState)
-import qualified Control.Arrow.State as State
+import           Control.Arrow.Fix.Cache
 import           Control.Arrow.Trans
 import           Control.Arrow.Fix.Metrics
 
@@ -75,7 +74,7 @@ filter pred combinator f = proc a ->
   else f -< a
 {-# INLINE filter #-}
 
-filter' :: (ArrowChoice c, ArrowFiltered a c) => (a -> Bool) -> FixpointCombinator c a b -> FixpointCombinator c a b
+filter' :: (ArrowChoice c, ArrowMetrics a c) => (a -> Bool) -> FixpointCombinator c a b -> FixpointCombinator c a b
 filter' pred combinator f = proc a ->
   if pred a
   then combinator f -< a
@@ -90,13 +89,19 @@ filterPrism pred combinator f = proc a -> case getMaybe pred a of
   Nothing -> f -< a
 {-# INLINE filterPrism #-}
 
-filterPrism' :: forall a a' b c. (ArrowChoice c, ArrowApply c, ArrowFiltered a c) => Prism' a a' -> FixpointCombinator c a' b -> FixpointCombinator c a b
+filterPrism' :: forall a a' b c. (ArrowChoice c, ArrowApply c, ArrowMetrics a c) => Prism' a a' -> FixpointCombinator c a' b -> FixpointCombinator c a b
 filterPrism' pred strat f = proc a -> case getMaybe pred a of
   Just a' -> strat (lmap (\x -> set pred x a) f) -<< a'
   Nothing -> do
     filtered -< a
     f -< a
 {-# INLINE filterPrism' #-}
+
+recordEvaluated :: (ArrowMetrics a c) => FixpointCombinator c a b
+recordEvaluated f = proc a -> do
+  evaluated -< a
+  f -< a
+{-# INLINE recordEvaluated #-}
 
 trace :: (Arrow c) => (a -> Doc ann) -> (b -> Doc ann) -> FixpointCombinator c a b
 trace showA showB f = proc x -> do
@@ -116,10 +121,10 @@ traceShow :: (Pretty a, Pretty b, Arrow c) => FixpointCombinator c a b
 traceShow = trace pretty pretty
 {-# INLINE traceShow #-}
 
-traceCache :: ArrowState cache c => (cache -> String) -> FixpointCombinator c a b
+traceCache :: ArrowGetCache cache c => (cache -> String) -> FixpointCombinator c a b
 traceCache showCache f = proc a -> do
-  cache <- State.get -< ()
+  cache <- getCache -< ()
   b <- f -< Debug.trace (printf "CACHE %s\n\n" (showCache cache)) a
-  cache' <- State.get -< ()
+  cache' <- getCache -< ()
   returnA -< Debug.trace (printf "CACHE %s\n\n" (showCache cache')) b
 {-# INLINE traceCache #-}

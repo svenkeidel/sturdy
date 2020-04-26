@@ -8,7 +8,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Abstract.Fix.Stack(StackT,Stack,Monotone) where
+module Control.Arrow.Transformer.Abstract.Fix.Stack(StackT,Stack) where
 
 import           Prelude hiding (pred,lookup,map,head,iterate,(.),elem)
 
@@ -17,7 +17,7 @@ import           Control.Arrow hiding (loop)
 import           Control.Arrow.Strict
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
 import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements)
+import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,StackPointer,RecurrentCall(..))
 import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
 import           Control.Arrow.State
@@ -31,16 +31,15 @@ import           Data.Profunctor.Unsafe ((.#))
 import           Data.Coerce
 import           Data.Empty
 import           Data.Identifiable
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as Set
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
-import           Data.Order
+import           Data.List(sortBy)
+import           Data.Ord(comparing)
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowStrict,ArrowLift, ArrowLowerBounded z,
-            ArrowParallelCache a b, ArrowIterateCache a b,
+            ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowState s,ArrowContext ctx, ArrowJoinContext u,
             ArrowControlFlow stmt)
 
@@ -65,23 +64,23 @@ instance ArrowCache a b c => ArrowCache a b (StackT stack a c) where
 
 -- Standard Stack -----------------------------------------------------------------------
 data Stack a = Stack
-  { elems :: HashSet a
-  , stack :: [a]
-  , depth  :: !Int
+  { elems :: HashMap a StackPointer
+  , depth :: Int
   }
 
 instance IsEmpty (Stack a) where
-  empty = Stack { elems = empty, stack = empty, depth = 0 }
+  empty = Stack { elems = empty, depth = 0 }
   {-# INLINE empty #-}
 
 instance (Identifiable a, Arrow c, Profunctor c) => ArrowStack a (StackT Stack a c) where
   push f = lift $ proc (st,(a,x)) -> do
-    let st' = st { elems = Set.insert a (elems st)
-                 , stack = a : stack st
+    let st' = st { elems = M.insert a (depth st) (elems st)
                  , depth = depth st + 1
                  }
     unlift f -< (st', x)
-  elem = lift $ proc (st,a) -> returnA -< Set.member a (elems st)
+  elem = lift $ arr $ \(st,a) -> case M.lookup a (elems st) of
+    Just callDepth -> RecurrentCall (depth st - callDepth)
+    Nothing -> NoLoop
   {-# INLINE push #-}
   {-# INLINE elem #-}
   {-# SCC push #-}
@@ -92,23 +91,27 @@ instance (Arrow c, Profunctor c) => ArrowStackDepth (StackT Stack a c) where
   {-# INLINE depth #-}
 
 instance (Arrow c, Profunctor c) => ArrowStackElements a (StackT Stack a c) where
-  peek = lift $ proc (st,()) -> returnA -< case stack st of [] -> Nothing; (x:_) -> Just x
-  elems = lift $ proc (st,()) -> returnA -< stack st
+  peek = proc () -> do
+    l <- Stack.elems -< ()
+    returnA -< case l of
+      [] -> Nothing
+      (x:_) -> Just x
+  elems = lift $ arr $ \(st, ()) -> fst <$> sortBy (comparing snd) (M.toList (elems st))
   {-# INLINE peek #-}
   {-# INLINE elems #-}
 
 -- Stack with a monotone component ------------------------------------------------------
-data Monotone b where
-  Monotone :: HashMap b a -> Monotone (a,b)
+-- data Monotone b where
+--   Monotone :: HashMap b a -> Monotone (a,b)
 
-instance IsEmpty (Monotone (a,b)) where
-  empty = Monotone empty
-  {-# INLINE empty #-}
+-- instance IsEmpty (Monotone (a,b)) where
+--   empty = Monotone empty
+--   {-# INLINE empty #-}
 
-instance (PreOrd a, Identifiable b, Profunctor c, Arrow c) => ArrowStack (a,b) (StackT Monotone (a,b) c) where
-  elem = lift $ arr $ \(Monotone m, (a,b)) -> Just a ⊑ M.lookup b m
-  push f = lift $ lmap (\(Monotone m, ((a, b), x)) -> (Monotone (M.insert b a m), x)) (unlift f)
-  {-# INLINE elem #-}
-  {-# INLINE push #-}
-  {-# SCC elem #-}
-  {-# SCC push #-}
+-- instance (PreOrd a, Identifiable b, Profunctor c, Arrow c) => ArrowStack (a,b) (StackT Monotone (a,b) c) where
+--   push f = lift $ lmap (\(Monotone m, ((a, b), x)) -> (Monotone (M.insert b a m), x)) (unlift f)
+--   elem = lift $ arr $ \(Monotone m, (a,b)) -> Just a ⊑ M.lookup b m
+--   {-# INLINE elem #-}
+--   {-# INLINE push #-}
+--   {-# SCC elem #-}
+--   {-# SCC push #-}

@@ -18,8 +18,8 @@ main = defaultMain
         benchAlgos "cpstak" "gabriel/cpstak.scm",
         -- benchAlgos "dderiv" "gabriel/dderiv.scm",
         benchAlgos "deriv" "gabriel/deriv.scm",
-        benchAlgos "diviter" "gabriel/diviter.scm",
         benchAlgos "destruc" "gabriel/destruc.scm",
+        benchAlgos "diviter" "gabriel/diviter.scm",
         benchAlgos "divrec" "gabriel/divrec.scm",
         benchAlgos "takl" "gabriel/takl.scm"
       ],

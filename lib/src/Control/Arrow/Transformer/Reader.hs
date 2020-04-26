@@ -186,11 +186,15 @@ instance ArrowCache a b c => ArrowCache a b (ReaderT r c) where
 instance ArrowJoinContext a c => ArrowJoinContext a (ReaderT r c) where
   type Widening (ReaderT r c) = Context.Widening c
 
+instance ArrowInComponent a c => ArrowInComponent a (ReaderT r c) where
+  inComponent f = lift $ lmap shuffle1 (inComponent (unlift f))
+  {-# INLINE inComponent #-}
+
 instance ArrowStackDepth c => ArrowStackDepth (ReaderT r c)
 instance ArrowStackElements a c => ArrowStackElements a (ReaderT r c)
 instance ArrowParallelCache a b c => ArrowParallelCache a b (ReaderT r c)
 instance ArrowIterateCache a b c => ArrowIterateCache a b (ReaderT r c)
-instance ArrowFiltered a c => ArrowFiltered a (ReaderT r c)
+instance ArrowGetCache cache c => ArrowGetCache cache (ReaderT r c)
+instance ArrowMetrics a c => ArrowMetrics a (ReaderT r c)
 instance ArrowComponent a c => ArrowComponent a (ReaderT r c)
-instance ArrowInComponent a c => ArrowInComponent a (ReaderT r c)
 instance ArrowStrict c => ArrowStrict (ReaderT r c)

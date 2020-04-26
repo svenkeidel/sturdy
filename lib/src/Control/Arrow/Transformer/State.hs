@@ -220,14 +220,18 @@ instance ArrowCache a b c => ArrowCache a b (StateT s c) where
 instance ArrowJoinContext a c => ArrowJoinContext a (StateT s c) where
   type Widening (StateT s c) = Context.Widening c
 
+instance ArrowInComponent a c => ArrowInComponent a (StateT s c) where
+  inComponent f = lift $ dimap shuffle1 shuffle1 (inComponent (unlift f))
+  {-# INLINE inComponent #-}
+
 instance ArrowParallelCache a b c => ArrowParallelCache a b (StateT s c)
 instance ArrowIterateCache a b c => ArrowIterateCache a b (StateT s c)
-instance ArrowFiltered a c => ArrowFiltered a (StateT s c)
+instance ArrowGetCache cache c => ArrowGetCache cache (StateT s c)
+instance ArrowMetrics a c => ArrowMetrics a (StateT s c)
 instance ArrowStackDepth c => ArrowStackDepth (StateT s c)
 instance ArrowStackElements a c => ArrowStackElements a (StateT s c)
 instance ArrowTopLevel c => ArrowTopLevel (StateT s c)
 instance ArrowComponent a c => ArrowComponent a (StateT s c)
-instance ArrowInComponent a c => ArrowInComponent a (StateT s c)
 instance ArrowStrict c => ArrowStrict (StateT s c)
 
 second' :: (x -> y) -> ((z,x) -> (z,y))

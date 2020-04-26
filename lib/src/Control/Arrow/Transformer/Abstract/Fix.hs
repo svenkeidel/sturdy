@@ -33,10 +33,10 @@ import           Data.Order hiding (lub)
 newtype FixT c x y = FixT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowContext ctx, ArrowJoinContext a, ArrowControlFlow a,
-            ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
+            ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth,
             ArrowComponent a, ArrowInComponent a,
-            ArrowFiltered a, ArrowStrict)
+            ArrowMetrics a, ArrowStrict)
 
 runFixT :: FixT c x y -> c x y
 runFixT (FixT f) = f

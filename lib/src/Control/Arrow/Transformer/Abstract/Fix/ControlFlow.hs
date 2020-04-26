@@ -2,7 +2,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -39,7 +38,7 @@ newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Mayb
     Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
     ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
     ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
-    ArrowFiltered a, ArrowComponent a, ArrowInComponent a
+    ArrowMetrics a, ArrowComponent a, ArrowInComponent a
     )
 
 instance (HasLabel stmt, Arrow c, Profunctor c) => ArrowControlFlow stmt (ControlFlowT stmt c) where

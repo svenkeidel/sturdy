@@ -10,6 +10,7 @@ import Data.Coerce
 
 class (Arrow c, Profunctor c) => ArrowRun c where
   type Run c x y
+  -- | Takes an arrow transformer stack and interprets it as a function.
   run :: c x y -> Run c x y
 
   default run :: (Underlying c x y ~ c' x' y', Run c x y ~ Run c' x' y', ArrowRun c', ArrowTrans c) => c x y -> Run c x y

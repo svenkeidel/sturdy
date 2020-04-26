@@ -12,6 +12,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC
   -fspecialise-aggressively
+  -fexpose-all-unfoldings
+  -funfolding-use-threshold=10000
   -flate-specialise
   -flate-dmd-anal
   -fsimpl-tick-factor=50000
@@ -56,10 +58,9 @@ type Interp =
       (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT
-            (StackT Stack.Monotone In
-              (CacheT (Parallel Cache.Monotone) In Out
-                (ContextT Ctx
-                  (->))))))))
+            (CacheT (Parallel Cache.Monotone) In Out
+              (ContextT Ctx
+                (->)))))))
 
 {-# SPECIALIZE if__ :: (ArrowComplete z Interp)
                     => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}
@@ -71,7 +72,6 @@ evalParallel :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalParallel e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ Par.parallel $ \update_ ->
-        -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody update_ in
   snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
@@ -80,7 +80,6 @@ evalADI :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalADI e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ Par.adi $ \update_ ->
-        -- Fix.trace printIn printOut .
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody update_ in
   snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
