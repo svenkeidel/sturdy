@@ -26,7 +26,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Environment as Env
 import qualified Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost,outermost)
+import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost',outermost')
 import qualified Control.Arrow.Fix.Context as Ctx
 import qualified Control.Arrow.Fix.ControlFlow as CFlow
 import qualified Control.Arrow.Trans as Trans
@@ -87,10 +87,10 @@ evalChaotic iterationStrat env0 e =
 {-# INLINE evalChaotic #-}
 
 evalInner :: Eval
-evalInner = evalChaotic innermost
+evalInner = evalChaotic innermost'
 
 evalOuter :: Eval
-evalOuter = evalChaotic outermost
+evalOuter = evalChaotic outermost'
 
 evalInner' :: Eval'
 evalInner' exprs = let (metrics,(cfg,res)) = evalInner [] exprs in (metrics,(cfg,snd res))

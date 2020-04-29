@@ -23,7 +23,7 @@ class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
   write :: c (a,b,Stable) ()
 
   -- | Update an existing entry in the cache.
-  update :: (?cacheWidening :: Widening c) => c (a,b) (Stable,a,b)
+  update :: (?cacheWidening :: Widening c) => c (Stable,a,b) (Stable,a,b)
 
   -- | Set a given entry to stable or unstable.
   setStable :: c (Stable,a) ()
@@ -31,7 +31,7 @@ class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
   default initialize :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c a b
   default lookup :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c a (Maybe (Stable,b))
   default write :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c (a,b,Stable) ()
-  default update :: (c ~ t c', ArrowLift t, ArrowCache a b c', ?cacheWidening :: Widening c') => c (a,b) (Stable,a,b)
+  default update :: (c ~ t c', ArrowLift t, ArrowCache a b c', ?cacheWidening :: Widening c') => c (Stable,a,b) (Stable,a,b)
   default setStable :: (c ~ t c', ArrowLift t, ArrowCache a b c') => c (Stable,a) ()
 
   initialize = lift' initialize

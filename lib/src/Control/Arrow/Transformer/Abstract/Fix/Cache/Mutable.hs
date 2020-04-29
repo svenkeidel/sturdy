@@ -73,15 +73,13 @@ instance (Identifiable a, LowerBounded b, ArrowChoice c, ArrowPrimitive c)
     returnA -< b
   lookup = lift $ \(Cache cache) -> proc a ->
     Map.lookup -< (a,cache)
-  update = lift $ \(Cache cache) -> proc (a,b) -> do
+  update = lift $ \(Cache cache) -> proc (st,a,b) -> do
     m <- Map.lookup -< (a,cache)
     case m of
-      Just (Stable,b') ->
-        returnA -< (Stable,a,b')
-      Just (Unstable,b') -> do
-        let (st,b'') = ?cacheWidening b' b
-        Map.insert -< (a,(st,b''),cache)
-        returnA -< (st,a,b'')
+      Just (_,b') -> do
+        let (st',b'') = ?cacheWidening b' b
+        Map.insert -< (a,(st ⊔ st',b''),cache)
+        returnA -< (st',a,b'')
       Nothing -> do
         Map.insert -< (a,(Unstable,b),cache)
         returnA -< (Unstable,a,b)
@@ -107,9 +105,9 @@ instance (Identifiable k, NewCache cache a b, ArrowChoice c, ArrowApply c, Arrow
   type Widening (CacheT (Group cache) (k,a) b c) = Widening (CacheT cache a b c)
   initialize = withGroup Cache.initialize
   lookup = withGroup Cache.lookup
-  update = proc ((k,a),b) -> do
-    (st,a',b') <- withGroup Cache.update -< (k,(a,b))
-    returnA -< (st,(k,a'),b')
+  update = proc (st,(k,a),b) -> do
+    (st',a',b') <- withGroup Cache.update -< (k,(st,a,b))
+    returnA -< (st',(k,a'),b')
   write = lmap (\((k,a),b,s) -> (k,(a,b,s))) (withGroup Cache.write)
   setStable = lmap shuffle1 (withGroup Cache.setStable)
   {-# INLINE initialize #-}
