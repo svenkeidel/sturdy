@@ -42,12 +42,17 @@ import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Fix.Trace
 import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.Arrow.Transformer.Abstract.Pow
 
 import           Control.Monad.State hiding (lift,fail)
 
 import           Data.Empty
 import           Data.Label
 import           Data.Text (Text)
+import           Data.Sequence (Seq)
+import qualified Data.Sequence as Seq 
+import           Data.Abstract.Powerset (Pow)
+import qualified Data.Abstract.Powerset as Pow
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
@@ -59,7 +64,7 @@ import           GenericInterpreter as Generic
 
 type InterpChaotic x y =
   (ValueT Val
-    (TerminatingT
+    (PowT
       (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT
@@ -76,12 +81,12 @@ evalChaotic iterationStrat env0 e =
   let ?fixpointAlgorithm = transform $
         Fix.fixpointAlgorithm $
         -- Fix.trace printIn printOut .
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.recordEvaluated .
+        -- Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        -- Fix.recordEvaluated .
         -- CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
         -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
         Fix.filter' isFunctionBody (chaotic iterationStrat) in
-  second snd $ Trans.run (extend' (Generic.runFixed :: InterpChaotic [Expr] Val)) (empty,(empty,(env0,e0)))
+  second snd $ Trans.run (extend' (Generic.runFixed :: InterpChaotic [Expr] Val)) (empty,(empty,Pow.singleton(env0, e0)))
   where
     e0 = generate (sequence e)
 {-# INLINE evalChaotic #-}
@@ -98,5 +103,5 @@ evalInner' exprs = let (metrics,(cfg,res)) = evalInner [] exprs in (metrics,(cfg
 evalOuter':: Eval'
 evalOuter' exprs = let (metrics,(cfg,res)) = evalOuter [] exprs in (metrics,(cfg,snd res))
 
-eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors,Terminating Val)
+eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors, Pow Val)
 eval' env exprs = snd $ snd $ snd $ evalInner env exprs

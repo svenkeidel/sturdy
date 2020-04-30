@@ -19,6 +19,7 @@ import           Data.HashSet(HashSet)
 import           Data.Abstract.Terminating hiding (toEither)
 import           Data.Abstract.MonotoneErrors (toSet)
 import qualified Data.Abstract.Boolean as B
+import qualified Data.Abstract.Powerset as Pow
 
 import           GHC.Exts
 
@@ -89,7 +90,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 
     it "destruc" $ do
       let inFile = "gabriel/destruc.scm"
-      let expRes = successOrFail (Terminating (BoolVal B.Top))
+      let expRes = successOrFail (Pow.singleton $ (BoolVal B.Top))
                                  [ "Excpeted list as argument for cdr, but got Top"
                                  , "Excpeted list as argument for car, but got Top"
                                  ]
@@ -124,8 +125,8 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 --     => TIME: 163 | STATES: 175
       -- pendingWith "out of memory"
       let inFile = "gabriel/diviter.scm"
-      -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
-      let expRes = successOrFail (Terminating (BoolVal B.Top)) []
+      -- let expRes = Pow.singleton $ (Success $ fromList [Bottom, BoolVal B.Top])
+      let expRes = successOrFail (Pow.singleton $ (BoolVal B.Top)) []
       run inFile expRes
 
     it "divrec" $ do
@@ -133,7 +134,7 @@ gabrielBenchmarks run = describe "Gabriel" $ do
 --       => TIME: 59 | STATES: 219
       -- pendingWith "out of memory"
       let inFile = "gabriel/divrec.scm"
-      -- let expRes = Terminating (Success $ fromList [Bottom, BoolVal B.Top])
+      -- let expRes = Pow.singleton $ (Success $ fromList [Bottom, BoolVal B.Top])
       let expRes = success (BoolVal B.Top)
       run inFile expRes
 
@@ -261,7 +262,7 @@ customTests run = do
     it "test_unops" $ do
       let inFile = "test_unops.scm"
       let expRes = success (BoolVal B.Top)
-      run inFile expRes
+      run inFile expRes 
 
     it "test_eq" $ do
       let inFile = "test_eq.scm"
@@ -270,12 +271,12 @@ customTests run = do
 
     it "test_binops" $ do
       let inFile = "test_binops.scm"
-      let expRes = successOrFail NonTerminating ["expected a two ints as arguments for quotient , but got [Top,Int]","expected a two ints as arguments for quotient , but got [True,string]"]
+      let expRes = successOrFail Pow.empty ["expected a two ints as arguments for quotient , but got [Top,Int]","expected a two ints as arguments for quotient , but got [True,string]"]
       run inFile expRes
 
     it "test_opvar_numbool" $ do
       let inFile = "test_opvar_numbool.scm"
-      let expRes = successOrFail NonTerminating ["expected a numbers as argument for <, but got [string,string]"]
+      let expRes = successOrFail Pow.empty ["expected a numbers as argument for <, but got [string,string]"]
       run inFile expRes
 
     it "test_opvar_numnum" $ do
@@ -305,16 +306,16 @@ customTests run = do
 
     it "test_random" $ do
       let inFile = "test_random.scm"
-      let expRes = success $ NumVal IntVal
+      let expRes = success $ NumVal FloatVal
       run inFile expRes
 
-success :: Val -> (HashSet Text, Terminating Val)
-success v = ([],Terminating v)
+success :: Val -> (HashSet Text, Pow.Pow Val)
+success v = ([],Pow.singleton v)
 
-successOrFail :: Terminating Val -> HashSet Text -> (HashSet Text, Terminating Val)
+successOrFail :: Pow.Pow Val -> HashSet Text -> (HashSet Text, Pow.Pow Val)
 successOrFail v errs = (errs, v)
 
-type Runner = (String -> (HashSet Text, Terminating Val) -> IO ())
+type Runner = (String -> (HashSet Text, Pow.Pow Val) -> IO ())
 
 metricFile :: String
 metricFile = "metrics.csv"

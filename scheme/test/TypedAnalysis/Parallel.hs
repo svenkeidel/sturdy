@@ -22,7 +22,7 @@ module TypedAnalysis.Parallel where
 import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 
 import           Control.Category
-import           Control.Arrow
+import           Control.Arrow 
 import           Control.Arrow.Environment as Env
 import           Control.Arrow.Fix(FixpointAlgorithm,FixpointCombinator)
 import qualified Control.Arrow.Fix as Fix
@@ -40,6 +40,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 -- import           Control.Arrow.Transformer.Abstract.Fix.Trace
+import           Control.Arrow.Transformer.Abstract.Pow
 
 import           Control.Monad.State hiding (lift,fail)
 
@@ -57,7 +58,7 @@ import           TypedAnalysis
 
 type Interp x y =
   ValueT Val
-    (TerminatingT
+    (PowT
       (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT

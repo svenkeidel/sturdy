@@ -65,12 +65,12 @@ import qualified Data.Lens as L
 import qualified Data.Abstract.MonotoneStore as S
 import qualified Data.Abstract.MonotoneErrors as E
 import qualified Data.Abstract.Boolean as B
-import           Data.Abstract.Terminating(Terminating)
 import           Data.Abstract.Closure (Closure)
 import           Data.Abstract.DiscretePowerset (Pow(Pow))
 import           Data.Abstract.CallString(CallString)
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Stable
+import qualified Data.Abstract.Powerset as Pow
 
 import           GHC.Exts(IsString(..),toList)
 import           GHC.Generics(Generic)
@@ -553,6 +553,9 @@ instance Pretty Number where
   pretty IntVal = "Int"
   pretty FloatVal = "Float"
   pretty NumTop = "NumTop"
+-- TODO: Fix 
+instance Pretty (Pow.Pow a) where 
+  pretty (Pow.Pow a) = "Print Powerset"
 
 instance IsClosure Val (HashSet Env) where
   mapEnvironment f v = case v of
@@ -639,12 +642,12 @@ instance (Identifiable s, Pretty s) => Pretty (HashSet s) where
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- Map.toList m]
 
-type In = ((Store,Errors),(Env,[Expr]))
-type Out = ((Store,Errors), Terminating Val)
-type In' = (Store,(Env,(Errors,[Expr])))
-type Out' = (Store,(Errors,Terminating Val))
+type In = ((Store,Errors), (Env,Pow.Pow [Expr]))
+type Out = ((Store,Errors),Pow.Pow Val)
+type In' = (Store,(Env,(Errors, Pow.Pow [Expr])))
+type Out' = (Store, (Errors, Pow.Pow Val))
 type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
-type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Monotone In, (Errors,Terminating Val)))
+type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Monotone In, (Errors, Pow.Pow Val)))
 
 transform :: Profunctor c => Fix.FixpointAlgorithm (c In Out) -> Fix.FixpointAlgorithm (c In' Out')
 transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(env,exprs)))
@@ -653,19 +656,20 @@ transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(
                                  (\((store,errs),val) -> (store,(errs,val))))
 {-# INLINE transform #-}
 
+-- TODO: Fix 
 isFunctionBody :: In -> Bool
-isFunctionBody (_,(_,e)) = case e of
-  Apply _ _:_ -> True
+isFunctionBody (_,(_,e)) = case Pow.lookup 0 e of
+  Just (Apply _ _:_) -> True
   _ -> False
 {-# INLINE isFunctionBody #-}
 
 -- Pretty Printing of inputs and outputs
-
+-- TODO: Fix 
 printIn :: In -> Doc ann
-printIn ((store,_),(env,expr)) =
+printIn ((store),(env,expr)) =
   vsep
-  [ "EXPR:  " <> showFirst expr
-  , "ENV:   " <> align (pretty (unhashed env))
+  [--"EXPR:  " <> showFirst expr
+   "ENV:   " <> align (pretty (unhashed env))
   , "STORE: " <> align (pretty store)
   ]
 
@@ -676,9 +680,9 @@ printOut ((store,errs),val) =
   , "STORE: " <> align (pretty store)
   , "ERRORS:" <> align (pretty errs)
   ]
-
+-- TODO: Fix 
 printInExpr :: In -> Doc ann
-printInExpr (_,(_,expr)) = "EXPR:" <+> showFirst expr
+printInExpr (_,(_,expr)) = undefined -- "EXPR:" <+> showFirst expr
 
 printOutVal :: Out -> Doc ann
 printOutVal (_,val) = "RET:" <+> pretty val

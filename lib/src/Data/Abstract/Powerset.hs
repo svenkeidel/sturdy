@@ -1,10 +1,12 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE InstanceSigs #-}
+
 module Data.Abstract.Powerset where
 
 import           Prelude hiding ((.))
@@ -15,8 +17,9 @@ import           Control.Applicative hiding (empty)
 import           Control.Category
 import           Control.Monad
 
-import           Data.Profunctor
+import           Data.Profunctor hiding (Costrong)
 import           Data.Sequence (Seq,(<|),viewl,ViewL(..))
+import qualified Data.Sequence as Seq
 import           Data.Hashable
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as H
@@ -71,6 +74,12 @@ insert a (Pow as) = Pow (a <| as)
 
 union :: Pow a -> Pow a -> Pow a
 union = mappend
+
+lookup :: Int -> Pow a -> Maybe a 
+lookup idx (Pow a) = Seq.lookup idx a
+
+unzip :: Pow (a,b) -> (Pow a, Pow b)
+unzip (Pow a) = let tuple = Seq.unzip a in (Pow $ fst tuple, Pow $ snd tuple)
 
 toHashSet :: (Hashable a, Eq a) => Pow a -> HashSet a
 toHashSet = foldl' (flip H.insert) H.empty
