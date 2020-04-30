@@ -16,6 +16,7 @@ import           Control.Arrow.Monad
 import           Control.Applicative hiding (empty)
 import           Control.Category
 import           Control.Monad
+import           Control.Comonad
 
 import           Data.Profunctor hiding (Costrong)
 import           Data.Sequence (Seq,(<|),viewl,ViewL(..))
@@ -58,6 +59,13 @@ instance (ArrowChoice c, Profunctor c) => ArrowFunctor Pow c where
 instance (ArrowChoice c, Profunctor c) => ArrowMonad Pow c where
   mapJoinA f = lmap toEither (arr (\_ -> empty) ||| rmap (\(ys,ys') -> ys <> join ys') (f *** mapA f))
 
+instance Comonad Pow where
+  extract p = undefined
+  duplicate (Pow a) = (singleton (Pow a)) 
+
+-- instance ArrowComonad Pow c where 
+--   extractA = undefined 
+
 toEither :: Pow a -> Either () (a,Pow a)
 toEither (Pow s) = case viewl s of
   EmptyL -> Left ()
@@ -78,6 +86,7 @@ union = mappend
 lookup :: Int -> Pow a -> Maybe a 
 lookup idx (Pow a) = Seq.lookup idx a
 
+-- TODO: Add dedup to fst and snd 
 unzip :: Pow (a,b) -> (Pow a, Pow b)
 unzip (Pow a) = let tuple = Seq.unzip a in (Pow $ fst tuple, Pow $ snd tuple)
 
