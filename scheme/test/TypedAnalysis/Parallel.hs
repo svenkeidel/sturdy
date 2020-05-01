@@ -47,6 +47,7 @@ import           Control.Monad.State hiding (lift,fail)
 import           Data.Empty
 import           Data.Label
 import           Data.Text (Text)
+import qualified Data.Abstract.Powerset as Pow 
 -- import           Data.Text.Prettyprint.Doc
 
 import qualified Data.Abstract.Widening as W
@@ -76,10 +77,10 @@ eval algo env0 e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ algo $ \update_ ->
         -- Fix.trace printIn printOut .
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.recordEvaluated .
+        -- Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        -- Fix.recordEvaluated .
         Fix.filter' isFunctionBody update_ in
-  second snd $ Trans.run (extend' (Generic.runFixed :: Interp [Expr] Val)) (empty,(empty,(env0,e0)))
+  second snd $ Trans.run (extend' (Generic.runFixed :: Interp [Expr] Val)) (empty,(empty,Pow.singleton (env0,e0)))
   where
     e0 = generate (sequence e)
 {-# INLINE eval #-}

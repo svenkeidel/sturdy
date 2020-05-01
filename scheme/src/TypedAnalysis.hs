@@ -88,7 +88,8 @@ type Ctx = CallString Label
 -- -- Input and output type of the fixpoint.
 
 data Addr
-  = VarA (Text,Label,Ctx)
+  = BottomA
+  | VarA (Text,Label,Ctx)
   | LabelA (Label,Ctx)
   deriving stock (Eq,Generic)
   deriving anyclass (NFData)
@@ -632,6 +633,12 @@ instance Complete Number where
   IntVal ⊔ IntVal = IntVal
   FloatVal ⊔ FloatVal = FloatVal
   _ ⊔ _ = NumTop
+-- TODO: Implement
+instance LowerBounded Addr where 
+  bottom = BottomA
+-- TODO: Implement
+instance LowerBounded Val where 
+  bottom = Bottom 
 
 instance (Identifiable s, IsString s) => IsString (HashSet s) where
   fromString = singleton . fromString

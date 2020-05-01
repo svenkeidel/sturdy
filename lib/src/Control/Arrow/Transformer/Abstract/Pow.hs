@@ -13,8 +13,8 @@ import           Control.Arrow.Environment as Env
 import           Control.Arrow.Store as Store
 import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Fail as Fail
+import           Control.Arrow.Fix.Context 
 import           Control.Category
-import           Control.Arrow.Monad
 import           Control.Comonad
 import           Control.Arrow.Order
 
@@ -62,7 +62,7 @@ instance (Arrow c, Profunctor c) => Arrow (PowT c) where
   {-# INLINE (***) #-}  
   {-# INLINE (&&&) #-}
 
-instance (ArrowComonad Pow c, Profunctor c, ArrowChoice c) => ArrowChoice (PowT c) where
+instance (Comonad Pow, Profunctor c, ArrowChoice c) => ArrowChoice (PowT c) where
   left f = lift $ dimap costrength1 strength1 (left $ unlift f) -- COMONADS ?? 
   right f = lift $ dimap costrength2 strength2 (right $ unlift f)
   f ||| g = lift $ lmap costrength ((unlift f) ||| (unlift g))
@@ -72,33 +72,41 @@ instance (ArrowComonad Pow c, Profunctor c, ArrowChoice c) => ArrowChoice (PowT 
   {-# INLINE (|||) #-}  
   {-# INLINE (+++) #-}
 
-instance (ArrowComonad Pow c, ArrowEnv var val c) => ArrowEnv var val (PowT c) where
+instance (Comonad Pow, ArrowEnv var val c) => ArrowEnv var val (PowT c) where
   type Join y (PowT c) = Env.Join (Pow y) c
   lookup f g = lift $ lmap costrength2 $ Env.lookup (lmap strength2 (unlift f)) (unlift g)
   extend f = lift $ lmap (\m -> let (x,y,_) = extract m in (x,y,fmap (\(_,_,z) -> z) m)) (Env.extend (unlift f))
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (ArrowComonad Pow c, ArrowStore var val c) => ArrowStore var val (PowT c) where
+instance (Comonad Pow, ArrowStore var val c) => ArrowStore var val (PowT c) where
   type Join y (PowT c) = Store.Join (Pow y) c
   read f g = lift $ lmap costrength2 (Store.read (lmap strength2 (unlift f)) (unlift g))
   write = lift' Store.write
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-instance (ArrowComonad Pow c, ArrowClosure expr cls c) => ArrowClosure expr cls (PowT c) where
+instance (Comonad Pow, ArrowClosure expr cls c) => ArrowClosure expr cls (PowT c) where
   type Join y cls (PowT c) = Cls.Join (Pow y) cls c
   apply f = lift $ lmap costrength2 (Cls.apply (lmap strength2 (unlift f)))
   {-# INLINE apply #-}
 
-instance (ArrowComonad Pow c, ArrowFail e c, Profunctor c) => ArrowFail e (PowT c) where
+instance (ArrowFail e c, Profunctor c) => ArrowFail e (PowT c) where
   type Join y (PowT c) = Fail.Join y c
   fail = lift' fail
   {-# INLINE fail #-}
 
-instance (ArrowComonad Pow c, ArrowLowerBounded y c) => ArrowLowerBounded y (PowT c) where
-  bottom = lift' bottom
+instance (Arrow c, Profunctor c) => ArrowLowerBounded y (PowT c) where
+  bottom = lift $ arr (const Pow.empty)
   {-# INLINE bottom #-}
+
+instance (Arrow c, Profunctor c, ArrowComplete (Pow y) c) => ArrowComplete y (PowT c) where
+  f <⊔> g = lift $ unlift f <⊔> unlift g
+  {-# INLINE (<⊔>) #-}
+
+instance ArrowContext ctx c => ArrowContext ctx (PowT c) where
+  localContext f = lift $ lmap costrength2 (localContext $ unlift f)
+  {-# INLINE localContext #-}
 
 crossproduct :: Pow a -> Pow b -> Pow (a,b)
 crossproduct xs ys = do

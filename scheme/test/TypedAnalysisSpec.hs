@@ -16,7 +16,6 @@ import           Data.GraphViz hiding (diamond)
 import           Data.Text(Text)
 import           Data.HashSet(HashSet)
 
-import           Data.Abstract.Terminating hiding (toEither)
 import           Data.Abstract.MonotoneErrors (toSet)
 import qualified Data.Abstract.Boolean as B
 import qualified Data.Abstract.Powerset as Pow

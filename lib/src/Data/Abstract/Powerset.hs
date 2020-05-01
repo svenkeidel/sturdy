@@ -59,12 +59,10 @@ instance (ArrowChoice c, Profunctor c) => ArrowFunctor Pow c where
 instance (ArrowChoice c, Profunctor c) => ArrowMonad Pow c where
   mapJoinA f = lmap toEither (arr (\_ -> empty) ||| rmap (\(ys,ys') -> ys <> join ys') (f *** mapA f))
 
+-- TODO: Implement this 
 instance Comonad Pow where
-  extract p = undefined
-  duplicate (Pow a) = (singleton (Pow a)) 
-
--- instance ArrowComonad Pow c where 
---   extractA = undefined 
+  extract = undefined -- should return lub
+  duplicate = singleton
 
 toEither :: Pow a -> Either () (a,Pow a)
 toEither (Pow s) = case viewl s of

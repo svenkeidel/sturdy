@@ -40,8 +40,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
-import           Control.Arrow.Transformer.Abstract.Terminating
+-- import           Control.Arrow.Transformer.Abstract.Fix.Trace
 import           Control.Arrow.Transformer.Abstract.Pow
 
 import           Control.Monad.State hiding (lift,fail)
@@ -49,14 +48,11 @@ import           Control.Monad.State hiding (lift,fail)
 import           Data.Empty
 import           Data.Label
 import           Data.Text (Text)
-import           Data.Sequence (Seq)
-import qualified Data.Sequence as Seq 
 import           Data.Abstract.Powerset (Pow)
 import qualified Data.Abstract.Powerset as Pow
 
 import qualified Data.Abstract.Widening as W
-import           Data.Abstract.Terminating(Terminating)
-import           Data.Text.Prettyprint.Doc
+-- import           Data.Text.Prettyprint.Doc
 
 import           TypedAnalysis
 import           Syntax (LExpr,Expr(App))
