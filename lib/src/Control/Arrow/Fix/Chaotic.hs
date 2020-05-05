@@ -90,9 +90,8 @@ chaotic iterationStrategy f = proc a -> do
       recurrentCall <- Stack.elem -< a
       case recurrentCall of
         RecurrentCall pointer -> do
-          b <- Cache.initialize -< a
           addToComponent -< (a,pointer)
-          returnA -< b
+          Cache.initialize -< a
         NoLoop -> do
           iterate -< a
   where

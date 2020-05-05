@@ -261,17 +261,15 @@ instance (Profunctor c, ArrowChoice c,
   {-# INLINE update #-}
   {-# INLINE setStable #-}
 
+-- Note: All operations on the old cache are read-only.
 oldCache :: (Arrow c, Profunctor c) => CacheT cache a b c x y -> CacheT (Parallel cache) a b c x y
-oldCache f = lift $
-  dimap (\(p,x) -> ((new p,stable p),(old p,x)))
-        (\((n,s),(o,y)) -> (Parallel { old = o, new = n, stable = s}, y))
-        (second (unlift f))
+oldCache f = lift $ dimap (\(p,x) -> (p,(old p,x))) (\(p,(_,y)) -> (p, y)) (second (unlift f))
 {-# INLINE oldCache #-}
 
 newCache :: (Arrow c, Profunctor c) => CacheT cache a b c x y -> CacheT (Parallel cache) a b c x y
 newCache f = lift $
-  dimap (\(p,x) -> ((old p,stable p),(new p,x)))
-        (\((o,s),(n,y)) -> (Parallel { old = o, new = n, stable = s}, y))
+  dimap (\(p,x) -> (p,(new p,x)))
+        (\(p,(n,y)) -> (p { new = n }, y))
         (second (unlift f))
 {-# INLINE newCache #-}
 
@@ -311,7 +309,7 @@ instance (Identifiable a, PreOrd s, LowerBounded b, ArrowChoice c, Profunctor c)
               (stable2,bWiden) = widenB bOld bNew
           in ((stable1 ⊔ stable2, (sWiden,a), (sWiden,bWiden)),
               Monotone sWiden (M.insert a (stable0 ⊔ stable1 ⊔ stable2,sNew,bWiden) cache))
-      Nothing -> ((Unstable,(sNew',a),(sNew',bNew)), Monotone sWiden (M.insert a (Unstable,sNew,bNew) cache))
+      Nothing -> ((Unstable,(sWiden,a),(sWiden,bNew)), Monotone sWiden (M.insert a (Unstable,sNew,bNew) cache))
   write = CacheT $ modify' $ \(((sNew, a), (_,b), st), Monotone s cache) ->
     ((), Monotone s (M.insert a (st, sNew, b) cache))
   setStable = CacheT $ proc _ -> returnA -< ()

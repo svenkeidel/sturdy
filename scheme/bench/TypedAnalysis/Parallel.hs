@@ -58,7 +58,7 @@ type Interp =
       (LogErrorT Text
         (EnvStoreT Text Addr Val
           (FixT
-            (CacheT (Parallel Cache.Monotone) In Out
+            (CacheT (Parallel Cache.MonotoneFactor) In Out
               (ContextT Ctx
                 (->)))))))
 

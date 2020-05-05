@@ -70,7 +70,7 @@ newtype Metrics a = Metrics (HashMap a Metric)
 data Metric = Metric
             { filtered :: !Int
             , evaluated :: !Int
-            , iterated :: !Int
+            , iteration :: !Int
             , stackLookups :: !Int
             , cacheEntries :: !Int
             , cacheLookups :: !Int
@@ -82,7 +82,7 @@ instance Semigroup Metric where
   m1 <> m2 = Metric
     { filtered = filtered m1 + filtered m2
     , evaluated = evaluated m1 + evaluated m2
-    , iterated = iterated m1 + iterated m2
+    , iteration = iteration m1 + iteration m2
     , stackLookups = stackLookups m1 + stackLookups m2
     , cacheEntries = cacheEntries m1 + cacheEntries m2
     , cacheLookups = cacheLookups m1 + cacheLookups m2
@@ -92,18 +92,18 @@ instance Semigroup Metric where
 instance Monoid Metric where
   mappend = (<>)
   mempty = Metric
-    { filtered = 0, evaluated = 0, iterated = 0, stackLookups = 0
+    { filtered = 0, evaluated = 0, iteration = 0, stackLookups = 0
     , cacheEntries = 0, cacheLookups = 0, cacheUpdates = 0 }
   {-# INLINE mappend #-}
 
 csvHeader :: String
-csvHeader = "Filtered,Evaluated,Iterated,Stack Lookups,Cache Entries,Cache Lookups,Cache Updates"
+csvHeader = "Filtered,Evaluated,Iteration,Stack Lookups,Cache Entries,Cache Lookups,Cache Updates"
 
 toCSV :: Metrics a -> String
 toCSV (Metrics metrics) =
   let Metric {..} = fold metrics
   in printf "%d,%d,%d,%d,%d,%d,%d"
-            filtered evaluated iterated stackLookups cacheEntries cacheLookups cacheUpdates
+            filtered evaluated iteration stackLookups cacheEntries cacheLookups cacheUpdates
 
 instance IsEmpty (Metrics a) where
   empty = Metrics empty
@@ -174,7 +174,7 @@ incrementEvaluated :: Metric -> Metric
 incrementEvaluated m@Metric{..} = m { evaluated = evaluated + 1 }
 
 incrementIterated :: Metric -> Metric
-incrementIterated m@Metric{..} = m { iterated = iterated + 1 }
+incrementIterated m@Metric{..} = m { iteration = iteration + 1 }
 
 incrementInitializes :: Metric -> Metric
 incrementInitializes m@Metric{..} = m { cacheEntries = 1 }
