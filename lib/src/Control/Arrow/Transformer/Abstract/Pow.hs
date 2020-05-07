@@ -9,18 +9,18 @@ import           Prelude hiding (id,(.), fail)
 import           Control.Arrow
 import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Trans
-import           Control.Arrow.Environment as Env 
+import           Control.Arrow.Environment as Env
 import           Control.Arrow.Store as Store
 import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Fail as Fail
-import           Control.Arrow.Fix.Context 
+import           Control.Arrow.Fix.Context
 import           Control.Category
 import           Control.Comonad
 import           Control.Arrow.Order
 
-
+import           Data.Either
 import           Data.Profunctor hiding (map')
-import           Data.Abstract.Powerset as Pow 
+import           Data.Abstract.Powerset as Pow
 import           Data.Monoidal
 
 newtype PowT c x y = PowT (c (Pow x) (Pow y))
@@ -59,17 +59,17 @@ instance (Arrow c, Profunctor c) => Arrow (PowT c) where
   {-# INLINE arr #-}
   {-# INLINE first #-}
   {-# INLINE second #-}
-  {-# INLINE (***) #-}  
+  {-# INLINE (***) #-}
   {-# INLINE (&&&) #-}
 
 instance (Comonad Pow, Profunctor c, ArrowChoice c) => ArrowChoice (PowT c) where
-  left f = lift $ dimap costrength1 strength1 (left $ unlift f) -- COMONADS ?? 
-  right f = lift $ dimap costrength2 strength2 (right $ unlift f)
-  f ||| g = lift $ lmap costrength ((unlift f) ||| (unlift g))
+  left f = lift $ dimap partition1 repartition1 (first $ unlift f) -- COMONADS ?? 
+  right f = lift $ dimap partition2 repartition2 (second $ unlift f)
+  f ||| g = lift $ dimap partition fst (unlift f *** unlift g)
   f +++ g = left f >>> right g
   {-# INLINE left #-}
   {-# INLINE right #-}
-  {-# INLINE (|||) #-}  
+  {-# INLINE (|||) #-}
   {-# INLINE (+++) #-}
 
 instance (Comonad Pow, ArrowEnv var val c) => ArrowEnv var val (PowT c) where
@@ -114,3 +114,23 @@ crossproduct xs ys = do
   y <- ys
   return (x,y)
 {-# INLINE crossproduct #-}
+
+partition :: Pow (Either a b) -> (Pow a, Pow b)
+partition x = (fmap (\(Left x) -> x) (Pow.filter isLeft x), fmap (\(Right x) -> x) (Pow.filter isRight x))
+
+-- is this sound? -> Left can't ever be empty, nor can have more than one unique element 
+partition1 :: Pow (Either a b) -> (Pow a, b)
+partition1 x = (fmap (\(Left x) -> x) (Pow.filter isLeft x), Pow.index (fmap (\(Right x) -> x) (Pow.filter isRight x)) 0) 
+
+repartition1 :: (Pow a, b) -> Pow (Either a b)
+repartition1 (a, b) = Pow.push (Right b) (fmap Left a)
+
+-- is this sound? -> Left can't ever be empty, nor can have more than one unique element 
+partition2 :: Pow (Either a b) -> (a, Pow b)
+partition2 x = (Pow.index (fmap (\(Left x) -> x) (Pow.filter isLeft x)) 0, fmap (\(Right x) -> x) (Pow.filter isRight x))
+
+repartition2 :: (a, Pow b) -> Pow (Either a b)
+repartition2 (a, b) = Pow.push (Left a) (fmap Right b)
+
+  -- (fromList [a | Left a <- xs], fromList [b | Right b <- xs])
+{-# INLINE partition #-}

@@ -99,3 +99,12 @@ size = length
 
 dedup :: (Hashable a, Eq a) => Pow a -> Pow a
 dedup = fromFoldable . toHashSet
+
+filter :: (a -> Bool) -> Pow a -> Pow a 
+filter f (Pow a) = Pow $ Seq.filter f a
+
+index :: Pow a -> Int -> a 
+index (Pow a) idx = Seq.index a idx
+
+push :: a -> Pow a -> Pow a
+push a (Pow b) = Pow $ (<|) a b
