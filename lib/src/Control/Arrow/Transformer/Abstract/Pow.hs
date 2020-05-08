@@ -4,7 +4,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Pow where
 
-import           Prelude hiding (id,(.), fail)
+import           Prelude hiding (id,(.), fail,lookup)
 
 import           Control.Arrow
 import qualified Control.Arrow.Fix as Fix
@@ -62,7 +62,7 @@ instance (Arrow c, Profunctor c) => Arrow (PowT c) where
   {-# INLINE (***) #-}
   {-# INLINE (&&&) #-}
 
-instance (Comonad Pow, Profunctor c, ArrowChoice c) => ArrowChoice (PowT c) where
+instance (Profunctor c, ArrowChoice c) => ArrowChoice (PowT c) where
   left f = lift $ dimap partition1 repartition1 (first $ unlift f) -- COMONADS ?? 
   right f = lift $ dimap partition2 repartition2 (second $ unlift f)
   f ||| g = lift $ dimap partition fst (unlift f *** unlift g)
@@ -72,23 +72,23 @@ instance (Comonad Pow, Profunctor c, ArrowChoice c) => ArrowChoice (PowT c) wher
   {-# INLINE (|||) #-}
   {-# INLINE (+++) #-}
 
-instance (Comonad Pow, ArrowEnv var val c) => ArrowEnv var val (PowT c) where
+instance (ArrowEnv var val c) => ArrowEnv var val (PowT c) where
   type Join y (PowT c) = Env.Join (Pow y) c
-  lookup f g = lift $ lmap costrength2 $ Env.lookup (lmap strength2 (unlift f)) (unlift g)
+  lookup f g = lift $ lmap partition2' (Env.lookup (lmap strength2 (unlift f)) (unlift g))
   extend f = lift $ lmap (\m -> let (x,y,_) = extract m in (x,y,fmap (\(_,_,z) -> z) m)) (Env.extend (unlift f))
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
-instance (Comonad Pow, ArrowStore var val c) => ArrowStore var val (PowT c) where
+instance (ArrowStore var val c) => ArrowStore var val (PowT c) where
   type Join y (PowT c) = Store.Join (Pow y) c
-  read f g = lift $ lmap costrength2 (Store.read (lmap strength2 (unlift f)) (unlift g))
+  read f g = lift $ lmap partition2' (Store.read (lmap strength2 (unlift f)) (unlift g))
   write = lift' Store.write
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-instance (Comonad Pow, ArrowClosure expr cls c) => ArrowClosure expr cls (PowT c) where
+instance (ArrowClosure expr cls c) => ArrowClosure expr cls (PowT c) where
   type Join y cls (PowT c) = Cls.Join (Pow y) cls c
-  apply f = lift $ lmap costrength2 (Cls.apply (lmap strength2 (unlift f)))
+  apply f = lift $ lmap partition2' (Cls.apply (lmap strength2 (unlift f)))
   {-# INLINE apply #-}
 
 instance (ArrowFail e c, Profunctor c) => ArrowFail e (PowT c) where
@@ -105,7 +105,7 @@ instance (Arrow c, Profunctor c, ArrowComplete (Pow y) c) => ArrowComplete y (Po
   {-# INLINE (<⊔>) #-}
 
 instance ArrowContext ctx c => ArrowContext ctx (PowT c) where
-  localContext f = lift $ lmap costrength2 (localContext $ unlift f)
+  localContext f = lift $ lmap partition2' (localContext $ unlift f)
   {-# INLINE localContext #-}
 
 crossproduct :: Pow a -> Pow b -> Pow (a,b)
@@ -116,21 +116,36 @@ crossproduct xs ys = do
 {-# INLINE crossproduct #-}
 
 partition :: Pow (Either a b) -> (Pow a, Pow b)
-partition x = (fmap (\(Left x) -> x) (Pow.filter isLeft x), fmap (\(Right x) -> x) (Pow.filter isRight x))
+partition x = (fmap leftOrError (Pow.filter isLeft x), fmap rightOrError (Pow.filter isRight x))
 
 -- is this sound? -> Left can't ever be empty, nor can have more than one unique element 
 partition1 :: Pow (Either a b) -> (Pow a, b)
-partition1 x = (fmap (\(Left x) -> x) (Pow.filter isLeft x), Pow.index (fmap (\(Right x) -> x) (Pow.filter isRight x)) 0) 
+partition1 x = (fmap leftOrError (Pow.filter isLeft x), Pow.index (fmap rightOrError (Pow.filter isRight x)) 0) 
 
 repartition1 :: (Pow a, b) -> Pow (Either a b)
 repartition1 (a, b) = Pow.push (Right b) (fmap Left a)
+{-# INLINE repartition1 #-}
 
 -- is this sound? -> Left can't ever be empty, nor can have more than one unique element 
 partition2 :: Pow (Either a b) -> (a, Pow b)
-partition2 x = (Pow.index (fmap (\(Left x) -> x) (Pow.filter isLeft x)) 0, fmap (\(Right x) -> x) (Pow.filter isRight x))
+partition2 x = (Pow.index (fmap leftOrError (Pow.filter isLeft x)) 0, fmap rightOrError (Pow.filter isRight x))
+{-# INLINE partition2 #-}
+
+-- only sound if this is inverts a crossproduct with only one element as argument for a
+partition2' :: Pow (a, b) -> (a, Pow b) 
+partition2' x = let (a, b) = Pow.unzip x in (Pow.index a 0, b) 
+{-# INLINE partition2' #-}
 
 repartition2 :: (a, Pow b) -> Pow (Either a b)
 repartition2 (a, b) = Pow.push (Left a) (fmap Right b)
+{-# INLINE repartition2 #-}
 
   -- (fromList [a | Left a <- xs], fromList [b | Right b <- xs])
-{-# INLINE partition #-}
+
+leftOrError :: Either a b -> a 
+leftOrError x = case x of Left y -> y 
+                          _ -> error "expected left"
+
+rightOrError :: Either a b -> b 
+rightOrError x = case x of Right y -> y 
+                           _ -> error "expected right"

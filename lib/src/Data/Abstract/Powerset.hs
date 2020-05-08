@@ -86,7 +86,7 @@ lookup idx (Pow a) = Seq.lookup idx a
 
 -- TODO: Add dedup to fst and snd 
 unzip :: Pow (a,b) -> (Pow a, Pow b)
-unzip (Pow a) = let tuple = Seq.unzip a in (Pow $ fst tuple, Pow $ snd tuple)
+unzip (Pow a) = let (x, y) = Seq.unzip a in (Pow x, Pow y)
 
 toHashSet :: (Hashable a, Eq a) => Pow a -> HashSet a
 toHashSet = foldl' (flip H.insert) H.empty
@@ -104,7 +104,7 @@ filter :: (a -> Bool) -> Pow a -> Pow a
 filter f (Pow a) = Pow $ Seq.filter f a
 
 index :: Pow a -> Int -> a 
-index (Pow a) idx = Seq.index a idx
+index (Pow a) = Seq.index a
 
 push :: a -> Pow a -> Pow a
 push a (Pow b) = Pow $ (<|) a b

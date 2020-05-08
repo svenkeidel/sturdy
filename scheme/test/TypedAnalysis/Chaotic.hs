@@ -76,9 +76,9 @@ evalChaotic iterationStrat env0 e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
         Fix.fixpointAlgorithm $
-        -- Fix.trace printIn printOut .
-        -- Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        -- Fix.recordEvaluated .
+        Fix.trace printIn printOut .
+        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case Pow.index exprs 0 of App _ _ l:_ -> Just l; _ -> Nothing) .
+        Fix.recordEvaluated .
         -- CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
         -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
         Fix.filter' isFunctionBody (chaotic iterationStrat) in
