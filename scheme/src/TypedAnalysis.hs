@@ -93,7 +93,7 @@ data Addr
   | LabelA (Label,Ctx)
   deriving stock (Eq,Generic)
   deriving anyclass (NFData)
-  deriving PreOrd via Discrete Addr
+--  deriving PreOrd via Discrete Addr
 
 type Symbol = Text
 
@@ -634,6 +634,10 @@ instance Complete Number where
   FloatVal ⊔ FloatVal = FloatVal
   _ ⊔ _ = NumTop
 -- TODO: Implement
+instance PreOrd Addr where 
+  BottomA ⊑ _ = True
+  x ⊑ y = x == y
+
 instance LowerBounded Addr where 
   bottom = BottomA
 -- TODO: Implement
@@ -665,9 +669,11 @@ transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(
 
 -- TODO: Fix 
 isFunctionBody :: In -> Bool
-isFunctionBody (_,(_,e)) = case Pow.lookup 0 e of
-  Just (Apply _ _:_) -> True
-  _ -> False
+isFunctionBody (_,(_,e)) = case Pow.size e of
+  1 -> case Pow.index e  0 of 
+    (Apply _ _ : _) -> True 
+    _ -> error "idk" 
+  _ -> error "expected singleton for isFunctionBody"
 {-# INLINE isFunctionBody #-}
 
 -- Pretty Printing of inputs and outputs

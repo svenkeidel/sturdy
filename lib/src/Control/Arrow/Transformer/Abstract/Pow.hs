@@ -15,13 +15,11 @@ import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix.Context
 import           Control.Category
-import           Control.Comonad
 import           Control.Arrow.Order
 
 import           Data.Either
 import           Data.Profunctor hiding (map')
 import           Data.Abstract.Powerset as Pow
-import           Data.Monoidal
 
 newtype PowT c x y = PowT (c (Pow x) (Pow y))
 
@@ -39,7 +37,7 @@ instance Category c => Category (PowT c) where
   {-# INLINE (.) #-}
 
 instance ArrowLift PowT where
-  lift' f = lift $ dimap extract return f
+  lift' f = lift $ dimap unsafeExtract singleton f
   {-# INLINE lift' #-}
 
 instance Profunctor c => Profunctor (PowT c) where
@@ -74,21 +72,21 @@ instance (Profunctor c, ArrowChoice c) => ArrowChoice (PowT c) where
 
 instance (ArrowEnv var val c) => ArrowEnv var val (PowT c) where
   type Join y (PowT c) = Env.Join (Pow y) c
-  lookup f g = lift $ lmap partition2' (Env.lookup (lmap strength2 (unlift f)) (unlift g))
-  extend f = lift $ lmap (\m -> let (x,y,_) = extract m in (x,y,fmap (\(_,_,z) -> z) m)) (Env.extend (unlift f))
+  lookup f g = lift $ lmap partition2' (Env.lookup (lmap crossproduct2 (unlift f)) (unlift g))
+  extend f = lift $ lmap unsafeUnzip3 (Env.extend (unlift f))
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
 instance (ArrowStore var val c) => ArrowStore var val (PowT c) where
   type Join y (PowT c) = Store.Join (Pow y) c
-  read f g = lift $ lmap partition2' (Store.read (lmap strength2 (unlift f)) (unlift g))
+  read f g = lift $ lmap partition2' (Store.read (lmap crossproduct2 (unlift f)) (unlift g))
   write = lift' Store.write
   {-# INLINE read #-}
   {-# INLINE write #-}
 
 instance (ArrowClosure expr cls c) => ArrowClosure expr cls (PowT c) where
   type Join y cls (PowT c) = Cls.Join (Pow y) cls c
-  apply f = lift $ lmap partition2' (Cls.apply (lmap strength2 (unlift f)))
+  apply f = lift $ lmap partition2' (Cls.apply (lmap crossproduct2 (unlift f)))
   {-# INLINE apply #-}
 
 instance (ArrowFail e c, Profunctor c) => ArrowFail e (PowT c) where
@@ -115,12 +113,29 @@ crossproduct xs ys = do
   return (x,y)
 {-# INLINE crossproduct #-}
 
+crossproduct2 :: (a, Pow b) -> Pow (a, b)
+crossproduct2 (x, ys) = do 
+  y <- ys
+  return (x,y)
+{-# INLINE crossproduct2 #-}
+
+crossproduct3 :: (a, b, Pow c) -> Pow (a, b, c)
+crossproduct3 (x, y, zs) = do 
+  z <- zs 
+  return (x, y, z)
+
+unsafeUnzip3 :: Pow (a, b, c) -> (a, b, Pow c)
+unsafeUnzip3 pow = let (xy,z) = Pow.unzip (fmap (\(x,y,z) -> ((x,y),z)) pow) in
+  let (x,y) = Pow.unzip xy in (Pow.index x 0,Pow.index y 0,z)
+
 partition :: Pow (Either a b) -> (Pow a, Pow b)
 partition x = (fmap leftOrError (Pow.filter isLeft x), fmap rightOrError (Pow.filter isRight x))
+{-# INLINE partition #-}
 
 -- is this sound? -> Left can't ever be empty, nor can have more than one unique element 
 partition1 :: Pow (Either a b) -> (Pow a, b)
 partition1 x = (fmap leftOrError (Pow.filter isLeft x), Pow.index (fmap rightOrError (Pow.filter isRight x)) 0) 
+{-# INLINE partition1 #-}
 
 repartition1 :: (Pow a, b) -> Pow (Either a b)
 repartition1 (a, b) = Pow.push (Right b) (fmap Left a)
@@ -140,12 +155,17 @@ repartition2 :: (a, Pow b) -> Pow (Either a b)
 repartition2 (a, b) = Pow.push (Left a) (fmap Right b)
 {-# INLINE repartition2 #-}
 
-  -- (fromList [a | Left a <- xs], fromList [b | Right b <- xs])
-
 leftOrError :: Either a b -> a 
 leftOrError x = case x of Left y -> y 
                           _ -> error "expected left"
+{-# INLINE leftOrError #-}
 
 rightOrError :: Either a b -> b 
 rightOrError x = case x of Right y -> y 
                            _ -> error "expected right"
+{-# INLINE rightOrError #-}
+
+unsafeExtract :: Pow a -> a 
+unsafeExtract x = case Pow.size x of 1 -> Pow.index x 0 
+                                     _ -> error "expected singleton"
+{-# INLINE unsafeExtract #-}                                     

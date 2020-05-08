@@ -16,8 +16,6 @@ import           Control.Arrow.Monad
 import           Control.Applicative hiding (empty)
 import           Control.Category
 import           Control.Monad
-import           Control.Comonad
-
 import           Data.Profunctor hiding (Costrong)
 import           Data.Sequence (Seq,(<|),viewl,ViewL(..))
 import qualified Data.Sequence as Seq
@@ -58,11 +56,6 @@ instance (ArrowChoice c, Profunctor c) => ArrowFunctor Pow c where
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad Pow c where
   mapJoinA f = lmap toEither (arr (\_ -> empty) ||| rmap (\(ys,ys') -> ys <> join ys') (f *** mapA f))
-
--- TODO: Implement this 
-instance Comonad Pow where
-  extract = undefined -- should return lub
-  duplicate = singleton
 
 toEither :: Pow a -> Either () (a,Pow a)
 toEither (Pow s) = case viewl s of
