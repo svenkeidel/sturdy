@@ -17,7 +17,7 @@ import           Control.Applicative hiding (empty)
 import           Control.Category
 import           Control.Monad
 import           Data.Profunctor hiding (Costrong)
-import           Data.Sequence (Seq,(<|),viewl,ViewL(..))
+import           Data.Sequence (Seq,(<|),viewl,ViewL(..),(><))
 import qualified Data.Sequence as Seq
 import           Data.Hashable
 import           Data.HashSet (HashSet)
@@ -101,3 +101,6 @@ index (Pow a) = Seq.index a
 
 push :: a -> Pow a -> Pow a
 push a (Pow b) = Pow $ (<|) a b
+
+concat :: Pow a -> Pow a -> Pow a 
+concat (Pow a) (Pow b) = Pow $ (><) a b 

@@ -32,6 +32,7 @@ instance (ArrowRun c) => ArrowRun (PowT c) where type Run (PowT c) x y = Run c (
 
 instance Category c => Category (PowT c) where
   id = lift id
+  -- gets used
   f . g = lift (unlift f . unlift g)
   {-# INLINE id #-}
   {-# INLINE (.) #-}
@@ -49,7 +50,8 @@ instance Profunctor c => Profunctor (PowT c) where
   {-# INLINE rmap #-}
 
 instance (Arrow c, Profunctor c) => Arrow (PowT c) where
-  arr f = lift $ arr (fmap f)
+  -- gets used 
+  arr f = rmap f id
   first f = lift $ dimap Pow.unzip (\(xs,ys) -> crossproduct xs ys) (first $ unlift f)
   second f = lift $ dimap Pow.unzip (\(xs,ys) -> crossproduct xs ys) (second $ unlift f)
   f *** g = lift $ dimap Pow.unzip (\(xs,ys) -> crossproduct xs ys) (unlift f *** unlift g)
@@ -63,7 +65,7 @@ instance (Arrow c, Profunctor c) => Arrow (PowT c) where
 instance (Profunctor c, ArrowChoice c) => ArrowChoice (PowT c) where
   left f = lift $ dimap partition1 repartition1 (first $ unlift f) -- COMONADS ?? 
   right f = lift $ dimap partition2 repartition2 (second $ unlift f)
-  f ||| g = lift $ dimap partition fst (unlift f *** unlift g)
+  f ||| g = lift $ dimap partition (\(x,y) -> Pow.concat x y) (unlift f *** unlift g)
   f +++ g = left f >>> right g
   {-# INLINE left #-}
   {-# INLINE right #-}
@@ -73,6 +75,7 @@ instance (Profunctor c, ArrowChoice c) => ArrowChoice (PowT c) where
 instance (ArrowEnv var val c) => ArrowEnv var val (PowT c) where
   type Join y (PowT c) = Env.Join (Pow y) c
   lookup f g = lift $ lmap partition2' (Env.lookup (lmap crossproduct2 (unlift f)) (unlift g))
+  -- gets used 
   extend f = lift $ lmap unsafeUnzip3 (Env.extend (unlift f))
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
@@ -123,10 +126,12 @@ crossproduct3 :: (a, b, Pow c) -> Pow (a, b, c)
 crossproduct3 (x, y, zs) = do 
   z <- zs 
   return (x, y, z)
+{-# INLINE crossproduct3 #-}
 
 unsafeUnzip3 :: Pow (a, b, c) -> (a, b, Pow c)
-unsafeUnzip3 pow = let (xy,z) = Pow.unzip (fmap (\(x,y,z) -> ((x,y),z)) pow) in
-  let (x,y) = Pow.unzip xy in (Pow.index x 0,Pow.index y 0,z)
+unsafeUnzip3 pow = let (xy,z) = Pow.unzip (fmap (\(a,b,c) -> ((a,b),c)) pow) in
+  let (x,y) = Pow.unzip xy in (unsafeExtract x,unsafeExtract y,z)
+{-# INLINE unsafeUnzip3 #-}
 
 partition :: Pow (Either a b) -> (Pow a, Pow b)
 partition x = (fmap leftOrError (Pow.filter isLeft x), fmap rightOrError (Pow.filter isRight x))
@@ -134,7 +139,7 @@ partition x = (fmap leftOrError (Pow.filter isLeft x), fmap rightOrError (Pow.fi
 
 -- is this sound? -> Left can't ever be empty, nor can have more than one unique element 
 partition1 :: Pow (Either a b) -> (Pow a, b)
-partition1 x = (fmap leftOrError (Pow.filter isLeft x), Pow.index (fmap rightOrError (Pow.filter isRight x)) 0) 
+partition1 x = (fmap leftOrError (Pow.filter isLeft x), unsafeExtract $ fmap rightOrError (Pow.filter isRight x)) 
 {-# INLINE partition1 #-}
 
 repartition1 :: (Pow a, b) -> Pow (Either a b)
@@ -143,12 +148,12 @@ repartition1 (a, b) = Pow.push (Right b) (fmap Left a)
 
 -- is this sound? -> Left can't ever be empty, nor can have more than one unique element 
 partition2 :: Pow (Either a b) -> (a, Pow b)
-partition2 x = (Pow.index (fmap leftOrError (Pow.filter isLeft x)) 0, fmap rightOrError (Pow.filter isRight x))
+partition2 x = (unsafeExtract $ fmap leftOrError (Pow.filter isLeft x), fmap rightOrError (Pow.filter isRight x))
 {-# INLINE partition2 #-}
 
 -- only sound if this is inverts a crossproduct with only one element as argument for a
 partition2' :: Pow (a, b) -> (a, Pow b) 
-partition2' x = let (a, b) = Pow.unzip x in (Pow.index a 0, b) 
+partition2' x = let (a, b) = Pow.unzip x in (unsafeExtract a, b) 
 {-# INLINE partition2' #-}
 
 repartition2 :: (a, Pow b) -> Pow (Either a b)
