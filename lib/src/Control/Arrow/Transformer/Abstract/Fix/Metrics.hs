@@ -65,43 +65,56 @@ instance ArrowState s c => ArrowState s (MetricsT metrics a c) where
   {-# INLINE put #-}
 
 -- Basic Metric ----------------------------------------------------------------
-data Metrics a = Metrics { iteration :: !Int, metricCache :: HashMap a Metric }
+newtype Metrics a = Metrics (HashMap a Metric)
 
 data Metric = Metric
             { filtered :: !Int
             , evaluated :: !Int
+            , iteration :: !Int
             , stackLookups :: !Int
             , cacheEntries :: !Int
             , cacheLookups :: !Int
-            , updates :: !Int
+            , cacheUpdates :: !Int
             }
   deriving (Show)
 
 instance Semigroup Metric where
-  Metric f1 ev1 s1 e1 l1 u1 <> Metric f2 ev2 s2 e2 l2 u2 =
-    Metric (f1 + f2) (ev1 + ev2) (s1 + s2) (e1 + e2) (l1 + l2) (u1 + u2)
+  m1 <> m2 = Metric
+    { filtered = filtered m1 + filtered m2
+    , evaluated = evaluated m1 + evaluated m2
+    , iteration = iteration m1 + iteration m2
+    , stackLookups = stackLookups m1 + stackLookups m2
+    , cacheEntries = cacheEntries m1 + cacheEntries m2
+    , cacheLookups = cacheLookups m1 + cacheLookups m2
+    , cacheUpdates = cacheUpdates m1 + cacheUpdates m2
+    }
 
 instance Monoid Metric where
-  mempty = Metric 0 0 0 0 0 0
   mappend = (<>)
+  mempty = Metric
+    { filtered = 0, evaluated = 0, iteration = 0, stackLookups = 0
+    , cacheEntries = 0, cacheLookups = 0, cacheUpdates = 0 }
   {-# INLINE mappend #-}
 
 csvHeader :: String
-csvHeader = "Filtered,Evaluated,Stack Lookups,Cache Entries,Iteration,Cache Lookups,Cache Updates"
+csvHeader = "Filtered,Evaluated,Iteration,Stack Lookups,Cache Entries,Cache Lookups,Cache Updates"
 
 toCSV :: Metrics a -> String
-toCSV (Metrics i m) =
-  let Metric f ev s e l u = fold m
-  in printf "%d,%d,%d,%d,%d,%d,%d" f ev s e i l u
+toCSV (Metrics metrics) =
+  let Metric {..} = fold metrics
+  in printf "%d,%d,%d,%d,%d,%d,%d"
+            filtered evaluated iteration stackLookups cacheEntries cacheLookups cacheUpdates
 
 instance IsEmpty (Metrics a) where
-  empty = Metrics 0 empty
+  empty = Metrics empty
 
 instance (Identifiable a, Arrow c,Profunctor c) => ArrowMetrics a (MetricsT Metrics a c) where
   filtered = MetricsT $ proc a ->
     modifyMetric setFiltered -< a
   evaluated = MetricsT $ proc a ->
     modifyMetric incrementEvaluated -< a
+  iterated = MetricsT $ proc a ->
+    modifyMetric incrementIterated -< a
 
 instance (Identifiable a, ArrowStack a c) => ArrowStack a (MetricsT Metrics a c) where
   elem = MetricsT $ proc a -> do
@@ -119,9 +132,9 @@ instance (Identifiable a, ArrowChoice c, Profunctor c, ArrowCache a b c) => Arro
   lookup = MetricsT $ proc a -> do
     modifyMetric incrementCacheLookups -< a
     Cache.lookup -< a
-  update = MetricsT $ proc (a,b) -> do
+  update = MetricsT $ proc (st,a,b) -> do
     modifyMetric incrementUpdates -< a
-    update -< (a,b)
+    update -< (st,a,b)
   write = MetricsT $ proc (a,b,s) -> do
     modifyMetric incrementUpdates -< a
     write -< (a,b,s)
@@ -130,10 +143,10 @@ instance (Identifiable a, ArrowChoice c, Profunctor c, ArrowCache a b c) => Arro
   {-# INLINE update #-}
   {-# INLINE write #-}
 
-instance ArrowIterateCache a b c => ArrowIterateCache a b (MetricsT Metrics a c) where
-  nextIteration = MetricsT $ proc a -> do
-    modify' (\((),Metrics i c) -> ((),Metrics (i + 1) c)) -< ()
-    lift' nextIteration -< a
+instance (Identifiable a, ArrowIterateCache a b c) => ArrowIterateCache a b (MetricsT Metrics a c) where
+  nextIteration = MetricsT $ proc (a,b) -> do
+    modifyMetric incrementIterated -< a
+    lift' nextIteration -< (a,b)
   {-# INLINE nextIteration #-}
 
 instance (Identifiable a, ArrowParallelCache a b c) => ArrowParallelCache a b (MetricsT Metrics a c) where
@@ -151,7 +164,7 @@ instance (Identifiable a, ArrowParallelCache a b c) => ArrowParallelCache a b (M
   {-# INLINE updateNewCache #-}
 
 modifyMetric :: (Identifiable a, ArrowState (Metrics a) c) => (Metric -> Metric) -> c a ()
-modifyMetric f = modify' (\(a,Metrics i m) -> ((),Metrics i (upsert f a m)))
+modifyMetric f = modify' (\(a,Metrics m) -> ((),Metrics (upsert f a m)))
 {-# INLINE modifyMetric #-}
 
 setFiltered :: Metric -> Metric
@@ -159,6 +172,9 @@ setFiltered m = m { filtered = 1 }
 
 incrementEvaluated :: Metric -> Metric
 incrementEvaluated m@Metric{..} = m { evaluated = evaluated + 1 }
+
+incrementIterated :: Metric -> Metric
+incrementIterated m@Metric{..} = m { iteration = iteration + 1 }
 
 incrementInitializes :: Metric -> Metric
 incrementInitializes m@Metric{..} = m { cacheEntries = 1 }
@@ -170,7 +186,7 @@ incrementStackLookups :: Metric -> Metric
 incrementStackLookups m@Metric{..} = m { stackLookups = stackLookups + 1 }
 
 incrementUpdates :: Metric -> Metric
-incrementUpdates m@Metric{..} = m { cacheEntries = 1, updates = updates + 1 }
+incrementUpdates m@Metric{..} = m { cacheEntries = 1, cacheUpdates = cacheUpdates + 1 }
 
 upsert :: Identifiable a => Monoid b => (b -> b) -> a -> HashMap a b -> HashMap a b
 upsert f a = M.insertWith (\_ _old -> f _old) a mempty
@@ -183,13 +199,16 @@ data Monotone a where
 instance IsEmpty (Monotone (a,b)) where
   empty = Monotone empty
 
-instance (Identifiable b, Arrow c,Profunctor c) => ArrowMetrics (a,b) (MetricsT Monotone (a,b) c) where
-  filtered = MetricsT $ proc (_,b) ->
-    modifyMetric' setFiltered -< b
-  evaluated = MetricsT $ proc (_,b) ->
-    modifyMetric' incrementEvaluated -< b
+instance (Identifiable a', Arrow c,Profunctor c) => ArrowMetrics (a,a') (MetricsT Monotone (a,a') c) where
+  filtered = MetricsT $ proc (_,a') ->
+    modifyMetric' setFiltered -< a'
+  evaluated = MetricsT $ proc (_,a') ->
+    modifyMetric' incrementEvaluated -< a'
+  iterated = MetricsT $ proc (_,a') ->
+    modifyMetric' incrementIterated -< a'
   {-# INLINE filtered #-}
   {-# INLINE evaluated #-}
+  {-# INLINE iterated #-}
 
 instance (Identifiable b, ArrowStack (a,b) c) => ArrowStack (a,b) (MetricsT Monotone (a,b) c) where
   elem = MetricsT $ proc x@(_,b) -> do
@@ -207,9 +226,9 @@ instance (Identifiable a', ArrowChoice c, Profunctor c, ArrowCache (a,a') b c) =
   lookup = MetricsT $ proc x@(_,a') -> do
     modifyMetric' incrementCacheLookups -< a'
     Cache.lookup -< x
-  update = MetricsT $ proc (x@(_,a'),b) -> do
+  update = MetricsT $ proc (st,x@(_,a'),b) -> do
     modifyMetric' incrementUpdates -< a'
-    update -< (x,b)
+    update -< (st,x,b)
   write = MetricsT $ proc (x@(_,a'),b,s) -> do
     modifyMetric' incrementUpdates -< a'
     write -< (x,b,s)
@@ -218,10 +237,10 @@ instance (Identifiable a', ArrowChoice c, Profunctor c, ArrowCache (a,a') b c) =
   {-# INLINE update #-}
   {-# INLINE write #-}
 
-instance ArrowIterateCache x y c => ArrowIterateCache x y (MetricsT Monotone (a,a') c) where
-  nextIteration = MetricsT $ proc a -> do
-    modify' (\((),Monotone (Metrics i c)) -> ((),Monotone (Metrics (i + 1) c))) -< ()
-    lift' nextIteration -< a
+instance (Identifiable a', ArrowIterateCache (a,a') b c) => ArrowIterateCache (a,a') b (MetricsT Monotone (a,a') c) where
+  nextIteration = MetricsT $ proc x@((_,a'),_) -> do
+    modifyMetric' incrementIterated -< a'
+    lift' nextIteration -< x
   {-# INLINE nextIteration #-}
 
 instance (Identifiable a', ArrowParallelCache (a,a') b c) => ArrowParallelCache (a,a') b (MetricsT Monotone (a,a') c) where
@@ -239,5 +258,5 @@ instance (Identifiable a', ArrowParallelCache (a,a') b c) => ArrowParallelCache 
   {-# INLINE updateNewCache #-}
 
 modifyMetric' :: (Identifiable b, ArrowState (Monotone (a,b)) c) => (Metric -> Metric) -> c b ()
-modifyMetric' f = modify' (\(b, Monotone (Metrics i m)) -> ((), Monotone (Metrics i (upsert f b m))))
+modifyMetric' f = modify' (\(b, Monotone (Metrics m)) -> ((), Monotone (Metrics (upsert f b m))))
 {-# INLINE modifyMetric' #-}

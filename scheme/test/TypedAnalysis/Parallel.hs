@@ -64,7 +64,7 @@ type Interp x y =
         (EnvStoreT Text Addr Val
           (FixT
             (MetricsT Metric.Monotone In
-              (CacheT (Parallel Cache.Monotone) In Out
+              (CacheT (Parallel Cache.MonotoneFactor) In Out
                 (ContextT Ctx
                   (ControlFlowT Expr
                     (->))))))))) x y

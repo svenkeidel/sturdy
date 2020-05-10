@@ -92,7 +92,9 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       let expRes = successOrFail (Pow.singleton $ (BoolVal B.Top))
                                  [ "Excpeted list as argument for cdr, but got Top"
                                  , "Excpeted list as argument for car, but got Top"
-                                 ]
+                                 ] -- <>
+                                --  when (?algorithm == Parallel || ?algorithm == ADI)
+                                --  ["cannot car an empty list" ]
       run inFile expRes
 
     it "dderiv" $ do

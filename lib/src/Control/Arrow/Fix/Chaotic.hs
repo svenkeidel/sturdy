@@ -12,6 +12,7 @@ import           Prelude hiding (head,iterate,map)
 
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Metrics as Metrics
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Trans
@@ -38,38 +39,44 @@ inComponent' :: ArrowInComponent a c => c a b -> c a (InComponent,b)
 inComponent' f = lmap (\a -> (a,a)) (inComponent f)
 {-# INLINE inComponent' #-}
 
-type IterationStrategy c a b = c a b -> c (a,b) b -> c a b
+type IterationStrategy c a b = c a b -> c (Stable,a,b) b -> c a b
 
 innermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 innermost f iterate = proc a -> do
   (inComp,b) <- inComponent' f -< a
   case inComp of
     Head Outermost -> do
-      iterate -< (a,b)
-      -- b' <- iterate -< (a,b)
-      -- setStable -< (Stable,a)
-      -- returnA -< b'
+      iterate -< (Stable,a,b)
     Head Inner -> do
-      iterate -< (a,b)
+      iterate -< (Unstable,a,b)
     _ -> returnA -< b
 {-# INLINE innermost #-}
 {-# SCC innermost #-}
+
+innermost' :: (ArrowChoice c, ArrowMetrics a c, ArrowInComponent a c) => IterationStrategy c a b
+innermost' f iterate = innermost f $ proc (st,a,b) -> do
+  Metrics.iterated -< a
+  iterate -< (st,a,b)
+{-# INLINE innermost' #-}
 
 outermost :: (ArrowChoice c, ArrowInComponent a c) => IterationStrategy c a b
 outermost f iterate = proc a -> do
   (inComp,b) <- inComponent' f -< a
   case inComp of
     Head Outermost -> do
-      iterate -< (a,b)
-      -- b' <- iterate -< (a,b)
-      -- setStable -< (Stable,a)
-      -- returnA -< b'
+      iterate -< (Stable,a,b)
     Head Inner ->
       returnA -< b
     _ ->
       returnA -< b
 {-# INLINE outermost #-}
 {-# SCC outermost #-}
+
+outermost' :: (ArrowChoice c, ArrowMetrics a c, ArrowInComponent a c) => IterationStrategy c a b
+outermost' f iterate = outermost f $ proc (st,a,b) -> do
+  Metrics.iterated -< a
+  iterate -< (st,a,b)
+{-# INLINE outermost' #-}
 
 -- | Iterate on the innermost fixpoint component.
 chaotic :: forall a b c.
@@ -83,16 +90,15 @@ chaotic iterationStrategy f = proc a -> do
       recurrentCall <- Stack.elem -< a
       case recurrentCall of
         RecurrentCall pointer -> do
-          b <- Cache.initialize -< a
           addToComponent -< (a,pointer)
-          returnA -< b
+          Cache.initialize -< a
         NoLoop -> do
           iterate -< a
   where
     iterate :: c a b
-    iterate = iterationStrategy (Stack.push' f) $ proc (a,b) -> do
-      (stable,aNew,bNew) <- Cache.update -< (a,b)
-      case stable of
+    iterate = iterationStrategy (Stack.push' f) $ proc (stable,a,b) -> do
+      (stable',aNew,bNew) <- Cache.update -< (stable,a,b)
+      case stable' of
         Stable   -> returnA -< bNew
         Unstable -> iterate -< aNew
     {-# SCC iterate #-}
