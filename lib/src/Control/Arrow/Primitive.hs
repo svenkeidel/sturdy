@@ -15,6 +15,7 @@ import Data.Profunctor
 
 import GHC.Exts
 import GHC.ST(ST(..))
+import GHC.Types
 
 class (Arrow c, Profunctor c) => ArrowPrimitive c where
   type PrimState c
@@ -28,3 +29,13 @@ class (Arrow c, Profunctor c) => ArrowPrimitive c where
 liftST :: ArrowPrimitive c => (x -> ST (PrimState c) y) -> c x y
 liftST f = primitive (\(# s,x #) -> coerce f x s)
 {-# INLINE liftST #-}
+
+-- | Lift an IO computation into an arrow computation.
+-- Example usage:
+-- @
+--   proc msg -> do
+--     liftIO print -< msg
+-- @
+liftIO :: (ArrowPrimitive c, PrimState c ~ RealWorld) => (x -> IO y) -> c x y
+liftIO f = primitive (\(# s,x #) -> coerce f x s)
+{-# INLINE liftIO #-}

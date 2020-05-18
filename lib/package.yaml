@@ -10,6 +10,7 @@ dependencies:
   - base
   - containers
   - comonad
+  - ghc-prim
   - hashable
   - hashtables
   - mtl
