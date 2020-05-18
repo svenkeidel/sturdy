@@ -7,6 +7,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Stack(StackT,Stack) where
 
@@ -14,6 +15,7 @@ import           Prelude hiding (pred,lookup,map,head,iterate,(.),elem)
 
 import           Control.Category
 import           Control.Arrow hiding (loop)
+import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
 import           Control.Arrow.Fix.Cache as Cache
@@ -41,7 +43,7 @@ newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
             ArrowStrict,ArrowLift, ArrowLowerBounded z,
             ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowState s,ArrowContext ctx, ArrowJoinContext u,
-            ArrowControlFlow stmt)
+            ArrowControlFlow stmt, ArrowPrimitive)
 
 runStackT :: (IsEmpty (stack a), Profunctor c) => StackT stack a c x y -> c x y
 runStackT (StackT f) = lmap (\x -> (empty,x)) (runReaderT f)

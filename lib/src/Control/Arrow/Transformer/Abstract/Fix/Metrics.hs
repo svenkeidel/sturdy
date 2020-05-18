@@ -1,12 +1,14 @@
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Metrics where
 
@@ -14,6 +16,7 @@ import           Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,el
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Primitive
 import           Control.Arrow.Order
 import           Control.Arrow.State
 import           Control.Arrow.Trans
@@ -41,7 +44,7 @@ newtype MetricsT metric a c x y = MetricsT (StateT (metric a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded z,
             ArrowComponent a,ArrowInComponent a,ArrowControlFlow stmt,
             ArrowStackDepth,ArrowStackElements a,ArrowContext ctx,ArrowTopLevel,
-            ArrowGetCache cache)
+            ArrowGetCache cache, ArrowPrimitive)
 
 instance (IsEmpty (metrics a), ArrowRun c) => ArrowRun (MetricsT metrics a c) where
   type Run (MetricsT metrics a c) x y = Run c x (metrics a,y)

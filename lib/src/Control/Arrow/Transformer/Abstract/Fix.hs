@@ -4,9 +4,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 module Control.Arrow.Transformer.Abstract.Fix(FixT,runFixT) where
 
@@ -14,6 +15,7 @@ import           Prelude hiding (id,(.),const,head,iterate,lookup)
 
 import           Control.Category
 import           Control.Arrow hiding (loop)
+import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Cache
@@ -36,7 +38,7 @@ newtype FixT c x y = FixT (c x y)
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth,
             ArrowComponent a, ArrowInComponent a,
-            ArrowMetrics a, ArrowStrict)
+            ArrowMetrics a, ArrowStrict, ArrowPrimitive)
 
 runFixT :: FixT c x y -> c x y
 runFixT (FixT f) = f

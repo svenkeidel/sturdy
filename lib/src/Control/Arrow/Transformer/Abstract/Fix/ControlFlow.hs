@@ -4,12 +4,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.ControlFlow where
 
 import           Prelude hiding(pred,(.))
 
 import           Control.Arrow
+import           Control.Arrow.Primitive
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Reader
@@ -35,10 +37,11 @@ instance IsEmpty (CFG stmt) where
 
 newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Maybe stmt) c) x y)
   deriving (
-    Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
-    ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
-    ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
-    ArrowMetrics a, ArrowComponent a, ArrowInComponent a
+      Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
+      ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
+      ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
+      ArrowMetrics a, ArrowComponent a, ArrowInComponent a,
+      ArrowPrimitive
     )
 
 instance (HasLabel stmt, Arrow c, Profunctor c) => ArrowControlFlow stmt (ControlFlowT stmt c) where

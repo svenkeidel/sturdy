@@ -20,7 +20,7 @@
 #-}
 module TypedAnalysis.Chaotic where
 
-import           Prelude hiding (not,Bounded,fail,(.),exp,read)
+import           Prelude hiding (not,Bounded,fail,(.),exp,read,IO)
 
 import           Control.Category
 import           Control.Arrow
@@ -28,7 +28,6 @@ import           Control.Arrow.Environment as Env
 import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost',outermost')
 import qualified Control.Arrow.Fix.Context as Ctx
-import qualified Control.Arrow.Fix.ControlFlow as CFlow
 import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
@@ -40,10 +39,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
 import           Control.Arrow.Transformer.Abstract.Terminating
-
-import           Control.Monad.State hiding (lift,fail)
 
 import           Data.Empty
 import           Data.Label
@@ -51,13 +47,12 @@ import           Data.Text (Text)
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
-import           Data.Text.Prettyprint.Doc
 
 import           TypedAnalysis
 import           Syntax (LExpr,Expr(App))
 import           GenericInterpreter as Generic
 
-type InterpChaotic x y =
+type InterpT c x y =
   (ValueT Val
     (TerminatingT
       (LogErrorT Text
@@ -68,9 +63,10 @@ type InterpChaotic x y =
                (StackT Stack.Stack In
                  (CacheT Cache.Monotone In Out
                    (ContextT Ctx
-                     (ControlFlowT Expr (->)))))))))))) x y
+                     (ControlFlowT Expr
+                       c))))))))))) x y
 
-evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metric.Monotone In, Out'))
+evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
 evalChaotic iterationStrat env0 e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
@@ -81,7 +77,7 @@ evalChaotic iterationStrat env0 e =
         -- CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
         -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
         Fix.filter' isFunctionBody (chaotic iterationStrat) in
-  second snd $ Trans.run (extend' (Generic.runFixed :: InterpChaotic [Expr] Val)) (empty,(empty,(env0,e0)))
+  second snd $ Trans.run (extend' (Generic.runFixed :: InterpT (->) [Expr] Val)) (empty,(empty,(env0,e0)))
   where
     e0 = generate (sequence e)
 {-# INLINE evalChaotic #-}

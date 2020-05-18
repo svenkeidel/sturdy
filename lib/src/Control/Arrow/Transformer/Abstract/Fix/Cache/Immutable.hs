@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -11,6 +12,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable where
 
@@ -18,6 +20,7 @@ import           Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,el
 
 import           Control.Category
 import           Control.Arrow hiding ((<+>))
+import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
 import           Control.Arrow.Trans
 import           Control.Arrow.State
@@ -46,7 +49,7 @@ import           GHC.Exts
 
 newtype CacheT cache a b c x y = CacheT { unCacheT :: StateT (cache a b) c x y}
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,ArrowLift,
-            ArrowState (cache a b),ArrowControlFlow stmt)
+            ArrowState (cache a b),ArrowControlFlow stmt, ArrowPrimitive)
 
 instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) where
   type Run (CacheT cache a b c) x y = Run c x (cache a b,y)
