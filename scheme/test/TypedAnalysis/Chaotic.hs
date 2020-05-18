@@ -96,3 +96,62 @@ evalOuter' exprs = let (metrics,(cfg,res)) = evalOuter [] exprs in (metrics,(cfg
 
 eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors,Terminating Val)
 eval' env exprs = snd $ snd $ snd $ evalInner env exprs
+
+data DebugState = DebugState { socket :: Socket, breakpoints :: Breakpoints }
+
+server :: IO ()
+server = proc (env,expr) -> do
+  socket <- createSocket -< 1234
+  loop
+  where
+    loop = do
+      msg <- Client.receive -< ()
+      case msg of
+        StartProgram file breakpoints -> do
+          prog <- loadSchemeFile file
+          let ?sensitivity = 0
+          let debugState = DebugState socket breakpoints
+          evalDebug debugState prog
+          loop
+        _ ->
+          closeSocket socket
+
+evalDebug :: (?sensitivity::Int) => DebugState -> LExpr -> IO ()
+evalDebug socket expr =
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $
+       Fix.fixpointAlgorithm $
+         debugCombinator socket .
+         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+         Fix.filter' isFunctionBody (chaotic innermost') in
+  _ <- Trans.run (extend' (Generic.runFixed :: InterpChaotic [Expr] Val)) (empty,(empty,([],e0)))
+  return ()
+  where
+    e0 = generate (sequence e)
+
+Client.send :: c Message ()
+Client.send = liftIO (\message -> socket.send (encode message))
+
+Socket.send :: JSON -> IO ()
+
+
+debugCombinator :: ArrowStackElements In c => DebugState -> FixpointCombinator c ((Store,Errors),(Env,[Expr])) ((Store,Errors), Terminating Val)
+debugCombinator state f = proc input@((store,errors),(env,expr)) -> do
+  if getLabel expr `elem` breakpoints state
+    then
+      -- We reached a breakpoint
+      Client.send -< (reachedBreakpoint (getLabel expr) env)
+      loop -< input
+      f <- input
+    else do
+      f -< input
+  where
+    loop = proc input@((store,errors)(env,expr)) -> do
+      msg <- Client.receive -< ()
+      case msg of
+        ContinueMessage ->
+          returnA -< ()
+        GetStackMessage -> do
+          stack <- Stack.elems -< ()
+          Client.send (GetStackResponse (encode stack))
+          loop -< input
