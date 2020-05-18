@@ -83,17 +83,17 @@ chaotic :: forall a b c.
            (?cacheWidening :: Widening c, ArrowChoice c, ArrowComponent a c, ArrowStack a c, ArrowCache a b c)
         => IterationStrategy c a b -> FixpointCombinator c a b
 chaotic iterationStrategy f = proc a -> do
-  m <- Cache.lookup -< a
+  m <- Cache.lookup &&& Stack.elem -< a
   case m of
-    Just (Stable,b) -> returnA -< b
-    _ -> do
-      recurrentCall <- Stack.elem -< a
-      case recurrentCall of
-        RecurrentCall pointer -> do
-          addToComponent -< (a,pointer)
-          Cache.initialize -< a
-        NoLoop -> do
-          iterate -< a
+    (Just (Stable,b), _) -> returnA -< b
+    (Just (Unstable,b), RecurrentCall ptr) -> do
+      addToComponent -< (a,ptr)
+      returnA -< b
+    (Nothing, RecurrentCall ptr) -> do
+      addToComponent -< (a,ptr)
+      Cache.initialize -< a
+    (_, NoLoop) -> do
+      iterate -< a
   where
     iterate :: c a b
     iterate = iterationStrategy (Stack.push' f) $ proc (stable,a,b) -> do
