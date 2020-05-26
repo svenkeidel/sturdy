@@ -51,7 +51,3 @@ instance (Identifiable y, Profunctor c, ArrowFix (Underlying (PowT c) x y)) => A
 instance (ArrowChoice c, Profunctor c) => ArrowLowerBounded y (PowT c) where
   bottom = lift $ arr (const A.empty)
   {-# INLINE bottom #-}
-
-instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (PowT c) where
-  joinSecond _ f g = lift $ joinSecond A.union (return . f) (unlift g)
-  {-# INLINE joinSecond #-}

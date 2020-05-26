@@ -53,14 +53,6 @@ data Op1
   | Log -- (log z) base e
 -- | Boolean operations
   | Not -- (not z)
--- | List operations
-  | Car -- (car z)
-  | Cdr -- (cdr z)
-  | Caar -- (caar z)
-  | Cadr -- (cadr z)
-  | Cddr -- (cddr z)
-  | Caddr -- (caddr z)
-  | Cadddr -- (cadddr z)
 -- | String Operations
   | NumberToString -- (number->string z)
   | StringToSymbol -- (string->symbol z)
@@ -68,6 +60,17 @@ data Op1
 -- | Miscellaneous operations
   -- | Error -- (error z)
   | Random -- (random z)
+  deriving (Eq,Generic,NFData)
+
+data Op1List 
+  -- | List operations
+  = Car -- (car z)
+  | Cdr -- (cdr z)
+  | Caar -- (caar z)
+  | Cadr -- (cadr z)
+  | Cddr -- (cddr z)
+  | Caddr -- (caddr z)
+  | Cadddr -- (cadddr z)
   deriving (Eq,Generic,NFData)
 
 data Op2
@@ -123,6 +126,7 @@ data Expr
   | LetRec [(Text, Expr)] [Expr] Label
 -- | Scheme standard procedures
   | Op1 Op1 Expr Label
+  | Op1List Op1List Expr Label 
   | Op2 Op2 Expr Expr Label
   | OpVar OpVar [Expr] Label
   | Error String Label
@@ -166,6 +170,8 @@ let_rec bnds body = LetRec <$> sequence [(v,) <$> e | (v,e) <- bnds] <*> sequenc
 -- | Scheme standard procedures
 op1_ :: Op1 -> LExpr -> LExpr
 op1_ operation e1 = Op1 operation <$> e1 <*> fresh
+op1list_ :: Op1List -> LExpr -> LExpr
+op1list_ operation e1 = Op1List operation <$> e1 <*> fresh
 op2_ :: Op2 -> LExpr -> LExpr -> LExpr
 op2_ operation e1 e2 = Op2 operation <$> e1 <*> e2 <*> fresh
 opvar_ :: OpVar -> [LExpr] -> LExpr
@@ -209,6 +215,14 @@ instance Pretty Op1 where
     Ceiling -> "ceiling"
     Log -> "log"
     Not -> "not"
+    -- Error -> "error"
+    Random -> "random"
+    StringToSymbol -> "string->symbol"
+    SymbolToString -> "symbol->string"
+    NumberToString -> "number->string"
+
+instance Pretty Op1List where
+  pretty e0 = case e0 of
     Car -> "car"
     Cdr -> "cdr"
     Caar -> "caar"
@@ -216,11 +230,6 @@ instance Pretty Op1 where
     Cddr -> "cddr"
     Caddr -> "caddr"
     Cadddr -> "cadddr"
-    -- Error -> "error"
-    Random -> "random"
-    StringToSymbol -> "string->symbol"
-    SymbolToString -> "symbol->string"
-    NumberToString -> "number->string"
 
 instance Show Op2 where show = show . pretty
 
@@ -273,6 +282,7 @@ prettyExpr e0 = case e0 of
   Let bnds body _ -> parens $ "let" <+> brackets (align (vcat [ pretty var <+> prettyExpr expr | (var,expr) <- bnds])) <+> prettyExprList body
   LetRec bnds body _ -> parens $ "letrec" <+> brackets (align (vcat [ pretty var <+> prettyExpr expr | (var,expr) <- bnds])) <+> pretty body
   Op1 op1 e _ -> parens $ pretty op1 <+> prettyExpr e
+  Op1List op1list e _ -> parens $ pretty op1list <+> prettyExpr e
   Op2 op2 e1 e2 _ -> parens $ pretty op2 <> prettyExpr e1 <+> prettyExpr e2
   OpVar opvar es _ -> parens $ pretty opvar <+> prettyExprList es
   Error err _ -> parens $ "error " <+> dquotes (pretty err)
@@ -297,6 +307,7 @@ showTopLvl e = case e of
     Let {} -> "let"
     LetRec {} -> "letrec"
     Op1 op1 e1 _ -> pretty op1 <+> showTopLvl e1
+    Op1List op1list e1 _ -> pretty op1list <+> showTopLvl e1
     Op2 op2 e1 e2 _ -> pretty op2 <+> showTopLvl e1 <> "," <> showTopLvl e2
     OpVar opvar es _ -> pretty opvar <+> hsep (map showTopLvl es)
     Error _ _ -> "error"
@@ -331,6 +342,7 @@ instance HasLabel Expr where
     LetRec _ _ l -> l
   -- | Scheme standard procedures
     Op1 _ _ l -> l
+    Op1List _ _ l -> l
     Op2 _ _ _ l -> l
     OpVar _ _ l -> l
     Error _ l -> l

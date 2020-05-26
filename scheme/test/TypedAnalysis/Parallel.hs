@@ -40,13 +40,13 @@ import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 -- import           Control.Arrow.Transformer.Abstract.Fix.Trace
-import           Control.Arrow.Transformer.Abstract.Pow
 
 import           Control.Monad.State hiding (lift,fail)
 
 import           Data.Empty
 import           Data.Label
 import           Data.Text (Text)
+import           Data.Abstract.Powerset(Pow)
 import qualified Data.Abstract.Powerset as Pow 
 -- import           Data.Text.Prettyprint.Doc
 
@@ -58,16 +58,15 @@ import qualified GenericInterpreter as Generic
 import           TypedAnalysis
 
 type Interp x y =
-  ValueT Val
-    (PowT
-      (LogErrorT Text
-        (EnvStoreT Text Addr Val
-          (FixT
-            (MetricsT Metric.Monotone In
-              (CacheT (Parallel Cache.MonotoneFactor) In Out
-                (ContextT Ctx
-                  (ControlFlowT Expr
-                    (->))))))))) x y
+  ValueT (Pow Val)
+    (LogErrorT Text
+      (EnvStoreT Text Addr (Pow Val)
+        (FixT
+          (MetricsT Metric.Monotone In
+            (CacheT (Parallel Cache.MonotoneFactor) In Out
+              (ContextT Ctx
+                (ControlFlowT Expr
+                  (->)))))))) x y
 
 eval :: (?sensitivity :: Int)
      => (forall c. (?cacheWidening :: Widening c, ArrowChoice c, ArrowCache In Out c, ArrowParallelCache In Out c) =>
@@ -80,7 +79,7 @@ eval algo env0 e =
         -- Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         -- Fix.recordEvaluated .
         Fix.filter' isFunctionBody update_ in
-  second snd $ Trans.run (extend' (Generic.runFixed :: Interp [Expr] Val)) (empty,(empty,Pow.singleton (env0,e0)))
+  second snd $ Trans.run (extend' (Generic.runFixed :: Interp [Expr] (Pow Val))) (empty,(empty,(env0,e0)))
   where
     e0 = generate (sequence e)
 {-# INLINE eval #-}

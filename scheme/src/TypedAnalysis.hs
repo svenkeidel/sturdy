@@ -30,7 +30,6 @@ import           Control.Category
 import           Control.Arrow hiding ((<+>))
 import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fail as Fail
-import           Control.Arrow.Environment as Env
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
 import qualified Control.Arrow.Closure as Cls
@@ -66,10 +65,11 @@ import qualified Data.Abstract.MonotoneStore as S
 import qualified Data.Abstract.MonotoneErrors as E
 import qualified Data.Abstract.Boolean as B
 import           Data.Abstract.Closure (Closure)
-import           Data.Abstract.DiscretePowerset (Pow(Pow))
+import qualified Data.Abstract.DiscretePowerset as DP
 import           Data.Abstract.CallString(CallString)
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Stable
+import           Data.Abstract.Powerset (Pow)
 import qualified Data.Abstract.Powerset as Pow
 
 import           GHC.Exts(IsString(..),toList)
@@ -77,23 +77,24 @@ import           GHC.Generics(Generic)
 
 import           Text.Printf
 
-import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1(..),Op2(..),OpVar(..))
+import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1(..),Op1List(..),Op2(..),OpVar(..))
 import           GenericInterpreter as Generic
+
+import Control.Arrow.Monad
 
 type Cls = Closure Expr (HashSet Env)
 type Env = M.Env Text Addr
-type Store = S.Store Addr Val
+type Store = S.Store Addr (Pow Val)
 type Errors = E.Errors Text
 type Ctx = CallString Label
--- -- Input and output type of the fixpoint.
 
 data Addr
-  = BottomA
-  | VarA (Text,Label,Ctx)
+  = VarA (Text,Label,Ctx)
   | LabelA (Label,Ctx)
+  | BottomA
   deriving stock (Eq,Generic)
   deriving anyclass (NFData)
---  deriving PreOrd via Discrete Addr
+  deriving PreOrd via Discrete Addr
 
 type Symbol = Text
 
@@ -102,7 +103,7 @@ data Val
   | NumVal Number
   | StringVal
   | CharVal
-  | QuoteVal (Pow Symbol)
+  | QuoteVal (DP.Pow Symbol)
   | BoolVal B.Bool
   | ClosureVal Cls
   | ListVal List
@@ -113,8 +114,8 @@ data Val
 
 data List
   = Nil
-  | Cons (Pow Addr) (Pow Addr)
-  | ConsNil (Pow Addr) (Pow Addr)
+  | Cons (DP.Pow Addr) (DP.Pow Addr)
+  | ConsNil (DP.Pow Addr) (DP.Pow Addr)
   deriving stock (Eq, Generic)
   deriving anyclass (NFData)
 
@@ -132,12 +133,34 @@ instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT Val c) where
   {-# INLINE alloc #-}
   {-# SCC alloc #-}
 
+instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT (Pow Val) c) where
+  alloc = proc (var,lab) -> do
+    ctx <- Ctx.askContext @Ctx -< ()
+    returnA -< VarA (var,lab,ctx)
+  {-# INLINE alloc #-}
+  {-# SCC alloc #-}
+
 allocLabel :: (ArrowContext Ctx c) => c Label Addr
 allocLabel = proc l -> do
   ctx <- Ctx.askContext @Ctx -< ()
   returnA -< LabelA (l,ctx)
 {-# INLINE allocLabel #-}
 {-# SCC allocLabel #-}
+
+instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
+    => ArrowClosure Expr (Pow Val) (ValueT (Pow Val) c) where
+  type Join y (Pow Val) (ValueT (Pow Val) c) = (Cls.Join y Cls c, Fail.Join y c)
+  closure = ValueT $ proc e -> do
+    cls <- Cls.closure -< e
+    returnA -< Pow.singleton $ ClosureVal cls
+  apply (ValueT f) = ValueT $ proc (v,x) -> do 
+    let clss = getClss $ Pow.toList v
+    val <- Cls.apply f -< (lub clss,x) 
+    returnA -< val 
+  {-# INLINE closure #-}
+  {-# INLINE apply #-}
+  {-# SCC closure #-}
+  {-# SCC apply #-}
 
 instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
@@ -155,31 +178,106 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
   {-# SCC closure #-}
   {-# SCC apply #-}
 
-instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c, ArrowStore Addr Val c, ArrowEnv Text Addr c,
-          Store.Join Val c, Env.Join Addr c,Store.Join Addr c,Fail.Join Val c,IsString e)
-    => IsVal Val (ValueT Val c) where
-  type Join y (ValueT Val c) = (ArrowComplete y (ValueT Val c),Fail.Join y c)
-  lit = proc x -> case x of
-    Int _ -> returnA -< NumVal IntVal
-    Float _ -> returnA -< NumVal FloatVal
-    Rational _ -> returnA -< Bottom
-    Bool True  -> returnA -< BoolVal B.True
-    Bool False  -> returnA -< BoolVal B.False
-    Char _ -> returnA -< StringVal
-    String _ -> returnA -< StringVal
-    Quote (Symbol sym) -> returnA -< QuoteVal $ singleton sym
-    _ -> returnA -< Bottom
+instance (Hashable (Pow Val), ArrowChoice c, Profunctor c, Fail.Join Val c, Fail.Join (Pow Val) c, ArrowFail e c,
+          IsString e, ArrowComplete Val c) => IsVal (Pow Val) (ValueT (Pow Val) c) where
+  type Join y (ValueT (Pow Val) c) = (ArrowComplete y (ValueT (Pow Val) c),Fail.Join y c)
+  lit = proc literal -> do 
+    val <- lit_ -< literal
+    returnA -< Pow.singleton val 
   {-# INLINE lit #-}
   {-# SCC lit #-}
+  if_ f g = proc (vals, (if_branch, else_branch)) -> do 
+    isT <- isTrue -< vals 
+    isF <- isFalse -< vals
+    if (isF && isT) then
+      if__ f g -< (BoolVal B.Top, (if_branch, else_branch))
+    else 
+      if (isF) then 
+        if__ f g -< (BoolVal B.False, (if_branch, else_branch)) 
+      else if__ f g -< (BoolVal B.True, (if_branch, else_branch))
+  {-# INLINE if_ #-}
+  {-# SCC if_ #-}
+  void = proc _ -> do 
+    v <- void_ -< () 
+    returnA -< Pow.singleton v 
+  {-# INLINE void #-}
+  {-# SCC void #-}
+  op1_ = proc (op,vals) -> do 
+    let input = Pow.crossproduct (Pow.singleton op) vals
+    output <- mapA op1__ -< input 
+    returnA -< Pow.dedup output 
+  {-# INLINABLE op1_ #-}
+  {-# SCC op1_ #-}
+  op2_ = proc (op,vals1,vals2) -> do
+    let input = fmap (\(b,c) -> (op,b,c)) (Pow.dedup $ Pow.crossproduct vals1 vals2) 
+    output <- mapA op2__ -< input
+    returnA -< Pow.dedup output 
+  {-# INLINEABLE op2_ #-}
+  {-# SCC op2_ #-}
+  opvar_ = proc (op, vals) -> do
+    let listVals = map Pow.toList vals 
+    let inputVals = foldl (\x y -> [a ++ [b] | a <- x, b <- y]) [[x] | x <- head listVals] (tail listVals) 
+    listOutput <- ArrowUtils.map opvar__ -< [(x, y) | x <- [op], y <- inputVals]
+    let output = Pow.fromList listOutput 
+    returnA -< Pow.dedup output
+  {-# INLINEABLE opvar_ #-}
+  {-# SCC opvar_ #-}
 
+instance (IsString e, ArrowFail e c, ArrowComplete Val c, ArrowComplete (Pow Val) c, Fail.Join Val c, Fail.Join (Pow Val) c, 
+          ArrowChoice c, ArrowContext Ctx c, ArrowStore Addr (Pow Val) c, Store.Join (Pow Val) c ) 
+    => IsCons (Pow Val) (ValueT (Pow Val) c) where
+  nil_ = proc _ -> returnA -< Pow.singleton $ ListVal Nil 
+  {-# INLINE nil_ #-}
+  {-# SCC nil_ #-}
+  cons_ = proc ((vals1, l1), (vals2, l2)) -> do
+    addr1 <- allocLabel -< l1
+    addr2 <- allocLabel -< l2 
+    write -< (addr1, vals1)
+    write -< (addr2, vals2) 
+    write -< (addr1,vals1)
+    write -< (addr2,vals2)
+    returnA -< Pow.singleton $ ListVal (Cons (singleton addr1) (singleton addr2))
+  {-# INLINE cons_ #-}
+  {-# SCC cons_ #-}
+  op1list_ = proc (op,x) -> case op of 
+    Car -> mapJoinA powcar' -< x
+    Cdr -> mapJoinA powcdr' -< x 
+    Caar -> mapJoinA powcar' <<< mapJoinA powcar' -< x
+    Cadr -> mapJoinA powcar' <<< mapJoinA powcdr' -< x
+    Cddr -> mapJoinA powcdr' <<< mapJoinA powcdr' -< x
+    Caddr -> mapJoinA powcar' <<< mapJoinA powcdr' <<< mapJoinA powcdr' -< x
+    Cadddr -> mapJoinA powcar' <<< mapJoinA powcdr' <<< mapJoinA powcdr' <<< mapJoinA powcdr' -< x
+  {-# INLINE op1list_ #-}
+  {-# SCC op1list_ #-}
+
+instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c, Fail.Join Val c,IsString e)
+    => IsVal (Val) (ValueT Val c) where
+  type Join y (ValueT (Val) c) = (ArrowComplete y (ValueT (Val) c),Fail.Join y c)
+  lit = lit 
+  {-# INLINE lit #-}
+  {-# SCC lit #-}
   if_ = if__
   {-# INLINE if_ #-}
   {-# SCC if_ #-}
+  void = void_
+  {-# INLINE void #-}
+  {-# SCC void #-}
+  op1_ = op1__
+  {-# INLINABLE op1_ #-}
+  {-# SCC op1_ #-}
+  op2_ = op2__
+  {-# INLINEABLE op2_ #-}
+  {-# SCC op2_ #-}
+  opvar_ = opvar__
+  {-# INLINEABLE opvar_ #-}
+  {-# SCC opvar_ #-}
 
+instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c, ArrowStore Addr Val c,
+          Store.Join Val c, Store.Join Addr c, Fail.Join Val c, IsString e)
+    => IsCons (Val) (ValueT Val c) where
   nil_ = proc _ -> returnA -< ListVal Nil
   {-# INLINE nil_ #-}
   {-# SCC nil_ #-}
-
   cons_ = proc ((v1,l1),(v2,l2)) -> do
     a1 <- allocLabel -< l1
     a2 <- allocLabel -< l2
@@ -188,10 +286,48 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     returnA -< ListVal (Cons (singleton a1) (singleton a2))
   {-# INLINE cons_ #-}
   {-# SCC cons_ #-}
+  op1list_ = proc (op,x) -> case op of 
+    Car -> car' -< x
+    Cdr -> cdr' -< x
+    Caar -> car' <<< car' -< x
+    Cadr -> car' <<< cdr' -< x
+    Cddr -> cdr' <<< cdr' -< x
+    Caddr -> car' <<< cdr' <<< cdr' -< x
+    Cadddr -> car' <<< cdr' <<< cdr' <<< cdr' -< x
+  {-# INLINE op1list_ #-}
+  {-# SCC op1list_ #-}
 
-  void = proc _ -> returnA -< VoidVal
 
-  op1_ = proc (op, x) -> case op of
+lit_ :: (ArrowChoice c) => c Literal Val
+lit_ = proc x -> case x of
+  Int _ -> returnA -< NumVal IntVal
+  Float _ -> returnA -< NumVal FloatVal
+  Rational _ -> returnA -< Bottom
+  Bool True  -> returnA -< BoolVal B.True
+  Bool False  -> returnA -< BoolVal B.False
+  Char _ -> returnA -< StringVal
+  String _ -> returnA -< StringVal
+  Quote (Symbol sym) -> returnA -< QuoteVal $ singleton sym
+  _ -> returnA -< Bottom
+{-# INLINE lit_ #-}
+{-# SCC lit_ #-}
+
+if__ :: (ArrowChoice c, ArrowComplete z c) => c x z -> c y z -> c (Val,(x,y)) z
+if__ f g = proc (v,(x,y)) -> case v of
+  BoolVal B.False -> g -< y
+  BoolVal B.Top -> (f -< x) <⊔> (g -< y)
+  Top -> (f -< x) <⊔> (g -< y)
+  _ -> f -< x
+{-# INLINEABLE if__ #-}
+{-# SCC if__ #-}
+
+void_ :: Arrow c => c () Val 
+void_ = proc _ -> returnA -< VoidVal
+{-# INLINE void_ #-}
+{-# SCC void_ #-}
+
+op1__ :: (Fail.Join Val c, ArrowComplete Val c, ArrowFail e c, IsString e, ArrowChoice c) => c (Op1,Val) Val
+op1__ = proc (op, x) -> case op of
     IsNumber -> returnA -< case x of
       NumVal _ -> BoolVal B.True
       Top -> BoolVal B.Top
@@ -233,56 +369,66 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Ceiling -> numToNum' -< (op,x)
     Log -> numToFloat -< (op,x)
     Not -> boolToBool B.not -< (op,x)
-    Car -> car' -< x
-    Cdr -> cdr' -< x
-    Caar -> car' <<< car' -< x
-    Cadr -> car' <<< cdr' -< x
-    Cddr -> cdr' <<< cdr' -< x
-    Caddr -> car' <<< cdr' <<< cdr' -< x
-    Cadddr -> car' <<< cdr' <<< cdr' <<< cdr' -< x
-    -- Error -> failString -< printf "error: %s" (show x)
+     -- Error -> failString -< printf "error: %s" (show x)
     Random -> intToInt -< (op, x)
     NumberToString -> numToString -< (op, x)
     StringToSymbol -> stringToSym -< (op, x)
     SymbolToString -> symToString -< (op, x)
-  {-# INLINABLE op1_ #-}
-  {-# SCC op1_ #-}
+{-# INLINABLE op1__ #-}
+{-# SCC op1__ #-}
 
-  op2_ = proc (op, x, y) -> case op of
-    Eqv -> returnA -< BoolVal $ eq x y
-    Quotient -> intIntToInt -< (op,x,y)
-    Remainder -> intIntToInt -< (op,x,y)
-    Modulo -> intIntToInt -< (op,x,y)
-    StringRef -> stringIntToChar -< (op,x,y)
-  {-# INLINEABLE op2_ #-}
-  {-# SCC op2_ #-}
+op2__ :: (Fail.Join Val c, ArrowComplete Val c, ArrowChoice c, Fail.Join Val c, IsString e, 
+          ArrowFail e c) => c (Op2,Val,Val) Val 
+op2__ = proc (op, x, y) -> case op of
+  Eqv -> returnA -< BoolVal $ eq x y
+  Quotient -> intIntToInt -< (op,x,y)
+  Remainder -> intIntToInt -< (op,x,y)
+  Modulo -> intIntToInt -< (op,x,y)
+  StringRef -> stringIntToChar -< (op,x,y)
+{-# INLINEABLE op2__ #-}
+{-# SCC op2__ #-}
 
-  opvar_ = proc (op, xs) -> case op of
-    Equal -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
-    Smaller -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
-    Greater -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
-    SmallerEqual -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
-    GreaterEqual -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
-    Max -> numNTo -< (op,1,xs,foldl1 numLub xs)
-    Min -> numNTo -< (op,1,xs,foldl1 numLub xs)
-    Add -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
-    Mul -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
-    Sub -> numNTo -< (op,1,xs,foldl1 numLub xs)
-    Div -> do
-      numNTo -< (op,1,xs,foldl1 numLubDivision xs)
-    Gcd -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
-    Lcm -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
-    StringAppend -> stringNToString -< xs
-  {-# INLINEABLE opvar_ #-}
-  {-# SCC opvar_ #-}
+opvar__ :: (Fail.Join Val c, ArrowChoice c, ArrowComplete Val c, ArrowFail e c, IsString e) => c (OpVar,[Val]) Val 
+opvar__ = proc (op, xs) -> case op of
+  Equal -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+  Smaller -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+  Greater -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+  SmallerEqual -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+  GreaterEqual -> numNTo -< (op,1,xs,BoolVal $ if length xs == 1 then B.True else B.Top)
+  Max -> numNTo -< (op,1,xs,foldl1 numLub xs)
+  Min -> numNTo -< (op,1,xs,foldl1 numLub xs)
+  Add -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
+  Mul -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
+  Sub -> numNTo -< (op,1,xs,foldl1 numLub xs)
+  Div -> do
+    numNTo -< (op,1,xs,foldl1 numLubDivision xs)
+  Gcd -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
+  Lcm -> numNTo -< (op,0,xs,foldl numLub (NumVal IntVal) xs)
+  StringAppend -> stringNToString -< xs
+{-# INLINEABLE opvar__ #-}
+{-# SCC opvar__#-}
 
-if__ :: (ArrowChoice c, ArrowComplete z c) => c x z -> c y z -> c (Val,(x,y)) z
-if__ f g = proc (v,(x,y)) -> case v of
-    BoolVal B.False -> g -< y
-    BoolVal B.Top -> (f -< x) <⊔> (g -< y)
-    Top -> (f -< x) <⊔> (g -< y)
-    _ -> f -< x
-{-# INLINEABLE if__ #-}
+-- check whether PVal can be considered true
+-- returns true:  - PVal contains Top
+--                - PVal contains True
+-- returns false: - otherwise 
+isTrue :: ArrowChoice c => c (Pow Val) Bool 
+isTrue = proc v -> if (elem Top v || elem (BoolVal B.Top) v) 
+  then returnA -< True 
+  else returnA -< elem (BoolVal B.True) v 
+{-# INLINE isTrue #-}
+{-# SCC isTrue #-}
+
+-- check whether PVal can be considered false
+-- returns true:  - PVal contains Top 
+--                - PVal contains False
+-- returns false: - otherwise
+isFalse :: ArrowChoice c => c (Pow Val) Bool 
+isFalse = proc v -> if (elem Top v || elem (BoolVal B.Top) v) 
+  then returnA -< True 
+  else returnA -< elem (BoolVal B.False) v 
+{-# INLINE isFalse #-}
+{-# SCC isFalse #-}
 
 numToNum :: (IsString e, Fail.Join Val c, ArrowFail e c, ArrowChoice c, ArrowComplete Val c) => c (Op1,Val) Val
 numToNum = proc (op,v) -> case v of
@@ -399,6 +545,50 @@ stringIntToChar = proc (op,v1,v2) -> case (v1,v2) of
 {-# INLINEABLE stringIntToChar #-}
 {-# SCC stringIntToChar #-}
 
+car :: (IsString e, Fail.Join v c, Store.Join v c, ArrowChoice c, ArrowFail e c, ArrowStore Addr v c, Complete v) => c List v
+car = proc v -> case v of
+  Cons x _ -> do
+    vals <- ArrowUtils.map read' -< toList x
+    returnA -< lub vals
+  Nil -> failString -< "cannot car an empty list"
+  ConsNil x y -> car -< Cons x y
+{-# INLINEABLE car #-}
+{-# SCC car #-}
+
+cdr :: (IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr v c, Fail.Join v c, Store.Join v c, Complete v) => c List v
+cdr = proc v -> case v of
+  Cons _ y -> do
+    vals <- ArrowUtils.map read' -< toList y
+    returnA -< lub vals
+  Nil -> failString -< "cannot cdr an empty list"
+  ConsNil x y -> cdr -< Cons x y
+{-# INLINEABLE cdr #-}
+{-# SCC cdr #-}
+
+-- Pow Val: List Operations 
+powcar' :: (IsString e, Fail.Join (Pow Val) c, Store.Join (Pow Val) c, ArrowChoice c, ArrowFail e c, 
+            ArrowStore Addr (Pow Val) c, ArrowComplete (Pow Val) c) => c Val (Pow Val)
+powcar' = proc v -> case v of
+  ListVal l -> car -< l
+  Top -> (returnA -< Pow.singleton Top) <⊔> (err -< v)
+  _ -> err -< v
+  where
+    err = proc v -> failString -< printf "Excpeted list as argument for car, but got %s" (show v)
+{-# INLINEABLE powcar' #-}
+{-# SCC powcar' #-}
+
+powcdr' :: (IsString e, Fail.Join (Pow Val) c, Store.Join (Pow Val) c, ArrowChoice c, ArrowFail e c, 
+            ArrowStore Addr (Pow Val) c, ArrowComplete (Pow Val) c) => c Val (Pow Val)
+powcdr' = proc v -> case v of
+  ListVal l -> cdr -< l
+  Top -> (returnA -< Pow.singleton Top) <⊔> (err -< v)
+  _ -> err -< v
+  where
+    err = proc v -> failString -< printf "Excpeted list as argument for cdr, but got %s" (show v)
+{-# INLINEABLE powcdr' #-}
+{-# SCC powcdr' #-}
+
+-- Val: List Operations 
 car' :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, ArrowComplete Val c) => c Val Val
 car' = proc v -> case v of
   ListVal l -> car -< l
@@ -409,16 +599,6 @@ car' = proc v -> case v of
 {-# INLINEABLE car' #-}
 {-# SCC car' #-}
 
-car :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c) => c List Val
-car = proc v -> case v of
-  Cons x _ -> do
-    vals <- ArrowUtils.map read' -< toList x
-    returnA -< lub vals
-  Nil -> failString -< "cannot car an empty list"
-  ConsNil x y -> car -< Cons x y
-{-# INLINEABLE car #-}
-{-# SCC car #-}
-
 cdr' :: (IsString e, Fail.Join Val c, Store.Join Val c, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, ArrowComplete Val c) => c Val Val
 cdr' = proc v -> case v of
   ListVal l -> cdr -< l
@@ -428,16 +608,6 @@ cdr' = proc v -> case v of
     err = proc v -> failString -< printf "Excpeted list as argument for cdr, but got %s" (show v)
 {-# INLINEABLE cdr' #-}
 {-# SCC cdr' #-}
-
-cdr :: (IsString e, ArrowChoice c, ArrowFail e c, ArrowStore Addr Val c, Fail.Join Val c, Store.Join Val c) => c List Val
-cdr = proc v -> case v of
-  Cons _ y -> do
-    vals <- ArrowUtils.map read' -< toList y
-    returnA -< lub vals
-  Nil -> failString -< "cannot cdr an empty list"
-  ConsNil x y -> cdr -< Cons x y
-{-# INLINEABLE cdr #-}
-{-# SCC cdr #-}
 
 eq :: Val -> Val -> B.Bool
 eq v1 v2 = case (v1, v2) of
@@ -456,7 +626,7 @@ eq v1 v2 = case (v1, v2) of
   (NumVal _,NumVal NumTop) -> B.Top
   (StringVal,StringVal) -> B.Top
   (QuoteVal sym1,QuoteVal sym2) -> case (sym1, sym2) of
-    (Pow xs, Pow ys) | Set.size xs == 1 && Set.size ys == 1 -> if xs == ys then B.True else B.False
+    (DP.Pow xs, DP.Pow ys) | Set.size xs == 1 && Set.size ys == 1 -> if xs == ys then B.True else B.False
     _ -> B.Top
   (_,_) -> B.False
 {-# SCC eq #-}
@@ -519,18 +689,33 @@ isNum v = case v of
   _ -> B.False
 {-# SCC isNum #-}
 
+getClss :: [Val] -> [Cls] 
+getClss (ClosureVal cls:rest) = cls:getClss rest 
+getClss (_:rest) = getClss rest 
+getClss _ = []
+{-# SCC getClss #-}
+
 instance (ArrowChoice c, IsString e, Fail.Join Val c, ArrowFail e c, ArrowComplete Val c)
     => ArrowComplete Val (ValueT Val c) where
   ValueT f <⊔> ValueT g = ValueT $ proc x -> (f -< x) <⊔> (g -< x)
   {-# INLINEABLE (<⊔>) #-}
+
+instance (ArrowChoice c, IsString e, Fail.Join (Pow Val) c, ArrowFail e c, ArrowComplete (Pow Val) c)
+    => ArrowComplete (Pow Val) (ValueT (Pow Val) c) where
+  ValueT f <⊔> ValueT g = ValueT $ proc x -> do 
+    vals <- (f -< x) <⊔> (g -< x)
+    returnA -< Pow.dedup vals
+  {-# INLINEABLE (<⊔>) #-}  
 
 instance Hashable Addr
 instance Show Addr where show = show . pretty
 instance Pretty Addr where
   pretty (VarA (var,l,ctx)) = pretty var <> pretty l <> viaShow ctx
   pretty (LabelA (l,ctx)) = pretty (labelVal l) <> viaShow ctx
+  pretty (BottomA) = "BottomA"
 
 instance Hashable Val
+instance Hashable List
 instance Show Val where show = show . pretty
 instance Pretty Val where
   pretty (NumVal nv) = pretty nv
@@ -543,7 +728,7 @@ instance Pretty Val where
   pretty VoidVal = "#<void>"
   pretty Top = "Top"
   pretty Bottom = "Bottom"
-instance Hashable List
+instance Pretty (Pow Val) where pretty = viaShow 
 instance Pretty List where
   pretty Nil = "Nil"
   pretty (Cons a1 a2) = "Cons" <> parens (pretty a1 <> "," <> pretty a2)
@@ -554,9 +739,6 @@ instance Pretty Number where
   pretty IntVal = "Int"
   pretty FloatVal = "Float"
   pretty NumTop = "NumTop"
--- TODO: Fix 
-instance Pretty (Pow.Pow a) where 
-  pretty (Pow.Pow a) = "Print Powerset"
 
 instance IsClosure Val (HashSet Env) where
   mapEnvironment f v = case v of
@@ -633,16 +815,12 @@ instance Complete Number where
   IntVal ⊔ IntVal = IntVal
   FloatVal ⊔ FloatVal = FloatVal
   _ ⊔ _ = NumTop
--- TODO: Implement
-instance PreOrd Addr where 
-  BottomA ⊑ _ = True
-  x ⊑ y = x == y
 
-instance LowerBounded Addr where 
-  bottom = BottomA
--- TODO: Implement
 instance LowerBounded Val where 
   bottom = Bottom 
+
+instance LowerBounded Addr where 
+  bottom = BottomA 
 
 instance (Identifiable s, IsString s) => IsString (HashSet s) where
   fromString = singleton . fromString
@@ -653,12 +831,12 @@ instance (Identifiable s, Pretty s) => Pretty (HashSet s) where
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- Map.toList m]
 
-type In = ((Store,Errors), (Env,Pow.Pow [Expr]))
-type Out = ((Store,Errors),Pow.Pow Val)
-type In' = (Store,(Env,(Errors, Pow.Pow [Expr])))
-type Out' = (Store, (Errors, Pow.Pow Val))
+type In = ((Store,Errors), (Env, [Expr]))
+type Out = ((Store,Errors), (Pow Val))
+type In' = (Store,(Env,(Errors,  [Expr])))
+type Out' = (Store, (Errors, (Pow Val)))
 type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
-type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Monotone In, (Errors, Pow.Pow Val)))
+type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Monotone In, (Errors, (Pow Val))))
 
 transform :: Profunctor c => Fix.FixpointAlgorithm (c In Out) -> Fix.FixpointAlgorithm (c In' Out')
 transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(env,exprs)))
@@ -667,22 +845,17 @@ transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(
                                  (\((store,errs),val) -> (store,(errs,val))))
 {-# INLINE transform #-}
 
--- TODO: Fix 
 isFunctionBody :: In -> Bool
-isFunctionBody (_,(_,e)) = case Pow.size e of
-  1 -> case Pow.index e  0 of 
-    (Apply _ _ : _) -> True 
-    _ -> error "idk" 
-  _ -> error "expected singleton for isFunctionBody"
+isFunctionBody (_,(_,e)) = case e of
+  Apply _ _:_ -> True
+  _ -> False
 {-# INLINE isFunctionBody #-}
 
--- Pretty Printing of inputs and outputs
--- TODO: Fix 
 printIn :: In -> Doc ann
 printIn ((store),(env,expr)) =
   vsep
-  [--"EXPR:  " <> showFirst expr
-   "ENV:   " <> align (pretty (unhashed env))
+  ["EXPR:  " <> showFirst expr
+  , "ENV:   " <> align (pretty (unhashed env))
   , "STORE: " <> align (pretty store)
   ]
 
@@ -693,9 +866,9 @@ printOut ((store,errs),val) =
   , "STORE: " <> align (pretty store)
   , "ERRORS:" <> align (pretty errs)
   ]
--- TODO: Fix 
+
 printInExpr :: In -> Doc ann
-printInExpr (_,(_,expr)) = undefined -- "EXPR:" <+> showFirst expr
+printInExpr (_,(_,expr)) = "EXPR:" <+> showFirst expr
 
 printOutVal :: Out -> Doc ann
 printOutVal (_,val) = "RET:" <+> pretty val

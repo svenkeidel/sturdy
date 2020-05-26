@@ -109,13 +109,6 @@ instance ArrowContext ctx c => ArrowContext ctx (PowT c) where
   localContext f = lift $ lmap partition2' (localContext $ unlift f)
   {-# INLINE localContext #-}
 
-crossproduct :: Pow a -> Pow b -> Pow (a,b)
-crossproduct xs ys = do
-  x <- xs
-  y <- ys
-  return (x,y)
-{-# INLINE crossproduct #-}
-
 crossproduct2 :: (a, Pow b) -> Pow (a, b)
 crossproduct2 (x, ys) = do 
   y <- ys

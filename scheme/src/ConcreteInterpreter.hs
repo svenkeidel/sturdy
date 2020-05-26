@@ -42,7 +42,7 @@ import qualified Data.Function as Function
 
 import           GHC.Generics (Generic)
 
-import           Syntax (Expr,Literal(..) ,Op1(..),Op2(..),OpVar(..))
+import           Syntax (Expr,Literal(..) ,Op1(..),Op2(..),OpVar(..),Op1List(..))
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
@@ -111,16 +111,6 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
   if_ f g = proc (v1, (x, y)) -> case v1 of
     BoolVal False -> g -< y
     _ -> f -< x
-
-  nil_ = proc _ ->
-    returnA -< ListVal Nil
-
-  cons_ = proc ((v1,l1),(v2,l2)) -> do
-    a1 <- alloc -< ("",l1)
-    a2 <- alloc -< ("",l2)
-    write -< (a1,v1)
-    write -< (a2,v2)
-    returnA -< ListVal (Cons a1 a2)
 
   void = proc () -> returnA -< VoidVal
 
@@ -193,13 +183,6 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     Not -> case x of
       BoolVal n -> returnA -< BoolVal (not n)
       _ -> returnA -< BoolVal False
-    Car -> car -< x
-    Cdr -> cdr -< x
-    Caar -> car <<< car -< x
-    Cadr -> car <<< cdr -< x
-    Cddr -> cdr <<< cdr -< x
-    Caddr -> car <<< cdr <<< cdr -< x
-    Cadddr -> car <<< cdr <<< cdr <<< cdr -< x
     NumberToString -> case x of
       IntVal n -> returnA -< StringVal (pack (show n))
       FloatVal n -> returnA -< StringVal (pack (show n))
@@ -215,17 +198,6 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     --   StringVal s -> fail -< unpack s
     --   _ -> fail -< "(fail): contract violation expected string as error msg"
     Random -> fail -< "random is not implemented"
-    where
-      car = proc x -> case x of
-        ListVal (Cons a1 _)  -> do
-          v <- read' -< a1
-          returnA -< v
-        _ -> fail -< "(car): Bad form" ++ show x
-      cdr = proc x -> case x of
-        ListVal (Cons _ a2) -> do
-          v <- read' -< a2
-          returnA -< v
-        _ -> fail -< "(cdr): Bad form: " ++ show x
 
   op2_ = proc (op, x, y) -> case op of
     Eqv -> case (x, y) of
@@ -324,6 +296,39 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     StringAppend -> case traverse matchString xs of
       Left a -> fail -< "(string-append): Contract violation, " ++ show a
       Right as -> returnA -< StringVal (T.concat as)
+
+instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail String c, Store.Join Val c, Fail.Join Val c)
+  => IsCons Val (ValueT Val c) where
+
+  nil_ = proc _ ->
+    returnA -< ListVal Nil
+
+  cons_ = proc ((v1,l1),(v2,l2)) -> do
+    a1 <- alloc -< ("",l1)
+    a2 <- alloc -< ("",l2)
+    write -< (a1,v1)
+    write -< (a2,v2)
+    returnA -< ListVal (Cons a1 a2)
+  
+  op1list_ = proc (op,x) -> case op of 
+    Car -> car -< x
+    Cdr -> cdr -< x
+    Caar -> car <<< car -< x
+    Cadr -> car <<< cdr -< x
+    Cddr -> cdr <<< cdr -< x
+    Caddr -> car <<< cdr <<< cdr -< x
+    Cadddr -> car <<< cdr <<< cdr <<< cdr -< x
+    where
+      car = proc x -> case x of
+        ListVal (Cons a1 _)  -> do
+          v <- read' -< a1
+          returnA -< v
+        _ -> fail -< "(car): Bad form" ++ show x
+      cdr = proc x -> case x of
+        ListVal (Cons _ a2) -> do
+          v <- read' -< a2
+          returnA -< v
+        _ -> fail -< "(cdr): Bad form: " ++ show x
 
 matchInt :: Val -> Either Val Int
 matchInt v = case v of

@@ -8,7 +8,7 @@
 module GenericInterpreter where
 
 import           Prelude hiding (succ, pred, fail, map)
-import           Syntax (Literal(..), Expr(..), Op1(..), Op2(..), OpVar(..))
+import           Syntax (Literal(..), Expr(..), Op1(..), Op2(..), OpVar(..),Op1List(..))
 
 import           Control.Arrow
 import           Control.Arrow.Fail(ArrowFail,failString)
@@ -39,6 +39,7 @@ eval :: (ArrowChoice c,
          IsString e,
          ArrowClosure Expr v c,
          IsVal v c,
+         IsCons v c,
          Env.Join v c,
          Cls.Join v v c,
          Store.Join v c,
@@ -82,6 +83,9 @@ eval run' = proc e0 -> case e0 of
   Op1 x e1 _ -> do
     v1 <- run' -< [e1]
     op1_ -< (x,v1)
+  Op1List x e1 _ -> do
+    v1 <- run' -< [e1]
+    op1list_ -< (x,v1)
   Op2 x e1 e2 _ -> do
     v1 <- run' -< [e1]
     v2 <- run' -< [e2]
@@ -131,6 +135,7 @@ run :: (ArrowChoice c,
         IsString e,
         ArrowClosure Expr v c,
         IsVal v c,
+        IsCons v c,
         Env.Join v c,
         Env.Join addr c,
         Cls.Join v v c,
@@ -176,6 +181,7 @@ runFixed :: (
   IsString e,
   ArrowClosure Expr v c,
   IsVal v c,
+  IsCons v c,
   Env.Join v c,
   Env.Join addr c,
   Cls.Join v v c,
@@ -199,9 +205,12 @@ class (Arrow c) => IsVal v c | c -> v where
   if_ :: Join z c => c x z -> c y z -> c (v, (x, y)) z
 
   void :: c () v
-  nil_ :: c Label v
-  cons_ :: c ((v, Label), (v, Label)) v
 
   op1_ :: c (Op1, v) v
   op2_ :: c (Op2, v, v) v
   opvar_ :: c (OpVar, [v]) v
+
+class (Arrow c) => IsCons v c | c -> v where
+  nil_ :: c Label v
+  cons_ :: c ((v, Label), (v, Label)) v
+  op1list_ :: c (Op1List,v) v 
