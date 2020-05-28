@@ -573,7 +573,7 @@ powcar' = proc v -> case v of
   Top -> (returnA -< Pow.singleton Top) <⊔> (err -< v)
   _ -> err -< v
   where
-    err = proc v -> failString -< printf "Excpeted list as argument for car, but got %s" (show v)
+    err = proc v -> failString -< printf "Expected list as argument for car, but got %s" (show v)
 {-# INLINEABLE powcar' #-}
 {-# SCC powcar' #-}
 
@@ -584,7 +584,7 @@ powcdr' = proc v -> case v of
   Top -> (returnA -< Pow.singleton Top) <⊔> (err -< v)
   _ -> err -< v
   where
-    err = proc v -> failString -< printf "Excpeted list as argument for cdr, but got %s" (show v)
+    err = proc v -> failString -< printf "Expected list as argument for cdr, but got %s" (show v)
 {-# INLINEABLE powcdr' #-}
 {-# SCC powcdr' #-}
 
@@ -595,7 +595,7 @@ car' = proc v -> case v of
   Top -> (returnA -< Top) <⊔> (err -< v)
   _ -> err -< v
   where
-    err = proc v -> failString -< printf "Excpeted list as argument for car, but got %s" (show v)
+    err = proc v -> failString -< printf "Expected list as argument for car, but got %s" (show v)
 {-# INLINEABLE car' #-}
 {-# SCC car' #-}
 
@@ -605,7 +605,7 @@ cdr' = proc v -> case v of
   Top -> (returnA -< Top) <⊔> (err -< v)
   _ -> err -< v
   where
-    err = proc v -> failString -< printf "Excpeted list as argument for cdr, but got %s" (show v)
+    err = proc v -> failString -< printf "Expected list as argument for cdr, but got %s" (show v)
 {-# INLINEABLE cdr' #-}
 {-# SCC cdr' #-}
 
@@ -699,6 +699,11 @@ instance (ArrowChoice c, IsString e, Fail.Join Val c, ArrowFail e c, ArrowComple
     => ArrowComplete Val (ValueT Val c) where
   ValueT f <⊔> ValueT g = ValueT $ proc x -> (f -< x) <⊔> (g -< x)
   {-# INLINEABLE (<⊔>) #-}
+
+instance (ArrowChoice c, IsString e, Fail.Join Val c, ArrowFail e c, ArrowComplete Val c)
+    => ArrowComplete Val (ValueT (Pow Val) c) where
+  ValueT f <⊔> ValueT g = ValueT $ proc x -> (f -< x) <⊔> (g -< x)
+  {-# INLINEABLE (<⊔>) #-}  
 
 instance (ArrowChoice c, IsString e, Fail.Join (Pow Val) c, ArrowFail e c, ArrowComplete (Pow Val) c)
     => ArrowComplete (Pow Val) (ValueT (Pow Val) c) where

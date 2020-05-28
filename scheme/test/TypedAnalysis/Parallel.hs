@@ -33,7 +33,6 @@ import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
-import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
@@ -47,7 +46,6 @@ import           Data.Empty
 import           Data.Label
 import           Data.Text (Text)
 import           Data.Abstract.Powerset(Pow)
-import qualified Data.Abstract.Powerset as Pow 
 -- import           Data.Text.Prettyprint.Doc
 
 import qualified Data.Abstract.Widening as W
@@ -76,7 +74,7 @@ eval algo env0 e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ algo $ \update_ ->
         -- Fix.trace printIn printOut .
-        -- Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         -- Fix.recordEvaluated .
         Fix.filter' isFunctionBody update_ in
   second snd $ Trans.run (extend' (Generic.runFixed :: Interp [Expr] (Pow Val))) (empty,(empty,(env0,e0)))
