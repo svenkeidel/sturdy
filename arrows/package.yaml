@@ -8,20 +8,9 @@ category:     Language
 
 dependencies:
   - base >= 4.10 && < 4.14
-  - containers
   - comonad
   - ghc-prim
-  - hashable
-  - hashtables
-  - mtl
-  - random
-  - text
-  - unordered-containers
-  - union-find
-  - deepseq
   - profunctors
-  - fgl
-  - prettyprinter
 
 library:
   ghc-options:
