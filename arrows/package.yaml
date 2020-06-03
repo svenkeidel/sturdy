@@ -1,0 +1,46 @@
+name:         sturdy-arrows
+version:      0.3.0.0
+synopsis:     Arrow Transformer Library for Sturdy
+maintainer:   Sven Keidel <svenkeidel@gmail.com>
+license:      BSD3
+github:       svenkeidel/sturdy
+category:     Language
+
+dependencies:
+  - base >= 4.10 && < 4.14
+  - containers
+  - comonad
+  - ghc-prim
+  - hashable
+  - hashtables
+  - mtl
+  - random
+  - text
+  - unordered-containers
+  - union-find
+  - deepseq
+  - profunctors
+  - fgl
+  - prettyprinter
+
+library:
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wredundant-constraints
+  source-dirs:
+    - src
+
+benchmarks:
+  arrow-transformers:
+    main: ArrowTransformerBench.hs
+    source-dirs:
+      - bench/transformer
+    dependencies:
+      - sturdy-arrows
+      - criterion
+      - dump-core
+    ghc-options: -fplugin=DumpCore -fplugin-opt DumpCore:core-html -O2
