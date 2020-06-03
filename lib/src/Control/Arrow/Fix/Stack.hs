@@ -1,20 +1,28 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Fix.Stack where
 
 import Prelude hiding (elem)
 import Control.Arrow
 import Control.Arrow.Fix
 import Control.Arrow.Trans
+import Control.Arrow.Transformer.Const
+import Control.Arrow.Transformer.Reader
+import Control.Arrow.Transformer.State
+import Control.Arrow.Transformer.Static
+import Control.Arrow.Transformer.Writer
 
 import Data.Profunctor
 import Data.Order
 import Data.Metric
 import Data.Abstract.Widening
 import Data.Maybe
+import Data.Monoidal
 
 import Text.Printf
 
@@ -107,3 +115,34 @@ instance Ord n => Semigroup (Measured a n) where
     | measured m1 <= measured m2 = m1
     | otherwise                  = m2
   {-# INLINE (<>) #-}
+
+------------- Instances --------------
+instance ArrowStack a c => ArrowStack a (ConstT r c) where
+  push f = lift $ \r -> push (unlift f r)
+  {-# INLINE push #-}
+
+instance ArrowStack a c => ArrowStack a (ReaderT r c) where
+  push f = lift $ lmap shuffle1 (push (unlift f))
+  {-# INLINE push #-}
+instance ArrowStackDepth c => ArrowStackDepth (ReaderT r c)
+instance ArrowStackElements a c => ArrowStackElements a (ReaderT r c)
+
+instance ArrowStack a c => ArrowStack a (StateT s c) where
+  push f = lift $ lmap shuffle1 (push (unlift f))
+  {-# INLINE push #-}
+instance ArrowStackDepth c => ArrowStackDepth (StateT s c)
+instance ArrowStackElements a c => ArrowStackElements a (StateT s c)
+
+instance ArrowTopLevel c => ArrowTopLevel (StateT s c)
+
+instance (Applicative f, ArrowStack a c) => ArrowStack a (StaticT f c) where
+  push (StaticT f) = StaticT $ push <$> f
+  {-# INLINE push #-}
+  {-# SPECIALIZE instance ArrowStack a c => ArrowStack a (StaticT ((->) r) c) #-}
+
+instance (Monoid w, ArrowStack a c) => ArrowStack a (WriterT w c) where
+  push f = lift $ push (unlift f)
+  {-# INLINE push #-}
+
+instance (Monoid w, ArrowStackElements a c) => ArrowStackElements a (WriterT w c)
+instance (Monoid w, ArrowStackDepth c) => ArrowStackDepth (WriterT w c)

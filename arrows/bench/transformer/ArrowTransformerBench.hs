@@ -14,10 +14,6 @@ import Criterion
 import Criterion.Main
 
 import Data.Profunctor
-import Data.Abstract.Error
-import Data.Abstract.Except
-import Data.Abstract.Cache
-import qualified Data.Abstract.Widening as W
 
 import Control.DeepSeq
 import Control.Category
@@ -26,10 +22,6 @@ import Control.Arrow.Transformer.Const
 import Control.Arrow.Transformer.Reader
 import Control.Arrow.Transformer.State
 import Control.Arrow.Transformer.Writer
-import Control.Arrow.Transformer.Abstract.Error
-import Control.Arrow.Transformer.Abstract.Except
-import Control.Arrow.Transformer.Abstract.Terminating
-import Control.Arrow.Transformer.Abstract.Fix.Chaotic
 
 data Expr = Num Int | Add Expr Expr | Mul Expr Expr
 data Val = Val !Int
@@ -74,19 +66,7 @@ eval = proc e -> case e of
 {-# SPECIALIZE eval :: WriterT () (WriterT () (->)) Expr Val #-}
 {-# SPECIALIZE eval :: WriterT () (WriterT () (WriterT () (->))) Expr Val #-}
 
-{-# SPECIALIZE eval :: ErrorT () (->) Expr Val #-}
-{-# SPECIALIZE eval :: ErrorT () (ErrorT () (->)) Expr Val #-}
-{-# SPECIALIZE eval :: ErrorT () (ErrorT () (ErrorT () (->))) Expr Val #-}
-
-{-# SPECIALIZE eval :: ExceptT () (->) Expr Val #-}
-{-# SPECIALIZE eval :: ExceptT () (ExceptT () (->)) Expr Val #-}
-{-# SPECIALIZE eval :: ExceptT () (ExceptT () (ExceptT () (->))) Expr Val #-}
-
-{-# SPECIALIZE eval :: TerminatingT (->) Expr Val #-}
-{-# SPECIALIZE eval :: TerminatingT (TerminatingT (->)) Expr Val #-}
-{-# SPECIALIZE eval :: TerminatingT (TerminatingT (TerminatingT (->))) Expr Val #-}
-
-{-# SPECIALIZE eval :: ConstT () (ReaderT () (StateT () (ExceptT () (ErrorT () (TerminatingT (->)))))) Expr Val #-}
+{-# SPECIALIZE eval :: ConstT () (ReaderT () (StateT () (->))) Expr Val #-}
 
 addN :: Int -> Expr -> Expr
 addN 0 e = e
@@ -120,24 +100,9 @@ main = do
         bench "WriterT²" $ nf (runWriterT' (runWriterT' eval)) expr,
         bench "WriterT³" $ nf (runWriterT' (runWriterT' (runWriterT' eval))) expr 
       ],
-      bgroup "ErrorT" [ 
-        bench "ErrorT¹" $ nf (runErrorT' eval) expr,
-        bench "ErrorT²" $ nf (runErrorT' (runErrorT' eval)) expr,
-        bench "ErrorT³" $ nf (runErrorT' (runErrorT' (runErrorT' eval))) expr 
-      ],
-      bgroup "ExceptT" [ 
-        bench "ExceptT¹" $ nf (runExceptT' eval) expr,
-        bench "ExceptT²" $ nf (runExceptT' (runExceptT' eval)) expr,
-        bench "ExceptT³" $ nf (runExceptT' (runExceptT' (runExceptT' eval))) expr 
-      ],
-      bgroup "TerminatingT" [ 
-        bench "TerminatingT¹" $ nf (runTerminatingT eval) expr,
-        bench "TerminatingT²" $ nf (runTerminatingT (runTerminatingT eval)) expr,
-        bench "TerminatingT³" $ nf (runTerminatingT (runTerminatingT (runTerminatingT eval))) expr 
-      ],
       bgroup "Stack" [
-        bench "ConstT (ReaderT (StateT (ExceptT (ErrorT (TerminatingT (->))))))" $
-          nf (runTerminatingT (runErrorT' (runExceptT' (runStateT' (runReaderT' (runConstT' eval)))))) expr
+        bench "ConstT (ReaderT (StateT (->)))" $
+          nf (runStateT' (runReaderT' (runConstT' eval))) expr
       ]
     ]
   where
@@ -156,18 +121,6 @@ main = do
     runWriterT' :: Profunctor c => WriterT () c x y -> c x y
     runWriterT' f = rmap snd (runWriterT f)
     {-# INLINE runWriterT' #-}
-                    
-    runErrorT' :: Profunctor c => ErrorT () c x y -> c x (Error () y)
-    runErrorT' = runErrorT
-    {-# INLINE runErrorT' #-}
-
-    runExceptT' :: Profunctor c => ExceptT () c x y -> c x (Except () y)
-    runExceptT' = runExceptT
-    {-# INLINE runExceptT' #-}
-
-    runChaoticT'' :: Profunctor c => ChaoticT Cache () () c x y -> c x y
-    runChaoticT'' = runChaoticT' id W.finite
-    {-# INLINE runChaoticT'' #-}
 
     expr = addN 20 (Num 1)
 

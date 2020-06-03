@@ -1,12 +1,21 @@
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Fix.Cache where
 
 import Prelude hiding (lookup)
+
 import Control.Arrow
 import Control.Arrow.Trans
+import Control.Arrow.Transformer.Const
+import Control.Arrow.Transformer.Reader
+import Control.Arrow.Transformer.State
+import Control.Arrow.Transformer.Static
+import Control.Arrow.Transformer.Writer
+
 import Data.Profunctor
 import Data.Abstract.Stable
 
@@ -78,3 +87,28 @@ class (Arrow c, Profunctor c) => ArrowGetCache cache c where
   default getCache :: (c ~ t c', ArrowLift t, ArrowGetCache cache c') => c () cache
   getCache = lift' getCache
   {-# INLINE getCache #-}
+
+------------- Instances --------------
+instance ArrowCache a b c => ArrowCache a b (ConstT r c) where
+  type Widening (ConstT r c) = Widening c
+
+instance ArrowCache a b c => ArrowCache a b (ReaderT r c) where
+  type Widening (ReaderT r c) = Widening c
+
+instance ArrowParallelCache a b c => ArrowParallelCache a b (ReaderT r c)
+instance ArrowIterateCache a b c => ArrowIterateCache a b (ReaderT r c)
+instance ArrowGetCache cache c => ArrowGetCache cache (ReaderT r c)
+
+instance ArrowCache a b c => ArrowCache a b (StateT s c) where
+  type Widening (StateT s c) = Widening c
+
+instance ArrowParallelCache a b c => ArrowParallelCache a b (StateT s c)
+instance ArrowIterateCache a b c => ArrowIterateCache a b (StateT s c)
+instance ArrowGetCache cache c => ArrowGetCache cache (StateT s c)
+
+instance (Applicative f, ArrowCache a b c) => ArrowCache a b (StaticT f c) where
+  type Widening (StaticT f c) = Widening c
+  {-# SPECIALIZE instance ArrowCache a b c => ArrowCache a b (StaticT ((->) r) c) #-}
+
+instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c) where
+  type Widening (WriterT w c) = Widening c

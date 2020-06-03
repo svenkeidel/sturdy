@@ -1,11 +1,13 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Fix.Chaotic where
 
 import           Prelude hiding (head,iterate,map)
@@ -16,9 +18,14 @@ import           Control.Arrow.Fix.Metrics as Metrics
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Trans
+import           Control.Arrow.Transformer.Const
+import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Static
 
 import           Data.Abstract.Stable
 import           Data.Profunctor
+import           Data.Monoidal
 
 
 class (Arrow c, Profunctor c) => ArrowComponent a c where
@@ -105,3 +112,19 @@ chaotic iterationStrategy f = proc a -> do
     {-# INLINABLE iterate #-}
 {-# INLINE chaotic #-}
 {-# SCC chaotic #-}
+
+------------- Instances --------------
+instance ArrowComponent a c => ArrowComponent a (ConstT r c)
+
+instance ArrowComponent a c => ArrowComponent a (ReaderT r c)
+instance ArrowInComponent a c => ArrowInComponent a (ReaderT r c) where
+  inComponent f = lift $ lmap shuffle1 (inComponent (unlift f))
+  {-# INLINE inComponent #-}
+
+instance ArrowComponent a c => ArrowComponent a (StateT s c)
+instance ArrowInComponent a c => ArrowInComponent a (StateT s c) where
+  inComponent f = lift $ dimap shuffle1 shuffle1 (inComponent (unlift f))
+  {-# INLINE inComponent #-}
+
+instance (Applicative f, ArrowComponent a c) => ArrowComponent a (StaticT f c) where
+  {-# SPECIALIZE instance ArrowComponent a c => ArrowComponent a (StaticT ((->) r) c) #-}

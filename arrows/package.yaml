@@ -1,5 +1,5 @@
 name:         sturdy-arrows
-version:      0.3.0.0
+version:      0.1.0.0
 synopsis:     Arrow Transformer Library for Sturdy
 maintainer:   Sven Keidel <svenkeidel@gmail.com>
 license:      BSD3
@@ -31,5 +31,6 @@ benchmarks:
     dependencies:
       - sturdy-arrows
       - criterion
+      - deepseq
       - dump-core
     ghc-options: -fplugin=DumpCore -fplugin-opt DumpCore:core-html -O2

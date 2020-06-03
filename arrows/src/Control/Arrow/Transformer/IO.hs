@@ -4,7 +4,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Control.Arrow.Transformer.IO (IO) where
+module Control.Arrow.Transformer.IO (IO(..)) where
 
 import Prelude hiding (IO)
 
