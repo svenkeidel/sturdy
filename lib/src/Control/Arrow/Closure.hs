@@ -31,7 +31,7 @@ class (Arrow c, Profunctor c) => ArrowClosure expr cls c | cls -> expr where
   apply :: Join y cls c => c (expr,x) y -> c (cls, x) y
 
   -- default lifting
-  default closure :: (c ~ t c', ArrowLift t, ArrowClosure expr cls c') => c expr cls
+  default closure :: (c ~ t c', ArrowTrans t, ArrowClosure expr cls c') => c expr cls
   closure = lift' closure
   {-# INLINE closure #-}
 

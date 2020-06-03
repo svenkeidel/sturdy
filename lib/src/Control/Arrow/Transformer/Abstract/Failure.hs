@@ -33,7 +33,7 @@ import Data.Coerce
 
 -- | Describes computations that can fail.
 newtype FailureT e c x y = FailureT (KleisliT (Failure e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
             ArrowExcept e', ArrowContext ctx)

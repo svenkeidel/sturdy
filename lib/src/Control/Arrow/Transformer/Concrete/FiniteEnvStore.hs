@@ -49,7 +49,7 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 newtype EnvStoreT var addr val c x y = EnvStoreT (ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded a,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift, ArrowLowerBounded a,
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
             ArrowContext ctx)
 
@@ -114,7 +114,7 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (EnvStoreT var addr val c) w
   app = EnvStoreT (app .# first coerce)
   {-# INLINE app #-}
 
-instance ArrowLift (EnvStoreT var addr val) where
+instance ArrowTrans (EnvStoreT var addr val) where
   lift' = EnvStoreT . lift' . lift'
   {-# INLINE lift' #-}
 

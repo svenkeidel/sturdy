@@ -21,13 +21,20 @@ import Data.Profunctor.Unsafe
 import Unsafe.Coerce
 import Control.Comonad
 
+-- | Arrow transformer that adds a comonadic effect to the input of a computation.
+-- This transformer can be used with any comonad that implements the 'ArrowComonad' interface.
 newtype CokleisliT f c x y = CokleisliT { runCokleisliT :: c (f x) y }
 
-instance (ArrowComonad f c, ArrowRun c) => ArrowRun (CokleisliT f c) where type Run (CokleisliT f c) x y = Run c (f x) y
-instance ArrowTrans (CokleisliT f c) where type Underlying (CokleisliT f c) x y = c (f x) y
-instance (ArrowComonad f c, ArrowPrimitive c) => ArrowPrimitive (CokleisliT f c) where type PrimState (CokleisliT f c) = PrimState c
+instance (ArrowComonad f c, ArrowRun c) => ArrowRun (CokleisliT f c) where
+  type Run (CokleisliT f c) x y = Run c (f x) y
 
-instance Comonad f => ArrowLift (CokleisliT f) where
+instance ArrowLift (CokleisliT f c) where
+  type Underlying (CokleisliT f c) x y = c (f x) y
+
+instance (ArrowComonad f c, ArrowPrimitive c) => ArrowPrimitive (CokleisliT f c) where
+  type PrimState (CokleisliT f c) = PrimState c
+
+instance Comonad f => ArrowTrans (CokleisliT f) where
   lift' f = lift $ lmap extract f
   {-# INLINE lift' #-}
 

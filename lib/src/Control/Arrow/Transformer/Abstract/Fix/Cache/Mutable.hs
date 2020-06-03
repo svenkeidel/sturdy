@@ -36,14 +36,14 @@ import qualified Data.HashTable as Map
 newtype CacheT cache a b c x y = CacheT { unCacheT :: ConstT (cache c a b) c x y}
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowPrimitive)
 
-instance ArrowTrans (CacheT cache a b c) where
+instance ArrowLift (CacheT cache a b c) where
   type Underlying (CacheT cache a b c) x y = cache c a b -> c x y
   lift = CacheT . lift
   unlift f = unlift (unCacheT f)
   {-# INLINE lift #-}
   {-# INLINE unlift #-}
 
-instance ArrowLift (CacheT cache a b) where
+instance ArrowTrans (CacheT cache a b) where
   lift' = CacheT . lift'
   {-# INLINE lift' #-}
 

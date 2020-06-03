@@ -31,7 +31,7 @@ import           Data.Monoidal
 class (Arrow c, Profunctor c) => ArrowComponent a c where
   addToComponent :: c (a,StackPointer) ()
 
-  default addToComponent :: (c ~ t c', ArrowLift t, ArrowComponent a c') => c (a,StackPointer) ()
+  default addToComponent :: (c ~ t c', ArrowTrans t, ArrowComponent a c') => c (a,StackPointer) ()
   addToComponent = lift' addToComponent
   {-# INLINE addToComponent #-}
 

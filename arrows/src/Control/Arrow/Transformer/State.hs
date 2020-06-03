@@ -25,6 +25,7 @@ import           Data.Profunctor hiding (Strong(..))
 import           Data.Profunctor.Unsafe
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
+-- | Arrow transformer that adds mutable state to an arrow computation.
 newtype StateT s c x y = StateT { runStateT :: c (s,x) (s,y) }
 
 evalStateT :: Profunctor c => StateT s c x y -> c (s,x) y
@@ -39,9 +40,14 @@ withStateT :: Arrow c => StateT s' c x y -> StateT s c (s',x) (s',y)
 withStateT f = lift (second (unlift f))
 {-# INLINE withStateT #-}
 
-instance ArrowRun c => ArrowRun (StateT s c) where type Run (StateT s c) x y = Run c (s,x) (s,y)
-instance ArrowTrans (StateT s c) where type Underlying (StateT s c) x y = c (s,x) (s,y)
-instance (ArrowPrimitive c) => ArrowPrimitive (StateT s c) where type PrimState (StateT s c) = PrimState c
+instance ArrowRun c => ArrowRun (StateT s c) where
+  type Run (StateT s c) x y = Run c (s,x) (s,y)
+
+instance ArrowLift (StateT s c) where
+  type Underlying (StateT s c) x y = c (s,x) (s,y)
+
+instance (ArrowPrimitive c) => ArrowPrimitive (StateT s c) where
+  type PrimState (StateT s c) = PrimState c
 
 instance (Profunctor c) => Profunctor (StateT s c) where
   dimap f g h = lift $ dimap (second' f) (second' g) (unlift h)
@@ -55,7 +61,7 @@ instance (Profunctor c) => Profunctor (StateT s c) where
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
 
-instance ArrowLift (StateT s) where
+instance ArrowTrans (StateT s) where
   lift' f = lift (second f)
   {-# INLINE lift' #-}
 

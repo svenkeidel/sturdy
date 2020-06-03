@@ -48,7 +48,7 @@ class ArrowFix c where
   type Fix c
   fix :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix c)) => (c -> c) -> c
 
-  default fix :: (c ~ c' x y, ArrowTrans c', Underlying c' x y ~ d, Fix (c' x y) ~ Fix d, ArrowFix d,
+  default fix :: (c ~ c' x y, ArrowLift c', Underlying c' x y ~ d, Fix (c' x y) ~ Fix d, ArrowFix d,
                  ?fixpointAlgorithm :: FixpointAlgorithm (Fix c))
               => (c -> c) -> c
   fix f = lift (fix (unlift . f . lift))

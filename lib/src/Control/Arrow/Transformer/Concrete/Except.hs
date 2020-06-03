@@ -30,7 +30,7 @@ import Data.Coerce
 
 -- | Arrow transformer that adds exceptions to the result of a computation
 newtype ExceptT e c x y = ExceptT (KleisliT (Error e) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,ArrowRun,
             ArrowConst r,ArrowState s,ArrowReader r,ArrowFail err,
             ArrowEnv var val, ArrowClosure expr cls,ArrowStore var val)
 

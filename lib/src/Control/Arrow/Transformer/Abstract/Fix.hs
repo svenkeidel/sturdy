@@ -47,7 +47,7 @@ runFixT (FixT f) = f
 instance ArrowRun c => ArrowRun (FixT c) where
   type Run (FixT c) x y = Run c x y
 
-instance ArrowTrans (FixT c) where
+instance ArrowLift (FixT c) where
   type Underlying (FixT c) x y = c x y
 
 instance ArrowFix (FixT c a b) where
@@ -60,7 +60,7 @@ instance (Profunctor c,ArrowApply c) => ArrowApply (FixT c) where
   app = FixT (app .# first coerce)
   {-# INLINE app #-}
 
-instance ArrowLift FixT where
+instance ArrowTrans FixT where
   lift' = FixT
   {-# INLINE lift' #-}
 

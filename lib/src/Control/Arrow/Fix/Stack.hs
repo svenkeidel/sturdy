@@ -33,7 +33,7 @@ class (Arrow c, Profunctor c) => ArrowStack a c | c -> a where
   push :: c x y -> c (a, x) (y)
   elem :: c a RecurrentCall
 
-  default elem :: (c ~ t c', ArrowLift t, ArrowStack a c') => c a RecurrentCall
+  default elem :: (c ~ t c', ArrowTrans t, ArrowStack a c') => c a RecurrentCall
   elem = lift' elem
   {-# INLINE elem #-}
 
@@ -43,7 +43,7 @@ push' f = lmap (\a -> (a,a)) (push f)
 
 class (Arrow c, Profunctor c) => ArrowStackDepth c where
   depth :: c () Int
-  default depth :: (c ~ t c', ArrowLift t, ArrowStackDepth c') => c () Int
+  default depth :: (c ~ t c', ArrowTrans t, ArrowStackDepth c') => c () Int
   depth = lift' depth
   {-# INLINE depth #-}
 
@@ -52,8 +52,8 @@ class (Arrow c, Profunctor c) => ArrowStackElements a c where
   elems :: c () [a]
   peek :: c () (Maybe a)
 
-  default elems :: (c ~ t c', ArrowLift t, ArrowStackElements a c') => c () [a]
-  default peek :: (c ~ t c', ArrowLift t, ArrowStackElements a c') => c () (Maybe a)
+  default elems :: (c ~ t c', ArrowTrans t, ArrowStackElements a c') => c () [a]
+  default peek :: (c ~ t c', ArrowTrans t, ArrowStackElements a c') => c () (Maybe a)
 
   elems = lift' elems
   peek = lift' peek
@@ -64,7 +64,7 @@ class (Arrow c, Profunctor c) => ArrowStackElements a c where
 class (Arrow c, Profunctor c) => ArrowTopLevel c where
   topLevel :: FixpointCombinator c a b -> FixpointCombinator c a b -> FixpointCombinator c a b
 
-  default topLevel :: (Underlying c a b ~ c' a' b', ArrowTrans c, ArrowTopLevel c') => FixpointCombinator c a b -> FixpointCombinator c a b -> FixpointCombinator c a b
+  default topLevel :: (Underlying c a b ~ c' a' b', ArrowLift c, ArrowTopLevel c') => FixpointCombinator c a b -> FixpointCombinator c a b -> FixpointCombinator c a b
   topLevel stratTop stratLower f = lift $ topLevel (unlift1 stratTop) (unlift1 stratLower) (unlift f)
   {-# INLINE topLevel #-}
 

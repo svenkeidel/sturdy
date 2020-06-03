@@ -24,12 +24,6 @@ import Unsafe.Coerce
 
 -- | Arrow transformer that passes along constant data.
 newtype ConstT r c x y = ConstT (r -> c x y)
-  -- deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded a,
-  --           ArrowLift,ArrowJoin,ArrowPrimitive,ArrowStrict,
-  --           ArrowState s,ArrowReader r',ArrowWriter w, ArrowLetRec var val,
-  --           ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val,
-  --           ArrowFail e, ArrowExcept e,
-  --           ArrowContext ctx, ArrowStack a, ArrowCache a b, ArrowComponent a,ArrowControlFlow stmt)
 
 constT :: (r -> c x y) -> ConstT r c x y
 constT = lift
@@ -55,7 +49,7 @@ setConstT :: r -> (ConstT r c x y -> ConstT r' c x y)
 setConstT r = mapConstT (const r)
 {-# INLINE setConstT #-}
 
-instance ArrowTrans (ConstT r c) where
+instance ArrowLift (ConstT r c) where
   type Underlying (ConstT r c) x y = r -> c x y
 
 instance ArrowRun c => ArrowRun (ConstT r c) where
@@ -117,7 +111,7 @@ instance ArrowChoice c => ArrowChoice (ConstT r c) where
   {-# INLINE (+++) #-}
   {-# INLINE (|||) #-}
 
-instance ArrowLift (ConstT r) where
+instance ArrowTrans (ConstT r) where
   lift' f = lift $ \_ -> f
   {-# INLINE lift' #-}
 

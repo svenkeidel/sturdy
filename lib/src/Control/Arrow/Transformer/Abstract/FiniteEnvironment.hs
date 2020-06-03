@@ -51,7 +51,7 @@ import Data.Coerce
 
 type Alloc var addr val c = EnvT var addr val c (var,val) addr
 newtype EnvT var addr val c x y = EnvT (ConstT (Alloc var addr val c, Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded a,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift, ArrowLowerBounded a,
             ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowRun, ArrowCont,
             ArrowContext ctx)
 
@@ -103,7 +103,7 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (EnvT var addr val c) where
   app = EnvT (app .# first coerce)
   {-# INLINE app #-}
 
-instance ArrowLift (EnvT var addr val) where
+instance ArrowTrans (EnvT var addr val) where
   lift' = EnvT . lift' . lift' . lift'
   {-# INLINE lift' #-}
 

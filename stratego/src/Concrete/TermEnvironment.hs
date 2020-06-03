@@ -33,7 +33,7 @@ import           TermEnv
 type TermEnv t = HashMap TermVar t
 
 newtype EnvT t c x y = EnvT (StoreT TermVar t c x y)
-  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowRun,ArrowTrans,ArrowLift,ArrowFail e,ArrowExcept e,ArrowConst r, ArrowStore TermVar t, ArrowState (TermEnv t))
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowRun,ArrowTrans,ArrowTrans,ArrowFail e,ArrowExcept e,ArrowConst r, ArrowStore TermVar t, ArrowState (TermEnv t))
 
 instance (Profunctor c, ArrowChoice c) => IsTermEnv (TermEnv term) term (EnvT term c) where
   type Join x (EnvT term c) = ()

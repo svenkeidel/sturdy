@@ -33,7 +33,7 @@ instance (Applicative f, ArrowPrimitive c) => ArrowPrimitive (StaticT f c) where
   type PrimState (StaticT f c) = PrimState c
   {-# SPECIALIZE instance (ArrowPrimitive c) => ArrowPrimitive (StaticT ((->) r) c) #-}
 
-instance (Applicative f) =>  ArrowTrans (StaticT f c) where
+instance (Applicative f) =>  ArrowLift (StaticT f c) where
   type Underlying (StaticT f c) x y = f (c x y)
 
 instance (Applicative f, Profunctor c) => Profunctor (StaticT f c) where
@@ -49,10 +49,10 @@ instance (Applicative f, Profunctor c) => Profunctor (StaticT f c) where
   {-# INLINE (#.) #-}
   {-# SPECIALIZE instance (Profunctor c) => Profunctor (StaticT ((->) r) c) #-}
 
-instance Applicative f => ArrowLift (StaticT f) where
+instance Applicative f => ArrowTrans (StaticT f) where
   lift' = StaticT . pure
   {-# INLINE lift' #-}
-  {-# SPECIALIZE instance ArrowLift (StaticT ((->) r)) #-}
+  {-# SPECIALIZE instance ArrowTrans (StaticT ((->) r)) #-}
 
 instance (Applicative f, Category c) => Category (StaticT f c) where
   id = StaticT (pure id)

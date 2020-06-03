@@ -40,7 +40,7 @@ import           Data.Ord(comparing)
 
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
-            ArrowStrict,ArrowLift, ArrowLowerBounded z,
+            ArrowStrict,ArrowTrans, ArrowLowerBounded z,
             ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowState s,ArrowContext ctx, ArrowJoinContext u,
             ArrowControlFlow stmt, ArrowPrimitive)
@@ -49,7 +49,7 @@ runStackT :: (IsEmpty (stack a), Profunctor c) => StackT stack a c x y -> c x y
 runStackT (StackT f) = lmap (\x -> (empty,x)) (runReaderT f)
 {-# INLINE runStackT #-}
 
-instance Profunctor c => ArrowTrans (StackT stack a c) where
+instance Profunctor c => ArrowLift (StackT stack a c) where
   type Underlying (StackT stack a c) x y = c (stack a, x) y
 
 instance (IsEmpty (stack a), ArrowRun c) => ArrowRun (StackT stack a c) where

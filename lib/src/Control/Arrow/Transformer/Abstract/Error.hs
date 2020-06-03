@@ -36,7 +36,7 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 newtype ErrorT e c x y = ErrorT (KleisliT (Error e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun,
             ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore a b, ArrowContext ctx,
             ArrowExcept e', ArrowLowerBounded a)

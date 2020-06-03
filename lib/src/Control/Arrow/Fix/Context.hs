@@ -30,7 +30,7 @@ class (Arrow c, Profunctor c) => ArrowContext ctx c | c -> ctx where
   askContext :: c () ctx
   localContext :: c x y -> c (ctx,x) y
 
-  default askContext :: (c ~ t c', ArrowLift t, ArrowContext ctx c') => c () ctx
+  default askContext :: (c ~ t c', ArrowTrans t, ArrowContext ctx c') => c () ctx
   askContext = lift' askContext
   {-# INLINE askContext #-}
 
@@ -39,7 +39,7 @@ class (Arrow c, Profunctor c) => ArrowJoinContext a c | c -> a where
 
   joinByContext :: (?contextWidening :: Widening c) => c a a
 
-  default joinByContext :: (c ~ t c', ArrowLift t, ArrowJoinContext a c', ?contextWidening :: Widening c') => c a a
+  default joinByContext :: (c ~ t c', ArrowTrans t, ArrowJoinContext a c', ?contextWidening :: Widening c') => c a a
   joinByContext = lift' joinByContext
   {-# INLINE joinByContext #-}
 

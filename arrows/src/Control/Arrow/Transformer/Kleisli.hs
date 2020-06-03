@@ -24,13 +24,20 @@ import Data.Profunctor.Unsafe
 import Data.Coerce
 import Unsafe.Coerce
 
+-- | Arrow transformer that adds a monadic effect to the output of a computation.
+-- This transformer can be used with any monad that implements the 'ArrowMonad' interface.
 newtype KleisliT f c x y = KleisliT { runKleisliT :: c x (f y) }
 
-instance (ArrowMonad f c, ArrowRun c) => ArrowRun (KleisliT f c) where type Run (KleisliT f c) x y = Run c x (f y)
-instance ArrowTrans (KleisliT f c) where type Underlying (KleisliT f c) x y = c x (f y)
-instance (ArrowMonad f c, ArrowPrimitive c) => ArrowPrimitive (KleisliT f c) where type PrimState (KleisliT f c) = PrimState c
+instance (ArrowMonad f c, ArrowRun c) => ArrowRun (KleisliT f c) where
+  type Run (KleisliT f c) x y = Run c x (f y)
 
-instance Monad f => ArrowLift (KleisliT f) where
+instance ArrowLift (KleisliT f c) where
+  type Underlying (KleisliT f c) x y = c x (f y)
+
+instance (ArrowMonad f c, ArrowPrimitive c) => ArrowPrimitive (KleisliT f c) where
+  type PrimState (KleisliT f c) = PrimState c
+
+instance Monad f => ArrowTrans (KleisliT f) where
   lift' f = lift $ rmap return f
   {-# INLINE lift' #-}
 

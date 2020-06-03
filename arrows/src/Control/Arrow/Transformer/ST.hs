@@ -37,7 +37,7 @@ instance ArrowRun (ST s) where
   run f = f
   {-# NOINLINE run #-}
 
-instance ArrowTrans (ST s) where
+instance ArrowLift (ST s) where
   type Underlying (ST s) x y = (# State# s, x #) -> (# State# s, y #)
 
 instance Profunctor (ST s) where

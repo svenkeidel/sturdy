@@ -25,6 +25,7 @@ import Data.Profunctor.Unsafe
 import Data.Coerce
 import Unsafe.Coerce
 
+-- | Arrow transformer that adds a writable value to an arrow computation.
 newtype WriterT w c x y = WriterT { runWriterT :: c x (w,y) }
 
 censor :: (Arrow c,Profunctor c) => (x -> w -> w) -> WriterT w c x y -> WriterT w c x y
@@ -33,7 +34,7 @@ censor f (WriterT g) = WriterT (dimap (\x -> (x,x)) (\(x,(w,y)) -> (f x w,y)) (s
 instance (Monoid w,ArrowRun c) => ArrowRun (WriterT w c) where
   type Run (WriterT w c) x y = Run c x (w,y)
 
-instance ArrowTrans (WriterT w c) where
+instance ArrowLift (WriterT w c) where
   type Underlying (WriterT w c) x y = c x (w,y)
 
 instance (Monoid w,ArrowPrimitive c) => ArrowPrimitive (WriterT w c) where
@@ -51,7 +52,7 @@ instance (Profunctor c) => Profunctor (WriterT w c) where
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
 
-instance Monoid w => ArrowLift (WriterT w) where
+instance Monoid w => ArrowTrans (WriterT w) where
   lift' f = lift (rmap (mempty,) f)
   {-# INLINE lift' #-}
 

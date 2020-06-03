@@ -48,7 +48,7 @@ import qualified Data.Abstract.Widening as W
 import           GHC.Exts
 
 newtype CacheT cache a b c x y = CacheT { unCacheT :: StateT (cache a b) c x y}
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,ArrowLift,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,ArrowTrans,
             ArrowState (cache a b),ArrowControlFlow stmt, ArrowPrimitive)
 
 instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) where
@@ -56,7 +56,7 @@ instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) wher
   run f = run (lmap (\x -> (empty, x)) (unlift f))
   {-# INLINE run #-}
 
-instance ArrowTrans (CacheT cache a b c) where
+instance ArrowLift (CacheT cache a b c) where
   type Underlying (CacheT cache a b c) x y = c (cache a b, x) (cache a b, y)
 
 instance (Arrow c, Profunctor c) => ArrowGetCache (cache a b) (CacheT cache a b c) where

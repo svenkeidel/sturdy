@@ -1,10 +1,18 @@
 name:         sturdy-arrows
 version:      0.1.0.0
-synopsis:     Arrow Transformer Library for Sturdy
+synopsis:     Arrow Transformer Library used by Sturdy
 maintainer:   Sven Keidel <svenkeidel@gmail.com>
 license:      BSD3
 github:       svenkeidel/sturdy
 category:     Language
+description:
+  Similar to monads, arrows are an abstraction for effectful computations. Arrow
+  transformers allow to create arrow computations in a modular way by adding
+  effects to the inputs and outputs of a computation.
+
+  This library defines several arrow transformers similar to the monad
+  transformer library mtl. Its goal is to provide arrow type class instances
+  that generate efficient code when compiled.
 
 dependencies:
   - base >= 4.10 && < 4.14

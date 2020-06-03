@@ -50,10 +50,10 @@ instance (IsEmpty (metrics a), ArrowRun c) => ArrowRun (MetricsT metrics a c) wh
   type Run (MetricsT metrics a c) x y = Run c x (metrics a,y)
   run f = run (lmap (empty,) (unlift f))
 
-instance ArrowTrans (MetricsT metrics a c) where
+instance ArrowLift (MetricsT metrics a c) where
   type Underlying (MetricsT metrics a c) x y = c (metrics a,x) (metrics a,y)
 
-instance ArrowLift (MetricsT metrics a) where
+instance ArrowTrans (MetricsT metrics a) where
   lift' = MetricsT . lift'
   {-# INLINE lift' #-}
 

@@ -37,10 +37,10 @@ instance (ArrowApply c, ArrowRun c) => ArrowRun (ContT r c) where
   run f x = run $ runContT f x
   {-# INLINE run #-}
 
-instance ArrowTrans (ContT r c) where
+instance ArrowLift (ContT r c) where
   type Underlying (ContT r c) x y = c y r -> c x r
 
-instance ArrowLift (ContT r) where
+instance ArrowTrans (ContT r) where
   lift' f = ContT $ \k -> k . f
   {-# INLINE lift' #-}
 

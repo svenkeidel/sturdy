@@ -30,7 +30,7 @@ import           System.Random(StdGen,Random)
 import qualified System.Random as R
 
 newtype RandomT c x y = RandomT (StateT StdGen c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,ArrowRun,
             ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val)
 

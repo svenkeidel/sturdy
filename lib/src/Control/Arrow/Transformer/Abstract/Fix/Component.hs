@@ -47,10 +47,10 @@ runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> 
 runComponentT (ComponentT f) = dimap (\x -> (empty,x)) snd (runStateT f)
 {-# INLINE runComponentT #-}
 
-instance ArrowTrans (ComponentT comp a c) where
+instance ArrowLift (ComponentT comp a c) where
   type Underlying (ComponentT comp a c) x y = c (comp a,x) (comp a,y)
 
-instance ArrowLift (ComponentT comp a) where
+instance ArrowTrans (ComponentT comp a) where
   lift' f = ComponentT (lift' f)
   {-# INLINE lift' #-}
 

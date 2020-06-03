@@ -33,7 +33,7 @@ import           Data.HashSet(HashSet)
 import qualified Data.HashSet as H
 
 newtype FreeVarsT var c x y = FreeVarsT (WriterT (HashSet var) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowLowerBounded a,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowLowerBounded a,
             ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k)
 
 runFreeVarsT :: Profunctor c => FreeVarsT var c x y -> c x y

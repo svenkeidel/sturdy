@@ -20,6 +20,7 @@ import Data.Coerce
 import GHC.Prim(RealWorld)
 import qualified GHC.Types as T
 
+-- | Arrowized version of the IO monad. Use this arrow at the base of an arrow transformer stack to execute IO operations. For example, as in the arrow transformer stack @StateT Int IO@.
 newtype IO x y = IO (ST RealWorld x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowPrimitive)
 
@@ -28,7 +29,7 @@ instance ArrowRun IO where
   run (IO (ST f)) x = T.IO $ \s -> f (# s, x #)
   {-# INLINE run #-}
 
-instance ArrowTrans IO where
+instance ArrowLift IO where
   type Underlying IO x y = ST RealWorld x y
 
 instance ArrowApply IO where

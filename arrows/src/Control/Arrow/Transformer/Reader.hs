@@ -24,10 +24,11 @@ import Data.Monoidal
 import Unsafe.Coerce
 
 -- Due to "Generalising Monads to Arrows", by John Hughes, in Science of Computer Programming 37.
+-- | Arrow transformer that adds a read-only value to a computation.
 newtype ReaderT r c x y = ReaderT { runReaderT :: c (r,x) y }
 
 instance ArrowRun c => ArrowRun (ReaderT r c) where type Run (ReaderT r c) x y = Run c (r,x) y
-instance ArrowTrans (ReaderT r c) where type Underlying (ReaderT r c) x y = c (r,x) y
+instance ArrowLift (ReaderT r c) where type Underlying (ReaderT r c) x y = c (r,x) y
 instance (ArrowPrimitive c) => ArrowPrimitive (ReaderT s c) where type PrimState (ReaderT s c) = PrimState c
 
 instance (Profunctor c) => Profunctor (ReaderT r c) where
@@ -42,7 +43,7 @@ instance (Profunctor c) => Profunctor (ReaderT r c) where
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
 
-instance ArrowLift (ReaderT r) where
+instance ArrowTrans (ReaderT r) where
   lift' f = lift $ lmap snd f
   {-# INLINE lift' #-}
 

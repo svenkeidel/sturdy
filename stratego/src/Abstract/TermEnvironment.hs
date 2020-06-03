@@ -36,7 +36,7 @@ import           TermEnv
 type TermEnv t = Map TermVar t
 
 newtype EnvT t c x y = EnvT (StoreT Map TermVar t c x y)
-  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowTrans,ArrowLift, ArrowRun, ArrowLowerBounded,
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowTrans,ArrowTrans, ArrowRun, ArrowLowerBounded,
             ArrowFail e,ArrowExcept e,ArrowConst r, ArrowState (TermEnv t), ArrowStore TermVar t)
 
 instance (Complete t, ArrowChoice c, ArrowJoin c) => IsTermEnv (TermEnv t) t (EnvT t c) where

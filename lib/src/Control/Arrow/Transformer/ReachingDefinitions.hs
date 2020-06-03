@@ -38,7 +38,7 @@ import           Data.Coerce
 import           Data.Utils
 
 newtype ReachingDefsT (f :: Type -> Type) c x y = ReachingDefsT (ReaderT (Maybe Label) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,
             ArrowState s, ArrowEnv var val, ArrowClosure expr cls,
             ArrowFail e,ArrowExcept e, ArrowLowerBounded a, ArrowComplete z)
 

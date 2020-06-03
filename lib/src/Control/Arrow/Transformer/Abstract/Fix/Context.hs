@@ -30,7 +30,7 @@ import Data.Empty
 
 newtype ContextT ctx c x y = ContextT (ReaderT ctx c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowStrict,
-            ArrowTrans,ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowLift,ArrowControlFlow stmt, ArrowPrimitive)
 
 runContextT :: (IsEmpty ctx, Profunctor c) => ContextT ctx c x y -> c x y
 runContextT (ContextT f) = lmap (empty,) (runReaderT f)
@@ -42,7 +42,7 @@ instance (Arrow c, Profunctor c) => ArrowContext ctx (ContextT ctx c) where
   {-# INLINE askContext #-}
   {-# INLINE localContext #-}
 
-instance ArrowLift (ContextT ctx) where
+instance ArrowTrans (ContextT ctx) where
   lift' = ContextT . lift'
   {-# INLINE lift' #-}
 

@@ -30,8 +30,8 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 -- | Arrow transformer that adds failure to the result of a computation
-newtype FailureT e c x y = FailureT (KleisliT (Error e) c x y) 
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
+newtype FailureT e c x y = FailureT (KleisliT (Error e) c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,ArrowRun,
             ArrowConst r,ArrowState s,ArrowReader r,ArrowExcept exc,
             ArrowEnv var addr, ArrowLetRec var val, ArrowClosure expr cls,ArrowStore addr val)
 

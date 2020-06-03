@@ -72,11 +72,11 @@ instance (ArrowRun c) => ArrowRun (ControlFlowT stmt c) where
   run f = run (lmap (\x ->(Nothing,(empty,x))) (unlift f))
   {-# INLINE run #-}
 
-instance ArrowLift (ControlFlowT stmt) where
+instance ArrowTrans (ControlFlowT stmt) where
   lift' = ControlFlowT . lift' . lift'
   {-# INLINE lift' #-}
 
-instance ArrowTrans (ControlFlowT stmt c) where
+instance ArrowLift (ControlFlowT stmt c) where
   type Underlying (ControlFlowT stmt c) x y = c (Maybe stmt, (CFG stmt,x)) (CFG stmt,y)
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (ControlFlowT stmt c) where

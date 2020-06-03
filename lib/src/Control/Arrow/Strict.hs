@@ -22,7 +22,7 @@ import           Data.Profunctor
 class (Profunctor c, Arrow c) => ArrowStrict c where
   force :: c a b -> c a b
 
-  default force :: (ArrowTrans c, Underlying c a b ~ c' a' b', ArrowStrict c') => c a b -> c a b
+  default force :: (ArrowLift c, Underlying c a b ~ c' a' b', ArrowStrict c') => c a b -> c a b
   force = lift1 force
   {-# INLINE force #-}
 
