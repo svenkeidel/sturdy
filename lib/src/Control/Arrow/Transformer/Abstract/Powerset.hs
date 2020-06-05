@@ -30,7 +30,7 @@ import           Data.Coerce
 
 -- | Computation that produces a set of results.
 newtype PowT c x y = PowT (KleisliT A.Pow c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
             ArrowFail e', ArrowExcept e')

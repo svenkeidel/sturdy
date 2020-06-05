@@ -21,6 +21,7 @@ dependencies:
   - profunctors
   - random
   - split
+  - sturdy-arrows
   - sturdy-lib
   - text
   - transformers

@@ -30,7 +30,7 @@ import           Data.Coerce
 
 -- | Arrow transformer that adds a store to a computation.
 newtype StoreT store c x y = StoreT (StateT store c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,ArrowRun,
             ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e, ArrowState store)
 
 -- | Execute a computation and only return the result value and store.

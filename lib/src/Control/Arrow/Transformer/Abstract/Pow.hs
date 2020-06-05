@@ -26,7 +26,7 @@ newtype PowT c x y = PowT (c (Pow x) (Pow y))
 instance Fix.ArrowFix (Underlying (PowT c) x y) => Fix.ArrowFix (PowT c x y) where
   type Fix (PowT c x y) = Fix.Fix (Underlying (PowT c) x y)
 
-instance ArrowTrans (PowT c) where type Underlying (PowT c) x y = c (Pow x) (Pow y)
+instance ArrowLift (PowT c) where type Underlying (PowT c) x y = c (Pow x) (Pow y)
 
 instance (ArrowRun c) => ArrowRun (PowT c) where type Run (PowT c) x y = Run c (Pow x) (Pow y)
 
@@ -37,7 +37,7 @@ instance Category c => Category (PowT c) where
   {-# INLINE id #-}
   {-# INLINE (.) #-}
 
-instance ArrowLift PowT where
+instance ArrowTrans PowT where
   lift' f = lift $ dimap unsafeExtract singleton f
   {-# INLINE lift' #-}
 

@@ -2,6 +2,7 @@ flags: {}
 extra-package-dbs: []
 resolver: lts-15.3
 packages:
+- 'arrows'
 - 'lib'
 - 'pcf'
 - 'scheme'

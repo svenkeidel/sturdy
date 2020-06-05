@@ -1,14 +1,15 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Fix
   (
     ArrowFix(..),
@@ -22,8 +23,16 @@ import           Prelude hiding (filter,pred)
 
 import           Control.Arrow
 import           Control.Arrow.Fix.Cache
-import           Control.Arrow.Trans
 import           Control.Arrow.Fix.Metrics
+import           Control.Arrow.Monad
+import           Control.Arrow.Trans
+import           Control.Arrow.Transformer.Cokleisli
+import           Control.Arrow.Transformer.Const
+import           Control.Arrow.Transformer.Cont
+import           Control.Arrow.Transformer.Kleisli
+import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Writer
 
 import qualified Data.Function as Function
 import           Data.Profunctor
@@ -39,7 +48,7 @@ class ArrowFix c where
   type Fix c
   fix :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix c)) => (c -> c) -> c
 
-  default fix :: (c ~ c' x y, ArrowTrans c', Underlying c' x y ~ d, Fix (c' x y) ~ Fix d, ArrowFix d,
+  default fix :: (c ~ c' x y, ArrowLift c', Underlying c' x y ~ d, Fix (c' x y) ~ Fix d, ArrowFix d,
                  ?fixpointAlgorithm :: FixpointAlgorithm (Fix c))
               => (c -> c) -> c
   fix f = lift (fix (unlift . f . lift))
@@ -128,3 +137,29 @@ traceCache showCache f = proc a -> do
   cache' <- getCache -< ()
   returnA -< Debug.trace (printf "CACHE %s\n\n" (showCache cache')) b
 {-# INLINE traceCache #-}
+
+------------- Instances --------------
+instance (ArrowComonad f c, ArrowFix (Underlying (CokleisliT f c) x y)) => ArrowFix (CokleisliT f c x y) where
+  type Fix (CokleisliT f c x y) = Fix (Underlying (CokleisliT f c) x y)
+
+instance (Arrow c, Profunctor c, ArrowFix (c x y)) => ArrowFix (ConstT r c x y) where
+  type Fix (ConstT r c x y) = Fix (c x y)
+  fix f = lift $ \r -> fix (runConstT r . f . lift')
+  {-# INLINE fix #-}
+
+instance ArrowFix (c x r) => ArrowFix (ContT r c x y) where
+  type Fix (ContT r c x y) = Fix (c x r)
+  fix f = lift $ \k -> fix $ \g -> unlift1 f (const g) k
+  {-# INLINE fix #-}
+
+instance ArrowFix (c x (f y)) => ArrowFix (KleisliT f c x y) where
+  type Fix (KleisliT f c x y) = Fix (Underlying (KleisliT f c) x y)
+
+instance ArrowFix (Underlying (ReaderT r c) x y) => ArrowFix (ReaderT r c x y) where
+  type Fix (ReaderT r c x y) = Fix (Underlying (ReaderT r c) x y)
+
+instance ArrowFix (Underlying (StateT s c) x y) => ArrowFix (StateT s c x y) where
+  type Fix (StateT s c x y) = Fix (Underlying (StateT s c) x y)
+
+instance ArrowFix (Underlying (WriterT w c) x y) => ArrowFix (WriterT w c x y) where
+  type Fix (WriterT w c x y) = Fix (Underlying (WriterT w c) x y)

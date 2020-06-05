@@ -33,10 +33,10 @@ newtype NoInlineT c x y = NoInlineT { runNoInlineTT :: c x y }
 instance ArrowRun c => ArrowRun (NoInlineT c) where
   type Run (NoInlineT c) x y = Run c x y
 
-instance ArrowTrans (NoInlineT c) where
+instance ArrowLift (NoInlineT c) where
   type Underlying (NoInlineT c) x y = c x y
 
-instance ArrowLift NoInlineT where
+instance ArrowTrans NoInlineT where
   lift' = NoInlineT
   {-# INLINE lift' #-}
 
@@ -52,7 +52,7 @@ instance Profunctor c => Profunctor (NoInlineT c) where
   {-# NOINLINE (.#) #-}
   {-# NOINLINE (#.) #-}
 
--- instance ArrowLift NoInlineT where
+-- instance ArrowTrans NoInlineT where
 --   lift' = lift
 --   {-# NOINLINE lift' #-}
 

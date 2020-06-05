@@ -60,7 +60,7 @@ newtype EnvStoreT var addr val c x y =
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
             ArrowContext ctx, ArrowControlFlow stmt)
 
-instance ArrowTrans (EnvStoreT var addr val c) where
+instance ArrowLift (EnvStoreT var addr val c) where
   type Underlying (EnvStoreT var addr val c) x y =
     ReaderT (Env var addr) (StateT (Store addr val) c) x y
 
@@ -133,7 +133,7 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (EnvStoreT var addr val c) w
   app = EnvStoreT (app .# first coerce)
   {-# INLINE app #-}
 
-instance ArrowLift (EnvStoreT var addr val) where
+instance ArrowTrans (EnvStoreT var addr val) where
   lift' = EnvStoreT . lift' . lift'
   {-# INLINE lift' #-}
 

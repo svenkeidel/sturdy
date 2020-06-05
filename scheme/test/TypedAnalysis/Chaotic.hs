@@ -20,7 +20,7 @@
 #-}
 module TypedAnalysis.Chaotic where
 
-import           Prelude hiding (not,Bounded,fail,(.),exp,read)
+import           Prelude hiding (not,Bounded,fail,(.),exp,read,IO)
 
 import           Control.Category
 import           Control.Arrow
@@ -28,7 +28,6 @@ import           Control.Arrow.Environment as Env
 import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost',outermost')
 import qualified Control.Arrow.Fix.Context as Ctx
-import qualified Control.Arrow.Fix.ControlFlow as CFlow
 import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
@@ -40,8 +39,6 @@ import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
-
-import           Control.Monad.State hiding (lift,fail)
 
 import           Data.Empty
 import           Data.Label
@@ -67,7 +64,7 @@ type InterpChaotic x y =
                     (ContextT Ctx
                       (ControlFlowT Expr (->))))))))))) x y
 
-evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metric.Monotone In, Out'))
+evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
 evalChaotic iterationStrat env0 e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $

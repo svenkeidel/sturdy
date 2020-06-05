@@ -36,7 +36,7 @@ import           Data.Empty
 
 -- | Describes computations that can fail.
 newtype LogErrorT e c x y = LogErrorT (StateT (Errors e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans,
             ArrowConst r, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b, ArrowLetRec var val,
             ArrowExcept e', ArrowContext ctx)

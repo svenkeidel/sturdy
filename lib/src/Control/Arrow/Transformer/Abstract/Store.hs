@@ -37,7 +37,7 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 newtype StoreT store c x y = StoreT (StateT store c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,
             ArrowCont, ArrowConst r, ArrowReader r,
             ArrowEnv var' val', ArrowClosure expr cls,
             ArrowFail e, ArrowExcept e, ArrowState store,

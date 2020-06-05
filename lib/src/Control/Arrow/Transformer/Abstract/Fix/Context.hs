@@ -1,10 +1,12 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Context where
 
@@ -12,6 +14,7 @@ import Prelude hiding (lookup,truncate,(.),id)
 
 import Control.Category
 import Control.Arrow
+import Control.Arrow.Primitive
 import Control.Arrow.Strict
 import Control.Arrow.Fix.ControlFlow
 import Control.Arrow.Fix.Context
@@ -27,7 +30,7 @@ import Data.Empty
 
 newtype ContextT ctx c x y = ContextT (ReaderT ctx c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowStrict,
-            ArrowTrans,ArrowControlFlow stmt)
+            ArrowLift,ArrowControlFlow stmt, ArrowPrimitive)
 
 runContextT :: (IsEmpty ctx, Profunctor c) => ContextT ctx c x y -> c x y
 runContextT (ContextT f) = lmap (empty,) (runReaderT f)
@@ -39,7 +42,7 @@ instance (Arrow c, Profunctor c) => ArrowContext ctx (ContextT ctx c) where
   {-# INLINE askContext #-}
   {-# INLINE localContext #-}
 
-instance ArrowLift (ContextT ctx) where
+instance ArrowTrans (ContextT ctx) where
   lift' = ContextT . lift'
   {-# INLINE lift' #-}
 

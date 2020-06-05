@@ -11,39 +11,19 @@ import Prelude hiding (id,(.),lookup,read)
 import Control.Category
 
 import Control.Arrow
-import Control.Arrow.Strict
 import Control.Arrow.Cont
 import Control.Arrow.Const
-import Control.Arrow.Environment as Env
-import Control.Arrow.Closure as Cls
-import Control.Arrow.Except as Exc
-import Control.Arrow.Fail as Fail
-import Control.Arrow.Fix
-import Control.Arrow.Fix.ControlFlow
-import Control.Arrow.Fix.Cache as Cache
-import Control.Arrow.Fix.Chaotic
-import Control.Arrow.Fix.Context
-import Control.Arrow.Fix.Stack
-import Control.Arrow.Order
 import Control.Arrow.Primitive
-import Control.Arrow.Store as Store
 import Control.Arrow.Trans
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
 import Control.Arrow.Writer as Writer
-import Control.Arrow.LetRec as LetRec
 
 import Data.Profunctor.Unsafe
 import Unsafe.Coerce
 
 -- | Arrow transformer that passes along constant data.
 newtype ConstT r c x y = ConstT (r -> c x y)
-  -- deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowLowerBounded a,
-  --           ArrowLift,ArrowJoin,ArrowPrimitive,ArrowStrict,
-  --           ArrowState s,ArrowReader r',ArrowWriter w, ArrowLetRec var val,
-  --           ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val,
-  --           ArrowFail e, ArrowExcept e,
-  --           ArrowContext ctx, ArrowStack a, ArrowCache a b, ArrowComponent a,ArrowControlFlow stmt)
 
 constT :: (r -> c x y) -> ConstT r c x y
 constT = lift
@@ -69,7 +49,7 @@ setConstT :: r -> (ConstT r c x y -> ConstT r' c x y)
 setConstT r = mapConstT (const r)
 {-# INLINE setConstT #-}
 
-instance ArrowTrans (ConstT r c) where
+instance ArrowLift (ConstT r c) where
   type Underlying (ConstT r c) x y = r -> c x y
 
 instance ArrowRun c => ArrowRun (ConstT r c) where
@@ -80,11 +60,6 @@ instance ArrowRun c => ArrowRun (ConstT r c) where
 instance (Arrow c, Profunctor c) => ArrowConst r (ConstT r c) where
   askConst f = lift $ \r -> unlift (f r) r
   {-# INLINE askConst #-}
-
-instance (Arrow c, Profunctor c, ArrowFix (c x y)) => ArrowFix (ConstT r c x y) where
-  type Fix (ConstT r c x y) = Fix (c x y)
-  fix f = lift $ \r -> fix (runConstT r . f . lift')
-  {-# INLINE fix #-}
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ConstT r c) where
   app = lift $ \r -> lmap (\(f,x) -> (unlift f r,x)) app
@@ -136,21 +111,9 @@ instance ArrowChoice c => ArrowChoice (ConstT r c) where
   {-# INLINE (+++) #-}
   {-# INLINE (|||) #-}
 
-instance ArrowLowerBounded y c => ArrowLowerBounded y (ConstT r c) where
-  bottom = lift $ \_ -> bottom
-  {-# INLINE bottom #-}
-
-instance ArrowLift (ConstT r) where
+instance ArrowTrans (ConstT r) where
   lift' f = lift $ \_ -> f
   {-# INLINE lift' #-}
-
-instance ArrowJoin c => ArrowJoin (ConstT r c) where
-  joinSecond lub f g = lift $ \r -> joinSecond lub f (unlift g r)
-  {-# INLINE joinSecond #-}
-
-instance ArrowComplete y c => ArrowComplete y (ConstT r c) where
-  f <⊔> g = lift $ \r -> unlift f r <⊔> unlift g r
-  {-# INLINE (<⊔>) #-}
 
 instance ArrowPrimitive c => ArrowPrimitive (ConstT r c) where
   type PrimState (ConstT r c) = PrimState c
@@ -173,58 +136,3 @@ instance ArrowWriter w c => ArrowWriter w (ConstT r c) where
   tell = lift $ \_ -> Writer.tell
   {-# INLINE tell #-}
 
-instance ArrowFail e c => ArrowFail e (ConstT r c) where
-  type Join x (ConstT r c) = Fail.Join x c
-  fail = lift $ \_ -> Fail.fail
-  {-# INLINE fail #-}
-
-instance ArrowExcept e c => ArrowExcept e (ConstT r c) where
-  type Join y (ConstT r c) = Exc.Join y c
-  throw = lift $ \_ -> throw
-  try f g h = lift $ \r -> try (unlift f r) (unlift g r) (unlift h r)
-  {-# INLINE throw #-}
-  {-# INLINE try #-}
-
-instance ArrowEnv var val c => ArrowEnv var val (ConstT r c) where
-  type Join y (ConstT r c) = Env.Join y c
-  lookup f g = lift $ \r -> Env.lookup (unlift f r) (unlift g r)
-  extend f = lift $ \r -> Env.extend (unlift f r)
-  {-# INLINE lookup #-}
-  {-# INLINE extend #-}
-
-instance ArrowClosure expr cls c => ArrowClosure expr cls (ConstT r c) where
-  type Join y cls (ConstT r c) = Cls.Join y cls c
-  apply f = lift $ \r -> Cls.apply (unlift f r)
-  {-# INLINE apply #-}
-
-instance ArrowLetRec addr val c => ArrowLetRec addr val (ConstT r c) where
-  letRec f = lift $ \r -> LetRec.letRec (unlift f r)
-  {-# INLINE letRec #-}
-
-instance (ArrowStore var val c) => ArrowStore var val (ConstT r c) where
-  type Join y (ConstT r c) = Store.Join y c
-  read f g = lift $ \r -> Store.read (unlift f r) (unlift g r)
-  write = lift $ \_ -> Store.write
-  {-# INLINE read #-}
-  {-# INLINE write #-}
-
-instance ArrowContext ctx c => ArrowContext ctx (ConstT r c) where
-  localContext f = lift $ \r -> localContext (unlift f r)
-  {-# INLINE localContext #-}
-
-instance ArrowStack a c => ArrowStack a (ConstT r c) where
-  push f = lift $ \r -> push (unlift f r)
-  {-# INLINE push #-}
-
-instance ArrowControlFlow stmt c => ArrowControlFlow stmt (ConstT r c) where
-  nextStatement f = lift $ \r -> nextStatement (unlift f r)
-  {-# INLINE nextStatement #-}
-
-instance (ArrowStrict c) => ArrowStrict (ConstT r c) where
-  force f = lift $ \r -> force (unlift f r)
-  {-# INLINE force #-}
-
-instance ArrowCache a b c => ArrowCache a b (ConstT r c) where
-  type Widening (ConstT r c) = Cache.Widening c
-
-instance ArrowComponent a c => ArrowComponent a (ConstT r c)

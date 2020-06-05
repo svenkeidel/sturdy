@@ -45,7 +45,7 @@ import Data.Coerce
 import GHC.Exts
 
 newtype EnvT env c x y = EnvT (ReaderT env c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowLowerBounded a, ArrowComplete z,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,ArrowLowerBounded a, ArrowComplete z,
             ArrowState s, ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowConst k, ArrowRun, ArrowCont)
 
 runEnvT :: EnvT env c x y -> c (env,x) y

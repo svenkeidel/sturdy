@@ -31,7 +31,7 @@ import Debug.Trace as Debug
 import Data.Text.Prettyprint.Doc
 
 newtype TraceT c x y = TraceT (c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans, ArrowLowerBounded b,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift, ArrowLowerBounded b,
             ArrowComponent a, ArrowInComponent a,
             ArrowContext ctx,ArrowState s,ArrowControlFlow stmt,
             ArrowTopLevel,ArrowStackDepth,ArrowStackElements a, ArrowMetrics a)
@@ -115,7 +115,7 @@ instance ArrowRun c => ArrowRun (TraceT c) where
   type Run (TraceT c) x y = Run c x y
   run f = run (runTraceT f)
 
-instance ArrowLift TraceT where
+instance ArrowTrans TraceT where
   lift' = coerce
   {-# INLINE lift' #-}
 

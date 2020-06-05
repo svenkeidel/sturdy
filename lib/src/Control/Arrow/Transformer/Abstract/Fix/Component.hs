@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 module Control.Arrow.Transformer.Abstract.Fix.Component(ComponentT,runComponentT,Component) where
@@ -15,6 +16,7 @@ import           Prelude hiding (id,pred,lookup,map,head,iterate,(.),elem)
 
 import           Control.Category
 import           Control.Arrow hiding (loop)
+import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
 import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Fix.Cache as Cache
@@ -39,16 +41,16 @@ newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
             ArrowStackDepth,ArrowStackElements a,
             ArrowCache a b, ArrowParallelCache a b,ArrowIterateCache a b,ArrowGetCache cache,
-            ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt)
+            ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt, ArrowPrimitive)
 
 runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> c x y
 runComponentT (ComponentT f) = dimap (\x -> (empty,x)) snd (runStateT f)
 {-# INLINE runComponentT #-}
 
-instance ArrowTrans (ComponentT comp a c) where
+instance ArrowLift (ComponentT comp a c) where
   type Underlying (ComponentT comp a c) x y = c (comp a,x) (comp a,y)
 
-instance ArrowLift (ComponentT comp a) where
+instance ArrowTrans (ComponentT comp a) where
   lift' f = ComponentT (lift' f)
   {-# INLINE lift' #-}
 

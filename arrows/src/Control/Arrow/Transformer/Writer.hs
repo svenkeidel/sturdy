@@ -13,32 +13,19 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Const
-import Control.Arrow.Fix.ControlFlow as CF
-import Control.Arrow.Fix.Cache as Cache
-import Control.Arrow.Fix.Stack as Stack
-import Control.Arrow.Fix.Context as Context
-import Control.Arrow.Environment as Env
-import Control.Arrow.LetRec as LetRec
-import Control.Arrow.Closure as Cls
-import Control.Arrow.Except as Exc
-import Control.Arrow.Fail as Fail
-import Control.Arrow.Fix
-import Control.Arrow.Order
 import Control.Arrow.Primitive
-import Control.Arrow.Random
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
-import Control.Arrow.Store as Store
 import Control.Arrow.Trans
 import Control.Arrow.Writer
 
-import qualified Data.Order as O
 import Data.Monoidal
 import Data.Profunctor
 import Data.Profunctor.Unsafe
 import Data.Coerce
 import Unsafe.Coerce
 
+-- | Arrow transformer that adds a writable value to an arrow computation.
 newtype WriterT w c x y = WriterT { runWriterT :: c x (w,y) }
 
 censor :: (Arrow c,Profunctor c) => (x -> w -> w) -> WriterT w c x y -> WriterT w c x y
@@ -47,7 +34,7 @@ censor f (WriterT g) = WriterT (dimap (\x -> (x,x)) (\(x,(w,y)) -> (f x w,y)) (s
 instance (Monoid w,ArrowRun c) => ArrowRun (WriterT w c) where
   type Run (WriterT w c) x y = Run c x (w,y)
 
-instance ArrowTrans (WriterT w c) where
+instance ArrowLift (WriterT w c) where
   type Underlying (WriterT w c) x y = c x (w,y)
 
 instance (Monoid w,ArrowPrimitive c) => ArrowPrimitive (WriterT w c) where
@@ -65,7 +52,7 @@ instance (Profunctor c) => Profunctor (WriterT w c) where
   {-# INLINE (.#) #-}
   {-# INLINE (#.) #-}
 
-instance Monoid w => ArrowLift (WriterT w) where
+instance Monoid w => ArrowTrans (WriterT w) where
   lift' f = lift (rmap (mempty,) f)
   {-# INLINE lift' #-}
 
@@ -117,88 +104,13 @@ instance (Monoid w, Arrow c, Profunctor c) => ArrowWriter w (WriterT w c) where
   tell = lift (arr (\w -> (w,())))
   {-# INLINE tell #-}
 
-instance (Monoid w, ArrowFail e c) => ArrowFail e (WriterT w c) where
-  type Join x (WriterT w c) = Fail.Join x c
-  fail = lift' fail
-  {-# INLINE fail #-}
-
-instance (Monoid w, ArrowExcept e c) => ArrowExcept e (WriterT w c) where
-  type Join y (WriterT w c) = Exc.Join (w,y) c
-  throw = lift' throw
-  try f g h = lift $ try (unlift f) (rmap (\(w1,(w2,z)) -> (w1 <> w2,z)) (second (unlift g))) (unlift h)
-  {-# INLINE throw #-}
-  {-# INLINE try #-}
-
 instance (Monoid w, ArrowReader r c) => ArrowReader r (WriterT w c) where
   ask = lift' Reader.ask
   local f = lift (Reader.local (unlift f))
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
-instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
-  type Join y (WriterT w c) = Env.Join (w,y) c
-  lookup f g = lift $ Env.lookup (unlift f) (unlift g)
-  extend f = lift $ Env.extend (unlift f)
-  {-# INLINE lookup #-}
-  {-# INLINE extend #-}
-
-instance ArrowLetRec var val c => ArrowLetRec var val (WriterT w c) where
-  letRec f = lift (letRec (unlift f))
-  {-# INLINE letRec #-}
-
-instance (Monoid w, ArrowClosure expr cls c) => ArrowClosure expr cls (WriterT w c) where
-  type Join y cls (WriterT w c) = Cls.Join (w,y) cls c
-  apply f = lift (Cls.apply (unlift f))
-  {-# INLINE apply #-}
-
-instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) where
-  type Join y (WriterT w c) = Store.Join (w,y) c
-  read f g = lift $ Store.read (unlift f) (unlift g)
-  write = lift' Store.write
-  {-# INLINE read #-}
-  {-# INLINE write #-}
-
-instance ArrowFix (Underlying (WriterT w c) x y) => ArrowFix (WriterT w c x y) where
-  type Fix (WriterT w c x y) = Fix (Underlying (WriterT w c) x y)
-
-instance (Monoid w, ArrowLowerBounded y c) => ArrowLowerBounded y (WriterT w c) where
-  bottom = lift' bottom
-  {-# INLINE bottom #-}
-
-instance (Monoid w, O.Complete w, ArrowJoin c) => ArrowJoin (WriterT w c) where
-  joinSecond lub f g = lift $ joinSecond (\(w1,y1) (w2,y2) -> (w1 O.⊔ w2, lub y1 y2) ) (\x -> (mempty,f x)) (unlift g)
-  {-# INLINE joinSecond #-}
-
-instance (Monoid w, ArrowComplete (w,y) c) => ArrowComplete y (WriterT w c) where
-  f <⊔> g = lift $ unlift f <⊔> unlift g
-  {-# INLINE (<⊔>) #-}
-
-instance (Monoid w, ArrowRand v c) => ArrowRand v (WriterT w c) where
-  random = lift' random
-  {-# INLINE random #-}
-
 instance (Monoid w, ArrowConst x c) => ArrowConst x (WriterT w c) where
   askConst f = lift (askConst (unlift . f))
   {-# INLINE askConst #-}
-
-instance (Monoid w, ArrowStack a c) => ArrowStack a (WriterT w c) where
-  push f = lift $ Stack.push (unlift f)
-  {-# INLINE push #-}
-
-instance (Monoid w, ArrowStackElements a c) => ArrowStackElements a (WriterT w c)
-instance (Monoid w, ArrowStackDepth c) => ArrowStackDepth (WriterT w c)
-
-instance (Monoid w, ArrowContext ctx c) => ArrowContext ctx (WriterT w c) where
-  localContext f = lift (Context.localContext (unlift f))
-  {-# INLINE localContext #-}
-
-instance (Monoid w, ArrowJoinContext a c) => ArrowJoinContext a (WriterT w c) where
-  type Widening (WriterT w c) = Context.Widening c
-
-instance (Monoid w, ArrowCache a b c) => ArrowCache a b (WriterT w c) where
-  type Widening (WriterT w c) = Cache.Widening c
-
-instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w c) where
-  nextStatement f = lift (nextStatement (unlift f))
-  {-# INLINE nextStatement #-}
 

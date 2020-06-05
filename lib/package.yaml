@@ -1,26 +1,28 @@
-name:       sturdy-lib
-version:    0.2.0.0
-synopsis:   A library for sound static analyses
-maintainer: Sven Keidel <svenkeidel@gmail.com>
-license:    BSD3
-github:     svenkeidel/sturdy
-category:   Language
+name:         sturdy-lib
+version:      0.3.0.0
+synopsis:     A library for sound static analyses
+maintainer:   Sven Keidel <svenkeidel@gmail.com>
+license:      BSD3
+github:       svenkeidel/sturdy
+category:     Language
 
 dependencies:
-  - base
-  - containers
+  - base >= 4.10 && < 4.14
   - comonad
+  - containers
+  - deepseq
+  - fgl
+  - ghc-prim
   - hashable
   - hashtables
   - mtl
-  - random
-  - text
-  - unordered-containers
-  - union-find
-  - deepseq
-  - profunctors
-  - fgl
   - prettyprinter
+  - profunctors
+  - random
+  - sturdy-arrows
+  - text
+  - union-find
+  - unordered-containers
 
 library:
   ghc-options:
@@ -43,25 +45,3 @@ tests:
       - sturdy-lib
       - hspec
       - QuickCheck
-
-benchmarks:
-  arrow-transformers:
-    main: ArrowTransformerBench.hs
-    source-dirs:
-      - bench/transformer
-    dependencies:
-      - sturdy-lib
-      - criterion
-      - dump-core
-    ghc-options: -fplugin=DumpCore -fplugin-opt DumpCore:core-html -O2
-
-  fixpoint:
-    main: FixpointBench.hs
-    source-dirs:
-      - bench/fixpoint
-      - test-programs
-    dependencies:
-      - sturdy-lib
-      - criterion
-      - dump-core
-    ghc-options: -fplugin=DumpCore -fplugin-opt DumpCore:core-html -O2

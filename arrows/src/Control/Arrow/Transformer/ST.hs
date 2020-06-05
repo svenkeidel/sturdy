@@ -12,12 +12,10 @@ import           Prelude hiding (id,(.),lookup,read,fail)
 
 import           Control.Category
 import           Control.Arrow
-import           Control.Arrow.Order
 import           Control.Arrow.Trans
 import           Control.Arrow.Primitive
 
 import           Unsafe.Coerce
-import qualified Data.Order as O
 import           Data.Profunctor hiding (Strong(..))
 import           Data.Profunctor.Unsafe
 
@@ -39,7 +37,7 @@ instance ArrowRun (ST s) where
   run f = f
   {-# NOINLINE run #-}
 
-instance ArrowTrans (ST s) where
+instance ArrowLift (ST s) where
   type Underlying (ST s) x y = (# State# s, x #) -> (# State# s, y #)
 
 instance Profunctor (ST s) where
@@ -97,7 +95,3 @@ instance ArrowChoice (ST s) where
 instance ArrowApply (ST s) where
   app = lift $ \(# s, (f,x) #) -> unlift f (# s, x #)
   {-# INLINE app #-}
-
-instance O.Complete y => ArrowComplete y (ST s) where
-  f <⊔> g = lift $ \(# s, x #) -> case unlift f (# s, x #) of (# s', y #) -> case unlift g (# s', x #) of (# s'' , y' #) -> (# s'', y O.⊔ y' #)
-  {-# INLINE (<⊔>) #-}

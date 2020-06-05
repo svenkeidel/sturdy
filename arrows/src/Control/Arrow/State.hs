@@ -9,7 +9,7 @@ import           Prelude hiding (id,(.),const)
 import           Control.Arrow
 import           Data.Profunctor
 
--- | Arrow-based interface to describe stateful computations.
+-- | Arrow type class that gives access to a stateful value.
 class (Arrow c, Profunctor c) => ArrowState s c | c -> s where
 
   -- | Retrieves the current state.
@@ -27,6 +27,7 @@ class (Arrow c, Profunctor c) => ArrowState s c | c -> s where
     returnA -< y
   {-# INLINE modify #-}
 
+-- | Modify the current state with a pure function.
 modify' :: ArrowState s c => ((x,s) -> (y,s)) -> c x y
 modify' f = modify (arr f)
 {-# INLINE modify' #-}

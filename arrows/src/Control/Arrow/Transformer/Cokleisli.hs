@@ -10,17 +10,10 @@ import Prelude hiding (id,(.),lookup,read,fail)
 import Control.Category
 import Control.Arrow hiding (ArrowMonad)
 import Control.Arrow.Const
-import Control.Arrow.Environment as Env
-import Control.Arrow.Closure as Cls
-import Control.Arrow.Except as Exc
-import Control.Arrow.Fail as Fail
-import Control.Arrow.Fix
 import Control.Arrow.Monad
-import Control.Arrow.Order
 import Control.Arrow.Primitive
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State as State
-import Control.Arrow.Store as Store
 import Control.Arrow.Trans
 
 import Data.Monoidal
@@ -28,13 +21,20 @@ import Data.Profunctor.Unsafe
 import Unsafe.Coerce
 import Control.Comonad
 
+-- | Arrow transformer that adds a comonadic effect to the input of a computation.
+-- This transformer can be used with any comonad that implements the 'ArrowComonad' interface.
 newtype CokleisliT f c x y = CokleisliT { runCokleisliT :: c (f x) y }
 
-instance (ArrowComonad f c, ArrowRun c) => ArrowRun (CokleisliT f c) where type Run (CokleisliT f c) x y = Run c (f x) y
-instance ArrowTrans (CokleisliT f c) where type Underlying (CokleisliT f c) x y = c (f x) y
-instance (ArrowComonad f c, ArrowPrimitive c) => ArrowPrimitive (CokleisliT f c) where type PrimState (CokleisliT f c) = PrimState c
+instance (ArrowComonad f c, ArrowRun c) => ArrowRun (CokleisliT f c) where
+  type Run (CokleisliT f c) x y = Run c (f x) y
 
-instance Comonad f => ArrowLift (CokleisliT f) where
+instance ArrowLift (CokleisliT f c) where
+  type Underlying (CokleisliT f c) x y = c (f x) y
+
+instance (ArrowComonad f c, ArrowPrimitive c) => ArrowPrimitive (CokleisliT f c) where
+  type PrimState (CokleisliT f c) = PrimState c
+
+instance Comonad f => ArrowTrans (CokleisliT f) where
   lift' f = lift $ lmap extract f
   {-# INLINE lift' #-}
 
@@ -90,49 +90,6 @@ instance (ArrowComonad f c, ArrowReader r c) => ArrowReader r (CokleisliT f c) w
   {-# INLINE ask #-}
   {-# INLINE local #-}
 
-instance (ArrowComonad f c, ArrowEnv x y c) => ArrowEnv x y (CokleisliT f c) where
-  type Join y (CokleisliT f c) = Env.Join y c
-  lookup f g = lift $ lmap costrength2 (Env.lookup (lmap strength2 (unlift f)) (unlift g))
-  extend f = lift $ lmap (\m -> let (x,y,_) = extract m in (x,y,fmap (\(_,_,z) -> z) m)) (Env.extend (unlift f))
-  {-# INLINE lookup #-}
-  {-# INLINE extend #-}
-
-instance (ArrowComonad f c, ArrowClosure expr cls c) => ArrowClosure expr cls (CokleisliT f c) where
-  type Join y cls (CokleisliT f c) = Cls.Join y cls c
-  apply f = lift (lmap costrength2 (Cls.apply (lmap strength2 (unlift f))))
-  {-# INLINE apply #-}
-
-instance (ArrowComonad f c, ArrowStore var val c) => ArrowStore var val (CokleisliT f c) where
-  type Join y (CokleisliT f c) = Store.Join y c
-  read f g = lift $ lmap costrength2 (read (lmap strength2 (unlift f)) (unlift g))
-  write = lift' write
-  {-# INLINE read #-}
-  {-# INLINE write #-}
-
-instance (ArrowComonad f c, ArrowFix (Underlying (CokleisliT f c) x y)) => ArrowFix (CokleisliT f c x y) where
-  type Fix (CokleisliT f c x y) = Fix (Underlying (CokleisliT f c) x y)
-
-instance (ArrowComonad f c, ArrowExcept e c) => ArrowExcept e (CokleisliT f c) where
-  type Join y (CokleisliT f c) = Exc.Join y c
-  throw = lift' throw
-  try f g h = lift $ try (mapDuplicateA (unlift f)) (unlift g) (lmap strength1 (unlift h))
-  {-# INLINE throw #-}
-  {-# INLINE try #-}
-
-instance (ArrowComonad f c, ArrowFail e c) => ArrowFail e (CokleisliT f c) where
-  type Join y (CokleisliT f c) = Fail.Join y c
-  fail = lift' fail
-  {-# INLINE fail #-}
-
 instance (ArrowComonad f c, ArrowConst r c) => ArrowConst r (CokleisliT f c) where
   askConst f = lift (askConst (unlift . f))
   {-# INLINE askConst #-}
-
-instance (ArrowComonad f c, ArrowComplete y c) => ArrowComplete y (CokleisliT f c) where
-  f <⊔> g = lift $ unlift f <⊔> unlift g
-  {-# INLINE (<⊔>) #-}
-
-instance (ArrowComonad f c, ArrowJoin c) => ArrowJoin (CokleisliT f c) where
-  joinSecond lub f g = lift $ joinSecond lub (f . extract) (unlift g)
-  {-# INLINE joinSecond #-}
-

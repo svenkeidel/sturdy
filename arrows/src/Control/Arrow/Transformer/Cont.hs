@@ -12,9 +12,6 @@ import Prelude hiding (id,(.),fail)
 import Control.Category
 import Control.Arrow
 import Control.Arrow.Cont
-import Control.Arrow.Fix
-import Control.Arrow.Fail as Fail
-import Control.Arrow.Order
 import Control.Arrow.Primitive
 import Control.Arrow.Trans
 import Control.Arrow.Reader
@@ -40,10 +37,10 @@ instance (ArrowApply c, ArrowRun c) => ArrowRun (ContT r c) where
   run f x = run $ runContT f x
   {-# INLINE run #-}
 
-instance ArrowTrans (ContT r c) where
+instance ArrowLift (ContT r c) where
   type Underlying (ContT r c) x y = c y r -> c x r
 
-instance ArrowLift (ContT r) where
+instance ArrowTrans (ContT r) where
   lift' f = ContT $ \k -> k . f
   {-# INLINE lift' #-}
 
@@ -94,17 +91,6 @@ instance ArrowApply c => ArrowApply (ContT r c) where
   app = lift $ \k -> proc (f,x) -> app -< (unlift f k, x)
   {-# INLINE app #-}
 
-instance ArrowFix (c x r) => ArrowFix (ContT r c x y) where
-  type Fix (ContT r c x y) = Fix (c x r)
-  fix f = lift $ \k -> fix $ \g -> unlift1 f (const g) k
-  {-# INLINE fix #-}
-
--- instance (ArrowApply c, ArrowJoin c, ArrowComplete r c) => ArrowJoin (ContT r c) where
---   joinSecond _ _ x = lift $ f <⊔> arr g
-
-instance (ArrowApply c, ArrowComplete r c) => ArrowComplete y (ContT r c) where
-  (<⊔>) f g = lift $ \k -> unlift f k <⊔> unlift g k
-
 instance (ArrowApply c, ArrowState s c) => ArrowState s (ContT r c) where
   get = lift' get
   put = lift' put
@@ -120,8 +106,3 @@ instance (ArrowApply c, ArrowReader s c) => ArrowReader s (ContT r c) where
 instance (ArrowApply c, ArrowWriter w c) => ArrowWriter w (ContT r c) where
   tell = lift' tell
   {-# INLINE tell #-}
-
-instance (ArrowApply c, ArrowFail e c) => ArrowFail e (ContT r c) where
-  type Join x (ContT r c) = Fail.Join x c
-  fail = lift' fail
-  {-# INLINE fail #-}
