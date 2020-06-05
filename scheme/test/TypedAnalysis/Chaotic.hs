@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -21,6 +22,7 @@
 module TypedAnalysis.Chaotic where
 
 import           Prelude hiding (not,Bounded,fail,(.),exp,read,IO)
+import qualified Prelude as P
 
 import           Control.Category
 import           Control.Arrow
@@ -28,9 +30,12 @@ import           Control.Arrow.Environment as Env
 import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost',outermost')
 import qualified Control.Arrow.Fix.Context as Ctx
+import           Control.Arrow.Fix.Stack as Stack
+import           Control.Arrow.IO
 import qualified Control.Arrow.Trans as Trans
+import           Control.Arrow.Transformer.IO
 import           Control.Arrow.Transformer.Value
-import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
+import           Control.Arrow.Transformer.Abstract.FiniteEnvStore hiding (Env)
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Component as Comp
@@ -97,61 +102,81 @@ evalOuter' exprs = let (metrics,(cfg,res)) = evalOuter [] exprs in (metrics,(cfg
 eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors,Terminating Val)
 eval' env exprs = snd $ snd $ snd $ evalInner env exprs
 
+type Socket = () -- Placeholder
+type Breakpoints = [Expr] -- Placeholder
+type StackElems = [In] -- Placeholder
 data DebugState = DebugState { socket :: Socket, breakpoints :: Breakpoints }
 
-server :: IO ()
-server = proc (env,expr) -> do
-  socket <- createSocket -< 1234
-  loop
-  where
-    loop = do
-      msg <- Client.receive -< ()
-      case msg of
-        StartProgram file breakpoints -> do
-          prog <- loadSchemeFile file
-          let ?sensitivity = 0
-          let debugState = DebugState socket breakpoints
-          evalDebug debugState prog
-          loop
-        _ ->
-          closeSocket socket
+data Message
+  = ReachedBreakpoint {breakpoint :: Expr, env :: Env}
+  | Continue
+  | GetStackRequest
+  | GetStackResponse StackElems
 
-evalDebug :: (?sensitivity::Int) => DebugState -> LExpr -> IO ()
-evalDebug socket expr =
+-- | Main entry point for the debugger
+startDebugger :: [LExpr] -> P.IO ()
+startDebugger expr = do
+  _setupDebugState -- TODO: Implement
+  let ?sensitivity = 0
+  let ?debugState = _debugState -- TODO: Implement
+  evalDebug expr
+  -- socket <- createSocket -< 1234
+  -- loop
+  -- where
+  --   loop = do
+  --     msg <- Client.receive -< ()
+  --     case msg of
+  --       StartProgram file breakpoints -> do
+  --         prog <- loadSchemeFile file
+  --         let ?sensitivity = 0
+  --         let debugState = DebugState socket breakpoints
+  --         evalDebug debugState prog
+  --         loop
+  --       _ ->
+  --         closeSocket socket
+
+evalDebug :: (?sensitivity::Int, ?debugState::DebugState) => [LExpr] -> P.IO ()
+evalDebug expr =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
        Fix.fixpointAlgorithm $
-         debugCombinator socket .
+         debug .
          Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
          Fix.filter' isFunctionBody (chaotic innermost') in
-  _ <- Trans.run (extend' (Generic.runFixed :: InterpChaotic [Expr] Val)) (empty,(empty,([],e0)))
-  return ()
+  do _ <- Trans.run (extend' (Generic.runFixed :: InterpT IO [Expr] Val)) (empty,(empty,([],e0)))
+     return ()
   where
-    e0 = generate (sequence e)
+    e0 = generate (sequence expr)
 
-Client.send :: c Message ()
-Client.send = liftIO (\message -> socket.send (encode message))
+-- | Send message to debugging client
+send :: (?debugState :: DebugState) => Message -> P.IO ()
+send = _send -- TODO: Implement
 
-Socket.send :: JSON -> IO ()
+-- | Receive message from debugging client
+receive :: (?debugState :: DebugState) => () -> P.IO Message
+receive = _receive -- TODO: Implement
 
-
-debugCombinator :: ArrowStackElements In c => DebugState -> FixpointCombinator c ((Store,Errors),(Env,[Expr])) ((Store,Errors), Terminating Val)
-debugCombinator state f = proc input@((store,errors),(env,expr)) -> do
-  if getLabel expr `elem` breakpoints state
-    then
+-- | Debugging combinator
+debug :: (?debugState :: DebugState,
+          ArrowChoice c, ArrowIO c, ArrowStackElements In c)
+      => Fix.FixpointCombinator c ((Store,Errors),(Env,[Expr]))
+                                  ((Store,Errors), Terminating Val)
+debug f = proc input@((store,errors),(env,exprs)) -> do
+  case exprs of
+    expr:_ | expr `P.elem` breakpoints ?debugState -> do
       -- We reached a breakpoint
-      Client.send -< (reachedBreakpoint (getLabel expr) env)
+      liftIO send -< ReachedBreakpoint expr env
       loop -< input
-      f <- input
-    else do
+      f -< input
+    _ ->
       f -< input
   where
-    loop = proc input@((store,errors)(env,expr)) -> do
-      msg <- Client.receive -< ()
+    loop = proc input@((store,errors),(env,expr)) -> do
+      msg <- liftIO receive -< ()
       case msg of
-        ContinueMessage ->
+        Continue ->
           returnA -< ()
-        GetStackMessage -> do
+        GetStackRequest -> do
           stack <- Stack.elems -< ()
-          Client.send (GetStackResponse (encode stack))
+          liftIO send -< GetStackResponse stack
           loop -< input
