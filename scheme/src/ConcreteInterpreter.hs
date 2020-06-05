@@ -79,7 +79,7 @@ evalConcrete' es =
                (->)))) [Expr] Val)
          (0, (M.empty, (M.empty, generate <$> es)))
 
-instance (ArrowChoice c, Profunctor c, ArrowState Int c) => ArrowAlloc Addr (ValueT Val c) where
+instance (ArrowChoice c, ArrowState Int c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = proc _ -> do
       nextAddr <- get -< ()
       put -< nextAddr + 1
@@ -281,7 +281,7 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
       [RatioVal 0] -> fail -< "(/): Divided by zero: " ++ show xs
       [IntVal n] -> returnA -< RatioVal (1 / toRational n)
       [FloatVal n] -> returnA -< RatioVal (1 / toRational n)
-      [RatioVal n] -> returnA -< RatioVal (1 / toRational n)
+      [RatioVal n] -> returnA -< RatioVal (1 / n)
       _ -> if foldl (||) (map checkZero xs !! 1) (tail (map checkZero xs))
            then fail -< "(/): Divided by zero: " ++ show xs
            else case foldl divHelpFold (Right $ head xs) (tail xs) of
@@ -298,7 +298,7 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
       Right as -> returnA -< StringVal (T.concat as)
 
 instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail String c, Store.Join Val c, Fail.Join Val c)
-  => IsCons Val (ValueT Val c) where
+  => IsList_ Val (ValueT Val c) where
 
   nil_ = proc _ ->
     returnA -< ListVal Nil

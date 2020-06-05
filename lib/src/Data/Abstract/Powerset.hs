@@ -16,6 +16,7 @@ import           Control.Arrow.Monad
 import           Control.Applicative hiding (empty)
 import           Control.Category
 import           Control.Monad
+import           Control.DeepSeq
 import           Data.Profunctor hiding (Costrong)
 import           Data.Sequence (Seq,(<|),viewl,ViewL(..),(><))
 import qualified Data.Sequence as Seq
@@ -29,6 +30,8 @@ import           Data.Order
 import           GHC.Generics (Generic)
 
 newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, MonadPlus, Semigroup, Monoid, Foldable, Traversable, Generic)
+
+instance NFData x => NFData (Pow x)
 
 instance PreOrd a => PreOrd (Pow a) where
   as ⊑ bs = all (\x -> any (x ⊑) bs) as

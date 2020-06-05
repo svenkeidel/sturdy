@@ -57,6 +57,7 @@ import           Data.Empty
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
+import           Data.Abstract.Powerset(Pow)
 
 import           Syntax (Expr(App))
 import qualified GenericInterpreter as Generic
@@ -65,35 +66,34 @@ import           TypedAnalysis
 import           GHC.Exts
 
 type Interp =
-  ValueT Val
-    (TerminatingT
+  ValueT (Pow Val)
       (LogErrorT Text
-        (EnvStoreT Text Addr Val
+        (EnvStoreT Text Addr (Pow Val)
           (FixT
             (ComponentT Comp.Component In
               (StackT Stack.Stack In
                 (CacheT Cache.Monotone In Out
                   (ContextT Ctx
-                    (->)))))))))
+                    (->))))))))
 
 {-# SPECIALIZE if__ :: (ArrowComplete z Interp)
                     => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}
-{-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
-{-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
-{-# SPECIALIZE Generic.runFixed :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))) => Interp [Expr] Val #-}
+{-# SPECIALIZE Generic.eval :: Interp [Expr] (Pow Val) -> Interp Expr (Pow Val) #-}
+{-# SPECIALIZE Generic.run :: Interp Expr (Pow Val) -> Interp [Expr] (Pow Val) -> Interp [Expr] (Pow Val) #-}
+{-# SPECIALIZE Generic.runFixed :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp [Expr] (Pow Val)))) => Interp [Expr] (Pow Val) #-}
 
-evalInner :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
+evalInner :: (?sensitivity :: Int) => Expr -> (Errors, Pow Val)
 evalInner e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
         Fix.fixpointAlgorithm $
         Fix.filter isFunctionBody (chaotic innermost)
-  in snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
+  in snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] (Pow Val)) (empty,(empty,[e]))
 
-evalOuter :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
+evalOuter :: (?sensitivity :: Int) => Expr -> (Errors, Pow Val)
 evalOuter e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
         Fix.fixpointAlgorithm $
         Fix.filter isFunctionBody (chaotic outermost)
-  in snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
+  in snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] (Pow Val)) (empty,(empty,[e]))

@@ -61,11 +61,11 @@ type InterpChaotic x y =
         (EnvStoreT Text Addr (Pow Val)
           (FixT
             (MetricsT Metric.Monotone In
-            (ComponentT Comp.Component  In
-              (StackT Stack.Stack In
-                (CacheT Cache.Monotone In Out
-                  (ContextT Ctx
-                    (ControlFlowT Expr (->))))))))))) x y
+              (ComponentT Comp.Component  In
+                (StackT Stack.Stack In
+                  (CacheT Cache.Monotone In Out
+                    (ContextT Ctx
+                      (ControlFlowT Expr (->))))))))))) x y
 
 evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [State Label Expr] -> (CFG Expr, (Metric.Monotone In, Out'))
 evalChaotic iterationStrat env0 e =

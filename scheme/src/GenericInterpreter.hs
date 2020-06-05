@@ -27,27 +27,26 @@ import           Data.Text (Text)
 import           Text.Printf
 import           Data.List.Split
 import           Data.Label
+import           Data.Kind(Type)
 
 import           GHC.Exts (IsString(..),Constraint)
 
 -- | Shared interpreter for Scheme.
 eval :: (ArrowChoice c,
-         ArrowFix (c [Expr] v),
          ArrowEnv Text addr c,
          ArrowStore addr v c,
          ArrowFail e c,
          IsString e,
          ArrowClosure Expr v c,
          IsVal v c,
-         IsCons v c,
+         IsList_ v c,
          Env.Join v c,
          Cls.Join v v c,
          Store.Join v c,
          Fail.Join v c,
          Join v c,
          Show addr,
-         ArrowAlloc addr c,
-         Env.Join addr c)
+         ArrowAlloc addr c)
      => c [Expr] v -> c Expr v
 eval run' = proc e0 -> case e0 of
   Lit x _ -> lit -< x
@@ -133,18 +132,10 @@ run :: (ArrowChoice c,
         ArrowStore addr v c,
         ArrowFail e c,
         IsString e,
-        ArrowClosure Expr v c,
         IsVal v c,
-        IsCons v c,
-        Env.Join v c,
         Env.Join addr c,
-        Cls.Join v v c,
-        Store.Join v c,
-        Fail.Join v c,
         Fail.Join addr c,
-        Join v c,
-        ArrowAlloc addr c,
-        Show addr)
+        ArrowAlloc addr c)
     => c Expr v -> c [Expr] v -> c [Expr] v
 run eval' run' = proc es -> case es of
   Set x e _:rest -> do
@@ -181,7 +172,7 @@ runFixed :: (
   IsString e,
   ArrowClosure Expr v c,
   IsVal v c,
-  IsCons v c,
+  IsList_ v c,
   Env.Join v c,
   Env.Join addr c,
   Cls.Join v v c,
@@ -200,7 +191,7 @@ class ArrowAlloc addr c where
   alloc :: c (Text,Label) addr
 
 class (Arrow c) => IsVal v c | c -> v where
-  type family Join y (c :: * -> * -> *) :: Constraint
+  type family Join y (c :: Type -> Type -> Type) :: Constraint
   lit :: c Literal v
   if_ :: Join z c => c x z -> c y z -> c (v, (x, y)) z
 
@@ -210,7 +201,7 @@ class (Arrow c) => IsVal v c | c -> v where
   op2_ :: c (Op2, v, v) v
   opvar_ :: c (OpVar, [v]) v
 
-class (Arrow c) => IsCons v c | c -> v where
+class (Arrow c) => IsList_ v c | c -> v where
   nil_ :: c Label v
   cons_ :: c ((v, Label), (v, Label)) v
   op1list_ :: c (Op1List,v) v 
