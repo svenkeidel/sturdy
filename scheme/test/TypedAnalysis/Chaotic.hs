@@ -12,6 +12,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC
   -fspecialise-aggressively
   -flate-specialise
@@ -56,6 +57,37 @@ import           Data.Abstract.Terminating(Terminating)
 import           TypedAnalysis
 import           Syntax (LExpr,Expr(App))
 import           GenericInterpreter as Generic
+
+
+--imports for debugger
+import qualified Control.Concurrent             as Concurrent
+import qualified Control.Exception              as Exception
+import qualified Control.Monad                  as Monad
+import qualified Data.List                      as List
+import qualified Data.Maybe                     as Maybe
+import qualified Data.Text                      as Text
+import qualified Network.HTTP.Types             as Http
+import qualified Network.Wai                    as Wai
+import qualified Network.Wai.Handler.Warp       as Warp
+import qualified Network.Wai.Handler.WebSockets as WS
+import qualified Network.WebSockets             as WS
+import qualified Safe
+
+--JSON Parser Imports
+
+import Data.Aeson
+import Data.Text.Encoding
+import GHC.Generics
+import Data.Aeson.TH
+import Data.Text.Lazy.Encoding
+
+import Data.ByteString.Builder(toLazyByteString)
+
+import Parser
+
+import qualified Data.ByteString.Lazy          as BL
+import qualified Data.ByteString               as B
+
 
 type InterpT c x y =
   (ValueT Val
@@ -102,10 +134,29 @@ evalOuter' exprs = let (metrics,(cfg,res)) = evalOuter [] exprs in (metrics,(cfg
 eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors,Terminating Val)
 eval' env exprs = snd $ snd $ snd $ evalInner env exprs
 
+
+
+--------------------------------------------------
+--------------------------------------------------
+--------------------------------------------------
+
+type ClientId = Int
+type Client   = (ClientId, WS.Connection)
+type State    = [Client]
+
 type Socket = () -- Placeholder
 type Breakpoints = [Expr] -- Placeholder
 type StackElems = [In] -- Placeholder
-data DebugState = DebugState { socket :: Socket, breakpoints :: Breakpoints }
+
+data DebugState = DebugState {
+  breakpoints :: Breakpoints,  
+  conn :: WS.Connection,
+  clientId :: ClientId,
+  stateRef :: Concurrent.MVar State,
+  expressionList :: [LExpr],
+  debugPhase :: Int
+}
+
 
 data Message
   = ReachedBreakpoint {breakpoint :: Expr, env :: Env}
@@ -113,8 +164,60 @@ data Message
   | GetStackRequest
   | GetStackResponse StackElems
 
+
+
+
+---------------------     Websocket Messages     ----------------------------
+
+data TestMessage
+  = InitializeDebuggerRequest {operation :: Text, path :: String}
+  | InitializeDebuggerResponse {operation :: Text, code :: Text}
+  | ContinueRequest {operation :: Text, bps :: [Text], start :: Bool}
+  | ContinueResponse {operation :: Text, debugInfo :: Text}
+  | RefreshRequest {operation :: Text}
+  | RefreshResponse {operation :: Text, success :: Bool}
+  deriving (Show, Eq)
+
+instance ToJSON TestMessage where
+    toJSON (InitializeDebuggerRequest operation path) = object ["operation" .= operation, "path" .= path]
+    toJSON (InitializeDebuggerResponse operation code) = object ["operation" .= operation, "code" .= code] 
+    toJSON (ContinueRequest operation bps start) = object ["operation" .= operation, "bps" .= bps, "start" .= start]
+    toJSON (ContinueResponse operation debugInfo) = object ["operation" .= operation, "debugInfo" .= debugInfo]
+    toJSON (RefreshRequest operation) = object ["operation" .= operation]
+    toJSON (RefreshResponse operation success) = object ["operation" .= operation, "success" .= success]
+
+instance FromJSON TestMessage where
+    parseJSON v = parseInitializeDebuggerRequest v 
+               <> parseInitializeDebuggerResponse v 
+               <> parseContinueRequest v
+               <> parseContinueResponse v 
+               <> parseRefreshRequest v 
+               <> parseRefreshResponse v
+      where
+        parseInitializeDebuggerRequest = withObject "InitializeDebuggerRequest" $ \obj -> InitializeDebuggerRequest <$> obj .: "operation" <*> obj .: "path"
+        parseInitializeDebuggerResponse = withObject "InitializeDebuggerResponse" $ \obj -> InitializeDebuggerResponse <$> obj .: "operation" <*> obj .: "code"
+        parseContinueRequest = withObject "ContinueRequest" $ \obj -> ContinueRequest <$> obj .: "operation" <*> obj .: "bps" <*> obj .: "start"
+        parseContinueResponse = withObject "ContinueResponse" $ \obj -> ContinueResponse <$> obj .: "operation" <*> obj.: "debugInfo"
+        parseRefreshRequest = withObject "RefreshRequest" $ \obj -> RefreshRequest <$> obj .: "operation"
+        parseRefreshResponse = withObject "RefreshResponse" $ \obj -> RefreshResponse <$> obj .: "operation" <*> obj .: "success"
+
+
+
+
+
+changeExpressions :: DebugState -> [LExpr] -> DebugState
+changeExpressions debugState expressions = DebugState (breakpoints debugState) (conn debugState) (clientId debugState) (stateRef debugState) expressions (debugPhase debugState)
+
+changeDebugPhase :: DebugState -> Int -> DebugState
+changeDebugPhase debugState debugPhase = DebugState (breakpoints debugState) (conn debugState) (clientId debugState) (stateRef debugState) (expressionList debugState) debugPhase 
+
+
+
+
+{--
+
 -- | Main entry point for the debugger
-startDebugger :: [LExpr] -> P.IO ()
+startDebugger :: [LExpr] -> P.IO ()                   
 startDebugger expr = do
   _setupDebugState -- TODO: Implement
   let ?sensitivity = 0
@@ -180,3 +283,157 @@ debug f = proc input@((store,errors),(env,exprs)) -> do
           stack <- Stack.elems -< ()
           liftIO send -< GetStackResponse stack
           loop -< input
+
+
+-}
+
+
+
+startServer :: P.IO ()
+startServer = do
+  putStrLn "hello world"
+  state <- Concurrent.newMVar []
+  Warp.run 3000 $ WS.websocketsOr
+    WS.defaultConnectionOptions
+    (wsApp state)
+    httpApp
+
+wsApp :: Concurrent.MVar State -> WS.ServerApp
+wsApp stateRef pendingConn = do
+  conn <- WS.acceptRequest pendingConn
+  clientId <- connectClient conn stateRef
+  WS.forkPingThread conn 30
+  let debugState = DebugState [] conn clientId stateRef [] 0
+  Exception.finally
+    (listen debugState)
+    (disconnectClient clientId stateRef)
+
+
+httpApp :: Wai.Application
+httpApp _ respond = respond $ Wai.responseLBS Http.status400 [] "Not a websocket request"
+
+nextId :: State -> ClientId
+nextId = Maybe.maybe 0 ((+) 1) . Safe.maximumMay . List.map fst
+
+connectClient :: WS.Connection -> Concurrent.MVar State -> P.IO ClientId
+connectClient conn stateRef = Concurrent.modifyMVar stateRef $ \state -> do
+  let clientId = nextId state
+  return ((clientId, conn) : state, clientId)
+
+
+extractClient :: ClientId -> State -> State
+extractClient clientId = List.filter ((==) clientId . fst)
+
+withoutClient :: ClientId -> State -> State
+withoutClient clientId = List.filter ((/=) clientId . fst)
+
+disconnectClient :: ClientId -> Concurrent.MVar State -> P.IO ()
+disconnectClient clientId stateRef = Concurrent.modifyMVar_ stateRef $ \state ->
+  return $ withoutClient clientId state
+
+listen :: DebugState -> P.IO ()
+listen debugState = do
+  print (clientId debugState)
+  
+  msg <- WS.receiveData (conn debugState)
+  let dec = Maybe.fromJust (decode'' msg) :: TestMessage
+  print "JETZT KOMMT PRINT DEC "
+  print (dec)
+  print (operation dec)
+  let op = operation dec
+  case op of
+
+    "InitializeDebuggerRequest" -> do
+      let expressions = Parser.loadSchemeFile (path dec)
+      -- TODO richtige Expressions an den Client senden, wie kann man die expr. zum string casten?
+      let object = InitializeDebuggerResponse "InitializeDebuggerResponse" "BLA CODE"
+      print object
+      let encodedObject = encode object
+      let textObject = Data.Text.Encoding.decodeUtf8 (toStrict1 encodedObject)
+      
+      sendResponse debugState textObject
+      --debugPhase auf 1 setzen
+    
+    "ContinueRequest" -> do
+      sendResponse debugState "bla"
+      --checken ob debug phase auf 1 ist
+      --evalDebug aufrufen
+      let ?sensitivity = 0
+      let ?debugState = debugState 
+      evalDebug (expressionList debugState)
+
+
+    "RefreshRequest" -> do
+      --debug state neu initialisieren und listen aufrufen
+      sendResponse debugState "REFRESHHHH"
+
+
+  listen debugState
+
+
+
+  
+
+sendResponse :: DebugState -> Text.Text -> P.IO ()
+sendResponse debugState msg = do
+  print msg
+  putStrLn "hier in sendResponse"
+
+  WS.sendTextData (conn debugState) msg             
+  
+
+
+
+evalDebug :: (?sensitivity::Int, ?debugState::DebugState) => [LExpr] -> P.IO ()
+evalDebug expr =
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $
+       Fix.fixpointAlgorithm $
+         --debug .        --TODO
+         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+         Fix.filter' isFunctionBody (chaotic innermost') in
+  do _ <- Trans.run (extend' (Generic.runFixed :: InterpT IO [Expr] Val)) (empty,(empty,([],e0)))
+     return ()
+  where
+    e0 = generate (sequence expr)
+
+
+-- | Debugging combinator
+debug :: (?debugState :: DebugState,
+          ArrowChoice c, ArrowIO c, ArrowStackElements In c)
+      => Fix.FixpointCombinator c ((Store,Errors),(Env,[Expr]))
+                                  ((Store,Errors), Terminating Val)
+debug f = proc input@((store,errors),(env,exprs)) -> do
+  case exprs of
+    expr:_ | expr `P.elem` breakpoints ?debugState -> do
+      -- We reached a breakpoint
+      liftIO send -< ReachedBreakpoint expr env
+      loop -< input
+      f -< input
+    _ ->
+      f -< input
+  where
+    loop = proc input@((store,errors),(env,expr)) -> do
+      msg <- liftIO receive -< ()
+      case msg of
+        Continue ->
+          returnA -< ()
+        GetStackRequest -> do
+          stack <- Stack.elems -< ()
+          liftIO send -< GetStackResponse stack
+          loop -< input
+
+
+
+---------------------     Helper Functions     ----------------------------
+
+decode'' :: FromJSON a => Text.Text -> Maybe a
+decode'' = decode . toLazyByteString . Data.Text.Encoding.encodeUtf8Builder
+
+
+toStrict1 :: BL.ByteString -> B.ByteString
+toStrict1 = B.concat . BL.toChunks
+
+
+
+
