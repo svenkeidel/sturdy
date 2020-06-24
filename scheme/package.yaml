@@ -26,6 +26,14 @@ dependencies:
   - text
   - transformers
   - unordered-containers
+  - bytestring
+  - http-types
+  - aeson
+  - safe
+  - websockets
+  - wai-websockets
+  - warp
+  - wai
 
 data-files:
   - scheme_files/**/*.scm
