@@ -92,7 +92,7 @@ import Parser
 import qualified Data.ByteString.Lazy          as BL
 import qualified Data.ByteString               as B
 
-import Control.Arrow.Transformer.Debug(DebugT, ArrowDebug, sendMessage)
+import Control.Arrow.Transformer.Debug(DebugState(..), DebugT, ArrowDebug, sendMessage)
 import          Control.Arrow.Transformer.State
 
 type InterpT c x y =
@@ -158,14 +158,14 @@ type Socket = () -- Placeholder
 type Breakpoints = [Expr] -- Placeholder
 type StackElems = [In] -- Placeholder
 
-data DebugState = DebugState {
-  breakpoints :: Breakpoints,  
-  conn :: WS.Connection,
-  clientId :: ClientId,
-  stateRef :: Concurrent.MVar State,
-  expressionList :: [LExpr],
-  debugPhase :: Int
-}
+-- data DebugState = DebugState {
+--   breakpoints :: Breakpoints,  
+--   conn :: WS.Connection,
+--   clientId :: ClientId,
+--   stateRef :: Concurrent.MVar State,
+--   expressionList :: [LExpr],
+--   debugPhase :: Int
+-- }
 
 
 data Message
@@ -180,37 +180,37 @@ data Message
 ---------------------     Websocket Messages     ----------------------------
 
 data TestMessage
-  = InitializeDebuggerRequest {operation :: Text, path :: String}
-  | InitializeDebuggerResponse {operation :: Text, code :: Text}
-  | ContinueRequest {operation :: Text, bps :: [Text], start :: Bool}
-  | ContinueResponse {operation :: Text, debugInfo :: Text}
-  | RefreshRequest {operation :: Text}
-  | RefreshResponse {operation :: Text, success :: Bool}
-  deriving (Show, Eq)
+  = InitializeDebuggerRequest {path :: String}
+  | InitializeDebuggerResponse {code :: Text}
+  | ContinueRequest {bps :: [Text], start :: Bool}
+  | ContinueResponse {debugInfo :: Text}
+  | RefreshRequest
+  | RefreshResponse {success :: Bool}
+  deriving (Show, Eq, Generic)
 
 
 instance ToJSON TestMessage where
-    toJSON (InitializeDebuggerRequest operation path) = object ["operation" .= operation, "path" .= path]
-    toJSON (InitializeDebuggerResponse operation code) = object ["operation" .= operation, "code" .= code] 
-    toJSON (ContinueRequest operation bps start) = object ["operation" .= operation, "bps" .= bps, "start" .= start]
-    toJSON (ContinueResponse operation debugInfo) = object ["operation" .= operation, "debugInfo" .= debugInfo]
-    toJSON (RefreshRequest operation) = object ["operation" .= operation]
-    toJSON (RefreshResponse operation success) = object ["operation" .= operation, "success" .= success]
+    -- toJSON (InitializeDebuggerRequest operation path) = object ["operation" .= operation, "path" .= path]
+    -- toJSON (InitializeDebuggerResponse operation code) = object ["operation" .= operation, "code" .= code] 
+    -- toJSON (ContinueRequest operation bps start) = object ["operation" .= operation, "bps" .= bps, "start" .= start]
+    -- toJSON (ContinueResponse operation debugInfo) = object ["operation" .= operation, "debugInfo" .= debugInfo]
+    -- toJSON (RefreshRequest operation) = object ["operation" .= operation]
+    -- toJSON (RefreshResponse operation success) = object ["operation" .= operation, "success" .= success]
 
 instance FromJSON TestMessage where
-    parseJSON v = parseInitializeDebuggerRequest v 
-               <> parseInitializeDebuggerResponse v 
-               <> parseContinueRequest v
-               <> parseContinueResponse v 
-               <> parseRefreshRequest v 
-               <> parseRefreshResponse v
-      where
-        parseInitializeDebuggerRequest = withObject "InitializeDebuggerRequest" $ \obj -> InitializeDebuggerRequest <$> obj .: "operation" <*> obj .: "path"
-        parseInitializeDebuggerResponse = withObject "InitializeDebuggerResponse" $ \obj -> InitializeDebuggerResponse <$> obj .: "operation" <*> obj .: "code"
-        parseContinueRequest = withObject "ContinueRequest" $ \obj -> ContinueRequest <$> obj .: "operation" <*> obj .: "bps" <*> obj .: "start"
-        parseContinueResponse = withObject "ContinueResponse" $ \obj -> ContinueResponse <$> obj .: "operation" <*> obj.: "debugInfo"
-        parseRefreshRequest = withObject "RefreshRequest" $ \obj -> RefreshRequest <$> obj .: "operation"
-        parseRefreshResponse = withObject "RefreshResponse" $ \obj -> RefreshResponse <$> obj .: "operation" <*> obj .: "success"
+    -- parseJSON v = parseInitializeDebuggerRequest v 
+    --            <> parseInitializeDebuggerResponse v 
+    --            <> parseContinueRequest v
+    --            <> parseContinueResponse v 
+    --            <> parseRefreshRequest v 
+    --            <> parseRefreshResponse v
+    --   where
+    --     parseInitializeDebuggerRequest = withObject "InitializeDebuggerRequest" $ \obj -> InitializeDebuggerRequest <$> obj .: "operation" <*> obj .: "path"
+    --     parseInitializeDebuggerResponse = withObject "InitializeDebuggerResponse" $ \obj -> InitializeDebuggerResponse <$> obj .: "operation" <*> obj .: "code"
+    --     parseContinueRequest = withObject "ContinueRequest" $ \obj -> ContinueRequest <$> obj .: "operation" <*> obj .: "bps" <*> obj .: "start"
+    --     parseContinueResponse = withObject "ContinueResponse" $ \obj -> ContinueResponse <$> obj .: "operation" <*> obj.: "debugInfo"
+    --     parseRefreshRequest = withObject "RefreshRequest" $ \obj -> RefreshRequest <$> obj .: "operation"
+    --     parseRefreshResponse = withObject "RefreshResponse" $ \obj -> RefreshResponse <$> obj .: "operation" <*> obj .: "success"
 
 
 
@@ -348,33 +348,36 @@ listen debugState = do
   let dec = Maybe.fromJust (decode'' msg) :: TestMessage
   print "JETZT KOMMT PRINT DEC "
   print (dec)
-  print (operation dec)
-  let op = operation dec
-  case op of
+  -- print (operation dec)
+  -- case dec of
+  --   InitializeDebuggerResponse { code = c } -> ... c ... 
+  
+  -- let op = operation dec
+  -- case op of
 
-    "InitializeDebuggerRequest" -> do
-      let expressions = Parser.loadSchemeFile (path dec)
-      -- TODO richtige Expressions an den Client senden, wie kann man die expr. zum string casten?
-      let object = InitializeDebuggerResponse "InitializeDebuggerResponse" "BLA CODE"
-      print object
-      let encodedObject = encode object
-      let textObject = Data.Text.Encoding.decodeUtf8 (toStrict1 encodedObject)
+  --   "InitializeDebuggerRequest" -> do
+  --     let expressions = Parser.loadSchemeFile (path dec)
+  --     -- TODO richtige Expressions an den Client senden, wie kann man die expr. zum string casten?
+  --     let object = InitializeDebuggerResponse "InitializeDebuggerResponse" "BLA CODE"
+  --     print object
+  --     let encodedObject = encode object
+  --     let textObject = Data.Text.Encoding.decodeUtf8 (toStrict1 encodedObject)
       
-      sendResponse debugState textObject
-      --debugPhase auf 1 setzen
+  --     sendResponse debugState textObject
+  --     --debugPhase auf 1 setzen
     
-    "ContinueRequest" -> do
-      sendResponse debugState "bla"
-      --checken ob debug phase auf 1 ist
-      --evalDebug aufrufen
-      let ?sensitivity = 0
-      let ?debugState = debugState 
-      evalDebug (expressionList debugState)
+  --   "ContinueRequest" -> do
+  --     sendResponse debugState "bla"
+  --     --checken ob debug phase auf 1 ist
+  --     --evalDebug aufrufen
+  --     let ?sensitivity = 0
+  --     let ?debugState = debugState 
+  --     evalDebug (expressionList debugState)
 
 
-    "RefreshRequest" -> do
-      --debug state neu initialisieren und listen aufrufen
-      sendResponse debugState "REFRESHHHH"
+  --   "RefreshRequest" -> do
+  --     --debug state neu initialisieren und listen aufrufen
+  --     sendResponse debugState "REFRESHHHH"
 
 
   listen debugState
@@ -398,10 +401,10 @@ evalDebug expr =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
        Fix.fixpointAlgorithm $
-         --debug .        --TODO
+         debug .
          Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
          Fix.filter' isFunctionBody (chaotic innermost') in
-  do _ <- Trans.run (extend' (Generic.runFixed :: InterpT IO [Expr] Val)) (empty,(empty,(empty,e0)))
+  do _ <- Trans.run (Generic.runFixed :: InterpT IO [Expr] Val) (?debugState, (empty, (empty, e0)))
      return ()
   where
     e0 = generate (sequence expr)
