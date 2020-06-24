@@ -9,7 +9,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
-module Control.Arrow.Transformer.Abstract.Fix(FixT,runFixT) where
+module Control.Arrow.Transformer.Abstract.Fix(FixT(..),runFixT) where
 
 import           Prelude hiding (id,(.),const,head,iterate,lookup)
 

@@ -1,6 +1,8 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams #-}
@@ -58,6 +60,8 @@ import           TypedAnalysis
 import           Syntax (LExpr,Expr(App))
 import           GenericInterpreter as Generic
 
+--import           Control.Arrow.Transformer.Debug(DebugT)
+
 
 --imports for debugger
 import qualified Control.Concurrent             as Concurrent
@@ -88,21 +92,25 @@ import Parser
 import qualified Data.ByteString.Lazy          as BL
 import qualified Data.ByteString               as B
 
+import Control.Arrow.Transformer.Debug(DebugT, ArrowDebug, sendMessage)
+import          Control.Arrow.Transformer.State
 
 type InterpT c x y =
   (ValueT Val
     (TerminatingT
       (LogErrorT Text
         (EnvStoreT Text Addr Val
-          (FixT
+          (FixT 
+           (DebugT
             (MetricsT Metric.Monotone In
              (ComponentT Comp.Component  In
                (StackT Stack.Stack In
                  (CacheT Cache.Monotone In Out
                    (ContextT Ctx
                      (ControlFlowT Expr
-                       c))))))))))) x y
+                       c)))))))))))) x y
 
+{--
 evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
 evalChaotic iterationStrat env0 e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
@@ -118,7 +126,9 @@ evalChaotic iterationStrat env0 e =
   where
     e0 = generate (sequence e)
 {-# INLINE evalChaotic #-}
+-}
 
+{--
 evalInner :: Eval
 evalInner = evalChaotic innermost'
 
@@ -133,7 +143,7 @@ evalOuter' exprs = let (metrics,(cfg,res)) = evalOuter [] exprs in (metrics,(cfg
 
 eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors,Terminating Val)
 eval' env exprs = snd $ snd $ snd $ evalInner env exprs
-
+-}
 
 
 --------------------------------------------------
@@ -178,6 +188,7 @@ data TestMessage
   | RefreshResponse {operation :: Text, success :: Bool}
   deriving (Show, Eq)
 
+
 instance ToJSON TestMessage where
     toJSON (InitializeDebuggerRequest operation path) = object ["operation" .= operation, "path" .= path]
     toJSON (InitializeDebuggerResponse operation code) = object ["operation" .= operation, "code" .= code] 
@@ -206,12 +217,10 @@ instance FromJSON TestMessage where
 
 
 changeExpressions :: DebugState -> [LExpr] -> DebugState
-changeExpressions debugState expressions = DebugState (breakpoints debugState) (conn debugState) (clientId debugState) (stateRef debugState) expressions (debugPhase debugState)
+changeExpressions debugState expressions = debugState { expressionList = expressions }
 
 changeDebugPhase :: DebugState -> Int -> DebugState
-changeDebugPhase debugState debugPhase = DebugState (breakpoints debugState) (conn debugState) (clientId debugState) (stateRef debugState) (expressionList debugState) debugPhase 
-
-
+changeDebugPhase debugState debugPhase = debugState { debugPhase = debugPhase }
 
 
 {--
@@ -293,7 +302,7 @@ startServer :: P.IO ()
 startServer = do
   putStrLn "hello world"
   state <- Concurrent.newMVar []
-  Warp.run 3000 $ WS.websocketsOr
+  Warp.run 3001 $ WS.websocketsOr
     WS.defaultConnectionOptions
     (wsApp state)
     httpApp
@@ -392,7 +401,7 @@ evalDebug expr =
          --debug .        --TODO
          Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
          Fix.filter' isFunctionBody (chaotic innermost') in
-  do _ <- Trans.run (extend' (Generic.runFixed :: InterpT IO [Expr] Val)) (empty,(empty,([],e0)))
+  do _ <- Trans.run (extend' (Generic.runFixed :: InterpT IO [Expr] Val)) (empty,(empty,(empty,e0)))
      return ()
   where
     e0 = generate (sequence expr)
@@ -400,10 +409,15 @@ evalDebug expr =
 
 -- | Debugging combinator
 debug :: (?debugState :: DebugState,
-          ArrowChoice c, ArrowIO c, ArrowStackElements In c)
+          ArrowChoice c, ArrowIO c, ArrowStackElements In c, ArrowDebug c)
       => Fix.FixpointCombinator c ((Store,Errors),(Env,[Expr]))
                                   ((Store,Errors), Terminating Val)
 debug f = proc input@((store,errors),(env,exprs)) -> do
+  sendMessage -< (Text.pack "BLA")
+  f -< input
+  
+  
+{--  
   case exprs of
     expr:_ | expr `P.elem` breakpoints ?debugState -> do
       -- We reached a breakpoint
@@ -422,7 +436,7 @@ debug f = proc input@((store,errors),(env,exprs)) -> do
           stack <- Stack.elems -< ()
           liftIO send -< GetStackResponse stack
           loop -< input
-
+-}
 
 
 ---------------------     Helper Functions     ----------------------------
@@ -433,6 +447,9 @@ decode'' = decode . toLazyByteString . Data.Text.Encoding.encodeUtf8Builder
 
 toStrict1 :: BL.ByteString -> B.ByteString
 toStrict1 = B.concat . BL.toChunks
+
+
+
 
 
 
