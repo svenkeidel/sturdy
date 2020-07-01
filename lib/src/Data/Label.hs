@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Data.Label where
 
 import Data.Hashable
@@ -13,12 +14,15 @@ import Control.DeepSeq
 import Text.Printf
 import Data.Text.Prettyprint.Doc
 
+import Data.Aeson (FromJSON, ToJSON)
+import GHC.Generics
+
 -- Retrieves label from expression.
 class HasLabel x where
   label :: x -> Label
 
 newtype Label = Label { labelVal :: Int }
-  deriving (Ord,Eq,Hashable,Num,NFData)
+  deriving (Ord,Eq,Hashable,Num,NFData,Generic,ToJSON,FromJSON)
 
 instance Show Label where
   show (Label l) = printf "#%d" l

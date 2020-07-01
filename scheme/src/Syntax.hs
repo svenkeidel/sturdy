@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Syntax where
 
 import           Data.Text (Text)
@@ -19,7 +20,9 @@ import           Control.Monad.State
 import           Control.DeepSeq
 import           GHC.Generics
 
+import Data.Aeson (ToJSON, FromJSON)
 -- Literals of Scheme
+
 data Literal
   = Int Int
   | Float Double
@@ -31,6 +34,8 @@ data Literal
   | Quote Literal
   -- | DottedList [Literal] Literal
   deriving (Eq,Generic,NFData)
+instance ToJSON Literal 
+instance FromJSON Literal
 
 data Op1
 -- | Check operations
@@ -69,6 +74,8 @@ data Op1
   -- | Error -- (error z)
   | Random -- (random z)
   deriving (Eq,Generic,NFData)
+instance ToJSON Op1
+instance FromJSON Op1
 
 data Op2
 -- | Equivalence predicates
@@ -80,6 +87,8 @@ data Op2
 -- | String operations
   | StringRef -- (string-ref z1 z2)
   deriving (Eq,Generic,NFData)
+instance ToJSON Op2 
+instance FromJSON Op2
 
 data OpVar
 -- | Numerical operations
@@ -99,6 +108,8 @@ data OpVar
   | StringAppend -- (string-append z1 z2 z3 ...)
 -- | List operations
   deriving (Eq,Generic,NFData)
+instance ToJSON OpVar
+instance FromJSON OpVar
 
 
 -- | Expressions of Scheme. Each expression has a label, with which the
@@ -127,6 +138,9 @@ data Expr
   | OpVar OpVar [Expr] Label
   | Error String Label
   deriving (Generic,NFData)
+
+instance ToJSON Expr 
+instance FromJSON Expr 
 
 instance Eq Expr where
   e1 == e2 = label e1 == label e2

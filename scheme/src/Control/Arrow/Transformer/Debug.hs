@@ -12,6 +12,8 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
 
@@ -27,7 +29,7 @@ import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Metrics
-import           Control.Arrow.Fix.Stack 
+import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..))
 import           Control.Arrow.Trans
 import           Control.Arrow.IO
@@ -65,12 +67,15 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics
 import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable hiding (Widening)
-import           Control.Arrow.Transformer.Abstract.Fix.Stack
+import           Control.Arrow.Transformer.Abstract.Fix.Stack (Stack,StackT)
 
 import qualified Data.Text                      as Text
 import           Data.Identifiable
 
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as M
 
+import Data.Monoidal
 
 
 
@@ -106,18 +111,19 @@ class ArrowDebug c where
   addBreakpoints :: c Breakpoints ()
   isBreakpoint :: c Expr Bool
   sendMessage :: c Text.Text ()
+  receiveMessage :: c () Text.Text
+  sendStack :: c Text.Text ()
 
-
---instance ArrowRun (DebugT c) where
---  type Run (DebugT c) x y = c x y
---
---instance ArrowRun c => ArrowRun (DebugT c) where type Run (DebugT c) x y = Run c x y
 
 
 
 instance (Profunctor c, Arrow c, ArrowRun c) => ArrowRun (DebugT c) where
   type Run (DebugT c) x y = Run c (DebugState,x) (DebugState,y)
   run (DebugT (StateT f)) = run f
+
+
+
+
 
 deriving instance ArrowDebug c => ArrowDebug (FixT c)
 instance (Arrow c, Profunctor c, ArrowIO c) => ArrowDebug (DebugT c) where
@@ -132,10 +138,21 @@ instance (Arrow c, Profunctor c, ArrowIO c) => ArrowDebug (DebugT c) where
     state <- State.get -< ()
     liftIO sendResponse -< (state,message)
     returnA -< ()
+  receiveMessage = DebugT $ proc message -> do
+    state <- State.get -< ()
+    msg <- liftIO WS.receiveData -< (conn state)
+    returnA -< msg
+  sendStack = DebugT $ proc message-> do
+    state <- State.get -< ()
+    --stack <- Stack.elems -< ()
+    returnA-< ()
   {-# INLINE addBreakpoints #-}
   {-# INLINE isBreakpoint #-}
   {-# INLINE sendMessage #-}
+  {-# INLINE receiveMessage #-}
+  {-# INLINE sendStack #-}
 
 sendResponse :: (DebugState,Text.Text) -> IO ()
 sendResponse (debugState,msg)= do
   WS.sendTextData (conn debugState) msg
+

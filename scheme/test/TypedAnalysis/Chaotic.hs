@@ -33,7 +33,9 @@ import           Control.Arrow.Environment as Env
 import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost',outermost')
 import qualified Control.Arrow.Fix.Context as Ctx
-import           Control.Arrow.Fix.Stack as Stack
+--import           Control.Arrow.Fix.Stack as Stack
+import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,widenInput,maxDepth,reuseByMetric)
+import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.IO
 import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.IO
@@ -43,7 +45,7 @@ import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Component as Comp
 import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
+import           Control.Arrow.Transformer.Abstract.Fix.Stack --as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
@@ -57,7 +59,7 @@ import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
 
 import           TypedAnalysis
-import           Syntax (LExpr,Expr(App))
+import           Syntax (LExpr,Expr(App),Literal)
 import           GenericInterpreter as Generic
 
 --import           Control.Arrow.Transformer.Debug(DebugT)
@@ -94,6 +96,8 @@ import qualified Data.ByteString               as B
 
 import Control.Arrow.Transformer.Debug(DebugState(..), DebugT, ArrowDebug, sendMessage)
 import          Control.Arrow.Transformer.State
+import          Control.Arrow.Fix.ControlFlow
+
 
 type InterpT c x y =
   (ValueT Val
@@ -104,7 +108,7 @@ type InterpT c x y =
            (DebugT
             (MetricsT Metric.Monotone In
              (ComponentT Comp.Component  In
-               (StackT Stack.Stack In
+               (StackT Stack In
                  (CacheT Cache.Monotone In Out
                    (ContextT Ctx
                      (ControlFlowT Expr
@@ -158,15 +162,6 @@ type Socket = () -- Placeholder
 type Breakpoints = [Expr] -- Placeholder
 type StackElems = [In] -- Placeholder
 
--- data DebugState = DebugState {
---   breakpoints :: Breakpoints,  
---   conn :: WS.Connection,
---   clientId :: ClientId,
---   stateRef :: Concurrent.MVar State,
---   expressionList :: [LExpr],
---   debugPhase :: Int
--- }
-
 
 data Message
   = ReachedBreakpoint {breakpoint :: Expr, env :: Env}
@@ -181,37 +176,17 @@ data Message
 
 data TestMessage
   = InitializeDebuggerRequest {path :: String}
-  | InitializeDebuggerResponse {code :: Text}
-  | ContinueRequest {bps :: [Text], start :: Bool}
+  | InitializeDebuggerResponse {code :: [Expr]}
+  | ContinueRequest {bps :: [Int], start :: Bool}
   | ContinueResponse {debugInfo :: Text}
   | RefreshRequest
   | RefreshResponse {success :: Bool}
   deriving (Show, Eq, Generic)
 
 
-instance ToJSON TestMessage where
-    -- toJSON (InitializeDebuggerRequest operation path) = object ["operation" .= operation, "path" .= path]
-    -- toJSON (InitializeDebuggerResponse operation code) = object ["operation" .= operation, "code" .= code] 
-    -- toJSON (ContinueRequest operation bps start) = object ["operation" .= operation, "bps" .= bps, "start" .= start]
-    -- toJSON (ContinueResponse operation debugInfo) = object ["operation" .= operation, "debugInfo" .= debugInfo]
-    -- toJSON (RefreshRequest operation) = object ["operation" .= operation]
-    -- toJSON (RefreshResponse operation success) = object ["operation" .= operation, "success" .= success]
+instance ToJSON TestMessage 
 
-instance FromJSON TestMessage where
-    -- parseJSON v = parseInitializeDebuggerRequest v 
-    --            <> parseInitializeDebuggerResponse v 
-    --            <> parseContinueRequest v
-    --            <> parseContinueResponse v 
-    --            <> parseRefreshRequest v 
-    --            <> parseRefreshResponse v
-    --   where
-    --     parseInitializeDebuggerRequest = withObject "InitializeDebuggerRequest" $ \obj -> InitializeDebuggerRequest <$> obj .: "operation" <*> obj .: "path"
-    --     parseInitializeDebuggerResponse = withObject "InitializeDebuggerResponse" $ \obj -> InitializeDebuggerResponse <$> obj .: "operation" <*> obj .: "code"
-    --     parseContinueRequest = withObject "ContinueRequest" $ \obj -> ContinueRequest <$> obj .: "operation" <*> obj .: "bps" <*> obj .: "start"
-    --     parseContinueResponse = withObject "ContinueResponse" $ \obj -> ContinueResponse <$> obj .: "operation" <*> obj.: "debugInfo"
-    --     parseRefreshRequest = withObject "RefreshRequest" $ \obj -> RefreshRequest <$> obj .: "operation"
-    --     parseRefreshResponse = withObject "RefreshResponse" $ \obj -> RefreshResponse <$> obj .: "operation" <*> obj .: "success"
-
+instance FromJSON TestMessage 
 
 
 
@@ -222,79 +197,8 @@ changeExpressions debugState expressions = debugState { expressionList = express
 changeDebugPhase :: DebugState -> Int -> DebugState
 changeDebugPhase debugState debugPhase = debugState { debugPhase = debugPhase }
 
-
-{--
-
--- | Main entry point for the debugger
-startDebugger :: [LExpr] -> P.IO ()                   
-startDebugger expr = do
-  _setupDebugState -- TODO: Implement
-  let ?sensitivity = 0
-  let ?debugState = _debugState -- TODO: Implement
-  evalDebug expr
-  -- socket <- createSocket -< 1234
-  -- loop
-  -- where
-  --   loop = do
-  --     msg <- Client.receive -< ()
-  --     case msg of
-  --       StartProgram file breakpoints -> do
-  --         prog <- loadSchemeFile file
-  --         let ?sensitivity = 0
-  --         let debugState = DebugState socket breakpoints
-  --         evalDebug debugState prog
-  --         loop
-  --       _ ->
-  --         closeSocket socket
-
-evalDebug :: (?sensitivity::Int, ?debugState::DebugState) => [LExpr] -> P.IO ()
-evalDebug expr =
-  let ?cacheWidening = (storeErrWidening, W.finite) in
-  let ?fixpointAlgorithm = transform $
-       Fix.fixpointAlgorithm $
-         debug .
-         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-         Fix.filter' isFunctionBody (chaotic innermost') in
-  do _ <- Trans.run (extend' (Generic.runFixed :: InterpT IO [Expr] Val)) (empty,(empty,([],e0)))
-     return ()
-  where
-    e0 = generate (sequence expr)
-
--- | Send message to debugging client
-send :: (?debugState :: DebugState) => Message -> P.IO ()
-send = _send -- TODO: Implement
-
--- | Receive message from debugging client
-receive :: (?debugState :: DebugState) => () -> P.IO Message
-receive = _receive -- TODO: Implement
-
--- | Debugging combinator
-debug :: (?debugState :: DebugState,
-          ArrowChoice c, ArrowIO c, ArrowStackElements In c)
-      => Fix.FixpointCombinator c ((Store,Errors),(Env,[Expr]))
-                                  ((Store,Errors), Terminating Val)
-debug f = proc input@((store,errors),(env,exprs)) -> do
-  case exprs of
-    expr:_ | expr `P.elem` breakpoints ?debugState -> do
-      -- We reached a breakpoint
-      liftIO send -< ReachedBreakpoint expr env
-      loop -< input
-      f -< input
-    _ ->
-      f -< input
-  where
-    loop = proc input@((store,errors),(env,expr)) -> do
-      msg <- liftIO receive -< ()
-      case msg of
-        Continue ->
-          returnA -< ()
-        GetStackRequest -> do
-          stack <- Stack.elems -< ()
-          liftIO send -< GetStackResponse stack
-          loop -< input
-
-
--}
+refreshDebugState :: DebugState  -> DebugState
+refreshDebugState debugState = debugState { breakpoints = [], expressionList = []} 
 
 
 
@@ -343,41 +247,46 @@ disconnectClient clientId stateRef = Concurrent.modifyMVar_ stateRef $ \state ->
 listen :: DebugState -> P.IO ()
 listen debugState = do
   print (clientId debugState)
-  
   msg <- WS.receiveData (conn debugState)
   let dec = Maybe.fromJust (decode'' msg) :: TestMessage
   print "JETZT KOMMT PRINT DEC "
   print (dec)
-  -- print (operation dec)
-  -- case dec of
-  --   InitializeDebuggerResponse { code = c } -> ... c ... 
-  
-  -- let op = operation dec
-  -- case op of
+  case dec of
 
-  --   "InitializeDebuggerRequest" -> do
-  --     let expressions = Parser.loadSchemeFile (path dec)
-  --     -- TODO richtige Expressions an den Client senden, wie kann man die expr. zum string casten?
-  --     let object = InitializeDebuggerResponse "InitializeDebuggerResponse" "BLA CODE"
-  --     print object
-  --     let encodedObject = encode object
-  --     let textObject = Data.Text.Encoding.decodeUtf8 (toStrict1 encodedObject)
-      
-  --     sendResponse debugState textObject
-  --     --debugPhase auf 1 setzen
+    InitializeDebuggerRequest { path = p } -> do
+      expressions <- Parser.loadSchemeFile (path dec)
+      ulEx <- Parser.loadSchemeFile' (path dec)
+      print ulEx
+      --let object = InitializeDebuggerResponse ([generate expressions])
+      let object = InitializeDebuggerResponse ([ulEx])
+      print object
+      let encodedObject = encode object
+      let textObject = Data.Text.Encoding.decodeUtf8 (toStrict1 encodedObject)
+      let changedDebugState = changeExpressions debugState [expressions]
+      sendResponse changedDebugState textObject
     
-  --   "ContinueRequest" -> do
-  --     sendResponse debugState "bla"
-  --     --checken ob debug phase auf 1 ist
-  --     --evalDebug aufrufen
-  --     let ?sensitivity = 0
-  --     let ?debugState = debugState 
-  --     evalDebug (expressionList debugState)
+    ContinueRequest {bps = b, start = s} -> do  --hier b und s benutzen
+      sendResponse debugState "bla"
+      --eval debug aufrufen
+      let ?sensitivity = 0
+      let ?debugState = debugState
 
+      let bla = expressionList debugState
+      expressions <- Parser.loadSchemeFile ("test_factorial.scm")
+      
+      evalDebug ([expressions])
 
-  --   "RefreshRequest" -> do
-  --     --debug state neu initialisieren und listen aufrufen
-  --     sendResponse debugState "REFRESHHHH"
+    RefreshRequest -> do
+      let object = RefreshResponse True
+      print object
+      let encodedObject = encode object
+      let textObject = Data.Text.Encoding.decodeUtf8 (toStrict1 encodedObject)
+      sendResponse debugState textObject
+    
+      let debugStateRefreshed = refreshDebugState debugState
+      Exception.finally
+        (listen debugStateRefreshed)
+        (disconnectClient (clientId debugStateRefreshed) (stateRef debugStateRefreshed))
 
 
   listen debugState
@@ -395,7 +304,6 @@ sendResponse debugState msg = do
   
 
 
-
 evalDebug :: (?sensitivity::Int, ?debugState::DebugState) => [LExpr] -> P.IO ()
 evalDebug expr =
   let ?cacheWidening = (storeErrWidening, W.finite) in
@@ -408,44 +316,57 @@ evalDebug expr =
      return ()
   where
     e0 = generate (sequence expr)
+{-# INLINE evalDebug #-}
 
 
 -- | Debugging combinator
 debug :: (?debugState :: DebugState,
-          ArrowChoice c, ArrowIO c, ArrowStackElements In c, ArrowDebug c)
+          ArrowChoice c, ArrowIO c, ArrowDebug c, ArrowStack In c, ArrowStackDepth c, ArrowStackElements In c, ArrowControlFlow stmt c)
       => Fix.FixpointCombinator c ((Store,Errors),(Env,[Expr]))
                                   ((Store,Errors), Terminating Val)
 debug f = proc input@((store,errors),(env,exprs)) -> do
-  sendMessage -< (Text.pack "BLA")
-  f -< input
+  sendMessage -< (Text.pack "DEBUG COMBINATOR")
+  stackDepth <- Stack.depth -< ()
   
+  stackElems <- Stack.elems -< ()
+  --liftIO print -< "stackDepth"
+  --liftIO print -< stackDepth
+  liftIO print -< "stackElems"
+  liftIO print -< stackElems
+  liftIO print -< "exprs"
+  liftIO print -< exprs
   
-{--  
-  case exprs of
-    expr:_ | expr `P.elem` breakpoints ?debugState -> do
-      -- We reached a breakpoint
-      liftIO send -< ReachedBreakpoint expr env
-      loop -< input
-      f -< input
-    _ ->
-      f -< input
-  where
-    loop = proc input@((store,errors),(env,expr)) -> do
-      msg <- liftIO receive -< ()
-      case msg of
-        Continue ->
-          returnA -< ()
-        GetStackRequest -> do
-          stack <- Stack.elems -< ()
-          liftIO send -< GetStackResponse stack
-          loop -< input
--}
+--case exprs of
+--  expr:_ | isBreakpoint expr -> do
+--    -- Breakpoint reached
+--    stack <- Stack.elems -< ()
+--    
+--    sendMessage -< ContinueResponse stack input --cfg
+--    loop -< input
+--    f -< input
+--  _ ->
+--    f -< input
+--where
+--  loop = proc input@((store,errors),(env,expr)) -> do
+--    msg <- receiveMessage -< ()
+--    dec <- Maybe.fromJust (decode'' msg) :: TestMessage
+--    liftIO print -< (dec)
+--    case dec of
+--      ContinueRequest ->
+--        returnA -< ()
+--      _ -> do
+--        loop -< input
+
+
+  f -< (input)
+{-# INLINE debug #-}
 
 
 ---------------------     Helper Functions     ----------------------------
 
 decode'' :: FromJSON a => Text.Text -> Maybe a
 decode'' = decode . toLazyByteString . Data.Text.Encoding.encodeUtf8Builder
+
 
 
 toStrict1 :: BL.ByteString -> B.ByteString

@@ -23,6 +23,7 @@ dependencies:
   - text
   - union-find
   - unordered-containers
+  - aeson
 
 library:
   ghc-options:

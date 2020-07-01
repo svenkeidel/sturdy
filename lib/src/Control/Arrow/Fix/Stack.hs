@@ -26,8 +26,9 @@ import Data.Monoidal
 
 import Text.Printf
 
+
 type StackPointer = Int
-data RecurrentCall = RecurrentCall StackPointer | NoLoop
+data RecurrentCall = RecurrentCall StackPointer | NoLoop deriving (Show)
 
 class (Arrow c, Profunctor c) => ArrowStack a c | c -> a where
   push :: c x y -> c (a, x) (y)
@@ -48,7 +49,7 @@ class (Arrow c, Profunctor c) => ArrowStackDepth c where
   {-# INLINE depth #-}
 
 
-class (Arrow c, Profunctor c) => ArrowStackElements a c where
+class (Arrow c, Profunctor c) => ArrowStackElements a c | c -> a where
   elems :: c () [a]
   peek :: c () (Maybe a)
 
@@ -57,7 +58,6 @@ class (Arrow c, Profunctor c) => ArrowStackElements a c where
 
   elems = lift' elems
   peek = lift' peek
-
   {-# INLINE elems #-}
   {-# INLINE peek #-}
 
@@ -127,6 +127,15 @@ instance ArrowStack a c => ArrowStack a (ReaderT r c) where
 instance ArrowStackDepth c => ArrowStackDepth (ReaderT r c)
 instance ArrowStackElements a c => ArrowStackElements a (ReaderT r c)
 
+---------------DEBUGT
+--instance ArrowStack a c => ArrowStack a (DebugT c) where
+--  push f = lift $ lmap shuffle1 (push (unlift f))
+--  {-# INLINE push #-}
+--instance ArrowStackDepth c => ArrowStackDepth (DebugT c)
+--instance ArrowStackElements a c => ArrowStackElements a (DebugT c)
+
+
+---------------
 instance ArrowStack a c => ArrowStack a (StateT s c) where
   push f = lift $ lmap shuffle1 (push (unlift f))
   {-# INLINE push #-}
