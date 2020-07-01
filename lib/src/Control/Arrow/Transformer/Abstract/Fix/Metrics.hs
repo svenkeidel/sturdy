@@ -27,6 +27,7 @@ import           Control.Arrow.Fix.Chaotic as Chaotic
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context(ArrowContext)
+import           Control.Arrow.Fix.GarbageCollection
 
 import           Control.Arrow.Transformer.State
 
@@ -42,7 +43,7 @@ import           Text.Printf
 
 newtype MetricsT metric a c x y = MetricsT (StateT (metric a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded z,
-            ArrowComponent a,ArrowInComponent a,ArrowControlFlow stmt,
+            ArrowComponent a,ArrowInComponent a,ArrowControlFlow stmt, ArrowGarbageCollection addr, 
             ArrowStackDepth,ArrowStackElements a,ArrowContext ctx,ArrowTopLevel,
             ArrowGetCache cache, ArrowPrimitive)
 

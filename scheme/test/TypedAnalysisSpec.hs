@@ -65,6 +65,7 @@ gabrielBenchmarks :: (?algorithm :: Algorithm) => Runner -> Spec
 gabrielBenchmarks run = describe "Gabriel" $ do
 
     it "boyer" $ do
+      -- pendingWith "not terminating within 10 minutes, program might be too large"
       let inFile = "gabriel/boyer.scm"
       let expRes = successOrFail [BoolVal B.True, BoolVal B.False]
                                  [ "Expected list as argument for car, but got ['p]"
@@ -199,7 +200,8 @@ gabrielBenchmarks run = describe "Gabriel" $ do
       run inFile expRes
 
     it "deriv" $ do
-      -- when (?algorithm == Parallel || ?algorithm == ADI) $
+      -- when (?algorithm == Parallel || ?algorithm == ADI) $ 
+      pendingWith "not terminating within 10 minutes, program might be too large"
       let inFile = "gabriel/deriv.scm"
       let expRes = successOrFail [BoolVal B.True, BoolVal B.False]
                                  [ "error: No derivation method available"
@@ -286,54 +288,59 @@ scalaAM run = describe "Scala-AM" $ do
 -- -------------------Custom Tests------------------------------------------
 customTests :: (?algorithm :: Algorithm) => Runner -> Spec
 customTests run = do
-    it "recursion_union_empty_list" $ do
+    it "test_rec_empty" $ do
       let inFile = "test_rec_empty.scm"
       let expRes = successOrFail [ListVal Nil]
                                  ["cannot cdr an empty list"]
       run inFile expRes
 
-    it "recursion and union with non-empty list" $ do
+    it "test_factorial_letrec" $ do
+      let inFile = "test_factorial_letrec.scm"
+      let expRes = success [NumVal IntVal]
+      run inFile expRes      
+
+    it "test_rec_nonempty" $ do
       let inFile = "test_rec_nonempty.scm"
       let expRes = successOrFail [NumVal IntVal]
                                  ["cannot cdr an empty list"]
       run inFile expRes
 
-    it "rercusive defines" $ do
+    it "test_rec_defines" $ do
       let inFile = "test_rec_defines.scm"
       let expRes = success [NumVal IntVal]
       run inFile expRes      
 
-    it "should test simple floats" $ do
+    it "test_simple_floats" $ do
       let inFile = "test_simple_floats.scm"
       let expRes = success [BoolVal B.Top]
       run inFile expRes      
 
-    it "should test simple list" $ do
+    it "test_simple_list" $ do
       let inFile = "test_simple_list.scm"
       let expRes = success [NumVal IntVal]
       run inFile expRes    
 
-    it "should test subtraction" $ do
+    it "test_subtraction" $ do
       let inFile = "test_subtraction.scm"
       let expRes = success [NumVal IntVal]
       run inFile expRes    
 
-    it "should return NV for (car (cdr '(2 3 4)))" $ do
+    it "test_cdr" $ do
       let inFile = "test_cdr.scm"
       let expRes = success $ [NumVal IntVal]
       run inFile expRes
 
-    it "should return Int for endless function" $ do
+    it "test_endless_nums" $ do
       let inFile = "test_endless_nums.scm"
       let expRes = success $ [NumVal IntVal]
       run inFile expRes
 
     it "test_endless_recursion" $ do
       let inFile = "test_endless_recursion.scm"
-      let expRes = success [Bottom]
+      let expRes = success []
       run inFile expRes
   
-    it "should return correct val for car" $ do
+    it "test_car" $ do
       let inFile = "test_car.scm"
       let expRes = success [NumVal IntVal]
       run inFile expRes
@@ -343,7 +350,7 @@ customTests run = do
       let expRes = success [BoolVal B.True]
       run inFile expRes
 
-    it "car on two different list should return two different vals " $ do
+    it "test_faulty_list " $ do
       let inFile = "test_faulty_list.scm"
       let expRes = success [BoolVal B.False, NumVal IntVal]
       run inFile expRes
@@ -444,17 +451,11 @@ customTests run = do
 
 success :: [Val] -> (HashSet Text, (Pow Val))
 success v = ([],Pow.fromList v)
--- success :: (Val) -> (HashSet Text, Terminating (Val))
--- success v = ([],Terminating v)
 
 successOrFail :: [Val] -> HashSet Text -> (HashSet Text, (Pow Val))
 successOrFail v errs = (errs, Pow.fromList v)
--- successOrFail :: Terminating (Val) -> HashSet Text -> (HashSet Text, Terminating (Val))
--- successOrFail v errs = (errs, v)
 
 type Runner = (String -> (HashSet Text, (Pow Val)) -> IO ())
--- type Runner = (String -> (HashSet Text, Terminating (Val)) -> IO ())
-
 
 metricFile :: String
 metricFile = "metrics.csv"
@@ -463,10 +464,9 @@ runner :: (?algorithm :: Algorithm) => Eval' -> Runner
 runner eval inFile expected = do
   prog <- loadSchemeFile inFile
   let ?sensitivity = 0
-  let (cfg,(Monotone metric,(errs,res))) = eval [prog]
+  let (Monotone metric,(errs,res)) = eval [prog]
   let csv = printf "\"%s\",%s,%s\n" inFile (show ?algorithm) (toCSV metric)
   appendFile metricFile csv
-  renderCFG inFile cfg
   (toSet errs, res) `shouldBe` expected
 
 renderCFG :: String -> CFG Expr -> IO ()

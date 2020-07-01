@@ -26,6 +26,7 @@ import           Control.Arrow.Fix.Metrics
 import           Control.Arrow.Fix.Stack
 import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..))
 import           Control.Arrow.Trans
+import           Control.Arrow.Fix.GarbageCollection
 
 import           Data.Profunctor
 import           Data.Profunctor.Unsafe((.#))
@@ -34,7 +35,7 @@ import           Data.Order hiding (lub)
 
 newtype FixT c x y = FixT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
-            ArrowContext ctx, ArrowJoinContext a, ArrowControlFlow a,
+            ArrowContext ctx, ArrowJoinContext a, ArrowControlFlow a, ArrowGarbageCollection addr,
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth,
             ArrowComponent a, ArrowInComponent a,

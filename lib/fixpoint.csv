@@ -1,0 +1,41 @@
+Function,Algorithm,Filtered,Evaluated,Iteration,Stack Lookups,Cache Entries,Cache Lookups,Cache Updates
+"fib[5,10]",parallel,0,0,4,0,16,162,80
+"fib[100,110]",parallel,0,0,2,0,2,20,6
+"fib[1,∞]",parallel,0,0,2,0,2,17,5
+"fact[5,10]",parallel,0,0,1,0,10,10,20
+"fact[10,15]",parallel,0,0,2,0,4,14,12
+"fact[0,∞]",parallel,0,0,1,0,2,6,4
+"ackermann([0,3], [0,3])",parallel,0,0,30,0,233,11566,4301
+"ackermann([0,∞], [0,∞])",parallel,0,0,1,0,1,11,2
+"even(Even, [0,∞])",parallel,0,0,2,0,2,10,6
+"diverge5",parallel,0,0,1,0,6,10,12
+"fib[5,10]",adi,0,0,1,0,16,38,32
+"fib[100,110]",adi,0,0,2,0,2,12,6
+"fib[1,∞]",adi,0,0,2,0,2,10,5
+"fact[5,10]",adi,0,0,1,0,10,10,20
+"fact[10,15]",adi,0,0,2,0,4,11,12
+"fact[0,∞]",adi,0,0,1,0,2,4,4
+"ackermann([0,3], [0,3])",adi,0,0,1,0,186,492,372
+"ackermann([0,∞], [0,∞])",adi,0,0,1,0,1,6,2
+"even(Even, [0,∞])",adi,0,0,2,0,2,7,6
+"diverge5",adi,0,0,1,0,6,8,12
+"fib[5,10]",innermost,0,0,0,177,0,161,0
+"fib[100,110]",innermost,0,0,0,8,1,6,3
+"fib[1,∞]",innermost,0,0,0,10,2,8,5
+"fact[5,10]",innermost,0,0,0,10,0,0,0
+"fact[10,15]",innermost,0,0,0,7,1,3,3
+"fact[0,∞]",innermost,0,0,0,4,1,2,2
+"ackermann([0,3], [0,3])",innermost,0,0,0,3740,0,3554,0
+"ackermann([0,∞], [0,∞])",innermost,0,0,0,6,1,5,2
+"even(Even, [0,∞])",innermost,0,0,0,5,1,3,2
+"diverge5",innermost,0,0,0,7,1,1,1
+"fib[5,10]",outermost,0,0,0,177,0,161,0
+"fib[100,110]",outermost,0,0,0,8,1,6,3
+"fib[1,∞]",outermost,0,0,0,10,2,8,3
+"fact[5,10]",outermost,0,0,0,10,0,0,0
+"fact[10,15]",outermost,0,0,0,7,1,3,3
+"fact[0,∞]",outermost,0,0,0,4,1,2,2
+"ackermann([0,3], [0,3])",outermost,0,0,0,3740,0,3554,0
+"ackermann([0,∞], [0,∞])",outermost,0,0,0,6,1,5,2
+"even(Even, [0,∞])",outermost,0,0,0,5,1,3,2
+"diverge5",outermost,0,0,0,7,1,1,1

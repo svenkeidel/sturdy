@@ -25,6 +25,7 @@ import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.State
 import           Control.Arrow.Trans
+import           Control.Arrow.Fix.GarbageCollection
 
 -- import           Control.Arrow.Transformer.Writer
 import           Control.Arrow.Transformer.State
@@ -41,7 +42,7 @@ newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
             ArrowStackDepth,ArrowStackElements a,
             ArrowCache a b, ArrowParallelCache a b,ArrowIterateCache a b,ArrowGetCache cache,
-            ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt, ArrowGarbageCollection addr, ArrowPrimitive)
 
 runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> c x y
 runComponentT (ComponentT f) = dimap (\x -> (empty,x)) snd (runStateT f)

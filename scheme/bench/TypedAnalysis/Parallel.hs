@@ -31,13 +31,16 @@ import           Control.Arrow.Fix.Parallel as Par
 import qualified Control.Arrow.Fix.Context as Ctx
 import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
-import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.Arrow.Transformer.Abstract.Environment (EnvT)
+import           Control.Arrow.Transformer.Abstract.Store (StoreT)
+import           Control.Arrow.Fix.GarbageCollection as GC
+import           Control.Arrow.Transformer.Abstract.Fix.GarbageCollection (GarbageCollectionT)
 
 import           Data.Text (Text)
 import qualified Data.HashMap.Lazy as Map
@@ -46,7 +49,8 @@ import           Data.Empty
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Powerset(Pow)
-
+import           Data.HashMap.Lazy (HashMap)
+import           Data.Hashed.Lazy (Hashed)
 
 import           Syntax (Expr(App))
 import           GenericInterpreter as Generic
@@ -55,11 +59,12 @@ import           TypedAnalysis
 type Interp =
   ValueT (Pow Val)
     (LogErrorT Text
-      (EnvStoreT Text Addr (Pow Val)
-        (FixT
-          (CacheT (Parallel Cache.MonotoneFactor) In Out
-            (ContextT Ctx
-              (->))))))
+      (EnvT (Hashed (HashMap Text Addr))
+        (StoreT (HashMap Addr (Pow Val))
+          (FixT
+            (CacheT (Parallel Cache.MonotoneFactor) In Out
+              (ContextT Ctx
+                (->)))))))
 
 {-# SPECIALIZE if__ :: (ArrowComplete z Interp)
                     => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}

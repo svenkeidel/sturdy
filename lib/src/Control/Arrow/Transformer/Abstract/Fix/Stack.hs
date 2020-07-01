@@ -25,6 +25,7 @@ import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
 import           Control.Arrow.State
 import           Control.Arrow.Trans
 import           Control.Arrow.Order (ArrowLowerBounded)
+import           Control.Arrow.Fix.GarbageCollection
 
 import           Control.Arrow.Transformer.Reader
 
@@ -43,7 +44,7 @@ newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
             ArrowStrict,ArrowTrans, ArrowLowerBounded z,
             ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowState s,ArrowContext ctx, ArrowJoinContext u,
-            ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowControlFlow stmt, ArrowGarbageCollection addr, ArrowPrimitive)
 
 runStackT :: (IsEmpty (stack a), Profunctor c) => StackT stack a c x y -> c x y
 runStackT (StackT f) = lmap (\x -> (empty,x)) (runReaderT f)

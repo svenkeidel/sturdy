@@ -8,40 +8,45 @@
 {-# LANGUAGE TypeFamilies #-}
 module Control.Arrow.Transformer.Abstract.Store where
 
-import Prelude hiding (Maybe(..))
-import Control.Arrow
-import Control.Arrow.Cont
-import Control.Arrow.Const
-import Control.Arrow.Fail
-import Control.Arrow.Fix
-import Control.Arrow.Trans
-import Control.Arrow.Reader
-import Control.Arrow.State
-import Control.Arrow.Store
-import Control.Arrow.Except
-import Control.Arrow.Environment
-import Control.Arrow.Closure
-import Control.Arrow.Transformer.State
-import Control.Arrow.Utils
-import Control.Category
+import           Prelude hiding (Maybe(..))
+import qualified Prelude as P 
 
-import Control.Arrow.Order
+import           Control.Arrow
+import           Control.Arrow.Cont
+import           Control.Arrow.Const
+import           Control.Arrow.Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Trans
+import           Control.Arrow.Reader
+import           Control.Arrow.State
+import           Control.Arrow.Store
+import           Control.Arrow.Except
+import           Control.Arrow.Environment
+import           Control.Arrow.Closure
+import           Control.Arrow.Transformer.State
+import           Control.Arrow.Utils
+import           Control.Category
+import           Control.Arrow.Fix.Context
+import           Control.Arrow.Order
 
-import Data.Abstract.Maybe
-import Data.Abstract.Map (Map)
+import           Data.Abstract.Maybe
+import           Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as M
-
-import Data.Identifiable
-import Data.Profunctor
-import Data.Profunctor.Unsafe((.#))
-import Data.Coerce
+import qualified Data.HashMap.Lazy as HM 
+import           Data.HashMap.Lazy (HashMap)
+import           Data.Identifiable
+import           Data.Profunctor
+import           Data.Profunctor.Unsafe((.#))
+import           Data.Coerce
+import           Data.Order
 
 newtype StoreT store c x y = StoreT (StateT store c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,
             ArrowCont, ArrowConst r, ArrowReader r,
             ArrowEnv var' val', ArrowClosure expr cls,
             ArrowFail e, ArrowExcept e, ArrowState store,
-            ArrowLowerBounded a, ArrowRun, ArrowJoin)
+            ArrowLowerBounded a, ArrowRun, ArrowJoin, 
+            ArrowContext ctx)
 
 runStoreT :: StoreT store c x y -> c (store, x) (store, y)
 runStoreT = coerce
@@ -64,6 +69,22 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (
   write = StoreT $ modify $ arr $ \((var,val),st) -> ((),M.insert var val st)
   {-# INLINE read #-}
   {-# INLINE write #-}
+
+instance (Identifiable addr, ArrowChoice c, Profunctor c, Complete val) 
+    => ArrowStore addr val (StoreT (HashMap addr val) c) where
+  type Join y (StoreT (HashMap addr val) c) = ArrowComplete (HashMap addr val,y) c
+  read (StoreT f) (StoreT g) = StoreT $ proc (addr,x) -> do
+    store <- get -< ()
+    case HM.lookup addr store of
+      P.Just val -> f -< (val,x)
+      P.Nothing -> g -< x
+  write = StoreT $ proc (addr, val) -> do
+    store <- get -< ()
+    put -< HM.insertWith (\oldVal newVal -> oldVal ⊔ newVal) addr val store
+  {-# INLINE read #-}
+  {-# INLINE write #-}
+  {-# SCC read #-}
+  {-# SCC write #-}
 
 deriving instance (ArrowComplete (store,y) c) => ArrowComplete y (StoreT store c)
 instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT store c) where

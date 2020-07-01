@@ -65,9 +65,12 @@ eval run' = proc e0 -> case e0 of
   -- Scheme expression
   Var x _ -> Env.lookup'' read' -< x
   Lam xs es l -> Cls.closure -< Lam xs es l
-  Let bnds body l -> do -- iterative evaluation of bindings really necessary?
-    vs <- evalBindings -< (bnds,l)
-    Env.extend' run' -< (vs,body)
+  Let bnds body l -> do
+    bnds <- evalBindings -< (bnds,l)
+    let envbnds = [(var,addr) | (var,addr,_) <- bnds]
+    let storebnds = [(addr,val) | (_,addr,val) <- bnds]
+    map write -< storebnds 
+    Env.extend' run' -< (envbnds,body)
   LetRec bnds body l -> do
     addrs <- map alloc -< [(var,l) | (var,_) <- bnds]
     let envbnds = [(var,addr) | ((var,_),addr) <- zip bnds addrs]
@@ -113,9 +116,8 @@ eval run' = proc e0 -> case e0 of
       (var,expr) : bnds' -> do
         val <- run' -< [expr]
         addr <- alloc -< (var,lab)
-        write -< (addr,val)
         vs <- evalBindings -< (bnds',lab) 
-        returnA -< (var,addr) : vs
+        returnA -< (var,addr,val) : vs
     {-# SCC evalBindings #-}
 
     evalBindings' = proc (bnds,body) -> case bnds of

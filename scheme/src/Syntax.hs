@@ -264,7 +264,8 @@ instance Pretty OpVar where
 instance Show Expr where show = show . pretty
 
 instance Pretty Expr where
-  pretty e = flatAlt (prettyExpr e) (parens (showTopLvl e <> "..."))
+  -- pretty e = flatAlt (prettyExpr e) (parens (showTopLvl e <> "..."))
+  pretty e = prettyExpr e
 
 prettyExpr :: Expr -> Doc ann
 prettyExpr e0 = case e0 of
@@ -272,8 +273,8 @@ prettyExpr e0 = case e0 of
   Nil _ -> "nil"
   Cons e1 e2 _ -> parens $ "cons" <+> prettyExpr e1 <+> prettyExpr e2
   Begin es _-> parens $ "begin" <+> prettyExprList es
-  App e1 e2 _ -> parens $ prettyExpr e1 <+> prettyExprList e2
-  Apply e _ -> parens $ prettyExprList e
+  App e1 e2 _ -> parens $ "App" <+> prettyExpr e1 <+> prettyExprList e2
+  Apply e _ -> parens $ "Apply" <+> prettyExprList e
   Var x _ -> pretty x
   Set t e _ -> parens $ "set!" <+> pretty t <+> prettyExpr e
   Define t e _ -> parens $ "define" <+> pretty t <+> prettyExpr e

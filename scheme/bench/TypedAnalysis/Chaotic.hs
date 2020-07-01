@@ -48,12 +48,18 @@ import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.Arrow.Transformer.Abstract.Environment (EnvT)
+import           Control.Arrow.Transformer.Abstract.Store (StoreT)
+import           Control.Arrow.Fix.GarbageCollection as GC
+import           Control.Arrow.Transformer.Abstract.Fix.GarbageCollection (GarbageCollectionT)
 
 import           Data.Text (Text)
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
 import           Data.Profunctor
 import           Data.Empty
+import           Data.HashMap.Lazy (HashMap)
+import           Data.Hashed.Lazy (Hashed)
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
@@ -67,14 +73,15 @@ import           GHC.Exts
 
 type Interp =
   ValueT (Pow Val)
-      (LogErrorT Text
-        (EnvStoreT Text Addr (Pow Val)
+    (LogErrorT Text
+      (EnvT (Hashed (HashMap Text Addr))
+        (StoreT (HashMap Addr (Pow Val))
           (FixT
             (ComponentT Comp.Component In
               (StackT Stack.Stack In
                 (CacheT Cache.Monotone In Out
                   (ContextT Ctx
-                    (->))))))))
+                      (->)))))))))
 
 {-# SPECIALIZE if__ :: (ArrowComplete z Interp)
                     => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}

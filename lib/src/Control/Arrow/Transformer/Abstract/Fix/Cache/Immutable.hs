@@ -30,6 +30,7 @@ import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Order (ArrowLowerBounded)
 import qualified Control.Arrow.Order as Order
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Fix.GarbageCollection
 
 import           Data.Profunctor.Unsafe
 import           Data.Empty
@@ -49,7 +50,7 @@ import           GHC.Exts
 
 newtype CacheT cache a b c x y = CacheT { unCacheT :: StateT (cache a b) c x y}
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,ArrowTrans,
-            ArrowState (cache a b),ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowState (cache a b),ArrowControlFlow stmt, ArrowPrimitive, ArrowGarbageCollection addr)
 
 instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) where
   type Run (CacheT cache a b c) x y = Run c x (cache a b,y)

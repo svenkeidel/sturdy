@@ -29,6 +29,7 @@ import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 import           Control.Category
 import           Control.Arrow hiding ((<+>))
 import qualified Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix (FixpointCombinator)
 import           Control.Arrow.Fail as Fail
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -52,7 +53,7 @@ import           Data.Order
 import           Data.Text (Text)
 import           Data.Utils
 import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as Map
+import qualified Data.HashMap.Lazy as SM
 import qualified Data.Boolean as B
 import           Data.HashSet(HashSet)
 import qualified Data.HashSet as Set
@@ -65,7 +66,7 @@ import           Data.Coerce
 import qualified Data.Abstract.MonotoneStore as S
 import qualified Data.Abstract.MonotoneErrors as E
 import qualified Data.Abstract.Boolean as B
-import           Data.Abstract.Closure (Closure)
+import           Data.Abstract.Closure (Closure, getEnvs)
 import qualified Data.Abstract.DiscretePowerset as DP
 import           Data.Abstract.CallString(CallString)
 import qualified Data.Abstract.Widening as W
@@ -78,14 +79,20 @@ import           GHC.Generics(Generic)
 
 import           Text.Printf
 
-import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1(..),Op1List(..),Op2(..),OpVar(..))
+import           Syntax (LExpr,Expr(Apply, App),Literal(..) ,Op1(..),Op1List(..),Op2(..),OpVar(..), Expr(Let))
+import qualified Syntax as Syn
 import           GenericInterpreter as Generic
 
-import Control.Arrow.Monad
+import           Control.Arrow.Monad
+import qualified Debug.Trace as Debug
+import           Data.List ((\\))
+import qualified Control.Arrow.Fix.Stack as Stack
+import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,widenInput,maxDepth,reuseByMetric)
+import Data.Maybe 
 
 type Cls = Closure Expr (HashSet Env)
 type Env = M.Env Text Addr
-type Store = S.Store Addr (Pow Val)
+type Store = HashMap Addr (Pow Val)
 type Errors = E.Errors Text
 type Ctx = CallString Label
 
@@ -647,6 +654,11 @@ getClss (_:rest) = getClss rest
 getClss _ = []
 {-# SCC getClss #-}
 
+getLists :: [Val] -> [List]
+getLists (ListVal list:rest) = list:getLists rest 
+getLists (_:rest) = getLists rest 
+getLists _ = []
+
 liftPow :: ValueT Val c x y -> ValueT (Pow Val) c x y
 liftPow = coerce 
 {-# INLINEABLE liftPow #-}
@@ -786,14 +798,14 @@ instance (Identifiable s, Pretty s) => Pretty (HashSet s) where
   pretty m = braces $ hsep (punctuate "," (pretty <$> toList m))
 
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
-  pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- Map.toList m]
+  pretty m = list [ pretty k <+> " -> " <> pretty v | (k,v) <- SM.toList m]
 
 type In = ((Store,Errors), (Env, [Expr]))
 type Out = ((Store,Errors), (Pow Val))
 type In' = (Store,(Env,(Errors,  [Expr])))
 type Out' = (Store, (Errors, (Pow Val)))
-type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
-type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Monotone In, (Errors, (Pow Val))))
+type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (HashSet Addr, (Metric.Monotone In, Out'))
+type Eval' = (?sensitivity :: Int) => [LExpr] -> (Metric.Monotone In, (Errors, (Pow Val)))
 
 transform :: Profunctor c => Fix.FixpointAlgorithm (c In Out) -> Fix.FixpointAlgorithm (c In' Out')
 transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(env,exprs)))
@@ -808,13 +820,64 @@ isFunctionBody (_,(_,e)) = case e of
   _ -> False
 {-# INLINE isFunctionBody #-}
 
+getAddrIn :: In -> HashSet Addr
+getAddrIn (_, (env, _)) = Set.fromList $ SM.elems $ unhashed env 
+{-# INLINE getAddrIn #-}
+
+getAddrOut :: Out -> HashSet Addr 
+getAddrOut (_,val) = do 
+  let vals = Pow.toList val
+  Set.fromList $ (getAddrList vals) ++ (getAddrCls vals)
+{-# INLINE getAddrOut #-}
+
+getReachable :: HashSet Addr -> Out -> HashSet Addr 
+getReachable addrs ((store,errs),vals) = do 
+  let addrs_ = toList addrs
+  let reachable_vals = catMaybes $ map (\(addr,st) -> SM.lookup addr st) (zip addrs_ (repeat store)) --not nice: repeat
+  let reachable_addrs = Set.toList $ Set.fromList $ (getAddrCls $ concat $ map Pow.toList reachable_vals) ++ (getAddrList $ concat $ map Pow.toList reachable_vals) 
+  if (reachable_addrs \\ addrs_ == [])
+    then addrs
+    else getReachable (Set.fromList $ addrs_ ++ reachable_addrs) ((store,errs),vals)
+{-# INLINE getReachable #-}
+
+removeFromStore :: Out -> HashSet Addr -> Out
+removeFromStore ((store,errs),vals) addrs = do 
+  let store_updated = delete' (SM.keys store \\ (toList addrs)) store 
+  ((store_updated,errs),vals) 
+{-# INLINE removeFromStore #-}
+
+getAddrCls :: [Val] -> [Addr]
+getAddrCls vals = do 
+  let envs = concat $ map (\x -> getEnvs x) (getClss vals) 
+  let envs_ = concat $ map Set.toList envs 
+  let addrs = concat $ map (\env -> SM.elems $ unhashed env) envs_
+  addrs 
+{-# INLINE getAddrCls #-}
+
+getAddrList :: [Val] -> [Addr]
+getAddrList vals = concat $ map (\x -> case x of Nil -> []
+                                                 Cons a1 a2 -> (toList a1) ++ (toList a2)
+                                                 ConsNil a1 a2 -> (toList a1) ++ (toList a2)) (getLists vals )
+{-# INLINE getAddrList #-}
+
+lookup' :: (Eq a, Hashable a) => [a] -> HashMap a b -> [Maybe b]
+lookup' [] store = []
+lookup' (addr:addrs) store = [SM.lookup addr store] ++ lookup' addrs store
+{-# INLINE lookup' #-}
+
+delete' :: (Eq a, Hashable a) => [a] -> HashMap a b -> HashMap a b 
+delete' [] store = store 
+delete' (addr:addrs) store = delete' addrs (SM.delete addr store)
+{-# INLINE delete' #-}
+
 printIn :: In -> Doc ann
 printIn ((store),(env,expr)) =
   vsep
-  ["EXPR:  " <> showFirst expr
+  ["EXPR:  " <> prettyList expr
   , "ENV:   " <> align (pretty (unhashed env))
   , "STORE: " <> align (pretty store)
   ]
+{-# INLINE printIn #-}
 
 printOut :: Out -> Doc ann
 printOut ((store,errs),val) =
@@ -823,13 +886,8 @@ printOut ((store,errs),val) =
   , "STORE: " <> align (pretty store)
   , "ERRORS:" <> align (pretty errs)
   ]
+{-# INLINE printOut #-}
 
-printInExpr :: In -> Doc ann
-printInExpr (_,(_,expr)) = "EXPR:" <+> showFirst expr
-
-printOutVal :: Out -> Doc ann
-printOutVal (_,val) = "RET:" <+> pretty val
-
-showFirst :: Pretty x => [x] -> Doc ann
-showFirst (x:_) = pretty x
-showFirst [] = "[]"
+printAddr :: HashSet Addr -> Doc ann 
+printAddr addrs = prettyList $ toList addrs 
+{-# INLINE printAddr #-}

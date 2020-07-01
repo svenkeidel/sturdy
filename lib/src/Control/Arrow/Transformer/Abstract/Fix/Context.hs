@@ -21,6 +21,7 @@ import Control.Arrow.Fix.Context
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Trans
 import Control.Arrow.Reader
+import Control.Arrow.Fix.GarbageCollection
 
 import Control.Arrow.Transformer.Reader
 
@@ -30,7 +31,7 @@ import Data.Empty
 
 newtype ContextT ctx c x y = ContextT (ReaderT ctx c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowStrict,
-            ArrowLift,ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowLift,ArrowControlFlow stmt, ArrowPrimitive, ArrowGarbageCollection addr)
 
 runContextT :: (IsEmpty ctx, Profunctor c) => ContextT ctx c x y -> c x y
 runContextT (ContextT f) = lmap (empty,) (runReaderT f)
