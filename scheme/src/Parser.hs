@@ -186,6 +186,7 @@ parseSExpr val = case val of
   LT.List (Atom "string-append": args) -> opvar_ StringAppend (map parseSExpr args)
   LT.List (Atom "list": args) -> list (map parseSExpr args)
   LT.List [Atom "error", LT.String err] -> error_ err
+  LT.List [Atom "breakpoint", e] -> breakpoint (parseSExpr e)
 
   LT.List (Atom x: args) -> app (var_ (pack x)) (map parseSExpr args)
   LT.List (fun: args) -> app (parseSExpr fun) (map parseSExpr args)
