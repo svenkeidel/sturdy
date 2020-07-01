@@ -127,15 +127,6 @@ instance ArrowStack a c => ArrowStack a (ReaderT r c) where
 instance ArrowStackDepth c => ArrowStackDepth (ReaderT r c)
 instance ArrowStackElements a c => ArrowStackElements a (ReaderT r c)
 
----------------DEBUGT
---instance ArrowStack a c => ArrowStack a (DebugT c) where
---  push f = lift $ lmap shuffle1 (push (unlift f))
---  {-# INLINE push #-}
---instance ArrowStackDepth c => ArrowStackDepth (DebugT c)
---instance ArrowStackElements a c => ArrowStackElements a (DebugT c)
-
-
----------------
 instance ArrowStack a c => ArrowStack a (StateT s c) where
   push f = lift $ lmap shuffle1 (push (unlift f))
   {-# INLINE push #-}
