@@ -48,7 +48,7 @@ class (Arrow c, Profunctor c) => ArrowStackDepth c where
   {-# INLINE depth #-}
 
 
-class (Arrow c, Profunctor c) => ArrowStackElements a c where
+class (Arrow c, Profunctor c) => ArrowStackElements a c | c -> a where
   elems :: c () [a]
   peek :: c () (Maybe a)
 

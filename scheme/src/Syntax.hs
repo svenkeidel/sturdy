@@ -126,6 +126,7 @@ data Expr
   | Op2 Op2 Expr Expr Label
   | OpVar OpVar [Expr] Label
   | Error String Label
+  | Breakpoint Expr -- breakpoint z
   deriving (Generic,NFData)
 
 instance Eq Expr where
@@ -172,6 +173,8 @@ opvar_ :: OpVar -> [LExpr] -> LExpr
 opvar_ operation es = OpVar operation <$> sequence es <*> fresh
 error_ :: String -> LExpr
 error_ err = Error err <$> fresh
+breakpoint :: LExpr -> LExpr
+breakpoint e = Breakpoint <$> e
 
 
 instance Show Literal where show = show . pretty
