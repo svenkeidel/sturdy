@@ -11,17 +11,14 @@ module Control.Arrow.Transformer.Abstract.Fix.ControlFlow where
 import           Prelude hiding(pred,(.))
 
 import           Control.Arrow
-import           Control.Arrow.Primitive
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Fix.Chaotic as Chaotic
 import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
+import           Control.Arrow.Fix.Context (ArrowContext)
 import           Control.Arrow.Fix.ControlFlow
-import           Control.Arrow.Fix.Metrics
-import           Control.Arrow.Fix.Stack (ArrowStackDepth,ArrowStackElements)
 import           Control.Category
+import           Control.Arrow.Fix.GarbageCollection (ArrowGarbageCollection)
 
 import           Data.Label
 import           Data.Coerce
@@ -36,13 +33,9 @@ instance IsEmpty (CFG stmt) where
   empty = CFG G.empty
 
 newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Maybe stmt) c) x y)
-  deriving (
-      Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
-      ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
-      ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
-      ArrowMetrics a, ArrowComponent a, ArrowInComponent a,
-      ArrowPrimitive
-    )
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
+            ArrowGarbageCollection addr, ArrowCache a b, ArrowParallelCache a b, 
+            ArrowIterateCache a b)
 
 instance (HasLabel stmt, Arrow c, Profunctor c) => ArrowControlFlow stmt (ControlFlowT stmt c) where
   nextStatement f = lift $ proc (predecessor, (cfg, (nextStmt, x))) ->

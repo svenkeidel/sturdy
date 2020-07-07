@@ -464,9 +464,10 @@ runner :: (?algorithm :: Algorithm) => Eval' -> Runner
 runner eval inFile expected = do
   prog <- loadSchemeFile inFile
   let ?sensitivity = 0
-  let (Monotone metric,(errs,res)) = eval [prog]
+  let (cfg,(Monotone metric,(errs,res))) = eval [prog]
   let csv = printf "\"%s\",%s,%s\n" inFile (show ?algorithm) (toCSV metric)
   appendFile metricFile csv
+  renderCFG inFile cfg 
   (toSet errs, res) `shouldBe` expected
 
 renderCFG :: String -> CFG Expr -> IO ()

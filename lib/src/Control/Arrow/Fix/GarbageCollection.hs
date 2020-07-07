@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DefaultSignatures #-}
 
 
 module Control.Arrow.Fix.GarbageCollection where 
@@ -31,6 +32,16 @@ class (Arrow c, Profunctor c) => ArrowGarbageCollection addr c | c -> addr where
   updateGlobalGCRoots :: c (HashSet addr) ()
   getGCRoots :: c () (HashSet addr)
 
+  default addGlobalGCRoots :: (c ~ t c', ArrowTrans t, ArrowGarbageCollection addr c') => c (HashSet addr) ()
+  default updateGlobalGCRoots :: (c ~ t c', ArrowTrans t, ArrowGarbageCollection addr c') => c (HashSet addr) ()
+  default getGCRoots :: (c ~ t c', ArrowTrans t, ArrowGarbageCollection addr c') => c () (HashSet addr)
+
+  addGlobalGCRoots = lift' addGlobalGCRoots
+  updateGlobalGCRoots = lift' updateGlobalGCRoots
+  getGCRoots = lift' getGCRoots
+  {-# INLINE addGlobalGCRoots #-}
+  {-# INLINE updateGlobalGCRoots #-}
+  {-# INLINE getGCRoots #-}
 
 collect :: (Eq addr, Hashable addr, ArrowChoice c, ArrowGarbageCollection addr c) 
   => (x -> HashSet addr) -> (y -> HashSet addr) -> (HashSet addr -> y -> HashSet addr) -> (y -> HashSet addr -> y) 
@@ -40,7 +51,7 @@ collect getAddrIn getAddrOut getReachables removeUnreachables eval = proc x -> d
   y <- addLocalGCRoots eval -< (addrIn, x)
   addGlobalGCRoots -< getAddrOut y
   addrRoots <- getGCRoots -< () 
-  let addrReachable = getReachables (union addrRoots addrIn) y --unsound <- why unsound? 
+  let addrReachable = getReachables (union addrRoots addrIn) y
   let y_ = removeUnreachables y addrReachable
   returnA -< y_
 {-# INLINE collect #-}
@@ -74,52 +85,21 @@ trace getAddrIn getAddrOut getReachables showAddr printIn printOut eval = proc x
   ------------- Instances --------------
 instance ArrowGarbageCollection addr c => ArrowGarbageCollection addr (ConstT r c) where
   addLocalGCRoots f = lift $ \r -> addLocalGCRoots (unlift f r)
-  addGlobalGCRoots = lift $ \_ -> addGlobalGCRoots
-  updateGlobalGCRoots = lift $ \_ -> updateGlobalGCRoots
-  getGCRoots = lift $ \_ -> getGCRoots
   {-# INLINE addLocalGCRoots #-}
-  {-# INLINE addGlobalGCRoots #-}
-  {-# INLINE updateGlobalGCRoots #-}
-  {-# INLINE getGCRoots #-}
-
 
 instance ArrowGarbageCollection addr c => ArrowGarbageCollection addr (ReaderT r c) where
   addLocalGCRoots f = lift $ lmap shuffle1 (addLocalGCRoots (unlift f))
-  addGlobalGCRoots = lift' addGlobalGCRoots
-  updateGlobalGCRoots = lift' updateGlobalGCRoots
-  getGCRoots = lift' getGCRoots
   {-# INLINE addLocalGCRoots #-}
-  {-# INLINE addGlobalGCRoots #-}
-  {-# INLINE updateGlobalGCRoots #-}
-  {-# INLINE getGCRoots #-}
 
 instance ArrowGarbageCollection addr c => ArrowGarbageCollection addr (StateT s c) where
   addLocalGCRoots f = lift $ lmap shuffle1 (addLocalGCRoots (unlift f))
-  addGlobalGCRoots = lift' addGlobalGCRoots
-  updateGlobalGCRoots = lift' updateGlobalGCRoots
-  getGCRoots = lift' getGCRoots
   {-# INLINE addLocalGCRoots #-}
-  {-# INLINE addGlobalGCRoots #-}
-  {-# INLINE updateGlobalGCRoots #-}
-  {-# INLINE getGCRoots #-}
 
 instance (Applicative f, ArrowGarbageCollection addr c) => ArrowGarbageCollection addr (StaticT f c) where
   addLocalGCRoots (StaticT f) = StaticT $ addLocalGCRoots <$> f
-  addGlobalGCRoots = lift' addGlobalGCRoots
-  updateGlobalGCRoots = lift' updateGlobalGCRoots
-  getGCRoots = lift' getGCRoots
   {-# INLINE addLocalGCRoots #-}
-  {-# INLINE addGlobalGCRoots #-}
-  {-# INLINE updateGlobalGCRoots #-}
-  {-# INLINE getGCRoots #-}
 
 instance (Monoid w, ArrowGarbageCollection addr c) => ArrowGarbageCollection addr (WriterT w c) where
   addLocalGCRoots f = lift (addLocalGCRoots (unlift f))
-  addGlobalGCRoots = lift' addGlobalGCRoots
-  updateGlobalGCRoots = lift' updateGlobalGCRoots
-  getGCRoots = lift' getGCRoots
   {-# INLINE addLocalGCRoots #-}
-  {-# INLINE addGlobalGCRoots #-}
-  {-# INLINE updateGlobalGCRoots #-}
-  {-# INLINE getGCRoots #-}
 

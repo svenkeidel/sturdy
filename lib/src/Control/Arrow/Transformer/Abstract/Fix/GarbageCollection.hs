@@ -14,15 +14,11 @@ module Control.Arrow.Transformer.Abstract.Fix.GarbageCollection where
 import           Prelude hiding ((.))
 
 import           Control.Arrow 
-import           Control.Arrow.Primitive
 import           Control.Arrow.Trans
-import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Fix.Cache 
-import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
-import           Control.Arrow.Fix.Metrics
-import           Control.Arrow.Fix.Stack (ArrowStackDepth,ArrowStackElements)
 import           Control.Arrow.Fix.ControlFlow 
 import           Control.Arrow.Fix.GarbageCollection
+import           Control.Arrow.Fix.Context (ArrowContext)
 import           Control.Arrow.Transformer.Reader
 import qualified Control.Arrow.Reader as Reader 
 import           Control.Arrow.Transformer.State
@@ -38,13 +34,9 @@ import           Data.Empty
 
 
 newtype GarbageCollectionT addr c x y = GarbageCollectionT (StateT (HashSet addr) (ReaderT (HashSet addr) c) x y)
-    deriving (
-        Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
-        ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
-        ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
-        ArrowMetrics a, ArrowComponent a, ArrowInComponent a,
-        ArrowPrimitive, ArrowControlFlow stmt
-    )
+    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
+              ArrowControlFlow stmt, ArrowCache a b, ArrowParallelCache a b,
+              ArrowIterateCache a b)
 
 instance (Eq addr, Hashable addr, ArrowChoice c, Profunctor c) => ArrowGarbageCollection addr (GarbageCollectionT addr c) where
   addLocalGCRoots (GarbageCollectionT eval) = GarbageCollectionT $ proc (addrs_new,x) -> do 

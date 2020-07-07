@@ -32,7 +32,7 @@ import           Control.Arrow.Environment as Env
 import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost',outermost')
 import qualified Control.Arrow.Fix.Context as Ctx
--- import qualified Control.Arrow.Fix.ControlFlow as CFlow
+import qualified Control.Arrow.Fix.ControlFlow as CFlow
 import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Fix.GarbageCollection as GC
 import           Control.Arrow.Transformer.Value
@@ -43,7 +43,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
--- import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
+import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Environment (EnvT)
 import           Control.Arrow.Transformer.Abstract.Store (StoreT)
 import           Control.Arrow.Transformer.Abstract.Fix.GarbageCollection
@@ -72,13 +72,13 @@ type InterpChaotic x y =
               (MetricsT Metric.Monotone In
                 (ComponentT Comp.Component  In
                   (StackT Stack.Stack In
-                    (CacheT Cache.Monotone In Out
-                      (ContextT Ctx
-                        (GarbageCollectionT Addr 
-                          (--ControlFlowT Expr 
+                    (ControlFlowT Expr 
+                      (CacheT Cache.Monotone In Out
+                        (ContextT Ctx
+                          (GarbageCollectionT Addr 
                             (->))))))))))))) x y
 
-evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [LExpr] ->  (HashSet Addr, (Metric.Monotone In, Out'))
+evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [LExpr] ->  (HashSet Addr, (CFG Expr, (Metric.Monotone In, Out')))
 evalChaotic iterationStrat env0 e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
@@ -91,7 +91,7 @@ evalChaotic iterationStrat env0 e =
         --           printOut . 
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.recordEvaluated .
-        --  CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
+        -- CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
         -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
         Fix.filter' isFunctionBody (chaotic iterationStrat) in
   second snd $ Trans.run (extend' (Generic.runFixed :: InterpChaotic [Expr] (Pow Val))) (empty,(empty,(env0, e0)))
@@ -106,10 +106,7 @@ evalOuter :: Eval
 evalOuter = evalChaotic outermost'
 
 evalInner' :: Eval'
-evalInner' exprs = let (_,(metrics,(_,res))) = evalInner [] exprs in (metrics,res)
+evalInner' exprs = let (_,(cfg,(metrics,(_,res)))) = evalInner [] exprs in (cfg,(metrics,res))
 
 evalOuter':: Eval'
-evalOuter' exprs = let (_,(metrics,(_,res))) = evalOuter [] exprs in (metrics,res)
-
-eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors,  (Pow Val))
-eval' env exprs = snd $ snd $ snd $ evalInner env exprs
+evalOuter' exprs = let (_,(cfg,(metrics,(_,res)))) = evalOuter [] exprs in (cfg,(metrics,res))
