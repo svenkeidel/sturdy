@@ -23,21 +23,28 @@ class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
   type Widening c
 
   -- | Initializes a cache entry with 'bottom'.
-  initialize :: c a b
+  --
+  -- The operation satisfies the following laws:
+  --  * 'initialize' is an update with bottom: @(_,_,b)<-update-<(Unstable,a,⊥) ⊑ b'<-initialize-<a@
+  initialize :: (?cacheWidening :: Widening c) => c a b
 
   -- | Looks up if there is an entry in the cache.
   lookup :: c a (Maybe (Stable,b))
 
+  -- | Update an existing entry in the cache.
+  --
+  -- The operation satisfies the following laws:
+  --  * 'update' increases the entry: if @(s',a',b') <- update -< (s,a,b)@ then @a ⊑ a'@, and @b ⊑ b'@
+  --  * 'update' does not forget: if @(s',a',b') <- update -< (s,a,b); m <- lookup -< a@ then @Just (s ⊔ s',b') ⊑ m@
+  update :: (?cacheWidening :: Widening c) => c (Stable,a,b) (Stable,a,b)
+
   -- | Write a new entry to the cache.
   write :: c (a,b,Stable) ()
-
-  -- | Update an existing entry in the cache.
-  update :: (?cacheWidening :: Widening c) => c (Stable,a,b) (Stable,a,b)
 
   -- | Set a given entry to stable or unstable.
   setStable :: c (Stable,a) ()
 
-  default initialize :: (c ~ t c', ArrowTrans t, ArrowCache a b c') => c a b
+  default initialize :: (c ~ t c', ArrowTrans t, ArrowCache a b c', ?cacheWidening :: Widening c') => c a b
   default lookup :: (c ~ t c', ArrowTrans t, ArrowCache a b c') => c a (Maybe (Stable,b))
   default write :: (c ~ t c', ArrowTrans t, ArrowCache a b c') => c (a,b,Stable) ()
   default update :: (c ~ t c', ArrowTrans t, ArrowCache a b c', ?cacheWidening :: Widening c') => c (Stable,a,b) (Stable,a,b)
@@ -56,12 +63,12 @@ class (Arrow c, Profunctor c) => ArrowCache a b c | c -> a, c -> b where
   {-# INLINE setStable #-}
 
 class (ArrowIterateCache a b c) => ArrowParallelCache a b c where
-  lookupOldCache :: c a b
+  lookupOldCache :: (?cacheWidening :: Widening c) => c a b
   lookupNewCache :: c a (Maybe b)
   updateNewCache :: (?cacheWidening :: Widening c) => c (a,b) b
   isStable :: c () Stable
 
-  default lookupOldCache :: (c ~ t c', ArrowTrans t, ArrowParallelCache a b c') => c a b
+  default lookupOldCache :: (c ~ t c', ArrowTrans t, ArrowParallelCache a b c', ?cacheWidening :: Widening c') => c a b
   default lookupNewCache :: (c ~ t c', ArrowTrans t, ArrowParallelCache a b c') => c a (Maybe b)
   default updateNewCache :: (c ~ t c', ArrowTrans t, ArrowParallelCache a b c', ?cacheWidening :: Widening c') => c (a,b) b
   default isStable :: (c ~ t c', ArrowTrans t, ArrowParallelCache a b c') => c () Stable

@@ -333,6 +333,69 @@ instance (Arrow c, Profunctor c) => ArrowIterateCache (s,a) (s,b) (CacheT Monoto
     returnA -< ((sNew,a),(sNew,b))
   {-# INLINE nextIteration #-}
 
+-- | Cache for an analysis with abstract garbage collection. The type variable
+-- @s@ stands for the store.
+data GarbageCollect a b where
+  GarbageCollect :: HashMap a (Stable,s,s,b) -> GarbageCollect (s,a) (s,b)
+
+instance IsEmpty (GarbageCollect (s,a) (s,b)) where
+  empty = GarbageCollect empty
+
+instance (Show s, Show a, Show b) => Show (GarbageCollect (s,a) (s,b)) where
+  show (GarbageCollect m) = show m
+
+instance (Pretty s, Pretty a, Pretty b) => Pretty (GarbageCollect (s,a) (s,b)) where
+  pretty (GarbageCollect m) =
+    align (list [ pretty s1 <+> "×" <+> pretty a <+> showArrow st <+> pretty s2 <+> "×" <+> pretty b | (a,(st,s1,s2,b)) <- M.toList m])
+
+instance (Identifiable a, PreOrd s, LowerBounded b, ArrowChoice c, Profunctor c)
+    => ArrowCache (s,a) (s,b) (CacheT GarbageCollect (s,a) (s,b) c) where
+  type Widening (CacheT GarbageCollect (s,a) (s,b) c) = (W.Widening s,W.Widening b)
+  initialize = CacheT $ modify' $ \((sNew1,a),GarbageCollect cache) ->
+    let (widenS,_) = ?cacheWidening
+    in case M.lookup a cache of
+      Just (_,sOld1,sOld2,b)
+        | sNew1 ⊑ sOld1 -> ((sOld2,b), GarbageCollect cache)
+        | otherwise     -> let (_,sWiden1) = widenS sOld1 sNew1
+                               (_,sWiden2) = widenS sOld2 sNew1
+                           in ((sWiden2,b), GarbageCollect (M.insert a (Unstable,sWiden1,sOld2,b) cache))
+      Nothing           -> ((sNew1,bottom), GarbageCollect (M.insert a (Unstable,sNew1,sNew1,bottom) cache))
+  lookup = CacheT $ modify' $ \((sNew1,a),m@(GarbageCollect cache)) ->
+    case M.lookup a cache of
+      Just (st,sOld1,sOld2,b)
+        | sNew1 ⊑ sOld1 -> (Just (st,(sOld2,b)),       m)
+        | otherwise     -> (Just (Unstable,(sOld2,b)), m)
+      _ -> (Nothing, m)
+  update = CacheT $ modify' $ \((stable0,(sNew1,a),(sNew2,bNew)),GarbageCollect cache) ->
+    let (widenS,widenB) = ?cacheWidening
+    in case M.lookup a cache of
+      Just (_,sOld1,sOld2,bOld) ->
+          let (stable1,sWiden1) = widenS sOld1 sNew1
+              (stable2,sWiden2) = widenS sOld2 sNew2
+              (stable3,bWiden)  = widenB bOld bNew
+          in ((stable1 ⊔ stable2 ⊔ stable3, (sWiden1,a), (sWiden2,bWiden)),
+              GarbageCollect (M.insert a (stable0 ⊔ stable1 ⊔ stable2 ⊔ stable3, sWiden1, sWiden2, bWiden) cache))
+      Nothing -> ((Unstable,(sNew1,a),(sNew2,bNew)), GarbageCollect (M.insert a (Unstable,sNew1,sNew2,bNew) cache))
+  write = CacheT $ modify' $ \(((sNew1, a), (sNew2,b), st), GarbageCollect cache) ->
+    ((), GarbageCollect (M.insert a (st, sNew1, sNew2, b) cache))
+  setStable = CacheT $ proc _ -> returnA -< ()
+  {-# INLINE initialize #-}
+  {-# INLINE lookup #-}
+  {-# INLINE write #-}
+  {-# INLINE update #-}
+  {-# INLINE setStable #-}
+  {-# SCC initialize #-}
+  {-# SCC lookup #-}
+  {-# SCC write #-}
+  {-# SCC update #-}
+  {-# SCC setStable #-}
+
+instance (Arrow c, Profunctor c) => ArrowIterateCache (s,a) (s,b) (CacheT GarbageCollect (s,a) (s,b) c) where
+  nextIteration = CacheT $ proc ((_,a),(sNew2,b)) -> do
+    put -< GarbageCollect empty
+    returnA -< ((sNew2,a),(sNew2,b))
+  {-# INLINE nextIteration #-}
+
 ------ Monotone Cache that factors out the monotone element ------
 data MonotoneFactor a b where
   MonotoneFactor :: s -> HashMap a b -> MonotoneFactor (s,a) (s,b)
