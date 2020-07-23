@@ -38,3 +38,6 @@ instance Identifiable a => IsList (Errors a) where
   type Item (Errors a) = a
   fromList l = Errors (Versioned (fromList l) 0)
   toList (Errors (Versioned l _)) = toList l
+
+instance LowerBounded (Errors a) where
+  bottom = empty

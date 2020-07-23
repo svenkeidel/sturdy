@@ -7,6 +7,8 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TupleSections #-}
+
 
 
 module Control.Arrow.Transformer.Abstract.Fix.GarbageCollection where 
@@ -33,8 +35,8 @@ import qualified Data.HashSet as Set
 import           Data.Empty
 
 
-newtype GarbageCollectionT addr c x y = GarbageCollectionT (StateT (HashSet addr) (ReaderT (HashSet addr) c) x y)
-    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
+newtype GarbageCollectionT addr c x y = GarbageCollectionT (ReaderT (HashSet addr) c x y)
+    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowContext env,
               ArrowControlFlow stmt, ArrowCache a b, ArrowParallelCache a b,
               ArrowIterateCache a b)
 
@@ -42,33 +44,22 @@ instance (Eq addr, Hashable addr, ArrowChoice c, Profunctor c) => ArrowGarbageCo
   addLocalGCRoots (GarbageCollectionT eval) = GarbageCollectionT $ proc (addrs_new,x) -> do 
     addrs_old <- Reader.ask -< () 
     Reader.local eval -< (Set.union addrs_new addrs_old,x) 
-  addGlobalGCRoots = GarbageCollectionT $ proc addrs_new -> do 
-    addrs_old <- State.get -< () 
-    let updated = Set.union addrs_new addrs_old 
-    State.put -< updated
-  -- TODO: Find way to remove global addr, or get rid of global addresses entirely 
-  updateGlobalGCRoots = undefined
   getGCRoots = GarbageCollectionT $ proc _ -> do 
     addrs_stack <- Reader.ask -< () 
-    addrs_global <- State.get -< () 
-    returnA -< Set.union addrs_stack addrs_global 
+    returnA -< addrs_stack
   {-# INLINE addLocalGCRoots #-}
-  {-# INLINE addGlobalGCRoots #-}
-  {-# INLINE updateGlobalGCRoots #-}
   {-# INLINE getGCRoots #-}
   
 instance (Profunctor c, ArrowApply c) => ArrowApply (GarbageCollectionT addr c) where
   app = GarbageCollectionT (app .# first coerce)
   {-# INLINE app #-}
 
-instance ArrowLift (GarbageCollectionT addr c) where 
-  type Underlying (GarbageCollectionT addr c) x y = c (HashSet addr, (HashSet addr, x)) (HashSet addr, y) 
-
-instance ArrowTrans (GarbageCollectionT addr) where 
-  lift' = GarbageCollectionT . lift' . lift' 
-  {-# INLINE lift' #-}
 
 instance (ArrowRun c) => ArrowRun (GarbageCollectionT addr c) where
-  type Run (GarbageCollectionT addr c) x y = Run c x (HashSet addr,y)
-  run f = run (lmap (\x -> (empty, (empty, x)))  (unlift f))
+  type Run (GarbageCollectionT addr c) x y = Run c x y
+  run f = run (runGarbageCollectionT f)
   {-# INLINE run #-}
+
+runGarbageCollectionT :: (Profunctor c) => GarbageCollectionT addr c x y -> c x y
+runGarbageCollectionT (GarbageCollectionT f) = lmap (empty,) (runReaderT f)
+{-# INLINE runGarbageCollectionT #-}

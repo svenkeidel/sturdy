@@ -21,6 +21,7 @@ import qualified Control.Arrow.Closure as Cls
 import           Control.Arrow.Store (ArrowStore,write,read')
 import qualified Control.Arrow.Store as Store 
 import           Control.Arrow.Utils (map)
+import           Control.Arrow.Order 
 
 import           Data.Utils(eqLength)
 import           Data.Text (Text)
@@ -57,8 +58,11 @@ eval run' = proc e0 -> case e0 of
     cons_ -< ((v,label x),(vs, label xs))
   Begin es _ ->
     run' -< es
-  App e1 e2 _ -> do
+  App e1 e2 l -> do
     fun <- run' -< [e1]
+    -- tmp_addr <- alloc -< ("foo", l) 
+    -- write -< (tmp_addr, fun) 
+    -- Env.extend evalBindings'' -< ("foo", tmp_addr, (fun, e2))
     args <- map run' -< chunksOf 1 e2
     Cls.apply applyClosure' -< (fun, args)
   Apply es _ -> run' -< es
@@ -66,11 +70,7 @@ eval run' = proc e0 -> case e0 of
   Var x _ -> Env.lookup'' read' -< x
   Lam xs es l -> Cls.closure -< Lam xs es l
   Let bnds body l -> do
-    bnds <- evalBindings -< (bnds,l)
-    let envbnds = [(var,addr) | (var,addr,_) <- bnds]
-    let storebnds = [(addr,val) | (_,addr,val) <- bnds]
-    map write -< storebnds 
-    Env.extend' run' -< (envbnds,body)
+    evalBindings -< (bnds,body,l)
   LetRec bnds body l -> do
     addrs <- map alloc -< [(var,l) | (var,_) <- bnds]
     let envbnds = [(var,addr) | ((var,_),addr) <- zip bnds addrs]
@@ -111,21 +111,33 @@ eval run' = proc e0 -> case e0 of
       _ -> failString -< printf "Expected a function, but got %s" (show e)
     {-# SCC applyClosure' #-}
 
-    evalBindings = proc (bnds,lab) -> case bnds of
-      [] -> returnA -< []
+    -- for let app
+    evalBindings = proc (bnds,body,lab) -> case bnds of
+      [] -> run' -< body
       (var,expr) : bnds' -> do
         val <- run' -< [expr]
         addr <- alloc -< (var,lab)
-        vs <- evalBindings -< (bnds',lab) 
-        returnA -< (var,addr,val) : vs
+        write -< (addr,val)
+        Env.extend evalBindings -< (var,addr,(bnds',body,lab))
     {-# SCC evalBindings #-}
 
+    -- for letrec 
     evalBindings' = proc (bnds,body) -> case bnds of
       [] -> run' -< body
       (addr,expr) : bnds' -> do
         val <- run' -< [expr]
         write -< (addr,val)
         evalBindings' -< (bnds',body)
+
+-- App e1 e2 _ -> do
+--     fun <- run' -< [e1]
+--     args <- map run' -< chunksOf 1 e2
+--     Cls.apply applyClosure' -< (fun, args)
+
+    -- evalBindings'' =  proc (fun, arg) -> do 
+    --   val <- run' -< [(head arg)]
+    --   Cls.apply applyClosure' -< (fun, val)
+
 {-# INLINEABLE eval #-}
 {-# SCC eval #-}
 

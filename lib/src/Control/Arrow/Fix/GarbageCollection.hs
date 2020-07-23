@@ -9,6 +9,8 @@
 
 module Control.Arrow.Fix.GarbageCollection where 
 
+import Prelude hiding (pred)
+
 import Control.Arrow
 import Control.Arrow.Fix
 import Control.Arrow.Trans
@@ -28,33 +30,44 @@ import Data.Text.Prettyprint.Doc.Internal
 
 class (Arrow c, Profunctor c) => ArrowGarbageCollection addr c | c -> addr where
   addLocalGCRoots :: c x y -> c (HashSet addr,x) y
-  addGlobalGCRoots :: c (HashSet addr) ()
-  updateGlobalGCRoots :: c (HashSet addr) ()
   getGCRoots :: c () (HashSet addr)
 
-  default addGlobalGCRoots :: (c ~ t c', ArrowTrans t, ArrowGarbageCollection addr c') => c (HashSet addr) ()
-  default updateGlobalGCRoots :: (c ~ t c', ArrowTrans t, ArrowGarbageCollection addr c') => c (HashSet addr) ()
   default getGCRoots :: (c ~ t c', ArrowTrans t, ArrowGarbageCollection addr c') => c () (HashSet addr)
 
-  addGlobalGCRoots = lift' addGlobalGCRoots
-  updateGlobalGCRoots = lift' updateGlobalGCRoots
   getGCRoots = lift' getGCRoots
-  {-# INLINE addGlobalGCRoots #-}
-  {-# INLINE updateGlobalGCRoots #-}
   {-# INLINE getGCRoots #-}
 
-collect :: (Eq addr, Hashable addr, ArrowChoice c, ArrowGarbageCollection addr c) 
-  => (x -> HashSet addr) -> (y -> HashSet addr) -> (HashSet addr -> y -> HashSet addr) -> (y -> HashSet addr -> y) 
+collectRet :: (Eq addr, Hashable addr, ArrowChoice c, ArrowGarbageCollection addr c) 
+  => (x -> Bool) -> (x -> HashSet addr) -> (y -> HashSet addr) -> (HashSet addr -> y -> HashSet addr) -> (y -> HashSet addr -> y) 
   -> FixpointCombinator c x y
-collect getAddrIn getAddrOut getReachables removeUnreachables eval = proc x -> do
+collectRet pred getAddrIn getAddrOut getReachables removeUnreachables eval = proc x -> do
   let addrIn = getAddrIn x
   y <- addLocalGCRoots eval -< (addrIn, x)
-  addGlobalGCRoots -< getAddrOut y
-  addrRoots <- getGCRoots -< () 
-  let addrReachable = getReachables (union addrRoots addrIn) y
-  let y_ = removeUnreachables y addrReachable
-  returnA -< y_
-{-# INLINE collect #-}
+  -- addGlobalGCRoots -< getAddrOut y
+  if pred x
+    then do 
+      addrRoots <- getGCRoots -< () 
+      let addrReachable = getReachables (union (union addrRoots (getAddrOut y)) addrIn) y
+      let y_ = removeUnreachables y addrReachable
+      returnA -< y_
+    else returnA -< y 
+{-# INLINE collectRet #-}
+
+collectCall :: (Eq addr, Hashable addr, ArrowChoice c, ArrowGarbageCollection addr c) 
+  => (x -> Bool) -> (x -> HashSet addr) -> (y -> HashSet addr) -> (HashSet addr -> x -> HashSet addr) -> (x -> HashSet addr -> x) 
+  -> FixpointCombinator c x y
+collectCall pred getAddrIn getAddrOut getReachables removeUnreachables eval = proc x -> do
+  let addrIn = getAddrIn x
+  addrRoots <- getGCRoots -< () -- move into if stmt 
+  let x_ = (if pred x
+            then do 
+              let addrReachable = getReachables (union addrRoots addrIn) x
+              removeUnreachables x addrReachable
+            else x)  
+  y <- addLocalGCRoots eval -< (addrIn, x_)
+  -- addGlobalGCRoots -< getAddrOut y
+  returnA -< y 
+{-# INLINE collectCall #-}
 
 trace :: (Eq addr, Hashable addr, ArrowChoice c, ArrowGarbageCollection addr c) 
   => (x -> HashSet addr) -> (y -> HashSet addr) -> (HashSet addr -> y -> HashSet addr)
@@ -64,7 +77,7 @@ trace getAddrIn getAddrOut getReachables showAddr printIn printOut eval = proc x
   let addrIn = getAddrIn x
   y <- addLocalGCRoots eval -< (addrIn, x)
   let addrOut = getAddrOut y
-  addGlobalGCRoots -< addrOut 
+  -- addGlobalGCRoots -< addrOut 
   addrRoots <- getGCRoots -< () 
   let addrReachable = getReachables (union addrRoots addrIn) y --unsound <- why unsound? 
   returnA -< Debug.trace (show (vsep ["AddrRoots", 

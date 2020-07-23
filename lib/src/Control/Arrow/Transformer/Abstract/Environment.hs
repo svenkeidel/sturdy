@@ -126,7 +126,7 @@ instance (Identifiable expr, ArrowChoice c, Profunctor c) => ArrowClosure expr (
 
 instance (Identifiable expr, ArrowChoice c, Profunctor c) =>
   ArrowClosure expr (Closure expr (HashSet (Hashed (HashMap var addr)))) (EnvT (Hashed (HashMap var addr)) c) where
-  type Join y (Closure expr (HashSet (Hashed (HashMap var addr)))) (EnvT (Hashed (HashMap var addr)) c) = Complete y
+  type Join y (Closure expr (HashSet (Hashed (HashMap var addr)))) (EnvT (Hashed (HashMap var addr)) c) = ArrowComplete y c
   closure = EnvT $ proc expr -> do
     env <- Reader.ask -< ()
     returnA -< Abs.closure expr (Set.singleton env)
@@ -151,6 +151,8 @@ instance ArrowReader r c => ArrowReader r (EnvT env c) where
 instance ArrowFix (Underlying (EnvT env c) x y) => ArrowFix (EnvT env c x y) where
   type Fix (EnvT env c x y) = Fix (Underlying (EnvT env c) x y)
 
-instance (Complete y, Arrow c, Profunctor c) => ArrowComplete y (EnvT env c) where
-  EnvT f <⊔> EnvT g = EnvT (rmap (uncurry (⊔)) (f &&& g))
-  {-# INLINE (<⊔>) #-}
+-- instance (Complete y, Arrow c, Profunctor c) => ArrowComplete y (EnvT env c) where
+--   EnvT f <⊔> EnvT g = EnvT (rmap (uncurry (⊔)) (f &&& g))
+--   {-# INLINE (<⊔>) #-}
+
+deriving instance (ArrowComplete y c) => ArrowComplete y (EnvT env c) 

@@ -59,8 +59,8 @@ import           Data.HashMap.Lazy (HashMap)
 import           Data.Hashed.Lazy (Hashed)
 
 
-import           TypedAnalysis
-import           Syntax (LExpr,Expr(App))
+import           TypedAnalysis hiding (Cons)
+import           Syntax (LExpr,Expr(App,Cons))
 import           GenericInterpreter as Generic
 
 type InterpChaotic x y =
@@ -69,44 +69,44 @@ type InterpChaotic x y =
         (EnvT (Hashed (HashMap Text Addr))
           (StoreT (HashMap Addr (Pow Val))
             (FixT
-              (MetricsT Metric.Monotone In
+              (MetricsT Metric.Metrics In
                 (ComponentT Comp.Component  In
                   (StackT Stack.Stack In
-                    (ControlFlowT Expr 
-                      (CacheT Cache.Monotone In Out
-                        (ContextT Ctx
-                          (GarbageCollectionT Addr 
+                    (CacheT Cache.GarbageCollect In Out
+                      (ContextT Ctx
+                        (GarbageCollectionT Addr 
+                          (ControlFlowT Expr
                             (->))))))))))))) x y
 
-evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [LExpr] ->  (HashSet Addr, (CFG Expr, (Metric.Monotone In, Out')))
+evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [LExpr] ->  (CFG Expr, (Metric.Metrics In, Out'))
 evalChaotic iterationStrat env0 e =
-  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?cacheWidening = (storeErrWidening_nm, W.finite) in
   let ?fixpointAlgorithm = transform $
         Fix.fixpointAlgorithm $
-        -- Fix.trace printIn printOut .
-        -- GC.collect getAddrIn getAddrOut getReachable removeFromStore . 
-        -- GC.trace getAddrIn getAddrOut getReachable
-        --           printAddr
-        --           printIn
-        --           printOut . 
+        -- Fix.trace printIn printOut .        
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.recordEvaluated .
+        Fix.recordEvaluated . 
         -- CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
-        -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
-        Fix.filter' isFunctionBody (chaotic iterationStrat) in
+        -- GC.collectRet (\_ -> True) getAddrIn getAddrOut getReachable removeFromStore .
+        -- GC.collectRet gcEntry getAddrIn getAddrOut getReachable removeFromStore .
+        -- GC.collectCall gcEntry getAddrIn getAddrOut getReachableIn removeFromStoreIn .
+        -- GC.collectCall (\_ -> True) getAddrIn getAddrOut getReachableIn removeFromStoreIn .
+        -- GC.trace getAddrIn getAddrOut getReachable printAddr printIn printOut . 
+        Fix.filter' isFunctionBody (chaotic iterationStrat)
+        in
   second snd $ Trans.run (extend' (Generic.runFixed :: InterpChaotic [Expr] (Pow Val))) (empty,(empty,(env0, e0)))
   where
     e0 = generate (sequence e)
 {-# INLINE evalChaotic #-}
 
-evalInner :: Eval
+evalInner :: Eval_nm
 evalInner = evalChaotic innermost'
 
-evalOuter :: Eval
+evalOuter :: Eval_nm
 evalOuter = evalChaotic outermost'
 
-evalInner' :: Eval'
-evalInner' exprs = let (_,(cfg,(metrics,(_,res)))) = evalInner [] exprs in (cfg,(metrics,res))
+evalInner' :: Eval_nm'
+evalInner' exprs = let (cfg,(metrics,(_,res))) = evalInner [] exprs in (cfg,(metrics,res))
 
-evalOuter':: Eval'
-evalOuter' exprs = let (_,(cfg,(metrics,(_,res)))) = evalOuter [] exprs in (cfg,(metrics,res))
+evalOuter':: Eval_nm'
+evalOuter' exprs = let (cfg,(metrics,(_,res))) = evalOuter [] exprs in (cfg,(metrics,res))
