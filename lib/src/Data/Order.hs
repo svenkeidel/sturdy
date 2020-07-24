@@ -88,21 +88,16 @@ instance Identifiable a => LowerBounded (HashSet a) where
   bottom = HS.empty
 
 instance (Identifiable a, PreOrd b) => PreOrd (HashMap a b) where
-  m1 ⊑ m2 =
-    -- FIXME: Data.HashMap does not have a convenient `mergeBy` function like Data.Map.
-    -- Therefore we implement the ordering with `intersection`, because it is
-    -- the next best function to implement the ordering efficiently.
-    let intersection = HM.intersectionWith (⊑) m1 m2
-    in -- Each key in m1 needs to be in m2, i.e., HM.keys m1 ⊑ HM.keys m2
-       HM.size m1 == HM.size intersection &&
-       -- All values in m1 need to be smaller than the corresponding values in m2.
-       and intersection
+  m1 ⊑ m2 = and [ Just v1 ⊑ HM.lookup k1 m2 | (k1,v1) <- HM.toList m1 ]
 
 instance (Identifiable a, PreOrd b) => LowerBounded (HashMap a b) where
   bottom = HM.empty
 
 instance (Identifiable a, Complete b) => Complete (HashMap a b) where
   (⊔) = HM.unionWith (⊔)
+
+instance (Identifiable a, CoComplete b) => CoComplete (HashMap a b) where
+  (⊓) = HM.intersectionWith (⊓)
 
 instance (Ord k,PreOrd v) => PreOrd (Map k v) where
   c1 ⊑ c2 = M.keysSet c1 `S.isSubsetOf` M.keysSet c2 && all (\k -> (c1 M.! k) ⊑ (c2 M.! k)) (M.keys c1)
