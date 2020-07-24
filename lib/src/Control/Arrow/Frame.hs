@@ -11,6 +11,6 @@ class (Arrow c, Profunctor c) => ArrowFrame frame c | c -> frame where
   askFrame :: c () frame
   newFrame :: c x y -> c (frame,x) y
 
-  default askFrame :: (c ~ t c', ArrowLift t, ArrowFrame frame c') => c () frame
+  default askFrame :: (c ~ t c', ArrowTrans t, ArrowFrame frame c') => c () frame
   askFrame = lift' askFrame
   {-# INLINE askFrame #-}

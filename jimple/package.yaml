@@ -15,6 +15,7 @@ dependencies:
   - profunctors
   - mtl
   - random
+  - sturdy-arrows
   - sturdy-lib
   - text
   - vector

@@ -14,133 +14,133 @@
 {-# LANGUAGE UndecidableInstances #-}
 module ConcreteInterpreter where
 
-import           Prelude hiding (id,fail,lookup,read)
+-- import           Prelude hiding (id,fail,lookup,read)
 
-import           Data.Bits
-import           Data.Fixed
-import           Data.Hashable (Hashable)
-import           Data.List (replicate,repeat,find,splitAt)
-import           Data.Int
-import           Data.Word
-import           Data.Text(Text)
-import qualified Data.Text as T
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as Map
+-- import           Data.Bits
+-- import           Data.Fixed
+-- import           Data.Hashable (Hashable)
+-- import           Data.List (replicate,repeat,find,splitAt)
+-- import           Data.Int
+-- import           Data.Word
+-- import           Data.Text(Text)
+-- import qualified Data.Text as T
+-- import           Data.HashMap.Lazy (HashMap)
+-- import qualified Data.HashMap.Lazy as Map
 
--- import           Data.Concrete.Error
--- import           Data.Concrete.Exception
+-- -- import           Data.Concrete.Error
+-- -- import           Data.Concrete.Exception
 
-import           Control.Monad (return,fmap,replicateM)
-import           Control.Category hiding ((.))
+-- import           Control.Monad (return,fmap,replicateM)
+-- import           Control.Category hiding ((.))
 
-import           Control.Arrow hiding ((<+>))
-import           Control.Arrow.Const
-import           Control.Arrow.Environment
-import           Control.Arrow.Except
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Reader
-import           Control.Arrow.State
-import           Control.Arrow.Store
-import qualified Control.Arrow.Trans as Trans
-import qualified Control.Arrow.Utils as U
+-- import           Control.Arrow hiding ((<+>))
+-- import           Control.Arrow.Const
+-- import           Control.Arrow.Environment
+-- import           Control.Arrow.Except
+-- import           Control.Arrow.Fail
+-- import           Control.Arrow.Fix
+-- import           Control.Arrow.Reader
+-- import           Control.Arrow.State
+-- import           Control.Arrow.Store
+-- import qualified Control.Arrow.Trans as Trans
+-- import qualified Control.Arrow.Utils as U
 
-import           Control.Arrow.Transformer.Const
-import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Transformer.State
-import           Control.Arrow.Transformer.Value
-import           Control.Arrow.Transformer.Concrete.Except
-import           Control.Arrow.Transformer.Concrete.Environment
-import           Control.Arrow.Transformer.Concrete.Failure
-import           Control.Arrow.Transformer.Concrete.Store
+-- import           Control.Arrow.Transformer.Const
+-- import           Control.Arrow.Transformer.Reader
+-- import           Control.Arrow.Transformer.State
+-- import           Control.Arrow.Transformer.Value
+-- import           Control.Arrow.Transformer.Concrete.Except
+-- import           Control.Arrow.Transformer.Concrete.Environment
+-- import           Control.Arrow.Transformer.Concrete.Failure
+-- import           Control.Arrow.Transformer.Concrete.Store
 
-import           Syntax
-import           GenericInterpreter (Frame,PC,IsVal)
-import qualified GenericInterpreter as Generic
+-- import           Syntax
+-- import           GenericInterpreter (Frame,PC,IsVal)
+-- import qualified GenericInterpreter as Generic
 
-import           GHC.Generics(Generic)
-import           Data.Profunctor
+-- import           GHC.Generics(Generic)
+-- import           Data.Profunctor
 
-import           Text.Printf
+-- import           Text.Printf
 
-data Val
-  = IntVal Int32
-  | LongVal Int64
-  | FloatVal Float
-  | DoubleVal Double
-  | StringVal Text
-  -- | ClassVal Text
-  | NullVal
-  | RefVal Addr
-  | ArrayVal [Val]
-  | ObjectVal ClassId Object
-  deriving stock (Eq,Generic)
-  deriving anyclass (Hashable)
+-- data Val
+--   = IntVal Int32
+--   | LongVal Int64
+--   | FloatVal Float
+--   | DoubleVal Double
+--   | StringVal Text
+--   -- | ClassVal Text
+--   | NullVal
+--   | RefVal Addr
+--   | ArrayVal [Val]
+--   | ObjectVal ClassId Object
+--   deriving stock (Eq,Generic)
+--   deriving anyclass (Hashable)
 
-type Object = HashMap FieldName Val
-type Exception = Val
-type Env = Frame Val
-type Addr = Word64
-data Store = Store
-  { dynamicStore :: HashMap Addr Val
-  , staticStore :: HashMap ClassId Object
-  , nextAddress :: Addr
-  }
+-- type Object = HashMap FieldName Val
+-- type Exception = Val
+-- type Env = Frame Val
+-- type Addr = Word64
+-- data Store = Store
+--   { dynamicStore :: HashMap Addr Val
+--   , staticStore :: HashMap ClassId Object
+--   , nextAddress :: Addr
+--   }
 
-run :: ClassTable -> ClassId -> MethodSignature -> (Store,Exception)
-run classTable mainClass mainMethod = _ $
-  Trans.run
-   (Generic.run ::
-     ValueT Val
-     (ConstT ClassTable
-      (EnvT Env
-       (ExceptT Exception
-        (StoreT Store
-         (FailureT Text
-          (->)))))) PC Val)
-    classTable
-    (emptyStore,(_frame,0))
+-- run :: ClassTable -> ClassId -> MethodSignature -> (Store,Exception)
+-- run classTable mainClass mainMethod = _ $
+--   Trans.run
+--    (Generic.run ::
+--      ValueT Val
+--      (ConstT ClassTable
+--       (EnvT Env
+--        (ExceptT Exception
+--         (StoreT Store
+--          (FailureT Text
+--           (->)))))) PC Val)
+--     classTable
+--     (emptyStore,(_frame,0))
 
-instance (ArrowChoice c, Profunctor c) => ArrowEnv Variable Val (EnvT Env c) where
-  type Join y (EnvT Env c) = ()
-  lookup = _
-  extend = _
+-- instance (ArrowChoice c, Profunctor c) => ArrowEnv Variable Val (EnvT Env c) where
+--   type Join y (EnvT Env c) = ()
+--   lookup = _
+--   extend = _
 
-instance IsVal Val (ValueT Val c) where
-  type JoinVal y (ValueT Val c) = ()
-  if_ = _
-  tableswitch = _
-  lookupswitch = _
-  lookupMethod = _
-  matchException = _
-  new = _
-  newArray = _
-  void = _
-  doubleConstant = _
-  floatConstant = _
-  intConstant = _
-  longConstant = _
-  nullConstant = _
-  stringConstant = _
-  and = _
-  or = _
-  xor = _
-  rem = _
-  mod = _
-  cmp = _
-  cmpg = _
-  cmpl = _
-  shl = _
-  shr = _
-  ushr = _
-  plus = _
-  minus = _
-  mult = _
-  lengthOf = _
-  div = _
-  neg = _
-  cast = _
-  instanceOf = _
+-- instance IsVal Val (ValueT Val c) where
+--   type JoinVal y (ValueT Val c) = ()
+--   if_ = _
+--   tableswitch = _
+--   lookupswitch = _
+--   lookupMethod = _
+--   matchException = _
+--   new = _
+--   newArray = _
+--   void = _
+--   doubleConstant = _
+--   floatConstant = _
+--   intConstant = _
+--   longConstant = _
+--   nullConstant = _
+--   stringConstant = _
+--   and = _
+--   or = _
+--   xor = _
+--   rem = _
+--   mod = _
+--   cmp = _
+--   cmpg = _
+--   cmpl = _
+--   shl = _
+--   shr = _
+--   ushr = _
+--   plus = _
+--   minus = _
+--   mult = _
+--   lengthOf = _
+--   div = _
+--   neg = _
+--   cast = _
+--   instanceOf = _
 
 -- type Constants = ([CompilationUnit],Map FieldSignature Addr)
 
@@ -508,17 +508,17 @@ instance IsVal Val (ValueT Val c) where
 --   DynamicException v -> deepDeref >>^ DynamicException -< v
 --   StaticException _ -> returnA -< e
 
-instance Show Val where
-  show (IntVal n) = show n
-  show (LongVal l) = show l ++ "l"
-  show (FloatVal f) = show f
-  show (DoubleVal d) = show d ++ "d"
-  show (StringVal s) = T.unpack s
-  -- show (ClassVal c) = "<" ++ c ++ ">"
-  show NullVal = "null"
-  show (RefVal a) = "@" ++ show a
-  show (ArrayVal xs) = show xs
-  show (ObjectVal c m) = show c ++ "{" ++ show m ++ "}"
+-- instance Show Val where
+--   show (IntVal n) = show n
+--   show (LongVal l) = show l ++ "l"
+--   show (FloatVal f) = show f
+--   show (DoubleVal d) = show d ++ "d"
+--   show (StringVal s) = T.unpack s
+--   -- show (ClassVal c) = "<" ++ c ++ ">"
+--   show NullVal = "null"
+--   show (RefVal a) = "@" ++ show a
+--   show (ArrayVal xs) = show xs
+--   show (ObjectVal c m) = show c ++ "{" ++ show m ++ "}"
 
-emptyStore :: Store
-emptyStore = Store { dynamicStore = Map.empty, staticStore = Map.empty, nextAddress = 0 }
+-- emptyStore :: Store
+-- emptyStore = Store { dynamicStore = Map.empty, staticStore = Map.empty, nextAddress = 0 }

@@ -1,13 +1,14 @@
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module GenericInterpreter where
 
 import Prelude hiding (rem,mod,div,id,or,and,fail,return,map)
@@ -26,8 +27,8 @@ import Control.Arrow
 import Control.Arrow.Environment as Env
 import Control.Arrow.Frame as Frame
 import Control.Arrow.Except as Except
-import Control.Arrow.Fail
-import Control.Arrow.Fix (ArrowFix(..))
+import Control.Arrow.Fail as Fail
+import Control.Arrow.Fix (ArrowFix(..),FixpointAlgorithm)
 import Control.Arrow.Utils (map)
 
 import GHC.Exts
@@ -52,12 +53,17 @@ type StmtInterpreter val c = c PC val
 type ArrowInterp addr val err c =
   ( IsString err, IsVal val c
   , ArrowChoice c
-  , ArrowFrame (Frame addr) c
+  , ArrowFrame (Frame val) c
   , ArrowEnv Variable val c
   , ArrowExcept val c
   , ArrowFail err c
   , ArrowFix (StmtInterpreter val c)
-  , JoinVal () c, JoinVal val c, Env.Join val c, Except.Join val c
+  , ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c Label val))
+  , JoinVal () c
+  , JoinVal val c
+  , Env.Join val c
+  , Except.Join val c
+  , Fail.Join val c
   )
 
 eval :: ArrowInterp addr val err c => StmtInterpreter val c -> c Expr val
@@ -118,7 +124,7 @@ evalImmediate = proc i -> case i of
   ClassConstant c -> fail -< "Unsupported operation: ClassConstant"
 {-# INLINE evalImmediate #-}
 
-evalInvoke :: ArrowInterp addr val err c => StmtInterpreter val c -> c Invoke val
+evalInvoke :: forall addr val err c. ArrowInterp addr val err c => StmtInterpreter val c -> c Invoke val
 evalInvoke run' = proc e -> case e of
   InvokeVirtual obj klass methodSig args -> do
     receiver <- lookup' -< obj
