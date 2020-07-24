@@ -17,6 +17,7 @@ import Control.Arrow
 import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Transformer.Reader
+import Control.Arrow.Frame
 import Control.Arrow.Reader as Reader
 import Control.Arrow.State
 import Control.Arrow.Store
@@ -55,6 +56,10 @@ runEnvT = coerce
 runEnvT' :: (IsList env, Item env ~ (var,val), Profunctor c) => EnvT env c x y -> c ([(var,val)],x) y
 runEnvT' f = lmap (first fromList) (runEnvT f)
 {-# INLINE runEnvT' #-}
+
+instance (Arrow c, Profunctor c) => ArrowFrame env (EnvT env c) where
+  newFrame (EnvT f) = EnvT $ Reader.local f
+  askFrame = EnvT Reader.ask
 
 instance (Identifiable var, UpperBounded val, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT (SM.Map var val) c) where
   type Join y (EnvT (SM.Map var val) c) = ArrowComplete y c

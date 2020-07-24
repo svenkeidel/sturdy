@@ -8,7 +8,7 @@ packages:
 - 'scheme'
 - 'while'
 # - 'stratego'
-# - 'jimple'
+- 'jimple'
 # - 'tutorial'
 allow-newer: true
 extra-deps:
