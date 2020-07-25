@@ -14,6 +14,7 @@ import Control.Monad
 import Control.Monad.Except
 import Control.DeepSeq
 
+import Data.String
 import Data.Profunctor
 import Data.Bifunctor hiding (second)
 import Data.Hashable
@@ -56,6 +57,9 @@ instance MonadError e (Error e) where
   catchError (Fail e) f = f e
   catchError (Success a) _ = Success a
 
+instance IsString e => MonadFail (Error e) where
+  fail e = Fail (fromString e)
+
 instance Applicative (Error e) where
   pure = return
   (<*>) = ap
@@ -90,14 +94,23 @@ instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
 instance (Complete e,Complete a) => Complete (Error e a) where
   (⊔) = toJoin2 widening (⊔) (⊔)
 
-instance (PreOrd a, UpperBounded e) => UpperBounded (Error e a) where
-  top = Fail top
-
 widening :: Widening e -> Widening a -> Widening (Error e a)
 widening we _ (Fail a) (Fail b) = second Fail (a `we` b)
 widening _ wa (Success a) (Success b) = second Success (a `wa` b)
 widening _ _ (Fail a) (Success _) = (Unstable ,Fail a)
 widening _ _ (Success _) (Fail b) = (Unstable ,Fail b)
+
+instance (CoComplete e,CoComplete a) => CoComplete (Error e a) where
+  Fail x ⊓ Fail y = Fail (x ⊓ y)
+  Fail _ ⊓ Success y = Success y
+  Success x ⊓ Fail _ = Success x
+  Success x ⊓ Success y = Success (x ⊓ y)
+
+instance (PreOrd a, UpperBounded e) => UpperBounded (Error e a) where
+  top = Fail top
+
+instance (PreOrd e, LowerBounded a) => LowerBounded (Error e a) where
+  bottom = Success bottom
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeCompletion a)) => Complete (FreeCompletion (Error e a)) where
   Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of

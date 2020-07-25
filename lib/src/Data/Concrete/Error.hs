@@ -6,6 +6,7 @@ module Data.Concrete.Error where
 
 import Data.Hashable
 import Data.Profunctor
+import Data.String
 
 import Control.Monad
 import Control.Arrow hiding (ArrowMonad)
@@ -22,6 +23,9 @@ instance Monad (Error e) where
   return = Success
   Fail e >>= _ = Fail e
   Success a >>= k = k a
+
+instance IsString e => MonadFail (Error e) where
+  fail e = Fail (fromString e)
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Error e) c where
   mapA f = lmap toEither (arr Fail ||| rmap Success f)

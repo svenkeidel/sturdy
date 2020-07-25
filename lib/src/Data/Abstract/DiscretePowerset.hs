@@ -41,6 +41,11 @@ union Top _ = Top
 union _ Top = Top
 union (Pow xs) (Pow ys) = Pow (H.union xs ys)
 
+intersection :: Identifiable x => Pow x -> Pow x -> Pow x
+intersection Top ys = ys
+intersection xs Top = xs
+intersection (Pow xs) (Pow ys) = Pow (H.intersection xs ys)
+
 unions :: Identifiable x => Pow (Pow x) -> Pow x
 unions (Pow xs) = foldr union empty xs
 unions Top = Top
@@ -75,8 +80,17 @@ instance Identifiable x => PreOrd (Pow x) where
   _ ⊑ Top = True
   _ ⊑ _ = False
 
+instance Identifiable x => UpperBounded (Pow x) where
+  top = Top
+
 instance Identifiable x => Complete (Pow x) where
   (⊔) = union
+
+instance Identifiable x => CoComplete (Pow x) where
+  (⊓) = intersection
+
+instance Identifiable x => LowerBounded (Pow x) where
+  bottom = Pow H.empty
 
 instance Identifiable x => Semigroup (Pow x) where
   (<>) = union
@@ -101,12 +115,6 @@ instance Identifiable x => Complete (FreeCompletion (Pow x)) where
   F.Lower xs ⊔ F.Lower ys = F.Lower (xs ⊔ ys)
 
 instance Hashable x => Hashable (Pow x)
-
-instance Identifiable x => UpperBounded (Pow x) where
-  top = Top
-
-instance Identifiable x => LowerBounded (Pow x) where
-  bottom = Pow H.empty
 
 instance Identifiable x => IsList (Pow x) where
   type Item (Pow x) = x
