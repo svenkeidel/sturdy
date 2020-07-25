@@ -6,13 +6,10 @@ category:            Language
 
 dependencies:
   - base
+  - deepseq
   - hashable
-  - mtl
-  - profunctors
-  - sturdy-arrows
   - sturdy-lib
   - text
-  - transformers
   - unordered-containers
   - prettyprinter
 
