@@ -8,8 +8,8 @@ rm -f bench.csv
 stack clean
 
 # Run the benchmarks and combine the resulting csv files.
-stack bench --benchmark-arguments="--csv $RUNTIMES" sturdy-scheme 
-# stack test --fast --test-arguments='-m "/TypedAnalysis/Benchmarks"' sturdy-scheme
+stack bench --benchmark-arguments="--csv $RUNTIMES" sturdy-scheme
+stack test --fast --test-arguments='-m "/TypedAnalysis/Benchmarks"' sturdy-scheme
 
 # Post process the benchmark data
 body() { # Apply a command to the body of a file

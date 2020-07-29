@@ -1,1 +1,0 @@
-((lambda (x y) (car x)) '(#t) '(#f))

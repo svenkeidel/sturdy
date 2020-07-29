@@ -48,16 +48,15 @@ spec =
 testFixpointAlgorithms :: ((?algorithm :: Algorithm) => Runner -> Spec) -> Spec
 testFixpointAlgorithms tests = do
   describe "Chaotic" $ do
-    describe "Innermost" $ let ?algorithm = ChaoticInner in tests (runner_nm evalInner')
-    describe "Outermost" $ let ?algorithm = ChaoticOuter in tests (runner_nm evalOuter')
-  describe "Parallel" $ let ?algorithm = Parallel in tests (runner_nm evalParallel')
-  describe "ADI" $ let ?algorithm = ADI in tests (runner_nm evalADI')
+    describe "Innermost" $ let ?algorithm = ChaoticInner in tests (runner evalInner')
+    describe "Outermost" $ let ?algorithm = ChaoticOuter in tests (runner evalOuter')
+  describe "Parallel" $ let ?algorithm = Parallel in tests (runner evalParallel')
+  describe "ADI" $ let ?algorithm = ADI in tests (runner evalADI')
 
 benchmarks :: (?algorithm :: Algorithm) => Runner -> Spec
 benchmarks run = do
   gabrielBenchmarks run
   scalaAM run
-  larceny run 
 
 data Algorithm = ChaoticInner | ChaoticOuter | Parallel | ADI deriving (Show,Eq)
 
@@ -66,7 +65,7 @@ gabrielBenchmarks :: (?algorithm :: Algorithm) => Runner -> Spec
 gabrielBenchmarks run = describe "Gabriel" $ do
 
     it "boyer" $ do
-      pendingWith "not terminating within 10 minutes, program might be too large"
+      -- pendingWith "not terminating within 10 minutes, program might be too large"
       let inFile = "gabriel/boyer.scm"
       let expRes = successOrFail [BoolVal B.True, BoolVal B.False]
                                  [ "Expected list as argument for car, but got ['p]"
@@ -285,25 +284,6 @@ scalaAM run = describe "Scala-AM" $ do
                                  , "error: The modulus is too small to encrypt the message."
                                  ]
       run inFile expRes
-----------------------LARCENY BENCHMAKRS------------------------------------
-larceny :: (?algorithm :: Algorithm) => Runner -> Spec
-larceny run = describe "Larceny" $ do
-    it "ack" $ do
-      let inFile = "larceny/ack.scm"
-      let expRes = success [NumVal IntVal]
-      run inFile expRes
-
-    it "array1" $ do 
-      pendingWith "missing implementations"
-      let inFile = "larceny/array1.scm"
-      let expRes = success [NumVal IntVal]
-      run inFile expRes
-
-    it "browse" $ do 
-      pendingWith "missing implementations"
-      let inFile = "larceny/browse.scm"
-      let expRes = success [NumVal IntVal]
-      run inFile expRes      
 
 -- -------------------Custom Tests------------------------------------------
 customTests :: (?algorithm :: Algorithm) => Runner -> Spec
@@ -405,7 +385,7 @@ customTests run = do
 
     it "test_closure_gc" $ do
       let inFile = "test_closure_gc.scm"
-      let expRes = success $ [BoolVal B.False]
+      let expRes = success $ [NumVal IntVal]
       run inFile expRes
 
     -- it "lang_scheme_test" $ do
@@ -463,26 +443,6 @@ customTests run = do
       let inFile = "test_symbols.scm"
       let expRes = success [QuoteVal ["sym1"], QuoteVal ["sym2"], QuoteVal ["sym3"]]
       run inFile expRes
-      
-    it "test_nonterminating_binding" $ do
-      let expRes = success [Bottom]
-      let inFile = "test_nonterminating_binding.scm"
-      run inFile expRes
-
-    it "test_let_lists" $ do 
-      let expRes = success [BoolVal B.True]
-      let inFile = "test_let_lists.scm"
-      run inFile expRes
-
-    it "test_letrec_lists" $ do 
-      let expRes = success [BoolVal B.True]
-      let inFile = "test_letrec_lists.scm"
-      run inFile expRes
-
-    it "test_app_lists" $ do 
-      let expRes = success [BoolVal B.True]
-      let inFile = "test_app_lists.scm"
-      run inFile expRes
 
     it "test_random" $ do
       let inFile = "test_random.scm"
@@ -505,16 +465,6 @@ runner eval inFile expected = do
   prog <- loadSchemeFile inFile
   let ?sensitivity = 0
   let (cfg,(Monotone metric,(errs,res))) = eval [prog]
-  let csv = printf "\"%s\",%s,%s\n" inFile (show ?algorithm) (toCSV metric)
-  appendFile metricFile csv
-  renderCFG inFile cfg 
-  (toSet errs, res) `shouldBe` expected
-
-runner_nm :: (?algorithm :: Algorithm) => Eval_nm' -> Runner
-runner_nm eval inFile expected = do
-  prog <- loadSchemeFile inFile
-  let ?sensitivity = 0
-  let (cfg,(metric,(errs,res))) = eval [prog]
   let csv = printf "\"%s\",%s,%s\n" inFile (show ?algorithm) (toCSV metric)
   appendFile metricFile csv
   renderCFG inFile cfg 

@@ -25,7 +25,6 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Concrete.FiniteEnvStore
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Order
 
 import           Control.Monad.State hiding (fail, StateT, get, put)
 

@@ -29,9 +29,9 @@ loadSchemeFile file = do
     Left err -> throwLispError err
     Right val -> do
      expanded <- macroExpand (List val)
-     print expanded
+     -- print expanded
      let expr = parseTopLevelSExpr expanded
-    --  print (generate expr)
+     -- print (generate expr)
      return expr
 
 loadSchemeFile' :: String -> IO Expr
@@ -81,11 +81,7 @@ parseDefinitions (LT.List [Atom "define", Atom var, body] : defs) =
 parseDefinitions (LT.List (Atom "define": Atom var: body) : defs) =
   (pack var, begin (map parseSExpr body)) <+ parseDefinitions defs
 parseDefinitions (LT.List (Atom "define": LT.List (Atom var: args): body) : defs) =
-  case args of 
-    [] -> (pack var, lam [] (map parseSExpr body)) <+ parseDefinitions defs
-    -- args -> (pack var, lam [ pack arg ] (map parseSExpr body)) <+ parseDefinitions defs
-    _ -> (pack var, parseSExpr (LT.List (Atom "lambda": LT.List args: body))) <+ parseDefinitions defs
-  -- (pack var, lam [ pack x | Atom x <- args ] (map parseSExpr body)) <+ parseDefinitions defs
+  (pack var, lam [ pack x | Atom x <- args ] (map parseSExpr body)) <+ parseDefinitions defs
 parseDefinitions (sexpr : defs) =
   parseSExpr sexpr +> parseDefinitions defs
 parseDefinitions [] = ([],[])
@@ -107,19 +103,12 @@ parseSExpr val = case val of
   LT.List (Atom "define": Atom var: body) ->
     define (pack var) (begin (map parseSExpr body))
   LT.List (Atom "define": LT.List (Atom var: args): body) ->
-    case args of 
-      [] -> define (pack var) (lam [ pack x | Atom x <- args ] (map parseSExpr body))
-      _ -> define (pack var) (parseSExpr (LT.List (Atom "lambda": LT.List args: body)))
-    
+    define (pack var) (lam [ pack x | Atom x <- args ] (map parseSExpr body))
   -- TODO : add lambdas with variable amount of arguments if only one arguement is given
   LT.List (Atom "lambda": Atom var: body_) ->
     lam [ pack var ] (map parseSExpr body_)
   LT.List (Atom "lambda": LT.List args: body_) ->
-    case args of 
-      [] -> lam [] (map parseSExpr body_) 
-      (Atom arg): [] -> lam [ pack arg ] (map parseSExpr body_)
-      (Atom arg): args_ -> lam [ pack arg ] [parseSExpr (LT.List (Atom "lambda": LT.List args_: body_))]
-    -- lam [ pack x | Atom x <- args ] (map parseSExpr body_)
+    lam [ pack x | Atom x <- args ] (map parseSExpr body_)
   -- case lambda
   LT.List [Atom "if", cond, then_branch, else_branch] ->
     if_ (parseSExpr cond) (parseSExpr then_branch) (parseSExpr else_branch)
@@ -141,11 +130,7 @@ parseSExpr val = case val of
   LT.List [Atom "quote", LT.List xs] -> list (map quoteListHelp xs)
   LT.List [Atom "quote", val_] -> lit $ parseLits val_
   LT.List (LT.List(Atom "lambda": rest): args) ->
-    case args of 
-      [] -> app (parseSExpr (LT.List(Atom "lambda" : rest))) []
-      arg: [] -> app (parseSExpr (LT.List(Atom "lambda" : rest))) [parseSExpr arg]
-      args_ -> app (parseSExpr (LT.List (LT.List(Atom "lambda": rest): (init args_)))) [parseSExpr $ last args_]
-    -- app (parseSExpr (LT.List(Atom "lambda" : rest))) (map parseSExpr args)
+    app (parseSExpr (LT.List(Atom "lambda" : rest))) (map parseSExpr args)
   -- LT.List [Atom "call-with-values", generator, _] ->
   --   app (parseSExpr generator) []
   LT.List [Atom "number?", e] -> op1_ IsNumber (parseSExpr e)
@@ -202,18 +187,8 @@ parseSExpr val = case val of
   LT.List (Atom "list": args) -> list (map parseSExpr args)
   LT.List [Atom "error", LT.String err] -> error_ err
 
-  LT.List (Atom x: args) -> 
-    case args of 
-      [] -> app (var_ (pack x)) []
-      arg: [] -> app (var_ (pack x)) [parseSExpr arg]
-      args_ -> app (parseSExpr (LT.List (Atom x: (init args_)))) [parseSExpr $ last args_]
-    -- app (var_ (pack x)) (map parseSExpr args)
-  LT.List (fun: args) -> 
-    case args of 
-      [] -> app (parseSExpr fun) []
-      arg: [] -> app (parseSExpr fun) [parseSExpr arg]
-      args_ -> app (parseSExpr (LT.List (fun: (init args_)))) [parseSExpr $ last args_]
-    -- app (parseSExpr fun) (map parseSExpr args)
+  LT.List (Atom x: args) -> app (var_ (pack x)) (map parseSExpr args)
+  LT.List (fun: args) -> app (parseSExpr fun) (map parseSExpr args)
   _ -> error $ "cannot parse s-expression: " ++ show val
 
 extractBinding :: LispVal -> (Text, State Label Expr)

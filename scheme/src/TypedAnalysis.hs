@@ -24,7 +24,7 @@
 -- | k-CFA analysis for PCF where numbers are approximated by intervals.
 module TypedAnalysis where
 
-import           Prelude hiding (not,Bounded,fail,(.),exp,read, (**))
+import           Prelude hiding (not,Bounded,fail,(.),exp,read)
 
 import           Control.Category
 import           Control.Arrow hiding ((<+>))
@@ -70,7 +70,6 @@ import           Data.Abstract.Closure (Closure, getEnvs)
 import qualified Data.Abstract.DiscretePowerset as DP
 import           Data.Abstract.CallString(CallString)
 import qualified Data.Abstract.Widening as W
-import           Data.Abstract.Widening ((**))
 import           Data.Abstract.Stable
 import           Data.Abstract.Powerset (Pow)
 import qualified Data.Abstract.Powerset as Pow
@@ -726,19 +725,6 @@ storeErrWidening (s1,e1) (s2,e2) =
   -- stabilization it remains to check that s2 ⊑ s1.
   (if (s2,e2) ⊑ (s1,e1) then Stable else Unstable, (s2,e2))
 
-storeErrWidening_nm :: W.Widening (Store,Errors)
-storeErrWidening_nm (s1,e1) (s2,e2) = do
-  let (w_store,store) = W.finite s1 s2
-  let (w_err,err) = (if e2 ⊑ e1 then Stable else Unstable, e2)
-  (w_store ⊔ w_err, (store,err))
-
-widening_nm :: W.Widening ((Store, Errors), Pow Val) 
-widening_nm ((s1,e1),v1) ((s2,e2),v2) = do 
-  let (w_store,store) = W.finite s1 s2
-  let (w_err,err) = (if e2 ⊑ e1 then Stable else Unstable, e2)
-  let (w_val,val) = W.finite v1 v2
-  (w_store ⊔ w_err ⊔ w_val, ((store,err),val))
-
 instance PreOrd Val where
   Bottom ⊑ _ = True
   _ ⊑ Top = True
@@ -818,11 +804,8 @@ type In = ((Store,Errors), (Env, [Expr]))
 type Out = ((Store,Errors), (Pow Val))
 type In' = (Store,(Env,(Errors,  [Expr])))
 type Out' = (Store, (Errors, (Pow Val)))
-type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
+type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (HashSet Addr, (CFG Expr, (Metric.Monotone In, Out')))
 type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Monotone In, (Errors, (Pow Val))))
-type Eval_nm = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Metrics In, Out'))
-type Eval_nm' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Metrics In, (Errors, (Pow Val))))
-
 
 transform :: Profunctor c => Fix.FixpointAlgorithm (c In Out) -> Fix.FixpointAlgorithm (c In' Out')
 transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(env,exprs)))
@@ -836,14 +819,6 @@ isFunctionBody (_,(_,e)) = case e of
   Apply _ _:_ -> True
   _ -> False
 {-# INLINE isFunctionBody #-}
-
-gcEntry :: In -> Bool
-gcEntry (_,(_,e)) = case e of
-  -- App _ _ _:_ -> True
-  -- Apply _ _:_ -> False
-  -- Cons _ _ _:_ -> True 
-  _ -> True 
-{-# INLINE gcEntry #-}
 
 getAddrIn :: In -> HashSet Addr
 getAddrIn (_, (env, _)) = Set.fromList $ SM.elems $ unhashed env 
@@ -865,28 +840,11 @@ getReachable addrs ((store,errs),vals) = do
     else getReachable (Set.fromList $ addrs_ ++ reachable_addrs) ((store,errs),vals)
 {-# INLINE getReachable #-}
 
-getReachableIn :: HashSet Addr -> In -> HashSet Addr 
-getReachableIn addrs ((store,errs),(env,exprs)) = do 
-  let addrs_ = toList addrs
-  let reachable_vals = catMaybes $ map (\(addr,st) -> SM.lookup addr st) (zip addrs_ (repeat store)) --not nice: repeat
-  let reachable_addrs = Set.toList $ Set.fromList $ (getAddrCls $ concat $ map Pow.toList reachable_vals) ++ (getAddrList $ concat $ map Pow.toList reachable_vals) 
-  if (reachable_addrs \\ addrs_ == [])
-    then addrs
-    else getReachableIn (Set.fromList $ addrs_ ++ reachable_addrs) ((store,errs), (env,exprs))
-{-# INLINE getReachableIn #-}
-
 removeFromStore :: Out -> HashSet Addr -> Out
 removeFromStore ((store,errs),vals) addrs = do 
-  let store_updated = delete' (filter (\x -> case x of LabelA _ -> False; _ -> True) (SM.keys store \\ (toList addrs))) store 
   let store_updated = delete' (SM.keys store \\ (toList addrs)) store 
   ((store_updated,errs),vals) 
 {-# INLINE removeFromStore #-}
-
-removeFromStoreIn :: In -> HashSet Addr -> In
-removeFromStoreIn ((store,errs),(env,exprs)) addrs = do 
-  let store_updated = delete' (SM.keys store \\ (toList addrs)) store 
-  ((store_updated,errs),(env,exprs))
-{-# INLINE removeFromStoreIn #-}
 
 getAddrCls :: [Val] -> [Addr]
 getAddrCls vals = do 
