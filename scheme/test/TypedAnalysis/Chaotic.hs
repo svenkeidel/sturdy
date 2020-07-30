@@ -160,18 +160,18 @@ data WebsocketMessage
 instance ToJSON WebsocketMessage 
 instance FromJSON WebsocketMessage 
 
-instance ToJSON Addr
-instance ToJSONKey Addr
-instance FromJSON Addr
-instance FromJSONKey Addr
-instance ToJSON Val
-instance FromJSON Val
-instance FromJSONKey Expr
-instance ToJSONKey Expr
-instance ToJSON List
-instance FromJSON List
-instance ToJSON Number
-instance FromJSON Number
+--instance ToJSON Addr
+--instance ToJSONKey Addr
+--instance FromJSON Addr
+--instance FromJSONKey Addr
+--instance ToJSON Val
+--instance FromJSON Val
+--instance FromJSONKey Expr
+--instance ToJSONKey Expr
+--instance ToJSON List
+--instance FromJSON List
+--instance ToJSON Number
+--instance FromJSON Number
 
 
 
@@ -334,8 +334,8 @@ debug f = proc input@((store,errors),(env,exprs)) -> do
     loop = proc input@((store,errors),(env,exprs)) -> do
 
       cfg <- getCFG -< ()
-      liftIO print -< (labNodes cfg)
-
+      --liftIO print -< (getNodes cfg)
+      --let nodes = getNodes cfg
       stackElems <- Stack.elems -< ()     
       liftIO print -< stackElems
       
@@ -352,7 +352,7 @@ debug f = proc input@((store,errors),(env,exprs)) -> do
 
 {-# INLINE debug #-}
 
---  newtype CFG stmt = CFG (Gr stmt ())   was für typen?         brauche ich das? wenn ja wohin ?  | c -> stmt
+
 
 ---------------------     Helper Functions     ----------------------------
 
@@ -377,8 +377,10 @@ createBreakpointResponse (((store, errors), (env, expr)):xs) input cfg = Data.Te
   --[((Store, Errors), (Env, [Expr]))]
 
 
-getNodes :: (Gr stmt) (Gr stmt ()) -> [LNode stmt]
-getNodes cfg = labNodes cfg
+
+--  newtype CFG stmt = CFG (Gr stmt ())   was für typen?         brauche ich das? wenn ja wohin ?  | c -> stmt
+--getNodes :: CFG -> (Gr Expr ()) -> [LNode stmt]
+--getNodes cfg stmt = labNodes stmt
 
 
 
