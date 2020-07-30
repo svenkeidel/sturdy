@@ -34,7 +34,7 @@ import qualified Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost',outermost')
 import qualified Control.Arrow.Fix.Context as Ctx
 --import           Control.Arrow.Fix.Stack as Stack
-import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,widenInput,maxDepth,reuseByMetric)
+import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,widenInput,maxDepth,reuseByMetric, StackPointer)
 import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.IO
 import qualified Control.Arrow.Trans as Trans
@@ -61,6 +61,7 @@ import           Data.Abstract.Terminating(Terminating)
 import           TypedAnalysis
 import           Syntax (LExpr,Expr(App),Literal)
 import           GenericInterpreter as Generic
+
 
 --import           Control.Arrow.Transformer.Debug(DebugT)
 
@@ -94,9 +95,20 @@ import Parser
 import qualified Data.ByteString.Lazy          as BL
 import qualified Data.ByteString               as B
 
-import Control.Arrow.Transformer.Debug(DebugState(..), DebugT, ArrowDebug, sendMessage)
+import Control.Arrow.Transformer.Debug(DebugState(..), DebugT, ArrowDebug, sendMessage, isBreakpoint, receiveMessage)
 import          Control.Arrow.Transformer.State
 import          Control.Arrow.Fix.ControlFlow
+
+import           Text.Printf
+
+import           Data.HashMap.Strict (HashMap)
+
+import Data.Graph.Inductive(Gr)
+import Data.Graph.Inductive.Graph(mkGraph, LNode, LEdge, labNodes, labEdges, Graph)
+
+import Control.Arrow.State as State
+
+import Control.Arrow.Fix.FiniteEnvStore 
 
 
 type InterpT c x y =
@@ -114,40 +126,7 @@ type InterpT c x y =
                      (ControlFlowT Expr
                        c)))))))))))) x y
 
-{--
-evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
-evalChaotic iterationStrat env0 e =
-  let ?cacheWidening = (storeErrWidening, W.finite) in
-  let ?fixpointAlgorithm = transform $
-        Fix.fixpointAlgorithm $
-        -- Fix.trace printIn printOut .
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.recordEvaluated .
-        -- CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
-        -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
-        Fix.filter' isFunctionBody (chaotic iterationStrat) in
-  second snd $ Trans.run (extend' (Generic.runFixed :: InterpT (->) [Expr] Val)) (empty,(empty,(env0,e0)))
-  where
-    e0 = generate (sequence e)
-{-# INLINE evalChaotic #-}
--}
 
-{--
-evalInner :: Eval
-evalInner = evalChaotic innermost'
-
-evalOuter :: Eval
-evalOuter = evalChaotic outermost'
-
-evalInner' :: Eval'
-evalInner' exprs = let (metrics,(cfg,res)) = evalInner [] exprs in (metrics,(cfg,snd res))
-
-evalOuter':: Eval'
-evalOuter' exprs = let (metrics,(cfg,res)) = evalOuter [] exprs in (metrics,(cfg,snd res))
-
-eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors,Terminating Val)
-eval' env exprs = snd $ snd $ snd $ evalInner env exprs
--}
 
 
 --------------------------------------------------
@@ -158,36 +137,41 @@ type ClientId = Int
 type Client   = (ClientId, WS.Connection)
 type State    = [Client]
 
-type Socket = () -- Placeholder
-type Breakpoints = [Expr] -- Placeholder
-type StackElems = [In] -- Placeholder
 
 
-data Message
-  = ReachedBreakpoint {breakpoint :: Expr, env :: Env}
-  | Continue
-  | GetStackRequest
-  | GetStackResponse StackElems
 
 
 
 
 ---------------------     Websocket Messages     ----------------------------
 
-data TestMessage
-  = InitializeDebuggerRequest {path :: String}
-  | InitializeDebuggerResponse {code :: [Expr]}
-  | ContinueRequest {bps :: [Int], start :: Bool}
-  | ContinueResponse {debugInfo :: Text}
+data WebsocketMessage
+  = LoadSourceCodeRequest {path :: String}
+  | LoadSourceCodeResponse {code :: FilePath}
+  | StartDebuggerRequest {code :: String}
+  | StartDebuggerResponse {}
+  | ContinueRequest {}        --bps :: [Int], start :: Bool
+  | BreakpointResponse {stackElems :: String, exprs :: String, cfg :: String}
   | RefreshRequest
   | RefreshResponse {success :: Bool}
-  deriving (Show, Eq, Generic)
+  deriving (Show, Generic)
 
 
-instance ToJSON TestMessage 
+instance ToJSON WebsocketMessage 
+instance FromJSON WebsocketMessage 
 
-instance FromJSON TestMessage 
-
+instance ToJSON Addr
+instance ToJSONKey Addr
+instance FromJSON Addr
+instance FromJSONKey Addr
+instance ToJSON Val
+instance FromJSON Val
+instance FromJSONKey Expr
+instance ToJSONKey Expr
+instance ToJSON List
+instance FromJSON List
+instance ToJSON Number
+instance FromJSON Number
 
 
 
@@ -234,9 +218,6 @@ connectClient conn stateRef = Concurrent.modifyMVar stateRef $ \state -> do
   return ((clientId, conn) : state, clientId)
 
 
-extractClient :: ClientId -> State -> State
-extractClient clientId = List.filter ((==) clientId . fst)
-
 withoutClient :: ClientId -> State -> State
 withoutClient clientId = List.filter ((/=) clientId . fst)
 
@@ -248,25 +229,38 @@ listen :: DebugState -> P.IO ()
 listen debugState = do
   print (clientId debugState)
   msg <- WS.receiveData (conn debugState)
-  let dec = Maybe.fromJust (decode'' msg) :: TestMessage
+  let dec = Maybe.fromJust (decode'' msg) :: WebsocketMessage
   print "JETZT KOMMT PRINT DEC "
   print (dec)
   case dec of
 
-    InitializeDebuggerRequest { path = p } -> do
+    LoadSourceCodeRequest { path = p } -> do
+
+      contents <- Parser.loadSourceCode p
+      print "JETZT CONTENTS"
+      print contents
+      print "CONTENTS VORBEI"
+
       expressions <- Parser.loadSchemeFile (path dec)
       ulEx <- Parser.loadSchemeFile' (path dec)
       print ulEx
-      --let object = InitializeDebuggerResponse ([generate expressions])
-      let object = InitializeDebuggerResponse ([ulEx])
+      --let object = LoadSourceCodeResponse ([generate expressions])
+      let object = LoadSourceCodeResponse (contents)
       print object
       let encodedObject = encode object
       let textObject = Data.Text.Encoding.decodeUtf8 (toStrict1 encodedObject)
-      let changedDebugState = changeExpressions debugState [expressions]
-      sendResponse changedDebugState textObject
+      --let changedDebugState = changeExpressions debugState [expressions]
+
+      sendResponse debugState textObject
     
-    ContinueRequest {bps = b, start = s} -> do  --hier b und s benutzen
-      sendResponse debugState "bla"
+    StartDebuggerRequest {code = code } -> do
+      let ?sensitivity = 0
+      let ?debugState = debugState
+      expressions <- Parser.loadSchemeFileWithCode code
+      evalDebug ([expressions])
+    
+    ContinueRequest {} -> do  --hier b und s benutzen
+      --sendResponse debugState "bla"
       --eval debug aufrufen
       let ?sensitivity = 0
       let ?debugState = debugState
@@ -275,6 +269,7 @@ listen debugState = do
       expressions <- Parser.loadSchemeFile ("test_factorial.scm")
       
       evalDebug ([expressions])
+      print "continueRequest"
 
     RefreshRequest -> do
       let object = RefreshResponse True
@@ -297,9 +292,6 @@ listen debugState = do
 
 sendResponse :: DebugState -> Text.Text -> P.IO ()
 sendResponse debugState msg = do
-  print msg
-  putStrLn "hier in sendResponse"
-
   WS.sendTextData (conn debugState) msg             
   
 
@@ -311,6 +303,7 @@ evalDebug expr =
        Fix.fixpointAlgorithm $
          debug .
          Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+         recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
          Fix.filter' isFunctionBody (chaotic innermost') in
   do _ <- Trans.run (Generic.runFixed :: InterpT IO [Expr] Val) (?debugState, (empty, (empty, e0)))
      return ()
@@ -321,46 +314,45 @@ evalDebug expr =
 
 -- | Debugging combinator
 debug :: (?debugState :: DebugState,
-          ArrowChoice c, ArrowIO c, ArrowDebug c, ArrowStack In c, ArrowStackDepth c, ArrowStackElements In c, ArrowControlFlow stmt c)
+          ArrowChoice c, ArrowIO c, ArrowDebug c, ArrowStack In c, ArrowStackDepth c, ArrowStackElements In c, ArrowCFG graph c, Show graph) --
       => Fix.FixpointCombinator c ((Store,Errors),(Env,[Expr]))
                                   ((Store,Errors), Terminating Val)
 debug f = proc input@((store,errors),(env,exprs)) -> do
-  sendMessage -< (Text.pack "DEBUG COMBINATOR")
-  stackDepth <- Stack.depth -< ()
-  
-  stackElems <- Stack.elems -< ()
-  --liftIO print -< "stackDepth"
-  --liftIO print -< stackDepth
-  liftIO print -< "stackElems"
-  liftIO print -< stackElems
-  liftIO print -< "exprs"
+
   liftIO print -< exprs
+
+  case exprs of 
+    e:es | isBreakpoint' e -> do
+      liftIO print -< e
+      liftIO print -< es
+      loop -< ((store,errors),(env,es))
+    _ -> f -< (input)
   
---case exprs of
---  expr:_ | isBreakpoint expr -> do
---    -- Breakpoint reached
---    stack <- Stack.elems -< ()
---    
---    sendMessage -< ContinueResponse stack input --cfg
---    loop -< input
---    f -< input
---  _ ->
---    f -< input
---where
---  loop = proc input@((store,errors),(env,expr)) -> do
---    msg <- receiveMessage -< ()
---    dec <- Maybe.fromJust (decode'' msg) :: TestMessage
---    liftIO print -< (dec)
---    case dec of
---      ContinueRequest ->
---        returnA -< ()
---      _ -> do
---        loop -< input
+  
+  
+  where
+    loop = proc input@((store,errors),(env,exprs)) -> do
 
+      cfg <- getCFG -< ()
+      liftIO print -< (labNodes cfg)
 
-  f -< (input)
+      stackElems <- Stack.elems -< ()     
+      liftIO print -< stackElems
+      
+      let breakpointResponse = createBreakpointResponse (stackElems) (show input) (show cfg)
+      sendMessage -< (breakpointResponse)
+
+      msg <- receiveMessage -< ()     --Hilfsfunktion
+      let dec = Maybe.fromJust (decode'' msg) :: WebsocketMessage
+      case dec of 
+        ContinueRequest {} -> do
+          f -< input
+        _ -> do
+          loop -< input 
+
 {-# INLINE debug #-}
 
+--  newtype CFG stmt = CFG (Gr stmt ())   was für typen?         brauche ich das? wenn ja wohin ?  | c -> stmt
 
 ---------------------     Helper Functions     ----------------------------
 
@@ -371,6 +363,97 @@ decode'' = decode . toLazyByteString . Data.Text.Encoding.encodeUtf8Builder
 
 toStrict1 :: BL.ByteString -> B.ByteString
 toStrict1 = B.concat . BL.toChunks
+
+
+
+isBreakpoint' :: Expr -> Bool
+isBreakpoint' expr  
+  | (show $ expr) == "breakpoint" = True
+  | otherwise = False
+
+
+createBreakpointResponse :: [In] -> String -> String -> Text.Text
+createBreakpointResponse (((store, errors), (env, expr)):xs) input cfg = Data.Text.Encoding.decodeUtf8 (toStrict1 (encode (BreakpointResponse (show expr) (show input) (show cfg))))
+  --[((Store, Errors), (Env, [Expr]))]
+
+
+getNodes :: (Gr stmt) (Gr stmt ()) -> [LNode stmt]
+getNodes cfg = labNodes cfg
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{--
+evalDebug :: (?sensitivity::Int, ?debugState::DebugState) => [LExpr] -> P.IO ()
+evalDebug expr =
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $
+       Fix.fixpointAlgorithm $
+         debug .
+         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+         recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
+         Fix.filter' isFunctionBody (chaotic innermost') in
+  do _ <- Trans.run (Generic.runFixed :: InterpT IO [Expr] Val) (?debugState, (empty, (empty, e0)))
+     return ()
+  where
+    e0 = generate (sequence expr)
+{-# INLINE evalDebug #-}
+-}
+
+{--
+evalChaotic :: (?sensitivity :: Int) => IterationStrategy _ In Out -> [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Monotone In, Out'))
+evalChaotic iterationStrat env0 e =
+  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?fixpointAlgorithm = transform $
+        Fix.fixpointAlgorithm $
+        -- Fix.trace printIn printOut .
+        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        Fix.recordEvaluated .
+        -- CFlow.recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
+        -- Fix.filter' isFunctionBody (Fix.trace printIn printOut . chaotic iterationStrat)
+        Fix.filter' isFunctionBody (chaotic iterationStrat) in
+  second snd $ Trans.run (extend' (Generic.runFixed :: InterpT (->) [Expr] Val)) (empty,(empty,(env0,e0)))
+  where
+    e0 = generate (sequence e)
+{-# INLINE evalChaotic #-}
+-}
+
+{--
+evalInner :: Eval
+evalInner = evalChaotic innermost'
+
+evalOuter :: Eval
+evalOuter = evalChaotic outermost'
+
+evalInner' :: Eval'
+evalInner' exprs = let (metrics,(cfg,res)) = evalInner [] exprs in (metrics,(cfg,snd res))
+
+evalOuter':: Eval'
+evalOuter' exprs = let (metrics,(cfg,res)) = evalOuter [] exprs in (metrics,(cfg,snd res))
+
+eval' :: (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (Errors,Terminating Val)
+eval' env exprs = snd $ snd $ snd $ evalInner env exprs
+-}
 
 
 

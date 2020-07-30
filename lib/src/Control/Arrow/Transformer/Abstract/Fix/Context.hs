@@ -30,7 +30,7 @@ import Data.Empty
 
 newtype ContextT ctx c x y = ContextT (ReaderT ctx c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowStrict,
-            ArrowLift,ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowLift,ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph)
 
 runContextT :: (IsEmpty ctx, Profunctor c) => ContextT ctx c x y -> c x y
 runContextT (ContextT f) = lmap (empty,) (runReaderT f)

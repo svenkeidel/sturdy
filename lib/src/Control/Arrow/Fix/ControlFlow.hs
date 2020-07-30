@@ -65,3 +65,6 @@ instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w
 
 instance ArrowCFG graph c => ArrowCFG graph (ConstT r c)
 instance ArrowCFG graph c => ArrowCFG graph (ReaderT r c)
+instance ArrowCFG graph c => ArrowCFG graph (StateT r c)
+instance (ArrowCFG graph c, Monoid r) => ArrowCFG graph (WriterT r c)
+instance (ArrowCFG graph c, Applicative r) => ArrowCFG graph (StaticT r c)

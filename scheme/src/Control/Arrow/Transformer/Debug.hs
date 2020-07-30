@@ -76,7 +76,9 @@ import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
 
 import Data.Monoidal
+import           Data.Abstract.MonotoneStore(Store)
 
+import Data.Graph.Inductive.Graph(mkGraph, LNode, LEdge, labNodes, labEdges, Graph)
 
 
 type ClientId = Int
@@ -103,7 +105,7 @@ newtype DebugT c x y = DebugT (StateT DebugState c x y)
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth,
             ArrowComponent a, ArrowInComponent a,
-            ArrowMetrics a, ArrowStrict, ArrowPrimitive)
+            ArrowMetrics a, ArrowStrict, ArrowPrimitive, ArrowCFG a)
 
 
 
@@ -146,6 +148,8 @@ instance (Arrow c, Profunctor c, ArrowIO c) => ArrowDebug (DebugT c) where
     state <- State.get -< ()
     --stack <- Stack.elems -< ()
     returnA-< ()
+
+
   {-# INLINE addBreakpoints #-}
   {-# INLINE isBreakpoint #-}
   {-# INLINE sendMessage #-}

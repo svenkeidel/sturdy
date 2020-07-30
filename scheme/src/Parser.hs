@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-warnings-deprecations #-}
-module Parser(loadSchemeFile,loadSchemeFile') where
+module Parser(loadSchemeFile,loadSchemeFile',loadSourceCode, loadSchemeFileWithCode) where
 
 import           Prelude hiding (fail)
 
@@ -25,19 +25,37 @@ import           Text.Printf
 loadSchemeFile :: String -> IO LExpr
 loadSchemeFile file = do
   contents <- readFile =<< getDataFileName (printf "scheme_files/%s" file)
+  print contents
   case readExprList contents of
     Left err -> throwLispError err
     Right val -> do
      expanded <- macroExpand (List val)
-     -- print expanded
+     print expanded
      let expr = parseTopLevelSExpr expanded
-     -- print (generate expr)
+     print (generate expr)
      return expr
 
 loadSchemeFile' :: String -> IO Expr
 loadSchemeFile' file = do
   lexpr <- loadSchemeFile file
   return $ generate lexpr
+
+loadSourceCode :: String -> IO FilePath
+loadSourceCode file = readFile =<< getDataFileName (printf "scheme_files/%s" file)
+
+loadSchemeFileWithCode :: String -> IO LExpr
+loadSchemeFileWithCode code = do
+  print code
+  case readExprList code of
+    Left err -> throwLispError err
+    Right val -> do
+      expanded <- macroExpand (List val)
+      print expanded
+      let expr = parseTopLevelSExpr expanded
+      print "GLEICH KOMMT GENERATE EXPR"
+      print (generate expr)
+      return expr
+
 
 macroExpand :: LispVal -> IO LispVal
 macroExpand program = do

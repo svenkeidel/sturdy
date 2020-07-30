@@ -146,7 +146,7 @@ instance FromJSON Expr
 instance Eq Expr where
   e1 == e2 = label e1 == label e2
 
-type LExpr = State Label Expr
+type LExpr = State Label Expr 
 
 -- Smart constructors that build labeled Scheme expressions.
 -- | Expressions for inner representation and evaluation
