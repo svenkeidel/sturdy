@@ -3,10 +3,10 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Data.Abstract.Closure(Closure,closure,apply,widening) where
+module Data.Abstract.Closure(Closure,closure,apply,widening,getEnvs) where
 
 import           Control.DeepSeq
-import           Control.Arrow
+import           Control.Arrow hiding ((<+>))
 import qualified Control.Arrow.Order as O
 import           Control.Arrow.Closure(IsClosure(..))
 
@@ -55,8 +55,8 @@ instance (Show a,Show b) => Show (Closure a b) where
     | M.null h = "{}"
     | otherwise = "{" ++ init (unwords [ printf "%s -> %s," (show k) (show v) | (k,v) <- M.toList h]) ++ "}"
 
-instance (Pretty a) => Pretty (Closure a b) where
-  pretty (Closure h) = prettyList (M.keys h)
+instance (Pretty a, Pretty b) => Pretty (Closure a b) where
+  pretty (Closure h) = prettyList (M.keys h) <+> prettyList (M.elems h)
 
 instance (Identifiable expr, Complete env) => IsList (Closure expr env) where
   type Item (Closure expr env) = (expr,env)
@@ -85,3 +85,5 @@ withCls :: Coercible x x' => (HashMap expr env -> x') -> (Closure expr env -> x)
 withCls = coerce
 {-# INLINE withCls #-}
 
+getEnvs :: Closure expr env -> [env] 
+getEnvs (Closure cls) = M.elems cls 

@@ -59,21 +59,22 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Prof
   type Join y (EnvT var addr val c) = ()
   lookup (EnvT f) (EnvT g) = EnvT $ proc (var,x) -> do
     env <- Reader.ask -< ()
-    store <- State.get -< ()
-    case do { addr <- Map.lookup var env; Map.lookup addr store } of
+    s <- State.get -< ()
+    case do { addr <- Map.lookup var env; Map.lookup addr s } of
       P.Just val -> f -< (val,x)
       P.Nothing   -> g -< x
   extend (EnvT f) = EnvT $ askConst $ \(EnvT alloc,widening) -> proc (var,val,x) -> do
     env <- Reader.ask -< ()
-    store <- State.get -< ()
+    s <- State.get -< ()
     case Map.lookup var env of
       P.Just addr -> do
-        State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
+        State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val s
         f -< x
       P.Nothing -> do
         addr <- alloc -< (var,val)
-        State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val store
+        State.put -< Map.insertWith (\old new -> snd (widening old new)) addr val s
         Reader.local f -< (Map.insert var addr env, x)
+  vals = undefined
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -94,8 +95,8 @@ instance (Identifiable var, Identifiable addr, Complete val, IsClosure val (Hash
     env <- Reader.ask -< ()
     addrs <- map alloc -< bindings
     let env' = Map.fromList [ (var,addr) | ((var,_), addr) <- zip bindings addrs ] `Map.union` env
-        vals = Map.fromList [ (addr, setEnvironment (Set.singleton env') val) | (addr, (_,val)) <- zip addrs bindings ]
-    State.modify' (\(vals,store) -> ((), Map.unionWith (\old new -> snd (widening old new)) store vals)) -< vals
+        vs = Map.fromList [ (addr, setEnvironment (Set.singleton env') val) | (addr, (_,val)) <- zip addrs bindings ]
+    State.modify' (\(vs,s) -> ((), Map.unionWith (\old new -> snd (widening old new)) s vs)) -< vs
     Reader.local f -< (env',x)
   {-# INLINE letRec #-}
 

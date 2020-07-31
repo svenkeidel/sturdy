@@ -20,7 +20,7 @@ import Control.Arrow.Fix.ControlFlow
 import Control.Arrow.Fix.Context
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Trans
-import Control.Arrow.Reader
+import Control.Arrow.Reader as Reader
 
 import Control.Arrow.Transformer.Reader
 
@@ -57,3 +57,9 @@ instance ArrowCache a b c => ArrowCache a b (ContextT ctx c) where
 instance (Profunctor c,ArrowApply c) => ArrowApply (ContextT ctx c) where
   app = ContextT (app .# first coerce)
   {-# INLINE app #-}
+
+instance ArrowReader r c => ArrowReader r (ContextT ctx c) where
+  ask = lift' Reader.ask
+  local (ContextT (ReaderT f)) = ContextT (ReaderT (lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local f)))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}

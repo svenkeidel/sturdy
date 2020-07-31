@@ -31,13 +31,15 @@ import           Control.Arrow.Fix.Parallel as Par
 import qualified Control.Arrow.Fix.Context as Ctx
 import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Transformer.Value
-import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.Arrow.Transformer.Abstract.Environment (EnvT)
+import           Control.Arrow.Transformer.Abstract.Store (StoreT)
+import           Control.Arrow.Transformer.Reader (ReaderT)
 
 import           Data.Text (Text)
 import qualified Data.HashMap.Lazy as Map
@@ -45,41 +47,43 @@ import           Data.HashSet(HashSet)
 import           Data.Empty
 
 import qualified Data.Abstract.Widening as W
-import           Data.Abstract.Terminating(Terminating)
-
+import           Data.Abstract.Powerset(Pow)
+import           Data.HashMap.Lazy (HashMap)
+import           Data.Hashed.Lazy (Hashed)
 
 import           Syntax (Expr(App))
 import           GenericInterpreter as Generic
 import           TypedAnalysis
 
 type Interp =
-  ValueT Val
-    (TerminatingT
-      (LogErrorT Text
-        (EnvStoreT Text Addr Val
+  ValueT (Pow Val)
+    (LogErrorT Text
+      (EnvT (Hashed (HashMap Text Addr))
+        (StoreT (HashMap Addr (Pow Val))
           (FixT
-            (CacheT (Parallel Cache.Monotone) In Out
+            (CacheT (Parallel Cache.GarbageCollect) In Out
               (ContextT Ctx
-                (->)))))))
+                (ReaderT (HashSet Addr)
+                (->))))))))
 
 {-# SPECIALIZE if__ :: (ArrowComplete z Interp)
                     => Interp x z -> Interp y z -> Interp (Val,(x,y)) z #-}
-{-# SPECIALIZE Generic.eval :: Interp [Expr] Val -> Interp Expr Val #-}
-{-# SPECIALIZE Generic.run :: Interp Expr Val -> Interp [Expr] Val -> Interp [Expr] Val #-}
-{-# SPECIALIZE Generic.runFixed :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp [Expr] Val))) => Interp [Expr] Val #-}
+{-# SPECIALIZE Generic.eval :: Interp [Expr] (Pow Val) -> Interp Expr (Pow Val) #-}
+{-# SPECIALIZE Generic.run :: Interp Expr (Pow Val) -> Interp [Expr] (Pow Val) -> Interp [Expr] (Pow Val) #-}
+{-# SPECIALIZE Generic.runFixed :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp [Expr] (Pow Val)))) => Interp [Expr] (Pow Val) #-}
 
-evalParallel :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
+evalParallel :: (?sensitivity :: Int) => Expr -> (Errors, (Pow Val))
 evalParallel e =
-  let ?cacheWidening = (storeErrWidening, W.finite) in
+  let ?cacheWidening = (storeErrWidening_nm, W.finite) in
   let ?fixpointAlgorithm = transform $ Par.parallel $ \update_ ->
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody update_ in
-  snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
+  snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] (Pow Val)) (empty,(empty,(empty,[e])))
 
-evalADI :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
+evalADI :: (?sensitivity :: Int) => Expr -> (Errors, (Pow Val))
 evalADI e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ Par.adi $ \update_ ->
         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
         Fix.filter isFunctionBody update_ in
-  snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
+  snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] (Pow Val)) (empty,(empty,(empty,[e])))

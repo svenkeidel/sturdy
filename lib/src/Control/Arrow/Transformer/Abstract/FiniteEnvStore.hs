@@ -75,6 +75,7 @@ instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Prof
   extend (EnvStoreT f) = EnvStoreT $ proc (var,addr,x) -> do
     env <- Reader.ask -< ()
     Reader.local f -< (mapHashed (Map.insert var addr) env, x)
+  vals = undefined
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
   {-# SCC lookup #-}
@@ -84,13 +85,16 @@ instance (Identifiable var, Identifiable addr, Identifiable val, Complete val, A
     => ArrowStore addr val (EnvStoreT var addr val c) where
   type Join y (EnvStoreT var addr val c) = ()
   read (EnvStoreT f) (EnvStoreT g) = EnvStoreT $ proc (addr,x) -> do
-    store <- State.get -< ()
-    case Store.lookup addr store of
+    s <- State.get -< ()
+    case Store.lookup addr s of
       P.Just val -> f -< (val,x)
       P.Nothing -> g -< x
   write = EnvStoreT $ proc (addr, val) -> do
-    store <- State.get -< ()
-    State.put -< Store.insert addr val store
+    s <- State.get -< ()
+    State.put -< Store.insert addr val s
+  remove = undefined
+  keys = undefined
+  store = undefined
   {-# INLINE read #-}
   {-# INLINE write #-}
   {-# SCC read #-}
@@ -120,8 +124,8 @@ instance (Identifiable var, Identifiable addr, Identifiable val, Complete val, I
       go = proc bindings -> case bindings of
         (addr,val):bs -> do
           env <- Reader.ask -< ()
-          State.modify' (\((addr,val,env),store) ->
-                           ((),Store.insert addr (setEnvironment (Set.singleton env) val) store))
+          State.modify' (\((addr,val,env),s) ->
+                           ((),Store.insert addr (setEnvironment (Set.singleton env) val) s))
             -< (addr,val,env)
           go -< bs
         [] -> returnA -< []

@@ -34,7 +34,12 @@ library:
   source-dirs:
     - src
 
-  ghc-options: -Wall
+  ghc-options: 
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wredundant-constraints
 
 
 tests:

@@ -64,6 +64,7 @@ instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c)
   extend (EnvStoreT f) = EnvStoreT $ proc (var,addr,x) -> do
     env <- Reader.ask -< ()
     Reader.local f -< (Map.insert var addr env, x)
+  vals = undefined
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -71,13 +72,16 @@ instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c)
     => ArrowStore addr val (EnvStoreT var addr val c) where
   type Join y (EnvStoreT var addr val c) = ()
   read (EnvStoreT f) (EnvStoreT g) = EnvStoreT $ proc (addr,x) -> do
-    store <- State.get -< ()
-    case Map.lookup addr store of
+    s <- State.get -< ()
+    case Map.lookup addr s of
       P.Just val -> f -< (val,x)
       P.Nothing -> g -< x
   write = EnvStoreT $ proc (addr, val) -> do
-    store <- State.get -< ()
-    State.put -< Map.insert addr val store
+    s <- State.get -< ()
+    State.put -< Map.insert addr val s
+  remove = undefined 
+  keys = undefined
+  store = undefined
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -102,8 +106,8 @@ instance (Identifiable var, Identifiable addr, IsClosure val (HashMap var addr),
       go = proc bindings -> case bindings of
         (addr,val):bs -> do
           env <- Reader.ask -< ()
-          State.modify' (\((addr,val,env),store) ->
-                           ((),Map.insert addr (setEnvironment env val) store))
+          State.modify' (\((addr,val,env),s) ->
+                           ((),Map.insert addr (setEnvironment env val) s))
             -< (addr,val,env)
           go -< bs
         [] -> returnA -< []
@@ -121,6 +125,12 @@ instance ArrowTrans (EnvStoreT var addr val) where
 instance ArrowState s c => ArrowState s (EnvStoreT var addr val c) where
   get = lift' State.get
   put = lift' State.put
+
+instance ArrowReader r c => ArrowReader r (EnvStoreT var addr val c) where
+  ask = lift' Reader.ask
+  local (EnvStoreT (ReaderT f)) = EnvStoreT (ReaderT (lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local f)))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}
 
 instance (Profunctor c, Arrow c, ArrowFix (Underlying (EnvStoreT var addr val c) x y)) => ArrowFix (EnvStoreT var addr val c x y) where
   type Fix (EnvStoreT var addr val c x y) = Fix (Underlying (EnvStoreT var addr val c) x y)

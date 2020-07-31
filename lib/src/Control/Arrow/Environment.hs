@@ -28,6 +28,7 @@ import qualified Control.Arrow.Fail as Fail
 import           Data.String
 import           Data.Profunctor
 import           Data.Monoidal
+import           Data.HashSet (HashSet)
 
 import           Text.Printf
 
@@ -46,6 +47,8 @@ class (Arrow c, Profunctor c) => ArrowEnv var val c | c -> var, c -> val where
 
   -- | Extend an environment with a binding.
   extend :: c x y -> c (var,val,x) y
+
+  vals :: c () (HashSet val) 
 
 -- | Simpler version of environment lookup.
 lookup' :: (Join val c, Fail.Join val c, Show var, IsString e, ArrowFail e c, ArrowEnv var val c) => c var val
@@ -71,6 +74,7 @@ instance (ArrowComonad f c, ArrowEnv x y c) => ArrowEnv x y (CokleisliT f c) whe
   type Join y (CokleisliT f c) = Join y c
   lookup f g = lift $ lmap costrength2 (lookup (lmap strength2 (unlift f)) (unlift g))
   extend f = lift $ lmap (\m -> let (x,y,_) = C.extract m in (x,y,fmap (\(_,_,z) -> z) m)) (extend (unlift f))
+  vals = lift' vals 
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -78,6 +82,7 @@ instance ArrowEnv var val c => ArrowEnv var val (ConstT r c) where
   type Join y (ConstT r c) = Join y c
   lookup f g = lift $ \r -> lookup (unlift f r) (unlift g r)
   extend f = lift $ \r -> extend (unlift f r)
+  vals = lift' vals 
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -85,6 +90,7 @@ instance (ArrowMonad f c, ArrowEnv x y c) => ArrowEnv x y (KleisliT f c) where
   type Join y (KleisliT f c) = Join (f y) c
   lookup f g = lift $ lookup (unlift f) (unlift g)
   extend f = lift $ extend (unlift f)
+  vals = lift' vals 
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -93,6 +99,7 @@ instance ArrowEnv var val c => ArrowEnv var val (ReaderT r c) where
   lookup f g = lift $ lmap shuffle1
                     $ lookup (lmap shuffle1 (unlift f)) (unlift g)
   extend f = lift $ lmap (\(r,(var,val,x)) -> (var,val,(r,x))) (extend (unlift f))
+  vals = lift' vals 
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -102,6 +109,7 @@ instance (ArrowEnv var val c) => ArrowEnv var val (StateT s c) where
                     $ lookup (lmap shuffle1 (unlift f))
                              (unlift g)
   extend f = lift $ lmap (\(s,(var,val,x)) -> (var,val,(s,x))) (extend (unlift f))
+  vals = lift' vals 
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -109,6 +117,7 @@ instance (Applicative f, ArrowEnv var val c) => ArrowEnv var val (StaticT f c) w
   type Join y (StaticT f c) = Join y c
   lookup (StaticT f) (StaticT g) = StaticT $ lookup <$> f <*> g
   extend (StaticT f) = StaticT $ extend <$> f
+  vals = lift' vals 
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
   {-# SPECIALIZE instance ArrowEnv var val c => ArrowEnv var val (StaticT ((->) r) c) #-}
@@ -117,5 +126,6 @@ instance (Monoid w, ArrowEnv var val c) => ArrowEnv var val (WriterT w c) where
   type Join y (WriterT w c) = Join (w,y) c
   lookup f g = lift $ lookup (unlift f) (unlift g)
   extend f = lift $ extend (unlift f)
+  vals = lift' vals 
   {-# INLINE lookup #-}
   {-# INLINE extend #-}

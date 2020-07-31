@@ -25,6 +25,7 @@ import           Control.Arrow.Utils
 import           Data.Profunctor.Unsafe
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as S
+import qualified Data.HashSet as HS
 import           Data.Identifiable
 import           Data.Coerce
 
@@ -54,7 +55,11 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (
       Just v -> f -< (v,x)
       Nothing -> g -< x
   write = StoreT $ modify $ arr (\((x,v),s) -> ((),S.insert x v s))
-
+  remove = StoreT $ modify $ arr (\(var,s) -> ((), S.delete var s))
+  keys = StoreT $ proc _ -> do 
+    s <- get -< () 
+    returnA -< HS.fromList $ S.keys s 
+  store = undefined
 instance (ArrowApply c,Profunctor c) => ArrowApply (StoreT store c) where
   app = StoreT (app .# first coerce)
   {-# INLINE app #-}

@@ -17,6 +17,7 @@ import           Prelude hiding (fail,(.))
 import           Control.Arrow
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.State as State
+import           Control.Arrow.Reader as Reader
 import           Control.Arrow.Store as Store
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
 import qualified Control.Arrow.Closure as Cls
@@ -25,6 +26,9 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Concrete.FiniteEnvStore
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Order
+import           Control.Arrow.Fix.GarbageCollection
 
 import           Control.Monad.State hiding (fail, StateT, get, put)
 
@@ -39,10 +43,12 @@ import           Data.Profunctor
 import           Data.Label
 import           Data.Either
 import qualified Data.Function as Function
+import           Data.HashSet (HashSet)
+import qualified Data.HashSet as Set 
 
 import           GHC.Generics (Generic)
 
-import           Syntax (Expr,Literal(..) ,Op1(..),Op2(..),OpVar(..))
+import           Syntax (Expr,Literal(..) ,Op1(..),Op2(..),OpVar(..),Op1List(..))
 import           GenericInterpreter
 import qualified GenericInterpreter as Generic
 
@@ -76,10 +82,11 @@ evalConcrete' es =
          (FailureT String
            (EnvStoreT Text Addr Val
              (StateT Addr
-               (->)))) [Expr] Val)
-         (0, (M.empty, (M.empty, generate <$> es)))
+              (ReaderT (HashSet Addr)
+               (->))))) [Expr] Val)
+         (Set.empty, (0, (M.empty, (M.empty, generate <$> es))))
 
-instance (ArrowChoice c, Profunctor c, ArrowState Int c) => ArrowAlloc Addr (ValueT Val c) where
+instance (ArrowChoice c, ArrowState Int c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = proc _ -> do
       nextAddr <- get -< ()
       put -< nextAddr + 1
@@ -111,16 +118,6 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
   if_ f g = proc (v1, (x, y)) -> case v1 of
     BoolVal False -> g -< y
     _ -> f -< x
-
-  nil_ = proc _ ->
-    returnA -< ListVal Nil
-
-  cons_ = proc ((v1,l1),(v2,l2)) -> do
-    a1 <- alloc -< ("",l1)
-    a2 <- alloc -< ("",l2)
-    write -< (a1,v1)
-    write -< (a2,v2)
-    returnA -< ListVal (Cons a1 a2)
 
   void = proc () -> returnA -< VoidVal
 
@@ -193,13 +190,6 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     Not -> case x of
       BoolVal n -> returnA -< BoolVal (not n)
       _ -> returnA -< BoolVal False
-    Car -> car -< x
-    Cdr -> cdr -< x
-    Caar -> car <<< car -< x
-    Cadr -> car <<< cdr -< x
-    Cddr -> cdr <<< cdr -< x
-    Caddr -> car <<< cdr <<< cdr -< x
-    Cadddr -> car <<< cdr <<< cdr <<< cdr -< x
     NumberToString -> case x of
       IntVal n -> returnA -< StringVal (pack (show n))
       FloatVal n -> returnA -< StringVal (pack (show n))
@@ -215,17 +205,6 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     --   StringVal s -> fail -< unpack s
     --   _ -> fail -< "(fail): contract violation expected string as error msg"
     Random -> fail -< "random is not implemented"
-    where
-      car = proc x -> case x of
-        ListVal (Cons a1 _)  -> do
-          v <- read' -< a1
-          returnA -< v
-        _ -> fail -< "(car): Bad form" ++ show x
-      cdr = proc x -> case x of
-        ListVal (Cons _ a2) -> do
-          v <- read' -< a2
-          returnA -< v
-        _ -> fail -< "(cdr): Bad form: " ++ show x
 
   op2_ = proc (op, x, y) -> case op of
     Eqv -> case (x, y) of
@@ -309,7 +288,7 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
       [RatioVal 0] -> fail -< "(/): Divided by zero: " ++ show xs
       [IntVal n] -> returnA -< RatioVal (1 / toRational n)
       [FloatVal n] -> returnA -< RatioVal (1 / toRational n)
-      [RatioVal n] -> returnA -< RatioVal (1 / toRational n)
+      [RatioVal n] -> returnA -< RatioVal (1 / n)
       _ -> if foldl (||) (map checkZero xs !! 1) (tail (map checkZero xs))
            then fail -< "(/): Divided by zero: " ++ show xs
            else case foldl divHelpFold (Right $ head xs) (tail xs) of
@@ -324,6 +303,39 @@ instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail Stri
     StringAppend -> case traverse matchString xs of
       Left a -> fail -< "(string-append): Contract violation, " ++ show a
       Right as -> returnA -< StringVal (T.concat as)
+
+instance (ArrowChoice c, ArrowState Int c, ArrowStore Addr Val c, ArrowFail String c, Store.Join Val c, Fail.Join Val c)
+  => IsList_ Val (ValueT Val c) where
+
+  nil_ = proc _ ->
+    returnA -< ListVal Nil
+
+  cons_ = proc ((v1,l1),(v2,l2)) -> do
+    a1 <- alloc -< ("",l1)
+    a2 <- alloc -< ("",l2)
+    write -< (a1,v1)
+    write -< (a2,v2)
+    returnA -< ListVal (Cons a1 a2)
+  
+  op1list_ = proc (op,x) -> case op of 
+    Car -> car -< x
+    Cdr -> cdr -< x
+    Caar -> car <<< car -< x
+    Cadr -> car <<< cdr -< x
+    Cddr -> cdr <<< cdr -< x
+    Caddr -> car <<< cdr <<< cdr -< x
+    Cadddr -> car <<< cdr <<< cdr <<< cdr -< x
+    where
+      car = proc x -> case x of
+        ListVal (Cons a1 _)  -> do
+          v <- read' -< a1
+          returnA -< v
+        _ -> fail -< "(car): Bad form" ++ show x
+      cdr = proc x -> case x of
+        ListVal (Cons _ a2) -> do
+          v <- read' -< a2
+          returnA -< v
+        _ -> fail -< "(cdr): Bad form: " ++ show x
 
 matchInt :: Val -> Either Val Int
 matchInt v = case v of
@@ -345,6 +357,17 @@ instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)
     _ -> fail -< "Expected a closure, but got: " ++ show v
   {-# INLINE closure #-}
   {-# INLINE apply #-}
+
+instance (ArrowChoice c, ArrowReader (HashSet Addr) c) 
+    => ArrowGarbageCollection Val Addr (ValueT Val c) where 
+  addLocalGCRoots = undefined 
+  getGCRoots = proc _ -> do 
+    addrs_stack <- ask -< () 
+    returnA -< addrs_stack 
+  collectables = undefined
+  getAddrVal = undefined 
+  reachables = undefined 
+  
 
 instance IsClosure Val Env where
   traverseEnvironment f (ClosureVal cl) = ClosureVal <$> traverse f cl

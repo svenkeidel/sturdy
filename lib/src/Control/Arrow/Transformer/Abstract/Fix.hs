@@ -26,6 +26,7 @@ import           Control.Arrow.Fix.Metrics
 import           Control.Arrow.Fix.Stack
 import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..))
 import           Control.Arrow.Trans
+import           Control.Arrow.Reader (ArrowReader)
 
 import           Data.Profunctor
 import           Data.Profunctor.Unsafe((.#))
@@ -38,7 +39,7 @@ newtype FixT c x y = FixT (c x y)
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth,
             ArrowComponent a, ArrowInComponent a,
-            ArrowMetrics a, ArrowStrict, ArrowPrimitive)
+            ArrowMetrics a, ArrowStrict, ArrowPrimitive, ArrowReader r)
 
 runFixT :: FixT c x y -> c x y
 runFixT (FixT f) = f

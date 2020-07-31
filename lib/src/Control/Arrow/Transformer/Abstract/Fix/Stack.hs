@@ -25,6 +25,7 @@ import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
 import           Control.Arrow.State
 import           Control.Arrow.Trans
 import           Control.Arrow.Order (ArrowLowerBounded)
+import           Control.Arrow.Reader as Reader
 
 import           Control.Arrow.Transformer.Reader
 
@@ -63,6 +64,12 @@ instance (Profunctor c,ArrowApply c) => ArrowApply (StackT stack a c) where
 
 instance ArrowCache a b c => ArrowCache a b (StackT stack a c) where
   type Widening (StackT stack a c) = Widening c
+
+instance ArrowReader r c => ArrowReader r (StackT stack a c) where
+  ask = lift' Reader.ask
+  local (StackT (ReaderT f)) = StackT (ReaderT (lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local f)))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}
 
 -- Standard Stack -----------------------------------------------------------------------
 data Stack a = Stack

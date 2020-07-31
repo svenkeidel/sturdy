@@ -5,6 +5,8 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DefaultSignatures #-}
+
 module Control.Arrow.Store where
 
 import           Prelude hiding (lookup,id,read,fail)
@@ -25,6 +27,8 @@ import qualified Control.Arrow.Fail as Fail
 import           Data.String
 import           Data.Profunctor
 import           Data.Monoidal
+import           Data.HashSet (HashSet)
+import           Data.HashMap.Strict (HashMap)
 
 import           GHC.Exts (Constraint)
 
@@ -42,6 +46,21 @@ class (Arrow c, Profunctor c) => ArrowStore var val c | c -> var, c -> val where
   -- | Writes a value to the store.
   write :: c (var,val) ()
 
+  -- | Removes a value from the current store, if it is in the current store 
+  remove :: c var () 
+
+  -- | Get keys from store
+  keys :: c () (HashSet var)
+
+  -- | Retrieve current store as HashMap 
+  store :: c () (HashMap var val) 
+
+  -- default remove :: (c ~ t c', ArrowTrans t, ArrowStore var val c') => c var ()
+
+  -- remove = lift' remove 
+  -- {-# INLINE remove #-}
+
+
 -- | Simpler version of 'read'
 read' :: (Show var, Join val c, Fail.Join val c, IsString e, ArrowFail e c, ArrowStore var val c) => c var val
 read' = proc var ->
@@ -55,6 +74,9 @@ instance (ArrowComonad f c, ArrowStore var val c) => ArrowStore var val (Cokleis
   type Join y (CokleisliT f c) = Join y c
   read f g = lift $ lmap costrength2 (read (lmap strength2 (unlift f)) (unlift g))
   write = lift' write
+  remove = lift' remove
+  keys = lift' keys
+  store = lift' store
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -62,6 +84,9 @@ instance (ArrowStore var val c) => ArrowStore var val (ConstT r c) where
   type Join y (ConstT r c) = Join y c
   read f g = lift $ \r -> read (unlift f r) (unlift g r)
   write = lift $ \_ -> write
+  remove = lift' remove
+  keys = lift' keys
+  store = lift' store
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -69,6 +94,9 @@ instance (ArrowMonad f c, ArrowStore var val c) => ArrowStore var val (KleisliT 
   type Join y (KleisliT f c) = Join (f y) c
   read f g = lift $ read (unlift f) (unlift g)
   write = lift' write
+  remove = lift' remove
+  keys = lift' keys
+  store = lift' store
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -77,6 +105,9 @@ instance ArrowStore var val c => ArrowStore var val (ReaderT r c) where
   read f g = lift $ lmap shuffle1
                   $ read (lmap shuffle1 (unlift f)) (unlift g)
   write = lift' write
+  remove = lift' remove
+  keys = lift' keys
+  store = lift' store
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -86,6 +117,9 @@ instance (ArrowStore var val c) => ArrowStore var val (StateT s c) where
                   $ read (lmap (\(v,(s,a)) -> (s,(v,a))) (unlift f))
                          (unlift g)
   write = lift' write
+  remove = lift' remove
+  keys = lift' keys
+  store = lift' store
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -93,6 +127,9 @@ instance (Applicative f, ArrowStore var val c) => ArrowStore var val (StaticT f 
   type Join y (StaticT f c) = Join y c
   read (StaticT f) (StaticT g) = StaticT $ read <$> f <*> g
   write = lift' write
+  remove = lift' remove
+  keys = lift' keys
+  store = lift' store
   {-# INLINE read #-}
   {-# INLINE write #-}
   {-# SPECIALIZE instance ArrowStore var val c => ArrowStore var val (StaticT ((->) r) c) #-}
@@ -101,5 +138,8 @@ instance (Monoid w, ArrowStore var val c) => ArrowStore var val (WriterT w c) wh
   type Join y (WriterT w c) = Join (w,y) c
   read f g = lift $ read (unlift f) (unlift g)
   write = lift' write
+  remove = lift' remove
+  keys = lift' keys
+  store = lift' store
   {-# INLINE read #-}
   {-# INLINE write #-}

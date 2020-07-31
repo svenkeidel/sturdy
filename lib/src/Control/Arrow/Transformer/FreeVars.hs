@@ -52,6 +52,7 @@ instance (Identifiable var, ArrowEnv var val c, Profunctor c) => ArrowEnv var va
     Env.lookup f g -< (var,x)
   extend (FreeVarsT f) = FreeVarsT $ proc (var,val,x) ->
     censor (\(var,_,_) -> H.delete var) (Env.extend f) -< (var,val,x)
+  vals = undefined
 
 instance (Identifiable var,ArrowApply c, Profunctor c) => ArrowApply (FreeVarsT var c) where
   app = FreeVarsT (app .# first coerce)
