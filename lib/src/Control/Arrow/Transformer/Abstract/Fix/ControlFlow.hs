@@ -18,7 +18,7 @@ import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Context (ArrowContext)
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Category
-import           Control.Arrow.Fix.GarbageCollection (ArrowGarbageCollection)
+import           Control.Arrow.Reader as Reader
 
 import           Data.Label
 import           Data.Coerce
@@ -34,7 +34,7 @@ instance IsEmpty (CFG stmt) where
 
 newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Maybe stmt) c) x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
-            ArrowGarbageCollection addr, ArrowCache a b, ArrowParallelCache a b, 
+            ArrowCache a b, ArrowParallelCache a b, 
             ArrowIterateCache a b)
 
 instance (HasLabel stmt, Arrow c, Profunctor c) => ArrowControlFlow stmt (ControlFlowT stmt c) where
@@ -75,3 +75,10 @@ instance ArrowLift (ControlFlowT stmt c) where
 instance (Profunctor c,ArrowApply c) => ArrowApply (ControlFlowT stmt c) where
   app = ControlFlowT (app .# first coerce)
   {-# INLINE app #-}
+
+
+instance ArrowReader r c => ArrowReader r (ControlFlowT stmt c) where
+  ask = lift' Reader.ask
+  local (ControlFlowT (StateT (ReaderT f))) = ControlFlowT (StateT (ReaderT (lmap (\(stmt,(cfg,(r,x))) -> (r,(stmt,(cfg,x)))) (Reader.local f))))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}

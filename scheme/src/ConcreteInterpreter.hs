@@ -17,6 +17,7 @@ import           Prelude hiding (fail,(.))
 import           Control.Arrow
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.State as State
+import           Control.Arrow.Reader as Reader
 import           Control.Arrow.Store as Store
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
 import qualified Control.Arrow.Closure as Cls
@@ -25,6 +26,9 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Concrete.FiniteEnvStore
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Order
+import           Control.Arrow.Fix.GarbageCollection
 
 import           Control.Monad.State hiding (fail, StateT, get, put)
 
@@ -39,6 +43,8 @@ import           Data.Profunctor
 import           Data.Label
 import           Data.Either
 import qualified Data.Function as Function
+import           Data.HashSet (HashSet)
+import qualified Data.HashSet as Set 
 
 import           GHC.Generics (Generic)
 
@@ -76,8 +82,9 @@ evalConcrete' es =
          (FailureT String
            (EnvStoreT Text Addr Val
              (StateT Addr
-               (->)))) [Expr] Val)
-         (0, (M.empty, (M.empty, generate <$> es)))
+              (ReaderT (HashSet Addr)
+               (->))))) [Expr] Val)
+         (Set.empty, (0, (M.empty, (M.empty, generate <$> es))))
 
 instance (ArrowChoice c, ArrowState Int c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = proc _ -> do
@@ -350,6 +357,17 @@ instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)
     _ -> fail -< "Expected a closure, but got: " ++ show v
   {-# INLINE closure #-}
   {-# INLINE apply #-}
+
+instance (ArrowChoice c, ArrowReader (HashSet Addr) c) 
+    => ArrowGarbageCollection Val Addr (ValueT Val c) where 
+  addLocalGCRoots = undefined 
+  getGCRoots = proc _ -> do 
+    addrs_stack <- ask -< () 
+    returnA -< addrs_stack 
+  collectables = undefined
+  getAddrVal = undefined 
+  reachables = undefined 
+  
 
 instance IsClosure Val Env where
   traverseEnvironment f (ClosureVal cl) = ClosureVal <$> traverse f cl

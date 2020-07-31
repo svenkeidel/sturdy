@@ -77,6 +77,7 @@ instance (ArrowEnv var val c) => ArrowEnv var val (PowT c) where
   lookup f g = lift $ lmap partition2' (Env.lookup (lmap crossproduct2 (unlift f)) (unlift g))
   -- gets used 
   extend f = lift $ lmap unsafeUnzip3 (Env.extend (unlift f))
+  vals = undefined
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -84,6 +85,9 @@ instance (ArrowStore var val c) => ArrowStore var val (PowT c) where
   type Join y (PowT c) = Store.Join (Pow y) c
   read f g = lift $ lmap partition2' (Store.read (lmap crossproduct2 (unlift f)) (unlift g))
   write = lift' Store.write
+  remove = undefined
+  keys = undefined
+  store = undefined
   {-# INLINE read #-}
   {-# INLINE write #-}
 

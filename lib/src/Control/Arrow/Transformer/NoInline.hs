@@ -115,6 +115,7 @@ instance ArrowEnv var val c => ArrowEnv var val (NoInlineT c) where
   type Join y (NoInlineT c) = Env.Join y c
   lookup f g = lift (Env.lookup (unlift f) (unlift g))
   extend f = lift (Env.extend (unlift f))
+  vals = undefined
   {-# NOINLINE lookup #-}
   {-# NOINLINE extend #-}
 
@@ -133,6 +134,9 @@ instance ArrowStore var val c => ArrowStore var val (NoInlineT c) where
   type Join y (NoInlineT c) = Store.Join y c
   read f g = lift $ Store.read (unlift f) (unlift g)
   write = lift Store.write
+  remove = undefined
+  keys = undefined
+  store = undefined
   {-# NOINLINE read #-}
   {-# NOINLINE write #-}
 

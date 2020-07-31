@@ -34,6 +34,7 @@ import           Data.Abstract.Map (Map)
 import qualified Data.Abstract.Map as M
 import qualified Data.HashMap.Lazy as HM 
 import           Data.HashMap.Lazy (HashMap)
+import qualified Data.HashSet as HS
 import           Data.Identifiable
 import           Data.Profunctor
 import           Data.Profunctor.Unsafe((.#))
@@ -67,6 +68,9 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (
       Nothing         -> g -< x
       JustNothing val -> (f -< (val,x)) <⊔> (g -< x)
   write = StoreT $ modify $ arr $ \((var,val),st) -> ((),M.insert var val st)
+  remove = undefined 
+  keys = undefined
+  store = undefined
   {-# INLINE read #-}
   {-# INLINE write #-}
 
@@ -74,13 +78,18 @@ instance (Identifiable addr, ArrowChoice c, Profunctor c, Complete val)
     => ArrowStore addr val (StoreT (HashMap addr val) c) where
   type Join y (StoreT (HashMap addr val) c) = ArrowComplete (HashMap addr val,y) c
   read (StoreT f) (StoreT g) = StoreT $ proc (addr,x) -> do
-    store <- get -< ()
-    case HM.lookup addr store of
+    s <- get -< ()
+    case HM.lookup addr s of
       P.Just val -> f -< (val,x)
       P.Nothing -> g -< x
   write = StoreT $ proc (addr, val) -> do
-    store <- get -< ()
-    put -< HM.insertWith (\oldVal newVal -> oldVal ⊔ newVal) addr val store
+    s <- get -< ()
+    put -< HM.insertWith (\oldVal newVal -> oldVal ⊔ newVal) addr val s
+  remove = StoreT $ modify $ arr (\(var,s) -> ((), HM.delete var s))
+  keys = StoreT $ proc _ -> do 
+    s <- get -< () 
+    returnA -< HS.fromList $ HM.keys s 
+  store = StoreT $ proc _ -> get -< () 
   {-# INLINE read #-}
   {-# INLINE write #-}
   {-# SCC read #-}

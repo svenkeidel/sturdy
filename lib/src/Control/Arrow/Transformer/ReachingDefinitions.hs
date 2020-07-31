@@ -64,6 +64,9 @@ instance (ArrowStore var (val,f Label) c, IsEmpty (f Label), IsSingleton (f Labe
   type Join y (ReachingDefsT f c) = Store.Join y c
   read (ReachingDefsT f) (ReachingDefsT g) = ReachingDefsT $ read (lmap (\((v,_),x) -> (v,x)) f) g
   write = reachingDefsT $ lmap (\(lab,(var,val)) -> (var,(val,fromMaybe lab))) write
+  remove = undefined 
+  keys = undefined
+  store = undefined
   {-# INLINE read #-}
   {-# INLINE write #-}
 

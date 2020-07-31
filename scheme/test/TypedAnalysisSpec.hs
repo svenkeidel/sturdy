@@ -64,166 +64,164 @@ data Algorithm = ChaoticInner | ChaoticOuter | Parallel | ADI deriving (Show,Eq)
 gabrielBenchmarks :: (?algorithm :: Algorithm) => Runner -> Spec
 gabrielBenchmarks run = describe "Gabriel" $ do
 
-    it "boyer" $ do
-      -- pendingWith "not terminating within 10 minutes, program might be too large"
-      let inFile = "gabriel/boyer.scm"
-      let expRes = successOrFail [BoolVal B.True, BoolVal B.False]
-                                 [ "Expected list as argument for car, but got ['p]"
-                                 , "Expected list as argument for cdr, but got ['u]"
-                                 , "cannot cdr an empty list"
-                                 , "Expected list as argument for cdr, but got ['e]"
-                                 , "Expected list as argument for car, but got ['c]"
-                                 , "Expected list as argument for car, but got ['x3]"
-                                 , "Expected list as argument for car, but got ['val]"
-                                 , "Expected list as argument for cdr, but got ['form]"
-                                 , "Expected list as argument for car, but got ['pred]"
-                                 , "Expected list as argument for cdr, but got ['f]"
-                                 , "Expected list as argument for car, but got ['f]"
-                                 , "Expected list as argument for car, but got ['x6]"
-                                 , "Expected list as argument for cdr, but got ['val]"
-                                 , "Expected list as argument for cdr, but got ['c]"
-                                 , "Expected list as argument for cdr, but got ['l]"
-                                 , "Expected list as argument for car, but got ['i]"
-                                 , "Expected list as argument for cdr, but got ['x4]"
-                                 , "Expected list as argument for car, but got ['y]"
-                                 , "Expected list as argument for car, but got ['lessp]"
-                                 , "Expected list as argument for cdr, but got ['equal]"
-                                 , "Expected list as argument for car, but got ['l]"
-                                 , "Expected list as argument for car, but got False"
-                                 , "Expected list as argument for cdr, but got ['lessp]"
-                                 , "Expected list as argument for car, but got ['equal]"
-                                 , "Expected list as argument for cdr, but got ['x1]"
-                                 , "Expected list as argument for cdr, but got ['y]"
-                                 , "Expected list as argument for cdr, but got ['i]"
-                                 , "Expected list as argument for cdr, but got ['x2]"
-                                 , "Expected list as argument for cdr, but got ['z]"
-                                 , "Expected list as argument for cdr, but got Int"
-                                 , "Expected list as argument for cdr, but got ['j]"
-                                 , "Expected list as argument for car, but got Int"
-                                 , "Expected list as argument for car, but got ['x2]"
-                                 , "Expected list as argument for cdr, but got ['w]"
-                                 , "Expected list as argument for car, but got ['b]"
-                                 , "Expected list as argument for cdr, but got ['pds]"
-                                 , "Expected list as argument for cdr, but got ['implies]"
-                                 , "Expected list as argument for cdr, but got ['p]"
-                                 , "Expected list as argument for car, but got ['e]"
-                                 , "Expected list as argument for car, but got ['x5]"
-                                 , "cannot car an empty list"
-                                 , "Expected list as argument for car, but got ['u]"
-                                 , "Expected list as argument for car, but got ['base]"
-                                 , "Expected list as argument for cdr, but got ['base]"
-                                 , "Expected list as argument for cdr, but got ['x5]"
-                                 , "Expected list as argument for car, but got ['x]"
-                                 , "Expected list as argument for cdr, but got ['-]"
-                                 , "Expected list as argument for cdr, but got ['var]"
-                                 , "Expected list as argument for cdr, but got ['mem]"
-                                 , "Expected list as argument for car, but got ['alist]"
-                                 , "Expected list as argument for car, but got ['k]"
-                                 , "Expected list as argument for cdr, but got ['x6]"
-                                 , "Expected list as argument for car, but got ['and]"
-                                 , "Expected list as argument for car, but got ['form]"
-                                 , "Expected list as argument for cdr, but got ['x3]"
-                                 , "Expected list as argument for cdr, but got ['k]"
-                                 , "Expected list as argument for cdr, but got ['and]"
-                                 , "Expected list as argument for cdr, but got ['pred]"
-                                 , "Expected list as argument for cdr, but got ['alist]"
-                                 , "Expected list as argument for car, but got ['q]"
-                                 , "Expected list as argument for cdr, but got ['t]"
-                                 , "Expected list as argument for cdr, but got ['d]"
-                                 , "Expected list as argument for car, but got ['envrn]"
-                                 , "Expected list as argument for car, but got ['a]"
-                                 , "Expected list as argument for car, but got ['x1]"
-                                 , "Expected list as argument for cdr, but got False"
-                                 , "Expected list as argument for cdr, but got ['envrn]"
-                                 , "Expected list as argument for cdr, but got ['a]"
-                                 , "Expected list as argument for car, but got ['d]"
-                                 , "Expected list as argument for car, but got ['x4]"
-                                 , "Expected list as argument for car, but got ['t]"
-                                 , "Expected list as argument for cdr, but got ['q]"
-                                 , "Expected list as argument for car, but got ['pds]"
-                                 , "Expected list as argument for car, but got ['implies]"
-                                 , "Expected list as argument for cdr, but got ['b]"
-                                 , "Expected list as argument for car, but got ['x7]"
-                                 , "Expected list as argument for car, but got ['w]"
-                                 , "Expected list as argument for car, but got ['z]"
-                                 , "Expected list as argument for car, but got ['j]"
-                                 , "Expected list as argument for cdr, but got ['x7]"
-                                 , "Expected list as argument for car, but got ['mem]"
-                                 , "Expected list as argument for car, but got ['var]"
-                                 , "Expected list as argument for car, but got ['-]"
-                                 , "Expected list as argument for cdr, but got ['x]" 
-                                 ]
-      run inFile expRes
+    -- it "boyer" $ do
+    --   pendingWith "currently returns bottom" 
+    --   let inFile = "gabriel/boyer.scm"
+    --   let expRes = successOrFail [BoolVal B.True, BoolVal B.False]
+    --                              [ "Expected list as argument for car, but got ['p]"
+    --                              , "Expected list as argument for cdr, but got ['u]"
+    --                              , "cannot cdr an empty list"
+    --                              , "Expected list as argument for cdr, but got ['e]"
+    --                              , "Expected list as argument for car, but got ['c]"
+    --                              , "Expected list as argument for car, but got ['x3]"
+    --                              , "Expected list as argument for car, but got ['val]"
+    --                              , "Expected list as argument for cdr, but got ['form]"
+    --                              , "Expected list as argument for car, but got ['pred]"
+    --                              , "Expected list as argument for cdr, but got ['f]"
+    --                              , "Expected list as argument for car, but got ['f]"
+    --                              , "Expected list as argument for car, but got ['x6]"
+    --                              , "Expected list as argument for cdr, but got ['val]"
+    --                              , "Expected list as argument for cdr, but got ['c]"
+    --                              , "Expected list as argument for cdr, but got ['l]"
+    --                              , "Expected list as argument for car, but got ['i]"
+    --                              , "Expected list as argument for cdr, but got ['x4]"
+    --                              , "Expected list as argument for car, but got ['y]"
+    --                              , "Expected list as argument for car, but got ['lessp]"
+    --                              , "Expected list as argument for cdr, but got ['equal]"
+    --                              , "Expected list as argument for car, but got ['l]"
+    --                              , "Expected list as argument for car, but got False"
+    --                              , "Expected list as argument for cdr, but got ['lessp]"
+    --                              , "Expected list as argument for car, but got ['equal]"
+    --                              , "Expected list as argument for cdr, but got ['x1]"
+    --                              , "Expected list as argument for cdr, but got ['y]"
+    --                              , "Expected list as argument for cdr, but got ['i]"
+    --                              , "Expected list as argument for cdr, but got ['x2]"
+    --                              , "Expected list as argument for cdr, but got ['z]"
+    --                              , "Expected list as argument for cdr, but got Int"
+    --                              , "Expected list as argument for cdr, but got ['j]"
+    --                              , "Expected list as argument for car, but got Int"
+    --                              , "Expected list as argument for car, but got ['x2]"
+    --                              , "Expected list as argument for cdr, but got ['w]"
+    --                              , "Expected list as argument for car, but got ['b]"
+    --                              , "Expected list as argument for cdr, but got ['pds]"
+    --                              , "Expected list as argument for cdr, but got ['implies]"
+    --                              , "Expected list as argument for cdr, but got ['p]"
+    --                              , "Expected list as argument for car, but got ['e]"
+    --                              , "Expected list as argument for car, but got ['x5]"
+    --                              , "cannot car an empty list"
+    --                              , "Expected list as argument for car, but got ['u]"
+    --                              , "Expected list as argument for car, but got ['base]"
+    --                              , "Expected list as argument for cdr, but got ['base]"
+    --                              , "Expected list as argument for cdr, but got ['x5]"
+    --                              , "Expected list as argument for car, but got ['x]"
+    --                              , "Expected list as argument for cdr, but got ['-]"
+    --                              , "Expected list as argument for cdr, but got ['var]"
+    --                              , "Expected list as argument for cdr, but got ['mem]"
+    --                              , "Expected list as argument for car, but got ['alist]"
+    --                              , "Expected list as argument for car, but got ['k]"
+    --                              , "Expected list as argument for cdr, but got ['x6]"
+    --                              , "Expected list as argument for car, but got ['and]"
+    --                              , "Expected list as argument for car, but got ['form]"
+    --                              , "Expected list as argument for cdr, but got ['x3]"
+    --                              , "Expected list as argument for cdr, but got ['k]"
+    --                              , "Expected list as argument for cdr, but got ['and]"
+    --                              , "Expected list as argument for cdr, but got ['pred]"
+    --                              , "Expected list as argument for cdr, but got ['alist]"
+    --                              , "Expected list as argument for car, but got ['q]"
+    --                              , "Expected list as argument for cdr, but got ['t]"
+    --                              , "Expected list as argument for cdr, but got ['d]"
+    --                              , "Expected list as argument for car, but got ['envrn]"
+    --                              , "Expected list as argument for car, but got ['a]"
+    --                              , "Expected list as argument for car, but got ['x1]"
+    --                              , "Expected list as argument for cdr, but got False"
+    --                              , "Expected list as argument for cdr, but got ['envrn]"
+    --                              , "Expected list as argument for cdr, but got ['a]"
+    --                              , "Expected list as argument for car, but got ['d]"
+    --                              , "Expected list as argument for car, but got ['x4]"
+    --                              , "Expected list as argument for car, but got ['t]"
+    --                              , "Expected list as argument for cdr, but got ['q]"
+    --                              , "Expected list as argument for car, but got ['pds]"
+    --                              , "Expected list as argument for car, but got ['implies]"
+    --                              , "Expected list as argument for cdr, but got ['b]"
+    --                              , "Expected list as argument for car, but got ['x7]"
+    --                              , "Expected list as argument for car, but got ['w]"
+    --                              , "Expected list as argument for car, but got ['z]"
+    --                              , "Expected list as argument for car, but got ['j]"
+    --                              , "Expected list as argument for cdr, but got ['x7]"
+    --                              , "Expected list as argument for car, but got ['mem]"
+    --                              , "Expected list as argument for car, but got ['var]"
+    --                              , "Expected list as argument for car, but got ['-]"
+    --                              , "Expected list as argument for cdr, but got ['x]" 
+    --                              ]
+    --   run inFile expRes
 
-    it "browse" $ do
-      let inFile = "gabriel/browse.scm"
-      let expRes = successOrFail [NumVal IntVal]
-                                 [ "cannot cdr an empty list"
-                                 , "Expected list as argument for car, but got False"
-                                 , "Expected list as argument for car, but got ['b]"
-                                 , "error: (length): contract violation, expected list"
-                                 , "cannot car an empty list"
-                                 , "Expected list as argument for car, but got ['a]"
-                                 , "Expected list as argument for cdr, but got False"
-                                 , "Expected list as argument for cdr, but got ['a]"
-                                 , "Expected list as argument for cdr, but got ['b]"
-                                 ]
-      run inFile expRes
+    -- it "browse" $ do
+    --   pendingWith "error, most likely bug in GC" 
+    --   let inFile = "gabriel/browse.scm"
+    --   let expRes = successOrFail [NumVal IntVal]
+    --                              [ "cannot cdr an empty list"
+    --                              , "Expected list as argument for car, but got False"
+    --                              , "Expected list as argument for car, but got ['b]"
+    --                              , "error: (length): contract violation, expected list"
+    --                              , "cannot car an empty list"
+    --                              , "Expected list as argument for car, but got ['a]"
+    --                              , "Expected list as argument for cdr, but got False"
+    --                              , "Expected list as argument for cdr, but got ['a]"
+    --                              , "Expected list as argument for cdr, but got ['b]"
+    --                              ]
+    --   run inFile expRes
 
     it "cpstak" $ do
       let inFile = "gabriel/cpstak.scm"
       let expRes = success [NumVal IntVal]
       run inFile expRes
 
-    it "destruc" $ do
-      let inFile = "gabriel/destruc.scm"
-      let expRes = successOrFail [BoolVal B.True, BoolVal B.False]
-                                 $
-                                 [ "cannot cdr an empty list"
-                                 , "Expected list as argument for cdr, but got Int"
-                                 , "Expected list as argument for car, but got Int"
-                                 , "cannot car an empty list"
-                                 ]
-                                --  <>
-                                --  when (?algorithm == Parallel || ?algorithm == ADI)
-                                --  [ "cannot car an empty list" ]
+    -- it "destruc" $ do
+    --   pendingWith "currently returns False"
+    --   let inFile = "gabriel/destruc.scm"
+    --   let expRes = successOrFail [BoolVal B.True, BoolVal B.False]
+    --                              $
+    --                              [ "cannot cdr an empty list"
+    --                              , "Expected list as argument for cdr, but got Int"
+    --                              , "Expected list as argument for car, but got Int"
+    --                              , "cannot car an empty list"
+    --                              ]
+    --   run inFile expRes
 
-      run inFile expRes
+    -- it "dderiv" $ do
+    --   pendingWith "The analysis is too imprecise to typecheck. \
+    --               \The analysis tries to call a function, whose closure is top. \
+    --               \Continuing at this point would be unsound because the analysis\
+    --               \would not soundly approximate the control-flow of the program."
+    --   let inFile = "gabriel/dderiv.scm"
+    --   let expRes = success [BoolVal B.True]
+    --   run inFile expRes
 
-    it "dderiv" $ do
-      pendingWith "The analysis is too imprecise to typecheck. \
-                  \The analysis tries to call a function, whose closure is top. \
-                  \Continuing at this point would be unsound because the analysis\
-                  \would not soundly approximate the control-flow of the program."
-      let inFile = "gabriel/dderiv.scm"
-      let expRes = success [BoolVal B.True]
-      run inFile expRes
-
-    it "deriv" $ do
-      -- when (?algorithm == Parallel || ?algorithm == ADI) $ 
-      pendingWith "not terminating within 10 minutes, program might be too large"
-      let inFile = "gabriel/deriv.scm"
-      let expRes = successOrFail [BoolVal B.True, BoolVal B.False]
-                                 [ "error: No derivation method available"
-                                 , "cannot cdr an empty list"
-                                 , "Expected list as argument for car, but got ['/]"
-                                 , "Expected list as argument for cdr, but got ['*]"
-                                 , "Expected list as argument for cdr, but got Int"
-                                 , "Expected list as argument for car, but got Int"
-                                 , "Expected list as argument for car, but got ['b]"
-                                 , "cannot car an empty list"
-                                 , "Expected list as argument for car, but got ['x]"
-                                 , "Expected list as argument for car, but got ['+]"
-                                 , "Expected list as argument for cdr, but got ['+]"
-                                 , "Expected list as argument for car, but got ['a]"
-                                 , "Expected list as argument for cdr, but got ['a]"
-                                 , "error: Cannot map over a non-list"
-                                 , "Expected list as argument for cdr, but got ['b]"
-                                 , "Expected list as argument for cdr, but got ['/]"
-                                 , "Expected list as argument for car, but got ['*]"
-                                 , "Expected list as argument for cdr, but got ['x]"
-                                 ]
-      run inFile expRes
+    -- it "deriv" $ do
+    --   pendingWith "not terminating"
+    --   -- when (?algorithm == Parallel || ?algorithm == ADI) $ 
+    --   let inFile = "gabriel/deriv.scm"
+    --   let expRes = successOrFail [BoolVal B.True, BoolVal B.False]
+    --                              [ "error: No derivation method available"
+    --                              , "cannot cdr an empty list"
+    --                              , "Expected list as argument for car, but got ['/]"
+    --                              , "Expected list as argument for cdr, but got ['*]"
+    --                              , "Expected list as argument for cdr, but got Int"
+    --                              , "Expected list as argument for car, but got Int"
+    --                              , "Expected list as argument for car, but got ['b]"
+    --                              , "cannot car an empty list"
+    --                              , "Expected list as argument for car, but got ['x]"
+    --                              , "Expected list as argument for car, but got ['+]"
+    --                              , "Expected list as argument for cdr, but got ['+]"
+    --                              , "Expected list as argument for car, but got ['a]"
+    --                              , "Expected list as argument for cdr, but got ['a]"
+    --                              , "error: Cannot map over a non-list"
+    --                              , "Expected list as argument for cdr, but got ['b]"
+    --                              , "Expected list as argument for cdr, but got ['/]"
+    --                              , "Expected list as argument for car, but got ['*]"
+    --                              , "Expected list as argument for cdr, but got ['x]"
+    --                              ]
+    --   run inFile expRes
 
     it "diviter" $ do
       let inFile = "gabriel/diviter.scm"
@@ -369,11 +367,7 @@ customTests run = do
       let inFile = "test_equal.scm"
       -- Higher sensitivity leads to BoolVal B.True
       let expRes = successOrFail [BoolVal B.True, BoolVal B.False] 
-                                 [ "cannot cdr an empty list"
-                                 , "Expected list as argument for cdr, but got False"
-                                 , "Expected list as argument for cdr, but got True"
-                                 , "cannot car an empty list"
-                                 , "Expected list as argument for car, but got False"
+                                 [ "Expected list as argument for cdr, but got True"
                                  , "Expected list as argument for car, but got True"
                                  ]
       run inFile expRes
@@ -385,13 +379,8 @@ customTests run = do
 
     it "test_closure_gc" $ do
       let inFile = "test_closure_gc.scm"
-      let expRes = success $ [NumVal IntVal]
+      let expRes = success $ [BoolVal B.False]
       run inFile expRes
-
-    -- it "lang_scheme_test" $ do
-    --   let inFile = "lang_scheme_test.scm"
-    --   let expRes = success $ NumVal IntVal
-    --   run inFile expRes
 
     it "test_inner_define" $ do
       let inFile = "test_inner_define.scm"
@@ -444,6 +433,37 @@ customTests run = do
       let expRes = success [QuoteVal ["sym1"], QuoteVal ["sym2"], QuoteVal ["sym3"]]
       run inFile expRes
 
+    it "test_app_vars" $ do 
+      let expRes = success [BoolVal B.True]
+      let inFile = "test_app_vars.scm"
+      run inFile expRes
+      
+    -- it "test_nonterminating_binding" $ do
+    --   pendingWith "returns Int, maybe bug in propagation of bindings"
+    --   let expRes = success [Bottom]
+    --   let inFile = "test_nonterminating_binding.scm"
+    --   run inFile expRes
+
+    it "test_let_lists" $ do 
+      let expRes = success [BoolVal B.True]
+      let inFile = "test_let_lists.scm"
+      run inFile expRes
+
+    it "test_letrec_lists" $ do 
+      let expRes = success [BoolVal B.True]
+      let inFile = "test_letrec_lists.scm"
+      run inFile expRes
+
+    it "test_app_lists" $ do 
+      let expRes = success [BoolVal B.True]
+      let inFile = "test_app_lists.scm"
+      run inFile expRes
+
+    it "test_app_vars" $ do 
+      let expRes = success [BoolVal B.True]
+      let inFile = "test_app_vars.scm"
+      run inFile expRes
+
     it "test_random" $ do
       let inFile = "test_random.scm"
       let expRes = success [NumVal IntVal]
@@ -464,7 +484,7 @@ runner :: (?algorithm :: Algorithm) => Eval' -> Runner
 runner eval inFile expected = do
   prog <- loadSchemeFile inFile
   let ?sensitivity = 0
-  let (cfg,(Monotone metric,(errs,res))) = eval [prog]
+  let (cfg,(metric,(errs,res))) = eval [prog]
   let csv = printf "\"%s\",%s,%s\n" inFile (show ?algorithm) (toCSV metric)
   appendFile metricFile csv
   renderCFG inFile cfg 

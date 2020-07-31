@@ -20,8 +20,7 @@ import Control.Arrow.Fix.ControlFlow
 import Control.Arrow.Fix.Context
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Trans
-import Control.Arrow.Reader
-import Control.Arrow.Fix.GarbageCollection
+import Control.Arrow.Reader as Reader
 
 import Control.Arrow.Transformer.Reader
 
@@ -31,7 +30,7 @@ import Data.Empty
 
 newtype ContextT ctx c x y = ContextT (ReaderT ctx c x y)
   deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowStrict,
-            ArrowLift,ArrowControlFlow stmt, ArrowPrimitive, ArrowGarbageCollection addr)
+            ArrowLift,ArrowControlFlow stmt, ArrowPrimitive)
 
 runContextT :: (IsEmpty ctx, Profunctor c) => ContextT ctx c x y -> c x y
 runContextT (ContextT f) = lmap (empty,) (runReaderT f)
@@ -58,3 +57,9 @@ instance ArrowCache a b c => ArrowCache a b (ContextT ctx c) where
 instance (Profunctor c,ArrowApply c) => ArrowApply (ContextT ctx c) where
   app = ContextT (app .# first coerce)
   {-# INLINE app #-}
+
+instance ArrowReader r c => ArrowReader r (ContextT ctx c) where
+  ask = lift' Reader.ask
+  local (ContextT (ReaderT f)) = ContextT (ReaderT (lmap (\(env,(r,x)) -> (r,(env,x))) (Reader.local f)))
+  {-# INLINE ask #-}
+  {-# INLINE local #-}

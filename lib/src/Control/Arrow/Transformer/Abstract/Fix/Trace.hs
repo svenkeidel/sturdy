@@ -23,7 +23,6 @@ import Control.Arrow.Fix.Metrics as Metrics
 import Control.Arrow.State
 import Control.Arrow.Trans
 import Control.Arrow.Order
-import Control.Arrow.Fix.GarbageCollection
 
 import Data.Profunctor.Unsafe
 import Data.Coerce
@@ -34,7 +33,7 @@ import Data.Text.Prettyprint.Doc
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift, ArrowLowerBounded b,
             ArrowComponent a, ArrowInComponent a,
-            ArrowContext ctx,ArrowState s,ArrowControlFlow stmt, ArrowGarbageCollection addr, 
+            ArrowContext ctx,ArrowState s,ArrowControlFlow stmt,
             ArrowTopLevel,ArrowStackDepth,ArrowStackElements a, ArrowMetrics a)
 
 log :: Arrow c => c (Doc ann) ()

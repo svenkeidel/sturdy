@@ -51,6 +51,7 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowEnv var val (En
   extend (EnvT f) = EnvT $ proc (var,val,x) -> do
     env <- Reader.ask -< ()
     Reader.local f -< (M.insert var val env, x)
+  vals = undefined
 
 instance (ArrowChoice c, Profunctor c) => ArrowClosure expr (Closure expr env) (EnvT env c) where
   type Join y (Closure expr env) (EnvT env c) = ()

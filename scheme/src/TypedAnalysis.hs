@@ -37,12 +37,16 @@ import qualified Control.Arrow.Closure as Cls
 import           Control.Arrow.Order
 import           Control.Arrow.Store
 import qualified Control.Arrow.Store as Store
+import           Control.Arrow.Environment (ArrowEnv) 
+import qualified Control.Arrow.Environment as Env 
 import qualified Control.Arrow.Utils as ArrowUtils
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import qualified Control.Arrow.Transformer.Abstract.FiniteEnvStore as M
+import           Control.Arrow.Fix.GarbageCollection
+import           Control.Arrow.Reader as Reader
 
 import           Control.DeepSeq
 
@@ -104,7 +108,7 @@ data Addr
   deriving anyclass (NFData)
   deriving PreOrd via Discrete Addr
 
-type Symbol = Text
+type Symbol = Text 
 
 data Val
   = Top
@@ -147,6 +151,51 @@ instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT (Pow Val) c) where
     returnA -< VarA (var,lab,ctx)
   {-# INLINE alloc #-}
   {-# SCC alloc #-}
+
+instance (ArrowChoice c, ArrowReader (HashSet Addr) c) 
+    => ArrowGarbageCollection Val Addr (ValueT Val c) where 
+  addLocalGCRoots f = proc (addrs_new,x) -> do 
+    addrs_old <- Reader.ask -< () 
+    Reader.local f -< (Set.union addrs_new addrs_old,x)
+  getGCRoots = proc _ -> do 
+    addrs_stack <- Reader.ask -< () 
+    returnA -< addrs_stack 
+  collectables = undefined
+  getAddrVal = undefined
+  reachables = undefined 
+
+
+instance (ArrowStore Addr (Pow Val) c, ArrowEnv Text Addr c, ArrowChoice c, ArrowReader (HashSet Addr) c) 
+    => ArrowGarbageCollection (Pow Val) Addr (ValueT (Pow Val) c) where 
+  addLocalGCRoots f = proc (addrs_new,x) -> do 
+    addrs_old <- Reader.ask -< () 
+    Reader.local f -< (Set.union addrs_new addrs_old,x)  
+  getGCRoots = proc _ -> do 
+    addrs_stack <- Reader.ask -< () 
+    returnA -< addrs_stack     
+  collectables = proc (store_addrs, local_addrs) -> returnA -< Set.difference store_addrs local_addrs
+  getAddrVal = proc v -> do
+    let vals = Pow.toList v
+    returnA -< Set.fromList $ (getAddrList vals) ++ (getAddrCls vals)
+  reachables = proc (addrs,store) -> returnA -< getReachable' addrs store 
+
+
+getReachable' :: HashSet Addr -> Store -> HashSet Addr 
+getReachable' addrs store = do 
+  let addrs_ = toList addrs
+  let reachable_vals = catMaybes $ map (\(addr,st) -> SM.lookup addr st) (zip addrs_ (repeat store)) --not nice: repeat
+  let reachable_addrs = Set.toList $ Set.fromList $ (getAddrCls $ concat $ map Pow.toList reachable_vals) ++ (getAddrList $ concat $ map Pow.toList reachable_vals) 
+  if (reachable_addrs \\ addrs_ == [])
+    then addrs
+    else getReachable' (Set.fromList $ addrs_ ++ reachable_addrs) store
+{-# INLINE getReachable' #-}
+-- getAddrOut :: Out -> HashSet Addr 
+-- getAddrOut (_,val) = do 
+--   let vals = Pow.toList val
+--   Set.fromList $ (getAddrList vals) ++ (getAddrCls vals)
+-- {-# INLINE getAddrOut #-}
+
+
 
 allocLabel :: (ArrowContext Ctx c) => c Label Addr
 allocLabel = proc l -> do
@@ -269,7 +318,7 @@ instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c,
     Bool False  -> returnA -< BoolVal B.False
     Char _ -> returnA -< StringVal
     String _ -> returnA -< StringVal
-    Quote (Symbol sym) -> returnA -< QuoteVal $ singleton sym
+    Quote (Symbol sym) -> returnA -< QuoteVal $ singleton sym 
     _ -> returnA -< Bottom 
   {-# INLINE lit #-}
   {-# SCC lit #-}
@@ -692,7 +741,7 @@ instance Pretty Val where
   pretty (ClosureVal cls) = pretty cls
   pretty StringVal = "string"
   pretty CharVal = "char"
-  pretty (QuoteVal syms) = pretty ["'" <> sym | sym <- toList syms]
+  pretty (QuoteVal syms) = pretty syms -- ["'" <> sym | sym <- toList syms]
   pretty (ListVal l) = pretty l
   pretty VoidVal = "#<void>"
   pretty Top = "Top"
@@ -709,6 +758,8 @@ instance Pretty Number where
   pretty FloatVal = "Float"
   pretty NumTop = "NumTop"
 
+-- instance Hashable Symbol 
+
 instance IsClosure Val (HashSet Env) where
   mapEnvironment f v = case v of
     ClosureVal c -> ClosureVal (mapEnvironment f c)
@@ -724,6 +775,13 @@ storeErrWidening (s1,e1) (s2,e2) =
   -- Because the store grows monotonically, we can assume that s1 ⊑ s2. For
   -- stabilization it remains to check that s2 ⊑ s1.
   (if (s2,e2) ⊑ (s1,e1) then Stable else Unstable, (s2,e2))
+
+storeErrWidening_nm :: W.Widening (Store,Errors)
+storeErrWidening_nm (s1,e1) (s2,e2) = do
+  let (w_store,store) = W.finite s1 s2
+  let (w_err,err) = (if e2 ⊑ e1 then Stable else Unstable, e2)
+  (w_store ⊔ w_err, (store,err))
+
 
 instance PreOrd Val where
   Bottom ⊑ _ = True
@@ -768,6 +826,11 @@ instance PreOrd Number where
   _ ⊑ NumTop = True
   _ ⊑ _ = False
 
+-- instance PreOrd Symbol where 
+--   Sym _ ⊑ Sym _ = True 
+--   _ ⊑ SymTop = True 
+--   _ ⊑ _ = False 
+
 instance Complete List where
   Nil ⊔ Nil = Nil
   Cons x1 x2 ⊔ Cons y1 y2 = Cons (x1 ⊔ y1) (x2 ⊔ y2)
@@ -784,6 +847,10 @@ instance Complete Number where
   IntVal ⊔ IntVal = IntVal
   FloatVal ⊔ FloatVal = FloatVal
   _ ⊔ _ = NumTop
+
+-- instance Complete Symbol where 
+--   Sym a ⊔ Sym b = Sym (a ⊔ b)
+--   _ ⊔ _ = SymTop
 
 instance LowerBounded Val where 
   bottom = Bottom 
@@ -804,8 +871,8 @@ type In = ((Store,Errors), (Env, [Expr]))
 type Out = ((Store,Errors), (Pow Val))
 type In' = (Store,(Env,(Errors,  [Expr])))
 type Out' = (Store, (Errors, (Pow Val)))
-type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (HashSet Addr, (CFG Expr, (Metric.Monotone In, Out')))
-type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Monotone In, (Errors, (Pow Val))))
+type Eval = (?sensitivity :: Int) => [(Text,Addr)] -> [LExpr] -> (CFG Expr, (Metric.Metrics In, Out'))
+type Eval' = (?sensitivity :: Int) => [LExpr] -> (CFG Expr, (Metric.Metrics In, (Errors, (Pow Val))))
 
 transform :: Profunctor c => Fix.FixpointAlgorithm (c In Out) -> Fix.FixpointAlgorithm (c In' Out')
 transform = Fix.transform (L.iso (\(store,(env,(errs,exprs))) -> ((store,errs),(env,exprs)))
@@ -839,6 +906,27 @@ getReachable addrs ((store,errs),vals) = do
     then addrs
     else getReachable (Set.fromList $ addrs_ ++ reachable_addrs) ((store,errs),vals)
 {-# INLINE getReachable #-}
+
+-- getReachable' :: HashSet Addr -> Store -> HashSet Addr 
+-- getReachable' addrs store = do 
+--   let addrs_ = toList addrs
+--   let reachable_vals = catMaybes $ map (\(addr,st) -> SM.lookup addr st) (zip addrs_ (repeat store)) --not nice: repeat
+--   let reachable_addrs = Set.toList $ Set.fromList $ (getAddrCls $ concat $ map Pow.toList reachable_vals) ++ (getAddrList $ concat $ map Pow.toList reachable_vals) 
+--   if (reachable_addrs \\ addrs_ == [])
+--     then addrs
+--     else getReachable' (Set.fromList $ addrs_ ++ reachable_addrs) store
+-- {-# INLINE getReachable' #-}
+
+
+getReachableIn :: HashSet Addr -> In -> HashSet Addr 
+getReachableIn addrs ((store,errs),(env,exprs)) = do 
+  let addrs_ = toList addrs
+  let reachable_vals = catMaybes $ map (\(addr,st) -> SM.lookup addr st) (zip addrs_ (repeat store)) --not nice: repeat
+  let reachable_addrs = Set.toList $ Set.fromList $ (getAddrCls $ concat $ map Pow.toList reachable_vals) ++ (getAddrList $ concat $ map Pow.toList reachable_vals) 
+  if (reachable_addrs \\ addrs_ == [])
+    then addrs
+    else getReachableIn (Set.fromList $ addrs_ ++ reachable_addrs) ((store,errs), (env,exprs))
+{-# INLINE getReachableIn #-}
 
 removeFromStore :: Out -> HashSet Addr -> Out
 removeFromStore ((store,errs),vals) addrs = do 

@@ -74,6 +74,7 @@ instance (Identifiable var, UpperBounded val, ArrowChoice c, Profunctor c) => Ar
   extend (EnvT f) = EnvT $ proc (var,val,x) -> do
     env <- Reader.ask -< ()
     Reader.local f -< (SM.insert var val env,x)
+  vals = undefined
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -89,6 +90,7 @@ instance (Identifiable var, Traversable val, Complete (val (Set var)), ArrowChoi
   extend (EnvT f) = EnvT $ proc (var,val,x) -> do
     env <- Reader.ask -< ()
     Reader.local f -< (FM.insert var val env,x)
+  vals = undefined
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
 
@@ -103,6 +105,10 @@ instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c)
   extend (EnvT f) = EnvT $ proc (var,addr,x) -> do
     env <- Reader.ask -< ()
     Reader.local f -< (mapHashed (HM.insert var addr) env, x)
+  vals = EnvT $ proc _ -> do
+    env <- Reader.ask -< () 
+    returnA -< Set.fromList $ HM.elems $ unhashed env
+
   {-# INLINE lookup #-}
   {-# INLINE extend #-}
   {-# SCC lookup #-}
