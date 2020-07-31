@@ -27,15 +27,15 @@ library:
 
   ghc-options: -Wall
 
-tests:
-  spec:
-    main: Spec.hs
-
-    source-dirs:
-      - test
-
-    ghc-options: -Wall
-
-    dependencies:
-      - sturdy-pcf
-      - hspec
+# tests:
+#   spec:
+#     main: Spec.hs
+#
+#     source-dirs:
+#       - test
+#
+#     ghc-options: -Wall
+#
+#     dependencies:
+#       - sturdy-pcf
+#       - hspec
