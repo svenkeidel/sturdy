@@ -50,10 +50,11 @@ import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import           Control.Arrow.Transformer.Abstract.Terminating
-
+import           Control.Arrow.Reader as Reader
 import           Data.Empty
 import           Data.Label
 import           Data.Text (Text)
+import           Data.HashSet(HashSet)
 
 import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
@@ -62,11 +63,7 @@ import           TypedAnalysis
 import           Syntax (LExpr,Expr(App),Literal)
 import           GenericInterpreter as Generic
 
-
---import           Control.Arrow.Transformer.Debug(DebugT)
-
-
---imports for debugger
+--Websocket Server Imports
 import qualified Control.Concurrent             as Concurrent
 import qualified Control.Exception              as Exception
 import qualified Control.Monad                  as Monad
@@ -81,34 +78,37 @@ import qualified Network.WebSockets             as WS
 import qualified Safe
 
 --JSON Parser Imports
+import           Data.Aeson
+import           Data.Text.Encoding
+import           GHC.Generics
+import           Data.Aeson.TH
+import           Data.Text.Lazy.Encoding
 
-import Data.Aeson
-import Data.Text.Encoding
-import GHC.Generics
-import Data.Aeson.TH
-import Data.Text.Lazy.Encoding
-
-import Data.ByteString.Builder(toLazyByteString)
-
-import Parser
-
+import           Data.ByteString.Builder(toLazyByteString)
+import           Parser
 import qualified Data.ByteString.Lazy          as BL
 import qualified Data.ByteString               as B
-
-import Control.Arrow.Transformer.Debug(DebugState(..), DebugT, ArrowDebug, sendMessage, isBreakpoint, receiveMessage)
-import          Control.Arrow.Transformer.State
-import          Control.Arrow.Fix.ControlFlow
-
+import           Control.Arrow.Transformer.Debug(DebugState(..), DebugT, ArrowDebug, sendMessage, receiveMessage, getState)
+import           Control.Arrow.Transformer.State
+import           Control.Arrow.Fix.ControlFlow
 import           Text.Printf
 
+--CFG Imports
+import           Data.Graph.Inductive(Gr)
+import           Data.Graph.Inductive.Graph(mkGraph, LNode, LEdge, labNodes, labEdges, Graph)
+
+--TODO: raus?
+import           Control.Arrow.State as State
+import           Control.Arrow.Fix.FiniteEnvStore 
+
+--Env/Store/Stack Imports
+import           Data.Abstract.MonotoneStore as MS
+import           Data.Abstract.MonotoneVersioned
+import           Data.Hashable
+import           Data.HashMap.Strict (HashMap, toList)
+import           Data.Abstract.Closure (Closure)
+import           Data.Hashed.Lazy (Hashed(..))
 import           Data.HashMap.Strict (HashMap)
-
-import Data.Graph.Inductive(Gr)
-import Data.Graph.Inductive.Graph(mkGraph, LNode, LEdge, labNodes, labEdges, Graph)
-
-import Control.Arrow.State as State
-
-import Control.Arrow.Fix.FiniteEnvStore 
 
 
 type InterpT c x y =
@@ -129,21 +129,13 @@ type InterpT c x y =
 
 
 
---------------------------------------------------
---------------------------------------------------
---------------------------------------------------
+--TODO: typen für [([(String, String)], [String])]    etc. erstellen
+--TODO: kommentare schreiben
 
 type ClientId = Int
 type Client   = (ClientId, WS.Connection)
 type State    = [Client]
 
-
-
-
-
-
-
----------------------     Websocket Messages     ----------------------------
 
 data WebsocketMessage
   = LoadSourceCodeRequest {path :: String}
@@ -151,11 +143,14 @@ data WebsocketMessage
   | StartDebuggerRequest {code :: String}
   | StartDebuggerResponse {}
   | ContinueRequest {}        --bps :: [Int], start :: Bool
-  | BreakpointResponse {stackElems :: String, exprs :: String, cfg :: String}
+  | BreakpointResponse {stack           :: [([(String, String)], [String])],
+                        cfgNodes        :: [(Int,String)], 
+                        cfgEdges        :: [(Int, Int)], 
+                        latestStore     :: [(String,String)], 
+                        latestEnv       :: [(String,String)]}
   | RefreshRequest
   | RefreshResponse {success :: Bool}
   deriving (Show, Generic)
-
 
 instance ToJSON WebsocketMessage 
 instance FromJSON WebsocketMessage 
@@ -175,22 +170,14 @@ instance FromJSON WebsocketMessage
 
 
 
-changeExpressions :: DebugState -> [LExpr] -> DebugState
-changeExpressions debugState expressions = debugState { expressionList = expressions }
-
-changeDebugPhase :: DebugState -> Int -> DebugState
-changeDebugPhase debugState debugPhase = debugState { debugPhase = debugPhase }
-
-refreshDebugState :: DebugState  -> DebugState
-refreshDebugState debugState = debugState { breakpoints = [], expressionList = []} 
-
+---------------------     Websocket Server     ----------------------------
 
 
 startServer :: P.IO ()
 startServer = do
   putStrLn "hello world"
   state <- Concurrent.newMVar []
-  Warp.run 3001 $ WS.websocketsOr
+  Warp.run 3004 $ WS.websocketsOr
     WS.defaultConnectionOptions
     (wsApp state)
     httpApp
@@ -200,11 +187,10 @@ wsApp stateRef pendingConn = do
   conn <- WS.acceptRequest pendingConn
   clientId <- connectClient conn stateRef
   WS.forkPingThread conn 30
-  let debugState = DebugState [] conn clientId stateRef [] 0
+  let debugState = DebugState conn clientId stateRef
   Exception.finally
     (listen debugState)
     (disconnectClient clientId stateRef)
-
 
 httpApp :: Wai.Application
 httpApp _ respond = respond $ Wai.responseLBS Http.status400 [] "Not a websocket request"
@@ -217,7 +203,6 @@ connectClient conn stateRef = Concurrent.modifyMVar stateRef $ \state -> do
   let clientId = nextId state
   return ((clientId, conn) : state, clientId)
 
-
 withoutClient :: ClientId -> State -> State
 withoutClient clientId = List.filter ((/=) clientId . fst)
 
@@ -227,30 +212,17 @@ disconnectClient clientId stateRef = Concurrent.modifyMVar_ stateRef $ \state ->
 
 listen :: DebugState -> P.IO ()
 listen debugState = do
-  print (clientId debugState)
+  print (clientId debugState)                 --TODO: besseres print statement
   msg <- WS.receiveData (conn debugState)
   let dec = Maybe.fromJust (decode'' msg) :: WebsocketMessage
-  print "JETZT KOMMT PRINT DEC "
-  print (dec)
   case dec of
 
     LoadSourceCodeRequest { path = p } -> do
-
       contents <- Parser.loadSourceCode p
-      print "JETZT CONTENTS"
-      print contents
-      print "CONTENTS VORBEI"
-
       expressions <- Parser.loadSchemeFile (path dec)
-      ulEx <- Parser.loadSchemeFile' (path dec)
-      print ulEx
-      --let object = LoadSourceCodeResponse ([generate expressions])
       let object = LoadSourceCodeResponse (contents)
-      print object
       let encodedObject = encode object
       let textObject = Data.Text.Encoding.decodeUtf8 (toStrict1 encodedObject)
-      --let changedDebugState = changeExpressions debugState [expressions]
-
       sendResponse debugState textObject
     
     StartDebuggerRequest {code = code } -> do
@@ -259,41 +231,36 @@ listen debugState = do
       expressions <- Parser.loadSchemeFileWithCode code
       evalDebug ([expressions])
     
-    ContinueRequest {} -> do  --hier b und s benutzen
+    ContinueRequest {} -> do  --hier b und s benutzen     TODO:entfernen??
       --sendResponse debugState "bla"
       --eval debug aufrufen
       let ?sensitivity = 0
       let ?debugState = debugState
 
-      let bla = expressionList debugState
       expressions <- Parser.loadSchemeFile ("test_factorial.scm")
       
       evalDebug ([expressions])
-      print "continueRequest"
+      --print "continueRequest"
 
     RefreshRequest -> do
       let object = RefreshResponse True
-      print object
+      --print object
       let encodedObject = encode object
       let textObject = Data.Text.Encoding.decodeUtf8 (toStrict1 encodedObject)
       sendResponse debugState textObject
-    
-      let debugStateRefreshed = refreshDebugState debugState
       Exception.finally
-        (listen debugStateRefreshed)
-        (disconnectClient (clientId debugStateRefreshed) (stateRef debugStateRefreshed))
-
+        (listen debugState)
+        (disconnectClient (clientId debugState) (stateRef debugState))
 
   listen debugState
-
-
-
-  
 
 sendResponse :: DebugState -> Text.Text -> P.IO ()
 sendResponse debugState msg = do
   WS.sendTextData (conn debugState) msg             
   
+
+
+---------------------     Debugging Functions     ----------------------------
 
 
 evalDebug :: (?sensitivity::Int, ?debugState::DebugState) => [LExpr] -> P.IO ()
@@ -314,17 +281,17 @@ evalDebug expr =
 
 -- | Debugging combinator
 debug :: (?debugState :: DebugState,
-          ArrowChoice c, ArrowIO c, ArrowDebug c, ArrowStack In c, ArrowStackDepth c, ArrowStackElements In c, ArrowCFG graph c, Show graph) --
-      => Fix.FixpointCombinator c ((Store,Errors),(Env,[Expr]))
-                                  ((Store,Errors), Terminating Val)
+          ArrowChoice c, ArrowIO c, ArrowDebug c, ArrowStack In c, ArrowStackDepth c, ArrowStackElements In c, ArrowCFG (CFG Expr) c)
+      => Fix.FixpointCombinator c ((TypedAnalysis.Store,Errors),(Env,[Expr]))
+                                  ((TypedAnalysis.Store,Errors), Terminating Val)
 debug f = proc input@((store,errors),(env,exprs)) -> do
 
   liftIO print -< exprs
 
   case exprs of 
     e:es | isBreakpoint' e -> do
-      liftIO print -< e
-      liftIO print -< es
+      --liftIO print -< e
+      --liftIO print -< es
       loop -< ((store,errors),(env,es))
     _ -> f -< (input)
   
@@ -334,15 +301,27 @@ debug f = proc input@((store,errors),(env,exprs)) -> do
     loop = proc input@((store,errors),(env,exprs)) -> do
 
       cfg <- getCFG -< ()
-      --liftIO print -< (getNodes cfg)
-      --let nodes = getNodes cfg
-      stackElems <- Stack.elems -< ()     
-      liftIO print -< stackElems
-      
-      let breakpointResponse = createBreakpointResponse (stackElems) (show input) (show cfg)
+      --liftIO print -< (cfg)
+
+      let nodes = getNodes cfg
+      --liftIO print -< nodes
+
+      let edges = getEdges cfg
+      --liftIO print -< edges
+
+
+      stackElems <- Stack.elems -< ()  
+      --liftIO print -< "!!!!!!!!!!!! PRINT STACK ELEMS"   
+      --liftIO print -< stackElems
+      --liftIO print -< "!!!!!!!!!!!! PRINT STACK ELEMS VORBEI" 
+
+      let latestStore = convertStore (extractStoreFromStackElem (listLast stackElems))    --TODO: Hilfsfunktion
+      let latestEnv = convertEnv (extractEnvFromStackElem (listLast stackElems))      --TODO: Hilfsfunktion
+      let stack = extractStoreAndExprsFromStack stackElems      
+      let breakpointResponse = createBreakpointResponse stack (mapNodes nodes) (mapEdges edges) (latestStore) (latestEnv)     --TODO: Hilfsfunktion
       sendMessage -< (breakpointResponse)
 
-      msg <- receiveMessage -< ()     --Hilfsfunktion
+      msg <- receiveMessage -< ()     --TODO: Hilfsfunktion
       let dec = Maybe.fromJust (decode'' msg) :: WebsocketMessage
       case dec of 
         ContinueRequest {} -> do
@@ -354,33 +333,120 @@ debug f = proc input@((store,errors),(env,exprs)) -> do
 
 
 
+
+
 ---------------------     Helper Functions     ----------------------------
 
 decode'' :: FromJSON a => Text.Text -> Maybe a
 decode'' = decode . toLazyByteString . Data.Text.Encoding.encodeUtf8Builder
 
-
-
 toStrict1 :: BL.ByteString -> B.ByteString
 toStrict1 = B.concat . BL.toChunks
-
-
 
 isBreakpoint' :: Expr -> Bool
 isBreakpoint' expr  
   | (show $ expr) == "breakpoint" = True
   | otherwise = False
 
+createBreakpointResponse :: [([(String, String)], [String])] -> [(Int,String)] -> [(Int, Int)] -> [(String,String)] -> [(String,String)] -> Text.Text
+createBreakpointResponse stack nodeList edgeList latestStore latestEnv = Data.Text.Encoding.decodeUtf8 (toStrict1 (encode (BreakpointResponse (stack) (nodeList) (edgeList) (latestStore) (latestEnv))))
 
-createBreakpointResponse :: [In] -> String -> String -> Text.Text
-createBreakpointResponse (((store, errors), (env, expr)):xs) input cfg = Data.Text.Encoding.decodeUtf8 (toStrict1 (encode (BreakpointResponse (show expr) (show input) (show cfg))))
-  --[((Store, Errors), (Env, [Expr]))]
+getNodes :: (CFG stmt) -> [LNode stmt]   
+getNodes (CFG expr) = labNodes (expr)
+
+getEdges :: (CFG stmt) -> [LEdge ()]   
+getEdges (CFG expr) = labEdges expr
+
+mapNodes :: forall stmt. (Show stmt) => [LNode stmt] -> [(Int, String)]
+mapNodes nodeList = map mapSingleNode nodeList 
+
+mapSingleNode :: forall stmt. (Show stmt) =>  LNode stmt -> (Int, String)
+mapSingleNode (id, label) = (id, (show label))
+
+mapEdges :: [LEdge ()] -> [(Int,Int)]
+mapEdges edgeList = map mapSingleEdge edgeList
+
+mapSingleEdge :: LEdge () -> (Int, Int)
+mapSingleEdge (first, second, _) = (first, second)
+
+extractStoreAndExprsFromStack :: [In] -> [([(String, String)], [String])]
+extractStoreAndExprsFromStack list = map extractStoreAndExprsFromStackElem list
+
+extractStoreAndExprsFromStackElem :: In -> ([(String, String)], [String])
+extractStoreAndExprsFromStackElem stackElem =  (uglifyStore (extractStoreFromStackElem stackElem) ,(extractExprsFromStackElem stackElem))
+
+extractExprsFromStackElem :: In -> [String]
+extractExprsFromStackElem (((store, errors), (env, expr))) = (map show expr)
+
+extractStoreFromStackElem :: In -> [(Addr,Val)]            
+extractStoreFromStackElem ((((MS.Store (Versioned map v)), errors), (env, expr))) = toList map
+
+extractEnvFromStackElem :: In -> [(Text, Addr)]            
+extractEnvFromStackElem (((store, errors), ((Hashed hashMap int), expr))) = toList hashMap
+
+listLast :: [a] -> a
+listLast [x] = x --base case is when there's just one element remaining
+listLast (_:xs) = listLast xs --if there's anything in the head, continue until there's one element left
+listLast [] = error "Can't do last of an empty list!"
+
+convertStore :: [(Addr,Val)] -> [(String,String)]
+convertStore list = map convertStoreElem list
+
+convertStoreElem :: (Addr, Val) -> (String, String)
+convertStoreElem (addr, val) = ((show addr), (show val))
+
+convertEnv :: [(Text, Addr)]  -> [(String,String)]
+convertEnv list = map convertEnvElem list
+
+convertEnvElem :: (Text, Addr) -> (String, String)
+convertEnvElem (text, addr) = ((show text), (show addr))
+
+extractStackElems :: [In] -> [String]
+extractStackElems (((store, errors), (env, expr)):xs) = map show expr
+
+uglifyStore :: [(Addr,Val)] -> [(String,String)]
+uglifyStore list = map uglifyStoreElem list 
+
+uglifyStoreElem :: (Addr,Val) -> (String,String)
+uglifyStoreElem (addr, (ClosureVal val)) = ((show addr) , (show val))
+uglifyStoreElem (addr, val) = ((show addr) , (show val))
 
 
 
---  newtype CFG stmt = CFG (Gr stmt ())   was für typen?         brauche ich das? wenn ja wohin ?  | c -> stmt
---getNodes :: CFG -> (Gr Expr ()) -> [LNode stmt]
---getNodes cfg stmt = labNodes stmt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
