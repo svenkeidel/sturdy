@@ -1,0 +1,85 @@
+.app_editor {
+    height: 100%;
+    width: 100%;
+    margin-right: 10px;
+}
+
+.example-form-field {
+    width: 200px;
+}
+
+.path_input_item {
+    float: left;
+}
+
+.graph {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.graph .edge {
+    stroke: #666;
+    fill: none;
+}
+
+.graph .edge .edge-label {
+    stroke: none;
+    font-size: 12px;
+    fill: #666;
+}
+
+.graph .panning-rect {
+    fill: transparent;
+    cursor: move;
+}
+
+.graph .node-group .node:focus {
+    outline: none;
+}
+
+.graph {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.graph .edge {
+    stroke: #666;
+    fill: none;
+}
+
+.graph .edge .edge-label {
+    stroke: none;
+    font-size: 12px;
+    fill: #666;
+}
+
+.graph .panning-rect {
+    fill: transparent;
+    cursor: move;
+}
+
+.graph .node-group .node:focus {
+    outline: none;
+}
+
+.onegrid {
+    display: block !important;
+}
+
+.hoverHand:hover {
+    cursor: default;
+}
+
+.expr-tooltip {
+    font-size: 10px;
+}
+
+.edge {
+    path {
+        stroke: #666 !important;
+    }
+}
