@@ -391,7 +391,7 @@ stringIntToChar = proc (op,v1,v2) -> case (v1,v2) of
   (StringVal, NumVal IntVal) -> returnA -< CharVal
   (Top,Top) -> (returnA -< CharVal) <⊔> (err -< (op,v1,v2))
   (Top,NumVal IntVal) -> (returnA -< CharVal) <⊔> (err -< (op,v1,v2))
-  (StringVal,Top) -> (returnA -< StringVal) <⊔> (err -< (op,v1,v2))
+  (StringVal,Top) -> (returnA -< CharVal) <⊔> (err -< (op,v1,v2))
   _ -> err -< (op,v1,v2)
   where
     err = proc (op,v1,v2) -> failString -< printf "expected a two string and an int as arguments for %s, but got %s" (show op) (show [v1,v2])
