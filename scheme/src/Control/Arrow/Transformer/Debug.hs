@@ -39,10 +39,7 @@ import           Data.Profunctor.Unsafe((.#))
 import           Data.Coerce
 import           Data.Order hiding (lub)
 
-
 import           Syntax (LExpr,Expr(App))
-
-
 
 import qualified Network.HTTP.Types             as Http
 import qualified Network.Wai                    as Wai
@@ -53,13 +50,10 @@ import qualified Safe
 
 import qualified Control.Concurrent             as Concurrent
 
-import          Control.Arrow.State as State
+import           Control.Arrow.State as State
 
-import          Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.State
 import           Prelude hiding (lookup,read,fail,Bounded(..))
-
-
-
 
 import           Control.Arrow.Fix.Parallel (parallel,adi)
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -75,29 +69,22 @@ import           Data.Identifiable
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
 
-import Data.Monoidal
+import           Data.Monoidal
 import           Data.Abstract.MonotoneStore(Store)
 
-import Data.Graph.Inductive.Graph(mkGraph, LNode, LEdge, labNodes, labEdges, Graph)
+import           Data.Graph.Inductive.Graph(mkGraph, LNode, LEdge, labNodes, labEdges, Graph)
 
-
+-- |Typed for websocket connection
 type ClientId = Int
 type Client   = (ClientId, WS.Connection)
 type State    = [Client]
 
-type Socket = () -- Placeholder
-type Breakpoints = [Expr] -- Placeholder
---type StackElems = [In] -- Placeholder
-
 data DebugState = DebugState {
-  breakpoints :: Breakpoints,  
-  conn :: WS.Connection,
-  clientId :: ClientId,
-  stateRef :: Concurrent.MVar State,
-  expressionList :: [LExpr],
-  debugPhase :: Int
+  conn :: WS.Connection,                    -- |websocket connections
+  clientId :: ClientId,                     -- |ID of connected client
+  stateRef :: Concurrent.MVar State,        -- |State reference
+  step :: Bool                              -- |Boolean Step Value, required for the step functionality
 }
-
 
 newtype DebugT c x y = DebugT (StateT DebugState c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
@@ -108,15 +95,12 @@ newtype DebugT c x y = DebugT (StateT DebugState c x y)
             ArrowMetrics a, ArrowStrict, ArrowPrimitive, ArrowCFG a)
 
 
-
 class ArrowDebug c where
-  addBreakpoints :: c Breakpoints ()
-  isBreakpoint :: c Expr Bool
-  sendMessage :: c Text.Text ()
-  receiveMessage :: c () Text.Text
-  sendStack :: c Text.Text ()
-
-
+  sendMessage :: c Text.Text ()         -- |Sends websocket message
+  receiveMessage :: c () Text.Text      -- |Receives websocket message
+  getState :: c () DebugState           -- |Returns the current debug state
+  setStep :: c Bool ()                  -- |Set step value, True if StepRequest was received, False after step was executed
+  getStep :: c () Bool                  -- |Returns the current step value
 
 
 instance (Profunctor c, Arrow c, ArrowRun c) => ArrowRun (DebugT c) where
@@ -124,37 +108,31 @@ instance (Profunctor c, Arrow c, ArrowRun c) => ArrowRun (DebugT c) where
   run (DebugT (StateT f)) = run f
 
 
-
-
-
 deriving instance ArrowDebug c => ArrowDebug (FixT c)
 instance (Arrow c, Profunctor c, ArrowIO c) => ArrowDebug (DebugT c) where
-  addBreakpoints = DebugT $ proc bps -> do
-    state <- State.get -< ()
-    State.put -< state { breakpoints = bps ++ breakpoints state }
-    returnA -< ()
-  isBreakpoint = DebugT $ proc expr -> do
-    state <- State.get -< ()
-    returnA -< expr `Prelude.elem` (breakpoints state)
   sendMessage = DebugT $ proc message -> do
     state <- State.get -< ()
     liftIO sendResponse -< (state,message)
     returnA -< ()
-  receiveMessage = DebugT $ proc message -> do
+  receiveMessage = DebugT $ proc () -> do
     state <- State.get -< ()
     msg <- liftIO WS.receiveData -< (conn state)
     returnA -< msg
-  sendStack = DebugT $ proc message-> do
+  getState = DebugT $ proc () -> do
     state <- State.get -< ()
-    --stack <- Stack.elems -< ()
-    returnA-< ()
-
-
-  {-# INLINE addBreakpoints #-}
-  {-# INLINE isBreakpoint #-}
+    returnA -< state
+  setStep = DebugT $ proc message -> do 
+    state <- State.get -< ()
+    State.put -< (state {step = message})
+    returnA -< ()
+  getStep = DebugT $ proc () -> do 
+    state <- State.get -< ()
+    returnA -< (step state)
   {-# INLINE sendMessage #-}
   {-# INLINE receiveMessage #-}
-  {-# INLINE sendStack #-}
+  {-# INLINE getState #-}
+  {-# INLINE setStep #-}
+  {-# INLINE getStep #-}
 
 sendResponse :: (DebugState,Text.Text) -> IO ()
 sendResponse (debugState,msg)= do

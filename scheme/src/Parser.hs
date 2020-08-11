@@ -25,14 +25,11 @@ import           Text.Printf
 loadSchemeFile :: String -> IO LExpr
 loadSchemeFile file = do
   contents <- readFile =<< getDataFileName (printf "scheme_files/%s" file)
-  print contents
   case readExprList contents of
     Left err -> throwLispError err
     Right val -> do
      expanded <- macroExpand (List val)
-     print expanded
      let expr = parseTopLevelSExpr expanded
-     print (generate expr)
      return expr
 
 loadSchemeFile' :: String -> IO Expr
@@ -45,15 +42,11 @@ loadSourceCode file = readFile =<< getDataFileName (printf "scheme_files/%s" fil
 
 loadSchemeFileWithCode :: String -> IO LExpr
 loadSchemeFileWithCode code = do
-  print code
   case readExprList code of
     Left err -> throwLispError err
     Right val -> do
       expanded <- macroExpand (List val)
-      print expanded
       let expr = parseTopLevelSExpr expanded
-      print "GLEICH KOMMT GENERATE EXPR"
-      print (generate expr)
       return expr
 
 
