@@ -449,7 +449,7 @@ eq v1 v2 = case (v1, v2) of
     (B.False,B.False) -> B.True
     (B.True,B.False) -> B.False
     (B.False,B.True) -> B.False
-  (NumVal IntVal,NumVal IntVal) -> B.Top
+  (NumVal IntVal,NumVal IntVal) -> B.True
   (NumVal FloatVal,NumVal FloatVal) -> B.Top
   (NumVal NumTop,NumVal _) -> B.Top
   (NumVal _,NumVal NumTop) -> B.Top
