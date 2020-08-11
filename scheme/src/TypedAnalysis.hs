@@ -443,7 +443,7 @@ eq v1 v2 = case (v1, v2) of
   (Top,_) -> B.Top
   (_,Top) -> B.Top
   (BoolVal b1,BoolVal b2) -> case (b1,b2) of
-    (B.Top,_) -> B.Top
+    (B.Top,_) -> B.True
     (_,B.Top) -> B.Top
     (B.True,B.True) -> B.True
     (B.False,B.False) -> B.True
