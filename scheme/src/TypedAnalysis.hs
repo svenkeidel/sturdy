@@ -443,13 +443,13 @@ eq v1 v2 = case (v1, v2) of
   (Top,_) -> B.Top
   (_,Top) -> B.Top
   (BoolVal b1,BoolVal b2) -> case (b1,b2) of
-    (B.Top,_) -> B.True
+    (B.Top,_) -> B.Top
     (_,B.Top) -> B.Top
     (B.True,B.True) -> B.True
     (B.False,B.False) -> B.True
     (B.True,B.False) -> B.False
     (B.False,B.True) -> B.False
-  (NumVal IntVal,NumVal IntVal) -> B.True
+  (NumVal IntVal,NumVal IntVal) -> B.Top
   (NumVal FloatVal,NumVal FloatVal) -> B.Top
   (NumVal NumTop,NumVal _) -> B.Top
   (NumVal _,NumVal NumTop) -> B.Top
