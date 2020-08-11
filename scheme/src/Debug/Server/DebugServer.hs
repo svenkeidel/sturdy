@@ -107,6 +107,7 @@ import           Data.Abstract.Closure (Closure)
 import           Data.Hashed.Lazy (Hashed(..))
 import           Data.HashMap.Strict (HashMap)
 
+import qualified Debug.Trace as Debug
 
 type InterpT c x y =
   (ValueT Val
@@ -144,6 +145,7 @@ data DebugMessage
   | RefreshRequest                                                      -- |Client sends refresh request to clear values and refresh debug state
   | RefreshResponse {success :: Bool}                                   -- |Was the refresh successful?
   | CurrentExpressionResponse {expr :: Text}                            -- |The expression that gets evaluated
+  | EvaluatedExpressionResponse {expr :: Text, val :: Text}             -- |Evaluated expression and its value
   | ExceptionResponse {exception :: Text}                               -- |Exceptions
   deriving (Show, Generic)
 
@@ -283,7 +285,11 @@ debug f = proc input@((store,errors),(env,exprs)) -> do
       loop -< ((store,errors),(env,es))
     _ | step -> do
       loop -< input
-    _ -> f -< (input)
+    _ -> do
+      output <- f -< input
+      let evaluatedExpressionResponse = createEvaluatedExpressionResponse input output
+      sendMessage -< (evaluatedExpressionResponse)
+      returnA -< output
 
   where
     loop = proc input@((store,errors),(env,exprs)) -> do
@@ -296,23 +302,39 @@ debug f = proc input@((store,errors),(env,exprs)) -> do
 
       -- |Get Stack and extract latest environment + latest store + expressions and store of every stack element
       stackElems <- Stack.elems -< ()
-      let latestStore = getStore stackElems
-      let latestEnv = getEnvironment stackElems
-      let stack = extractStoreAndExprsFromStack stackElems  
+      case stackElems of
+        [] -> do
+          liftIO print -< "Stack empty!"
+          -- |Create breakpoint response without stack and send it to client
+          let breakpointResponse = createBreakpointResponse [] nodes edges [] []
+          sendMessage -< (breakpointResponse)
+        _ -> do 
+          let latestStore = getStore stackElems
+          let latestEnv = getEnvironment stackElems
+          let stack = extractStoreAndExprsFromStack stackElems  
 
-      -- |Create breakpoint response and send it to client
-      let breakpointResponse = createBreakpointResponse stack nodes edges latestStore latestEnv
-      sendMessage -< (breakpointResponse)
+          -- |Create breakpoint response and send it to client
+          let breakpointResponse = createBreakpointResponse stack nodes edges latestStore latestEnv
+          sendMessage -< (breakpointResponse)
+
+
+
 
       -- |Continue if continue or step were called
       msg <- receiveMessage -< ()
       let decodedMessage = decodeTextMessage msg
       case decodedMessage of 
         ContinueRequest {} -> do
-          f -< input
+          output <- f -< input
+          let evaluatedExpressionResponse = createEvaluatedExpressionResponse input output
+          sendMessage -< (evaluatedExpressionResponse)
+          returnA -< output
         StepRequest {} -> do
           setStep -< (True)
-          f -< input
+          output <- f -< input
+          let evaluatedExpressionResponse = createEvaluatedExpressionResponse input output
+          sendMessage -< (evaluatedExpressionResponse)
+          returnA -< output
         _ -> do
           loop -< input 
 
@@ -344,6 +366,9 @@ createBreakpointResponse stack nodeList edgeList latestStore latestEnv = Data.Te
 
 createCurrentExpressionResponse :: [Expr] -> Text.Text
 createCurrentExpressionResponse exprs = Data.Text.Encoding.decodeUtf8 (toStrict1 (encode (CurrentExpressionResponse (Text.pack(show exprs)))))
+
+createEvaluatedExpressionResponse :: In -> Out -> Text.Text
+createEvaluatedExpressionResponse (((_, _), (_, exprs))) (((_, _), (val))) = Data.Text.Encoding.decodeUtf8 (toStrict1 (encode (EvaluatedExpressionResponse (Text.pack(show exprs)) (Text.pack(show val)))))
 
 getNodes :: forall stmt. (Show stmt) => (CFG stmt) -> [(Int, Text)]   
 getNodes (CFG expr) = mapNodes (labNodes (expr))
@@ -417,3 +442,5 @@ getStore stackElems = convertStore (extractStoreFromStackElem (listLast stackEle
 
 encodeDebugMessage :: DebugMessage -> Text
 encodeDebugMessage obj = Data.Text.Encoding.decodeUtf8 (toStrict1 (encode obj))
+
+
