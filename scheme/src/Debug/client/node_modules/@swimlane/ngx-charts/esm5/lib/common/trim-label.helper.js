@@ -1,0 +1,19 @@
+export function trimLabel(s, max) {
+    if (max === void 0) { max = 16; }
+    if (typeof s !== 'string') {
+        if (typeof s === 'number') {
+            return s + '';
+        }
+        else {
+            return '';
+        }
+    }
+    s = s.trim();
+    if (s.length <= max) {
+        return s;
+    }
+    else {
+        return s.slice(0, max) + "...";
+    }
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidHJpbS1sYWJlbC5oZWxwZXIuanMiLCJzb3VyY2VSb290Ijoibmc6Ly9Ac3dpbWxhbmUvbmd4LWNoYXJ0cy8iLCJzb3VyY2VzIjpbImxpYi9jb21tb24vdHJpbS1sYWJlbC5oZWxwZXIudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQUEsTUFBTSxVQUFVLFNBQVMsQ0FBQyxDQUFDLEVBQUUsR0FBUTtJQUFSLG9CQUFBLEVBQUEsUUFBUTtJQUNuQyxJQUFJLE9BQU8sQ0FBQyxLQUFLLFFBQVEsRUFBRTtRQUN6QixJQUFJLE9BQU8sQ0FBQyxLQUFLLFFBQVEsRUFBRTtZQUN6QixPQUFPLENBQUMsR0FBRyxFQUFFLENBQUM7U0FDZjthQUFNO1lBQ0wsT0FBTyxFQUFFLENBQUM7U0FDWDtLQUNGO0lBRUQsQ0FBQyxHQUFHLENBQUMsQ0FBQyxJQUFJLEVBQUUsQ0FBQztJQUNiLElBQUksQ0FBQyxDQUFDLE1BQU0sSUFBSSxHQUFHLEVBQUU7UUFDbkIsT0FBTyxDQUFDLENBQUM7S0FDVjtTQUFNO1FBQ0wsT0FBVSxDQUFDLENBQUMsS0FBSyxDQUFDLENBQUMsRUFBRSxHQUFHLENBQUMsUUFBSyxDQUFDO0tBQ2hDO0FBQ0gsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCBmdW5jdGlvbiB0cmltTGFiZWwocywgbWF4ID0gMTYpOiBzdHJpbmcge1xuICBpZiAodHlwZW9mIHMgIT09ICdzdHJpbmcnKSB7XG4gICAgaWYgKHR5cGVvZiBzID09PSAnbnVtYmVyJykge1xuICAgICAgcmV0dXJuIHMgKyAnJztcbiAgICB9IGVsc2Uge1xuICAgICAgcmV0dXJuICcnO1xuICAgIH1cbiAgfVxuXG4gIHMgPSBzLnRyaW0oKTtcbiAgaWYgKHMubGVuZ3RoIDw9IG1heCkge1xuICAgIHJldHVybiBzO1xuICB9IGVsc2Uge1xuICAgIHJldHVybiBgJHtzLnNsaWNlKDAsIG1heCl9Li4uYDtcbiAgfVxufVxuIl19

@@ -1,0 +1,19 @@
+import { __decorate } from "tslib";
+import { NgModule } from '@angular/core';
+import { GraphComponent } from './graph.component';
+import { ChartCommonModule } from '@swimlane/ngx-charts';
+import { MouseWheelDirective } from './mouse-wheel.directive';
+import { LayoutService } from './layouts/layout.service';
+export { GraphComponent };
+let GraphModule = class GraphModule {
+};
+GraphModule = __decorate([
+    NgModule({
+        imports: [ChartCommonModule],
+        declarations: [GraphComponent, MouseWheelDirective],
+        exports: [GraphComponent, MouseWheelDirective],
+        providers: [LayoutService]
+    })
+], GraphModule);
+export { GraphModule };
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZ3JhcGgubW9kdWxlLmpzIiwic291cmNlUm9vdCI6Im5nOi8vQHN3aW1sYW5lL25neC1ncmFwaC8iLCJzb3VyY2VzIjpbImxpYi9ncmFwaC9ncmFwaC5tb2R1bGUudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IjtBQUFBLE9BQU8sRUFBRSxRQUFRLEVBQUUsTUFBTSxlQUFlLENBQUM7QUFDekMsT0FBTyxFQUFFLGNBQWMsRUFBRSxNQUFNLG1CQUFtQixDQUFDO0FBQ25ELE9BQU8sRUFBRSxpQkFBaUIsRUFBRSxNQUFNLHNCQUFzQixDQUFDO0FBQ3pELE9BQU8sRUFBRSxtQkFBbUIsRUFBRSxNQUFNLHlCQUF5QixDQUFDO0FBQzlELE9BQU8sRUFBRSxhQUFhLEVBQUUsTUFBTSwwQkFBMEIsQ0FBQztBQUN6RCxPQUFPLEVBQUUsY0FBYyxFQUFFLENBQUM7QUFRMUIsSUFBYSxXQUFXLEdBQXhCLE1BQWEsV0FBVztDQUFHLENBQUE7QUFBZCxXQUFXO0lBTnZCLFFBQVEsQ0FBQztRQUNSLE9BQU8sRUFBRSxDQUFDLGlCQUFpQixDQUFDO1FBQzVCLFlBQVksRUFBRSxDQUFDLGNBQWMsRUFBRSxtQkFBbUIsQ0FBQztRQUNuRCxPQUFPLEVBQUUsQ0FBQyxjQUFjLEVBQUUsbUJBQW1CLENBQUM7UUFDOUMsU0FBUyxFQUFFLENBQUMsYUFBYSxDQUFDO0tBQzNCLENBQUM7R0FDVyxXQUFXLENBQUc7U0FBZCxXQUFXIiwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgTmdNb2R1bGUgfSBmcm9tICdAYW5ndWxhci9jb3JlJztcbmltcG9ydCB7IEdyYXBoQ29tcG9uZW50IH0gZnJvbSAnLi9ncmFwaC5jb21wb25lbnQnO1xuaW1wb3J0IHsgQ2hhcnRDb21tb25Nb2R1bGUgfSBmcm9tICdAc3dpbWxhbmUvbmd4LWNoYXJ0cyc7XG5pbXBvcnQgeyBNb3VzZVdoZWVsRGlyZWN0aXZlIH0gZnJvbSAnLi9tb3VzZS13aGVlbC5kaXJlY3RpdmUnO1xuaW1wb3J0IHsgTGF5b3V0U2VydmljZSB9IGZyb20gJy4vbGF5b3V0cy9sYXlvdXQuc2VydmljZSc7XG5leHBvcnQgeyBHcmFwaENvbXBvbmVudCB9O1xuXG5ATmdNb2R1bGUoe1xuICBpbXBvcnRzOiBbQ2hhcnRDb21tb25Nb2R1bGVdLFxuICBkZWNsYXJhdGlvbnM6IFtHcmFwaENvbXBvbmVudCwgTW91c2VXaGVlbERpcmVjdGl2ZV0sXG4gIGV4cG9ydHM6IFtHcmFwaENvbXBvbmVudCwgTW91c2VXaGVlbERpcmVjdGl2ZV0sXG4gIHByb3ZpZGVyczogW0xheW91dFNlcnZpY2VdXG59KVxuZXhwb3J0IGNsYXNzIEdyYXBoTW9kdWxlIHt9XG4iXX0=

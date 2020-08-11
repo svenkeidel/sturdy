@@ -1,0 +1,1 @@
+{"version":3,"file":"tooltip.module.d.ts","sources":["tooltip.module.d.ts"],"names":[],"mappings":";;;;AAAA;;;AACA","sourcesContent":["export declare class TooltipModule {\n}\n"]}

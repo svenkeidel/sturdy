@@ -1,0 +1,1 @@
+{"version":3,"file":"area-chart.module.d.ts","sources":["area-chart.module.d.ts"],"names":[],"mappings":";;;;;;AAAA;;;AACA","sourcesContent":["export declare class AreaChartModule {\n}\n"]}

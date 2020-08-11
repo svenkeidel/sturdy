@@ -1,0 +1,1 @@
+{"version":3,"file":"ngx-charts.module.d.ts","sources":["ngx-charts.module.d.ts"],"names":[],"mappings":";;;;;;;;;;;;AAAA;AACA;;;AACA","sourcesContent":["export declare class NgxChartsModule {\n    constructor();\n}\n"]}

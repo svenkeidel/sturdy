@@ -1,0 +1,14 @@
+import { __decorate } from "tslib";
+import { NgModule } from '@angular/core';
+import { GraphModule } from './graph/graph.module';
+import { NgxChartsModule } from '@swimlane/ngx-charts';
+let NgxGraphModule = class NgxGraphModule {
+};
+NgxGraphModule = __decorate([
+    NgModule({
+        imports: [NgxChartsModule],
+        exports: [GraphModule]
+    })
+], NgxGraphModule);
+export { NgxGraphModule };
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibmd4LWdyYXBoLm1vZHVsZS5qcyIsInNvdXJjZVJvb3QiOiJuZzovL0Bzd2ltbGFuZS9uZ3gtZ3JhcGgvIiwic291cmNlcyI6WyJsaWIvbmd4LWdyYXBoLm1vZHVsZS50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiO0FBQUEsT0FBTyxFQUFFLFFBQVEsRUFBRSxNQUFNLGVBQWUsQ0FBQztBQUN6QyxPQUFPLEVBQUUsV0FBVyxFQUFFLE1BQU0sc0JBQXNCLENBQUM7QUFDbkQsT0FBTyxFQUFFLGVBQWUsRUFBRSxNQUFNLHNCQUFzQixDQUFDO0FBTXZELElBQWEsY0FBYyxHQUEzQixNQUFhLGNBQWM7Q0FBRyxDQUFBO0FBQWpCLGNBQWM7SUFKMUIsUUFBUSxDQUFDO1FBQ1IsT0FBTyxFQUFFLENBQUMsZUFBZSxDQUFDO1FBQzFCLE9BQU8sRUFBRSxDQUFDLFdBQVcsQ0FBQztLQUN2QixDQUFDO0dBQ1csY0FBYyxDQUFHO1NBQWpCLGNBQWMiLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgeyBOZ01vZHVsZSB9IGZyb20gJ0Bhbmd1bGFyL2NvcmUnO1xuaW1wb3J0IHsgR3JhcGhNb2R1bGUgfSBmcm9tICcuL2dyYXBoL2dyYXBoLm1vZHVsZSc7XG5pbXBvcnQgeyBOZ3hDaGFydHNNb2R1bGUgfSBmcm9tICdAc3dpbWxhbmUvbmd4LWNoYXJ0cyc7XG5cbkBOZ01vZHVsZSh7XG4gIGltcG9ydHM6IFtOZ3hDaGFydHNNb2R1bGVdLFxuICBleHBvcnRzOiBbR3JhcGhNb2R1bGVdXG59KVxuZXhwb3J0IGNsYXNzIE5neEdyYXBoTW9kdWxlIHt9XG4iXX0=

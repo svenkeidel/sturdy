@@ -1,0 +1,1 @@
+{"version":3,"file":"grid-panel.component.d.ts","sources":["grid-panel.component.d.ts"],"names":[],"mappings":";AAAA;AACA;AACA;AACA;AACA;AACA;;;AACA","sourcesContent":["export declare class GridPanelComponent {\n    path: any;\n    width: any;\n    height: any;\n    x: any;\n    y: any;\n}\n"]}
