@@ -26,16 +26,16 @@
 
 
     <!-- debug info grid -->
-    <mat-grid-list cols="8" rowHeight="310px">
+    <mat-grid-list cols="16" rowHeight="310px">
 
         <!-- editor -->
-        <mat-grid-tile [colspan]="2" [rowspan]="2" class="onegrid" style="background-color: #f8f8ff; align-items: baseline !important; display:block !important;">
+        <mat-grid-tile [colspan]="4" [rowspan]="2" class="onegrid" style="background-color: #f8f8ff; align-items: baseline !important; display:block !important;">
             <div id="editor1" class="app_editor" style="float: left;"></div>
         </mat-grid-tile>
 
 
         <!-- store list -->
-        <mat-grid-tile [colspan]="2" [rowspan]="2" class="onegrid" style="background-color: #f8f8ff; align-items: baseline !important; display:block !important;">
+        <mat-grid-tile [colspan]="4" [rowspan]="2" class="onegrid" style="background-color: #f8f8ff; align-items: baseline !important; display:block !important;">
             <h3 style="margin-top: -1px;">Store</h3>
 
             <mat-form-field>
@@ -73,7 +73,7 @@
         </mat-grid-tile>
 
         <!-- resolved store element -->
-        <mat-grid-tile [colspan]="2" [rowspan]="2" class="onegrid" style="background-color:  #f8f8ff; align-items: baseline !important; display:block !important;">
+        <mat-grid-tile [colspan]="4" [rowspan]="2" class="onegrid" style="background-color:  #f8f8ff; align-items: baseline !important; display:block !important;">
             <h3 style="margin-top: -1px;">Resolved Store Element</h3>
 
             <div style="overflow:auto">
@@ -115,7 +115,7 @@
 
 
         <!-- stack elements table -->
-        <mat-grid-tile [colspan]="1" [rowspan]="2" style="background-color: #f0f8ff;">
+        <mat-grid-tile [colspan]="2" [rowspan]="2" style="background-color: #f0f8ff;">
             <h3 style="margin-top: -1px; margin-bottom: -1px;">Stack</h3>
 
             <mat-table [dataSource]="stack" class="mat-elevation-z8" style="background-color:  #f0f8ff;">
@@ -137,7 +137,7 @@
 
 
         <!-- environment elements table -->
-        <mat-grid-tile [colspan]="1" [rowspan]="2" style="background-color: snow;">
+        <mat-grid-tile [colspan]="2" [rowspan]="2" style="background-color: snow;">
             <h3 style="margin-top: -1px; margin-bottom: -1px;">Environment</h3>
 
             <mat-table [dataSource]="latestEnv" class="mat-elevation-z8" style="background-color: snow;">
@@ -158,9 +158,9 @@
         </mat-grid-tile>
 
 
-        <!-- current expression -->
-        <mat-grid-tile [colspan]="2" [rowspan]="1" style="background-color: #f7f8e7;">
-            <h3 style="margin-top: -1px; margin-bottom: -1px;">Evaluated Expression</h3>
+        <!-- processed expression -->
+        <mat-grid-tile [colspan]="3" [rowspan]="1" style="background-color: #f7f8e7;">
+            <h3 style="margin-top: -1px; margin-bottom: -1px;">Processed Expression</h3>
             <div id="exprsDiv">
                 <mat-list role="list">
                     <mat-list-item *ngFor="let expr of exprs" role="listitem" #tooltip="matTooltip" matTooltip="{{expr.long}}" matTooltipClass="expr-tooltip">
@@ -171,8 +171,30 @@
 
         </mat-grid-tile>
 
+        <!-- evaluated expression -->
+        <mat-grid-tile [colspan]="5" [rowspan]="1" style="background-color: #f7f8e7;">
+
+            <div id="evaluatedExprsDiv">
+                <h3 style="margin-top: -1px; margin-bottom: -1px;">Evaluated Expression</h3>
+                <mat-list role="list" id="evaluatedExprsDiv">
+                    <mat-list-item *ngFor="let expr of evaluatedExprs" role="listitem" #tooltip="matTooltip" matTooltip="{{expr.long}}" matTooltipClass="expr-tooltip">
+                        {{expr.short}}
+                        <div style="float: right; margin-left: auto;">
+                            {{expr.val}}
+
+                        </div>
+
+                    </mat-list-item>
+                </mat-list>
+
+
+            </div>
+
+
+        </mat-grid-tile>
+
         <!-- CFG -->
-        <mat-grid-tile [colspan]="6" [rowspan]="1" style="background-color: #f8f4ff;">
+        <mat-grid-tile [colspan]="8" [rowspan]="1" style="background-color: #f8f4ff;">
             <h3 style="margin-top: -1px;">Control-Flow Graph</h3>
             <div style="display:flex;height:80%;">
                 <ngx-graph class="chart-container" [links]="hierarchialGraph.links" [nodes]="hierarchialGraph.nodes" [draggingEnabled]="false" layout="dagre">

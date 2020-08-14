@@ -49,6 +49,12 @@ interface Expr {
   long: string;
 }
 
+interface EvaluatedExpr {
+  short: string;
+  long: string;
+  val: string;
+}
+
 interface StoreGraphNode {
   id: string;
   label: string;
@@ -91,7 +97,8 @@ export class EditorComponent implements OnInit {
   storeGraphEdges: StoreGraphEdge [];               // edges of resolved store element
   derefStoreElem: string;                           // value of resolved store element
   derefStoreElemAddress: string;                    // address of resolved store element
-  exprs: Expr [] = [];
+  exprs: Expr [] = [];                              // list of processed expressions
+  evaluatedExprs: EvaluatedExpr [] = [];            // list of evaluated expressions and values
   curve = shape.curveBundle.beta(1);                // CFG curves
 
   // apply filter on store table
@@ -117,6 +124,9 @@ export class EditorComponent implements OnInit {
       }
       else if(msg.tag == "CurrentExpressionResponse"){
         this.currentExpressionResponseHandler(JSON.stringify(msg))
+      }
+      else if(msg.tag == "EvaluatedExpressionResponse"){
+        this.evaluatedExpressionResponseHandler(JSON.stringify(msg))
       }
     })
    }
@@ -229,18 +239,31 @@ export class EditorComponent implements OnInit {
     console.log(obj.exception)
   }
 
-  // logs current expression to console
+  // displays current expression
   currentExpressionResponseHandler(msg){
     var obj = JSON.parse(msg)
     if(obj.expr.length < 60){
       this.exprs.push({short:obj.expr, long:obj.expr})
     }
     else{
-      this.exprs.push({short:obj.expr.slice(0,57) + "...", long:obj.expr})
+      this.exprs.push({short:obj.expr.slice(0,50) + "...", long:obj.expr})
     }
 
     var objDiv = document.getElementById("exprsDiv");
     objDiv.scrollIntoView(false)
+  }
+
+  // displays the evaluated expression and the value
+  evaluatedExpressionResponseHandler(msg){
+    var obj = JSON.parse(msg)
+    if(obj.expr.length < 60){
+      this.evaluatedExprs.push({short:obj.expr, long:obj.expr, val: obj.val})
+    }
+    else{
+      this.evaluatedExprs.push({short:obj.expr.slice(0,50) + "...", long:obj.expr, val: obj.val})
+    }
+    var objEvalDiv = document.getElementById("evaluatedExprsDiv");
+    objEvalDiv.scrollIntoView(false)
   }
 
   // updates CFG to given nodes and edges
