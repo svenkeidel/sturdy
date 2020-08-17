@@ -49,7 +49,7 @@ import           GHC.Exts
 
 newtype CacheT cache a b c x y = CacheT { unCacheT :: StateT (cache a b) c x y}
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,ArrowTrans,
-            ArrowState (cache a b),ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowState (cache a b),ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph)
 
 instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) where
   type Run (CacheT cache a b c) x y = Run c x (cache a b,y)

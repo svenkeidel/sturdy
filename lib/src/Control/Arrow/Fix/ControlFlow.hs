@@ -1,3 +1,4 @@
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -21,6 +22,14 @@ class (Arrow c, Profunctor c) => ArrowControlFlow stmt c | c -> stmt where
   -- | Adds a control-flow edge between the previously evaluated statement and the next statement.
   -- For example, @(nextStatement -< e1; nextStatement -< e2)@ adds an CFG edge between @e1@ and @e2@.
   nextStatement :: c x y -> c (Maybe stmt, x) y
+
+class (Arrow c, Profunctor c) => ArrowCFG graph c | c -> graph where
+  -- | Get the current control flow graph of the program.
+  getCFG :: c () graph
+
+  default getCFG :: (c ~ t c', ArrowTrans t, ArrowCFG graph c') => c () graph
+  getCFG = lift' getCFG
+  {-# INLINE getCFG #-}
 
 -- | Records the trace of the abstract interpreter as an control-flow graph.
 recordControlFlowGraph :: ArrowControlFlow stmt c => (a -> stmt) -> FixpointCombinator c a b
@@ -53,3 +62,9 @@ instance (Applicative f, ArrowControlFlow stmt c) => ArrowControlFlow stmt (Stat
 instance (Monoid w, ArrowControlFlow stmt c) => ArrowControlFlow stmt (WriterT w c) where
   nextStatement f = lift (nextStatement (unlift f))
   {-# INLINE nextStatement #-}
+
+instance ArrowCFG graph c => ArrowCFG graph (ConstT r c)
+instance ArrowCFG graph c => ArrowCFG graph (ReaderT r c)
+instance ArrowCFG graph c => ArrowCFG graph (StateT r c)
+instance (ArrowCFG graph c, Monoid r) => ArrowCFG graph (WriterT r c)
+instance (ArrowCFG graph c, Applicative r) => ArrowCFG graph (StaticT r c)

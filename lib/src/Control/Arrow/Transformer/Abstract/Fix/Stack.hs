@@ -43,7 +43,7 @@ newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
             ArrowStrict,ArrowTrans, ArrowLowerBounded z,
             ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowState s,ArrowContext ctx, ArrowJoinContext u,
-            ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph)
 
 runStackT :: (IsEmpty (stack a), Profunctor c) => StackT stack a c x y -> c x y
 runStackT (StackT f) = lmap (\x -> (empty,x)) (runReaderT f)

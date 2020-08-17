@@ -29,6 +29,9 @@ import           Control.Arrow.Trans
 -- import           Control.Arrow.Transformer.Writer
 import           Control.Arrow.Transformer.State
 
+import           Control.Arrow.Transformer.Abstract.FiniteEnvStore 
+import           Data.Abstract.MonotoneStore(Store)
+
 import           Data.Bits
 import           Data.Profunctor
 import           Data.Identifiable
@@ -41,7 +44,7 @@ newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
             ArrowStackDepth,ArrowStackElements a,
             ArrowCache a b, ArrowParallelCache a b,ArrowIterateCache a b,ArrowGetCache cache,
-            ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph)
 
 runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> c x y
 runComponentT (ComponentT f) = dimap (\x -> (empty,x)) snd (runStateT f)
@@ -63,11 +66,11 @@ instance (Identifiable a, Profunctor c,ArrowApply c) => ArrowApply (ComponentT c
   app = ComponentT (lmap (first coerce) app)
   {-# INLINE app #-}
 
-instance ArrowState s c => ArrowState s (ComponentT comp a c) where
-  get = lift' get
-  put = lift' put
-  {-# INLINE get #-}
-  {-# INLINE put #-}
+--instance (Arrow c, Profunctor c) => ArrowState (Store addr val) (EnvStoreT var addr val c) where
+--  get = EnvStoreT get
+--  put = EnvStoreT put
+--  {-# INLINE get #-}
+--  {-# INLINE put #-}
 
 newtype Component a = Component Integer
 
@@ -109,6 +112,8 @@ instance (Arrow c, Profunctor c) => ArrowInComponent a (ComponentT Component a c
         | otherwise      = Body
   {-# INLINE inComponent #-}
   {-# SCC inComponent #-}
+
+
 
 -- Standard Component ----------------------------------------------------------------------------------
 -- newtype Component a = Component (HashSet a) deriving (Eq,IsEmpty,Monoid,Semigroup)

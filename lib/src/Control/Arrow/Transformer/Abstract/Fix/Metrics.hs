@@ -40,11 +40,14 @@ import           Data.Coerce
 
 import           Text.Printf
 
+import           Control.Arrow.Transformer.Abstract.FiniteEnvStore 
+import           Data.Abstract.MonotoneStore(Store)
+
 newtype MetricsT metric a c x y = MetricsT (StateT (metric a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded z,
             ArrowComponent a,ArrowInComponent a,ArrowControlFlow stmt,
             ArrowStackDepth,ArrowStackElements a,ArrowContext ctx,ArrowTopLevel,
-            ArrowGetCache cache, ArrowPrimitive)
+            ArrowGetCache cache, ArrowPrimitive, ArrowCFG graph)
 
 instance (IsEmpty (metrics a), ArrowRun c) => ArrowRun (MetricsT metrics a c) where
   type Run (MetricsT metrics a c) x y = Run c x (metrics a,y)
@@ -61,11 +64,17 @@ instance (Profunctor c,ArrowApply c) => ArrowApply (MetricsT metrics a c) where
   app = MetricsT (app .# first coerce)
   {-# INLINE app #-}
 
-instance ArrowState s c => ArrowState s (MetricsT metrics a c) where
-  get = lift' get
-  put = lift' put
-  {-# INLINE get #-}
-  {-# INLINE put #-}
+--instance ArrowState s c => ArrowState s (MetricsT metrics a c) where
+--  get = lift' get
+--  put = lift' put
+--  {-# INLINE get #-}
+--  {-# INLINE put #-}
+
+--instance (Arrow c, Profunctor c) => ArrowState (Store addr val) (EnvStoreT var addr val c) where
+--  get = EnvStoreT get
+--  put = EnvStoreT put
+--  {-# INLINE get #-}
+--  {-# INLINE put #-}
 
 -- Basic Metric ----------------------------------------------------------------
 newtype Metrics a = Metrics (HashMap a Metric)
