@@ -15,7 +15,7 @@ import           Control.Arrow.Primitive
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Fix.Chaotic as Chaotic
+import           Control.Arrow.Fix.SCC as SCC
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
 import           Control.Arrow.Fix.ControlFlow
@@ -42,7 +42,7 @@ newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Mayb
       Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
       ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
       ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
-      ArrowMetrics a, ArrowComponent a, ArrowInComponent a,
+      ArrowMetrics a, ArrowSCC a,
       ArrowPrimitive
     )
 

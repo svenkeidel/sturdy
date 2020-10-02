@@ -14,7 +14,7 @@ import Prelude hiding (pred,lookup,map,head,iterate,(.),truncate,log)
 
 import Control.Category
 import Control.Arrow hiding ((<+>))
-import Control.Arrow.Fix.Chaotic
+import Control.Arrow.Fix.SCC
 import Control.Arrow.Fix.ControlFlow as CF
 import Control.Arrow.Fix.Cache as Cache
 import Control.Arrow.Fix.Stack as Stack
@@ -32,8 +32,7 @@ import Data.Text.Prettyprint.Doc
 
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift, ArrowLowerBounded b,
-            ArrowComponent a, ArrowInComponent a,
-            ArrowContext ctx,ArrowState s,ArrowControlFlow stmt,
+            ArrowSCC a, ArrowContext ctx,ArrowState s,ArrowControlFlow stmt,
             ArrowTopLevel,ArrowStackDepth,ArrowStackElements a, ArrowMetrics a)
 
 log :: Arrow c => c (Doc ann) ()

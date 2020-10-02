@@ -64,13 +64,13 @@ spec =
       callsiteSpec $ \f a ->
         let ?contextWidening = ?widenA
             ?cacheWidening = T.widening ?widenB in
-        let ?fixpointAlgorithm = fixpointAlgorithm (callsiteSensitive ?sensitivity fst . chaotic innermost) in
+        let ?fixpointAlgorithm = fixpointAlgorithm (callsiteSensitive ?sensitivity fst . innermost) in
         snd $ Arrow.run (f :: ChaoticT _ _ _) a
     describe "outer component" $
       callsiteSpec $ \f a ->
         let ?contextWidening = ?widenA
             ?cacheWidening = T.widening ?widenB in
-        let ?fixpointAlgorithm = fixpointAlgorithm (callsiteSensitive ?sensitivity fst . chaotic outermost) in
+        let ?fixpointAlgorithm = fixpointAlgorithm (callsiteSensitive ?sensitivity fst . outermost) in
         snd $ Arrow.run (f :: ChaoticT _ _ _) a
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)

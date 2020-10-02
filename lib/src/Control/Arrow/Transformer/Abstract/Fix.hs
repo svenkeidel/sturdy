@@ -19,7 +19,7 @@ import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Cache
-import           Control.Arrow.Fix.Chaotic
+import           Control.Arrow.Fix.SCC
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Metrics
@@ -38,8 +38,7 @@ newtype FixT c x y = FixT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowContext ctx, ArrowJoinContext a, ArrowControlFlow a,
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
-            ArrowStack a,ArrowStackElements a,ArrowStackDepth,
-            ArrowComponent a, ArrowInComponent a,
+            ArrowStack a,ArrowStackElements a,ArrowStackDepth, ArrowSCC a,
             ArrowMetrics a, ArrowStrict, ArrowPrimitive, ArrowCFG a)
 
 runFixT :: FixT c x y -> c x y

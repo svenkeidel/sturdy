@@ -29,7 +29,7 @@ import           Control.Arrow
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Fix.Context hiding (Widening)
-import           Control.Arrow.Fix.Chaotic(chaotic,innermost)
+import           Control.Arrow.Fix.Chaotic(innermost)
 import           Control.Arrow.Random
 import           Control.Arrow.Order
 import qualified Control.Arrow.Trans as Trans
@@ -114,7 +114,7 @@ run k env0 ss =
           fixpointAlgorithm $
             filter isWhileLoop
               $ callsiteSensitive' k (\((_,stmts),_) -> case stmts of (stmt:_) -> Just (label stmt); [] -> Nothing)
-              . chaotic innermost
+              . innermost
   in
 
   fmap (fmap (fmap fst)) <$> snd $

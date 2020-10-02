@@ -15,7 +15,8 @@ import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackE
 import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Cache (ArrowCache,ArrowParallelCache)
 import qualified Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Chaotic (ArrowInComponent,chaotic,innermost,outermost)
+import           Control.Arrow.Fix.SCC (ArrowSCC)
+import           Control.Arrow.Fix.Chaotic (innermost,outermost)
 import           Control.Arrow.Fix.Parallel (parallel,adi)
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -53,8 +54,8 @@ spec =
     describe "Parallel" $ fixpointSpec "parallel" (runParallel parallel)
     describe "ADI" $ fixpointSpec "adi" (runParallel adi)
     describe "Chaotic" $ do
-      describe "innermost component" $ fixpointSpec "innermost" (runChaotic (chaotic innermost))
-      describe "outermost component" $ fixpointSpec "outermost" (runChaotic (chaotic outermost))
+      describe "innermost component" $ fixpointSpec "innermost" (runChaotic innermost)
+      describe "outermost component" $ fixpointSpec "outermost" (runChaotic outermost)
 
 fixpointSpec :: String -> (forall a b. (Pretty a, Pretty b, Identifiable a, Complete b, ?strat :: Strat a b, ?widen :: Widening b) => Arr a b -> a -> (Metrics a,Terminating b)) -> Spec
 fixpointSpec algName eval = sharedSpec $ \name f a -> do
@@ -161,7 +162,7 @@ type ChaoticT a b =
 runChaotic :: forall a b.
                (forall x y c. (Pretty x, Pretty y, Identifiable x, ArrowChoice c,
                                ArrowStack x c, ArrowStackDepth c, ArrowStackElements x c,
-                               ArrowInComponent x c, ArrowCache x y c,
+                               ArrowSCC x c, ArrowCache x y c,
                                ?cacheWidening :: Cache.Widening c) =>
                 FixpointCombinator c x y)
            -> ((Pretty a, Pretty b, Identifiable a, Complete b,

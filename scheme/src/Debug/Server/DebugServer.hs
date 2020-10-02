@@ -31,7 +31,7 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Environment as Env
 import qualified Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(IterationStrategy,chaotic,innermost',outermost')
+import           Control.Arrow.Fix.Chaotic(innermost,outermost)
 import qualified Control.Arrow.Fix.Context as Ctx
 --import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,widenInput,maxDepth,reuseByMetric, StackPointer)
@@ -260,7 +260,7 @@ evalDebug expr =
          debug .
          Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
          recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
-         Fix.filter' isFunctionBody (chaotic innermost') in
+         Fix.filter' isFunctionBody innermost in
   do _ <- Trans.run (Generic.runFixed :: InterpT IO [Expr] Val) (?debugState, (empty, (empty, e0)))
      return ()
   where

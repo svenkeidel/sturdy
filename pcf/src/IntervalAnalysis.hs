@@ -24,7 +24,7 @@ import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(chaotic,innermost)
+import           Control.Arrow.Fix.Chaotic(innermost)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -91,7 +91,7 @@ data Val = NumVal IV | ClosureVal Cls | TypeError (Pow String) deriving (Eq, Gen
 type In = (Store, (Env, Expr))
 type Out = (Store, Terminating (Error (Pow String) Val))
 
-type Interp = 
+type Interp =
   (ValueT Val
     (ErrorT (Pow String)
       (TerminatingT
@@ -114,7 +114,7 @@ evalInterval env0 e =
         -- traceShow .
         -- traceCache show .
         Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
-        filter isFunctionBody (chaotic innermost)
+        filter isFunctionBody innermost
   in
   snd $ run (extend' (Generic.eval :: Interp Expr Val)) (alloc,widenVal) (Map.empty,(Map.empty,(env0,e0)))
   where

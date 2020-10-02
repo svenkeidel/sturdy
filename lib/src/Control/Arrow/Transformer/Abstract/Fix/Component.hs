@@ -18,7 +18,7 @@ import           Control.Category
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
-import           Control.Arrow.Fix.Chaotic
+import           Control.Arrow.Fix.SCC
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Stack as Stack
@@ -86,12 +86,21 @@ instance Monoid (Component a) where
   mempty = Component 0
   mappend = (<>)
 
-instance (Arrow c, Profunctor c) => ArrowComponent a (ComponentT Component a c) where
-  addToComponent = lift $ arr $ \(Component comp,(_,pointer)) ->
+instance (Arrow c, Profunctor c) => ArrowSCC a (ComponentT Component a c) where
+  add = lift $ proc (Component comp,(_,pointer)) -> do
     let comp' = (shiftL (1 :: Integer) pointer .|. comp)
-    in (Component comp', ())
-  {-# INLINE addToComponent #-}
-  {-# SCC addToComponent #-}
+    returnA -< (Component comp', ())
+  {-# INLINE add #-}
+
+  remove = lift $ proc (Component comp, (_, pointer)) -> do
+    let comp' = (complement (shiftL (1 :: Integer) pointer) .&. comp)
+    returnA -< (Component comp', ())
+
+  elem = lift $ proc (Component comp, _) -> do
+    returnA -< (Component comp, if testBit comp 0 then InSCC 0 else NotInSCC)
+
+  size = lift $ proc (Component comp, _) -> do
+    returnA -< (Component comp, popCount comp)
 
 instance (Identifiable a, ArrowStack a c) => ArrowStack a (ComponentT Component a c) where
   push f = lift $ proc (comp,(a,x)) -> do
@@ -100,18 +109,17 @@ instance (Identifiable a, ArrowStack a c) => ArrowStack a (ComponentT Component 
     where
       pop (Component comp) = Component (shiftR comp 1)
   {-# INLINE push #-}
-  {-# SCC push #-}
 
-instance (Arrow c, Profunctor c) => ArrowInComponent a (ComponentT Component a c) where
-  inComponent f = lift $ dimap (second snd) (\(comp, y) -> (comp,(isInComponent comp,y))) (unlift f)
-    where
-      isInComponent (Component comp)
-        | comp == 0      = Empty
-        | comp == 1      = Head Outermost
-        | testBit comp 0 = Head Inner
-        | otherwise      = Body
-  {-# INLINE inComponent #-}
-  {-# SCC inComponent #-}
+-- instance (Arrow c, Profunctor c) => ArrowInComponent a (ComponentT Component a c) where
+--   inComponent f = lift $ dimap (second snd) (\(comp, y) -> (comp,(isInComponent comp,y))) (unlift f)
+--     where
+--       isInComponent (Component comp)
+--         | comp == 0      = Empty
+--         | comp == 1      = Head Outermost
+--         | testBit comp 0 = Head Inner
+--         | otherwise      = Body
+--   {-# INLINE inComponent #-}
+--   {-# SCC inComponent #-}
 
 
 
