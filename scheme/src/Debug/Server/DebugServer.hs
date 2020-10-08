@@ -44,7 +44,7 @@ import           Control.Arrow.Transformer.Abstract.FiniteEnvStore hiding (Env)
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Component as Comp
-import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.CallSite
 import           Control.Arrow.Transformer.Abstract.Fix.Stack --as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
@@ -120,7 +120,7 @@ type InterpT c x y =
              (ComponentT Comp.Component  In
                (StackT Stack In
                  (CacheT Cache.Monotone In Out
-                   (ContextT Ctx
+                   (CallSiteT Label
                      (ControlFlowT Expr
                        c)))))))))))) x y
 
@@ -258,7 +258,7 @@ evalDebug expr =
   let ?fixpointAlgorithm = transform $
        Fix.fixpointAlgorithm $
          debug .
-         Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+         Fix.filter isApplication (Ctx.recordCallSite ?sensitivity (\(_,(_,exprs)) -> label $ head exprs)) . 
          recordControlFlowGraph' (\(_,(_,exprs)) -> case exprs of e':_ -> Just e'; _ -> Nothing) .
          Fix.filter' isFunctionBody innermost in
   do _ <- Trans.run (Generic.runFixed :: InterpT IO [Expr] Val) (?debugState, (empty, (empty, e0)))

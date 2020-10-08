@@ -77,7 +77,7 @@ import           GHC.Generics(Generic)
 
 import           Text.Printf
 
-import           Syntax (LExpr,Expr(Apply),Literal(..) ,Op1(..),Op2(..),OpVar(..))
+import           Syntax (LExpr,Expr(Apply,App),Literal(..) ,Op1(..),Op2(..),OpVar(..))
 import           GenericInterpreter as Generic
 
 type Cls = Closure Expr (HashSet Env)
@@ -124,16 +124,16 @@ data Number
   deriving stock (Eq, Generic)
   deriving anyclass (NFData)
 
-instance (ArrowContext Ctx c) => ArrowAlloc Addr (ValueT Val c) where
+instance (ArrowCallSite Label c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = proc (var,lab) -> do
-    ctx <- Ctx.askContext @Ctx -< ()
+    ctx <- Ctx.getCallSite -< ()
     returnA -< VarA (var,lab,ctx)
   {-# INLINE alloc #-}
   {-# SCC alloc #-}
 
-allocLabel :: (ArrowContext Ctx c) => c Label Addr
+allocLabel :: (ArrowCallSite Label c) => c Label Addr
 allocLabel = proc l -> do
-  ctx <- Ctx.askContext @Ctx -< ()
+  ctx <- Ctx.getCallSite -< ()
   returnA -< LabelA (l,ctx)
 {-# INLINE allocLabel #-}
 {-# SCC allocLabel #-}
@@ -154,7 +154,7 @@ instance (IsString e, ArrowChoice c, ArrowFail e c, ArrowClosure Expr Cls c)
   {-# SCC closure #-}
   {-# SCC apply #-}
 
-instance (ArrowChoice c, ArrowComplete Val c, ArrowContext Ctx c, ArrowFail e c, ArrowStore Addr Val c, ArrowEnv Text Addr c,
+instance (ArrowChoice c, ArrowComplete Val c, ArrowCallSite Label c, ArrowFail e c, ArrowStore Addr Val c, ArrowEnv Text Addr c,
           Store.Join Val c, Env.Join Addr c,Store.Join Addr c,Fail.Join Val c,IsString e)
     => IsVal Val (ValueT Val c) where
   type Join y (ValueT Val c) = (ArrowComplete y (ValueT Val c),Fail.Join y c)
@@ -658,6 +658,13 @@ isFunctionBody (_,(_,e)) = case e of
   Apply _ _:_ -> True
   _ -> False
 {-# INLINE isFunctionBody #-}
+
+isApplication :: In -> Bool 
+isApplication (_,(_,e)) = case e of 
+  App _ _ _:_ -> True 
+  _ -> False
+{-# INLINE isApplication #-}
+
 
 -- Pretty Printing of inputs and outputs
 

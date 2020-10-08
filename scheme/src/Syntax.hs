@@ -354,4 +354,3 @@ instance HasLabel Expr where
 
 instance Hashable Expr where
   hashWithSalt s e = s `hashWithSalt` label e
-

@@ -62,7 +62,7 @@ data DebugState = DebugState {
 
 newtype DebugT c x y = DebugT (StateT DebugState c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
-            ArrowContext ctx, ArrowJoinContext a, ArrowControlFlow a,
+            ArrowContext ctx a', ArrowCallSite lab, ArrowControlFlow a,
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
             ArrowStack a,ArrowStackElements a,ArrowStackDepth, ArrowSCC a,
             ArrowMetrics a, ArrowStrict, ArrowPrimitive, ArrowCFG a)

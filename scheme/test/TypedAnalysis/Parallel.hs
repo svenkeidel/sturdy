@@ -35,7 +35,7 @@ import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.CallSite
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Fix.Metrics as Metric
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
@@ -63,7 +63,7 @@ type Interp x y =
           (FixT
             (MetricsT Metric.Monotone In
               (CacheT (Parallel Cache.Monotone) In Out
-                (ContextT Ctx
+                (CallSiteT Label
                   (ControlFlowT Expr
                     (->))))))))) x y
 
@@ -75,7 +75,7 @@ eval algo env0 e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ algo $ \update_ ->
         -- Fix.trace printIn printOut .
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        Fix.filter isApplication (Ctx.recordCallSite ?sensitivity (\(_,(_,exprs)) -> label $ head exprs)) . 
         Fix.recordEvaluated .
         Fix.filter' isFunctionBody update_ in
   second snd $ Trans.run (extend' (Generic.runFixed :: Interp [Expr] Val)) (empty,(empty,(env0,e0)))
