@@ -28,8 +28,8 @@ import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Fix.Context hiding (Widening)
 import           Control.Arrow.Fix.Chaotic(innermost)
+import           Control.Arrow.Fix.CallCount(unroll)
 import           Control.Arrow.Random
 import           Control.Arrow.Order
 import qualified Control.Arrow.Trans as Trans
@@ -39,8 +39,9 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Fix.CallCount
 import           Control.Arrow.Transformer.Abstract.Fix.Component
-import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.Context as Ctx
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Store
@@ -80,7 +81,6 @@ import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Stable
 import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
-import           Data.Abstract.CallString (CallString)
 
 import           GHC.Exts(IsString(..))
 import           GHC.Generics
@@ -113,7 +113,7 @@ run k env0 ss =
                   (L.iso' id id) $
           fixpointAlgorithm $
             filter isWhileLoop
-              $ callsiteSensitive' k (\((_,stmts),_) -> case stmts of (stmt:_) -> Just (label stmt); [] -> Nothing)
+              $ unroll k (\((_,stmts),_) -> case stmts of (stmt:_) -> label stmt; [] -> -1)
               . innermost
   in
 
@@ -129,9 +129,10 @@ run k env0 ss =
                   (FixT
                     (ComponentT Component In
                       (StackT Stack In
-                        (CacheT (Context (Proj2 (CtxCache (CallString _))) (Group Cache)) In Out
-                          (ContextT (CallString _)
-                             (->)))))))))))) [Statement] ())
+                        (CacheT Cache In Out
+                          (CallCountT Label
+                            (ContextT (Ctx.Second Context) Label In
+                              (->))))))))))))) [Statement] ())
       (M.empty,(SM.fromList env0, generate (sequence ss)))
   where
     widenVal = widening (I.bounded ?bound)

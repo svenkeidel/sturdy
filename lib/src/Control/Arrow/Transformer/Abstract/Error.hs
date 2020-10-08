@@ -38,7 +38,7 @@ import Data.Coerce
 newtype ErrorT e c x y = ErrorT (KleisliT (Error e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun,
             ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore a b, ArrowContext ctx,
+            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore a b, ArrowCallSite ctx,
             ArrowExcept e', ArrowLowerBounded a)
 
 runErrorT :: ErrorT e c x y -> c x (Error e y)

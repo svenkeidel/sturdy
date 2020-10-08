@@ -31,7 +31,7 @@ type StackPointer = Int
 data RecurrentCall = RecurrentCall StackPointer | NoLoop deriving (Show)
 
 class (Arrow c, Profunctor c) => ArrowStack a c | c -> a where
-  push :: c x y -> c (a, x) (y)
+  push :: c x y -> c (a, x) y
   elem :: c a RecurrentCall
 
   default elem :: (c ~ t c', ArrowTrans t, ArrowStack a c') => c a RecurrentCall

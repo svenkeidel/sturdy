@@ -6,16 +6,10 @@ module Control.Arrow.Transformer.Mealy where
 import Prelude hiding (id,(.))
 import Control.Category
 import Control.Arrow
-import Control.Arrow.Cont
-import Control.Arrow.Const
 import Control.Arrow.Primitive
-import Control.Arrow.Reader as Reader
-import Control.Arrow.State as State
 import Control.Arrow.Trans
-import Control.Arrow.Writer
 
 import Unsafe.Coerce
-import Data.Monoidal
 import Data.Profunctor hiding (Strong(..))
 import Data.Profunctor.Unsafe
 

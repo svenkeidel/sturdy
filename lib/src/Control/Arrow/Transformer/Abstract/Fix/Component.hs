@@ -20,17 +20,14 @@ import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
 import           Control.Arrow.Fix.SCC
 import           Control.Arrow.Fix.Cache as Cache
+import           Control.Arrow.Fix.CallCount
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context as Context
-import           Control.Arrow.State
 import           Control.Arrow.Trans
 
 -- import           Control.Arrow.Transformer.Writer
 import           Control.Arrow.Transformer.State
-
-import           Control.Arrow.Transformer.Abstract.FiniteEnvStore 
-import           Data.Abstract.MonotoneStore(Store)
 
 import           Data.Bits
 import           Data.Profunctor
@@ -44,7 +41,8 @@ newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
             ArrowStackDepth,ArrowStackElements a,
             ArrowCache a b, ArrowParallelCache a b,ArrowIterateCache a b,ArrowGetCache cache,
-            ArrowContext ctx, ArrowJoinContext u, ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph)
+            ArrowCallCount u, ArrowCallSite ctx, ArrowContext ctx u,
+            ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph)
 
 runComponentT :: (IsEmpty (comp a), Profunctor c) => ComponentT comp a c x y -> c x y
 runComponentT (ComponentT f) = dimap (\x -> (empty,x)) snd (runStateT f)

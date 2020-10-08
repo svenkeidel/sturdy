@@ -37,7 +37,7 @@ newtype CompletionT c x y = CompletionT (KleisliT FreeCompletion c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
-            ArrowFail e, ArrowExcept e, ArrowContext ctx)
+            ArrowFail e, ArrowExcept e, ArrowCallSite ctx)
 
 runCompletionT :: CompletionT c x y -> c x (FreeCompletion y)
 runCompletionT = coerce

@@ -162,9 +162,9 @@ instance ArrowConst x c => ArrowConst x (NoInlineT c) where
   askConst f = lift (askConst (unlift . f))
   {-# NOINLINE askConst #-}
 
-instance ArrowContext ctx c => ArrowContext ctx (NoInlineT c) where
-  localContext f = lift (localContext (unlift f))
-  {-# NOINLINE localContext #-}
+instance ArrowCallSite ctx c => ArrowCallSite ctx (NoInlineT c) where
+  pushLabel k f = lift $ pushLabel k (unlift f)
+  {-# NOINLINE pushLabel #-}
 
 instance ArrowCache a b c => ArrowCache a b (NoInlineT c) where
   type Widening (NoInlineT c) = Cache.Widening c

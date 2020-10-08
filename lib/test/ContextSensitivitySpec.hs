@@ -30,10 +30,12 @@ import           Control.Arrow.Fix.Chaotic
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Fix.Trace
 import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache hiding (Widening)
-import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.Context as Ctx
+import           Control.Arrow.Transformer.Abstract.Fix.CallSite as CallSite
 
 import qualified Data.Abstract.Boolean as Abs
 import           Data.Abstract.Terminating (Terminating)
@@ -80,7 +82,9 @@ type Line = Int
 
 {-# INLINE callsiteSpec #-}
 callsiteSpec :: (forall lab a b.
-                 (Show lab, Show a, Show b, Identifiable lab, Identifiable a, PreOrd lab, PreOrd a, Complete b,
+                 (Pretty lab, Show lab, PreOrd lab, Identifiable lab,
+                  Pretty a, Show a, PreOrd a, Identifiable a,
+                  Pretty b, Show b, Complete b, Pretty (CallString lab),
                   ?sensitivity :: Int, ?widenA :: Widening a, ?widenB :: Widening b)
                 => Arr (lab,a) b -> (lab,a) -> Terminating b) -> Spec
 callsiteSpec run = do
@@ -160,12 +164,15 @@ data Fun = Main | Fun1 | Fun2 | Id deriving (Show,Eq,Generic)
 instance Hashable Fun
 instance PreOrd Fun where
   e1 ⊑ e2 = e1 == e2
+instance Pretty Fun where
+  pretty = viaShow
 
 type ChaoticT lab a b =
   TerminatingT
     (FixT
       (ComponentT Component (lab,a)
         (StackT Stack (lab,a)
-          (CacheT (Context (Cache.Proj2 (CtxCache (CallString lab))) Cache) (lab,a) (Terminating b)
-            (ContextT (CallString lab)
-              (->)))))) (lab,a) b
+          (CacheT Cache (lab,a) (Terminating b)
+            (CallSiteT lab
+              (ContextT (Ctx.Second Context) (CallString lab) (lab,a)
+                (->))))))) (lab,a) b

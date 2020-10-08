@@ -36,7 +36,7 @@ import Data.Coerce
 newtype TerminatingT c x y = TerminatingT (KleisliT Terminating c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun, ArrowFail e,
             ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore addr val, ArrowContext ctx)
+            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore addr val, ArrowCallSite ctx)
 
 runTerminatingT :: TerminatingT c x y -> c x (Terminating y)
 runTerminatingT = coerce

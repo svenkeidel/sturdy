@@ -26,7 +26,7 @@ import           Control.Arrow.Fix.ControlFlow as CF
 import           Control.Arrow.Fix.SCC as SCC
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack as Stack
-import           Control.Arrow.Fix.Context(ArrowContext)
+import           Control.Arrow.Fix.Context(ArrowCallSite)
 
 import           Control.Arrow.Transformer.State
 
@@ -40,13 +40,10 @@ import           Data.Coerce
 
 import           Text.Printf
 
-import           Control.Arrow.Transformer.Abstract.FiniteEnvStore 
-import           Data.Abstract.MonotoneStore(Store)
-
 newtype MetricsT metric a c x y = MetricsT (StateT (metric a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded z,
             ArrowSCC a, ArrowControlFlow stmt,
-            ArrowStackDepth,ArrowStackElements a,ArrowContext ctx,ArrowTopLevel,
+            ArrowStackDepth,ArrowStackElements a,ArrowCallSite ctx,ArrowTopLevel,
             ArrowGetCache cache, ArrowPrimitive, ArrowCFG graph)
 
 instance (IsEmpty (metrics a), ArrowRun c) => ArrowRun (MetricsT metrics a c) where

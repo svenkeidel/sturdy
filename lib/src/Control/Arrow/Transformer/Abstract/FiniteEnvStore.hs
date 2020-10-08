@@ -58,7 +58,7 @@ newtype EnvStoreT var addr val c x y =
          c) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded a,
             ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
-            ArrowContext ctx, ArrowControlFlow stmt)
+            ArrowCallSite ctx, ArrowControlFlow stmt)
 
 instance ArrowLift (EnvStoreT var addr val c) where
   type Underlying (EnvStoreT var addr val c) x y =

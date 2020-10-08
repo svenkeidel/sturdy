@@ -17,7 +17,7 @@ import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Fix.SCC as SCC
 import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
+import           Control.Arrow.Fix.Context (ArrowContext,ArrowCallSite)
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Metrics
 import           Control.Arrow.Fix.Stack (ArrowStackDepth,ArrowStackElements)
@@ -39,9 +39,9 @@ instance IsEmpty (CFG stmt) where
 
 newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Maybe stmt) c) x y) 
   deriving (
-      Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
+      Profunctor, Category, Arrow, ArrowChoice, ArrowCallSite ctx,
       ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
-      ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
+      ArrowContext ctx u, ArrowStackDepth, ArrowStackElements a,
       ArrowMetrics a, ArrowSCC a,
       ArrowPrimitive
     )
