@@ -30,6 +30,10 @@ instance Show Label where
 instance Pretty Label where
   pretty (Label l) = "#" <> pretty l
 
+instance Enum Label where
+  toEnum = Label
+  fromEnum = labelVal
+
 instance PreOrd Label where
   (⊑) = (==)
 
@@ -44,7 +48,25 @@ fresh :: MonadState Label m => m Label
 fresh = state (\l -> (l,l+1))
 
 generate :: State Label x -> x
-generate m = evalState m 0
+generate = generateFrom 0
+
+generateState :: State Label x -> (x, Label)
+generateState = generateStateFrom 0
+
+generateFrom :: Label -> State Label x -> x
+generateFrom i m = evalState m i
+
+generateStateFrom :: Label -> State Label x -> (x, Label)
+generateStateFrom i m = runState m i
 
 generate' :: Monad m => StateT Label m x -> m x
-generate' m = evalStateT m 0
+generate' = generateFrom' 0
+
+generateState' :: StateT Label m x -> m (x, Label)
+generateState' = generateStateFrom' 0
+
+generateFrom' :: Monad m => Label -> StateT Label m x -> m x
+generateFrom' i m = evalStateT m i
+
+generateStateFrom' :: Label -> StateT Label m x -> m (x, Label)
+generateStateFrom' i m = runStateT m i

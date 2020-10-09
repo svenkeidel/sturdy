@@ -9,7 +9,7 @@ packages:
 - 'while'
 # - 'stratego'
 - 'jimple'
-# - 'tutorial'
+- 'tutorial'
 allow-newer: true
 extra-deps:
   - git: https://github.com/svenkeidel/dump-core/
