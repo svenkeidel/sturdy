@@ -1,0 +1,7 @@
+cradle:
+  stack:
+    - path: ./src
+      component: "sturdy-backwards:lib"
+
+    - path: ./test
+      component: "sturdy-backwards:test:spec"

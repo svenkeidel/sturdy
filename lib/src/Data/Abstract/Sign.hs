@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -5,6 +6,8 @@ module Data.Abstract.Sign where
 
 import           Prelude hiding ((==),(/),Bool(..))
 import qualified Prelude as P
+
+import           Control.DeepSeq (NFData)
 
 import           Data.Order
 import           Data.Hashable
@@ -19,7 +22,7 @@ import qualified Data.Abstract.Boolean as B
 import           GHC.Generics
 
 data Sign = Negative | Zero | Positive | Top
-  deriving (Show,Eq,Generic)
+  deriving (Show,Eq,Generic, NFData)
 
 instance Num Sign where
   Negative + Negative = Negative
