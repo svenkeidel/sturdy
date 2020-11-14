@@ -15,13 +15,15 @@ import           Control.Arrow.Primitive
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Fix.Chaotic as Chaotic
+import           Control.Arrow.Fix.SCC as SCC
 import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
+import           Control.Arrow.Fix.Context (ArrowContext,ArrowCallSite)
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Metrics
 import           Control.Arrow.Fix.Stack (ArrowStackDepth,ArrowStackElements)
 import           Control.Category
+
+import           Control.Arrow.State
 
 import           Data.Label
 import           Data.Coerce
@@ -30,21 +32,21 @@ import           Data.Profunctor.Unsafe
 import           Data.Graph.Inductive (Gr)
 import qualified Data.Graph.Inductive as G
 
-newtype CFG stmt = CFG (Gr stmt ())
+newtype CFG stmt = CFG (Gr stmt ()) deriving (Show)
 
 instance IsEmpty (CFG stmt) where
   empty = CFG G.empty
 
-newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Maybe stmt) c) x y)
+newtype ControlFlowT stmt c x y = ControlFlowT (StateT (CFG stmt) (ReaderT (Maybe stmt) c) x y) 
   deriving (
-      Profunctor, Category, Arrow, ArrowChoice, ArrowContext ctx,
+      Profunctor, Category, Arrow, ArrowChoice, ArrowCallSite ctx,
       ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b,
-      ArrowJoinContext u, ArrowStackDepth, ArrowStackElements a,
-      ArrowMetrics a, ArrowComponent a, ArrowInComponent a,
+      ArrowContext ctx u, ArrowStackDepth, ArrowStackElements a,
+      ArrowMetrics a, ArrowSCC a,
       ArrowPrimitive
     )
 
-instance (HasLabel stmt, Arrow c, Profunctor c) => ArrowControlFlow stmt (ControlFlowT stmt c) where
+instance (HasLabel stmt, Arrow c, Profunctor c) => ArrowControlFlow stmt (ControlFlowT stmt c)  where
   nextStatement f = lift $ proc (predecessor, (cfg, (nextStmt, x))) ->
     unlift f -< (nextStmt, (addEdge predecessor nextStmt cfg, x))
     where
@@ -82,3 +84,7 @@ instance ArrowLift (ControlFlowT stmt c) where
 instance (Profunctor c,ArrowApply c) => ArrowApply (ControlFlowT stmt c) where
   app = ControlFlowT (app .# first coerce)
   {-# INLINE app #-}
+
+instance (Arrow c, Profunctor c) => ArrowCFG (CFG stmt) (ControlFlowT stmt c) where
+  getCFG = ControlFlowT $ proc () -> get -< ()
+  {-# INLINE getCFG #-}

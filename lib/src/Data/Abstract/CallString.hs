@@ -11,6 +11,7 @@ import           Data.Hashable
 import           Data.Sequence (Seq,(|>))
 import qualified Data.Sequence as S
 import           Data.Empty
+import           Data.Text.Prettyprint.Doc
 
 import           Control.DeepSeq
 import           GHC.Generics(Generic)
@@ -18,8 +19,14 @@ import           GHC.Generics(Generic)
 data CallString lab = CallString { callString :: Seq lab, size :: Int }
   deriving (Generic,NFData)
 
+instance Functor CallString where
+  fmap f (CallString str s) = CallString (fmap f str) s
+
 instance Show lab => Show (CallString lab) where
   show = show . toList
+
+instance Pretty lab => Pretty (CallString lab) where
+  pretty = pretty . toList
 
 instance Eq lab => Eq (CallString lab) where
   c1 == c2 = size c1 == size c2 && callString c1 == callString c2

@@ -36,7 +36,7 @@ newtype FailureT e c x y = FailureT (KleisliT (Failure e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
-            ArrowExcept e', ArrowContext ctx)
+            ArrowExcept e', ArrowCallSite ctx)
 
 runFailureT :: FailureT e c x y -> c x (Failure e y)
 runFailureT = coerce

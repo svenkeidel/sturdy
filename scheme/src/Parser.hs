@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-warnings-deprecations #-}
-module Parser(loadSchemeFile,loadSchemeFile') where
+module Parser(loadSchemeFile,loadSchemeFile',loadSourceCode, loadSchemeFileWithCode) where
 
 import           Prelude hiding (fail)
 
@@ -29,15 +29,26 @@ loadSchemeFile file = do
     Left err -> throwLispError err
     Right val -> do
      expanded <- macroExpand (List val)
-     -- print expanded
      let expr = parseTopLevelSExpr expanded
-     -- print (generate expr)
      return expr
 
 loadSchemeFile' :: String -> IO Expr
 loadSchemeFile' file = do
   lexpr <- loadSchemeFile file
   return $ generate lexpr
+
+loadSourceCode :: String -> IO FilePath
+loadSourceCode file = readFile =<< getDataFileName (printf "scheme_files/%s" file)
+
+loadSchemeFileWithCode :: String -> IO LExpr
+loadSchemeFileWithCode code = do
+  case readExprList code of
+    Left err -> throwLispError err
+    Right val -> do
+      expanded <- macroExpand (List val)
+      let expr = parseTopLevelSExpr expanded
+      return expr
+
 
 macroExpand :: LispVal -> IO LispVal
 macroExpand program = do
@@ -186,6 +197,7 @@ parseSExpr val = case val of
   LT.List (Atom "string-append": args) -> opvar_ StringAppend (map parseSExpr args)
   LT.List (Atom "list": args) -> list (map parseSExpr args)
   LT.List [Atom "error", LT.String err] -> error_ err
+  LT.List [Atom "breakpoint", e] -> breakpoint (parseSExpr e)
 
   LT.List (Atom x: args) -> app (var_ (pack x)) (map parseSExpr args)
   LT.List (fun: args) -> app (parseSExpr fun) (map parseSExpr args)

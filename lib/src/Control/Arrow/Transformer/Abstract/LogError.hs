@@ -39,7 +39,7 @@ newtype LogErrorT e c x y = LogErrorT (StateT (Errors e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans,
             ArrowConst r, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b, ArrowLetRec var val,
-            ArrowExcept e', ArrowContext ctx)
+            ArrowExcept e', ArrowCallSite ctx)
 
 runLogErrorT :: (Identifiable e, Profunctor c) => LogErrorT e c x y -> c x (Errors e, y)
 runLogErrorT f = lmap (empty,) (unlift f)

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 222fddf65d4842eb9edb4c917693e6403099191d7f92f61c0fc04793cb2d6dee
+-- hash: 09523d9f1ae2addfc11f42d9ac0f75e6be4e4ca33215d1c6980c30522bb3e2c3
 
 name:           sturdy-jimple
 version:        0.1.0.0
@@ -37,50 +37,6 @@ library
     , random
     , sturdy-arrows
     , sturdy-lib
-    , text
-    , unordered-containers
-    , vector
-    , vector-instances
-  default-language: Haskell2010
-
-test-suite spec
-  type: exitcode-stdio-1.0
-  main-is: Spec.hs
-  other-modules:
-      Classes.ArrayFieldExample
-      Classes.FactorialExample
-      Classes.PersonExample
-      Classes.SingleMethodExample
-      Classes.TryCatchExample
-      ConcreteSpec
-      IntervalSpec
-      Java.Lang.ArithmeticException
-      Java.Lang.ArrayIndexOutOfBoundsException
-      Java.Lang.ClassCastException
-      Java.Lang.IllegalArgumentException
-      Java.Lang.NullPointerException
-      Java.Lang.Object
-      Java.Lang.Throwable
-      JimpleSoundness
-      NullnessSpec
-      Soundness
-      Utils
-      Paths_sturdy_jimple
-  hs-source-dirs:
-      test
-  ghc-options: -Wall
-  build-depends:
-      base
-    , containers
-    , hashable
-    , hspec
-    , logfloat
-    , mtl
-    , profunctors
-    , random
-    , sturdy-arrows
-    , sturdy-lib
-    , sturdy-pcf
     , text
     , unordered-containers
     , vector

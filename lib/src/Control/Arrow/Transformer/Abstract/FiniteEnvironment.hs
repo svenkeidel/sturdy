@@ -53,7 +53,7 @@ type Alloc var addr val c = EnvT var addr val c (var,val) addr
 newtype EnvT var addr val c x y = EnvT (ConstT (Alloc var addr val c, Widening val) (ReaderT (HashMap var addr) (StateT (HashMap addr val) c)) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift, ArrowLowerBounded a,
             ArrowFail e, ArrowExcept e, ArrowStore var' val', ArrowRun, ArrowCont,
-            ArrowContext ctx)
+            ArrowCallSite ctx)
 
 instance (Identifiable var, Identifiable addr, Complete val, ArrowChoice c, Profunctor c) => ArrowEnv var val (EnvT var addr val c) where
   type Join y (EnvT var addr val c) = ()

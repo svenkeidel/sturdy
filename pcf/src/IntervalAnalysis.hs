@@ -24,7 +24,7 @@ import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Environment(extend')
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Chaotic(chaotic,innermost)
+import           Control.Arrow.Fix.Chaotic(innermost)
 import qualified Control.Arrow.Fix.Context as Ctx
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure (ArrowClosure,IsClosure(..))
@@ -35,10 +35,10 @@ import           Control.Arrow.Transformer.Abstract.FiniteEnvironment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Component
-import           Control.Arrow.Transformer.Abstract.Fix.Context
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable(CacheT)
 import qualified Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
+import           Control.Arrow.Transformer.Abstract.Fix.CallSite
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Monad.State hiding (lift,fail)
@@ -74,7 +74,7 @@ import           GHC.Exts(IsString(..))
 import           GHC.Generics(Generic)
 import           Text.Printf
 
-import           Syntax (Expr(..),isFunctionBody)
+import           Syntax (Expr(..),isApplication,isFunctionBody)
 import           GenericInterpreter as Generic
 
 type Cls = Closure Expr (HashSet (HashMap Text Addr))
@@ -91,7 +91,7 @@ data Val = NumVal IV | ClosureVal Cls | TypeError (Pow String) deriving (Eq, Gen
 type In = (Store, (Env, Expr))
 type Out = (Store, Terminating (Error (Pow String) Val))
 
-type Interp = 
+type Interp =
   (ValueT Val
     (ErrorT (Pow String)
       (TerminatingT
@@ -100,8 +100,8 @@ type Interp =
             (ComponentT Component In
               (StackT Stack In
                 (CacheT Cache.Monotone In Out
-                  (ContextT Ctx
-                    (->))))))))))
+                  (CallSiteT Label
+                     (->))))))))))
 
 -- | Run the abstract interpreter for an interval analysis. The arguments are the
 -- maximum interval bound, the depth @k@ of the longest call string,
@@ -113,15 +113,15 @@ evalInterval env0 e =
         Fix.fixpointAlgorithm $
         -- traceShow .
         -- traceCache show .
-        Ctx.recordCallsite ?sensitivity (\(_,(_,expr)) -> case expr of App _ _ l -> Just l; _ -> Nothing) .
-        filter isFunctionBody (chaotic innermost)
+        filter isApplication (Ctx.recordCallSite ?sensitivity (\(_,(_,expr)) -> label expr)) .
+        filter isFunctionBody innermost
   in
-  snd $ run (extend' (Generic.eval :: Interp Expr Val)) (alloc,widenVal) (Map.empty,(Map.empty,(env0,e0)))
+  snd $ run (extend' (Generic.eval :: Interp Expr Val)) (alloc, widenVal) (Map.empty,(Map.empty,(env0,e0)))
   where
     e0 = generate e
 
     alloc = proc (var,_) -> do
-      ctx <- Ctx.askContext @Ctx -< ()
+      ctx <- Ctx.getCallSite -< ()
       returnA -< (var,ctx)
 
     widenVal :: Widening Val

@@ -26,11 +26,12 @@ import Data.Monoidal
 
 import Text.Printf
 
+
 type StackPointer = Int
-data RecurrentCall = RecurrentCall StackPointer | NoLoop
+data RecurrentCall = RecurrentCall StackPointer | NoLoop deriving (Show)
 
 class (Arrow c, Profunctor c) => ArrowStack a c | c -> a where
-  push :: c x y -> c (a, x) (y)
+  push :: c x y -> c (a, x) y
   elem :: c a RecurrentCall
 
   default elem :: (c ~ t c', ArrowTrans t, ArrowStack a c') => c a RecurrentCall
@@ -48,7 +49,7 @@ class (Arrow c, Profunctor c) => ArrowStackDepth c where
   {-# INLINE depth #-}
 
 
-class (Arrow c, Profunctor c) => ArrowStackElements a c where
+class (Arrow c, Profunctor c) => ArrowStackElements a c | c -> a where
   elems :: c () [a]
   peek :: c () (Maybe a)
 
@@ -57,7 +58,6 @@ class (Arrow c, Profunctor c) => ArrowStackElements a c where
 
   elems = lift' elems
   peek = lift' peek
-
   {-# INLINE elems #-}
   {-# INLINE peek #-}
 

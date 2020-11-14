@@ -66,7 +66,7 @@ run env0 ss =
         transform (L.iso' (\(store,(env,stmts)) -> ((env,stmts),store))
                           (\((env,stmts),store) -> (store,(env,stmts))))
                   (L.iso' id id) $
-        fixpointAlgorithm $ filter isWhileLoop $ chaotic innermost in
+        fixpointAlgorithm $ filter isWhileLoop $ innermost in
 
   fmap (fmap (fmap fst)) <$>
     snd $

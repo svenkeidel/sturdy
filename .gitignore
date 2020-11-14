@@ -14,3 +14,5 @@ scheme/*.csv
 scheme/graph_files/*.png
 scheme/graph_files/gabriel/*.png
 scheme/graph_files/scala-am/*.png
+node_modules/
+*.yaml.lock

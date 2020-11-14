@@ -112,9 +112,11 @@ bounded (Interval lowerBound upperBound) (Interval i1 i2) (Interval j1 j2) =
             | otherwise -> upper
 
 widening :: Ord n => Widening (Interval (InfiniteNumber n))
-widening (Interval i1 i2) (Interval j1 j2) =
-  let (r1,r2) = (if i1 P./= j1 then NegInfinity else i1, if i2 P./= j2 then Infinity else i2)
-  in (if (i1,i2) P.== (r1,r2) || (j1,j2) P.== (r1,r2) then Stable else Unstable, Interval r1 r2)
+widening old@(Interval i1 i2) (Interval j1 j2) =
+    let r1 = if j1 >= i1 then i1 else NegInfinity in
+    let r2 = if j2 <= i2 then i2 else Infinity in
+    let new = Interval r1 r2 in
+    (if new ⊑ old then Stable else Unstable, new)
 
 metric :: Metric m n -> Metric (Interval m) (Product n n)
 metric m (Interval i1 i2) (Interval j1 j2) = Product (m i1 j1) (m i2 j2)

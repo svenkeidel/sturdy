@@ -122,6 +122,11 @@ isFunctionBody (_,(_,e)) = case e of
   _ -> False
 {-# INLINE isFunctionBody #-}
 
+isApplication :: (store,(env,Expr)) -> Bool
+isApplication (_,(_,e)) = case e of
+  App {} -> True
+  _ -> False
+
 freeVars :: Expr -> HashMap Expr (HashSet Text)
 freeVars e0 = execState (go e0) M.empty
   where

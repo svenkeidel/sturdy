@@ -25,7 +25,6 @@ import Control.Arrow.Store
 import Control.Arrow.Fail
 import Control.Arrow.Except
 import Control.Arrow.Trans
-import Control.Arrow.Fix.Context
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure
 import Control.Arrow.Fix
@@ -50,8 +49,7 @@ import Data.Coerce
 
 newtype EnvStoreT var addr val c x y = EnvStoreT (ReaderT (HashMap var addr) (StateT (HashMap addr val) c) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift, ArrowLowerBounded a,
-            ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont,
-            ArrowContext ctx)
+            ArrowFail e, ArrowExcept e, ArrowRun, ArrowCont)
 
 instance (Identifiable var, Identifiable addr, ArrowChoice c, Profunctor c) 
     => ArrowEnv var addr (EnvStoreT var addr val c) where

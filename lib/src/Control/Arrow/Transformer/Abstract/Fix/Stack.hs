@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -19,9 +20,10 @@ import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
 import           Control.Arrow.Fix.Cache as Cache
+import           Control.Arrow.Fix.CallCount
 import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,StackPointer,RecurrentCall(..))
 import qualified Control.Arrow.Fix.Stack as Stack
-import           Control.Arrow.Fix.Context (ArrowContext,ArrowJoinContext)
+import           Control.Arrow.Fix.Context (ArrowContext,ArrowCallSite)
 import           Control.Arrow.State
 import           Control.Arrow.Trans
 import           Control.Arrow.Order (ArrowLowerBounded)
@@ -41,9 +43,9 @@ import           Data.Ord(comparing)
 newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowStrict,ArrowTrans, ArrowLowerBounded z,
-            ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
-            ArrowState s,ArrowContext ctx, ArrowJoinContext u,
-            ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache, ArrowState s,
+            ArrowContext ctx a', ArrowCallSite lab, ArrowCallCount a',
+            ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph)
 
 runStackT :: (IsEmpty (stack a), Profunctor c) => StackT stack a c x y -> c x y
 runStackT (StackT f) = lmap (\x -> (empty,x)) (runReaderT f)
@@ -99,8 +101,6 @@ instance (Arrow c, Profunctor c) => ArrowStackElements a (StackT Stack a c) wher
       [] -> Nothing
       (x:_) -> Just x
   elems = lift $ arr $ \(st, ()) -> fst <$> sortBy (comparing snd) (M.toList (elems st))
-  {-# INLINE peek #-}
-  {-# INLINE elems #-}
 
 -- Stack with a monotone component ------------------------------------------------------
 -- data Monotone b where

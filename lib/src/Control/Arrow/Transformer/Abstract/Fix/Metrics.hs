@@ -12,7 +12,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Transformer.Abstract.Fix.Metrics where
 
-import           Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,elem,product,(**))
+import           Prelude hiding (pred,lookup,map,head,iterate,(.),id,truncate,elem,product,(**),elem)
 
 import           Control.Category
 import           Control.Arrow
@@ -23,10 +23,10 @@ import           Control.Arrow.Trans
 import           Control.Arrow.Fix.Metrics (ArrowMetrics)
 import qualified Control.Arrow.Fix.Metrics as F
 import           Control.Arrow.Fix.ControlFlow as CF
-import           Control.Arrow.Fix.Chaotic as Chaotic
+import           Control.Arrow.Fix.SCC as SCC
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.Stack as Stack
-import           Control.Arrow.Fix.Context(ArrowContext)
+import           Control.Arrow.Fix.Context(ArrowCallSite)
 
 import           Control.Arrow.Transformer.State
 
@@ -42,9 +42,9 @@ import           Text.Printf
 
 newtype MetricsT metric a c x y = MetricsT (StateT (metric a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLowerBounded z,
-            ArrowComponent a,ArrowInComponent a,ArrowControlFlow stmt,
-            ArrowStackDepth,ArrowStackElements a,ArrowContext ctx,ArrowTopLevel,
-            ArrowGetCache cache, ArrowPrimitive)
+            ArrowSCC a, ArrowControlFlow stmt,
+            ArrowStackDepth,ArrowStackElements a,ArrowCallSite ctx,ArrowTopLevel,
+            ArrowGetCache cache, ArrowPrimitive, ArrowCFG graph)
 
 instance (IsEmpty (metrics a), ArrowRun c) => ArrowRun (MetricsT metrics a c) where
   type Run (MetricsT metrics a c) x y = Run c x (metrics a,y)
@@ -61,11 +61,17 @@ instance (Profunctor c,ArrowApply c) => ArrowApply (MetricsT metrics a c) where
   app = MetricsT (app .# first coerce)
   {-# INLINE app #-}
 
-instance ArrowState s c => ArrowState s (MetricsT metrics a c) where
-  get = lift' get
-  put = lift' put
-  {-# INLINE get #-}
-  {-# INLINE put #-}
+--instance ArrowState s c => ArrowState s (MetricsT metrics a c) where
+--  get = lift' get
+--  put = lift' put
+--  {-# INLINE get #-}
+--  {-# INLINE put #-}
+
+--instance (Arrow c, Profunctor c) => ArrowState (Store addr val) (EnvStoreT var addr val c) where
+--  get = EnvStoreT get
+--  put = EnvStoreT put
+--  {-# INLINE get #-}
+--  {-# INLINE put #-}
 
 -- Basic Metric ----------------------------------------------------------------
 newtype Metrics a = Metrics (HashMap a Metric)
@@ -122,7 +128,7 @@ instance (Identifiable a, Arrow c,Profunctor c) => ArrowMetrics a (MetricsT Metr
 instance (Identifiable a, ArrowStack a c) => ArrowStack a (MetricsT Metrics a c) where
   elem = MetricsT $ proc a -> do
     modifyMetric incrementStackLookups -< a
-    lift' elem -< a
+    lift' Stack.elem -< a
   push f = lift $ lmap (\(m, (a, x)) -> (a, (m, x))) (push (unlift f))
   {-# INLINE elem #-}
   {-# INLINE push #-}
@@ -216,7 +222,7 @@ instance (Identifiable a', Arrow c,Profunctor c) => ArrowMetrics (a,a') (Metrics
 instance (Identifiable b, ArrowStack (a,b) c) => ArrowStack (a,b) (MetricsT Monotone (a,b) c) where
   elem = MetricsT $ proc x@(_,b) -> do
     modifyMetric' incrementStackLookups -< b
-    lift' elem -< x
+    lift' Stack.elem -< x
   push f = lift $ lmap (\(m, (a, x)) -> (a, (m, x))) (push (unlift f))
   {-# INLINE elem #-}
   {-# INLINE push #-}

@@ -45,7 +45,7 @@ newtype ValueT val c x y = ValueT { runValueT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice, ArrowConst r,
             ArrowFrame frame, ArrowEnv var val', ArrowLetRec var val', ArrowStore addr val',
             ArrowExcept exc,ArrowFail e,
-            ArrowReader r, ArrowState s, ArrowCont, ArrowContext ctx)
+            ArrowReader r, ArrowState s, ArrowCont, ArrowCallSite ctx)
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ValueT val c) where
   app = lift (app .# first coerce)

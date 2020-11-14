@@ -24,6 +24,7 @@ import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
 import           Control.Arrow.Trans
 import           Control.Arrow.State
+import           Control.Arrow.Fix.CallCount as CallCount
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
 import           Control.Arrow.Fix.Context as Context
 import           Control.Arrow.Fix.Cache as Cache
@@ -49,7 +50,8 @@ import           GHC.Exts
 
 newtype CacheT cache a b c x y = CacheT { unCacheT :: StateT (cache a b) c x y}
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,ArrowTrans,
-            ArrowState (cache a b),ArrowControlFlow stmt, ArrowPrimitive)
+            ArrowState (cache a b),ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph,
+            ArrowCallCount a', ArrowCallSite ctx, ArrowContext ctx a')
 
 instance (IsEmpty (cache a b), ArrowRun c) => ArrowRun (CacheT cache a b c) where
   type Run (CacheT cache a b c) x y = Run c x (cache a b,y)
@@ -61,10 +63,6 @@ instance ArrowLift (CacheT cache a b c) where
 
 instance (Arrow c, Profunctor c) => ArrowGetCache (cache a b) (CacheT cache a b c) where
   getCache = CacheT get
-
-instance (Arrow c, ArrowContext ctx c) => ArrowContext ctx (CacheT cache a b c) where
-  localContext (CacheT f) = CacheT (localContext f)
-  {-# INLINE localContext #-}
 
 instance (Profunctor c,ArrowApply c) => ArrowApply (CacheT cache a b c) where
   app = CacheT (app .# first coerce)
@@ -161,13 +159,6 @@ instance (Identifiable k, Arrow c, Profunctor c, ArrowCache a b (CacheT cache a 
   {-# SCC write #-}
   {-# SCC update #-}
   {-# SCC setStable #-}
-
-instance (Identifiable k, IsEmpty (cache a b), ArrowApply c, Profunctor c, ArrowJoinContext a (CacheT cache a b c)) => ArrowJoinContext (k,a) (CacheT (Group cache) (k,a) b c) where
-  type Widening (CacheT (Group cache) (k,a) b c) = Context.Widening (CacheT cache a b c)
-  joinByContext = proc (k,a) -> do
-    a' <- withGroup joinByContext -< (k,a)
-    returnA -< (k,a')
-  {-# INLINE joinByContext #-}
 
 withGroup :: (Identifiable k, IsEmpty (cache a b),
               Profunctor c, Arrow c)
@@ -449,142 +440,3 @@ instance (Arrow c, Profunctor c) => ArrowIterateCache (s,a) (s,b) (CacheT Monoto
     put -< MonotoneFactor sNew empty
     returnA -< ((sNew,a),(sNew,b))
   {-# INLINE nextIteration #-}
-
------- Product Cache ------
--- data (**) cache1 cache2 a b where
---   Product :: cache1 a1 b1 -> cache2 a2 b2 -> (**) cache1 cache2 (a1,a2) (b1,b2)
-
--- instance (IsEmpty (cache1 a1 b1), IsEmpty (cache2 a2 b2)) => IsEmpty ((**) cache1 cache2 (a1,a2) (b1,b2)) where
---   empty = Product empty empty
-
--- instance (Show (cache1 a1 b1), Show (cache2 a2 b2)) => Show ((**) cache1 cache2 (a1,a2) (b1,b2)) where
---   show (Product c1 c2) = show (c1,c2)
-
--- instance (Arrow c, Profunctor c, ArrowCache a1 b1 (CacheT cache1 a1 b1 c), ArrowCache a2 b2 (CacheT cache2 a2 b2 c))
---   => ArrowCache (a1,a2) (b1,b2) (CacheT (cache1 ** cache2) (a1,a2) (b1,b2) c) where
---   type Widening (CacheT (cache1 ** cache2) (a1,a2) (b1,b2) c) = (Widening (CacheT cache1 a1 b1 c), Widening (CacheT cache2 a2 b2 c))
---   initialize = initialize ** initialize
---   lookup = rmap lubMaybe (lookup ** lookup)
---   update = dimap (\((a1,a2),(b1,b2)) -> ((a1,b1),(a2,b2))) lubStable (update ** update)
---   write = dimap (\((a1,a2),(b1,b2),s) -> ((a1,b1,s),(a2,b2,s))) (const ()) (write ** write)
---   setStable = dimap (\(s,(a1,a2)) -> ((s,a1),(s,a2))) (const ()) (setStable ** setStable)
---   {-# INLINE initialize #-}
---   {-# INLINE lookup #-}
---   {-# INLINE write #-}
---   {-# INLINE update #-}
---   {-# INLINE setStable #-}
-
--- (**) :: (Profunctor c, Arrow c) => CacheT cache1 a1 b1 c x1 y1 -> CacheT cache2 a2 b2 c x2 y2 -> CacheT (cache1 ** cache2) (a1,a2) (b1,b2) c (x1,x2) (y1,y2)
--- (**) f g = lift $ \(w1,w2) -> dimap (\(Product cache1 cache2,(x1,x2)) -> ((cache1,x1),(cache2,x2))) (\((cache1,x1),(cache2,x2)) -> (Product cache1 cache2,(x1,x2))) (unlift f w1 *** unlift g w2)
--- {-# INLINE (**) #-}
-
--- lubMaybe :: (Maybe (Stable,b1), Maybe (Stable,b2)) -> Maybe (Stable,(b1,b2))
--- lubMaybe (Just (s1,b1), Just (s2,b2)) = Just (s1 ⊔ s2,(b1,b2))
--- lubMaybe _ = Nothing
-
--- lubStable :: ((Stable,a1,b1),(Stable,a2,b2)) -> (Stable,(a1,a2),(b1,b2))
--- lubStable ((s1,a1,b1),(s2,a2,b2)) = (s1 ⊔ s2,(a1,a2),(b1,b2))
--- {-# INLINE lubStable #-}
-
------- Second Projection ------
-data Proj2 cache a b where
-  Proj2 :: cache a b -> Proj2 cache (u,a) b
-
--- type instance Widening (Proj2 cache (u,a) b) = Widening (cache a b)
-
-instance IsEmpty (cache a b) => IsEmpty (Proj2 cache (u,a) b) where
-  empty = Proj2 empty
-  {-# INLINE empty #-}
-
--- NOTE: A cache which ignores one of its inputs is possibly unsound.
--- instance (Arrow c, Profunctor c, ArrowCache a b (CacheT cache a b c)) => ArrowCache (u,a) b (CacheT (Proj2 cache) (u,a) b c) where
---   initialize = p2 initialize
---   lookup = p2 lookup
---   update = lmap assoc2 (p2 update)
---   write = lmap (\((u,a),b,s) -> (u,(a,b,s))) (p2 write)
---   setStable = lmap (\(s,(u,a)) -> (u,(s,a))) (p2 setStable)
---   {-# INLINE initialize #-}
---   {-# INLINE lookup #-}
---   {-# INLINE update #-}
---   {-# INLINE write #-}
---   {-# INLINE setStable #-}
-
--- p2 :: Profunctor c => CacheT cache a b c x2 y -> CacheT (Proj2 cache) (u,a) b c (x1,x2) y
--- p2 f = lift $ \widen -> dimap (\(Proj2 cache,(_,a)) -> (cache,a)) (first Proj2) (unlift f widen)
--- {-# INLINE p2 #-}
-
-instance (Arrow c, Profunctor c, ArrowJoinContext a (CacheT cache a b c)) => ArrowJoinContext (u,a) (CacheT (Proj2 cache) (u,a) b c) where
-  type Widening (CacheT (Proj2 cache) (u,a) b c) = Context.Widening (CacheT cache a b c)
-  joinByContext = lift $
-    dimap (\(Proj2 cache,(u,a)) -> (u,(cache,a))) (\(u,(cache,a)) -> (Proj2 cache,(u,a)))
-          (second (unlift (joinByContext :: CacheT cache a b c a a)))
-  {-# INLINE joinByContext #-}
-
-
------- Context ------
-data Context ctx cache a b = Context (ctx a b) (cache a b)
-
-instance (IsEmpty (ctx a b), IsEmpty (cache a b)) => IsEmpty (Context ctx cache a b) where
-  empty = Context empty empty
-  {-# INLINE empty #-}
-
-instance (Arrow c, Profunctor c, ArrowCache a b (CacheT cache a b c)) => ArrowCache a b (CacheT (Context ctx cache) a b c) where
-  type Widening (CacheT (Context ctx cache) a b c) = Cache.Widening (CacheT cache a b c)
-  initialize = withCache initialize
-  lookup = withCache lookup
-  update = withCache update
-  write = withCache write
-  setStable = withCache setStable
-  {-# INLINE initialize #-}
-  {-# INLINE lookup #-}
-  {-# INLINE update #-}
-  {-# INLINE write #-}
-  {-# INLINE setStable #-}
-
--- instance (Arrow c, Profunctor c, ArrowIterate (CacheT cache a b c)) => ArrowIterate (CacheT (Context ctx cache) a b c) where
---   nextIteration = withCache nextIteration
---   isStable = withCache isStable
---   {-# INLINE nextIteration #-}
---   {-# INLINE isStable #-}
-
-instance (Arrow c, Profunctor c, ArrowJoinContext a (CacheT ctx a b c)) => ArrowJoinContext a (CacheT (Context ctx cache) a b c) where
-  type Widening (CacheT (Context ctx cache) a b c) = Context.Widening (CacheT ctx a b c)
-  joinByContext = withCtx joinByContext
-  {-# INLINE joinByContext #-}
-
-withCache :: (Profunctor c, Arrow c) => CacheT cache a b c x y -> CacheT (Context ctx cache) a b c x y
-withCache f = lift $ dimap (\(Context ctx cache,x) -> (ctx,(cache,x))) (\(ctx,(cache,x2)) -> (Context ctx cache,x2)) (second (unlift f))
-{-# INLINE withCache #-}
-
-withCtx :: (Profunctor c, Arrow c) => CacheT ctx a b c x y -> CacheT (Context ctx cache) a b c x y
-withCtx f = lift $ dimap (\(Context ctx cache, a) -> (cache,(ctx,a))) (\(cache,(ctx,a)) -> (Context ctx cache,a)) (second (unlift f))
-{-# INLINE withCtx #-}
-
------- Context Cache ------
-newtype CtxCache ctx a b = CtxCache (HashMap ctx a)
-
--- type instance Widening (CtxCache ctx a b) = W.Widening a
-
-instance IsEmpty (CtxCache ctx a b) where
-  empty = CtxCache empty
-
-instance (Show ctx, Show a) => Show (CtxCache ctx a b) where
-  show (CtxCache m) = show (M.toList m)
-
-instance (Identifiable ctx, PreOrd a, Profunctor c, ArrowChoice c, ArrowContext ctx c) => ArrowJoinContext a (CacheT (CtxCache ctx) a b c) where
-  type Widening (CacheT (CtxCache ctx) a b c) = W.Widening a
-  joinByContext = lift $ proc (CtxCache cache, a) -> do
-    ctx <- Context.askContext -< ()
-    returnA -< case M.lookup ctx cache of
-      -- If there exists a stable cached entry and the actual input is
-      -- smaller than the cached input, recurse the cached input.
-      Just a'
-        | a ⊑ a' -> (CtxCache cache, a')
-        | otherwise ->
-          -- If there exists the actual input is not smaller than the cached
-          -- input, widen the input.
-          let (_,a'') = ?contextWidening a' a
-          in (CtxCache (M.insert ctx a'' cache),a'')
-      Nothing -> (CtxCache (M.insert ctx a cache),a)
-  {-# INLINE joinByContext #-}
-
