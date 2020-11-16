@@ -1,5 +1,4 @@
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -9,12 +8,11 @@ import           Data.Text(Text,unpack)
 import           Data.Hashable
 import           Data.Label
 import           Data.String
-import           Data.Lens (Prism')
-import qualified Data.Lens as L
 import           Data.HashMap.Lazy(HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.HashSet(HashSet)
 import qualified Data.HashSet as H
+import           Data.Text.Prettyprint.Doc
 
 import Control.Monad.State
 
@@ -25,6 +23,7 @@ data Expr
   | Lam [Text] Expr Label
   | App Expr [Expr] Label
   | Zero Label
+  | Mult Expr Expr Label
   | Succ Expr Label
   | Pred Expr Label
   | IfZero Expr Expr Expr Label
@@ -52,6 +51,9 @@ succ e = Succ <$> e <*> fresh
 pred :: State Label Expr -> State Label Expr
 pred e = Pred <$> e <*> fresh
 
+mult :: State Label Expr -> State Label Expr -> State Label Expr
+mult e1 e2 = Mult <$> e1 <*> e2 <*> fresh
+
 ifZero :: State Label Expr -> State Label Expr -> State Label Expr -> State Label Expr
 ifZero e1 e2 e3 = IfZero <$> e1 <*> e2 <*> e3 <*> fresh
 
@@ -78,6 +80,10 @@ instance Show Expr where
       $ showsPrec (app_prec + 1) e1
       . showString " "
       . showsPrec (app_prec + 1) e2
+    Mult e1 e2 _ -> showParen (d > mult_prec)
+      $ showsPrec (mult_prec + 1) e1
+      . showString " * "
+      . showsPrec (mult_prec + 1) e2
     Lam x e2 _ -> showParen (d > lam_prec)
       $ showString "λ"
       . showString (unwords (map unpack x))
@@ -86,6 +92,10 @@ instance Show Expr where
     where
       app_prec = 10
       lam_prec = 9
+      mult_prec = 8
+
+instance Pretty Expr where
+  pretty = viaShow
 
 instance HasLabel Expr where
   label e = case e of
@@ -95,6 +105,7 @@ instance HasLabel Expr where
     Zero l -> l
     Succ _ l -> l
     Pred _ l -> l
+    Mult _ _ l -> l
     IfZero _ _ _ l -> l
     Let _ _ l -> l
     Apply _ l -> l
@@ -105,11 +116,16 @@ instance IsString (State Label Expr) where
 instance Hashable Expr where
   hashWithSalt s e = s `hashWithSalt` label e
 
-apply :: Prism' (env,Expr) ((Expr,Label),env)
-apply = L.prism' (\((e',l),env) -> (env,Apply e' l))
-                 (\(env,e) -> case e of
-                      Apply e' l -> Just ((e',l),env)
-                      _ -> Nothing)
+isFunctionBody :: (store,(env,Expr)) -> Bool
+isFunctionBody (_,(_,e)) = case e of
+  Apply {} -> True
+  _ -> False
+{-# INLINE isFunctionBody #-}
+
+isApplication :: (store,(env,Expr)) -> Bool
+isApplication (_,(_,e)) = case e of
+  App {} -> True
+  _ -> False
 
 freeVars :: Expr -> HashMap Expr (HashSet Text)
 freeVars e0 = execState (go e0) M.empty
@@ -122,6 +138,7 @@ freeVars e0 = execState (go e0) M.empty
       Zero _ -> return H.empty
       Succ e1 _ -> go e1
       Pred e1 _ -> go e1
+      Mult e1 e2 _ -> H.union <$> go e1 <*> go e2
       IfZero e1 e2 e3 _ -> do
           m1 <- go e1
           m2 <- go e2

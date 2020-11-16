@@ -18,21 +18,25 @@ import           Syntax (TermPattern)
 import qualified Syntax as S
 import           Syntax hiding (Fail,TermPattern(..))
 import           Utils
-import           Concrete.TermEnvironment (EnvT)
-import qualified Concrete.TermEnvironment as Env
+import qualified Concrete.TermEnvironment as TEnv
 
 import           Control.Arrow
+import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Except
 import           Control.Arrow.Trans
+import           Control.Arrow.Transformer.Concrete.Environment as SEnv
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.Failure
-import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Value
 import           Control.Category
 import           Control.Monad (join)
 import           Control.Monad.Reader (replicateM)
 
+import           Data.Profunctor
+import           Data.Concrete.Closure
 import           Data.Concrete.Error (Error)
+import           Data.HashMap.Lazy(HashMap)
+import qualified Data.HashMap.Lazy as M
 import           Data.Constructor
 import           Data.Hashable
 import           Data.String (IsString(..))
@@ -49,15 +53,20 @@ data Term
   | NumberLiteral Int
   deriving (Eq)
 
-type TermEnv = Env.TermEnv Term
+type SEnv = HashMap StratVar Cls
+newtype Cls = Cls (Closure Strategy SEnv)
+
+type TermEnv = TEnv.TermEnv Term
 
 -- | Concrete interpreter arrow give access to the strategy
 -- environment, term environment, and handles anonymous exceptions.
-type Interp a b = ValueT Term (ReaderT StratEnv (EnvT Term (ExceptT () (FailureT String (->))))) a b
+type Interp a b = ValueT Term (SEnv.EnvT StratVar Cls (TEnv.EnvT Term (ExceptT () (FailureT String (->))))) a b
 
 -- | Executes a concrete interpreter computation.
 runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error String (Error () (TermEnv,b))
-runInterp f senv tenv t = run f (tenv, (senv, t))
+runInterp f senv tenv t = run f (tenv, (senv', t))
+  where
+    senv' = M.fromList [ (var,Cls (Closure strat senv')) | (var,strat) <- M.toList senv]
 
 -- | Concrete interpreter function.
 eval :: LStrat -> LStratEnv -> TermEnv -> Term -> Error String (Error () (TermEnv,Term))
@@ -142,6 +151,11 @@ instance (ArrowChoice c, ArrowExcept () c) => IsTerm Term (ValueT Term c) where
   {-# INLINE equal #-}
   {-# INLINE mapSubterms #-}
 
+instance ArrowClosure Strategy (Closure Strategy SEnv) c => ArrowClosure Strategy Cls (ValueT Term c) where
+  type Join y (ValueT Term c) = Cls.Join y c
+  closure = ValueT $ rmap Cls Cls.closure
+  apply (ValueT f) = ValueT $ lmap (first (\(Cls cl) -> cl)) (Cls.apply f)
+
 instance TermUtils Term where
   convertToList ts = case ts of
     (x:xs) -> Cons "Cons" [x,convertToList xs]
@@ -182,6 +196,10 @@ instance Arbitrary Term where
     h <- choose (0,7)
     w <- choose (0,4)
     arbitraryTerm h w
+
+instance IsClosure Cls SEnv where
+  mapEnvironment f (Cls cl) = Cls (fmap f cl)
+  traverseEnvironment f (Cls cl) = Cls <$> traverse f cl
 
 similar :: Gen (Term,Term)
 similar = do

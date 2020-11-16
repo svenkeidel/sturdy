@@ -5,13 +5,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-incomplete-patterns #-}
 module Data.Abstract.Except where
 
 import Prelude hiding (id,(.))
 
-import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow hiding (ArrowMonad,(<+>))
 import Control.Arrow.Monad
 import qualified Control.Arrow.Order as O
 
@@ -23,6 +24,7 @@ import Data.Bifunctor (Bifunctor(bimap))
 import Data.Hashable
 import Data.Order hiding (lub)
 import Data.Traversable
+import Data.Text.Prettyprint.Doc
 
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
@@ -45,8 +47,14 @@ instance (Show x, Show e) => Show (Except e x) where
   show (Fail e) = "Fail " ++ show e
   show (SuccessOrFail e x) = "Success " ++ show x ++ " ⊔ Fail " ++ show e
 
+instance (Pretty e, Pretty a) => Pretty (Except e a) where
+  pretty (Fail e) = "Fail" <+> pretty e
+  pretty (Success a) = pretty a
+  pretty (SuccessOrFail e x) = "Success" <+> pretty x <+> "⊔" <+> "Fail" <+> pretty e
+
 instance (O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c where
-  mapA f = lmap toEither (arr Fail ||| rmap Success f ||| O.joinSecond (\(Fail e) (Success y) -> SuccessOrFail e y) (\(e,_) -> Fail e) (proc (_,x) -> rmap Success f -< x))
+  mapA f =
+    lmap toEither (arr Fail ||| rmap Success f ||| O.joinSecond (\(Fail e) (Success y) -> SuccessOrFail e y) (\(e,_) -> Fail e) (proc (_,x) -> rmap Success f -< x))
   {-# INLINABLE mapA #-}
 
 instance (Complete e, O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
@@ -72,11 +80,9 @@ instance (PreOrd e, PreOrd a) => PreOrd (Except e a) where
     (SuccessOrFail e a, SuccessOrFail e' b) -> e ⊑ e' && a ⊑ b
     (Fail e, SuccessOrFail e' _) -> e ⊑ e'
     (_, _) -> False
-  {-# INLINE (⊑) #-}
 
 instance (Complete e, Complete a) => Complete (Except e a) where
   (⊔) = toJoin2 widening (⊔) (⊔)
-  {-# INLINE (⊔) #-}
 
 widening :: Widening e -> Widening a -> Widening (Except e a)
 widening we wa m1 m2 = case (m1,m2) of
@@ -92,7 +98,7 @@ widening we wa m1 m2 = case (m1,m2) of
        let (s,e'') = e `we` e'
            (s',z)  = x `wa` y
        in (s ⊔ s',SuccessOrFail e'' z)
-{-# INLINE widening #-}
+{-# NOINLINE widening #-}
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeCompletion a)) => Complete (FreeCompletion (Except e a)) where
   Lower m1 ⊔ Lower m2 = case bimap Lower Lower m1 ⊔ bimap Lower Lower m2 of
@@ -101,11 +107,9 @@ instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeComplet
     SuccessOrFail (Lower e) (Lower a) -> Lower (SuccessOrFail e a)
     _ -> Top
   _ ⊔ _ = Top
-  {-# INLINE (⊔) #-}
 
 instance (UpperBounded e, UpperBounded a) => UpperBounded (Except e a) where
   top = SuccessOrFail top top
-  {-# INLINE top #-}
 
 instance (TypeError ('Text "Except does not have a lower bound. You probably want to use bottom of Data.Abstract.Terminating"), PreOrd a, PreOrd e) => LowerBounded (Except e a) where
   bottom = error "do not implement"
@@ -127,13 +131,16 @@ instance Functor (Except e) where
     Success a -> Success (f a)
     Fail e -> Fail e
     SuccessOrFail e a -> SuccessOrFail e (f a)
+  {-# INLINE fmap #-}
 
 instance Complete e => Applicative (Except e) where
   pure = return
   (<*>) = ap
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Complete e => Monad (Except e) where
-  return = arr Success
+  return = Success
   x >>= k = case x of
     Success y -> k y
     Fail e -> Fail e
@@ -141,7 +148,8 @@ instance Complete e => Monad (Except e) where
       Success z -> SuccessOrFail e z
       Fail e' -> Fail (e ⊔ e')
       SuccessOrFail e' z -> SuccessOrFail (e ⊔ e') z
-
+  {-# INLINE return #-}
+  {-# INLINE (>>=) #-}
 
 instance Foldable (Except e) where
   foldMap = foldMapDefault

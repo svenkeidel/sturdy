@@ -15,23 +15,27 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -fsimpl-tick-factor=200 -fno-warn-partial-type-signatures #-}
+{-# OPTIONS_GHC -fsimpl-tick-factor=200 -fno-warn-redundant-constraints -fno-warn-partial-type-signatures #-}
 module ContextSensitivitySpec where
 
 import           Prelude hiding (lookup,Bounded,fail,Bool)
 
-import           TestPrograms
+import           TestPrograms hiding (Fun(..))
 
 import           Control.Monad(forM_)
 import           Control.Arrow
 import           Control.Arrow.Fix as F
+import           Control.Arrow.Fix.Context(ArrowContext,callsiteSensitive)
+import           Control.Arrow.Fix.Chaotic
 import qualified Control.Arrow.Trans as Arrow
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Transformer.Abstract.Fix.Trace
+import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache
-import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache hiding (Widening)
+import           Control.Arrow.Transformer.Abstract.Fix.Context as Ctx
+import           Control.Arrow.Transformer.Abstract.Fix.CallSite as CallSite
 
 import qualified Data.Abstract.Boolean as Abs
 import           Data.Abstract.Terminating (Terminating)
@@ -44,6 +48,7 @@ import           Data.Boolean
 import           Data.Identifiable
 import           Data.Order
 import           Data.Hashable
+import           Data.Text.Prettyprint.Doc
 
 import           GHC.Generics
 
@@ -57,18 +62,29 @@ spec =
   -- do
   --describe "Parallel" (sharedSpec (\f -> snd . Arrow.run (toParallel f) (S.stackWidening ?stackWiden (S.parallel (T.widening ?widen)))))
   describe "Chaotic" $ do
-    describe "iterate inner component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst ?widenA . iterateInner) (T.widening ?widenB) a)
-    describe "iterate outer component" $
-      callsiteSpec (\f a -> snd $ Arrow.run (toChaotic f) (callsiteSensitive ?sensitivity fst ?widenA . iterateOuter) (T.widening ?widenB) a)
+    describe "inner component" $
+      callsiteSpec $ \f a ->
+        let ?contextWidening = ?widenA
+            ?cacheWidening = T.widening ?widenB in
+        let ?fixpointAlgorithm = fixpointAlgorithm (callsiteSensitive ?sensitivity fst . innermost) in
+        snd $ Arrow.run (f :: ChaoticT _ _ _) a
+    describe "outer component" $
+      callsiteSpec $ \f a ->
+        let ?contextWidening = ?widenA
+            ?cacheWidening = T.widening ?widenB in
+        let ?fixpointAlgorithm = fixpointAlgorithm (callsiteSensitive ?sensitivity fst . outermost) in
+        snd $ Arrow.run (f :: ChaoticT _ _ _) a
 
 data Val = Num IV | Unit | Top deriving (Show,Eq,Generic,Hashable)
+instance Pretty Val where pretty = viaShow
 
 type Line = Int
 
 {-# INLINE callsiteSpec #-}
 callsiteSpec :: (forall lab a b.
-                 (Show lab, Show a, Show b, Identifiable lab, Identifiable a, PreOrd a, Complete b,
+                 (Pretty lab, Show lab, PreOrd lab, Identifiable lab,
+                  Pretty a, Show a, PreOrd a, Identifiable a,
+                  Pretty b, Show b, Complete b, Pretty (CallString lab),
                   ?sensitivity :: Int, ?widenA :: Widening a, ?widenB :: Widening b)
                 => Arr (lab,a) b -> (lab,a) -> Terminating b) -> Spec
 callsiteSpec run = do
@@ -148,14 +164,15 @@ data Fun = Main | Fun1 | Fun2 | Id deriving (Show,Eq,Generic)
 instance Hashable Fun
 instance PreOrd Fun where
   e1 ⊑ e2 = e1 == e2
+instance Pretty Fun where
+  pretty = viaShow
 
-toChaotic :: (Identifiable lab, Identifiable a, Complete b)
-          => Arr (lab,a) b -> TerminatingT
-                          (FixT (lab,a) (Terminating b)
-                            (ChaoticT (lab,a)
-                              (StackT Stack (lab,a)
-                                (CacheT (Group Cache) (lab,a) (Terminating b)
-                                  (ContextT (CallString lab) a
-                                    (->)))))) (lab,a) b
-toChaotic x = x
-{-# INLINE toChaotic #-}
+type ChaoticT lab a b =
+  TerminatingT
+    (FixT
+      (ComponentT Component (lab,a)
+        (StackT Stack (lab,a)
+          (CacheT Cache (lab,a) (Terminating b)
+            (CallSiteT lab
+              (ContextT (Ctx.Second Context) (CallString lab) (lab,a)
+                (->))))))) (lab,a) b

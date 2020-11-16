@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 module Data.Abstract.FreeCompletion where
 
@@ -16,6 +17,7 @@ import Control.DeepSeq
 import Data.Abstract.Widening
 import Data.Abstract.Stable
 
+import Data.Text.Prettyprint.Doc
 import Data.Profunctor
 import Data.Hashable
 import Data.Order
@@ -30,6 +32,10 @@ instance Show a => Show (FreeCompletion a) where
   show Top = "⊤"
   show (Lower a) = show a
 
+instance Pretty a => Pretty (FreeCompletion a) where
+  pretty Top = "⊤"
+  pretty (Lower a) = pretty a
+
 instance NFData a => NFData (FreeCompletion a)
 
 instance Hashable a => Hashable (FreeCompletion a) where
@@ -40,11 +46,15 @@ instance Hashable a => Hashable (FreeCompletion a) where
 instance Applicative FreeCompletion where
   pure = return
   (<*>) = ap
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Monad FreeCompletion where
   return = Lower
   Lower x >>= k = k x
   Top >>= _ = Top
+  {-# INLINE return #-}
+  {-# INLINE (>>=) #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor FreeCompletion c where
   mapA f = lmap toEither (arr (const Top) ||| rmap Lower f)
@@ -141,7 +151,7 @@ widening wa (Lower a) (Lower a') = second Lower (a `wa` a')
 widening _ Top Top = (Stable,Top)
 widening _ (Lower _) Top = (Unstable,Top)
 widening _ Top (Lower _) = (Unstable,Top)
-{-# INLINE widening #-}
+{-# INLINABLE widening #-}
 
 fromCompletion :: a -> FreeCompletion a -> a
 fromCompletion a Top = a

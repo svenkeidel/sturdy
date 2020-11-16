@@ -1,0 +1,44 @@
+name:         sturdy-arrows
+version:      0.1.0.0
+synopsis:     Arrow Transformer Library used by Sturdy
+maintainer:   Sven Keidel <svenkeidel@gmail.com>
+license:      BSD3
+github:       svenkeidel/sturdy
+category:     Language
+description:
+  Similar to monads, arrows are an abstraction for effectful computations. Arrow
+  transformers allow to create arrow computations in a modular way by adding
+  effects to the inputs and outputs of a computation.
+
+  This library defines several arrow transformers similar to the monad
+  transformer library mtl. Its goal is to provide arrow type class instances
+  that generate efficient code when compiled.
+
+dependencies:
+  - base >= 4.10 && < 4.14
+  - comonad
+  - ghc-prim
+  - profunctors
+
+library:
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wredundant-constraints
+  source-dirs:
+    - src
+
+benchmarks:
+  arrow-transformers:
+    main: ArrowTransformerBench.hs
+    source-dirs:
+      - bench/transformer
+    dependencies:
+      - sturdy-arrows
+      - criterion
+      - deepseq
+      - dump-core
+    ghc-options: -fplugin=DumpCore -fplugin-opt DumpCore:core-html -O2

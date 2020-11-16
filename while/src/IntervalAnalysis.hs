@@ -17,7 +17,7 @@
 -- | Interval Analysis for the While language.
 module IntervalAnalysis where
 
-import           Prelude hiding (Bool(..),Bounded(..),(/),fail,(.))
+import           Prelude hiding (Bool(..),Bounded(..),(/),fail,(.),filter,id)
 import qualified Prelude as P
 
 import           Syntax
@@ -27,7 +27,9 @@ import qualified GenericInterpreter as Generic
 import           Control.Category
 import           Control.Arrow
 import           Control.Arrow.Fail as Fail
-import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix
+import           Control.Arrow.Fix.Chaotic(innermost)
+import           Control.Arrow.Fix.CallCount(unroll)
 import           Control.Arrow.Random
 import           Control.Arrow.Order
 import qualified Control.Arrow.Trans as Trans
@@ -37,9 +39,10 @@ import           Control.Arrow.Transformer.Abstract.Environment
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
-import           Control.Arrow.Transformer.Abstract.Fix.Context
-import           Control.Arrow.Transformer.Abstract.Fix.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.CallCount
+import           Control.Arrow.Transformer.Abstract.Fix.Component
+import           Control.Arrow.Transformer.Abstract.Fix.Context as Ctx
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
 import           Control.Arrow.Transformer.Abstract.Store
 import           Control.Arrow.Transformer.Abstract.Terminating
@@ -52,6 +55,8 @@ import           Data.Order
 import           Data.Label
 import           Data.Text (Text)
 import           Data.Utils
+import qualified Data.Lens as L
+import           Data.Text.Prettyprint.Doc
 
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
@@ -76,7 +81,6 @@ import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Stable
 import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
-import           Data.Abstract.CallString (CallString)
 
 import           GHC.Exts(IsString(..))
 import           GHC.Generics
@@ -86,91 +90,102 @@ import           Text.Printf
 data Val = BoolVal Bool | NumVal IV | TypeError (Pow String) deriving (Eq,Generic)
 type IV = Interval (InfiniteNumber Int)
 type Addr = FreeCompletion Label
-newtype Exception = Exception (Map Text Val) deriving (PreOrd,Complete,Show,Eq)
+type Env = SM.Map Text Addr
+type Store = Map Addr Val
+type Errors = Pow String
+newtype Exception = Exception (Map Text Val)
+  deriving (PreOrd,Complete,Show,Eq)
+
+type In = ((Env,[Statement]),Store)
+type Out = Terminating (Error Errors (Except Exception (Store, ())))
 
 -- | The interval analysis instantiates the generic interpreter
 -- 'Generic.run' with the components for fixpoint computation
 -- ('FixT'), termination ('TerminatingT'), failure ('ErrorT'), store
 -- ('StoreT'), environments ('EnvT'), and values ('IntervalT').
 run :: (?bound :: IV) => Int -> [(Text,Addr)] -> [LStatement] -> Terminating (Error (Pow String) (Except Exception (M.Map Addr Val)))
-run k env ss = fmap (fmap (fmap fst)) <$> snd $
+run k env0 ss =
+  let ?contextWidening = M.widening widenVal in
+  let ?cacheWidening = widenResult in
+  let ?fixpointAlgorithm =
+        transform (L.iso' (\(store,(env,stmts)) -> ((env,stmts),store))
+                          (\((env,stmts),store) -> (store,(env,stmts))))
+                  (L.iso' id id) $
+          fixpointAlgorithm $
+            filter isWhileLoop
+              $ unroll k (\((_,stmts),_) -> case stmts of (stmt:_) -> label stmt; [] -> -1)
+              . innermost
+  in
+
+  fmap (fmap (fmap fst)) <$> snd $
   Trans.run
     (Generic.run ::
-      Fix'
-        (ValueT Val
-          (EnvT SM.Map Text Addr
-            (StoreT Map Addr Val
-              (ExceptT Exception
-                (ErrorT (Pow String)
-                  (TerminatingT
-                    (FixT _ _
-                      (ChaoticT _
-                        (StackT Stack _
-                          (CacheT (Group Cache) (_,_) _
-                            (ContextT (CallString _) _
-                               (->)))))))))))) [Statement] ())
-      iterationStrategy
-      widenResult
-      (M.empty,(SM.fromList env, generate (sequence ss)))
-
+      (ValueT Val
+        (EnvT Env
+          (StoreT Store
+            (ExceptT Exception
+              (ErrorT Errors
+                (TerminatingT
+                  (FixT
+                    (ComponentT Component In
+                      (StackT Stack In
+                        (CacheT Cache In Out
+                          (CallCountT Label
+                            (ContextT (Ctx.Second Context) Label In
+                              (->))))))))))))) [Statement] ())
+      (M.empty,(SM.fromList env0, generate (sequence ss)))
   where
-    iterationStrategy = Fix.filter whileLoops
-                      $ callsiteSensitive @(((Expr,Statement,Label),[Statement]),(_,_)) k (thrd . fst . fst) widenEnvStore
-                      . iterateInner
-
-    widenEnvStore = M.widening widenVal W.** SM.widening W.finite
-    widenVal = widening (W.bounded ?bound I.widening)
+    widenVal = widening (I.bounded ?bound)
     widenExc (Exception m1) (Exception m2) = Exception <$> M.widening widenVal m1 m2
     widenResult = T.widening $ E.widening W.finite (Exc.widening widenExc (M.widening widenVal W.** W.finite))
-    thrd (_,_,z) = z
 
 deriving instance ArrowComplete () c => ArrowComplete () (ValueT Val c)
 
 instance (ArrowChoice c, Profunctor c) => ArrowAlloc Addr (ValueT Val c) where
   alloc = arr $ \(_,_,l) -> return l
 
-instance (IsString e, ArrowChoice c, ArrowFail e c) => IsVal Val (ValueT Val c) where
-  type JoinVal z (ValueT Val c) = ArrowComplete z (ValueT Val c)
+instance (IsString e, ArrowChoice c, ArrowFail e c, Fail.Join Val c) => IsVal Val (ValueT Val c) where
+  type JoinVal z (ValueT Val c) = (ArrowComplete z (ValueT Val c), Fail.Join z c)
 
   boolLit = arr $ \b -> case b of
     P.True -> BoolVal B.True
     P.False -> BoolVal B.False
   and = proc (v1,v2) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.and` b2)
-    _                       -> fail -< "Expected two booleans as arguments for 'and'"
+    _                       -> failString -< "Expected two booleans as arguments for 'and'"
   or = proc (v1,v2) -> case (v1,v2) of
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 `B.or` b2)
-    _                       -> fail -< "Expected two booleans as arguments for 'or'"
+    _                       -> failString -< "Expected two booleans as arguments for 'or'"
   not = proc v -> case v of
     BoolVal b -> returnA -< BoolVal (B.not b)
-    _         -> fail -< "Expected a boolean as argument for 'not'"
+    _         -> failString -< "Expected a boolean as argument for 'not'"
   numLit = proc x -> returnA -< NumVal (I.Interval (Number x) (Number x))
   add = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 + n2)
-    _                     -> fail -< "Expected two numbers as arguments for 'add'"
+    _                     -> failString -< "Expected two numbers as arguments for 'add'"
   sub = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 - n2)
-    _                     -> fail -< "Expected two numbers as arguments for 'sub'"
+    _                     -> failString -< "Expected two numbers as arguments for 'sub'"
   mul = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< NumVal (n1 * n2)
-    _                     -> fail -< "Expected two numbers as arguments for 'mul'"
+    _                     -> failString -< "Expected two numbers as arguments for 'mul'"
   div = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> case n1 / n2 of
-      F.Fail e     -> fail -< (fromString e)
+      F.Fail e     -> failString -< (fromString e)
       F.Success n3 -> returnA -< NumVal n3
-    _              -> fail -< "Expected two numbers as arguments for 'mul'"
+    _              -> failString -< "Expected two numbers as arguments for 'mul'"
   eq = proc (v1,v2) -> case (v1,v2) of
     (NumVal x,NumVal y)     -> returnA -< BoolVal (x E.== y)
     (BoolVal b1,BoolVal b2) -> returnA -< BoolVal (b1 E.== b2)
-    _                       -> fail -< "Expected two values of the same type as arguments for 'eq'"
+    _                       -> failString -< "Expected two values of the same type as arguments for 'eq'"
   lt = proc (v1,v2) -> case (v1,v2) of
     (NumVal n1,NumVal n2) -> returnA -< BoolVal (n1 O.< n2)
-    _                     -> fail -< "Expected two numbers as arguments for 'lt'"
+    _                     -> failString -< "Expected two numbers as arguments for 'lt'"
   if_ f1 f2 = proc (v,(x,y)) -> case v of
     BoolVal B.True  -> f1 -< x
     BoolVal B.False -> f2 -< y
     BoolVal B.Top   -> (f1 -< x) <⊔> (f2 -< y)
-    _               -> fail -< "Expected boolean as argument for 'if'"
+    _               -> failString -< "Expected boolean as argument for 'if'"
 
 instance ArrowChoice c => IsException Exception Val (ValueT Val c) where
   type JoinExc y (ValueT Val c) = ArrowComplete y (ValueT Val c)
@@ -190,7 +205,7 @@ instance PreOrd Val where
   _ ⊑ _ = P.False
 
 instance Complete Val where
-  (⊔) = W.toJoin widening (⊔)
+  (⊔) = W.toJoin1 widening (⊔)
 
 widening :: Widening IV -> Widening Val
 widening w v1 v2 = case (v1,v2) of
@@ -207,4 +222,10 @@ instance Show Val where
   show (BoolVal b) = show b
   show (TypeError m) = printf "TypeError: " (show m)
 
+instance Pretty Val where
+  pretty = viaShow
+
 instance Hashable Val
+
+instance Pretty Exception where
+  pretty = viaShow

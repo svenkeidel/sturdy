@@ -10,6 +10,7 @@ module Control.Arrow.Transformer.Abstract.Error(ErrorT,runErrorT) where
 import Prelude hiding (id,lookup,(.),read,fail)
 
 import Control.Arrow
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Environment as Env
 import Control.Arrow.Closure as Cls
@@ -23,6 +24,8 @@ import Control.Arrow.Fix
 import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
 import Control.Category
+import Control.Arrow.LetRec
+import Control.Arrow.Fix.Context
 
 import qualified Data.Order as O
 import Data.Abstract.Error
@@ -33,16 +36,17 @@ import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
 newtype ErrorT e c x y = ErrorT (KleisliT (Error e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
-            ArrowConst r, ArrowState s, ArrowReader r,
-            ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
-            ArrowExcept e')
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun,
+            ArrowCont, ArrowConst r, ArrowState s, ArrowReader r,
+            ArrowEnv var val, ArrowLetRec var val, ArrowClosure expr cls, ArrowStore a b, ArrowCallSite ctx,
+            ArrowExcept e', ArrowLowerBounded a)
 
 runErrorT :: ErrorT e c x y -> c x (Error e y)
 runErrorT = coerce
 {-# INLINE runErrorT #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFail e (ErrorT e c) where
+  type Join x (ErrorT e c) = ()
   fail = lift $ arr Fail
   {-# INLINE fail #-}
 
@@ -50,12 +54,8 @@ instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ErrorT e c) 
   app = lift (app .# first coerce)
   {-# INLINE app #-}
 
-type instance Fix (ErrorT e c) x y = ErrorT e (Fix c x (Error e y))
-deriving instance (ArrowFix (Underlying (ErrorT e c) x y)) => ArrowFix (ErrorT e c x y)
-
-instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (ErrorT e c) where
-  bottom = lift bottom
-  {-# INLINE bottom #-}
+instance (ArrowFix (Underlying (ErrorT e c) x y)) => ArrowFix (ErrorT e c x y) where
+  type Fix (ErrorT e c x y) = Fix (Underlying (ErrorT e c) x y)
 
 deriving instance (ArrowChoice c, ArrowComplete (Error e y) c) => ArrowComplete y (ErrorT e c)
 

@@ -26,6 +26,8 @@ dependencies:
   - QuickCheck
   - hspec
 
+  # - dump-core
+
 data-files:
   - case-studies/arrows/arrows.aterm
   - case-studies/pcf/pcf.aterm
@@ -38,7 +40,7 @@ data-files:
 library:
   source-dirs:
     - src
-  ghc-options: -Wall
+  ghc-options: -Wall # -fplugin=DumpCore -fplugin-opt DumpCore:core-html
 
 executables:
   case-studies:

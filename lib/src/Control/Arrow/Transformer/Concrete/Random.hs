@@ -30,7 +30,7 @@ import           System.Random(StdGen,Random)
 import qualified System.Random as R
 
 newtype RandomT c x y = RandomT (StateT StdGen c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,ArrowRun,
             ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore var val)
 
@@ -41,8 +41,8 @@ runRandomT = coerce
 instance (Random v, Arrow c, Profunctor c) => ArrowRand v (RandomT c) where
   random = RandomT $ modify' (\((),gen) -> R.random gen)
 
-type instance Fix (RandomT c) x y  = RandomT (Fix c (StdGen,x) (StdGen,y))
-instance (Arrow c, ArrowFix (Underlying (RandomT c) x y)) => ArrowFix (RandomT c x y)
+instance (Arrow c, ArrowFix (Underlying (RandomT c) x y)) => ArrowFix (RandomT c x y) where
+  type Fix (RandomT c x y) = Fix (Underlying (RandomT c) x y)
 
 instance ArrowState s c => ArrowState s (RandomT c) where
   get = lift' get

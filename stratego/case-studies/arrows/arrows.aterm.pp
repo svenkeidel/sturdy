@@ -1256,10 +1256,6 @@ Specification(
             )
           , OpDecl(
               "Float"
-            , FunType([ConstType(SortNoArgs("RATIONAL"))], ConstType(SortNoArgs("Literal")))
-            )
-          , OpDecl(
-              "Float"
             , FunType([ConstType(SortNoArgs("FLOAT"))], ConstType(SortNoArgs("Literal")))
             )
           , OpDeclInj(
@@ -1335,9 +1331,6 @@ Specification(
             )
           , OpDeclInj(
               FunType([ConstType(SortNoArgs("String"))], ConstType(SortNoArgs("PRIMCHAR")))
-            )
-          , OpDeclInj(
-              FunType([ConstType(SortNoArgs("String"))], ConstType(SortNoArgs("RATIONAL")))
             )
           , OpDeclInj(
               FunType([ConstType(SortNoArgs("String"))], ConstType(SortNoArgs("FLOAT")))

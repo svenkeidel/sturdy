@@ -250,7 +250,6 @@ signature
     PrimChar         : PRIMCHAR -> Literal
     PrimInt          : PRIMINTEGER -> Literal
                      : String -> Literal
-    Float            : RATIONAL -> Literal
     Float            : FLOAT -> Literal
                      : Char -> Literal
     Int              : INTEGER -> Literal
@@ -272,7 +271,6 @@ signature
                      : String -> PRIMINTEGER
                      : String -> PRIMSTRING
                      : String -> PRIMCHAR
-                     : String -> RATIONAL
                      : String -> FLOAT
                      : String -> INTEGER
     QModId           : String * QModid -> QModid

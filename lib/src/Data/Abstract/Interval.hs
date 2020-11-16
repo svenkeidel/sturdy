@@ -1,14 +1,20 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.Abstract.Interval where
 
 import Prelude hiding (div,Bool(..),(==),(/),(<),Ordering)
 import qualified Prelude as P
+
+import Control.DeepSeq
+
 import Data.Hashable
 import Data.Order
 import Data.Metric
 import Data.Numeric
+import Data.Text.Prettyprint.Doc
 
 import Data.Abstract.Boolean
 import Data.Abstract.Equality
@@ -17,6 +23,7 @@ import Data.Abstract.Failure
 import Data.Abstract.InfiniteNumbers
 import Data.Abstract.Widening
 import Data.Abstract.Stable
+import Data.Abstract.Terminating
 
 import GHC.Generics
 
@@ -24,14 +31,23 @@ import GHC.Generics
 data Interval n = Interval n n
   deriving (Eq,Generic)
 
-instance Show n => Show (Interval n) where
-  show (Interval n m) = "["++ show n ++ "," ++ show m ++"]"
+instance Pretty n => Show (Interval n) where show = show . pretty
+instance Pretty n => Pretty (Interval n) where
+  pretty (Interval n m) = "[" <> pretty n <> "," <> pretty m <> "]"
 
 instance Ord x => PreOrd (Interval x) where
   Interval i1 i2 ⊑ Interval j1 j2 = j1 <= i1 && i2 <= j2
 
 instance Ord x => Complete (Interval x) where
-  Interval i1 i2 ⊔  Interval j1 j2 = Interval (min i1 j1) (max i2 j2)
+  Interval i1 i2 ⊔ Interval j1 j2 = Interval (min i1 j1) (max i2 j2)
+
+instance Ord x => CoComplete (Terminating (Interval x)) where
+  NonTerminating ⊓ _ = NonTerminating
+  _ ⊓ NonTerminating = NonTerminating
+  Terminating (Interval i1 i2) ⊓ Terminating (Interval j1 j2) = if x <= y then Terminating iv else NonTerminating
+    where iv@(Interval x y) = Interval (max i1 j1) (min i2 j2)
+
+instance NFData x => NFData (Interval x)
 
 instance (Num n, Ord n) => Num (Interval n) where
   Interval i1 i2 + Interval j1 j2 = Interval (i1 + j1) (i2 + j2)
@@ -73,17 +89,34 @@ withBounds1 f (Interval i1 i2) = Interval (min (f i1) (f i2)) (max (f i1) (f i2)
 
 withBounds2 :: Ord n => (n -> n -> n) -> Interval n -> Interval n -> Interval n
 withBounds2 f (Interval i1 i2) (Interval j1 j2) =
-    Interval (minimum [ f x y | x <- [i1,i2], y <- [j1,j2]]) 
+    Interval (minimum [ f x y | x <- [i1,i2], y <- [j1,j2]])
              (maximum [ f x y | x <- [i1,i2], y <- [j1,j2]])
 
 instance (Ord n, Bounded n) => UpperBounded (Interval n) where
   top = Interval minBound maxBound
 
+bounded :: Ord n => Interval (InfiniteNumber n) -> Widening (Interval (InfiniteNumber n))
+bounded (Interval lowerBound upperBound) (Interval i1 i2) (Interval j1 j2) =
+  ( if (i1,i2) P.== (r1,r2) || (j1,j2) P.== (r1,r2) then Stable else Unstable
+  , Interval r1 r2
+  )
+  where
+    lower = min i1 j1
+    upper = max i2 j2
+
+    r1 = if | lower P.< lowerBound -> NegInfinity
+            | upperBound P.< lower -> upperBound
+            | otherwise -> lower
+    r2 = if | upperBound P.< upper -> Infinity
+            | upper P.< lowerBound -> lowerBound
+            | otherwise -> upper
+
 widening :: Ord n => Widening (Interval (InfiniteNumber n))
-widening (Interval i1 i2) (Interval j1 j2) =
-  (if j1 P./= i1 || j2 P./= i2 then Unstable else Stable,
-    Interval (if j1 P./= i1 then NegInfinity else j1)
-             (if j2 P./= i2 then Infinity else i2))
+widening old@(Interval i1 i2) (Interval j1 j2) =
+    let r1 = if j1 >= i1 then i1 else NegInfinity in
+    let r2 = if j2 <= i2 then i2 else Infinity in
+    let new = Interval r1 r2 in
+    (if new ⊑ old then Stable else Unstable, new)
 
 metric :: Metric m n -> Metric (Interval m) (Product n n)
 metric m (Interval i1 i2) (Interval j1 j2) = Product (m i1 j1) (m i2 j2)

@@ -60,12 +60,9 @@ data Strat
   | Call StratVar [Strat] [TermVar] Label
   | Prim StratVar [Strat] [TermVar] Label
   | Apply Strat Label
-  deriving stock (Generic)
+  deriving stock (Generic,Eq)
   deriving PreOrd via Discrete Strat
   deriving anyclass NFData
-
-instance Eq Strat where
-  s1 == s2 = label s1 == label s2
 
 type LStrat = State Label Strat
 
@@ -598,9 +595,9 @@ stratCall = L.prism' (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term))))
                    _ -> Nothing)
 {-# INLINE stratCall #-}
 
-stratApply :: Prism' (tenv,(senv,(Strat,term))) ((Strat,senv),(term,tenv))
-stratApply = L.prism' (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term))))
+stratApply :: (Hashable tenv, Hashable senv, Hashable term) => Prism' (tenv,(senv,(Strat,term))) ((Hashed Strat, Hashed senv),(Hashed term,Hashed tenv))
+stratApply = L.prism' (\((strat,senv),(term,tenv)) -> (unhashed tenv,(unhashed senv,(unhashed strat,unhashed term))))
                 (\(tenv,(senv,(strat,term))) -> case strat of
-                   Apply {} -> Just ((strat,senv),(term,tenv))
+                   Apply {} -> Just ((hashed strat,hashed senv),(hashed term,hashed tenv))
                    _ -> Nothing)
 {-# INLINE stratApply #-}

@@ -8,7 +8,7 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 
 class IsSingleton f where
-  type Elem f :: *
+  type Elem f
   singleton :: Elem f -> f
 
 instance IsSingleton (Maybe a) where
