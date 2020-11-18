@@ -1,9 +1,12 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Plugin.Categories where
 
+import Prelude hiding (lookup,product,(<>))
 import GhcPlugins
-import Data.Maybe(fromJust)
+import Control.Monad
 
 plugin :: Plugin
 plugin = defaultPlugin
@@ -17,11 +20,16 @@ install _ todo = do
   return todo
 
 data CategoryExpr where
+  Primitive :: Var -> CategoryExpr
   Id :: CategoryExpr
   Compose :: CategoryExpr -> CategoryExpr -> CategoryExpr
   Product :: CategoryExpr -> CategoryExpr -> CategoryExpr
   Pi1 :: CategoryExpr
   Pi2 :: CategoryExpr
+  CoProduct :: CategoryExpr -> CategoryExpr -> CategoryExpr
+  In1 :: CategoryExpr
+  In2 :: CategoryExpr
+  Distribute :: CategoryExpr -- (A + B) × C -> (A × C) + (B × C)
   Unit :: CategoryExpr
   Apply :: CategoryExpr
   Curry :: CategoryExpr -> CategoryExpr
@@ -33,21 +41,61 @@ data CategoryExpr where
 (△) :: CategoryExpr -> CategoryExpr -> CategoryExpr
 (△) = Product
 
-fresh :: Monad m => CoreExpr -> m Var
-fresh = undefined
+(▽) :: CategoryExpr -> CategoryExpr -> CategoryExpr
+(▽) = CoProduct
 
-  -- prodName <- thNameToGhcName '(,)
-  -- prodCon <- lookupDataCon (fromJust prodName)
+(×) :: Ctx -> Ctx -> Ctx
+(×) = ProductCtx
 
-rewrite :: DataCon -> CoreExpr -> CoreM CategoryExpr
-rewrite prodCon e0 = case e0 of
-  (Lam x (Var y)) | x == y ->
-    return Id
-  (Lam x (App e1 e2)) -> do
-    e1' <- rewrite prodCon (Lam x e1)
-    e2' <- rewrite prodCon (Lam x e2)
-    return (Apply ◦ (e1' △ e2'))
-  (Lam x (Lam y e)) -> do
-    p <- fresh e0
-    rewrite (Lam p (Case (Var p) _ _ [(DataAlt prodCon, [x,y], e)]))
-rewrite (Lam x (Case (Var p) _ _ [(DataAlt prodCon, [x,y], e)])) = do
+data Ctx = Variable Var | ProductCtx Ctx Ctx | Empty
+
+data Constrs = Constrs
+  { isProduct :: forall a. NamedThing a => a -> Bool
+  , isLeft    :: forall a. NamedThing a => a -> Bool
+  , isRight   :: forall a. NamedThing a => a -> Bool
+  }
+
+rewrite :: Constrs -> Ctx -> CoreExpr -> CoreM CategoryExpr
+rewrite constrs ctx e0 = case e0 of
+  Var x -> case lookup x ctx of
+    Just e' -> return e'
+    Nothing -> return (primitive constrs x)
+  Lam x e -> do
+    f <- rewrite constrs (Variable x × ctx) e
+    return (Curry f)
+  App e1 e2 -> do
+    f <- rewrite constrs ctx e1
+    x <- rewrite constrs ctx e2
+    return (Apply ◦ (f △ x))
+  Case e1 _ _ [(DataAlt ctor, [x,y], e2)] | isProduct constrs ctor -> do
+    f <- rewrite constrs ctx e1
+    g <- rewrite constrs ((Variable x × Variable y) × ctx) e2
+    return (g ◦ (f △ Id))
+  Case e1 _ _ [(DataAlt c1, [x], e2), (DataAlt c2, [y], e3)] | isLeft constrs c1 && isRight constrs c2 -> do
+    f <- rewrite constrs ctx e1
+    g <- rewrite constrs (Variable x × ctx) e2
+    h <- rewrite constrs (Variable y × ctx) e3
+    return ((g ▽ h) ◦ Distribute ◦ (f △ Id))
+  Let (NonRec x e1) e2 ->
+    rewrite constrs ctx (App (Lam x e2) e1)
+  _ -> do
+    errorMsg $ "could not rewrite expression: " <> (ppr e0)
+    mzero
+
+lookup :: Var -> Ctx -> Maybe CategoryExpr
+lookup x (Variable y)
+  | x == y    = Just Id
+  | otherwise = Nothing
+lookup x (ProductCtx ctx1 ctx2) =
+  case (lookup x ctx1, lookup x ctx2) of
+    (Just f, _) -> return (Pi1 ◦ f)
+    (_, Just g) -> return (Pi2 ◦ g)
+    (Nothing, Nothing) -> Nothing
+lookup _ Empty = Nothing
+
+primitive :: Constrs -> Var -> CategoryExpr
+primitive constrs var
+  | isProduct constrs var = Curry (Curry ((Pi1 ◦ Pi2) △ Pi1))
+  | isLeft constrs var = Curry (In1 ◦ Pi1)
+  | isRight constrs var = Curry (In2 ◦ Pi1)
+  | otherwise = Primitive var
