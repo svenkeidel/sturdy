@@ -88,5 +88,5 @@ instance (ArrowChoice c, Profunctor c) => ArrowStack v (StackT v c) where
   popn = StackT $ modify $ arr $ \(n,st) -> splitAt (fromIntegral n) st
   pushn = StackT $ modify $ arr $ \(st',st) -> ((),st'++st)
 
-instance ArrowFix (Underlying (StackT v c) x y) => ArrowFix (StackT v c x y)
-type instance Fix (StackT v c) x y = StackT v (Fix c ([v],x) ([v],y))
+instance ArrowFix (Underlying (StackT v c) x y) => ArrowFix (StackT v c x y) where
+    type Fix (StackT v c x y) = Fix (Underlying (StackT v c) x y)--StackT v (Fix c ([v],x) ([v],y))
