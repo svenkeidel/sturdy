@@ -4,8 +4,8 @@ resolver: lts-16.21
 packages:
 - 'arrows'
 - 'backwards'
+- 'categories'
 - 'lib'
-- 'backwards'
 - 'pcf'
 - 'scheme'
 - 'while'
