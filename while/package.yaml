@@ -9,6 +9,8 @@ dependencies:
   - hashable
   - mtl
   - profunctors
+  - prettyprinter
+  - sturdy-arrows
   - sturdy-lib
   - random
   - text

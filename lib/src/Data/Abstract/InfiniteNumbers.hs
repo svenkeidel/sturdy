@@ -1,19 +1,26 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.Abstract.InfiniteNumbers where
 
 import Data.Order
 import Data.Hashable
 import Data.Metric
+import Data.Text.Prettyprint.Doc
+
+import Control.DeepSeq
 
 import GHC.Generics
 
 data InfiniteNumber a = NegInfinity | Number a | Infinity deriving (Eq,Ord,Generic)
 
-instance Show a => Show (InfiniteNumber a) where
-  show NegInfinity = "-∞"
-  show (Number n) = show n
-  show Infinity = "∞"
+instance NFData a => NFData (InfiniteNumber a)
+
+instance Pretty n => Show (InfiniteNumber n) where show = show . pretty
+instance Pretty n => Pretty (InfiniteNumber n) where
+  pretty NegInfinity = "-∞"
+  pretty (Number n) = pretty n
+  pretty Infinity = "∞"
 
 isNegative :: (Eq a,Num a) => a -> Bool
 isNegative x = signum x == -1

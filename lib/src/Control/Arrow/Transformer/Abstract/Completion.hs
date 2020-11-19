@@ -22,6 +22,7 @@ import Control.Arrow.Const
 import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
 import Control.Category
+import Control.Arrow.Fix.Context
 
 import Data.Abstract.FreeCompletion
 import Data.Abstract.Widening
@@ -33,10 +34,10 @@ import Data.Coerce
 -- | Allows to describe computations over non-completely ordered types.
 -- E.g. allows to join a computation of type 'c x [y]'.
 newtype CompletionT c x y = CompletionT (KleisliT FreeCompletion c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
-            ArrowFail e, ArrowExcept e)
+            ArrowFail e, ArrowExcept e, ArrowCallSite ctx)
 
 runCompletionT :: CompletionT c x y -> c x (FreeCompletion y)
 runCompletionT = coerce
@@ -44,12 +45,13 @@ runCompletionT = coerce
 
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (CompletionT c) where
   app = lift (app .# first coerce)
-type instance Fix (CompletionT c) x y = CompletionT (Fix c x (FreeCompletion y))
-deriving instance (ArrowFix (Underlying (CompletionT c) x y)) => ArrowFix (CompletionT c x y)
+
+instance (ArrowFix (Underlying (CompletionT c) x y)) => ArrowFix (CompletionT c x y) where
+  type Fix (CompletionT c x y) = Fix (Underlying (CompletionT c) x y)
 
 deriving instance (ArrowChoice c, ArrowComplete (FreeCompletion y) c) => ArrowComplete y (CompletionT c)
-deriving instance (ArrowChoice c, ArrowLowerBounded c) => ArrowLowerBounded (CompletionT c)
+deriving instance (ArrowChoice c, ArrowLowerBounded y c) => ArrowLowerBounded y (CompletionT c)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (CompletionT c) where
-  joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (return . f) (unlift g)
+  joinSecond lub f g = lift $ joinSecond (toJoin1 widening lub) (return . f) (unlift g)
   {-# INLINE joinSecond #-}

@@ -1,7 +1,8 @@
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 -- | Concrete semantics of PCF.
@@ -10,7 +11,7 @@ module ConcreteInterpreter where
 import Prelude hiding (fail,(.))
 
 import Control.Arrow
-import Control.Arrow.Fail
+import Control.Arrow.Fail as Fail
 import Control.Arrow.Closure as Cls
 import Control.Arrow.Trans
 import Control.Arrow.Transformer.Value
@@ -25,6 +26,7 @@ import qualified Data.HashMap.Lazy as M
 import Data.Text (Text)
 import Data.Label
 import Data.Profunctor
+import qualified Data.Function as Function
 
 import GHC.Generics(Generic)
 
@@ -39,11 +41,18 @@ data Val = NumVal Int | ClosureVal Cls deriving (Eq,Generic)
 -- implemented by instantiating the shared semantics with the concrete
 -- interpreter arrow `Interp`.
 evalConcrete :: [(Text,Val)] -> State Label Expr -> Error String Val
-evalConcrete env e = run (eval :: ValueT Val (EnvT Text Val (FailureT String (->))) Expr Val) (M.fromList env,generate e)
+evalConcrete env e = 
+  let ?fixpointAlgorithm = Function.fix in
+  run (eval :: 
+    ValueT Val 
+      (EnvT Env 
+        (FailureT String 
+          (->))) Expr Val)
+  (M.fromList env,generate e)
 
 -- | Concrete instance of the interface for value operations.
-instance (ArrowClosure Expr Cls c, ArrowChoice c, ArrowFail String c) => IsVal Val (ValueT Val c) where
-  type Join y (ValueT Val c) = ()
+instance (ArrowClosure Expr Cls c, ArrowChoice c, ArrowFail String c, Fail.Join Val c) => IsVal Val (ValueT Val c) where
+  type Join y (ValueT Val c) = (Fail.Join y c)
 
   succ = proc x -> case x of
     NumVal n -> returnA -< NumVal (n + 1)
@@ -52,6 +61,10 @@ instance (ArrowClosure Expr Cls c, ArrowChoice c, ArrowFail String c) => IsVal V
   pred = proc x -> case x of
     NumVal n -> returnA -< NumVal (n - 1)
     _ -> fail -< "Expected a number as argument for 'pred'"
+
+  mult = proc x -> case x of
+    (NumVal n, NumVal m) -> returnA -< NumVal (n * m)
+    _ -> fail -< "Expected two numbers as argument for 'mult'"
 
   zero = arr $ const (NumVal 0)
 
@@ -62,7 +75,7 @@ instance (ArrowClosure Expr Cls c, ArrowChoice c, ArrowFail String c) => IsVal V
 
 instance (ArrowChoice c, ArrowFail String c, ArrowClosure Expr Cls c)
     => ArrowClosure Expr Val (ValueT Val c) where
-  type Join y (ValueT Val c) = Cls.Join y c
+  type Join y Val (ValueT Val c) = (Cls.Join y Cls c, Fail.Join y c)
   closure = ValueT $ rmap ClosureVal Cls.closure
   apply (ValueT f) = ValueT $ proc (v,x) -> case v of
     ClosureVal cls -> Cls.apply f -< (cls,x)

@@ -2,17 +2,19 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.Abstract.Error where
 
-import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow hiding (ArrowMonad,(<+>))
 import Control.Arrow.Monad
 import Control.Monad
 import Control.Monad.Except
 import Control.DeepSeq
 
+import Data.String
 import Data.Profunctor
 import Data.Bifunctor hiding (second)
 import Data.Hashable
@@ -21,6 +23,7 @@ import Data.GaloisConnection
 import Data.Concrete.Powerset as C
 import Data.Identifiable
 import qualified Data.Concrete.Error as C
+import Data.Text.Prettyprint.Doc
 
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
@@ -36,6 +39,10 @@ instance (Show e,Show a) => Show (Error e a) where
   show (Fail e) = "Error " ++ show e
   show (Success a) = show a
 
+instance (Pretty e, Pretty a) => Pretty (Error e a) where
+  pretty (Fail e) = "Error" <+> pretty e
+  pretty (Success a) = pretty a
+
 instance (Hashable e, Hashable a) => Hashable (Error e a) where
   hashWithSalt s (Fail e)  = s `hashWithSalt` (0::Int) `hashWithSalt` e
   hashWithSalt s (Success a) = s `hashWithSalt` (1::Int) `hashWithSalt`  a
@@ -50,22 +57,29 @@ instance MonadError e (Error e) where
   catchError (Fail e) f = f e
   catchError (Success a) _ = Success a
 
+instance IsString e => MonadFail (Error e) where
+  fail e = Fail (fromString e)
+
 instance Applicative (Error e) where
   pure = return
   (<*>) = ap
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Monad (Error e) where
   return = Success
   Fail e >>= _ = Fail e
   Success a >>= k = k a
+  {-# INLINE return #-}
+  {-# INLINE (>>=) #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor (Error e) c where
   mapA f = lmap toEither (arr Fail ||| rmap Success f)
-  {-# INLINABLE mapA #-}
+  {-# INLINE mapA #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowMonad (Error e) c where
   mapJoinA f = lmap toEither (arr Fail ||| f)
-  {-# INLINABLE mapJoinA #-}
+  {-# INLINE mapJoinA #-}
 
 instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
   Success x ⊑ Success y = x ⊑ y
@@ -80,14 +94,23 @@ instance (PreOrd e, PreOrd a) => PreOrd (Error e a) where
 instance (Complete e,Complete a) => Complete (Error e a) where
   (⊔) = toJoin2 widening (⊔) (⊔)
 
-instance (PreOrd a, UpperBounded e) => UpperBounded (Error e a) where
-  top = Fail top
-
 widening :: Widening e -> Widening a -> Widening (Error e a)
 widening we _ (Fail a) (Fail b) = second Fail (a `we` b)
 widening _ wa (Success a) (Success b) = second Success (a `wa` b)
 widening _ _ (Fail a) (Success _) = (Unstable ,Fail a)
 widening _ _ (Success _) (Fail b) = (Unstable ,Fail b)
+
+instance (CoComplete e,CoComplete a) => CoComplete (Error e a) where
+  Fail x ⊓ Fail y = Fail (x ⊓ y)
+  Fail _ ⊓ Success y = Success y
+  Success x ⊓ Fail _ = Success x
+  Success x ⊓ Success y = Success (x ⊓ y)
+
+instance (PreOrd a, UpperBounded e) => UpperBounded (Error e a) where
+  top = Fail top
+
+instance (PreOrd e, LowerBounded a) => LowerBounded (Error e a) where
+  bottom = Success bottom
 
 instance (PreOrd e, PreOrd a, Complete (FreeCompletion e), Complete (FreeCompletion a)) => Complete (FreeCompletion (Error e a)) where
   Lower m1 ⊔ Lower m2 = case (bimap Lower Lower m1 ⊔ bimap Lower Lower m2) of

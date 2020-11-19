@@ -9,10 +9,12 @@ dependencies:
   - hashable
   - mtl
   - profunctors
+  - sturdy-arrows
   - sturdy-lib
   - text
   - transformers
   - unordered-containers
+  - prettyprinter
 
 library:
   source-dirs:

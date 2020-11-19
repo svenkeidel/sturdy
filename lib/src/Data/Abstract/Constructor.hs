@@ -33,13 +33,10 @@ instance PreOrd n => PreOrd (Constr n) where
 instance Complete n => Complete (Constr n) where
   Constr m1 ⊔ Constr m2 = Constr (M.unionWith (IM.unionWith (zipWith (⊔))) m1 m2)
 
-widening :: (Identifiable n,Complete n) => Widening n -> Widening (Constr n)
+widening :: (Complete n) => Widening n -> Widening (Constr n)
 widening w c1@(Constr m1) c2@(Constr m2) =
-  ( if size c1 < size c2 then Unstable else fst (sequenceA (M.intersectionWith (sequenceA <.> IM.intersectionWith (sequenceA <.> zipWith w)) m1 m2))
-  , c1 ⊔ c2)
-  where
-    (<.>) = (.) . (.)
-    infixr 9 <.>
+  let c3 = Constr (M.unionWith (IM.unionWith (zipWith (\x y -> snd (w x y)))) m1 m2)
+  in (if c3 ⊑ c1 && c3 ⊑ c2 then Stable else Unstable, c3)
 
 instance PreOrd n => LowerBounded (Constr n) where
   bottom = Constr M.empty
@@ -59,10 +56,10 @@ isEmpty :: Constr n -> Bool
 isEmpty (Constr n) = M.null n
 
 isSingleton :: (n -> Bool) -> Constr n -> Bool
-isSingleton isSing (Constr n) = M.size n == 1 && forAll n (\a -> IM.size a == 1 && forAll a (\l -> all isSing l))
+isSingleton isSing (Constr n) = M.size n == 1 && forAll n (\a -> IM.size a == 1 && forAll a (all isSing))
 
-size :: (Identifiable n, Complete n) => Constr n -> Int
-size c = length (toList c)
+-- size :: (Identifiable n, Complete n) => Constr n -> Int
+-- size c = length (toList c)
 
 removeEmpty :: Constr n -> Constr n
 removeEmpty (Constr m) = Constr (M.mapMaybe (\a -> if IM.null a then Nothing else Just a) m)

@@ -1,18 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
 module Data.TreeGrammar.NonTerminal(NonTerminal(..),fresh',Named,getName) where
 
 import Control.Monad.State
-import Data.Text(Text,pack,unpack)
+
 import Data.Hashable
+import Data.Kind
+import Data.Text(Text,pack,unpack)
+
 import Text.Printf
 
 class Show n => NonTerminal n where
-  type Gen n :: *
+  type Gen n
   fresh :: Maybe String -> State (Gen n) n
-  generate :: forall (g :: * -> (* -> *) -> *) t.
+  generate :: forall (g :: Type -> (Type -> Type) -> Type) t.
               State (Gen n) (g n t) -> g n t
 
 instance NonTerminal Int where

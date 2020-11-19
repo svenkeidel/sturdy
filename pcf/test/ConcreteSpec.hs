@@ -13,7 +13,7 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  sharedSpec (\env e -> toEither (evalConcrete env e)) (NumVal . fromIntegral)
+  sharedSpec (toEither . evalConcrete []) (NumVal . fromIntegral)
 
   describe "behavior specific to concrete semantics" $
     it "should analyse addition correctly" $ do

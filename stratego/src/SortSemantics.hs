@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures -fsimpl-tick-factor=800 #-}
 module SortSemantics where
 
 import           Prelude hiding ((.),fail)
@@ -22,7 +22,7 @@ import           Abstract.TermEnvironment
 import           Sort
 import           SortContext (Context,Signature(..))
 import qualified SortContext as Ctx
-import           Syntax (LStrat,LStratEnv)
+import           Syntax (Strat,LStrat,LStratEnv)
 import           Utils
 
 import           Control.Category
@@ -50,20 +50,24 @@ import           GHC.Exts(IsString(..))
 
 data Term = Term { sort :: Sort, context :: Context }
 
+{-# SPECIALIZE Generic.eval :: Strat -> Interp Term Term Term #-}
+
 eval :: (?sensitivity :: Int) => Int -> LStrat -> LStratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
 eval j lstrat lsenv ctx =
   let (strat,senv) = generate $ (,) <$> lstrat <*> lsenv
-  in runInterp (Generic.eval strat) termWidening senv ctx
+  in runInterp ((Generic.eval :: Strat -> Interp Term Term Term) strat ) termWidening senv ctx
   where
     termWidening :: Widening Term
-    termWidening (Term s _) (Term s' _) = let ~(st,s'') = Sort.widening j s s' in (st,Term s'' ctx)
+    termWidening (Term s _) (Term s' _) = let ~(st,s'') = Ctx.widening ctx j s s' in (st,Term s'' ctx)
 
 -- Instances -----------------------------------------------------------------------------------------
 instance (ArrowChoice c, ArrowApply c, ArrowComplete Term c, ArrowLowerBounded c, ArrowConst Context c, ArrowFail e c, ArrowExcept () c, IsString e)
     => IsTerm Term (ValueT Term c) where
   matchCons matchSubterms = proc (c,ps,t@(Term s ctx)) ->
     case (c,ps,s) of
-      -- (_,_,Bottom) -> returnA -< t
+      (_,_,Bottom) -> do
+          ss' <- matchSubterms -< (ps,[t | _ <- ps])
+          buildCons -< (c,ss')
       ("Cons",[_,_],_) | isList t -> (do
            let t' = Term (List Top) ctx ⊓ t
            ss <- matchSubterms -< (ps,[getListElem t', t'])

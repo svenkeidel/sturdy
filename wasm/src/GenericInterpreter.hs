@@ -1,8 +1,9 @@
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 -- | A generic interpreter for WebAssembly.
@@ -11,27 +12,27 @@ module GenericInterpreter where
 
 import Prelude hiding (Read, fail)
 
-import Control.Arrow
-import Control.Arrow.Except
+import           Control.Arrow
+import           Control.Arrow.Except
 import qualified Control.Arrow.Except as Exc
-import Control.Arrow.Fail
-import Control.Arrow.Fix
-import Control.Arrow.Reader
+import           Control.Arrow.Fail as Fail
+import           Control.Arrow.Fix
+import           Control.Arrow.Reader
 import qualified Control.Arrow.Utils as Arr
 
-import Data.Profunctor
-import Data.Text.Lazy (Text)
-import Data.Vector ((!), find)
-import Data.Word (Word32, Word64)
+import           Data.Profunctor
+import           Data.Text.Lazy (Text)
+import           Data.Vector ((!), find)
+import           Data.Word (Word32, Word64)
 
-import Language.Wasm.Structure hiding (exports)
-import Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance, ExportInstance(..), ExternalValue(..))
+import           Language.Wasm.Structure hiding (exports)
+import           Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance, ExportInstance(..), ExternalValue(..))
 
-import Numeric.Natural (Natural)
-import Text.Printf
+import           Numeric.Natural (Natural)
+import           Text.Printf
 
-import Frame
-import Stack
+import           Frame
+import           Stack
 
 data Exc v = Trap String | Jump Natural [v] | CallReturn [v]
 newtype Read = Read {labels :: [Natural]}
@@ -125,8 +126,12 @@ invokeExported ::
     ArrowWasmMemory addr bytes v c, HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
+    Fail.Join [v] c,
+    Fail.Join () c,
     ArrowFail String c,
-    ArrowFix (c [Instruction Natural] ()))
+    ArrowFix (c [Instruction Natural] ()),
+    ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
+    )
   => c (Text, [v]) [v]
 invokeExported = proc (funcName, args) -> do
   (_, modInst) <- frameData -< ()
@@ -140,8 +145,11 @@ invokeExternal ::
     ArrowWasmMemory addr bytes v c, HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
+    Fail.Join () c,
     ArrowFail String c,
-    ArrowFix (c [Instruction Natural] ()))
+    ArrowFix (c [Instruction Natural] ()),
+    ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
+    )
   => c (Int, [v]) [v]
 invokeExternal = proc (funcAddr, args) ->
   readFunction
@@ -180,7 +188,9 @@ eval ::
     ArrowWasmMemory addr bytes v c, HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
-    ArrowFix (c [Instruction Natural] ()))
+    ArrowFix (c [Instruction Natural] ()),
+    ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
+    )
   => c [Instruction Natural] ()
 eval = fix $ \eval' -> proc is -> case is of
   [] -> returnA -< ()
