@@ -14,10 +14,26 @@ plugin = defaultPlugin
   , pluginRecompile = purePlugin
   }
 
+toCCC :: (x -> y) -> c x y
+
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install _ todo = do
-  putMsgS "Hello!"
-  return todo
+  putMsg (ppr todo)
+  let (pre,post) = splitAt 5 todo
+  let addRules :: ModGuts -> CoreM ModGuts
+      addRules guts = return $ guts { mg_rules = mg_rules guts ++ rewriteRules }
+  return (pre ++ [CoreDoPluginPass "Category rewrite rules" addRules] ++ post)
+  where
+    rewriteRules :: Name -> [CoreRule]
+    rewriteRules trigger =
+      [ BuiltinRule
+        { ru_name = "Category Rewrite"
+        , ru_fn = trigger
+        , ru_nargs = 4
+        , ru_try = \dflags inScope _fn -> 
+        }
+      ]
+
 
 data CategoryExpr where
   Primitive :: Var -> CategoryExpr
@@ -55,7 +71,7 @@ data Constrs = Constrs
   , isRight   :: forall a. NamedThing a => a -> Bool
   }
 
-rewrite :: Constrs -> Ctx -> CoreExpr -> CoreM CategoryExpr
+rewrite :: Constrs -> Ctx -> CoreExpr -> Maybe CategoryExpr
 rewrite constrs ctx e0 = case e0 of
   Var x -> case lookup x ctx of
     Just e' -> return e'
@@ -78,9 +94,7 @@ rewrite constrs ctx e0 = case e0 of
     return ((g ▽ h) ◦ Distribute ◦ (f △ Id))
   Let (NonRec x e1) e2 ->
     rewrite constrs ctx (App (Lam x e2) e1)
-  _ -> do
-    errorMsg $ "could not rewrite expression: " <> (ppr e0)
-    mzero
+  _ -> Nothing
 
 lookup :: Var -> Ctx -> Maybe CategoryExpr
 lookup x (Variable y)
