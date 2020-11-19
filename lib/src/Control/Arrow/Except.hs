@@ -2,22 +2,33 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Arrow.Except where
 
 import Prelude hiding (id,(.))
 
 import Control.Category
-import Control.Arrow
+import Control.Arrow hiding (ArrowMonad)
+import Control.Arrow.Monad
+import Control.Arrow.Trans
+import Control.Arrow.Transformer.Cokleisli
+import Control.Arrow.Transformer.Const
+import Control.Arrow.Transformer.Kleisli
+import Control.Arrow.Transformer.Reader
+import Control.Arrow.Transformer.State
+import Control.Arrow.Transformer.Static
+import Control.Arrow.Transformer.Writer
 
+import Data.Monoidal
 import Data.Profunctor
-
 import GHC.Exts (Constraint)
 
 -- | Arrow-based interface for exception handling.
 class (Arrow c, Profunctor c) => ArrowExcept e c | c -> e where
-  type family Join y (c :: * -> * -> *) :: Constraint
+  type family Join y c :: Constraint
 
   -- | Opertion that throws an exception that can be handled with 'catch'.
   throw :: c e a
@@ -69,3 +80,54 @@ tryFirst f g = proc l -> case l of
 success :: ArrowExcept e c => c a a
 success = id
 {-# INLINE success #-}
+
+------------- Instances --------------
+instance (ArrowComonad f c, ArrowExcept e c) => ArrowExcept e (CokleisliT f c) where
+  type Join y (CokleisliT f c) = Join y c
+  throw = lift' throw
+  try f g h = lift $ try (mapDuplicateA (unlift f)) (unlift g) (lmap strength1 (unlift h))
+  {-# INLINE throw #-}
+  {-# INLINE try #-}
+
+instance ArrowExcept e c => ArrowExcept e (ConstT r c) where
+  type Join y (ConstT r c) = Join y c
+  throw = lift $ \_ -> throw
+  try f g h = lift $ \r -> try (unlift f r) (unlift g r) (unlift h r)
+  {-# INLINE throw #-}
+  {-# INLINE try #-}
+
+instance (ArrowMonad f c, ArrowExcept e c) => ArrowExcept e (KleisliT f c) where
+  type Join y (KleisliT f c) = Join (f y) c
+  throw = lift' throw
+  try f g h = lift $ try (unlift f) (mapJoinA (unlift g)) (unlift h)
+  {-# INLINE throw #-}
+  {-# INLINE try #-}
+
+instance ArrowExcept e c => ArrowExcept e (ReaderT r c) where
+  type Join z (ReaderT r c) = Join z c
+  throw = lift' throw
+  try f g h = lift $ try (lmap (\(r,x) -> (r,(r,x))) (second (unlift f))) (unlift g) (lmap assoc2 (unlift h))
+  {-# INLINE throw #-}
+  {-# INLINE try #-}
+
+instance (ArrowExcept e c) => ArrowExcept e (StateT s c) where
+  type Join y (StateT s c) = Join (s,y) c
+  throw = lift (lmap snd throw)
+  try f g h = lift $ try (unlift f) (unlift g) (lmap assoc2 (unlift h))
+  {-# INLINE throw #-}
+  {-# INLINE try #-}
+
+instance (Applicative f, ArrowExcept e c) => ArrowExcept e (StaticT f c) where
+  type Join y (StaticT f c) = Join y c
+  throw = lift' throw
+  try (StaticT f) (StaticT g) (StaticT h) = StaticT $ try <$> f <*> g <*> h
+  {-# INLINE throw #-}
+  {-# INLINE try #-}
+  {-# SPECIALIZE instance ArrowExcept e c => ArrowExcept e (StaticT ((->) r) c) #-}
+
+instance (Monoid w, ArrowExcept e c) => ArrowExcept e (WriterT w c) where
+  type Join y (WriterT w c) = Join (w,y) c
+  throw = lift' throw
+  try f g h = lift $ try (unlift f) (rmap (\(w1,(w2,z)) -> (w1 <> w2,z)) (second (unlift g))) (unlift h)
+  {-# INLINE throw #-}
+  {-# INLINE try #-}

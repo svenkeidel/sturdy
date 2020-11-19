@@ -1,0 +1,72 @@
+name:                sturdy-scheme
+version:             0.2.0.0
+license:             BSD3
+maintainer:          Sven Keidel <svenkeidel@gmail.com>
+category:            Language
+
+dependencies:
+  - array
+  - base
+  - containers
+  - deepseq
+  - directory
+  - fgl
+  - graphviz
+  - hashable
+  - husk-scheme
+  - mtl
+  - parsec
+  - prettyprinter
+  - process
+  - profunctors
+  - random
+  - split
+  - sturdy-arrows
+  - sturdy-lib
+  - text
+  - transformers
+  - unordered-containers
+  - bytestring
+  - http-types
+  - aeson
+  - safe
+  - websockets
+  - wai-websockets
+  - warp
+  - wai
+
+data-files:
+  - scheme_files/**/*.scm
+
+library:
+  source-dirs:
+    - src
+
+  ghc-options: -Wall
+
+
+tests:
+  spec:
+    main: Spec.hs
+
+    source-dirs:
+      - test
+
+    ghc-options: -Wall
+
+    dependencies:
+      - sturdy-scheme
+      - hspec
+
+benchmarks:
+  fixpoint:
+    main: FixpointBench.hs
+    source-dirs:
+      - bench
+    dependencies:
+      - sturdy-lib
+      - sturdy-scheme
+      - criterion
+      - dump-core
+    ghc-options: -O2 # -fplugin=DumpCore -fplugin-opt DumpCore:core-html
+

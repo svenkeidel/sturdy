@@ -27,9 +27,13 @@ finite :: Complete a => Widening a
 finite a b = let x = a ⊔ b in (if x ⊑ a then Stable else Unstable,x)
 {-# INLINE finite #-}
 
-toJoin :: (Widening a -> Widening b) -> (a -> a -> a) -> (b -> b -> b)
-toJoin f g a a' = snd (f (\b b' -> (Unstable,g b b')) a a')
+toJoin :: Widening a -> (a -> a -> a)
+toJoin w a b = snd (w a b)
 {-# INLINE toJoin #-}
+
+toJoin1 :: (Widening a -> Widening b) -> (a -> a -> a) -> (b -> b -> b)
+toJoin1 f g a a' = snd (f (\b b' -> (Unstable,g b b')) a a')
+{-# INLINE toJoin1 #-}
 
 toJoin2 :: (Widening a -> Widening b -> Widening c) -> (a -> a -> a) -> (b -> b -> b) -> (c -> c -> c)
 toJoin2 f g h c c' = snd (f (\a a' -> (Unstable,g a a')) (\b b' -> (Unstable,h b b')) c c')
@@ -46,7 +50,7 @@ bounded limit w a b
 
 (**) :: Widening a -> Widening b -> Widening (a,b)
 (**) wa wb (a1,b1) (a2,b2) =
-    let ~(s1,a') = wa a1 a2
-        ~(s2,b') = wb b1 b2
+    let (s1,a') = wa a1 a2
+        (s2,b') = wb b1 b2
     in (s1 ⊔ s2, (a',b'))
 {-# INLINE (**) #-}

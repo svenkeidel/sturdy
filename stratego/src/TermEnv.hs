@@ -9,6 +9,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE PolyKinds #-}
 module TermEnv where
 
 import Prelude hiding ((.),id,all,sequence,curry, uncurry,fail,map)
@@ -26,6 +27,9 @@ import Control.Arrow.Transformer.Value
 import Control.Arrow.Transformer.Const
 import Control.Arrow.Transformer.Static
 import Control.Arrow.Transformer.Reader
+import Control.Arrow.Transformer.NoInline
+import Control.Arrow.Transformer.Abstract.Environment as AbsEnv
+import Control.Arrow.Transformer.Concrete.Environment as ConEnv
 
 import Data.Profunctor
 
@@ -98,6 +102,12 @@ instance (ArrowApply c, Profunctor c, IsTermEnv env t c) => IsTermEnv env t (Rea
   insertTerm = lift' insertTerm
   deleteTermVars = lift' deleteTermVars
   unionTermEnvs = lift' unionTermEnvs
+  {-# INLINE getTermEnv #-}
+  {-# INLINE putTermEnv #-}
+  {-# INLINE lookupTermVar #-}
+  {-# INLINE insertTerm #-}
+  {-# INLINE deleteTermVars #-}
+  {-# INLINE unionTermEnvs #-}
 
 instance (Profunctor c, Applicative r, IsTermEnv env t c) => IsTermEnv env t (StaticT r c) where
   type Join x (StaticT r c) = Join x c
@@ -107,5 +117,27 @@ instance (Profunctor c, Applicative r, IsTermEnv env t c) => IsTermEnv env t (St
   insertTerm = StaticT $ pure insertTerm
   deleteTermVars = StaticT $ pure deleteTermVars
   unionTermEnvs = lift' unionTermEnvs
+  {-# INLINE getTermEnv #-}
+  {-# INLINE putTermEnv #-}
+  {-# INLINE lookupTermVar #-}
+  {-# INLINE insertTerm #-}
+  {-# INLINE deleteTermVars #-}
+  {-# INLINE unionTermEnvs #-}
 
+instance (Profunctor c, IsTermEnv env t c) => IsTermEnv env t (NoInlineT c) where
+  type Join x (NoInlineT c) = Join x c
+  getTermEnv = lift getTermEnv
+  putTermEnv = lift putTermEnv
+  lookupTermVar f g = lift $ lookupTermVar (unlift f) (unlift g)
+  insertTerm = lift insertTerm
+  deleteTermVars = lift deleteTermVars
+  unionTermEnvs = lift unionTermEnvs
+  {-# NOINLINE getTermEnv #-}
+  {-# NOINLINE putTermEnv #-}
+  {-# NOINLINE lookupTermVar #-}
+  {-# NOINLINE insertTerm #-}
+  {-# NOINLINE deleteTermVars #-}
+  {-# NOINLINE unionTermEnvs #-}
 
+deriving instance (Profunctor c, ArrowApply c, IsTermEnv env t c) => IsTermEnv env t (AbsEnv.EnvT (env' :: k1 -> k2 -> *) var val c)
+deriving instance (Profunctor c, ArrowApply c, IsTermEnv env t c) => IsTermEnv env t (ConEnv.EnvT var val c)

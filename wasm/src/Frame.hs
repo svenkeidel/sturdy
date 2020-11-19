@@ -43,7 +43,7 @@ class ArrowFrame fd v c | c -> fd, c -> v where
 
 -- | Arrow transformer that adds a frame to a computation.
 newtype FrameT fd v c x y = FrameT (ReaderT fd (StateT (Vector v) c) x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,--ArrowTrans,
             ArrowFail e,ArrowExcept e,ArrowConst r,
             ArrowStore var' val', ArrowRun)
 
@@ -60,6 +60,6 @@ instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where
     vec <- get -< ()
     put -< vec // [(fromIntegral n, v)]
 
-instance ArrowFix (Underlying (FrameT fd v c) x y) => ArrowFix (FrameT fd v c x y)
-type instance Fix (FrameT fd v c) x y = FrameT fd v (Fix c (fd,(Vector v,x)) (Vector v,y))
+instance ArrowFix (Underlying (FrameT fd v c) x y) => ArrowFix (FrameT fd v c x y) where
+    type Fix (FrameT fd v c x y) = Fix (Underlying (FrameT fd v c) x y)--FrameT fd v (Fix c (fd,(Vector v,x)) (Vector v,y))
 

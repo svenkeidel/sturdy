@@ -7,7 +7,8 @@
 module SortContext(
   Context, HasContext(..), Sort(..), Signature(..), SortId(..), empty, signatures, sorts,
   fromList, insertSignature, insertSubtype, subtype, lookupSort, lookupCons, numSorts,
-  lub, glb, isLexical, isList, getListElem, isSingleton, isNumerical, isTuple, filterInconsistentConstructors
+  lub, glb, isLexical, isList, getListElem, isSingleton, isNumerical, isTuple, filterInconsistentConstructors,
+  widening
 ) where
 
 import           Sort
@@ -19,6 +20,8 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as M
 import           Data.Maybe
 import           Data.Foldable
+import           Data.Abstract.Widening(Widening)
+import           Data.Abstract.Stable
 
 import           Control.Arrow
 
@@ -72,7 +75,7 @@ lookupSort Context {..} s0 = do
     Lexical -> [("", Signature [Lexical] Lexical)]
     Numerical -> [("", Signature [Numerical] Numerical)]
     Sort _ -> fromMaybe [] (M.lookup s sorts)
-              
+
 isLexical :: Context -> Sort -> Bool
 isLexical ctx = subtype ctx Lexical
 
@@ -115,3 +118,13 @@ filterInconsistentConstructors ctx = M.filter (\sigs -> any (\(Signature _ r1) -
 
 class Arrow c => HasContext c where
   getContext :: c () Context
+
+widening :: Context -> Int -> Widening Sort
+widening ctx n0 s1 s2 = let s' = go n0 (lub ctx s1 s2) in (if s' == s1 && s' == s2 then Stable else Unstable,s')
+  where
+    go 0 _ = Top
+    go n s = case s of
+      List s' -> List (go (n-1) s')
+      Option s' -> Option (go (n-1) s')
+      Tuple ss -> Tuple (map (go (n-1)) ss)
+      _ -> s

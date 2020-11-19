@@ -23,6 +23,7 @@ data Statement
   deriving (Show,Eq,Generic)
 
 
+
 -- Helper functions to generate labled expressions and statements -------
 var :: String -> LExpr
 var x = Var x <$> fresh
@@ -48,13 +49,22 @@ assign x e = Assign x <$> e <*> fresh
 if' :: LExpr -> [LStatement] -> [LStatement] -> LStatement
 if' e s1 s2 = If <$> e <*> sequence s1 <*> sequence s2 <*> fresh
 
+--lst s = sequence s <*> fresh
+
 while :: LExpr -> [LStatement] -> LStatement
 while e body = While <$> e <*> sequence body <*> fresh
+
+
+isWhileLoop :: ((env,[Statement]),store) -> Bool
+isWhileLoop ((_, s),_) = case s of
+  While {} : _ -> True
+  _            -> False
+
 
 -- Instances ------------------------------------------------------------
 
 type LExpr = State Label Expr
-instance HasLabel Expr Label where
+instance HasLabel Expr where
   label e = case e of 
     Var _ l -> l
     BoolLit _ l -> l
@@ -65,7 +75,7 @@ instance HasLabel Expr Label where
 instance Hashable Expr
 
 type LStatement = State Label Statement
-instance HasLabel Statement Label where
+instance HasLabel Statement where
   label s = case s of 
     While _ _ l -> l
     If _ _ _ l -> l

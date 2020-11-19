@@ -103,7 +103,7 @@ scope s = proc (v0,x) -> case v0 of
     finally
       (proc (t,_) -> s -< t)
       (proc (_,(vars,oldEnv)) -> unionTermEnvs -< (vars,oldEnv))
-      -< (x, (vars,oldEnv))
+        -< (x, (vars,oldEnv))
 {-# INLINE scope #-}
 
 -- | Let binding for strategies.

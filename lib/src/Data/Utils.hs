@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs #-}
 module Data.Utils
-  ( maybeHead
+  ( eqLength
+  , maybeHead
   , fromMaybe
   , pow
   , powComplement
@@ -22,6 +23,11 @@ import           Data.Foldable(toList)
 import           Data.Empty
 import           Data.Singleton
 
+eqLength :: [a] -> [b] -> Bool
+eqLength [] [] = True
+eqLength (_:as) (_:bs) = eqLength as bs
+eqLength _ _ = False
+
 fromMaybe :: (IsEmpty (f a), IsSingleton (f a), Elem (f a) ~ a) => Maybe a -> f a
 fromMaybe (Just a) = singleton a
 fromMaybe Nothing  = empty
@@ -31,7 +37,7 @@ maybeHead (a:_) = Just a
 maybeHead []    = Nothing
 
 pow :: [a] -> Seq [a]
-pow = foldl (\xs x -> fmap (x:) xs<> xs) mempty
+pow = foldl (\powersets x -> fmap (x:) powersets <> powersets) mempty
 
 -- @powComplement M@ computes for a set M, the set { (X,M\X) | X in P(M) }
 powComplement :: [a] -> Seq ([a], [a])

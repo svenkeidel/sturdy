@@ -22,6 +22,7 @@ import Control.Arrow.Store as Store
 import Control.Arrow.Except as Exc
 import Control.Arrow.Order
 import Control.Arrow.Transformer.Kleisli
+import Control.Arrow.Fix.Context
 
 import Data.Abstract.Failure
 import Data.Abstract.Widening
@@ -32,24 +33,25 @@ import Data.Coerce
 
 -- | Describes computations that can fail.
 newtype FailureT e c x y = FailureT (KleisliT (Failure e) c x y)
-  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
+  deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans, ArrowRun,
             ArrowConst r, ArrowState s, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b,
-            ArrowExcept e')
+            ArrowExcept e', ArrowCallSite ctx)
 
 runFailureT :: FailureT e c x y -> c x (Failure e y)
 runFailureT = coerce
 {-# INLINE runFailureT #-}
 
 instance (ArrowChoice c, Profunctor c) => ArrowFail e (FailureT e c) where
+  type Join x (FailureT e c) = ()
   fail = lift $ arr Fail
 
 instance (ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (FailureT e c) where
   app = lift (app .# first coerce)
 
-type instance Fix (FailureT e c) x y = FailureT e (Fix c x y)
-instance (ArrowChoice c, ArrowFix (Underlying (FailureT e c) x y)) => ArrowFix (FailureT e c x y)
+instance (ArrowChoice c, ArrowFix (Underlying (FailureT e c) x y)) => ArrowFix (FailureT e c x y) where
+  type Fix (FailureT e c x y) = Fix (Underlying (FailureT e c) x y)
 
 instance (ArrowChoice c, ArrowJoin c) => ArrowJoin (FailureT e c) where
-  joinSecond lub f g = lift $ joinSecond (toJoin widening lub) (Success . f) (unlift g)
+  joinSecond lub f g = lift $ joinSecond (toJoin1 widening lub) (Success . f) (unlift g)
   {-# INLINE joinSecond #-}

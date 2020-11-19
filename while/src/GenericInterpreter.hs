@@ -1,7 +1,7 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TypeFamilies #-}
 -- | Generic interpreter for the While-Language.
 module GenericInterpreter where
@@ -11,7 +11,7 @@ import           Prelude hiding (lookup, and, or, not, div, read)
 import           Data.Label
 
 import           Control.Arrow
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment(ArrowEnv)
 import qualified Control.Arrow.Environment as Env
@@ -40,7 +40,7 @@ eval :: (Show addr, ArrowChoice c, ArrowRand v c,
          ArrowEnv Text addr c, ArrowStore addr v c,
          ArrowExcept exc c, ArrowFail e c,
          IsVal v c, IsException exc v c, IsString e,
-         Env.Join v c, Store.Join v c
+         Env.Join v c, Store.Join v c, Fail.Join v c
         )
      => c Expr v
 eval = proc e -> case e of
@@ -56,7 +56,7 @@ eval = proc e -> case e of
     or -< (v1,v2)
   Not e1 _ -> do
     v1 <- eval -< e1
-    not -< (v1)
+    not -< v1
   NumLit n _ -> numLit -< n
   RandomNum _ -> random -< ()
   Add e1 e2 _ -> do
@@ -92,14 +92,15 @@ eval = proc e -> case e of
 -- and does not produces a result. The interpreter is parameterized by
 -- the type of values @v@, addresses @addr@, environment @env@ and
 -- arrow type @c@.
-run :: (Show addr, ArrowChoice c, ArrowFix (c [Statement] ()),
+run :: (Show addr,
+        ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Statement] ())),
+        ArrowChoice c, ArrowFix (c [Statement] ()),
         ArrowEnv Text addr c, ArrowStore addr v c,
         ArrowAlloc addr c, ArrowFail err c,
         ArrowExcept exc c, ArrowRand v c,
         IsString err, IsVal v c, IsException exc v c,
-        Env.Join v c, Env.Join addr c,
-        Store.Join v c, Except.Join () c,
-        JoinVal () c, JoinExc () c
+        Env.Join v c, Env.Join addr c, Store.Join v c, Except.Join () c,
+        Fail.Join v c, JoinVal () c, JoinExc () c
        )
     => c [Statement] ()
 run = fix $ \run' -> proc stmts -> case stmts of

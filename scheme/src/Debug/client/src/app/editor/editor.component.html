@@ -1,0 +1,231 @@
+<!-- Buttons to control debugging -->
+<div>
+    <form class="example-form " style="float:left;">
+        <mat-form-field class="example-full-width">
+            <mat-label>Path</mat-label>
+            <input type="text" [(ngModel)]="path" name="path" matInput>
+        </mat-form-field>
+    </form>
+    <br>
+    <button (click)="sendLoadSourceCodeRequest()" mat-button>Submit</button>
+
+
+    <button (click)="sendStartRequest()" mat-button style="margin-left:100px ;"> Start</button>
+
+    <button (click)="sendContinueRequest()" mat-button> Continue</button>
+
+    <button (click)="sendStepRequest()" mat-button> Step</button>
+
+    <button (click)="sendRefreshRequest()" mat-button> Refresh</button>
+
+</div>
+<br>
+
+<div>
+
+
+
+    <!-- debug info grid -->
+    <mat-grid-list cols="16" rowHeight="310px">
+
+        <!-- editor -->
+        <mat-grid-tile [colspan]="4" [rowspan]="2" class="onegrid" style="background-color: #f8f8ff; align-items: baseline !important; display:block !important;">
+            <div id="editor1" class="app_editor" style="float: left;"></div>
+        </mat-grid-tile>
+
+
+        <!-- store list -->
+        <mat-grid-tile [colspan]="4" [rowspan]="2" class="onegrid" style="background-color: #f8f8ff; align-items: baseline !important; display:block !important;">
+            <h3 style="margin-top: -1px;">Store</h3>
+
+            <mat-form-field>
+                <mat-label>Filter</mat-label>
+                <input matInput (keyup)="applyFilter($event)" placeholder="Filter" #input>
+            </mat-form-field>
+            <table mat-table [dataSource]="latestStoreTable" class="mat-elevation-z8" style="width: 100%; background-color:  aliceblue;">
+
+                <!-- Address Column -->
+                <ng-container matColumnDef="addr" class="hoverHand">
+                    <th mat-header-cell *matHeaderCellDef class="hoverHand"> Address </th>
+                    <td mat-cell *matCellDef="let element" class="hoverHand" (click)="generateDereferencedStoreElem(element)"> {{element.addr}} </td>
+                </ng-container>
+
+                <!-- Value Column -->
+                <ng-container matColumnDef="value">
+                    <th mat-header-cell *matHeaderCellDef class="hoverHand"> Value </th>
+                    <td mat-cell *matCellDef="let element" class="hoverHand" (click)="generateDereferencedStoreElem(element)"> {{element.val}} </td>
+                </ng-container>
+
+                <!-- Variable Column -->
+                <ng-container matColumnDef="variable">
+                    <th mat-header-cell *matHeaderCellDef class="hoverHand"> Variable </th>
+                    <td mat-cell *matCellDef="let element" class="hoverHand" (click)="generateDereferencedStoreElem(element)"> {{element.variableName}} </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="['addr','value','variable']"></tr>
+                <tr mat-row *matRowDef="let row; columns: ['addr','value','variable'];"></tr>
+
+                <!-- Row shown when there is no matching data. -->
+                <tr class="mat-row" *matNoDataRow>
+                    <td class="mat-cell" colspan="3">No data matching the filter "{{input.value}}"</td>
+                </tr>
+            </table>
+        </mat-grid-tile>
+
+        <!-- resolved store element -->
+        <mat-grid-tile [colspan]="4" [rowspan]="2" class="onegrid" style="background-color:  #f8f8ff; align-items: baseline !important; display:block !important;">
+            <h3 style="margin-top: -1px;">Resolved Store Element</h3>
+
+            <div style="overflow:auto">
+                Address: {{derefStoreElemAddress}}
+                <br> Result: {{derefStoreElem}}
+            </div>
+
+            <div style="display:flex;height:75%;">
+                <ngx-graph class="chart-container" [links]="hierarchialGraphStore.links" [nodes]="hierarchialGraphStore.nodes" [draggingEnabled]="false" layout="dagre">
+
+                    <ng-template #defsTemplate>
+                        <svg:marker id="arrow" viewBox="0 -5 10 10" refX="8" refY="0" markerWidth="4" markerHeight="4" orient="auto">
+                            <svg:path d="M0,-5L10,0L0,5" class="arrow-head" />
+                        </svg:marker>
+                    </ng-template>
+
+                    <ng-template #nodeTemplate let-node>
+                        <svg:g class="node">
+                            <svg:rect [attr.width]="node.width" [attr.height]="node.height" />
+                            <svg:text alignment-baseline="central" [attr.x]="10" [attr.y]="10">{{node.label}}</svg:text>
+                        </svg:g>
+                    </ng-template>
+
+                    <ng-template #linkTemplate let-link>
+                        <svg:g class="edge">
+                            <svg:path class="line" stroke-width="4" marker-end="url(#arrow)">
+                            </svg:path>
+                            <svg:text class="edge-label" text-anchor="middle">
+                                <textPath style="fill: rgb(0, 0, 0);" [attr.href]="'#' + link.id" startOffset="60%">
+                                    {{link.label}}
+                                </textPath>
+                            </svg:text>
+                        </svg:g>
+                    </ng-template>
+                </ngx-graph>
+            </div>
+        </mat-grid-tile>
+
+
+
+        <!-- stack elements table -->
+        <mat-grid-tile [colspan]="2" [rowspan]="2" style="background-color: #f0f8ff;">
+            <h3 style="margin-top: -1px; margin-bottom: -1px;">Stack</h3>
+
+            <mat-table [dataSource]="stack" class="mat-elevation-z8" style="background-color:  #f0f8ff;">
+                <!-- Name Column -->
+                <ng-container matColumnDef="name">
+                    <mat-header-cell *matHeaderCellDef class="hoverHand"> Function Name </mat-header-cell>
+                    <mat-cell *matCellDef="let element" class="hoverHand"> {{element.name}} </mat-cell>
+                </ng-container>
+
+                <!-- Addr Column -->
+                <ng-container matColumnDef="addr">
+                    <mat-header-cell *matHeaderCellDef class="hoverHand"> Address </mat-header-cell>
+                    <mat-cell *matCellDef="let element" class="hoverHand"> {{element.addr}} </mat-cell>
+                </ng-container>
+                <mat-header-row *matHeaderRowDef="['name', 'addr']"></mat-header-row>
+                <mat-row *matRowDef="let row; columns: ['name', 'addr'];"></mat-row>
+            </mat-table>
+        </mat-grid-tile>
+
+
+        <!-- environment elements table -->
+        <mat-grid-tile [colspan]="2" [rowspan]="2" style="background-color: snow;">
+            <h3 style="margin-top: -1px; margin-bottom: -1px;">Environment</h3>
+
+            <mat-table [dataSource]="latestEnv" class="mat-elevation-z8" style="background-color: snow;">
+                <!-- Name Column -->
+                <ng-container matColumnDef="var">
+                    <mat-header-cell *matHeaderCellDef class="hoverHand"> Variable Name </mat-header-cell>
+                    <mat-cell *matCellDef="let element" class="hoverHand"> {{element.var}} </mat-cell>
+                </ng-container>
+
+                <!-- Addr Column -->
+                <ng-container matColumnDef="addr">
+                    <mat-header-cell *matHeaderCellDef class="hoverHand"> Address </mat-header-cell>
+                    <mat-cell *matCellDef="let element" class="hoverHand"> {{element.addr}} </mat-cell>
+                </ng-container>
+                <mat-header-row *matHeaderRowDef="['var', 'addr']"></mat-header-row>
+                <mat-row *matRowDef="let row; columns: ['var', 'addr'];"></mat-row>
+            </mat-table>
+        </mat-grid-tile>
+
+
+        <!-- processed expression -->
+        <mat-grid-tile [colspan]="3" [rowspan]="1" style="background-color: #f7f8e7;">
+            <h3 style="margin-top: -1px; margin-bottom: -1px;">Processed Expression</h3>
+            <div id="exprsDiv">
+                <mat-list role="list">
+                    <mat-list-item *ngFor="let expr of exprs" role="listitem" #tooltip="matTooltip" matTooltip="{{expr.long}}" matTooltipClass="expr-tooltip">
+                        {{expr.short}}
+                    </mat-list-item>
+                </mat-list>
+            </div>
+
+        </mat-grid-tile>
+
+        <!-- evaluated expression -->
+        <mat-grid-tile [colspan]="5" [rowspan]="1" style="background-color: #f7f8e7;">
+
+            <div id="evaluatedExprsDiv">
+                <h3 style="margin-top: -1px; margin-bottom: -1px;">Evaluated Expression</h3>
+                <mat-list role="list" id="evaluatedExprsDiv">
+                    <mat-list-item *ngFor="let expr of evaluatedExprs" role="listitem" #tooltip="matTooltip" matTooltip="{{expr.long}}" matTooltipClass="expr-tooltip">
+                        {{expr.short}}
+                        <div style="float: right; margin-left: auto;">
+                            {{expr.val}}
+
+                        </div>
+
+                    </mat-list-item>
+                </mat-list>
+
+
+            </div>
+
+
+        </mat-grid-tile>
+
+        <!-- CFG -->
+        <mat-grid-tile [colspan]="8" [rowspan]="1" style="background-color: #f8f4ff;">
+            <h3 style="margin-top: -1px;">Control-Flow Graph</h3>
+            <div style="display:flex;height:80%;">
+                <ngx-graph class="chart-container" [links]="hierarchialGraph.links" [nodes]="hierarchialGraph.nodes" [draggingEnabled]="false" layout="dagre">
+
+                    <ng-template #defsTemplate>
+                        <svg:marker id="arrow" viewBox="0 -5 10 10" refX="8" refY="0" markerWidth="4" markerHeight="4" orient="auto">
+                            <svg:path d="M0,-5L10,0L0,5" class="arrow-head" />
+                        </svg:marker>
+                    </ng-template>
+
+                    <ng-template #nodeTemplate let-node>
+                        <svg:g class="node">
+                            <svg:rect [attr.width]="node.width" [attr.height]="node.height" />
+                            <svg:text alignment-baseline="central" [attr.x]="10" [attr.y]="10">{{node.label}}</svg:text>
+                        </svg:g>
+                    </ng-template>
+
+                    <ng-template #linkTemplate let-link>
+                        <svg:g class="edge">
+                            <svg:path class="line" stroke-width="4" marker-end="url(#arrow)">
+                            </svg:path>
+                            <svg:text class="edge-label" text-anchor="middle">
+                                <textPath style="fill: rgb(0, 0, 0);" [attr.href]="'#' + link.id" startOffset="60%">
+                                    {{link.label}}
+                                </textPath>
+                            </svg:text>
+                        </svg:g>
+                    </ng-template>
+
+                </ngx-graph>
+            </div>
+        </mat-grid-tile>
+    </mat-grid-list>
+</div>

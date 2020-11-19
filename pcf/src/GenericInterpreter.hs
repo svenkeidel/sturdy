@@ -1,6 +1,7 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TypeFamilies #-}
 module GenericInterpreter where
 
@@ -10,10 +11,13 @@ import           Syntax (Expr(..))
 import           Control.Arrow
 import           Control.Arrow.Utils
 import           Control.Arrow.Fix
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail (ArrowFail,failString)
+import qualified Control.Arrow.Fail as Fail
 import           Control.Arrow.Closure (ArrowClosure)
 import qualified Control.Arrow.Closure as Cls
-import           Control.Arrow.Environment (ArrowEnv,ArrowLetRec)
+import           Control.Arrow.Environment (ArrowEnv)
+import           Control.Arrow.LetRec(ArrowLetRec)
+import qualified Control.Arrow.LetRec as LetRec
 import qualified Control.Arrow.Environment as Env
 
 import           Data.Text (Text)
@@ -23,8 +27,19 @@ import           Text.Printf
 import           GHC.Exts (IsString(..),Constraint)
 
 -- | Shared interpreter for PCF.
-eval :: (ArrowChoice c, ArrowFix (c Expr v), ArrowEnv Text v c, ArrowFail e c, IsString e,
-         ArrowClosure Expr v c, ArrowLetRec Text v c, IsVal v c, Env.Join v c, Cls.Join v c, Join v c)
+eval :: (IsString e,
+         IsVal v c,
+         ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c Expr v)),
+         ArrowChoice c,
+         ArrowFix (c Expr v),
+         ArrowEnv Text v c,
+         ArrowFail e c,
+         ArrowClosure Expr v c,
+         ArrowLetRec Text v c,
+         Env.Join v c,
+         Cls.Join v v c,
+         Fail.Join v c,
+         Join v c)
      => c Expr v
 eval = fix $ \ev -> proc e0 -> case e0 of
   Var x _ -> Env.lookup' -< x
@@ -40,12 +55,16 @@ eval = fix $ \ev -> proc e0 -> case e0 of
   Pred e _ -> do
     v <- ev -< e
     pred -< v
+  Mult e1 e2 _ -> do
+    v1 <- ev -< e1
+    v2 <- ev -< e2
+    mult -< (v1,v2)
   IfZero e1 e2 e3 _ -> do
     v1 <- ev -< e1
     if_ ev ev -< (v1, (e2, e3))
   Let bnds body _ -> do
     vs <- map ev -< [ e | (_,e) <- bnds ]
-    Env.letRec ev -< ([ (v,cl) | ((v,_),cl) <- zip bnds vs ], body)
+    LetRec.letRec ev -< ([ (v,cl) | ((v,_),cl) <- zip bnds vs ], body)
   Apply e _ -> ev -< e
   where
     -- Helper function used to apply closure or a suspended fixpoint computation to its argument.
@@ -53,9 +72,9 @@ eval = fix $ \ev -> proc e0 -> case e0 of
       Lam xs body l
         | length xs == length args -> Env.extend' ev -< (zip xs args,Apply body l)
         | otherwise ->
-            fail -< fromString $ printf "Try to apply a function with %s parameters to %s arguments"
-                                        (show (length xs)) (show (length xs))
-      _ -> fail -< fromString $ "Expected a function but got " ++ show e
+            failString -< printf "Try to apply a function with %s parameters to %s arguments"
+                                 (show (length xs)) (show (length xs))
+      _ -> failString -< fromString $ "Expected a function but got " ++ show e
 
 -- | Interface for numeric operations
 class IsVal v c | c -> v where
@@ -69,5 +88,7 @@ class IsVal v c | c -> v where
 
   -- | creates the numeric value zero.
   zero :: c () v
+
+  mult :: c (v,v) v
 
   if_ :: Join z c => c x z -> c y z -> c (v, (x, y)) z

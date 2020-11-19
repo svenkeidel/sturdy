@@ -17,28 +17,29 @@ Sturdy factorizes the concrete interpreter and abstract interpreter (the static 
 This generic interpreter is parameterized by interfaces that contain primitive operations that describe the semantics of the language, such as `try`, `catch` and `finally` for exceptions.
 The concrete and abstract interpreter then instantiate the generic interpreter by implementing these interfaces.
 This reorganization not only decouples different concerns in the implementation of the static analysis, but also simplifies its soundness proof.
-More details can be found in our [ICFP paper](https://dl.acm.org/citation.cfm?id=3236767).
+More details can be found in our [ICFP paper](https://doi.org/10.1145/3236767).
 
 Sturdy allows to construct static analyses modularly from reusable analysis components.
 Each analysis component encapsulates a single analysis concern and can be proven sound independently from the analysis where it is used.
 Furthermore, the theory of analysis components guarantees that a static analysis is sound, if all its analysis components are sound.
 This means that analysis developers do not have to worry about soundness as long as they reuse sound analysis components.
-More details can be found in our [OOPSLA paper](https://svenkeidel.de/papers/analysis-components.pdf).
+More details can be found in our [OOPSLA paper](https://doi.org/10.1145/3360602).
 
 ## Getting Started
 
 To build, install the [Stack](https://www.haskellstack.org/) build tool and run `stack build` from the root directory of the project.
 
 The sturdy project currently contains concrete and abstract and generic interpreters for the following languages:
-* _PCF_, a higher-order functional language with numbers
+* _PCF_, a higher-order functional language
 * _While_, an imperative language with conditionals and while loops
-* _Stratego_, a language for program transformations
+* _Scheme_, a functional language language in the LISP family.
+* [_Stratego_](https://svenkeidel.de/papers/program-trans-analysis.pdf), a language for program transformations
 * _LambdaJS_, an intermediate representation for JavaScript
 * _Jimple_, a Java Bytecode suitable for static analysis (work in progress)
 
 To run the tests of a particular language use `stack test sturdy-$(lang)`, e.g.,
 ```
-stack test sturdy-stratego
+stack test sturdy-pcf
 ```
 
 ## Publications
@@ -47,15 +48,20 @@ stack test sturdy-stratego
 Sven Keidel and Sebastian Erdweg.  
 _Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)_.
 ACM, 2019
-[[pdf]](https://svenkeidel.de/papers/analysis-components.pdf)
-
+[[pdf](https://doi.org/10.1145/3360602)]
+[[Talk](https://youtu.be/uCM54R3ab-Q)]
 
 **Compositional Soundness Proofs of Abstract Interpreters**  
 Sven Keidel, Casper Bach Poulsen and Sebastian Erdweg.  
 _International Conference on Functional Programming (ICFP)_.
 ACM, 2018
-[[pdf]](https://dl.acm.org/citation.cfm?id=3236767)
-[[Talk]](https://www.youtube.com/watch?v=zOqSlHAMGt4)
+[[pdf](https://doi.org/10.1145/3236767)]
+[[Talk](https://www.youtube.com/watch?v=zOqSlHAMGt4)]
+
+**A Systematic Approach to Abstract Interpretation of Program Transformations**  
+Sven Keidel and Sebastian Erdweg.  
+Verification, Model Checking, and Abstract Interpretation (VMCAI). Springer, 2020.
+[[pdf](https://svenkeidel.de/papers/program-trans-analysis.pdf)]
 
 ## Acknowledgments
 
@@ -66,4 +72,5 @@ Jente Hidskes,
 Matthijs Bijman,
 Sarah Müller,
 Sebastian Erdweg,
+Tobias Hombücher,
 Wouter Raateland

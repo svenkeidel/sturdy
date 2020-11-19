@@ -10,6 +10,7 @@ module Control.Arrow.Transformer.Abstract.Store where
 
 import Prelude hiding (Maybe(..))
 import Control.Arrow
+import Control.Arrow.Cont
 import Control.Arrow.Const
 import Control.Arrow.Fail
 import Control.Arrow.Fix
@@ -35,25 +36,25 @@ import Data.Profunctor
 import Data.Profunctor.Unsafe((.#))
 import Data.Coerce
 
-newtype StoreT store var val c x y = StoreT (StateT (store var val) c x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,
-            ArrowConst r, ArrowReader r,
+newtype StoreT store c x y = StoreT (StateT store c x y)
+  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,
+            ArrowCont, ArrowConst r, ArrowReader r,
             ArrowEnv var' val', ArrowClosure expr cls,
-            ArrowFail e, ArrowExcept e, ArrowState (store var val),
-            ArrowLowerBounded, ArrowRun, ArrowJoin)
+            ArrowFail e, ArrowExcept e, ArrowState store,
+            ArrowLowerBounded a, ArrowRun, ArrowJoin)
 
-runStoreT :: StoreT store var val c x y -> c (store var val, x) (store var val, y)
+runStoreT :: StoreT store c x y -> c (store, x) (store, y)
 runStoreT = coerce
 {-# INLINE runStoreT #-}
 
-evalStoreT :: Profunctor c => StoreT store var val c x y -> c (store var val, x) y
+evalStoreT :: Profunctor c => StoreT store c x y -> c (store, x) y
 evalStoreT f = rmap pi2 (runStoreT f)
 
-execStoreT :: Profunctor c => StoreT store var val c x y -> c (store var val, x) (store var val)
+execStoreT :: Profunctor c => StoreT store c x y -> c (store, x) store
 execStoreT f = rmap pi1 (runStoreT f)
 
-instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT Map var val c) where
-  type Join y (StoreT Map var val c) = ArrowComplete (Map var val,y) c
+instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (StoreT (Map var val) c) where
+  type Join y (StoreT (Map var val) c) = ArrowComplete (Map var val,y) c
   read (StoreT f) (StoreT g) = StoreT $ proc (var,x) -> do
     s <- get -< ()
     case M.lookup var s of
@@ -64,10 +65,10 @@ instance (Identifiable var, ArrowChoice c, Profunctor c) => ArrowStore var val (
   {-# INLINE read #-}
   {-# INLINE write #-}
 
-deriving instance (ArrowComplete (store var val,y) c) => ArrowComplete y (StoreT store var val c)
-instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT store var val c) where
+deriving instance (ArrowComplete (store,y) c) => ArrowComplete y (StoreT store c)
+instance (ArrowApply c, Profunctor c) => ArrowApply (StoreT store c) where
   app = StoreT (app .# first coerce)
   {-# INLINE app #-}
 
-type instance Fix (StoreT store var val c) x y  = StoreT store var val (Fix c (store var val,x) (store var val,y))
-deriving instance ArrowFix (Underlying (StoreT store var val c) x y) => ArrowFix (StoreT store var val c x y)
+instance ArrowFix (Underlying (StoreT store c) x y) => ArrowFix (StoreT store c x y) where
+  type Fix (StoreT store c x y) = Fix (Underlying (StoreT store c) x y)

@@ -4,6 +4,7 @@ module Data.Abstract.There where
 
 import Data.Order
 import Data.Hashable
+import Data.Text.Prettyprint.Doc
 import Data.Abstract.Widening
 import Data.Abstract.Stable
 
@@ -16,6 +17,9 @@ data There = Must | May deriving (Eq, Generic, NFData)
 instance Show There where
   show Must = ""
   show May = "?"
+
+instance Pretty There where
+  pretty = viaShow
 
 instance PreOrd There where
   Must ⊑ May = True
