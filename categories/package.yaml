@@ -7,6 +7,7 @@ category:            Language
 dependencies:
   - base
   - ghc
+  - template-haskell
 
 library:
   source-dirs:

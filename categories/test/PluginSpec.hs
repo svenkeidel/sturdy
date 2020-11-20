@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module PluginSpec where
 
+import Plugin.Categories(toCategory)
 import Test.Hspec
 
 main :: IO ()
@@ -11,4 +12,4 @@ spec :: Spec
 spec = do
   describe "Compiling to categories" $
     it "" $ do
-      1 `shouldBe` (1 :: Int)
+      Plugin.Categories.toCategory (\x -> x) (1 :: Int) `shouldBe` 1
