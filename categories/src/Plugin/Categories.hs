@@ -28,20 +28,16 @@ install _ todo = do
         [ BuiltinRule
           { ru_name = "Category Rewrite"
           , ru_fn = trigger
-          , ru_nargs = 0
+          , ru_nargs = 4
           , ru_try =
-              error "category rewrite rule"
-            -- \dflags _ _ exprs -> case exprs of
-            --   [Type _, Type _, Type _, expr] -> error "do rewrite" -- trace dflags expr $ rewrite constrs Empty expr
-            --   _ -> error "no rewrite" -- Nothing
+              \_ _ _ exprs -> case exprs of
+                [Type _, Type _, Type _, expr] -> rewrite constrs Empty expr
+                _ -> Nothing
           }
         ]
 
       addRule :: ModGuts -> CoreM ModGuts
-      addRule guts = do
-        putMsg (ppr (mg_rules guts))
-        putMsg (ppr rewriteRules)
-        return $ guts { mg_rules = rewriteRules ++ mg_rules guts }
+      addRule guts = return $ guts { mg_rules = rewriteRules ++ mg_rules guts }
 
       simplify = SimplMode
         { sm_names      = ["Category Rewrite"]
@@ -58,6 +54,7 @@ install _ todo = do
 
       passes =
         [ CoreDoPluginPass "Add Rewrite Rule" addRule
+        -- , CoreDoRuleCheck InitialPhase "Category Rewrite"
         , CoreDoSimplify 7 simplify
         -- Removing the builtin rule is neccessary, because it cannot be
         -- serialized (https://gitlab.haskell.org/ghc/ghc/-/issues/18147)
@@ -65,6 +62,7 @@ install _ todo = do
         ]
 
       (pre,post) = splitAt 5 todo
+      -- (pre,post) = splitAt 5 todo
 
   return (pre ++ passes ++ post)
 
@@ -81,19 +79,19 @@ resolveId :: TH.Name -> CoreM Id
 resolveId name = resolveName name >>= lookupId
 
 data CategoryExpr where
-  Primitive :: Var -> CategoryExpr
-  Id :: CategoryExpr
-  Compose :: CategoryExpr -> CategoryExpr -> CategoryExpr
-  Product :: CategoryExpr -> CategoryExpr -> CategoryExpr
-  Pi1 :: CategoryExpr
-  Pi2 :: CategoryExpr
-  Coproduct :: CategoryExpr -> CategoryExpr -> CategoryExpr
-  In1 :: CategoryExpr
-  In2 :: CategoryExpr
-  Distribute :: CategoryExpr -- (A + B) × C -> (A × C) + (B × C)
-  Apply :: CategoryExpr
-  Curry :: CategoryExpr -> CategoryExpr
-  Uncurry :: CategoryExpr -> CategoryExpr
+  Primitive :: Type -> Type -> Var -> CategoryExpr
+  Id :: Type -> CategoryExpr
+  Compose :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr -> CategoryExpr
+  Product :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr -> CategoryExpr
+  Pi1 :: Type -> Type -> CategoryExpr
+  Pi2 :: Type -> Type -> CategoryExpr
+  Coproduct :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr -> CategoryExpr
+  In1 :: Type -> Type -> CategoryExpr
+  In2 :: Type -> Type -> CategoryExpr
+  Distribute :: Type -> Type -> Type -> CategoryExpr -- (A + B) × C -> (A × C) + (B × C)
+  Apply :: Type -> Type -> CategoryExpr
+  Curry :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
+  Uncurry :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
 
 (◦) :: CategoryExpr -> CategoryExpr -> CategoryExpr
 (◦) = Compose
@@ -113,18 +111,18 @@ data Constrs = Constrs
   { isProduct    :: forall a. NamedThing a => a -> Bool
   , isLeft       :: forall a. NamedThing a => a -> Bool
   , isRight      :: forall a. NamedThing a => a -> Bool
-  , mkId         :: CoreExpr
-  , mkCompose    :: CoreExpr -> CoreExpr -> CoreExpr
-  , mkProduct    :: CoreExpr -> CoreExpr -> CoreExpr
-  , mkPi1        :: CoreExpr
-  , mkPi2        :: CoreExpr
-  , mkCoproduct  :: CoreExpr -> CoreExpr -> CoreExpr
-  , mkIn1        :: CoreExpr
-  , mkIn2        :: CoreExpr
-  , mkDistribute :: CoreExpr
-  , mkApply      :: CoreExpr
-  , mkCurry      :: CoreExpr -> CoreExpr
-  , mkUncurry    :: CoreExpr -> CoreExpr
+  , mkId         :: Type -> Type -> CoreExpr
+  , mkCompose    :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
+  , mkProduct    :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
+  , mkPi1        :: Type -> Type -> Type -> CoreExpr
+  , mkPi2        :: Type -> Type -> Type -> CoreExpr
+  , mkCoproduct  :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
+  , mkIn1        :: Type -> Type -> Type -> CoreExpr
+  , mkIn2        :: Type -> Type -> Type -> CoreExpr
+  , mkDistribute :: Type -> Type -> Type -> Type -> CoreExpr
+  , mkApply      :: Type -> Type -> Type -> CoreExpr
+  , mkCurry      :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr
+  , mkUncurry    :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr
   }
 
 getConstrs :: CoreM Constrs
@@ -148,19 +146,21 @@ getConstrs = do
     { isProduct    = \thing -> getName thing == tuple
     , isLeft       = \thing -> getName thing == left
     , isRight      = \thing -> getName thing == right
-    , mkId         = Var id
-    , mkCompose    = \e1 e2 -> App (App (Var compose) e1) e2
-    , mkProduct    = \e1 e2 -> App (App (Var product) e1) e2
-    , mkPi1        = Var p1
-    , mkPi2        = Var p2
-    , mkCoproduct  = \e1 e2 -> App (App (Var coproduct) e1) e2
-    , mkIn1        = Var i1
-    , mkIn2        = Var i2
-    , mkDistribute = Var dist
-    , mkApply      = Var app
-    , mkCurry      = \e -> App (Var curr) e
-    , mkUncurry    = \e -> App (Var uncurr) e
+    , mkId         = \c x -> typedVar id [c,x]
+    , mkCompose    = \c x y z e1 e2 -> App (App (typedVar compose [c,x,y,z]) e1) e2
+    , mkProduct    = \c x y z e1 e2 -> App (App (typedVar product [c,x,y,z]) e1) e2
+    , mkPi1        = \c x y -> typedVar p1 [c,x,y]
+    , mkPi2        = \c x y -> typedVar p2 [c,x,y]
+    , mkCoproduct  = \c x y z e1 e2 -> App (App (typedVar coproduct [c,x,y,z]) e1) e2
+    , mkIn1        = \c x y -> typedVar i1 [c,x,y]
+    , mkIn2        = \c x y -> typedVar i2 [c,x,y]
+    , mkDistribute = \c x y z -> typedVar dist [c,x,y,z]
+    , mkApply      = \c x y -> typedVar app [c,x,y]
+    , mkCurry      = \c x y z e -> App (typedVar curr [c,x,y,z]) e
+    , mkUncurry    = \c x y z e -> App (typedVar uncurr [c,x,y,z]) e
     }
+  where
+    typedVar v ts = mkTyApps (Var v) ts
 
 rewrite :: Constrs -> Ctx -> CoreExpr -> Maybe CoreExpr
 rewrite constrs ctx e = do
@@ -210,12 +210,12 @@ lookup x (ProductCtx ctx1 ctx2) =
     (Nothing, Nothing) -> Nothing
 lookup _ Empty = Nothing
 
-toCoreExpr :: Constrs -> CategoryExpr -> CoreExpr
-toCoreExpr constrs e0 = case e0 of
+toCoreExpr :: Type -> Constrs -> CategoryExpr -> CoreExpr
+toCoreExpr c constrs e0 = case e0 of
   -- Primitive x     -> mkPrimitive constrs x
-  Id              -> mkId constrs
-  Compose e1 e2   -> mkCompose constrs (toCoreExpr constrs e1) (toCoreExpr constrs e2)
-  Product e1 e2   -> mkProduct constrs (toCoreExpr constrs e1) (toCoreExpr constrs e2)
+  Id x                -> mkId constrs c x
+  Compose x y z e1 e2 -> mkCompose constrs c x y z (toCoreExpr constrs e1) (toCoreExpr constrs e2)
+  Product x y z e1 e2 -> mkProduct constrs c x y z (toCoreExpr constrs e1) (toCoreExpr constrs e2)
   Pi1             -> mkPi1 constrs
   Pi2             -> mkPi2 constrs
   Coproduct e1 e2 -> mkCoproduct constrs (toCoreExpr constrs e1) (toCoreExpr constrs e2)

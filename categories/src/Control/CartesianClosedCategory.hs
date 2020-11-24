@@ -11,8 +11,9 @@ module Control.CartesianClosedCategory
 import Control.Category
 
 toCategory :: (x -> y) -> c x y
-toCategory = undefined
+toCategory _ = error "toCategory"
 {-# NOINLINE toCategory #-}
+
 
 class Category c => Cartesian c where
   (&&&) :: c x y -> c x z -> c x (y,z)
