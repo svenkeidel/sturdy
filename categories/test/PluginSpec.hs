@@ -2,14 +2,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module PluginSpec where
 
-import Plugin.Categories(toCategory)
+import Control.CartesianClosedCategory(toCategory)
 import Test.Hspec
 
 main :: IO ()
-main = hspec spec
+main = return (toCategory (\x -> x) ())
 
 spec :: Spec
 spec = do
-  describe "Compiling to categories" $
-    it "" $ do
-      Plugin.Categories.toCategory (\x -> x) (1 :: Int) `shouldBe` 1
+  it "compile id" $ do
+    Control.CartesianClosedCategory.toCategory (\x -> x) (1 :: Int) `shouldBe` 1
+  

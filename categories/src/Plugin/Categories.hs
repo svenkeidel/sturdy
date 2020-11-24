@@ -4,13 +4,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Plugin.Categories where
 
-import           Prelude hiding (lookup,product,(<>),id)
+import           Prelude hiding (lookup,product,(<>),id,curry,uncurry)
 import           GhcPlugins hiding (trace)
 import           Control.Monad
-import qualified Control.Category
 import qualified Language.Haskell.TH.Syntax as TH
-import qualified Debug.Trace as Debug
-import GHC (lookupGlobalName)
+import qualified Control.CartesianClosedCategory as CCC
 
 plugin :: Plugin
 plugin = defaultPlugin
@@ -18,17 +16,10 @@ plugin = defaultPlugin
   , pluginRecompile = purePlugin
   }
 
-trace :: Outputable a => DynFlags -> a -> b -> b
-trace dflags str b = Debug.trace (show (runSDoc (ppr str) (initSDocContext dflags (defaultUserStyle dflags)))) b
-
-toCategory :: (x -> y) -> c x y
-toCategory = undefined
-{-# NOINLINE toCategory #-}
-
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install _ todo = do
   dflags <- getDynFlags
-  trigger <- resolveName 'Plugin.Categories.toCategory
+  trigger <- resolveName 'CCC.toCategory
 
   constrs <- getConstrs
 
@@ -37,7 +28,7 @@ install _ todo = do
         [ BuiltinRule
           { ru_name = "Category Rewrite"
           , ru_fn = trigger
-          , ru_nargs = 4
+          , ru_nargs = 0
           , ru_try =
               error "category rewrite rule"
             -- \dflags _ _ exprs -> case exprs of
@@ -47,7 +38,10 @@ install _ todo = do
         ]
 
       addRule :: ModGuts -> CoreM ModGuts
-      addRule guts = return $ guts { mg_rules = rewriteRules ++ mg_rules guts }
+      addRule guts = do
+        putMsg (ppr (mg_rules guts))
+        putMsg (ppr rewriteRules)
+        return $ guts { mg_rules = rewriteRules ++ mg_rules guts }
 
       simplify = SimplMode
         { sm_names      = ["Category Rewrite"]
@@ -74,21 +68,6 @@ install _ todo = do
 
   return (pre ++ passes ++ post)
 
-
-
-getConstrs :: CoreM Constrs
-getConstrs = do
-  product <- resolveName '(,)
-  left <- resolveName 'Prelude.Left
-  right <- resolveName 'Prelude.Right
-  id <- resolveId 'Control.Category.id
-  return $ Constrs
-    { isProduct = \thing -> getName thing == product
-    , isLeft = \thing -> getName thing == left
-    , isRight = \thing -> getName thing == right
-    , mkId = Var id
-    }
-
 resolveName :: TH.Name -> CoreM Name
 resolveName thName = do
   maybeGhcName <- thNameToGhcName thName
@@ -108,11 +87,10 @@ data CategoryExpr where
   Product :: CategoryExpr -> CategoryExpr -> CategoryExpr
   Pi1 :: CategoryExpr
   Pi2 :: CategoryExpr
-  CoProduct :: CategoryExpr -> CategoryExpr -> CategoryExpr
+  Coproduct :: CategoryExpr -> CategoryExpr -> CategoryExpr
   In1 :: CategoryExpr
   In2 :: CategoryExpr
   Distribute :: CategoryExpr -- (A + B) × C -> (A × C) + (B × C)
-  Unit :: CategoryExpr
   Apply :: CategoryExpr
   Curry :: CategoryExpr -> CategoryExpr
   Uncurry :: CategoryExpr -> CategoryExpr
@@ -124,7 +102,7 @@ data CategoryExpr where
 (△) = Product
 
 (▽) :: CategoryExpr -> CategoryExpr -> CategoryExpr
-(▽) = CoProduct
+(▽) = Coproduct
 
 (×) :: Ctx -> Ctx -> Ctx
 (×) = ProductCtx
@@ -132,11 +110,57 @@ data CategoryExpr where
 data Ctx = Variable Var | ProductCtx Ctx Ctx | Empty
 
 data Constrs = Constrs
-  { isProduct :: forall a. NamedThing a => a -> Bool
-  , isLeft    :: forall a. NamedThing a => a -> Bool
-  , isRight   :: forall a. NamedThing a => a -> Bool
-  , mkId      :: CoreExpr
+  { isProduct    :: forall a. NamedThing a => a -> Bool
+  , isLeft       :: forall a. NamedThing a => a -> Bool
+  , isRight      :: forall a. NamedThing a => a -> Bool
+  , mkId         :: CoreExpr
+  , mkCompose    :: CoreExpr -> CoreExpr -> CoreExpr
+  , mkProduct    :: CoreExpr -> CoreExpr -> CoreExpr
+  , mkPi1        :: CoreExpr
+  , mkPi2        :: CoreExpr
+  , mkCoproduct  :: CoreExpr -> CoreExpr -> CoreExpr
+  , mkIn1        :: CoreExpr
+  , mkIn2        :: CoreExpr
+  , mkDistribute :: CoreExpr
+  , mkApply      :: CoreExpr
+  , mkCurry      :: CoreExpr -> CoreExpr
+  , mkUncurry    :: CoreExpr -> CoreExpr
   }
+
+getConstrs :: CoreM Constrs
+getConstrs = do
+  tuple     <- resolveName '(,)
+  left      <- resolveName 'Prelude.Left
+  right     <- resolveName 'Prelude.Right
+  id        <- resolveId 'CCC.id
+  compose   <- resolveId '(CCC..)
+  product   <- resolveId '(CCC.&&&)
+  p1        <- resolveId 'CCC.pi1
+  p2        <- resolveId 'CCC.pi2
+  coproduct <- resolveId '(CCC.+++)
+  i1        <- resolveId 'CCC.in1
+  i2        <- resolveId 'CCC.in2
+  dist      <- resolveId 'CCC.distribute1
+  app       <- resolveId 'CCC.apply
+  curr      <- resolveId 'CCC.curry
+  uncurr    <- resolveId 'CCC.uncurry
+  return $ Constrs
+    { isProduct    = \thing -> getName thing == tuple
+    , isLeft       = \thing -> getName thing == left
+    , isRight      = \thing -> getName thing == right
+    , mkId         = Var id
+    , mkCompose    = \e1 e2 -> App (App (Var compose) e1) e2
+    , mkProduct    = \e1 e2 -> App (App (Var product) e1) e2
+    , mkPi1        = Var p1
+    , mkPi2        = Var p2
+    , mkCoproduct  = \e1 e2 -> App (App (Var coproduct) e1) e2
+    , mkIn1        = Var i1
+    , mkIn2        = Var i2
+    , mkDistribute = Var dist
+    , mkApply      = Var app
+    , mkCurry      = \e -> App (Var curr) e
+    , mkUncurry    = \e -> App (Var uncurr) e
+    }
 
 rewrite :: Constrs -> Ctx -> CoreExpr -> Maybe CoreExpr
 rewrite constrs ctx e = do
@@ -149,7 +173,7 @@ toCatExpr constrs ctx e0 = case e0 of
     Just e' -> return e'
     Nothing -> return (primitive constrs x)
   Lam x e -> do
-    f <- toCatExpr constrs (Variable x × ctx) e
+    f <- toCatExpr constrs (ctx × Variable x) e
     return (Curry f)
   App e1 e2 -> do
     f <- toCatExpr constrs ctx e1
@@ -158,7 +182,7 @@ toCatExpr constrs ctx e0 = case e0 of
   Case e1 _ _ [(DataAlt ctor, [x,y], e2)] | isProduct constrs ctor -> do
     f <- toCatExpr constrs ctx e1
     g <- toCatExpr constrs ((Variable x × Variable y) × ctx) e2
-    return (g ◦ (f △ Id))
+    return (g ◦ (Id △ f))
   Case e1 _ _ [(DataAlt c1, [x], e2), (DataAlt c2, [y], e3)] | isLeft constrs c1 && isRight constrs c2 -> do
     f <- toCatExpr constrs ctx e1
     g <- toCatExpr constrs (Variable x × ctx) e2
@@ -168,10 +192,12 @@ toCatExpr constrs ctx e0 = case e0 of
     toCatExpr constrs ctx (App (Lam x e2) e1)
   _ -> Nothing
 
-toCoreExpr :: Constrs -> CategoryExpr -> CoreExpr
-toCoreExpr constrs e0 = case e0 of
-  Id -> mkId constrs
-  _ -> error "could not translate expression"
+primitive :: Constrs -> Var -> CategoryExpr
+primitive constrs var
+  | isProduct constrs var = Curry (Curry ((Pi2 ◦ Pi1) △ Pi2))
+  | isLeft constrs var = Curry (In1 ◦ Pi2)
+  | isRight constrs var = Curry (In2 ◦ Pi2)
+  | otherwise = Primitive var
 
 lookup :: Var -> Ctx -> Maybe CategoryExpr
 lookup x (Variable y)
@@ -179,14 +205,23 @@ lookup x (Variable y)
   | otherwise = Nothing
 lookup x (ProductCtx ctx1 ctx2) =
   case (lookup x ctx1, lookup x ctx2) of
-    (Just f, _) -> return (Pi1 ◦ f)
     (_, Just g) -> return (Pi2 ◦ g)
+    (Just f, _) -> return (Pi1 ◦ f)
     (Nothing, Nothing) -> Nothing
 lookup _ Empty = Nothing
 
-primitive :: Constrs -> Var -> CategoryExpr
-primitive constrs var
-  | isProduct constrs var = Curry (Curry ((Pi1 ◦ Pi2) △ Pi1))
-  | isLeft constrs var = Curry (In1 ◦ Pi1)
-  | isRight constrs var = Curry (In2 ◦ Pi1)
-  | otherwise = Primitive var
+toCoreExpr :: Constrs -> CategoryExpr -> CoreExpr
+toCoreExpr constrs e0 = case e0 of
+  -- Primitive x     -> mkPrimitive constrs x
+  Id              -> mkId constrs
+  Compose e1 e2   -> mkCompose constrs (toCoreExpr constrs e1) (toCoreExpr constrs e2)
+  Product e1 e2   -> mkProduct constrs (toCoreExpr constrs e1) (toCoreExpr constrs e2)
+  Pi1             -> mkPi1 constrs
+  Pi2             -> mkPi2 constrs
+  Coproduct e1 e2 -> mkCoproduct constrs (toCoreExpr constrs e1) (toCoreExpr constrs e2)
+  In1             -> mkIn1 constrs
+  In2             -> mkIn2 constrs
+  Distribute      -> mkDistribute constrs
+  Apply           -> mkApply constrs
+  Curry e         -> mkCurry constrs (toCoreExpr constrs e)
+  Uncurry e       -> mkUncurry constrs (toCoreExpr constrs e)
