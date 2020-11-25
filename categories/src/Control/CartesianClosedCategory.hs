@@ -1,4 +1,7 @@
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ConstraintKinds #-}
 module Control.CartesianClosedCategory
   ( toCategory
   , module Control.Category
@@ -8,12 +11,18 @@ module Control.CartesianClosedCategory
   , Closed(..)
   ) where
 
+import Prelude hiding (id,(.))
+
 import Control.Category
 
-toCategory :: (x -> y) -> c x y
+type CCC c = (Category c, Cartesian c, Cocartesian c, Closed c)
+
+toCategory :: forall c x y. CCC c => (x -> y) -> c x y
 toCategory _ = error "toCategory"
 {-# NOINLINE toCategory #-}
 
+-- test :: (->) (((), Int),Int) Int
+-- test = (.) @(->) @Int @Int @(((), Int),Int) (id @(->) @Int) (pi2 @(->) @((), Int) @Int)
 
 class Category c => Cartesian c where
   (&&&) :: c x y -> c x z -> c x (y,z)

@@ -2,6 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ImplicitParams #-}
 module Plugin.Categories where
 
 import           Prelude hiding (lookup,product,(<>),id,curry,uncurry)
@@ -16,22 +17,31 @@ plugin = defaultPlugin
   , pluginRecompile = purePlugin
   }
 
+data CCC = CCC
+  { cccType :: Type
+  , cccDict :: CoreExpr
+  }
+
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install _ todo = do
   dflags <- getDynFlags
   trigger <- resolveName 'CCC.toCategory
 
-  constrs <- getConstrs
+  ctrs <- getConstrs
+
 
   let rewriteRules :: [CoreRule]
       rewriteRules =
         [ BuiltinRule
           { ru_name = "Category Rewrite"
           , ru_fn = trigger
-          , ru_nargs = 4
+          , ru_nargs = 5
           , ru_try =
               \_ _ _ exprs -> case exprs of
-                [Type _, Type _, Type _, expr] -> rewrite constrs Empty expr
+                [Type c, Type _, Type _, dict, expr] ->
+                  let ?constrs = ctrs in
+                  let ?ccc = CCC {cccType = c, cccDict = dict} in
+                  rewrite Empty expr
                 _ -> Nothing
           }
         ]
@@ -78,6 +88,9 @@ resolveName thName = do
 resolveId :: TH.Name -> CoreM Id
 resolveId name = resolveName name >>= lookupId
 
+resolveTyCon :: TH.Name -> CoreM TyCon
+resolveTyCon name = resolveName name >>= lookupTyCon
+
 data CategoryExpr where
   Primitive :: Type -> Type -> Var -> CategoryExpr
   Id :: Type -> CategoryExpr
@@ -93,36 +106,87 @@ data CategoryExpr where
   Curry :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
   Uncurry :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
 
-(◦) :: CategoryExpr -> CategoryExpr -> CategoryExpr
-(◦) = Compose
+(◦) :: (HasCallStack, ?constrs :: Constrs) => CategoryExpr -> CategoryExpr -> CategoryExpr
+f ◦ g = Compose (dom g) (cod g) (cod f) f g
 
-(△) :: CategoryExpr -> CategoryExpr -> CategoryExpr
-(△) = Product
+(△) :: (HasCallStack, ?constrs :: Constrs) => CategoryExpr -> CategoryExpr -> CategoryExpr
+f △ g = Product (dom f) (cod f) (cod g) f g
 
-(▽) :: CategoryExpr -> CategoryExpr -> CategoryExpr
-(▽) = Coproduct
+(▽) :: (HasCallStack, ?constrs :: Constrs) => CategoryExpr -> CategoryExpr -> CategoryExpr
+f ▽ g = Coproduct (dom f) (dom g) (cod f) f g
+
+curry :: (HasCallStack, ?constrs :: Constrs) => CategoryExpr -> CategoryExpr
+curry f = case splitTyConApp_maybe (dom f) of
+  Just (_,[x,y]) -> Curry x y (cod f) f
+  _ -> pprPanic "" ("expected a pair type when constructing curry but got" <> ppr (dom f))
+
+uncurry :: (HasCallStack, ?constrs :: Constrs) => CategoryExpr -> CategoryExpr
+uncurry f = case splitFunTy_maybe (cod f) of
+  Just (y,z) -> Uncurry (dom f) y z f
+  _ -> pprPanic "" ("expected a function type when constructing uncurry but got" <> ppr (cod f))
+
+dom :: (?constrs :: Constrs) => CategoryExpr -> Type
+dom e0 = case e0 of
+  Primitive x _ _ -> x
+  Id x -> x
+  Compose x _ _ _ _ -> x
+  Product x _ _ _ _ -> x
+  Pi1 x y -> mkTuple ?constrs x y
+  Pi2 x y -> mkTuple ?constrs x y
+  Coproduct x y _ _ _ -> mkEither ?constrs x y
+  In1 x _ -> x
+  In2 _ y -> y
+  Distribute x y z -> mkTuple ?constrs x (mkEither ?constrs y z)
+  Apply x y -> mkTuple ?constrs (mkFun ?constrs x y) x
+  Curry x _ _ _ -> x
+  Uncurry x y _ _ -> mkTuple ?constrs x y
+
+cod :: (?constrs :: Constrs) => CategoryExpr -> Type
+cod e0 = case e0 of
+  Primitive _ y _ -> y
+  Id x -> x
+  Compose _ _ z _ _ -> z
+  Product _ y z _ _ -> mkTuple ?constrs y z
+  Pi1 x _ -> x
+  Pi2 _ y -> y
+  Coproduct _ _ z _ _ -> z
+  In1 x y -> mkEither ?constrs x y
+  In2 x y -> mkEither ?constrs x y
+  Distribute x y z -> mkEither ?constrs (mkTuple ?constrs x y) (mkTuple ?constrs x z)
+  Apply _ y -> y
+  Curry _ y z _ -> mkFun ?constrs y z
+  Uncurry _ _ z _ -> z
 
 (×) :: Ctx -> Ctx -> Ctx
-(×) = ProductCtx
+ctx1 × ctx2 = ProductCtx (mkBoxedTupleTy [ctxType ctx1, ctxType ctx2]) ctx1 ctx2
 
-data Ctx = Variable Var | ProductCtx Ctx Ctx | Empty
+data Ctx = Variable Var | ProductCtx Type Ctx Ctx | Empty
+
+ctxType :: Ctx -> Type
+ctxType ctx0 = case ctx0 of
+  Variable x -> varType x
+  ProductCtx t _ _ -> t
+  Empty -> mkBoxedTupleTy []
 
 data Constrs = Constrs
   { isProduct    :: forall a. NamedThing a => a -> Bool
   , isLeft       :: forall a. NamedThing a => a -> Bool
   , isRight      :: forall a. NamedThing a => a -> Bool
-  , mkId         :: Type -> Type -> CoreExpr
-  , mkCompose    :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
-  , mkProduct    :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
-  , mkPi1        :: Type -> Type -> Type -> CoreExpr
-  , mkPi2        :: Type -> Type -> Type -> CoreExpr
-  , mkCoproduct  :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
-  , mkIn1        :: Type -> Type -> Type -> CoreExpr
-  , mkIn2        :: Type -> Type -> Type -> CoreExpr
-  , mkDistribute :: Type -> Type -> Type -> Type -> CoreExpr
-  , mkApply      :: Type -> Type -> Type -> CoreExpr
-  , mkCurry      :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr
-  , mkUncurry    :: Type -> Type -> Type -> Type -> CoreExpr -> CoreExpr
+  , mkId         :: (?ccc :: CCC) => Type -> CoreExpr
+  , mkCompose    :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
+  , mkProduct    :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
+  , mkPi1        :: (?ccc :: CCC) => Type -> Type -> CoreExpr
+  , mkPi2        :: (?ccc :: CCC) => Type -> Type -> CoreExpr
+  , mkCoproduct  :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
+  , mkIn1        :: (?ccc :: CCC) => Type -> Type -> CoreExpr
+  , mkIn2        :: (?ccc :: CCC) => Type -> Type -> CoreExpr
+  , mkDistribute :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr
+  , mkApply      :: (?ccc :: CCC) => Type -> Type -> CoreExpr
+  , mkCurry      :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr
+  , mkUncurry    :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr
+  , mkFun        :: Type -> Type -> Type
+  , mkEither     :: Type -> Type -> Type
+  , mkTuple      :: Type -> Type -> Type
   }
 
 getConstrs :: CoreM Constrs
@@ -142,86 +206,94 @@ getConstrs = do
   app       <- resolveId 'CCC.apply
   curr      <- resolveId 'CCC.curry
   uncurr    <- resolveId 'CCC.uncurry
+  eitherTy  <- resolveTyCon ''Either
   return $ Constrs
     { isProduct    = \thing -> getName thing == tuple
     , isLeft       = \thing -> getName thing == left
     , isRight      = \thing -> getName thing == right
-    , mkId         = \c x -> typedVar id [c,x]
-    , mkCompose    = \c x y z e1 e2 -> App (App (typedVar compose [c,x,y,z]) e1) e2
-    , mkProduct    = \c x y z e1 e2 -> App (App (typedVar product [c,x,y,z]) e1) e2
-    , mkPi1        = \c x y -> typedVar p1 [c,x,y]
-    , mkPi2        = \c x y -> typedVar p2 [c,x,y]
-    , mkCoproduct  = \c x y z e1 e2 -> App (App (typedVar coproduct [c,x,y,z]) e1) e2
-    , mkIn1        = \c x y -> typedVar i1 [c,x,y]
-    , mkIn2        = \c x y -> typedVar i2 [c,x,y]
-    , mkDistribute = \c x y z -> typedVar dist [c,x,y,z]
-    , mkApply      = \c x y -> typedVar app [c,x,y]
-    , mkCurry      = \c x y z e -> App (typedVar curr [c,x,y,z]) e
-    , mkUncurry    = \c x y z e -> App (typedVar uncurr [c,x,y,z]) e
+    , mkId         = \x -> op id [x]
+    , mkCompose    = \x y z e1 e2 -> App (App (op compose [y,z,x]) e1) e2
+    , mkProduct    = \x y z e1 e2 -> App (App (op product [x,y,z]) e1) e2
+    , mkPi1        = \x y -> op p1 [x,y]
+    , mkPi2        = \x y -> op p2 [x,y]
+    , mkCoproduct  = \x y z e1 e2 -> App (App (op coproduct [x,y,z]) e1) e2
+    , mkIn1        = \x y -> op i1 [x,y]
+    , mkIn2        = \x y -> op i2 [x,y]
+    , mkDistribute = \x y z -> op dist [x,y,z]
+    , mkApply      = \x y -> op app [x,y]
+    , mkCurry      = \x y z e -> App (op curr [x,y,z]) e
+    , mkUncurry    = \x y z e -> App (op uncurr [x,y,z]) e
+    , mkFun        = \x y -> mkFunTy x y
+    , mkTuple      = \x y -> mkBoxedTupleTy [x,y]
+    , mkEither     = \x y -> mkTyConApp eitherTy [x,y]
     }
   where
-    typedVar v ts = mkTyApps (Var v) ts
+    op v ts = App (mkTyApps (Var v) (cccType ?ccc :ts)) (cccDict ?ccc)
 
-rewrite :: Constrs -> Ctx -> CoreExpr -> Maybe CoreExpr
-rewrite constrs ctx e = do
-  catExpr <- toCatExpr constrs ctx e
-  return (toCoreExpr constrs catExpr)
+rewrite :: (HasCallStack, ?constrs :: Constrs, ?ccc :: CCC) => Ctx -> CoreExpr -> Maybe CoreExpr
+rewrite ctx e = do
+  catExpr <- toCatExpr ctx e
+  return (toCoreExpr catExpr)
 
-toCatExpr :: Constrs -> Ctx -> CoreExpr -> Maybe CategoryExpr
-toCatExpr constrs ctx e0 = case e0 of
+toCatExpr :: (HasCallStack, ?constrs :: Constrs) => Ctx -> CoreExpr -> Maybe CategoryExpr
+toCatExpr ctx e0 = case e0 of
   Var x -> case lookup x ctx of
     Just e' -> return e'
-    Nothing -> return (primitive constrs x)
+    Nothing -> return (primitive x)
   Lam x e -> do
-    f <- toCatExpr constrs (ctx × Variable x) e
-    return (Curry f)
+    f <- toCatExpr (ctx × Variable x) e
+    return (curry f)
   App e1 e2 -> do
-    f <- toCatExpr constrs ctx e1
-    x <- toCatExpr constrs ctx e2
-    return (Apply ◦ (f △ x))
-  Case e1 _ _ [(DataAlt ctor, [x,y], e2)] | isProduct constrs ctor -> do
-    f <- toCatExpr constrs ctx e1
-    g <- toCatExpr constrs ((Variable x × Variable y) × ctx) e2
-    return (g ◦ (Id △ f))
-  Case e1 _ _ [(DataAlt c1, [x], e2), (DataAlt c2, [y], e3)] | isLeft constrs c1 && isRight constrs c2 -> do
-    f <- toCatExpr constrs ctx e1
-    g <- toCatExpr constrs (Variable x × ctx) e2
-    h <- toCatExpr constrs (Variable y × ctx) e3
-    return ((g ▽ h) ◦ Distribute ◦ (f △ Id))
+    f <- toCatExpr ctx e1
+    x <- toCatExpr ctx e2
+    let (tx,ty) = splitFunTy (cod f)
+    return (Apply tx ty ◦ (f △ x))
+  Case e1 _ _ [(DataAlt ctor, [x,y], e2)] | isProduct ?constrs ctor -> do
+    f <- toCatExpr ctx e1
+    g <- toCatExpr ((Variable x × Variable y) × ctx) e2
+    return (g ◦ (Id (ctxType ctx) △ f))
+  Case e1 _ _ [(DataAlt c1, [x], e2), (DataAlt c2, [y], e3)] | isLeft ?constrs c1 && isRight ?constrs c2 -> do
+    f <- toCatExpr ctx e1
+    g <- toCatExpr (Variable x × ctx) e2
+    h <- toCatExpr (Variable y × ctx) e3
+    let gamma = ctxType ctx
+        (_, [tx,ty]) = splitTyConApp (cod f)
+    return ((g ▽ h) ◦ Distribute gamma tx ty ◦ (Id gamma △ f))
   Let (NonRec x e1) e2 ->
-    toCatExpr constrs ctx (App (Lam x e2) e1)
+    toCatExpr ctx (App (Lam x e2) e1)
   _ -> Nothing
 
-primitive :: Constrs -> Var -> CategoryExpr
-primitive constrs var
-  | isProduct constrs var = Curry (Curry ((Pi2 ◦ Pi1) △ Pi2))
-  | isLeft constrs var = Curry (In1 ◦ Pi2)
-  | isRight constrs var = Curry (In2 ◦ Pi2)
-  | otherwise = Primitive var
+primitive :: (HasCallStack, ?constrs :: Constrs) => Var -> CategoryExpr
+primitive var
+  | isProduct ?constrs var = undefined -- curry (curry ((Pi2 _ _ ◦ Pi1 _ _) △ Pi2 _ _))
+  | isLeft ?constrs var = undefined -- curry (In1 _ _ ◦ Pi2 _ _)
+  | isRight ?constrs var = undefined -- curry (In2 _ _ ◦ Pi2 _ _)
+  | isFunTy (varType var) = let (x,y) = splitFunTy (varType var) in Primitive x y var
+  | otherwise = error "do not recoginize primitive"
 
-lookup :: Var -> Ctx -> Maybe CategoryExpr
+lookup :: (HasCallStack, ?constrs :: Constrs) => Var -> Ctx -> Maybe CategoryExpr
 lookup x (Variable y)
-  | x == y    = Just Id
+  | x == y    = Just (Id (varType y))
   | otherwise = Nothing
-lookup x (ProductCtx ctx1 ctx2) =
+lookup x (ProductCtx gamma ctx1 ctx2) =
   case (lookup x ctx1, lookup x ctx2) of
-    (_, Just g) -> return (Pi2 ◦ g)
-    (Just f, _) -> return (Pi1 ◦ f)
+    (_, Just g) -> return (g ◦ Pi2 gamma (ctxType ctx2))
+    (Just f, _) -> return (f ◦ Pi1 gamma (ctxType ctx1))
     (Nothing, Nothing) -> Nothing
 lookup _ Empty = Nothing
 
-toCoreExpr :: Type -> Constrs -> CategoryExpr -> CoreExpr
-toCoreExpr c constrs e0 = case e0 of
+toCoreExpr :: (HasCallStack, ?constrs :: Constrs, ?ccc :: CCC) => CategoryExpr -> CoreExpr
+toCoreExpr e0 = case e0 of
   -- Primitive x     -> mkPrimitive constrs x
-  Id x                -> mkId constrs c x
-  Compose x y z e1 e2 -> mkCompose constrs c x y z (toCoreExpr constrs e1) (toCoreExpr constrs e2)
-  Product x y z e1 e2 -> mkProduct constrs c x y z (toCoreExpr constrs e1) (toCoreExpr constrs e2)
-  Pi1             -> mkPi1 constrs
-  Pi2             -> mkPi2 constrs
-  Coproduct e1 e2 -> mkCoproduct constrs (toCoreExpr constrs e1) (toCoreExpr constrs e2)
-  In1             -> mkIn1 constrs
-  In2             -> mkIn2 constrs
-  Distribute      -> mkDistribute constrs
-  Apply           -> mkApply constrs
-  Curry e         -> mkCurry constrs (toCoreExpr constrs e)
-  Uncurry e       -> mkUncurry constrs (toCoreExpr constrs e)
+  Id x                  -> mkId ?constrs x
+  Compose x y z e1 e2   -> mkCompose ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
+  Product x y z e1 e2   -> mkProduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
+  Pi1 x y               -> mkPi1 ?constrs x y
+  Pi2 x y               -> mkPi2 ?constrs x y
+  Coproduct x y z e1 e2 -> mkCoproduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
+  In1 x y               -> mkIn1 ?constrs x y
+  In2 x y               -> mkIn2 ?constrs x y
+  Distribute x y z      -> mkDistribute ?constrs x y z
+  Apply x y             -> mkApply ?constrs x y
+  Curry x y z e         -> mkCurry ?constrs x y z (toCoreExpr e)
+  Uncurry x y z e       -> mkUncurry ?constrs x y z (toCoreExpr e)

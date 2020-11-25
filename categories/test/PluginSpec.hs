@@ -6,7 +6,7 @@ import Control.CartesianClosedCategory(toCategory)
 import Test.Hspec
 
 main :: IO ()
-main = return (toCategory (\x -> x) ())
+main = hspec spec
 
 spec :: Spec
 spec = do

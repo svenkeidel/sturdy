@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs #-}
 module Plugin.Typed where
 
+import Prelude hiding (lookup)
 import GhcPlugins
 
 data CategoryExpr x y where
@@ -18,6 +19,22 @@ data CategoryExpr x y where
   Apply :: CategoryExpr (x -> y, x) y
   Curry :: CategoryExpr (x,y) z -> CategoryExpr x (y -> z)
   Uncurry :: CategoryExpr x (y -> z) -> CategoryExpr (x,y) z
+
+data Ctx var gamma where
+  Variable :: var -> Ctx var var
+  ProductCtx :: Ctx var gamma1 -> Ctx var gamma2 -> Ctx var (gamma1,gamma2)
+  Empty :: Ctx var ()
+
+lookup :: Eq var => var -> Ctx var gamma -> Maybe (CategoryExpr gamma var)
+lookup x (Variable y)
+  | x == y    = Just Id
+  | otherwise = Nothing
+lookup x (ProductCtx ctx1 ctx2) =
+  case (lookup x ctx1, lookup x ctx2) of
+    (_, Just g) -> Just (g ◦ Pi2)
+    (Just f, _) -> Just (f ◦ Pi1)
+    (Nothing, Nothing) -> Nothing
+lookup _ Empty = Nothing
 
 (◦) :: CategoryExpr y z -> CategoryExpr x y -> CategoryExpr x z
 (◦) = Compose
