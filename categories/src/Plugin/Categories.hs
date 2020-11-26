@@ -19,7 +19,11 @@ plugin = defaultPlugin
 
 data CCC = CCC
   { cccType :: Type
-  , cccDict :: CoreExpr
+  , categoryDict :: CoreExpr
+  , cartesianDict :: CoreExpr
+  , cocartesianDict :: CoreExpr
+  , closedDict :: CoreExpr
+  , distributiveDict :: CoreExpr
   }
 
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
@@ -39,8 +43,19 @@ install _ todo = do
           , ru_try =
               \_ _ _ exprs -> case exprs of
                 [Type c, Type _, Type _, dict, expr] ->
+                  -- pprPanic "" (ppr (collectArgs dict)) $
+                  let (_,[_,_,_,_,_,
+                          catDict,cartDict,cocartDict,closedDict,distribDict]) = collectArgs dict in
                   let ?constrs = ctrs in
-                  let ?ccc = CCC {cccType = c, cccDict = dict} in
+                  let ?ccc = CCC
+                        { cccType = c
+                        , categoryDict = catDict
+                        , cartesianDict = cartDict
+                        , cocartesianDict = cocartDict
+                        , closedDict = closedDict
+                        , distributiveDict = distribDict
+                        }
+                  in
                   rewrite Empty expr
                 _ -> Nothing
           }
@@ -211,24 +226,24 @@ getConstrs = do
     { isProduct    = \thing -> getName thing == tuple
     , isLeft       = \thing -> getName thing == left
     , isRight      = \thing -> getName thing == right
-    , mkId         = \x -> op id [x]
-    , mkCompose    = \x y z e1 e2 -> App (App (op compose [y,z,x]) e1) e2
-    , mkProduct    = \x y z e1 e2 -> App (App (op product [x,y,z]) e1) e2
-    , mkPi1        = \x y -> op p1 [x,y]
-    , mkPi2        = \x y -> op p2 [x,y]
-    , mkCoproduct  = \x y z e1 e2 -> App (App (op coproduct [x,y,z]) e1) e2
-    , mkIn1        = \x y -> op i1 [x,y]
-    , mkIn2        = \x y -> op i2 [x,y]
-    , mkDistribute = \x y z -> op dist [x,y,z]
-    , mkApply      = \x y -> op app [x,y]
-    , mkCurry      = \x y z e -> App (op curr [x,y,z]) e
-    , mkUncurry    = \x y z e -> App (op uncurr [x,y,z]) e
+    , mkId         = \x -> op id [x] (categoryDict ?ccc)
+    , mkCompose    = \x y z e1 e2 -> App (App (op compose [y,z,x] (categoryDict ?ccc)) e1) e2
+    , mkProduct    = \x y z e1 e2 -> App (App (op product [x,y,z] (cartesianDict ?ccc)) e1) e2
+    , mkPi1        = \x y -> op p1 [x,y] (cartesianDict ?ccc)
+    , mkPi2        = \x y -> op p2 [x,y] (cartesianDict ?ccc)
+    , mkCoproduct  = \x y z e1 e2 -> App (App (op coproduct [x,y,z] (cocartesianDict ?ccc)) e1) e2
+    , mkIn1        = \x y -> op i1 [x,y] (cocartesianDict ?ccc)
+    , mkIn2        = \x y -> op i2 [x,y] (cocartesianDict ?ccc)
+    , mkDistribute = \x y z -> op dist [x,y,z] (distributiveDict ?ccc)
+    , mkApply      = \x y -> op app [x,y] (closedDict ?ccc)
+    , mkCurry      = \x y z e -> App (op curr [x,y,z] (closedDict ?ccc)) e
+    , mkUncurry    = \x y z e -> App (op uncurr [x,y,z] (closedDict ?ccc)) e
     , mkFun        = \x y -> mkFunTy x y
     , mkTuple      = \x y -> mkBoxedTupleTy [x,y]
     , mkEither     = \x y -> mkTyConApp eitherTy [x,y]
     }
   where
-    op v ts = App (mkTyApps (Var v) (cccType ?ccc :ts)) (cccDict ?ccc)
+    op v ts dict = App (mkTyApps (Var v) (cccType ?ccc :ts)) dict
 
 rewrite :: (HasCallStack, ?constrs :: Constrs, ?ccc :: CCC) => Ctx -> CoreExpr -> Maybe CoreExpr
 rewrite ctx e = do
@@ -277,8 +292,8 @@ lookup x (Variable y)
   | otherwise = Nothing
 lookup x (ProductCtx gamma ctx1 ctx2) =
   case (lookup x ctx1, lookup x ctx2) of
-    (_, Just g) -> return (g ◦ Pi2 gamma (ctxType ctx2))
-    (Just f, _) -> return (f ◦ Pi1 gamma (ctxType ctx1))
+    (_, Just g) -> return (g ◦ Pi2 (ctxType ctx1) (ctxType ctx2))
+    (Just f, _) -> return (f ◦ Pi1 (ctxType ctx1) (ctxType ctx2))
     (Nothing, Nothing) -> Nothing
 lookup _ Empty = Nothing
 

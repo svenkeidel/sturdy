@@ -15,7 +15,7 @@ import Prelude hiding (id,(.))
 
 import Control.Category
 
-type CCC c = (Category c, Cartesian c, Cocartesian c, Closed c)
+type CCC c = (Category c, Cartesian c, Cocartesian c, Closed c, Distributive c)
 
 toCategory :: forall c x y. CCC c => (x -> y) -> c x y
 toCategory _ = error "toCategory"
@@ -40,8 +40,8 @@ class (Cartesian c, Cocartesian c) => Distributive c where
 
 class Closed c where
   apply :: c (x -> y, x) y
-  curry :: c x (y -> z) -> c (x,y) z
-  uncurry :: c (x,y) z -> c x (y -> z)
+  curry :: c (x,y) z -> c x (y -> z)
+  uncurry :: c x (y -> z) -> c (x,y) z
 
 
 instance Cartesian (->) where
@@ -74,8 +74,8 @@ instance Distributive (->) where
 
 instance Closed (->) where
   apply = \(f,x) -> f x
-  curry = \f (x,y) -> f x y
-  uncurry = \f x y -> f (x,y)
+  curry = \f x y -> f (x,y)
+  uncurry = \f (x,y) -> f x y
   {-# INLINE apply #-}
   {-# INLINE curry #-}
   {-# INLINE uncurry #-}
