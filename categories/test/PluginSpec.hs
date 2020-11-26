@@ -12,10 +12,14 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  it "compile id" $ do
-    Control.CartesianClosedCategory.toCategory (\x -> x) (1 :: Int) `shouldBe` 1
+  -- it "compile id" $ do
+  --   toCategory (\x -> x) (1 :: Int) `shouldBe` 1
 
-test = curry @(->) @() @Int @Int
-            ((.) @(->) @Int @Int @((), Int)
-               (id @(->) @Int)
-               (pi2 @(->) @() @Int))
+  it "compile tuple" $ do
+    toCategory @Primitive (\x -> (x, x)) (1 :: Int) `shouldBe` (1,1)
+
+class Primitive c where
+  tuple :: c x (y -> (x,y))
+
+instance Primitive (->) where
+  tuple x y = (x,y)

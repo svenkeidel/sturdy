@@ -1,3 +1,6 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE LambdaCase #-}
@@ -14,12 +17,12 @@ module Control.CartesianClosedCategory
 import Prelude hiding (id,(.))
 
 import Control.Category
+import GHC.Exts
 
-type CCC c = (Category c, Cartesian c, Cocartesian c, Closed c, Distributive c)
-
-toCategory :: forall c x y. CCC c => (x -> y) -> c x y
+toCategory :: forall (prim :: (* -> * -> *) -> Constraint) c x y. (prim c, Category c, Cartesian c, Cocartesian c, Closed c, Distributive c) => (x -> y) -> c x y
 toCategory _ = error "toCategory"
 {-# NOINLINE toCategory #-}
+
 
 -- test :: (->) (((), Int),Int) Int
 -- test = (.) @(->) @Int @Int @(((), Int),Int) (id @(->) @Int) (pi2 @(->) @((), Int) @Int)
