@@ -7,9 +7,11 @@ module Plugin.Categories where
 
 import           Prelude hiding (lookup,product,(<>),id,curry,uncurry)
 import           GhcPlugins hiding (trace)
+import           Class
 import           Control.Monad
 import qualified Language.Haskell.TH.Syntax as TH
 import qualified Control.CartesianClosedCategory as CCC
+import           Data.List (find)
 
 plugin :: Plugin
 plugin = defaultPlugin
@@ -32,12 +34,15 @@ install _ todo = do
           , ru_fn = trigger
           , ru_nargs = 11
           , ru_try =
-              \_ _ _ exprs -> case exprs of
+              \_ _ _ exprs ->
+                case exprs of
                 [Type _prim, Type c, Type _x, Type _y, primDict, catDict,cartDict,cocartDict, closDict, distribDict, Lam x e] ->
                   let ?constrs = ctrs in
+                  let (primClass, _) = getClassPredTys (exprType primDict) in
                   let ?ccc = CCC
                         { cccType = c
                         , primitiveDict = primDict
+                        , primitiveClass = primClass
                         , categoryDict = catDict
                         , cartesianDict = cartDict
                         , cocartesianDict = cocartDict
@@ -195,20 +200,10 @@ data Constrs = Constrs
   , mkTuple      :: Type -> Type -> Type
   }
 
--- type Fun = (->)
-
--- test :: CoreM ()
--- test = do
---   curr <- resolveId 'CCC.curry
---   functionArrow <- resolveTyCon ''Fun
---   let funTy = mkTyConApp functionArrow []
---   putMsg $ ppr $ (varType curr)
---   putMsg $ ppr $ applyTypeToArgs (Var curr) (varType curr) [Type funTy, Type unitTy] --, Type intTy, Type intTy]
---   return ()
-
 data CCC = CCC
   { cccType :: Type
   , primitiveDict :: CoreExpr
+  , primitiveClass :: Class
   , categoryDict :: CoreExpr
   , cartesianDict :: CoreExpr
   , cocartesianDict :: CoreExpr
@@ -239,20 +234,28 @@ getConstrs = do
     , isLeft       = \thing -> getOccName thing == getOccName left
     , isRight      = \thing -> getOccName thing == getOccName right
     , mkPrimitive  = \x y v ->
-        let t = mkAppTys (cccType ?ccc) [x,y] in
-        Var (setVarType v t)
+        let var = lookupPrimVar v
+            c = tyConAppTyCon (cccType ?ccc)
+            ty = mkTyConApp c [x, y]
+            expr = Var (setVarType var ty)
+            -- expr = op var [Type (cccType ?ccc), primitiveDict ?ccc, Type x, Type y]
+        in pprTrace "mkPrimitive" (vcat [ "dom: " <> ppr x
+                                        , "cod: " <> ppr y
+                                        , "var: " <> ppr var <> " :: " <> ppr (varType var)
+                                        , "expr: " <> ppr expr <> " :: " <> ppr (exprType expr)
+                                        ]) $ expr
     , mkId         = \x -> op id [Type (typeKind x), Type (cccType ?ccc), categoryDict ?ccc, Type x]
     , mkCompose    = \x y z e1 e2 ->
         let tys = [Type (typeKind x), Type (cccType ?ccc), categoryDict ?ccc, Type y, Type z, Type x] in
         mkApps (op compose tys) [e1,e2]
     , mkProduct    = \x y z e1 e2 ->
         let tys = [Type (cccType ?ccc), cartesianDict ?ccc, Type x, Type y, Type z] in
-        App (App (op product tys) e1) e2
+        mkApps (op product tys) [e1,e2]
     , mkPi1        = \x y -> op p1 [Type (cccType ?ccc), cartesianDict ?ccc, Type x, Type y]
     , mkPi2        = \x y -> op p2 [Type (cccType ?ccc), cartesianDict ?ccc, Type x, Type y]
     , mkCoproduct  = \x y z e1 e2 ->
         let tys = [Type (cccType ?ccc), cocartesianDict ?ccc, Type x, Type y, Type z] in
-        App (App (op coproduct tys) e1) e2
+        mkApps (op coproduct tys) [e1,e2]
     , mkIn1        = \x y -> op i1 [Type (cccType ?ccc), cocartesianDict ?ccc, Type x, Type y]
     , mkIn2        = \x y -> op i2 [Type (cccType ?ccc), cocartesianDict ?ccc, Type x, Type y]
     , mkDistribute = \x y z -> op dist [Type (cccType ?ccc), distributiveDict ?ccc, Type x, Type y, Type z]
@@ -273,6 +276,21 @@ getConstrs = do
       let ty = applyTypeToArgs (Var v) (varType v) ts
       in Var (setVarType v ty)
 
+lookupPrimVar :: (HasCallStack, ?ccc :: CCC) => Var -> Var
+lookupPrimVar v = case findMethod (convertPrimVar (getOccName v)) methods of
+  Just method -> method
+  Nothing -> pprPanic "convertPrimVar" ("could not find primitive method" <+> ppr v)
+  where
+    methods = classMethods (primitiveClass ?ccc)
+    convertPrimVar var
+      | var == mkVarOcc "(,)" = mkVarOcc "tuple"
+      | otherwise = var
+      -- | var == mkVarOcc "Left" = mkVarOcc "left"
+      -- | var == mkVarOcc "Right" = mkVarOcc "right"
+
+findMethod :: OccName -> [Id] -> Maybe Id
+findMethod name = find (\v' -> name == getOccName v')
+
 rewrite :: (HasCallStack, ?constrs :: Constrs, ?ccc :: CCC) => Ctx -> CoreExpr -> CoreExpr
 rewrite ctx e = toCoreExpr (toCatExpr ctx e)
 
@@ -286,7 +304,7 @@ toCatExpr :: (HasCallStack, ?constrs :: Constrs) => Ctx -> CoreExpr -> CategoryE
 toCatExpr ctx e0 = case e0 of
   Var x -> case lookup x ctx of
     Just e' -> e'
-    Nothing -> primitive ctx x
+    Nothing -> Primitive (ctxType ctx) (varType x) x
   Lam x e ->
     let f = toCatExpr (ctx × Variable x) e
     in curry f
@@ -310,18 +328,6 @@ toCatExpr ctx e0 = case e0 of
   Let (NonRec x e1) e2 ->
     toCatExpr ctx (App (Lam x e2) e1)
   _ -> pprPanic "toCatExpr" $ "Could not compile expression " <> ppr e0
-
-primitive :: (HasCallStack, ?constrs :: Constrs) => Ctx -> Var -> CategoryExpr
-primitive ctx var
-  | isProduct ?constrs var =
-    let occName = mkOccName varName "product"
-    Primitive (ctxType ctx) (varType var) _
-  | otherwise = Primitive (ctxType ctx) (varType var) var
-  -- isProduct ?constrs var = pprPanic "primitive" (ppr (varType var)) -- curry (curry ((Pi2 _ _ ◦ Pi1 _ _) △ Pi2 _ _))
-  -- isLeft ?constrs var = undefined -- curry (In1 _ _ ◦ Pi2 _ _)
-  -- isRight ?constrs var = undefined -- curry (In2 _ _ ◦ Pi2 _ _)
-  -- isFunTy (varType var) = Primitive (varType var) var
-  -- otherwise = pprPanic "primitive" $ "did not recoginize primitive " <> ppr var
 
 lookup :: (HasCallStack, ?constrs :: Constrs) => Var -> Ctx -> Maybe CategoryExpr
 lookup x (Variable y)

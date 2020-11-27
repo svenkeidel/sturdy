@@ -19,7 +19,7 @@ spec = do
     toCategory @Primitive (\x -> (x, x)) (1 :: Int) `shouldBe` (1,1)
 
 class Primitive c where
-  tuple :: c x (y -> (x,y))
+  tuple :: c ctx (x -> y -> (x,y))
 
 instance Primitive (->) where
-  tuple x y = (x,y)
+  tuple ctx x y = (x,y)
