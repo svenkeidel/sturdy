@@ -13,7 +13,7 @@ main = hspec spec
 spec :: Spec
 spec = do
   -- it "compile id" $ do
-  --   toCategory (\x -> x) (1 :: Int) `shouldBe` 1
+  --   toCategory @Primitive (\x -> x) (1 :: Int) `shouldBe` 1
 
   it "compile tuple" $ do
     toCategory @Primitive (\x -> (x, x)) (1 :: Int) `shouldBe` (1,1)

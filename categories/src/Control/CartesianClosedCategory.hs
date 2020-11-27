@@ -23,10 +23,6 @@ toCategory :: forall (prim :: (* -> * -> *) -> Constraint) c x y. (prim c, Categ
 toCategory _ = error "toCategory"
 {-# NOINLINE toCategory #-}
 
-
--- test :: (->) (((), Int),Int) Int
--- test = (.) @(->) @Int @Int @(((), Int),Int) (id @(->) @Int) (pi2 @(->) @((), Int) @Int)
-
 class Category c => Cartesian c where
   (&&&) :: c x y -> c x z -> c x (y,z)
   pi1   :: c (x,y) x

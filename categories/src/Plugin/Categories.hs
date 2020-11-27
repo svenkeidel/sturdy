@@ -115,6 +115,7 @@ data CategoryExpr where
   Apply :: Type -> Type -> CategoryExpr
   Curry :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
   Uncurry :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
+  ApplyType :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
 
 (◦) :: (HasCallStack, ?constrs :: Constrs) => CategoryExpr -> CategoryExpr -> CategoryExpr
 f ◦ g = Compose (dom g) (cod g) (cod f) f g
@@ -150,6 +151,7 @@ dom e0 = case e0 of
   Apply x y -> mkTuple ?constrs (mkFun ?constrs x y) x
   Curry x _ _ _ -> x
   Uncurry x y _ _ -> mkTuple ?constrs x y
+  ApplyType x _ _ _ -> x
 
 cod :: (?constrs :: Constrs) => CategoryExpr -> Type
 cod e0 = case e0 of
@@ -166,6 +168,7 @@ cod e0 = case e0 of
   Apply _ y -> y
   Curry _ y z _ -> mkFun ?constrs y z
   Uncurry _ _ z _ -> z
+  ApplyType _ y _ _ -> y
 
 (×) :: Ctx -> Ctx -> Ctx
 ctx1 × ctx2 = ProductCtx (mkBoxedTupleTy [ctxType ctx1, ctxType ctx2]) ctx1 ctx2
@@ -234,16 +237,25 @@ getConstrs = do
     , isLeft       = \thing -> getOccName thing == getOccName left
     , isRight      = \thing -> getOccName thing == getOccName right
     , mkPrimitive  = \x y v ->
-        let var = lookupPrimVar v
-            c = tyConAppTyCon (cccType ?ccc)
-            ty = mkTyConApp c [x, y]
-            expr = Var (setVarType var ty)
-            -- expr = op var [Type (cccType ?ccc), primitiveDict ?ccc, Type x, Type y]
+        let expr = op (lookupPrimVar v) [Type (cccType ?ccc), primitiveDict ?ccc, Type x]
         in pprTrace "mkPrimitive" (vcat [ "dom: " <> ppr x
                                         , "cod: " <> ppr y
-                                        , "var: " <> ppr var <> " :: " <> ppr (varType var)
-                                        , "expr: " <> ppr expr <> " :: " <> ppr (exprType expr)
-                                        ]) $ expr
+                                        , "expr: " <> ppr expr <+> "::" <+> ppr (exprType expr)
+                                        ])
+           $ mkTyApps (mkApps (mkTyApps (Var (lookupPrimVar v)) [cccType ?ccc]) [primitiveDict ?ccc]) [x]
+           -- expr
+        -- let var = lookupPrimVar v
+        --     var' = updateVarType (\ty -> applyTypeToArgs (Var var) ty [Type (cccType ?ccc), primitiveDict ?ccc]) var
+        --     ty = mkAppTys (cccType ?ccc) [x, y]
+        --     expr = Var (setVarType var' ty)
+        --     -- expr = op var [Type (cccType ?ccc), primitiveDict ?ccc, Type x, Type y]
+        -- in pprTrace "mkPrimitive" (vcat [ "dom: " <> ppr x
+        --                                 , "cod: " <> ppr y
+        --                                 , "var: " <> ppr var <> " :: " <> ppr (varType var') <> " :: " <> ppr (typeKind (varType var'))
+        --                                 , "expr: " <> ppr expr <> " :: " <> ppr (exprType expr) <> " :: " <> ppr (typeKind (exprType expr))
+
+        --                                 , "types equal: " <> ppr ((varType var') `nonDetCmpType` (exprType expr))
+        --                                 ]) $ expr
     , mkId         = \x -> op id [Type (typeKind x), Type (cccType ?ccc), categoryDict ?ccc, Type x]
     , mkCompose    = \x y z e1 e2 ->
         let tys = [Type (typeKind x), Type (cccType ?ccc), categoryDict ?ccc, Type y, Type z, Type x] in
@@ -282,23 +294,22 @@ lookupPrimVar v = case findMethod (convertPrimVar (getOccName v)) methods of
   Nothing -> pprPanic "convertPrimVar" ("could not find primitive method" <+> ppr v)
   where
     methods = classMethods (primitiveClass ?ccc)
+
     convertPrimVar var
       | var == mkVarOcc "(,)" = mkVarOcc "tuple"
       | otherwise = var
-      -- | var == mkVarOcc "Left" = mkVarOcc "left"
-      -- | var == mkVarOcc "Right" = mkVarOcc "right"
 
-findMethod :: OccName -> [Id] -> Maybe Id
-findMethod name = find (\v' -> name == getOccName v')
+    findMethod :: OccName -> [Id] -> Maybe Id
+    findMethod name = find (\v' -> name == getOccName v')
 
 rewrite :: (HasCallStack, ?constrs :: Constrs, ?ccc :: CCC) => Ctx -> CoreExpr -> CoreExpr
 rewrite ctx e = toCoreExpr (toCatExpr ctx e)
 
-applyType :: HasCallStack => Type -> CategoryExpr -> CategoryExpr
-applyType t (Primitive x y var) =
-  -- pprTrace "applyType" (ppr t' <> " [" <> ppr t <>"] = " <> ppr (applyTypeToArgs (Var var) t' [Type t])) $
-  Primitive x (applyTypeToArgs (Var var) y [Type t]) var
-applyType t expr = pprTrace "applyType" ("couldn't apply type " <> ppr t <> " to expression") $ expr
+-- applyType :: HasCallStack => Type -> CategoryExpr -> CategoryExpr
+-- applyType t (Primitive x y var) =
+--   -- pprTrace "applyType" (ppr t' <> " [" <> ppr t <>"] = " <> ppr (applyTypeToArgs (Var var) t' [Type t])) $
+--   Primitive x (applyTypeToArgs (Var var) y [Type t]) var
+-- applyType t expr = pprTrace "applyType" ("couldn't apply type " <> ppr t <> " to expression") $ expr
 
 toCatExpr :: (HasCallStack, ?constrs :: Constrs) => Ctx -> CoreExpr -> CategoryExpr
 toCatExpr ctx e0 = case e0 of
@@ -308,7 +319,13 @@ toCatExpr ctx e0 = case e0 of
   Lam x e ->
     let f = toCatExpr (ctx × Variable x) e
     in curry f
-  App e1 (Type t) -> applyType t $ toCatExpr ctx e1
+  App e1 (Type t) ->
+    let f = toCatExpr ctx e1
+        -- fDom = applyTypeToArgs e1 (dom f) [Type t]
+        fCod = applyTypeToArgs e1 (cod f) [Type t]
+    in pprTrace "toCatExpr.TypeApp" (vcat ["expr: " <+> ppr e1 <+> "::" <+> ppr (exprType e1),
+                                           "dom:" <+> ppr (dom f),
+                                           "cod:" <+> ppr (cod f) <+> "@" <+> ppr t]) $ ApplyType (dom f) fCod t f
   App e1 e2 ->
     let f = toCatExpr ctx e1
         x = toCatExpr ctx e2
@@ -341,17 +358,21 @@ lookup x (ProductCtx _ ctx1 ctx2) =
 lookup _ Empty = Nothing
 
 toCoreExpr :: (HasCallStack, ?constrs :: Constrs, ?ccc :: CCC) => CategoryExpr -> CoreExpr
-toCoreExpr e0 = case e0 of
-  Primitive x y v       -> mkPrimitive ?constrs x y v
-  Id x                  -> mkId ?constrs x
-  Compose x y z e1 e2   -> mkCompose ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
-  Product x y z e1 e2   -> mkProduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
-  Pi1 x y               -> mkPi1 ?constrs x y
-  Pi2 x y               -> mkPi2 ?constrs x y
-  Coproduct x y z e1 e2 -> mkCoproduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
-  In1 x y               -> mkIn1 ?constrs x y
-  In2 x y               -> mkIn2 ?constrs x y
-  Distribute x y z      -> mkDistribute ?constrs x y z
-  Apply x y             -> mkApply ?constrs x y
-  Curry x y z e         -> mkCurry ?constrs x y z (toCoreExpr e)
-  Uncurry x y z e       -> mkUncurry ?constrs x y z (toCoreExpr e)
+toCoreExpr e0 =
+  pprTrace "toCoreExpr" (vcat [ "expr: " <> ppr res <+> "::" <+> ppr (exprType res)]) $ res
+  where
+    res = case e0 of
+              Primitive x y v       -> mkPrimitive ?constrs x y v
+              Id x                  -> mkId ?constrs x
+              Compose x y z e1 e2   -> mkCompose ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
+              Product x y z e1 e2   -> mkProduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
+              Pi1 x y               -> mkPi1 ?constrs x y
+              Pi2 x y               -> mkPi2 ?constrs x y
+              Coproduct x y z e1 e2 -> mkCoproduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
+              In1 x y               -> mkIn1 ?constrs x y
+              In2 x y               -> mkIn2 ?constrs x y
+              Distribute x y z      -> mkDistribute ?constrs x y z
+              Apply x y             -> mkApply ?constrs x y
+              Curry x y z e         -> mkCurry ?constrs x y z (toCoreExpr e)
+              Uncurry x y z e       -> mkUncurry ?constrs x y z (toCoreExpr e)
+              ApplyType x y t e     -> mkTyApps (toCoreExpr e) [t]
