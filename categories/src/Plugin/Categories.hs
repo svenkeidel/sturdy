@@ -3,6 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE MultiWayIf #-}
 module Plugin.Categories where
 
 import           Prelude hiding (lookup,product,(<>),id,curry,uncurry)
@@ -23,24 +24,27 @@ install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install _ todo = do
   dflags <- getDynFlags
   trigger <- resolveName 'CCC.toCategory
-
   ctrs <- getConstrs
-
 
   let rewriteRules :: [CoreRule]
       rewriteRules =
         [ BuiltinRule
           { ru_name = "Category Rewrite"
           , ru_fn = trigger
-          , ru_nargs = 11
+          , ru_nargs = 12
           , ru_try =
-              \_ _ _ exprs ->
+              \_ (inScope,unfoldFun) _ exprs ->
                 case exprs of
-                [Type _prim, Type c, Type _x, Type _y, primDict, catDict,cartDict,cocartDict, closDict, distribDict, Lam x e] ->
+                [Type _prim, Type c, Type _x, Type _y,
+                 primDict, catDict, cartDict, cocartDict,
+                 closDict, distribDict, ptDict, Lam x e] ->
+                  pprTrace "Category Rewrite" (ppr exprs) $
                   let ?constrs = ctrs in
                   let (primClass, _) = getClassPredTys (exprType primDict) in
-                  let ?ccc = CCC
-                        { cccType = c
+                  let ?env = Env
+                        { inScopeSet = inScope
+                        , idUnfoldingFun = unfoldFun
+                        , catType = c
                         , primitiveDict = primDict
                         , primitiveClass = primClass
                         , categoryDict = catDict
@@ -48,6 +52,7 @@ install _ todo = do
                         , cocartesianDict = cocartDict
                         , closedDict = closDict
                         , distributiveDict = distribDict
+                        , pointedDict = ptDict
                         } in
                   let e' = rewrite (Variable x) e
                   in pprTrace "Category Rewrite" (vcat ["before: " <> ppr (Lam x e),
@@ -86,20 +91,92 @@ install _ todo = do
 
   return (pre ++ passes ++ post)
 
-resolveName :: TH.Name -> CoreM Name
-resolveName thName = do
-  maybeGhcName <- thNameToGhcName thName
-  case maybeGhcName of
-    Just ghcName -> return ghcName
-    Nothing -> do
-      errorMsgS ("could not resolve name " ++ show thName)
-      mzero
+rewrite :: (HasCallStack, ?constrs :: Constrs, ?env :: Env) => Ctx -> CoreExpr -> CoreExpr
+rewrite ctx e = toCoreExpr (toCatExpr ctx e)
 
-resolveId :: TH.Name -> CoreM Id
-resolveId name = resolveName name >>= lookupId
+toCatExpr :: (HasCallStack, ?constrs :: Constrs, ?env :: Env) => Ctx -> CoreExpr -> CategoryExpr
+toCatExpr ctx e0 = case e0 of
+  Var x
+    -- If the variable occurs in the global scope
+    | Just v <- lookupInScope (inScopeSet ?env) x ->
+      let unfolding = idUnfoldingFun ?env v in
 
-resolveTyCon :: TH.Name -> CoreM TyCon
-resolveTyCon name = resolveName name >>= lookupTyCon
+      if | isValueUnfolding unfolding ||
+           isEvaldUnfolding unfolding -> Const (ctxType ctx) (exprType e0) e0
+         | isCheapUnfolding unfolding &&
+           isExpandableUnfolding unfolding -> toCatExpr ctx (unfoldingTemplate unfolding)
+         | otherwise -> pprPanic "toCatExpr" ("could not unfold definition of " <> ppr x <> ppr unfolding)
+
+    -- If the variable occurs in the local scope
+    | Just e' <- lookup x ctx -> e'
+
+    -- Otherwise create a primtive function
+    | otherwise -> Primitive (ctxType ctx) (varType x) x
+
+  Lit _ ->
+    Const (ctxType ctx) (exprType e0) e0
+
+  Lam x e ->
+    let f = toCatExpr (ctx × Variable x) e
+    in curry f
+
+  App e1 (Type t) ->
+    let f = toCatExpr ctx e1
+        fCod = applyTypeToArgs e1 (cod f) [Type t]
+    in ApplyType (dom f) fCod t f
+
+  App e1 e2 ->
+    let f = toCatExpr ctx e1
+        x = toCatExpr ctx e2
+        (tx,ty) = splitFunTy (cod f)
+    in Apply tx ty ◦ (f △ x)
+
+  Case e1 _ _ [(DataAlt ctor, [x,y], e2)] | isProduct ?constrs ctor ->
+    let f = toCatExpr ctx e1
+        g = toCatExpr ((Variable x × Variable y) × ctx) e2
+    in g ◦ (Id (ctxType ctx) △ f)
+
+  Case e1 _ _ [(DataAlt c1, [x], e2), (DataAlt c2, [y], e3)] -> -- | isLeft ?constrs c1 && isRight ?constrs c2 ->
+    let f = toCatExpr ctx e1
+        g = toCatExpr (Variable x × ctx) e2
+        h = toCatExpr (Variable y × ctx) e3
+        gamma = ctxType ctx
+        (_, [tx,ty]) = splitTyConApp (cod f)
+    in (g ▽ h) ◦ Distribute gamma tx ty ◦ (Id gamma △ f)
+
+  Let (NonRec x e1) e2 ->
+    toCatExpr ctx (App (Lam x e2) e1)
+
+  _ -> pprPanic "toCatExpr" $ "Could not compile expression " <> ppr e0
+
+lookup :: (HasCallStack, ?constrs :: Constrs) => Var -> Ctx -> Maybe CategoryExpr
+lookup x (Variable y)
+  | x == y    = Just (Id (varType y))
+  | otherwise = Nothing
+lookup x (ProductCtx _ ctx1 ctx2) =
+  case (lookup x ctx1, lookup x ctx2) of
+    (_, Just g) -> return (g ◦ Pi2 (ctxType ctx1) (ctxType ctx2))
+    (Just f, _) -> return (f ◦ Pi1 (ctxType ctx1) (ctxType ctx2))
+    (Nothing, Nothing) -> Nothing
+lookup _ Empty = Nothing
+
+toCoreExpr :: (HasCallStack, ?constrs :: Constrs, ?env :: Env) => CategoryExpr -> CoreExpr
+toCoreExpr e0 = case e0 of
+  Primitive x y v       -> mkPrimitive ?constrs x y v
+  Id x                  -> mkId ?constrs x
+  Compose x y z e1 e2   -> mkCompose ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
+  Product x y z e1 e2   -> mkProduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
+  Pi1 x y               -> mkPi1 ?constrs x y
+  Pi2 x y               -> mkPi2 ?constrs x y
+  Coproduct x y z e1 e2 -> mkCoproduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
+  In1 x y               -> mkIn1 ?constrs x y
+  In2 x y               -> mkIn2 ?constrs x y
+  Distribute x y z      -> mkDistribute ?constrs x y z
+  Apply x y             -> mkApply ?constrs x y
+  Curry x y z e         -> mkCurry ?constrs x y z (toCoreExpr e)
+  Uncurry x y z e       -> mkUncurry ?constrs x y z (toCoreExpr e)
+  ApplyType _ _ t e     -> mkTyApps (toCoreExpr e) [t]
+  Const x y e           -> mkConst ?constrs x y e
 
 data CategoryExpr where
   Primitive :: Type -> Type -> Var -> CategoryExpr
@@ -116,6 +193,7 @@ data CategoryExpr where
   Curry :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
   Uncurry :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
   ApplyType :: Type -> Type -> Type -> CategoryExpr -> CategoryExpr
+  Const :: Type -> Type -> CoreExpr -> CategoryExpr
 
 (◦) :: (HasCallStack, ?constrs :: Constrs) => CategoryExpr -> CategoryExpr -> CategoryExpr
 f ◦ g = Compose (dom g) (cod g) (cod f) f g
@@ -129,12 +207,12 @@ f ▽ g = Coproduct (dom f) (dom g) (cod f) f g
 curry :: (HasCallStack, ?constrs :: Constrs) => CategoryExpr -> CategoryExpr
 curry f = case splitTyConApp_maybe (dom f) of
   Just (_,[x,y]) -> Curry x y (cod f) f
-  _ -> pprPanic "" ("expected a pair type when constructing curry but got" <> ppr (dom f))
+  _ -> pprPanic "curry" ("expected a pair type when constructing curry but got" <> ppr (dom f))
 
 uncurry :: (HasCallStack, ?constrs :: Constrs) => CategoryExpr -> CategoryExpr
 uncurry f = case splitFunTy_maybe (cod f) of
   Just (y,z) -> Uncurry (dom f) y z f
-  _ -> pprPanic "" ("expected a function type when constructing uncurry but got" <> ppr (cod f))
+  _ -> pprPanic "uncurry" ("expected a function type when constructing uncurry but got" <> ppr (cod f))
 
 dom :: (?constrs :: Constrs) => CategoryExpr -> Type
 dom e0 = case e0 of
@@ -152,6 +230,7 @@ dom e0 = case e0 of
   Curry x _ _ _ -> x
   Uncurry x y _ _ -> mkTuple ?constrs x y
   ApplyType x _ _ _ -> x
+  Const x _ _ -> x
 
 cod :: (?constrs :: Constrs) => CategoryExpr -> Type
 cod e0 = case e0 of
@@ -169,11 +248,12 @@ cod e0 = case e0 of
   Curry _ y z _ -> mkFun ?constrs y z
   Uncurry _ _ z _ -> z
   ApplyType _ y _ _ -> y
+  Const _ y _ -> y
+
+data Ctx = Variable Var | ProductCtx Type Ctx Ctx | Empty
 
 (×) :: Ctx -> Ctx -> Ctx
 ctx1 × ctx2 = ProductCtx (mkBoxedTupleTy [ctxType ctx1, ctxType ctx2]) ctx1 ctx2
-
-data Ctx = Variable Var | ProductCtx Type Ctx Ctx | Empty
 
 ctxType :: Ctx -> Type
 ctxType ctx0 = case ctx0 of
@@ -185,33 +265,23 @@ data Constrs = Constrs
   { isProduct    :: forall a. NamedThing a => a -> Bool
   , isLeft       :: forall a. NamedThing a => a -> Bool
   , isRight      :: forall a. NamedThing a => a -> Bool
-  , mkPrimitive  :: (?ccc :: CCC) => Type -> Type -> Var -> CoreExpr
-  , mkId         :: (?ccc :: CCC) => Type -> CoreExpr
-  , mkCompose    :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
-  , mkProduct    :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
-  , mkPi1        :: (?ccc :: CCC) => Type -> Type -> CoreExpr
-  , mkPi2        :: (?ccc :: CCC) => Type -> Type -> CoreExpr
-  , mkCoproduct  :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
-  , mkIn1        :: (?ccc :: CCC) => Type -> Type -> CoreExpr
-  , mkIn2        :: (?ccc :: CCC) => Type -> Type -> CoreExpr
-  , mkDistribute :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr
-  , mkApply      :: (?ccc :: CCC) => Type -> Type -> CoreExpr
-  , mkCurry      :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr
-  , mkUncurry    :: (?ccc :: CCC) => Type -> Type -> Type -> CoreExpr -> CoreExpr
+  , mkPrimitive  :: (?env :: Env) => Type -> Type -> Var -> CoreExpr
+  , mkId         :: (?env :: Env) => Type -> CoreExpr
+  , mkCompose    :: (?env :: Env) => Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
+  , mkProduct    :: (?env :: Env) => Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
+  , mkPi1        :: (?env :: Env) => Type -> Type -> CoreExpr
+  , mkPi2        :: (?env :: Env) => Type -> Type -> CoreExpr
+  , mkCoproduct  :: (?env :: Env) => Type -> Type -> Type -> CoreExpr -> CoreExpr -> CoreExpr
+  , mkIn1        :: (?env :: Env) => Type -> Type -> CoreExpr
+  , mkIn2        :: (?env :: Env) => Type -> Type -> CoreExpr
+  , mkDistribute :: (?env :: Env) => Type -> Type -> Type -> CoreExpr
+  , mkApply      :: (?env :: Env) => Type -> Type -> CoreExpr
+  , mkCurry      :: (?env :: Env) => Type -> Type -> Type -> CoreExpr -> CoreExpr
+  , mkUncurry    :: (?env :: Env) => Type -> Type -> Type -> CoreExpr -> CoreExpr
+  , mkConst      :: (?env :: Env) => Type -> Type -> CoreExpr -> CoreExpr
   , mkFun        :: Type -> Type -> Type
   , mkEither     :: Type -> Type -> Type
   , mkTuple      :: Type -> Type -> Type
-  }
-
-data CCC = CCC
-  { cccType :: Type
-  , primitiveDict :: CoreExpr
-  , primitiveClass :: Class
-  , categoryDict :: CoreExpr
-  , cartesianDict :: CoreExpr
-  , cocartesianDict :: CoreExpr
-  , closedDict :: CoreExpr
-  , distributiveDict :: CoreExpr
   }
 
 getConstrs :: CoreM Constrs
@@ -231,53 +301,26 @@ getConstrs = do
   app       <- resolveId 'CCC.apply
   curr      <- resolveId 'CCC.curry
   uncurr    <- resolveId 'CCC.uncurry
+  cnst      <- resolveId 'CCC.const
   eitherTy  <- resolveTyCon ''Either
   return $ Constrs
     { isProduct    = \thing -> getOccName thing == getOccName tuple
     , isLeft       = \thing -> getOccName thing == getOccName left
     , isRight      = \thing -> getOccName thing == getOccName right
-    , mkPrimitive  = \x y v ->
-        let expr = op (lookupPrimVar v) [Type (cccType ?ccc), primitiveDict ?ccc, Type x]
-        in pprTrace "mkPrimitive" (vcat [ "dom: " <> ppr x
-                                        , "cod: " <> ppr y
-                                        , "expr: " <> ppr expr <+> "::" <+> ppr (exprType expr)
-                                        ])
-           $ mkTyApps (mkApps (mkTyApps (Var (lookupPrimVar v)) [cccType ?ccc]) [primitiveDict ?ccc]) [x]
-           -- expr
-        -- let var = lookupPrimVar v
-        --     var' = updateVarType (\ty -> applyTypeToArgs (Var var) ty [Type (cccType ?ccc), primitiveDict ?ccc]) var
-        --     ty = mkAppTys (cccType ?ccc) [x, y]
-        --     expr = Var (setVarType var' ty)
-        --     -- expr = op var [Type (cccType ?ccc), primitiveDict ?ccc, Type x, Type y]
-        -- in pprTrace "mkPrimitive" (vcat [ "dom: " <> ppr x
-        --                                 , "cod: " <> ppr y
-        --                                 , "var: " <> ppr var <> " :: " <> ppr (varType var') <> " :: " <> ppr (typeKind (varType var'))
-        --                                 , "expr: " <> ppr expr <> " :: " <> ppr (exprType expr) <> " :: " <> ppr (typeKind (exprType expr))
-
-        --                                 , "types equal: " <> ppr ((varType var') `nonDetCmpType` (exprType expr))
-        --                                 ]) $ expr
-    , mkId         = \x -> op id [Type (typeKind x), Type (cccType ?ccc), categoryDict ?ccc, Type x]
-    , mkCompose    = \x y z e1 e2 ->
-        let tys = [Type (typeKind x), Type (cccType ?ccc), categoryDict ?ccc, Type y, Type z, Type x] in
-        mkApps (op compose tys) [e1,e2]
-    , mkProduct    = \x y z e1 e2 ->
-        let tys = [Type (cccType ?ccc), cartesianDict ?ccc, Type x, Type y, Type z] in
-        mkApps (op product tys) [e1,e2]
-    , mkPi1        = \x y -> op p1 [Type (cccType ?ccc), cartesianDict ?ccc, Type x, Type y]
-    , mkPi2        = \x y -> op p2 [Type (cccType ?ccc), cartesianDict ?ccc, Type x, Type y]
-    , mkCoproduct  = \x y z e1 e2 ->
-        let tys = [Type (cccType ?ccc), cocartesianDict ?ccc, Type x, Type y, Type z] in
-        mkApps (op coproduct tys) [e1,e2]
-    , mkIn1        = \x y -> op i1 [Type (cccType ?ccc), cocartesianDict ?ccc, Type x, Type y]
-    , mkIn2        = \x y -> op i2 [Type (cccType ?ccc), cocartesianDict ?ccc, Type x, Type y]
-    , mkDistribute = \x y z -> op dist [Type (cccType ?ccc), distributiveDict ?ccc, Type x, Type y, Type z]
-    , mkApply      = \x y -> op app [Type (cccType ?ccc), closedDict ?ccc, Type x, Type y]
-    , mkCurry      = \x y z e ->
-        let tys = [Type (cccType ?ccc), closedDict ?ccc, Type x, Type y, Type z] in
-        mkApps (op curr tys) [e]
-    , mkUncurry    = \x y z e ->
-        let tys = [Type (cccType ?ccc), closedDict ?ccc, Type x, Type y, Type z] in
-        mkApps (op uncurr tys) [e]
+    , mkPrimitive  = \x _ v -> op (lookupPrimVar v) [Type (catType ?env), primitiveDict ?env, Type x]
+    , mkId         = \x -> op id [Type (typeKind x), Type (catType ?env), categoryDict ?env, Type x]
+    , mkCompose    = \x y z e1 e2 -> op compose [Type (typeKind x), Type (catType ?env), categoryDict ?env, Type y, Type z, Type x, e1,e2]
+    , mkProduct    = \x y z e1 e2 -> op product [Type (catType ?env), cartesianDict ?env, Type x, Type y, Type z, e1, e2]
+    , mkPi1        = \x y -> op p1 [Type (catType ?env), cartesianDict ?env, Type x, Type y]
+    , mkPi2        = \x y -> op p2 [Type (catType ?env), cartesianDict ?env, Type x, Type y]
+    , mkCoproduct  = \x y z e1 e2 -> op coproduct [Type (catType ?env), cocartesianDict ?env, Type x, Type y, Type z, e1, e2]
+    , mkIn1        = \x y -> op i1 [Type (catType ?env), cocartesianDict ?env, Type x, Type y]
+    , mkIn2        = \x y -> op i2 [Type (catType ?env), cocartesianDict ?env, Type x, Type y]
+    , mkDistribute = \x y z -> op dist [Type (catType ?env), distributiveDict ?env, Type x, Type y, Type z]
+    , mkApply      = \x y -> op app [Type (catType ?env), closedDict ?env, Type x, Type y]
+    , mkCurry      = \x y z e -> op curr [Type (catType ?env), closedDict ?env, Type x, Type y, Type z, e]
+    , mkUncurry    = \x y z e -> op uncurr [Type (catType ?env), closedDict ?env, Type x, Type y, Type z, e]
+    , mkConst      = \x y p -> op cnst [Type (catType ?env), pointedDict ?env, Type x, Type y, p]
     , mkFun        = \x y -> mkFunTy x y
     , mkTuple      = \x y -> mkBoxedTupleTy [x,y]
     , mkEither     = \x y -> mkTyConApp eitherTy [x,y]
@@ -285,94 +328,50 @@ getConstrs = do
   where
     op :: HasCallStack => Var -> [CoreExpr] -> CoreExpr
     op v ts =
-      let ty = applyTypeToArgs (Var v) (varType v) ts
-      in Var (setVarType v ty)
+      mkApps (Var v) ts
 
-lookupPrimVar :: (HasCallStack, ?ccc :: CCC) => Var -> Var
+data Env = Env
+  { inScopeSet :: InScopeSet
+  , idUnfoldingFun :: IdUnfoldingFun
+  , catType :: Type
+  , primitiveDict :: CoreExpr
+  , primitiveClass :: Class
+  , categoryDict :: CoreExpr
+  , cartesianDict :: CoreExpr
+  , cocartesianDict :: CoreExpr
+  , closedDict :: CoreExpr
+  , distributiveDict :: CoreExpr
+  , pointedDict :: CoreExpr
+  }
+
+lookupPrimVar :: (HasCallStack, ?env :: Env) => Var -> Var
 lookupPrimVar v = case findMethod (convertPrimVar (getOccName v)) methods of
   Just method -> method
   Nothing -> pprPanic "convertPrimVar" ("could not find primitive method" <+> ppr v)
   where
-    methods = classMethods (primitiveClass ?ccc)
+    methods = classMethods (primitiveClass ?env)
 
     convertPrimVar var
-      | var == mkVarOcc "(,)" = mkVarOcc "tuple"
+      | var == mkVarOcc "(,)"   = mkVarOcc "mkTuple"
+      | var == mkVarOcc "Left"  = mkVarOcc "mkLeft"
+      | var == mkVarOcc "Right" = mkVarOcc "mkRight"
+      | var == mkVarOcc "I#"    = mkVarOcc "mkInt"
       | otherwise = var
 
     findMethod :: OccName -> [Id] -> Maybe Id
     findMethod name = find (\v' -> name == getOccName v')
 
-rewrite :: (HasCallStack, ?constrs :: Constrs, ?ccc :: CCC) => Ctx -> CoreExpr -> CoreExpr
-rewrite ctx e = toCoreExpr (toCatExpr ctx e)
+resolveName :: TH.Name -> CoreM Name
+resolveName thName = do
+  maybeGhcName <- thNameToGhcName thName
+  case maybeGhcName of
+    Just ghcName -> return ghcName
+    Nothing -> do
+      errorMsgS ("could not resolve name " ++ show thName)
+      mzero
 
--- applyType :: HasCallStack => Type -> CategoryExpr -> CategoryExpr
--- applyType t (Primitive x y var) =
---   -- pprTrace "applyType" (ppr t' <> " [" <> ppr t <>"] = " <> ppr (applyTypeToArgs (Var var) t' [Type t])) $
---   Primitive x (applyTypeToArgs (Var var) y [Type t]) var
--- applyType t expr = pprTrace "applyType" ("couldn't apply type " <> ppr t <> " to expression") $ expr
+resolveId :: TH.Name -> CoreM Id
+resolveId name = resolveName name >>= lookupId
 
-toCatExpr :: (HasCallStack, ?constrs :: Constrs) => Ctx -> CoreExpr -> CategoryExpr
-toCatExpr ctx e0 = case e0 of
-  Var x -> case lookup x ctx of
-    Just e' -> e'
-    Nothing -> Primitive (ctxType ctx) (varType x) x
-  Lam x e ->
-    let f = toCatExpr (ctx × Variable x) e
-    in curry f
-  App e1 (Type t) ->
-    let f = toCatExpr ctx e1
-        -- fDom = applyTypeToArgs e1 (dom f) [Type t]
-        fCod = applyTypeToArgs e1 (cod f) [Type t]
-    in pprTrace "toCatExpr.TypeApp" (vcat ["expr: " <+> ppr e1 <+> "::" <+> ppr (exprType e1),
-                                           "dom:" <+> ppr (dom f),
-                                           "cod:" <+> ppr (cod f) <+> "@" <+> ppr t]) $ ApplyType (dom f) fCod t f
-  App e1 e2 ->
-    let f = toCatExpr ctx e1
-        x = toCatExpr ctx e2
-        (tx,ty) = splitFunTy (cod f)
-    in Apply tx ty ◦ (f △ x)
-  Case e1 _ _ [(DataAlt ctor, [x,y], e2)] | isProduct ?constrs ctor ->
-    let f = toCatExpr ctx e1
-        g = toCatExpr ((Variable x × Variable y) × ctx) e2
-    in g ◦ (Id (ctxType ctx) △ f)
-  Case e1 _ _ [(DataAlt c1, [x], e2), (DataAlt c2, [y], e3)] | isLeft ?constrs c1 && isRight ?constrs c2 ->
-    let f = toCatExpr ctx e1
-        g = toCatExpr (Variable x × ctx) e2
-        h = toCatExpr (Variable y × ctx) e3
-        gamma = ctxType ctx
-        (_, [tx,ty]) = splitTyConApp (cod f)
-    in (g ▽ h) ◦ Distribute gamma tx ty ◦ (Id gamma △ f)
-  Let (NonRec x e1) e2 ->
-    toCatExpr ctx (App (Lam x e2) e1)
-  _ -> pprPanic "toCatExpr" $ "Could not compile expression " <> ppr e0
-
-lookup :: (HasCallStack, ?constrs :: Constrs) => Var -> Ctx -> Maybe CategoryExpr
-lookup x (Variable y)
-  | x == y    = Just (Id (varType y))
-  | otherwise = Nothing
-lookup x (ProductCtx _ ctx1 ctx2) =
-  case (lookup x ctx1, lookup x ctx2) of
-    (_, Just g) -> return (g ◦ Pi2 (ctxType ctx1) (ctxType ctx2))
-    (Just f, _) -> return (f ◦ Pi1 (ctxType ctx1) (ctxType ctx2))
-    (Nothing, Nothing) -> Nothing
-lookup _ Empty = Nothing
-
-toCoreExpr :: (HasCallStack, ?constrs :: Constrs, ?ccc :: CCC) => CategoryExpr -> CoreExpr
-toCoreExpr e0 =
-  pprTrace "toCoreExpr" (vcat [ "expr: " <> ppr res <+> "::" <+> ppr (exprType res)]) $ res
-  where
-    res = case e0 of
-              Primitive x y v       -> mkPrimitive ?constrs x y v
-              Id x                  -> mkId ?constrs x
-              Compose x y z e1 e2   -> mkCompose ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
-              Product x y z e1 e2   -> mkProduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
-              Pi1 x y               -> mkPi1 ?constrs x y
-              Pi2 x y               -> mkPi2 ?constrs x y
-              Coproduct x y z e1 e2 -> mkCoproduct ?constrs x y z (toCoreExpr e1) (toCoreExpr e2)
-              In1 x y               -> mkIn1 ?constrs x y
-              In2 x y               -> mkIn2 ?constrs x y
-              Distribute x y z      -> mkDistribute ?constrs x y z
-              Apply x y             -> mkApply ?constrs x y
-              Curry x y z e         -> mkCurry ?constrs x y z (toCoreExpr e)
-              Uncurry x y z e       -> mkUncurry ?constrs x y z (toCoreExpr e)
-              ApplyType x y t e     -> mkTyApps (toCoreExpr e) [t]
+resolveTyCon :: TH.Name -> CoreM TyCon
+resolveTyCon name = resolveName name >>= lookupTyCon

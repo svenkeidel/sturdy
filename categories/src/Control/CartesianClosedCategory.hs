@@ -12,6 +12,7 @@ module Control.CartesianClosedCategory
   , Cocartesian(..)
   , Distributive(..)
   , Closed(..)
+  , Pointed(..)
   ) where
 
 import Prelude hiding (id,(.))
@@ -19,7 +20,10 @@ import Prelude hiding (id,(.))
 import Control.Category
 import GHC.Exts
 
-toCategory :: forall (prim :: (* -> * -> *) -> Constraint) c x y. (prim c, Category c, Cartesian c, Cocartesian c, Closed c, Distributive c) => (x -> y) -> c x y
+toCategory
+  :: forall (prim :: (* -> * -> *) -> Constraint) c x y.
+     (prim c, Category c, Cartesian c, Cocartesian c, Closed c, Distributive c, Pointed c)
+  => (x -> y) -> c x y
 toCategory _ = error "toCategory"
 {-# NOINLINE toCategory #-}
 
@@ -37,11 +41,13 @@ class (Cartesian c, Cocartesian c) => Distributive c where
   distribute1 :: c (x, Either y z) (Either (x, y) (x, z))
   distribute2 :: c (Either (x, y) (x, z)) (x, Either y z)
 
-class Closed c where
+class Category c => Closed c where
   apply :: c (x -> y, x) y
   curry :: c (x,y) z -> c x (y -> z)
   uncurry :: c x (y -> z) -> c (x,y) z
 
+class Category c => Pointed c where
+  const :: forall x p. p -> c x p
 
 instance Cartesian (->) where
   f &&& g = \x -> (f x, g x)
@@ -78,3 +84,6 @@ instance Closed (->) where
   {-# INLINE apply #-}
   {-# INLINE curry #-}
   {-# INLINE uncurry #-}
+
+instance Pointed (->) where
+  const p _ = p
