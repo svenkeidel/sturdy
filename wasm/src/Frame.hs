@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 module Frame where
 
@@ -16,6 +17,7 @@ import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader as Reader
+import           Control.Arrow.Stack
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Arrow.Trans
@@ -40,12 +42,16 @@ class ArrowFrame fd v c | c -> fd, c -> v where
   frameLookup :: c Natural v
   frameUpdate :: c (Natural, v) ()
 
+instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StateT val c) where
+    frameData = lift' frameData
+    frameLookup = lift' frameLookup
+    frameUpdate = lift' frameUpdate
 
 -- | Arrow transformer that adds a frame to a computation.
 newtype FrameT fd v c x y = FrameT (ReaderT fd (StateT (Vector v) c) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,--ArrowTrans,
             ArrowFail e,ArrowExcept e,ArrowConst r,
-            ArrowStore var' val', ArrowRun)
+            ArrowStore var' val', ArrowRun, ArrowStack s)
 
 instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where
   inNewFrame (FrameT (ReaderT f)) =

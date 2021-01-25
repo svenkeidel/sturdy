@@ -3,8 +3,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 -- | A generic interpreter for WebAssembly.
 -- | This implements the official specification https://webassembly.github.io/spec/.
@@ -13,16 +15,25 @@ module GenericInterpreter where
 import Prelude hiding (Read, fail)
 
 import           Control.Arrow
+import           Control.Arrow.Const
 import           Control.Arrow.Except
 import qualified Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Reader
+import           Control.Arrow.Stack
+import           Control.Arrow.State
+import           Control.Arrow.Store
+import           Control.Arrow.Trans
 import qualified Control.Arrow.Utils as Arr
+
+import           Control.Arrow.Transformer.State
+
+import           Control.Category
 
 import           Data.Profunctor
 import           Data.Text.Lazy (Text)
-import           Data.Vector ((!), find)
+import           Data.Vector hiding (length, (++))
 import           Data.Word (Word32, Word64)
 
 import           Language.Wasm.Structure hiding (exports)
@@ -32,9 +43,10 @@ import           Numeric.Natural (Natural)
 import           Text.Printf
 
 import           Frame
-import           Stack
+--import           Stack
 
-data Exc v = Trap String | Jump Natural [v] | CallReturn [v]
+-- the kind of exceptions that can be thrown
+data Exc v = Trap String | Jump Natural [v] | CallReturn [v] deriving (Show, Eq)
 newtype Read = Read {labels :: [Natural]}
 type FrameData = (Natural, ModuleInstance)
 
@@ -60,6 +72,22 @@ class ArrowWasmStore v c | c -> v where
 
   -- | Executes a function relative to a memory instance. The memory instance exists due to validation.
   withMemoryInstance :: c x y -> c (Int,x) y
+
+
+newtype WasmStoreT v c x y = WasmStoreT (StateT (Vector v) c x y)
+    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans,
+              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
+              ArrowStack st)
+
+instance (ArrowChoice c, Profunctor c) => ArrowWasmStore v (WasmStoreT v c) where
+    readGlobal = 
+        WasmStoreT $ proc i -> do
+            vec <- get -< ()
+            returnA -< vec ! i
+    writeGlobal =
+        WasmStoreT $ proc (i,v) -> do
+            vec <- get -< ()
+            put -< vec // [(i, v)]
 
 type ArrowWasmMemory addr bytes v c =
   ( ArrowMemory addr bytes c,
