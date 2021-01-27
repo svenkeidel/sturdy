@@ -47,12 +47,21 @@ import           Frame
 
 -- the kind of exceptions that can be thrown
 data Exc v = Trap String | Jump Natural [v] | CallReturn [v] deriving (Show, Eq)
+
+-- used for storing the return "arity" of nested labels
 newtype Read = Read {labels :: [Natural]}
+
+-- stores a frame's static data
 type FrameData = (Natural, ModuleInstance)
 
+-- constraints to support (and call) host functions
 type HostFunctionSupport addr bytes v c = (ArrowApply c, ArrowWasmStore v c, ArrowWasmMemory addr bytes v c)
+-- a host function is a function from a list of values (parameters) to a list of values (return values)
 newtype HostFunction v c = HostFunction (
   forall addr bytes. HostFunctionSupport addr bytes v c => (c [v] [v]) )
+
+instance Show (HostFunction v c) where
+    show _ = "HostFunction"
 
 class ArrowWasmStore v c | c -> v where
   -- | Reads a global variable. Cannot fail due to validation.
@@ -73,21 +82,6 @@ class ArrowWasmStore v c | c -> v where
   -- | Executes a function relative to a memory instance. The memory instance exists due to validation.
   withMemoryInstance :: c x y -> c (Int,x) y
 
-
-newtype WasmStoreT v c x y = WasmStoreT (StateT (Vector v) c x y)
-    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans,
-              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st)
-
-instance (ArrowChoice c, Profunctor c) => ArrowWasmStore v (WasmStoreT v c) where
-    readGlobal = 
-        WasmStoreT $ proc i -> do
-            vec <- get -< ()
-            returnA -< vec ! i
-    writeGlobal =
-        WasmStoreT $ proc (i,v) -> do
-            vec <- get -< ()
-            put -< vec // [(i, v)]
 
 type ArrowWasmMemory addr bytes v c =
   ( ArrowMemory addr bytes c,
@@ -240,9 +234,14 @@ eval = fix $ \eval' -> proc is -> case is of
 
 
 evalControlInst ::
-  ( ArrowChoice c, Profunctor c, ArrowStack v c, IsVal v c,
-    ArrowExcept (Exc v) c, ArrowReader Read c, ArrowFrame FrameData v c,
-    ArrowWasmStore v c, HostFunctionSupport addr bytes v c,
+  ( ArrowChoice c, Profunctor c,
+    ArrowStack v c, -- operand stack of computation
+    IsVal v c, -- needs to support value operations
+    ArrowExcept (Exc v) c,
+    ArrowReader Read c, -- return arity of nested labels
+    ArrowFrame FrameData v c, -- frame data and local variables
+    ArrowWasmStore v c,
+    HostFunctionSupport addr bytes v c,
     Exc.Join () c)
   => c [Instruction Natural] () -> c (Instruction Natural) ()
 evalControlInst eval' = proc i -> case i of

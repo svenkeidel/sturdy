@@ -8,6 +8,7 @@ import           Data.Concrete.Error
 import           Data.Vector(fromList,empty)
 
 import           Language.Wasm
+import           Language.Wasm.Interpreter (ModuleInstance(..))
 import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Structure
 
@@ -25,11 +26,33 @@ spec = do
         (evalNumericInst inst [Value $ Wasm.VI32 10, Value $ Wasm.VI32 1]) `shouldBe`
             (Success $ Value $ Wasm.VI32 11)
 
-    it "evalVariableInst" $ do
+    it "evalVariableInst GetLocal" $ do
         let inst = GetLocal 1
         let fd = (0, Wasm.emptyModInstance) 
-        (fst $ evalVariableInst inst [] fd (fromList $ map (Value . Wasm.VI32) [5,8,7]) empty) `shouldBe`
+        let store = emptyWasmStore
+        (fst $ evalVariableInst inst [] fd (fromList $ map (Value . Wasm.VI32) [5,8,7]) store) `shouldBe`
             [Value $ Wasm.VI32 8]
+    it "evalVariableInst GetGlobal" $ do
+        let inst = GetGlobal 1
+        let store = emptyWasmStore{globalInstances = fromList $ map (Value . Wasm.VI32) [3,4,5]}
+        let fd = (0, Wasm.emptyModInstance{globaladdrs = fromList [0,1,2]})
+        (fst $ evalVariableInst inst [] fd empty store) `shouldBe` [Value $ Wasm.VI32 4]
+    it "evalVariabelInst SetGlobal" $ do
+        let inst = SetGlobal 1
+        let store = emptyWasmStore{globalInstances = fromList $ map (Value . Wasm.VI32) [3,4,5]}
+        let fd = (0, Wasm.emptyModInstance{globaladdrs = fromList [0,1,2]})
+        let stack = [Value $ Wasm.VI32 6]
+        (globalInstances $ fst $ snd $ snd $ evalVariableInst inst stack fd empty store) `shouldBe`
+            (fromList $ map (Value . Wasm.VI32) [3,6,5])
+
+    it "evalParametricInst" $ do
+        let inst = Drop
+        let stack = map (Value . Wasm.VI32) [1,2,3]
+        (fst $ evalParametricInst inst stack) `shouldBe` (map (Value . Wasm.VI32) [2,3])
+        let inst = Select
+        (fst $ evalParametricInst inst stack) `shouldBe` [Value $ Wasm.VI32 3]
+        let stack = map (Value . Wasm.VI32) [0,1,2]
+        (fst $ evalParametricInst inst stack) `shouldBe` [Value $ Wasm.VI32 1]
 
         --(length inst) `shouldBe` 0
 --    let path = "test/samples/fact.wast"
