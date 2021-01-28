@@ -43,6 +43,15 @@ class ArrowFrame fd v c | c -> fd, c -> v where
   frameUpdate :: c (Natural, v) ()
 
 instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StateT val c) where
+    -- inNewFrame :: (StateT val c) x y -> (StateT val c) (fd, [v], x) y
+    -- a :: (StateT val c) x y
+    -- unlift a :: Underlying (StateT val c) x y = c (val,x) (val,y)
+    -- inNewFrame :: c x y -> c (fd, [v], x) y
+    -- inNewFrame a :: c (fd, [v], (val,x)) (val,y)
+    -- lift :: c (val, (fd, [v], x)) (val, y) -> StateT val c (fd, [v], x) y
+    inNewFrame a = lift $ shuffle (inNewFrame (unlift a))
+        where shuffle arr = proc (val, (fd, vs, x)) -> arr -< (fd, vs, (val,x))
+                                        
     frameData = lift' frameData
     frameLookup = lift' frameLookup
     frameUpdate = lift' frameUpdate

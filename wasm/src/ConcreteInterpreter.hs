@@ -78,7 +78,12 @@ data MemInst = MemInst deriving (Show)
 newtype WasmStoreT v c x y = WasmStoreT (StateT (WasmStore v c) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st)
+              ArrowStack st, ArrowState (WasmStore v c))
+
+
+--instance ArrowState (WasmStore v cHost) (WasmStoreT v cHost c) where
+--    get = lift' get
+--    put = lift' put
 
 instance ArrowTrans (WasmStoreT v) where
     -- lift' :: c x y -> WasmStoreT v c x y
@@ -86,15 +91,19 @@ instance ArrowTrans (WasmStoreT v) where
 
 instance (ArrowChoice c, Profunctor c) => ArrowWasmStore v (WasmStoreT v c) where
     readGlobal = 
-        WasmStoreT $ proc i -> do
+        proc i -> do
             WasmStore{globalInstances=vec} <- get -< ()
             returnA -< vec ! i
     writeGlobal =
-        WasmStoreT $ proc (i,v) -> do
+        proc (i,v) -> do
             store@WasmStore{globalInstances=vec} <- get -< ()
             put -< store{globalInstances=vec // [(i, v)]}
-
-
+    
+    readFunction funcCont hostCont = proc (i,x) -> do
+        WasmStore{funcInstances = fs} <- get -< ()
+        case fs ! i of
+            FuncInst fTy modInst code -> funcCont -< ((fTy,modInst,code),x)
+            HostInst fTy code         -> returnA -< error "" --hostCont -< ((fTy,code),x)
 
 newtype Value = Value Wasm.Value deriving (Show, Eq)
 
