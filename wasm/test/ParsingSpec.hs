@@ -1,9 +1,12 @@
 module ParsingSpec where
 
 import qualified Data.ByteString.Lazy as LBS
+import           Data.Text.Lazy (pack)
+
 
 import           Language.Wasm
 import           Language.Wasm.Structure
+import           Language.Wasm.Interpreter
 
 import           Test.Hspec
 
@@ -17,3 +20,11 @@ spec = do
         content <- LBS.readFile path
         let Right parsed = parse content
         (length $ functions parsed) `shouldBe` 7
+
+    it "run haskell wasm interpreter" $ do
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate emptyStore emptyImports validMod
+        Just result <- invokeExport store modInst (pack "fac-rec") [VI64 2]
+        result `shouldBe` [VI64 2]

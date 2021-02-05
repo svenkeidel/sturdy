@@ -24,6 +24,7 @@ import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 
 import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.Value
 
 import           Data.Profunctor
 import           Data.Coerce
@@ -56,11 +57,20 @@ instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StateT v
     frameLookup = lift' frameLookup
     frameUpdate = lift' frameUpdate
 
+instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (ReaderT r c) where
+    frameData = lift' frameData
+    frameLookup = lift' frameLookup
+    frameUpdate = lift' frameUpdate
+
 -- | Arrow transformer that adds a frame to a computation.
 newtype FrameT fd v c x y = FrameT (ReaderT fd (StateT (Vector v) c) x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,--ArrowTrans,
             ArrowFail e,ArrowExcept e,ArrowConst r,
             ArrowStore var' val', ArrowRun, ArrowStack s)
+
+instance (ArrowReader r c) => ArrowReader r (FrameT fd v c) where
+    -- ask :: (FrameT fd v c) () r
+    ask = FrameT (ReaderT $ proc (fd, ()) -> ask -< ())
 
 instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where
   inNewFrame (FrameT (ReaderT f)) =
@@ -74,6 +84,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where
   frameUpdate = FrameT $ ReaderT $ proc (_,(n,v)) -> do
     vec <- get -< ()
     put -< vec // [(fromIntegral n, v)]
+
+deriving instance (ArrowFrame fd v c) => ArrowFrame fd v (ValueT v2 c)
 
 instance ArrowFix (Underlying (FrameT fd v c) x y) => ArrowFix (FrameT fd v c x y) where
     type Fix (FrameT fd v c x y) = Fix (Underlying (FrameT fd v c) x y)--FrameT fd v (Fix c (fd,(Vector v,x)) (Vector v,y))

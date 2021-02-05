@@ -6,6 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 -- | A generic interpreter for WebAssembly.
@@ -28,6 +29,7 @@ import           Control.Arrow.Trans
 import qualified Control.Arrow.Utils as Arr
 
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Value
 
 import           Control.Category
 
@@ -70,7 +72,9 @@ class ArrowWasmStore v c | c -> v where
   writeGlobal :: c (Int, v) ()
 
   -- | Reads a function. Cannot fail due to validation.
-  readFunction :: c ((FuncType, ModuleInstance, Function), x) y -> c ((FuncType, HostFunction v c), x) y -> c (Int, x) y
+  --readFunction :: c ((FuncType, ModuleInstance, Function), x) y -> c ((FuncType, HostFunction v c), x) y -> c (Int, x) y
+
+  readFunction :: c ((FuncType, ModuleInstance, Function), x) y -> c (Int, x) y
 
   -- | readTable f g h (ta,ix,x)
   -- | Lookup `ix` in table `ta` to retrieve the function address `fa`.
@@ -82,28 +86,38 @@ class ArrowWasmStore v c | c -> v where
   -- | Executes a function relative to a memory instance. The memory instance exists due to validation.
   withMemoryInstance :: c x y -> c (Int,x) y
 
+deriving instance (ArrowWasmStore v c) => ArrowWasmStore v (ValueT v2 c)
+instance (ArrowWasmStore v c) => ArrowWasmStore v (StateT s c) where
 
 type ArrowWasmMemory addr bytes v c =
   ( ArrowMemory addr bytes c,
     ArrowMemAddress v Natural addr c,
     ArrowSerialize v bytes ValueType LoadType StoreType c,
-    ArrowMemSizable v c,
-    Show addr, Show bytes)
+    ArrowMemSizable v c)
+    --Show addr)--, Show bytes)
 
 class ArrowSerialize val dat valTy datDecTy datEncTy c | c -> datDecTy, c -> datEncTy where
   decode :: c (val, x) y -> c x y -> c (dat, datdecTy, valTy, x) y
   encode :: c (dat, x) y -> c x y -> c (val, valTy, datEncTy, x) y
 
+deriving instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (ValueT val2 c)
+
 class ArrowMemory addr bytes c | c -> addr, c -> bytes where
   memread :: c (bytes, x) y -> c x y -> c (addr, Int, x) y
   memstore :: c x y -> c x y -> c (addr, bytes, x) y
 
+deriving instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (ValueT val2 c)
+
 class ArrowMemAddress base off addr c where
   memaddr :: c (base, off) addr
+
+deriving instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (ValueT val2 c)
 
 class ArrowMemSizable sz c where
   memsize :: c () sz
   memgrow :: c (sz,x) y -> c x y -> c (sz,x) y
+
+deriving instance (ArrowMemSizable sz c) => ArrowMemSizable sz (ValueT val2 c)
 
 data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U | L_I32S | L_I32U
   deriving Show
@@ -145,7 +159,7 @@ class Show v => IsVal v c | c -> v where
 invokeExported ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
     ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
-    ArrowWasmMemory addr bytes v c, HostFunctionSupport addr bytes v c,
+    ArrowWasmMemory addr bytes v c, --HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
     Fail.Join [v] c,
@@ -164,7 +178,7 @@ invokeExported = proc (funcName, args) -> do
 invokeExternal ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
     ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
-    ArrowWasmMemory addr bytes v c, HostFunctionSupport addr bytes v c,
+    ArrowWasmMemory addr bytes v c, --HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
     Fail.Join () c,
@@ -177,8 +191,8 @@ invokeExternal = proc (funcAddr, args) ->
   readFunction
     (proc (func@(FuncType paramTys resultTys, _, _), args) ->
       withCheckedType (withRootFrame (invoke eval)) -< (paramTys, args, (resultTys, args, func)))
-    (proc (func@(FuncType paramTys resultTys, _), args) ->
-      withCheckedType (withRootFrame invokeHost) -< (paramTys, args, (resultTys, args, func)))
+    --(proc (func@(FuncType paramTys resultTys, _), args) ->
+    --  withCheckedType (withRootFrame invokeHost) -< (paramTys, args, (resultTys, args, func)))
     -< (funcAddr, args)
   where
     withRootFrame f = proc (resultTys, args, x) -> do
@@ -207,7 +221,7 @@ invokeExternal = proc (funcAddr, args) ->
 eval ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
     ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader Read c,
-    ArrowWasmMemory addr bytes v c, HostFunctionSupport addr bytes v c,
+    ArrowWasmMemory addr bytes v c, --HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
     ArrowFix (c [Instruction Natural] ()),
@@ -241,7 +255,7 @@ evalControlInst ::
     ArrowReader Read c, -- return arity of nested labels
     ArrowFrame FrameData v c, -- frame data and local variables
     ArrowWasmStore v c,
-    HostFunctionSupport addr bytes v c,
+    --HostFunctionSupport addr bytes v c,
     Exc.Join () c)
   => c [Instruction Natural] () -> c (Instruction Natural) ()
 evalControlInst eval' = proc i -> case i of
@@ -272,7 +286,7 @@ evalControlInst eval' = proc i -> case i of
   Call ix -> do
     (_, modInst) <- frameData -< ()
     let funcAddr = funcaddrs modInst ! fromIntegral ix
-    readFunction (invoke eval' <<^ fst) (invokeHost <<^ fst) -< (funcAddr, ())
+    readFunction (invoke eval' <<^ fst) -< (funcAddr, ()) --(invokeHost <<^ fst) -< (funcAddr, ())
   CallIndirect ix -> do
     (_, modInst) <- frameData -< ()
     let tableAddr = tableaddrs modInst ! 0
@@ -285,15 +299,15 @@ evalControlInst eval' = proc i -> case i of
 
 invokeChecked ::
   ( ArrowChoice c, ArrowWasmStore v c, ArrowStack v c, ArrowReader Read c,
-    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join () c,
-    HostFunctionSupport addr bytes v c)
+    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join () c)
+    --HostFunctionSupport addr bytes v c)
   => c [Instruction Natural] () -> c (Int, FuncType) ()
 invokeChecked eval' = proc (addr, ftExpect) ->
   readFunction
     (proc (f@(ftActual, _, _), ftExpect) ->
        withCheckedType (invoke eval') -< (ftActual, ftExpect, f))
-    (proc (f@(ftActual, _), ftExpect) ->
-       withCheckedType invokeHost -< (ftActual, ftExpect, f))
+    --(proc (f@(ftActual, _), ftExpect) ->
+    --   withCheckedType invokeHost -< (ftActual, ftExpect, f))
     -< (addr, ftExpect)
   where
     withCheckedType f = proc (ftActual, ftExpect, x) ->
@@ -429,7 +443,7 @@ load byteSize loadType valType = proc off -> do
         (push <<^ fst)
         (error "decode failure")
         -< (bytes, loadType, valType, ()))
-    (proc addr -> throw -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
+    (proc addr -> throw -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize "")--(show addr))
     -< (addr, byteSize, addr)
 
 store ::
@@ -445,7 +459,7 @@ store storeType valType = proc off -> do
       addr <- memaddr -< (base, off)
       memstore
         (arr $ const ())
-        (proc (addr,bytes) -> throw -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr))
+        (proc (addr,bytes) -> throw -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" "" "") --(show bytes) (show addr))
         -< (addr, bytes, (addr, bytes)))
     (error "encode failure")
     -< (v, valType, storeType, off)
