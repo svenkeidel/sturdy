@@ -5,6 +5,7 @@ import           GenericInterpreter(Exc(..))
 
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Concrete.Error
+import           Data.Text.Lazy (pack)
 import           Data.Vector(fromList,empty)
 
 import           Language.Wasm
@@ -53,6 +54,24 @@ spec = do
         (fst $ evalParametricInst inst stack) `shouldBe` [Value $ Wasm.VI32 3]
         let stack = map (Value . Wasm.VI32) [0,1,2]
         (fst $ evalParametricInst inst stack) `shouldBe` [Value $ Wasm.VI32 1]
+
+    it "run noop" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (Success (Success (_,(_,(_,result))))) = invokeExported store modInst (pack "noop") []
+        result `shouldBe` [Value $ Wasm.VI32 0]
+
+    it "run fact" $ do
+        let path = "test/samples/fact.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (Success (Success (_,(_,(_,result))))) = invokeExported store modInst (pack "fac-rec") [Value $ Wasm.VI64 0]
+        result `shouldBe` [Value $ Wasm.VI64 1]
 
         --(length inst) `shouldBe` 0
 --    let path = "test/samples/fact.wast"

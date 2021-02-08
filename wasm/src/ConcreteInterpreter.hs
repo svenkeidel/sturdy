@@ -42,18 +42,21 @@ import           Control.Category
 import           Data.Concrete.Error
 
 import qualified Data.Function as Function
+import           Data.Monoidal (shuffle1)
 import           Data.Profunctor
 import           Data.Text.Lazy (Text)
 import           Data.Vector (Vector, (!), (//))
 import qualified Data.Vector as Vec
 import           Data.Word
 
-import           Language.Wasm.Interpreter hiding (Value)
+import           Language.Wasm.Interpreter (ModuleInstance,emptyStore,emptyImports)
 import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Structure hiding (exports)
+import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
 
+import           System.IO.Unsafe (unsafePerformIO)
 
 -- memory instance: vec(byte) + optional max size
 -- bytes are modeled as Word8
@@ -89,7 +92,7 @@ import           Numeric.Natural (Natural)
 --            False -> eCont -< x
 --
 --instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (WasmMemoryT c) where
---    memaddr = proc (Value (VI32 base), off) -> returnA -< (base+ (fromIntegral off))
+--    memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base+ (fromIntegral off))
 --
 --instance ArrowSerialize Value (Vector Word8) ValueType LoadType StoreType (WasmMemoryT c) where
 --
@@ -100,11 +103,11 @@ import           Numeric.Natural (Natural)
 --
 --
 data WasmStore v = WasmStore {
-    funcInstances :: Vector (FuncInst v),
+    funcInstances :: Vector FuncInst,
     tableInstances :: Vector TableInst,
     memInstances :: Vector MemInst,
     globalInstances :: Vector v
-} deriving (Show)
+} deriving (Show, Eq)
 
 emptyWasmStore :: WasmStore v
 emptyWasmStore = WasmStore {
@@ -114,7 +117,7 @@ emptyWasmStore = WasmStore {
     globalInstances = Vec.empty
 }
 
-data FuncInst v =
+data FuncInst =
     FuncInst {
         funcType :: FuncType,
         moduleInstance :: ModuleInstance,
@@ -123,10 +126,10 @@ data FuncInst v =
     | HostInst {
         funcType :: FuncType
         --hostCode :: HostFunction v c
-    } deriving (Show)
+    } deriving (Show,Eq)
 
-data TableInst = TableInst deriving (Show)
-newtype MemInst = MemInst (Vector Word8) deriving (Show)
+newtype TableInst = TableInst Wasm.TableInstance deriving (Show,Eq)
+newtype MemInst = MemInst (Vector Word8) deriving (Show,Eq)
 
 newtype WasmStoreT v c x y = WasmStoreT (ReaderT Int (StateT (WasmStore v) c) x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
@@ -134,6 +137,8 @@ newtype WasmStoreT v c x y = WasmStoreT (ReaderT Int (StateT (WasmStore v) c) x 
               ArrowStack st)--, ArrowState (WasmStore v))
 
 instance (ArrowReader r c) => ArrowReader r (WasmStoreT v c) where
+    ask = lift' ask
+    local a = lift $ lmap shuffle1 (local (unlift a))
 
 instance (ArrowState s c) => ArrowState s (WasmStoreT v c) where
 
@@ -187,7 +192,7 @@ instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (Was
             False -> eCont -< x
 
 instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (WasmStoreT v c) where
-    memaddr = proc (Value (VI32 base), off) -> returnA -< (base+ (fromIntegral off))
+    memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base+ (fromIntegral off))
 
 instance ArrowSerialize Value (Vector Word8) ValueType LoadType StoreType (WasmStoreT v c) where
 
@@ -203,21 +208,39 @@ newtype Value = Value Wasm.Value deriving (Show, Eq)
 
 
 instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
-    i32const = proc w32 -> returnA -< Value $ VI32 w32   
-    i64const = proc w64 -> returnA -< Value $ VI64 w64
+    i32const = proc w32 -> returnA -< Value $ Wasm.VI32 w32
+    i64const = proc w64 -> returnA -< Value $ Wasm.VI64 w64
     iBinOp = proc (bs,op,Value v1,Value v2) ->
                 case bs of 
                     BS32 -> do
                                 case op of
                                     IAdd -> returnA -< Just $ Value $ addVal v1 v2
+    iRelOp = proc (bs,op,Value v1, Value v2) ->
+                case bs of
+                    BS32 -> do
+                                case op of
+                                   IEq -> returnA -< Value $ if v1 == v2 then (Wasm.VI32 1) else (Wasm.VI32 0)
+                    BS64 -> do
+                                case op of
+                                   IEq -> returnA -< Value $ if v1 == v2 then (Wasm.VI32 1) else (Wasm.VI32 0)
+
+
     i32ifNeqz f g = proc (v, x) -> do
                       case v of
-                        Value (VI32 0) -> g -< x
-                        Value (VI32 _) -> f -< x
+                        Value (Wasm.VI32 0) -> g -< x
+                        Value (Wasm.VI32 _) -> f -< x
                         _              -> returnA -< error "validation failure"
 
+    ifHasType f g = proc (v,t,x) -> do
+                case (v,t) of
+                    (Value (Wasm.VI32 _), I32) -> f -< x
+                    (Value (Wasm.VI64 _), I64) -> f -< x
+                    (Value (Wasm.VF32 _), F32) -> f -< x
+                    (Value (Wasm.VF64 _), F64) -> f -< x
+                    _                          -> g -< x
+
 addVal :: Wasm.Value -> Wasm.Value -> Wasm.Value
-addVal (VI32 v1) (VI32 v2) = VI32 $ v1 + v2
+addVal (Wasm.VI32 v1) (Wasm.VI32 v2) = Wasm.VI32 $ v1 + v2
 
 
 evalNumericInst :: (Instruction Natural) -> [Value] -> Error (Exc Value) Value
@@ -279,8 +302,7 @@ invokeExported :: WasmStore Value
                         -> [Value]
                         -> Error
                              [Char]
-                             ([Value],
-                              Error (Exc Value) (Vector Value, (WasmStore Value, [Value])))
+                             (Error (Exc Value) ([Value],(Vector Value, (WasmStore Value, [Value]))))
 invokeExported store modInst funcName args =
     let ?fixpointAlgorithm = Function.fix in
     Trans.run
@@ -289,7 +311,30 @@ invokeExported store modInst funcName args =
         (WasmStoreT Value
           (FrameT FrameData Value
             (ReaderT Generic.Read
-              (ExceptT (Generic.Exc Value)
-                (StackT Value
+              (StackT Value
+                (ExceptT (Generic.Exc Value)
                   (FailureT String
                     (->))))))) (Text, [Value]) [Value]) ([],(Generic.Read [],(Vec.empty,((0,modInst),(store,(0,(funcName,args)))))))
+
+
+instantiate :: ValidModule -> IO (Either String (ModuleInstance, WasmStore Value))
+instantiate valMod = do
+    res <- Wasm.instantiate emptyStore emptyImports valMod
+    case res of
+        Right (modInst, store) -> return $ Right $ (modInst, storeToWasmStore store)
+        Left e                 -> return $ Left e
+
+    where
+        storeToWasmStore (Wasm.Store funcI tableI memI globalI) =
+            WasmStore (Vec.map convertFuncs funcI)
+                      (Vec.map TableInst tableI)
+                      (Vec.map convertMem memI)
+                      (convertGlobals globalI)
+        convertFuncs (Wasm.FunctionInstance t m c) = FuncInst t m c
+        convertFuncs (Wasm.HostInstance t _) = HostInst t
+        convertMem (Wasm.MemoryInstance _ _) = MemInst Vec.empty -- TODO
+        convertGlobals _ = Vec.empty -- TODO
+
+
+deriving instance Show Wasm.TableInstance
+deriving instance Eq Wasm.TableInstance

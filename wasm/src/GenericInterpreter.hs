@@ -315,6 +315,7 @@ invokeChecked eval' = proc (addr, ftExpect) ->
       then f -< x
       else throw -< Trap $ printf "Mismatched function type in indirect call. Expected %s, actual %s." (show ftExpect) (show ftActual)
 
+-- TODO: we need to catch CallReturn
 invoke ::
   ( ArrowChoice c, ArrowStack v c, ArrowReader Read c,
     IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join y c)
@@ -323,7 +324,8 @@ invoke eval' = proc (FuncType paramTys resultTys, funcModInst, Function _ localT
   vs <- popn -< fromIntegral $ length paramTys
   zeros <- Arr.map initLocal -< localTys
   let rtLength = fromIntegral $ length resultTys
-  inNewFrame (localNoLabels $ localFreshStack $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
+  -- TODO: removed localFreshStack, not sure if that is what we want
+  inNewFrame (localNoLabels $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
   where
     initLocal :: (ArrowChoice c, IsVal v c) => c ValueType v
     initLocal = proc ty ->  case ty of
@@ -576,11 +578,13 @@ isControlInst i = case i of
   Return -> True
   Call _ -> True
   CallIndirect _ -> True
+  _ -> False
 
 isParametricInst :: Instruction index -> Bool
 isParametricInst i = case i of
   Drop -> True
   Select -> True
+  _ -> False
 
 isMemoryInst :: Instruction index -> Bool
 isMemoryInst i = case i of
