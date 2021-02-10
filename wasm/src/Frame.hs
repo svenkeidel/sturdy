@@ -23,7 +23,10 @@ import           Control.Arrow.Store
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 
+import           Control.Arrow.Transformer.Concrete.Except
+import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.Value
 
 import           Data.Monoidal (shuffle1)
@@ -49,7 +52,7 @@ instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StateT v
     -- a :: (StateT val c) x y
     -- unlift a :: Underlying (StateT val c) x y = c (val,x) (val,y)
     -- inNewFrame :: c x y -> c (fd, [v], x) y
-    -- inNewFrame a :: c (fd, [v], (val,x)) (val,y)
+    -- inNewFrame (unlift a) :: c (fd, [v], (val,x)) (val,y)
     -- lift :: c (val, (fd, [v], x)) (val, y) -> StateT val c (fd, [v], x) y
     inNewFrame a = lift $ shuffle (inNewFrame (unlift a))
         where shuffle arr = proc (val, (fd, vs, x)) -> arr -< (fd, vs, (val,x))
@@ -91,6 +94,14 @@ instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where
     put -< vec // [(fromIntegral n, v)]
 
 deriving instance (ArrowFrame fd v c) => ArrowFrame fd v (ValueT v2 c)
+deriving instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (ExceptT e c)
+instance (Monad f, Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (KleisliT f c) where
+    inNewFrame a = lift (inNewFrame (unlift a))
+    frameData = lift' frameData
+    frameLookup = lift' frameLookup
+    frameUpdate = lift' frameUpdate
+deriving instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StackT s c)
+
 
 instance ArrowFix (Underlying (FrameT fd v c) x y) => ArrowFix (FrameT fd v c x y) where
     type Fix (FrameT fd v c x y) = Fix (Underlying (FrameT fd v c) x y)--FrameT fd v (Fix c (fd,(Vector v,x)) (Vector v,y))

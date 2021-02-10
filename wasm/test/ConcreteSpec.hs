@@ -61,7 +61,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (Success (Success (_,(_,(_,result))))) = invokeExported store modInst (pack "noop") []
+        let (Success (_,(_,(Success (_,result))))) = invokeExported store modInst (pack "noop") []
         result `shouldBe` [Value $ Wasm.VI32 0]
 
     it "run fact" $ do
@@ -70,7 +70,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (Success (Success (_,(_,(_,result))))) = invokeExported store modInst (pack "fac-rec") [Value $ Wasm.VI64 0]
+        let (Success (_,(_,(Success (_,result))))) = invokeExported store modInst (pack "fac-rec") [Value $ Wasm.VI64 0]
         result `shouldBe` [Value $ Wasm.VI64 1]
 
         --(length inst) `shouldBe` 0

@@ -37,10 +37,11 @@ import           Control.Arrow.Transformer.Value
 
 import           Control.Category
 
+import           Data.Monoidal (shuffle1)
 import           Data.Profunctor
 import           Data.Text.Lazy (Text)
 import           Data.Vector hiding (length, (++))
-import           Data.Word (Word32, Word64)
+import           Data.Word
 
 import           Language.Wasm.Structure hiding (exports)
 import           Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance, ExportInstance(..), ExternalValue(..))
@@ -91,14 +92,72 @@ class ArrowWasmStore v c | c -> v where
   withMemoryInstance :: c x y -> c (Int,x) y
 
 deriving instance (ArrowWasmStore v c) => ArrowWasmStore v (ValueT v2 c)
-instance (ArrowWasmStore v c) => ArrowWasmStore v (StateT s c) where
+instance (Profunctor c, Arrow c, ArrowWasmStore v c) => ArrowWasmStore v (StateT s c) where
+    readGlobal = lift' readGlobal
+    writeGlobal = lift' writeGlobal
+    -- readFunction :: (StateT s c) (f, x) y -> (StateT s c) (Int, x) y
+    -- a :: (StateT s c) (f, x) y
+    -- unlift a :: Underlying (StateT s c) (f, x) y
+    --             = c (s, (f, x)) (s, y)
+    -- readFunction :: c (f, x) y -> c (Int, x) y
+    -- need foo :: c (s, (f, x)) (s, y) -> c (s, (Int, x)) (s, y)
+    -- lift :: c (s, (Int, x)) (s, y) ->
+    --         StateT s c (Int, x) y
+    --
+    -- arr :: c (s, (f,x)) (s, y)
+    -- flip a :: (StateT s c) ((f,x),s) (y,s)
+    -- modify (flip a) :: (StateT s c) (f,x) y
+    -- readFunction (modify (flip a)) :: c (Int, x) y
+    -- second (readFunction (modify (flip a))) :: c (s, (Int,x)) (s, y)
+    readFunction (StateT arr) = lift $ transform arr
+--        -- proc (f,x) -> arr -< (s, (f,x)) :: c (f,x) (s, y)
+--        -- ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (f,x) y
+--        -- readFunction ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (Int, x) y
+--        -- c (s, (Int, x)) y
+        where transform arr = proc (s, (i,x)) -> do
+--                   -- arr :: c (s, (f,x)) (s, y)
+--                   -- proc (f,(s2,x)) -> arr -< (s2, (f,x)) :: c (f,(s,x)) (s, y)
+--                   -- ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) :: c (f,(s,x)) y
+--                   -- func "" :: c (Int, (s,x)) y (for z = (s x))
+                                 y <- readFunction ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (i,(s,x))
+                                 returnA -< (s,y)
+
+
+--        proc (s, (i,x)) -> do
+--                            y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (s,(i,x))
+--                            returnA -< (s,y)
+
+--(Arrow c, Arrow t)
+--foo :: (c (f, (s, x)) y -> c (Int, (s, x)) y)
+             -- -> c (s, (f, x)) (s, y) -> c (s, (Int, x)) (s, y)
+
+--foo2 :: (c (f,x) y -> c (Int,x) y) -> c (s, (f,x)) (s,y) -> c (s, (Int,x)) (s,y)
+--foo2 func arr = proc (s, (i,x)) -> do
+--                    y <- func ((proc (f,x) -> arr -< (s,(f,x))) >>^ snd) -< (i,x)
+--                    returnA -< (s,y)
+--
+--foo :: (Arrow c) => (c (f, (s,x)) y -> c (Int, (s,x)) y) -> c (s, (f,x)) (s, y) -> c (s, (Int, x)) (s, y)
+--foo func arr = proc (s, (i,x)) -> do
+--                   -- arr :: c (s, (f,x)) (s, y)
+--                   -- proc (f,(s2,x)) -> arr -< (s2, (f,x)) :: c (f,(s,x)) (s, y)
+--                   -- ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) :: c (f,(s,x)) y
+--                   -- func "" :: c (Int, (s,x)) y (for z = (s x))
+--                   y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (i,(s,x))
+--                   returnA -< (s,y)
+
+deriving instance (ArrowWasmStore v c) => ArrowWasmStore v (ExceptT e c)
+deriving instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (StackT s c)
+instance (ArrowWasmStore v c) => ArrowWasmStore v (KleisliT f c) where
+    -- TODO
+instance (ArrowWasmStore v c) => ArrowWasmStore v (ReaderT r c) where
+    -- TODO
 
 type ArrowWasmMemory addr bytes v c =
   ( ArrowMemory addr bytes c,
     ArrowMemAddress v Natural addr c,
     ArrowSerialize v bytes ValueType LoadType StoreType c,
-    ArrowMemSizable v c)
-    --Show addr, Show bytes)
+    ArrowMemSizable v c,
+    Show addr, Show bytes)
 
 class ArrowSerialize val dat valTy datDecTy datEncTy c | c -> datDecTy, c -> datEncTy where
   decode :: c (val, x) y -> c x y -> c (dat, datdecTy, valTy, x) y
@@ -119,11 +178,28 @@ class ArrowMemory addr bytes c | c -> addr, c -> bytes where
   memstore :: c x y -> c x y -> c (addr, bytes, x) y
 
 deriving instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (ValueT val2 c)
+deriving instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (ExceptT e c)
+instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (KleisliT e c) where
+    -- TODO
+deriving instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (StackT e c)
+instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (StateT s c) where
+    -- TODO
+instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (ReaderT r c) where
+    -- TODO
+
 
 class ArrowMemAddress base off addr c where
   memaddr :: c (base, off) addr
 
 deriving instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (ValueT val2 c)
+deriving instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (ExceptT e c)
+instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (KleisliT f c) where
+    -- TODO
+deriving instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (StackT v c)
+instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (StateT s c) where
+    -- TODO
+instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (ReaderT r c) where
+    -- TODO
 
 class ArrowMemSizable sz c where
   memsize :: c () sz
@@ -496,7 +572,7 @@ load byteSize loadType valType = proc off -> do
         (push <<^ fst)
         (error "decode failure")
         -< (bytes, loadType, valType, ()))
-    (proc addr -> throw -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize "")--(show addr))
+    (proc addr -> throw -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
     -< (addr, byteSize, addr)
 
 store ::
@@ -512,7 +588,7 @@ store storeType valType = proc off -> do
       addr <- memaddr -< (base, off)
       memstore
         (arr $ const ())
-        (proc (addr,bytes) -> throw -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" "" "") --(show bytes) (show addr))
+        (proc (addr,bytes) -> throw -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr))
         -< (addr, bytes, (addr, bytes)))
     (error "encode failure")
     -< (v, valType, storeType, off)

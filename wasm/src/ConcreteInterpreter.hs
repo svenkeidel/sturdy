@@ -302,7 +302,8 @@ invokeExported :: WasmStore Value
                         -> [Value]
                         -> Error
                              [Char]
-                             (_)
+                             (Vector Value,
+                              (WasmStore Value, Error (Exc Value) ([Value], [Value])))
 invokeExported store modInst funcName args =
     let ?fixpointAlgorithm = Function.fix in
     Trans.run
