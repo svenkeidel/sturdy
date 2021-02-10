@@ -275,7 +275,7 @@ evalParametricInst inst stack =
             (->)) (Instruction Natural) ()) (stack,inst)
 
 
-eval :: [Instruction Natural] -> [Value] -> Generic.Read -> Vector Value -> FrameData ->
+eval :: [Instruction Natural] -> [Value] -> Generic.LabelArities -> Vector Value -> FrameData ->
         WasmStore Value -> Int ->
                                  ([Value], -- stack
                                    Error (Generic.Exc Value)
@@ -289,7 +289,7 @@ eval inst stack r locals fd wasmStore currentMem =
       ValueT Value
         (WasmStoreT Value
           (FrameT FrameData Value
-            (ReaderT Generic.Read
+            (ReaderT Generic.LabelArities
               (ExceptT (Generic.Exc Value)
                 (StackT Value
                   (->)))))) [Instruction Natural] ()) (stack,(r,(locals,(fd,(wasmStore,(currentMem,inst))))))
@@ -302,19 +302,19 @@ invokeExported :: WasmStore Value
                         -> [Value]
                         -> Error
                              [Char]
-                             (Error (Exc Value) ([Value],(Vector Value, (WasmStore Value, [Value]))))
+                             (_)
 invokeExported store modInst funcName args =
     let ?fixpointAlgorithm = Function.fix in
     Trans.run
     (Generic.invokeExported ::
       ValueT Value
-        (WasmStoreT Value
-          (FrameT FrameData Value
-            (ReaderT Generic.Read
-              (StackT Value
-                (ExceptT (Generic.Exc Value)
+        (ReaderT Generic.LabelArities
+          (StackT Value
+            (ExceptT (Generic.Exc Value)
+              (WasmStoreT Value
+                (FrameT FrameData Value
                   (FailureT String
-                    (->))))))) (Text, [Value]) [Value]) ([],(Generic.Read [],(Vec.empty,((0,modInst),(store,(0,(funcName,args)))))))
+                    (->))))))) (Text, [Value]) [Value]) (Vec.empty,((0,modInst),(store,(0,([],(Generic.LabelArities [],(funcName,args)))))))
 
 
 instantiate :: ValidModule -> IO (Either String (ModuleInstance, WasmStore Value))

@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Concrete.Except (ExceptT,runExceptT) where
+module Control.Arrow.Transformer.Concrete.Except (ExceptT(..),runExceptT) where
 
 import Prelude hiding (id,(.))
 
