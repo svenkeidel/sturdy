@@ -5,7 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-module Frame where
+module Control.Arrow.Frame where
 
 import           Prelude hiding ((.),read)
 
@@ -69,29 +69,6 @@ instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (ReaderT 
     frameLookup = lift' frameLookup
     frameUpdate = lift' frameUpdate
 
--- | Arrow transformer that adds a frame to a computation.
-newtype FrameT fd v c x y = FrameT (ReaderT fd (StateT (Vector v) c) x y)
-  deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,--ArrowTrans,
-            ArrowFail e,ArrowExcept e,ArrowConst r,
-            ArrowStore var' val', ArrowRun, ArrowStack s)
-
-instance (ArrowReader r c) => ArrowReader r (FrameT fd v c) where
-    -- ask :: (FrameT fd v c) () r
-    ask = FrameT (ReaderT $ proc (fd, ()) -> ask -< ())
-    local a = lift $ lmap shuffle1 (local (unlift a))
-
-instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where
-  inNewFrame (FrameT (ReaderT f)) =
-    FrameT $ ReaderT $ proc (_,(fd, vs, x)) -> do
-        put -< fromList vs
-        f -< (fd, x)
-  frameData = FrameT ask
-  frameLookup = FrameT $ ReaderT $ proc (_,n) -> do
-    vec <- get -< ()
-    returnA -< vec ! fromIntegral n
-  frameUpdate = FrameT $ ReaderT $ proc (_,(n,v)) -> do
-    vec <- get -< ()
-    put -< vec // [(fromIntegral n, v)]
 
 deriving instance (ArrowFrame fd v c) => ArrowFrame fd v (ValueT v2 c)
 deriving instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (ExceptT e c)
@@ -101,8 +78,3 @@ instance (Monad f, Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v 
     frameLookup = lift' frameLookup
     frameUpdate = lift' frameUpdate
 deriving instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StackT s c)
-
-
-instance ArrowFix (Underlying (FrameT fd v c) x y) => ArrowFix (FrameT fd v c x y) where
-    type Fix (FrameT fd v c x y) = Fix (Underlying (FrameT fd v c) x y)--FrameT fd v (Fix c (fd,(Vector v,x)) (Vector v,y))
-

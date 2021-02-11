@@ -21,12 +21,18 @@ import           Control.Arrow.Except
 import qualified Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Frame
+import           Control.Arrow.MemAddress
+import           Control.Arrow.Memory
+import           Control.Arrow.MemSizable
 import           Control.Arrow.Reader
+import           Control.Arrow.Serialize
 import           Control.Arrow.Stack
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Arrow.Trans
 import qualified Control.Arrow.Utils as Arr
+import           Control.Arrow.WasmStore
 
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Kleisli
@@ -49,9 +55,6 @@ import           Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance
 import           Numeric.Natural (Natural)
 import           Text.Printf
 
-import           Frame
---import           Stack
-
 -- the kind of exceptions that can be thrown
 data Exc v = Trap String | Jump Natural [v] | CallReturn [v] deriving (Show, Eq)
 
@@ -70,93 +73,7 @@ type FrameData = (Natural, ModuleInstance)
 --instance Show (HostFunction v c) where
 --    show _ = "HostFunction"
 
-class ArrowWasmStore v c | c -> v where
-  -- | Reads a global variable. Cannot fail due to validation.
-  readGlobal :: c Int v
-  -- | Writes a global variable. Cannot fail due to validation.
-  writeGlobal :: c (Int, v) ()
 
-  -- | Reads a function. Cannot fail due to validation.
-  --readFunction :: c ((FuncType, ModuleInstance, Function), x) y -> c ((FuncType, HostFunction v c), x) y -> c (Int, x) y
-
-  readFunction :: c ((FuncType, ModuleInstance, Function), x) y -> c (Int, x) y
-
-  -- | readTable f g h (ta,ix,x)
-  -- | Lookup `ix` in table `ta` to retrieve the function address `fa`.
-  -- | Invokes `f (fa, x)` if all goes well.
-  -- | Invokes `g (ta,ix,x)` if `ix` is out of bounds.
-  -- | Invokes `h (ta,ix,x)` if `ix` cell is uninitialized.
-  readTable :: c (Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y
-
-  -- | Executes a function relative to a memory instance. The memory instance exists due to validation.
-  withMemoryInstance :: c x y -> c (Int,x) y
-
-deriving instance (ArrowWasmStore v c) => ArrowWasmStore v (ValueT v2 c)
-instance (Profunctor c, Arrow c, ArrowWasmStore v c) => ArrowWasmStore v (StateT s c) where
-    readGlobal = lift' readGlobal
-    writeGlobal = lift' writeGlobal
-    -- readFunction :: (StateT s c) (f, x) y -> (StateT s c) (Int, x) y
-    -- a :: (StateT s c) (f, x) y
-    -- unlift a :: Underlying (StateT s c) (f, x) y
-    --             = c (s, (f, x)) (s, y)
-    -- readFunction :: c (f, x) y -> c (Int, x) y
-    -- need foo :: c (s, (f, x)) (s, y) -> c (s, (Int, x)) (s, y)
-    -- lift :: c (s, (Int, x)) (s, y) ->
-    --         StateT s c (Int, x) y
-    --
-    -- arr :: c (s, (f,x)) (s, y)
-    -- flip a :: (StateT s c) ((f,x),s) (y,s)
-    -- modify (flip a) :: (StateT s c) (f,x) y
-    -- readFunction (modify (flip a)) :: c (Int, x) y
-    -- second (readFunction (modify (flip a))) :: c (s, (Int,x)) (s, y)
-    readFunction arr = lift $ transform (unlift arr)
---        -- proc (f,x) -> arr -< (s, (f,x)) :: c (f,x) (s, y)
---        -- ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (f,x) y
---        -- readFunction ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (Int, x) y
---        -- c (s, (Int, x)) y
-        where transform arr = proc (s, (i,x)) -> do
---                   -- arr :: c (s, (f,x)) (s, y)
---                   -- proc (f,(s2,x)) -> arr -< (s2, (f,x)) :: c (f,(s,x)) (s, y)
---                   -- ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) :: c (f,(s,x)) y
---                   -- func "" :: c (Int, (s,x)) y (for z = (s x))
-                                 y <- readFunction ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (i,(s,x))
-                                 returnA -< (s,y)
-
-
---        proc (s, (i,x)) -> do
---                            y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (s,(i,x))
---                            returnA -< (s,y)
-
---foo2 :: (c (f,x) y -> c (Int,x) y) -> c (s, (f,x)) (s,y) -> c (s, (Int,x)) (s,y)
---foo2 func arr = proc (s, (i,x)) -> do
---                    y <- func ((proc (f,x) -> arr -< (s,(f,x))) >>^ snd) -< (i,x)
---                    returnA -< (s,y)
---
---foo :: (Arrow c) => (c (f, (s,x)) y -> c (Int, (s,x)) y) -> c (s, (f,x)) (s, y) -> c (s, (Int, x)) (s, y)
---foo func arr = proc (s, (i,x)) -> do
---                   -- arr :: c (s, (f,x)) (s, y)
---                   -- proc (f,(s2,x)) -> arr -< (s2, (f,x)) :: c (f,(s,x)) (s, y)
---                   -- ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) :: c (f,(s,x)) y
---                   -- func "" :: c (Int, (s,x)) y (for z = (s x))
---                   y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (i,(s,x))
---                   returnA -< (s,y)
-
-deriving instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (ExceptT e c)
-deriving instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (StackT s c)
-instance (Monad f, Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (KleisliT f c) where
-    readGlobal = lift' readGlobal
-    writeGlobal = lift' writeGlobal
-    readFunction arr = lift (readFunction (unlift arr))
-instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (ReaderT r c) where
-    readGlobal = lift' readGlobal
-    writeGlobal = lift' writeGlobal
-    -- unlift arr :: c (r, (f,x)) y
-    -- lift :: c (r, (Int,x)) y -> c (Int,x) y
-    -- transform :: c (r, (f,x)) y -> c (r, (Int,x)) y
-    -- readFunction :: c (f,x) y -> c (Int,x) y
-    readFunction arr = lift $ transform (unlift arr)
-        where transform arr = proc (r, (i,x)) ->
-                                  readFunction (proc (f,(r,x)) -> arr -< (r, (f,x))) -< (i,(r,x))
 
 
 
@@ -167,62 +84,11 @@ type ArrowWasmMemory addr bytes v c =
     ArrowMemSizable v c,
     Show addr, Show bytes)
 
-class ArrowSerialize val dat valTy datDecTy datEncTy c | c -> datDecTy, c -> datEncTy where
-  decode :: c (val, x) y -> c x y -> c (dat, datdecTy, valTy, x) y
-  encode :: c (dat, x) y -> c x y -> c (val, valTy, datEncTy, x) y
-
-deriving instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (ValueT val2 c)
-deriving instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (ExceptT e c)
-instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (KleisliT f c) where
-    -- TODO
-deriving instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (StackT v c)
-instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (StateT s c) where
-    -- TODO
-instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (ReaderT r c) where
-    -- TODO
-
-class ArrowMemory addr bytes c | c -> addr, c -> bytes where
-  memread :: c (bytes, x) y -> c x y -> c (addr, Int, x) y
-  memstore :: c x y -> c x y -> c (addr, bytes, x) y
-
-deriving instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (ValueT val2 c)
-deriving instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (ExceptT e c)
-instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (KleisliT e c) where
-    -- TODO
-deriving instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (StackT e c)
-instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (StateT s c) where
-    -- TODO
-instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (ReaderT r c) where
-    -- TODO
 
 
-class ArrowMemAddress base off addr c where
-  memaddr :: c (base, off) addr
 
-deriving instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (ValueT val2 c)
-deriving instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (ExceptT e c)
-instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (KleisliT f c) where
-    -- TODO
-deriving instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (StackT v c)
-instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (StateT s c) where
-    -- TODO
-instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (ReaderT r c) where
-    -- TODO
 
-class ArrowMemSizable sz c where
-  memsize :: c () sz
-  memgrow :: c (sz,x) y -> c x y -> c (sz,x) y
 
-deriving instance (ArrowMemSizable sz c) => ArrowMemSizable sz (ValueT val2 c)
-deriving instance (Arrow c, Profunctor c, ArrowMemSizable sz c) => ArrowMemSizable sz (ExceptT e c)
-instance (Monad f, Arrow c, Profunctor c, ArrowMemSizable sz c) => ArrowMemSizable sz (KleisliT f c) where
-    memsize = lift' memsize
-    -- TODO
-deriving instance (ArrowMemSizable sz c) => ArrowMemSizable sz (StackT v c)
-instance (ArrowMemSizable sz c) => ArrowMemSizable sz (StateT s c) where
-    -- TODO
-instance (ArrowMemSizable sz c) => ArrowMemSizable sz (ReaderT r c) where
-    -- TODO
 
 data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U | L_I32S | L_I32U
   deriving Show

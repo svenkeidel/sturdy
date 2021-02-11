@@ -3,6 +3,8 @@ module ConcreteSpec where
 import           ConcreteInterpreter
 import           GenericInterpreter(Exc(..))
 
+import           Control.Arrow.Transformer.Concrete.WasmStore
+
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Concrete.Error
 import           Data.Text.Lazy (pack)
