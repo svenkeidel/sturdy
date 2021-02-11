@@ -58,7 +58,7 @@ data Exc v = Trap String | Jump Natural [v] | CallReturn [v] deriving (Show, Eq)
 -- used for storing the return "arity" of nested labels
 newtype LabelArities = LabelArities {labels :: [Natural]}
 
--- stores a frame's static data
+-- stores a frame's static data (return arity and module instance)
 type FrameData = (Natural, ModuleInstance)
 
 ---- constraints to support (and call) host functions
@@ -109,7 +109,7 @@ instance (Profunctor c, Arrow c, ArrowWasmStore v c) => ArrowWasmStore v (StateT
     -- modify (flip a) :: (StateT s c) (f,x) y
     -- readFunction (modify (flip a)) :: c (Int, x) y
     -- second (readFunction (modify (flip a))) :: c (s, (Int,x)) (s, y)
-    readFunction (StateT arr) = lift $ transform arr
+    readFunction arr = lift $ transform (unlift arr)
 --        -- proc (f,x) -> arr -< (s, (f,x)) :: c (f,x) (s, y)
 --        -- ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (f,x) y
 --        -- readFunction ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (Int, x) y
@@ -127,10 +127,6 @@ instance (Profunctor c, Arrow c, ArrowWasmStore v c) => ArrowWasmStore v (StateT
 --                            y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (s,(i,x))
 --                            returnA -< (s,y)
 
---(Arrow c, Arrow t)
---foo :: (c (f, (s, x)) y -> c (Int, (s, x)) y)
-             -- -> c (s, (f, x)) (s, y) -> c (s, (Int, x)) (s, y)
-
 --foo2 :: (c (f,x) y -> c (Int,x) y) -> c (s, (f,x)) (s,y) -> c (s, (Int,x)) (s,y)
 --foo2 func arr = proc (s, (i,x)) -> do
 --                    y <- func ((proc (f,x) -> arr -< (s,(f,x))) >>^ snd) -< (i,x)
@@ -145,12 +141,24 @@ instance (Profunctor c, Arrow c, ArrowWasmStore v c) => ArrowWasmStore v (StateT
 --                   y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (i,(s,x))
 --                   returnA -< (s,y)
 
-deriving instance (ArrowWasmStore v c) => ArrowWasmStore v (ExceptT e c)
+deriving instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (ExceptT e c)
 deriving instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (StackT s c)
-instance (ArrowWasmStore v c) => ArrowWasmStore v (KleisliT f c) where
-    -- TODO
-instance (ArrowWasmStore v c) => ArrowWasmStore v (ReaderT r c) where
-    -- TODO
+instance (Monad f, Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (KleisliT f c) where
+    readGlobal = lift' readGlobal
+    writeGlobal = lift' writeGlobal
+    readFunction arr = lift (readFunction (unlift arr))
+instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (ReaderT r c) where
+    readGlobal = lift' readGlobal
+    writeGlobal = lift' writeGlobal
+    -- unlift arr :: c (r, (f,x)) y
+    -- lift :: c (r, (Int,x)) y -> c (Int,x) y
+    -- transform :: c (r, (f,x)) y -> c (r, (Int,x)) y
+    -- readFunction :: c (f,x) y -> c (Int,x) y
+    readFunction arr = lift $ transform (unlift arr)
+        where transform arr = proc (r, (i,x)) ->
+                                  readFunction (proc (f,(r,x)) -> arr -< (r, (f,x))) -< (i,(r,x))
+
+
 
 type ArrowWasmMemory addr bytes v c =
   ( ArrowMemory addr bytes c,
