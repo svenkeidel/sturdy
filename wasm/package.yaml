@@ -16,6 +16,7 @@ dependencies:
   - unordered-containers
   - wasm
   - vector
+  - bytestring
 
 library:
   ghc-options: -Wall
