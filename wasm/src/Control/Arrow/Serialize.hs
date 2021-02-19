@@ -12,6 +12,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Value
+import           Control.Arrow.Transformer.Writer
 
 class ArrowSerialize val dat valTy datDecTy datEncTy c | c -> datDecTy, c -> datEncTy where
   decode :: c (val, x) y -> c x y -> c (dat, datdecTy, valTy, x) y
@@ -25,4 +26,6 @@ deriving instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSer
 instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (StateT s c) where
     -- TODO
 instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (ReaderT r c) where
+    -- TODO
+instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (WriterT w c) where
     -- TODO

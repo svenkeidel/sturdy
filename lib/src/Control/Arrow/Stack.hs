@@ -12,6 +12,7 @@ import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Writer
 
 import           Data.Profunctor.Unsafe
 
@@ -70,3 +71,9 @@ instance (Profunctor c, Arrow c, ArrowStack v c) => ArrowStack v (StateT st c) w
     ifEmpty a1 a2 = lift (ifEmpty (unlift a1) (unlift a2))
     localFreshStack a = lift (localFreshStack (unlift a))
 
+instance (Arrow c, Profunctor c, Monoid w, ArrowStack v c) => ArrowStack v (WriterT w c) where
+    push = lift' push
+    pop = lift' pop
+    peek = lift' peek
+    ifEmpty a1 a2 = lift (ifEmpty (unlift a1) (unlift a1))
+    localFreshStack a = lift (localFreshStack (unlift a))

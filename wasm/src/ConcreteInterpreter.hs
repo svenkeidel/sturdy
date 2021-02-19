@@ -12,26 +12,15 @@
 
 module ConcreteInterpreter where
 
-import           GenericInterpreter hiding (eval,evalNumericInst,evalVariableInstr,evalParametricInst,invokeExported)
+import           GenericInterpreter hiding (eval,evalNumericInst,evalParametricInst,invokeExported,store)
 import qualified GenericInterpreter as Generic
---import           Stack
 
 import           Control.Arrow
-import           Control.Arrow.Const
-import           Control.Arrow.Except
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Frame
-import           Control.Arrow.Reader
-import           Control.Arrow.Stack
-import           Control.Arrow.State
-import           Control.Arrow.Store
 import qualified Control.Arrow.Trans as Trans
-import           Control.Arrow.WasmStore
 
-import           Control.Arrow.Transformer.Kleisli
+import           Control.Arrow.Transformer.DebuggableStack
+import           Control.Arrow.Transformer.Logger
 import           Control.Arrow.Transformer.Stack
-import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Value
 
@@ -39,28 +28,23 @@ import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Frame
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.WasmStore
-import           Control.Arrow.Transformer.State
-
-import           Control.Category
 
 import           Data.Concrete.Error
 
 import qualified Data.Function as Function
-import           Data.Monoidal (shuffle1)
-import           Data.Profunctor
+import           Data.IORef
+import qualified Data.Primitive.ByteArray as ByteArray
 import           Data.Text.Lazy (Text)
-import           Data.Vector (Vector, (!), (//))
+import           Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import           Data.Word
 
 import           Language.Wasm.Interpreter (ModuleInstance,emptyStore,emptyImports)
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure hiding (exports)
+import           Language.Wasm.Structure hiding (exports, Const)
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
-
-import           System.IO.Unsafe (unsafePerformIO)
 
 -- memory instance: vec(byte) + optional max size
 -- bytes are modeled as Word8
@@ -107,24 +91,32 @@ import           System.IO.Unsafe (unsafePerformIO)
 --
 --
 
+toVal32 :: Word32 -> Value
+toVal32 = Value . Wasm.VI32
+
+toVal64 :: Word64 -> Value
+toVal64 = Value . Wasm.VI64
 
 
 instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
     i32const = proc w32 -> returnA -< Value $ Wasm.VI32 w32
     i64const = proc w64 -> returnA -< Value $ Wasm.VI64 w64
     iBinOp = proc (bs,op,Value v1,Value v2) ->
-                case bs of 
-                    BS32 -> do
-                                case op of
-                                    IAdd -> returnA -< Just $ Value $ addVal v1 v2
+                case (bs,op,v1,v2) of
+                    (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< Just $ toVal32 $ val1 + val2
+                    (BS32, IMul, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< Just $ toVal32 $ val1 * val2
+                    (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< Just $ toVal32 $ val1 - val2
+                    (BS64, IAdd, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< Just $ toVal64 $ val1 + val2
+                    (BS64, IMul, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< Just $ toVal64 $ val1 * val2
+                    (BS64, ISub, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< Just $ toVal64 $ val1 - val2
     iRelOp = proc (bs,op,Value v1, Value v2) ->
-                case bs of
-                    BS32 -> do
-                                case op of
-                                   IEq -> returnA -< Value $ if v1 == v2 then (Wasm.VI32 1) else (Wasm.VI32 0)
-                    BS64 -> do
-                                case op of
-                                   IEq -> returnA -< Value $ if v1 == v2 then (Wasm.VI32 1) else (Wasm.VI32 0)
+                case (bs,op,v1,v2) of
+                    (BS32, IEq, Wasm.VI32 val1, Wasm.VI32 val2) ->
+                        returnA -< toVal32 $ if val1 == val2 then 1 else 0
+--                    (BS64, ILtU, Wasm.VI64 val1, Wasm.VI64 val2) ->
+--                        returnA -< toVal64 $ if val1 < val2 then 1 else 0
+                    (BS64, IEq, Wasm.VI64 val1, Wasm.VI64 val2) ->
+                        returnA -< toVal32 $ if val1 == val2 then 1 else 0
 
 
     i32ifNeqz f g = proc (v, x) -> do
@@ -177,24 +169,24 @@ evalParametricInst inst stack =
             (->)) (Instruction Natural) ()) (stack,inst)
 
 
-eval :: [Instruction Natural] -> [Value] -> Generic.LabelArities -> Vector Value -> FrameData ->
-        WasmStore Value -> Int ->
-                                 ([Value], -- stack
-                                   Error (Generic.Exc Value)
-                                         (Vector Value, -- state of FrameT
-                                          (WasmStore Value, -- state of WasmStoreT
-                                           ())))
-eval inst stack r locals fd wasmStore currentMem =
-    let ?fixpointAlgorithm = Function.fix in
-    Trans.run
-    (Generic.eval ::
-      ValueT Value
-        (WasmStoreT Value
-          (FrameT FrameData Value
-            (ReaderT Generic.LabelArities
-              (ExceptT (Generic.Exc Value)
-                (StackT Value
-                  (->)))))) [Instruction Natural] ()) (stack,(r,(locals,(fd,(wasmStore,(currentMem,inst))))))
+--eval :: [Instruction Natural] -> [Value] -> Generic.LabelArities -> Vector Value -> FrameData ->
+--        WasmStore Value -> Int ->
+--                                 ([Value], -- stack
+--                                   Error (Generic.Exc Value)
+--                                         (Vector Value, -- state of FrameT
+--                                          (WasmStore Value, -- state of WasmStoreT
+--                                           ())))
+--eval inst stack r locals fd wasmStore currentMem =
+--    let ?fixpointAlgorithm = Function.fix in
+--    Trans.run
+--    (Generic.eval ::
+--      ValueT Value
+--        (WasmStoreT Value
+--          (FrameT FrameData Value
+--            (ReaderT Generic.LabelArities
+--              (ExceptT (Generic.Exc Value)
+--                (StackT Value
+--                  (->)))))) [Instruction Natural] ()) (stack,(r,(locals,(fd,(wasmStore,(currentMem,inst))))))
 
 
 
@@ -202,38 +194,54 @@ invokeExported :: WasmStore Value
                         -> ModuleInstance
                         -> Text
                         -> [Value]
-                        -> Error
+                        -> ([String], Error
                              [Char]
                              (Vector Value,
-                              (WasmStore Value, Error (Exc Value) ([Value], [Value])))
+                              (WasmStore Value, Error (Exc Value) ([Value], [Value]))))
 invokeExported store modInst funcName args =
     let ?fixpointAlgorithm = Function.fix in
     Trans.run
     (Generic.invokeExported ::
       ValueT Value
         (ReaderT Generic.LabelArities
-          (StackT Value
+          (DebuggableStackT Value
             (ExceptT (Generic.Exc Value)
               (WasmStoreT Value
                 (FrameT FrameData Value
                   (FailureT String
-                    (->))))))) (Text, [Value]) [Value]) (Vec.empty,((0,modInst),(store,(0,([],(Generic.LabelArities [],(funcName,args)))))))
+                    (LoggerT String
+                      (->)))))))) (Text, [Value]) [Value]) ([],(Vec.empty,((0,modInst),(store,(0,([],(Generic.LabelArities [],(funcName,args))))))))
 
 
 instantiate :: ValidModule -> IO (Either String (ModuleInstance, WasmStore Value))
 instantiate valMod = do
     res <- Wasm.instantiate emptyStore emptyImports valMod
     case res of
-        Right (modInst, store) -> return $ Right $ (modInst, storeToWasmStore store)
+        Right (modInst, store) -> do
+            wasmStore <- storeToWasmStore store
+            return $ Right $ (modInst, wasmStore)
         Left e                 -> return $ Left e
 
     where
-        storeToWasmStore (Wasm.Store funcI tableI memI globalI) =
-            WasmStore (Vec.map convertFuncs funcI)
-                      (Vec.map TableInst tableI)
-                      (Vec.map convertMem memI)
-                      (convertGlobals globalI)
+        storeToWasmStore (Wasm.Store funcI tableI memI globalI) = do
+            mems <- Vec.mapM convertMem memI
+            globs <- Vec.mapM convertGlobals globalI
+            return $ WasmStore (Vec.map convertFuncs funcI)
+                               (Vec.map TableInst tableI)
+                               mems
+                               globs
+
         convertFuncs (Wasm.FunctionInstance t m c) = FuncInst t m c
         convertFuncs (Wasm.HostInstance t _) = HostInst t
-        convertMem (Wasm.MemoryInstance _ _) = MemInst Vec.empty -- TODO
-        convertGlobals _ = Vec.empty -- TODO
+
+        convertMem (Wasm.MemoryInstance (Limit _ n) mem) = do
+            memStore <- readIORef mem
+            size <- ByteArray.getSizeofMutableByteArray memStore
+            list <- sequence $ map (\x -> ByteArray.readByteArray memStore x) [0 .. (size-1)]
+            let sizeConverted = fmap fromIntegral n
+            return $ MemInst sizeConverted $ Vec.fromList list
+
+        convertGlobals (Wasm.GIConst _ v) =  return $ GlobInst Const (Value v)
+        convertGlobals (Wasm.GIMut _ v) = do
+            val <- readIORef v
+            return $ GlobInst Mutable (Value val)

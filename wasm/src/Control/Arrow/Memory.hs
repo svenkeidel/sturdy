@@ -12,6 +12,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Value
+import           Control.Arrow.Transformer.Writer
 
 class ArrowMemory addr bytes c | c -> addr, c -> bytes where
   memread :: c (bytes, x) y -> c x y -> c (addr, Int, x) y
@@ -25,4 +26,6 @@ deriving instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (StackT e
 instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (StateT s c) where
     -- TODO
 instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (ReaderT r c) where
+    -- TODO
+instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (WriterT r c) where
     -- TODO

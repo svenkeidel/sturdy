@@ -10,6 +10,7 @@ module Control.Arrow.Transformer.Concrete.WasmStore where
 
 import           Control.Arrow
 import           Control.Arrow.Const
+import           Control.Arrow.Logger
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
@@ -36,21 +37,22 @@ import           Data.Vector (Vector, (!), (//))
 import qualified Data.Vector as Vec
 import           Data.Word
 
-import           Language.Wasm.Interpreter (ModuleInstance,emptyStore,emptyImports)
+import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure hiding (exports)
+import           Language.Wasm.Structure hiding (exports, Const)
 
 import           Numeric.Natural (Natural)
 
 import           GenericInterpreter (LoadType,StoreType)
 
 newtype Value = Value Wasm.Value deriving (Show, Eq)
+data Mut = Const | Mutable deriving (Show, Eq)
 
 data WasmStore v = WasmStore {
     funcInstances :: Vector FuncInst,
     tableInstances :: Vector TableInst,
     memInstances :: Vector MemInst,
-    globalInstances :: Vector v
+    globalInstances :: Vector (GlobInst v)
 } deriving (Show, Eq)
 
 emptyWasmStore :: WasmStore v
@@ -73,12 +75,13 @@ data FuncInst =
     } deriving (Show,Eq)
 
 newtype TableInst = TableInst Wasm.TableInstance deriving (Show,Eq)
-newtype MemInst = MemInst (Vector Word8) deriving (Show,Eq)
+data MemInst = MemInst (Maybe Word32) (Vector Word8) deriving (Show,Eq)
+data GlobInst v = GlobInst Mut v deriving (Show, Eq)
 
 newtype WasmStoreT v c x y = WasmStoreT (ReaderT Int (StateT (WasmStore v) c) x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st)--, ArrowState (WasmStore v))
+              ArrowStack st, ArrowLogger l)--, ArrowState (WasmStore v))
 
 instance (ArrowReader r c) => ArrowReader r (WasmStoreT v c) where
     ask = lift' ask
@@ -88,17 +91,21 @@ instance (ArrowState s c) => ArrowState s (WasmStoreT v c) where
 
 instance ArrowTrans (WasmStoreT v) where
     -- lift' :: c x y -> WasmStoreT v c x y
-    lift' arr = WasmStoreT (lift' (lift' arr))
+    lift' a = WasmStoreT (lift' (lift' a))
 
 instance (ArrowChoice c, Profunctor c) => ArrowWasmStore v (WasmStoreT v c) where
     readGlobal = 
         WasmStoreT $ proc i -> do
             WasmStore{globalInstances=vec} <- get -< ()
-            returnA -< vec ! i
+            let (GlobInst _ val) = vec ! i
+            returnA -< val
     writeGlobal =
         WasmStoreT $ proc (i,v) -> do
             store@WasmStore{globalInstances=vec} <- get -< ()
-            put -< store{globalInstances=vec // [(i, v)]}
+            let (GlobInst m _) = vec ! i
+            if m == Const
+                then returnA -< error $ "writing to constant global " ++ (show i)
+                else put -< store{globalInstances=vec // [(i, GlobInst m v)]}
     
     -- funcCont :: ReaderT Int (StateT (WasmStore v) c) ((FuncType, ModuleInstance, Function),x) y
     -- we need ReaderT Int (StateT (WasmStore v) c) (Int, x) y
@@ -115,7 +122,7 @@ instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (Was
     memread (WasmStoreT sCont) (WasmStoreT eCont) = WasmStoreT $ proc (addr, size, x) -> do
         WasmStore{memInstances=mems} <- get -< ()
         currMem <- ask -< ()
-        let MemInst vec = mems ! currMem
+        let MemInst _ vec = mems ! currMem
         let addrI = fromIntegral addr
         case (addrI+size <= length vec) of
             True  -> do
@@ -125,13 +132,13 @@ instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (Was
     memstore (WasmStoreT sCont) (WasmStoreT eCont) = WasmStoreT $ proc (addr, content, x) -> do
         store@WasmStore{memInstances=mems} <- get -< ()
         currMem <- ask -< ()
-        let MemInst vec = mems ! currMem
+        let MemInst s vec = mems ! currMem
         let addrI = fromIntegral addr
         let size = length content
         case (addrI+size <= length vec) of
             True  -> do
                 let ind = Vec.enumFromN addrI size
-                put -< (store{memInstances=mems // [(currMem,MemInst $ Vec.update_ vec ind content)]})
+                put -< (store{memInstances=mems // [(currMem,MemInst s $ Vec.update_ vec ind content)]})
                 sCont -< x
             False -> eCont -< x
 

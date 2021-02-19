@@ -38,6 +38,7 @@ import Control.Arrow.Reader
 import Control.Arrow.State
 import Control.Arrow.LetRec
 import Control.Arrow.Fix.Context 
+import Control.Arrow.Writer
 
 import Data.Profunctor.Unsafe
 import Data.Coerce
@@ -45,7 +46,7 @@ import Data.Coerce
 newtype ValueT val c x y = ValueT { runValueT :: c x y }
   deriving (Profunctor,Category,Arrow,ArrowChoice, ArrowConst r,
             ArrowFrame frame, ArrowEnv var val', ArrowLetRec var val', ArrowStore addr val',
-            ArrowExcept exc,ArrowFail e,
+            ArrowExcept exc,ArrowFail e, ArrowWriter w,
             ArrowReader r, ArrowState s, ArrowCont, ArrowCallSite ctx, ArrowStack st)
 
 instance (ArrowApply c, Profunctor c) => ArrowApply (ValueT val c) where

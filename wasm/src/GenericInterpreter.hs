@@ -13,37 +13,25 @@
 -- | This implements the official specification https://webassembly.github.io/spec/.
 module GenericInterpreter where
 
-import Prelude hiding (Read, fail)
+import Prelude hiding (Read, fail, log)
 
 import           Control.Arrow
-import           Control.Arrow.Const
+import           Control.Arrow.DebuggableStack
 import           Control.Arrow.Except
 import qualified Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Frame
+import           Control.Arrow.Logger
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
 import           Control.Arrow.MemSizable
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Stack
-import           Control.Arrow.State
-import           Control.Arrow.Store
-import           Control.Arrow.Trans
 import qualified Control.Arrow.Utils as Arr
 import           Control.Arrow.WasmStore
 
-import           Control.Arrow.Transformer.Concrete.Except
-import           Control.Arrow.Transformer.Kleisli
-import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Transformer.Stack
-import           Control.Arrow.Transformer.State
-import           Control.Arrow.Transformer.Value
-
-import           Control.Category
-
-import           Data.Monoidal (shuffle1)
 import           Data.Profunctor
 import           Data.Text.Lazy (Text)
 import           Data.Vector hiding (length, (++))
@@ -134,7 +122,9 @@ class Show v => IsVal v c | c -> v where
 -- argument [v]: arguments going to be passed to the function
 invokeExported ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
-    ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader LabelArities c,
+    ArrowStack v c,
+    ArrowDebuggableStack v c,
+    ArrowExcept (Exc v) c, ArrowReader LabelArities c,
     ArrowWasmMemory addr bytes v c, --HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
@@ -142,6 +132,7 @@ invokeExported ::
     Fail.Join () c,
     ArrowFail String c,
     ArrowFix (c [Instruction Natural] ()),
+    ArrowLogger String c,
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
     )
   => c (Text, [v]) [v]
@@ -155,13 +146,16 @@ invokeExported = proc (funcName, args) -> do
 
 invokeExternal ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
-    ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader LabelArities c,
+    ArrowStack v c,
+    ArrowDebuggableStack v c,
+    ArrowExcept (Exc v) c, ArrowReader LabelArities c,
     ArrowWasmMemory addr bytes v c, --HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
     Fail.Join () c,
     ArrowFail String c,
     ArrowFix (c [Instruction Natural] ()),
+    ArrowLogger String c,
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
     )
   => c (Int, [v]) [v]
@@ -202,41 +196,62 @@ invokeExternal = proc (funcAddr, args) ->
 
 eval ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
-    ArrowStack v c, ArrowExcept (Exc v) c, ArrowReader LabelArities c,
+    ArrowStack v c,
+    ArrowDebuggableStack v c,
+    ArrowExcept (Exc v) c, ArrowReader LabelArities c,
     ArrowWasmMemory addr bytes v c, --HostFunctionSupport addr bytes v c,
     IsVal v c, Show v,
     Exc.Join () c,
     ArrowFix (c [Instruction Natural] ()),
+    ArrowLogger String c,
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
     )
   => c [Instruction Natural] ()
-eval = fix $ \eval' -> proc is -> case is of
-  [] -> returnA -< ()
-  i:is' | isNumericInst i -> do
-    push <<< evalNumericInst -< i
-    eval' -< is'
-  i:is' | isVariableInst i -> do
-    evalVariableInst -< i
-    eval' -< is'
-  i:is' | isParametricInst i -> do
-    evalParametricInst -< i
-    eval' -< is'
-  i:is' | isControlInst i -> do
-    evalControlInst eval' -< i
-    eval' -< is'
-  i:is' | isMemoryInst i -> do
-    evalMemoryInst -< i
-    eval' -< is'
-
+eval = fix $ \eval' -> proc is -> do
+    stack <- getStack -< ()
+    case is of
+      [] -> returnA -< ()
+      i:is' | isNumericInst i -> do
+        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        push <<< evalNumericInst -< i
+        stack2 <- getStack -< ()
+        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        eval' -< is'
+      i:is' | isVariableInst i -> do
+        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        evalVariableInst -< i
+        stack2 <- getStack -< ()
+        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        eval' -< is'
+      i:is' | isParametricInst i -> do
+        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        evalParametricInst -< i
+        stack2 <- getStack -< ()
+        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        eval' -< is'
+      i:is' | isControlInst i -> do
+        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        evalControlInst eval' -< i
+        stack2 <- getStack -< ()
+        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        eval' -< is'
+      i:is' | isMemoryInst i -> do
+        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        evalMemoryInst -< i
+        stack2 <- getStack -< ()
+        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        eval' -< is'
 
 evalControlInst ::
   ( ArrowChoice c, Profunctor c,
     ArrowStack v c, -- operand stack of computation
+    ArrowDebuggableStack v c,
     IsVal v c, -- needs to support value operations
     ArrowExcept (Exc v) c,
     ArrowReader LabelArities c, -- return arity of nested labels
     ArrowFrame FrameData v c, -- frame data and local variables
     ArrowWasmStore v c,
+    ArrowLogger String c,
     --HostFunctionSupport addr bytes v c,
     Exc.Join () c)
   => c [Instruction Natural] () -> c (Instruction Natural) ()
@@ -268,7 +283,17 @@ evalControlInst eval' = proc i -> case i of
   Call ix -> do
     (_, modInst) <- frameData -< ()
     let funcAddr = funcaddrs modInst ! fromIntegral ix
-    readFunction (invoke eval' <<^ fst) -< (funcAddr, ()) --(invokeHost <<^ fst) -< (funcAddr, ())
+    result <- readFunction (proc (funcAddr, ()) -> do
+                    stack <- getStack -< ()
+                    log -< "readFunction start, stack: " ++ (show stack)
+                    result <- invoke eval' <<^ fst -< (funcAddr, ())
+                    stack2 <- getStack -< ()
+                    log -< "readFunction end, stack: " ++ (show stack2)
+                    returnA -< result
+        ) -< (funcAddr, ()) --(invokeHost <<^ fst) -< (funcAddr, ())
+    stack <- getStack -< ()
+    log -< "before returning to eval, stack: " ++ (show stack)
+    returnA -< result
   CallIndirect ix -> do
     (_, modInst) <- frameData -< ()
     let tableAddr = tableaddrs modInst ! 0
@@ -281,7 +306,8 @@ evalControlInst eval' = proc i -> case i of
 
 invokeChecked ::
   ( ArrowChoice c, ArrowWasmStore v c, ArrowStack v c, ArrowReader LabelArities c,
-    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join () c)
+    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join () c,
+    ArrowDebuggableStack v c, ArrowLogger String c)
     --HostFunctionSupport addr bytes v c)
   => c [Instruction Natural] () -> c (Int, FuncType) ()
 invokeChecked eval' = proc (addr, ftExpect) ->
@@ -305,15 +331,24 @@ invokeChecked eval' = proc (addr, ftExpect) ->
 --   - TODO: what about break? Can we "break" to a function boundary? -> NO, only to block boundaries
 invoke ::
   ( ArrowChoice c, ArrowStack v c, ArrowReader LabelArities c,
-    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join y c)
+    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join y c,
+    ArrowDebuggableStack v c, ArrowLogger String c)
   => c [Instruction Natural] y -> c (FuncType, ModuleInstance, Function) y
 invoke eval' = catch
     (proc (FuncType paramTys resultTys, funcModInst, Function _ localTys code) -> do
+        stack1 <- getStack -< ()
+        log -< "start invoke, stack: " ++ (show stack1)
         vs <- popn -< fromIntegral $ length paramTys
         zeros <- Arr.map initLocal -< localTys
         let rtLength = fromIntegral $ length resultTys
+        stack2 <- getStack -< ()
+        log -< "invoke before transfering control, stack: " ++ (show stack2)
         -- TODO: removed localFreshStack, not sure if that is what we want
-        inNewFrame (localNoLabels $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, [])))
+        result <- inNewFrame (localNoLabels $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
+        stack3 <- getStack -< ()
+        log -< "end invoke, stack: " ++ (show stack3)
+        returnA -< result
+        )
     (proc (_,e) -> case e of
         CallReturn vs -> do
             pushn -< vs
@@ -346,13 +381,21 @@ branch = proc ix -> do
 -- | Introduces a branching point `g` that can be jumped to from within `f`.
 -- | When escalating jumps, all label-local operands must be popped from the stack.
 -- | This implementation assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
-label :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader LabelArities c, Exc.Join z c)
+label :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader LabelArities c, Exc.Join z c,
+          ArrowDebuggableStack v c, ArrowLogger String c, Show v)
   => c x z -> c y z -> c (ResultType, x, y) z
 -- x: code to execute
 -- y: continuation to execute after a break to the current label
 label f g = catch
   -- after executing f without a break we expect |rt| results on top of the stack
-  (proc (rt,x,_) -> localLabel f -< (rt, x))
+  (proc (rt,x,_) -> do
+    stack <- getStack -< ()
+    log -< "labal start, stack: " ++ (show stack)
+    result <- localLabel f -< (rt, x)
+    stack2 <- getStack -< ()
+    log -< "label end, stack: " ++ (show stack2)
+    returnA -< result
+  )
   -- after a break the results are popped from the stack and passed back via exception e
   (proc ((_,_,y),e) -> case e of
     Jump 0 vs -> do

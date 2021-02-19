@@ -11,7 +11,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Value
-
+import           Control.Arrow.Transformer.Writer
 
 class ArrowMemAddress base off addr c where
   memaddr :: c (base, off) addr
@@ -24,4 +24,6 @@ deriving instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off 
 instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (StateT s c) where
     -- TODO
 instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (ReaderT r c) where
+    -- TODO
+instance (ArrowMemAddress base off addr c) => ArrowMemAddress base off addr (WriterT w c) where
     -- TODO

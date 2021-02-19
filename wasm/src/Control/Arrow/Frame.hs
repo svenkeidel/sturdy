@@ -28,6 +28,7 @@ import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.Value
+import           Control.Arrow.Transformer.Writer
 
 import           Data.Monoidal (shuffle1)
 import           Data.Profunctor
@@ -78,3 +79,8 @@ instance (Monad f, Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v 
     frameLookup = lift' frameLookup
     frameUpdate = lift' frameUpdate
 deriving instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StackT s c)
+instance (Profunctor c, Arrow c, ArrowFrame fd v c, Monoid w) => ArrowFrame fd v (WriterT w c) where
+    inNewFrame a = lift (inNewFrame (unlift a))
+    frameData = lift' frameData
+    frameLookup = lift' frameLookup
+    frameUpdate = lift' frameUpdate

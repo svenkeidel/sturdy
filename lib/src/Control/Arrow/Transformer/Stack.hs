@@ -18,6 +18,7 @@ import           Control.Arrow.State
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Utils
+import           Control.Arrow.Writer
 
 import           Data.Profunctor
 import           Data.Coerce
@@ -26,7 +27,7 @@ import           Data.Coerce
 -- | Arrow transformer that adds a stack to a computation.
 newtype StackT v c x y = StackT (StateT [v] c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
-            ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e, ArrowState [v])
+            ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e, ArrowWriter w)
 
 -- | Execute a computation and only return the result value and store.
 runStackT :: StackT v c x y -> c ([v], x) ([v], y)

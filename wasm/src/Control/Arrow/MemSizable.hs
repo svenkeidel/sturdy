@@ -14,6 +14,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Value
+import           Control.Arrow.Transformer.Writer
 
 import           Data.Profunctor
 
@@ -30,4 +31,6 @@ deriving instance (ArrowMemSizable sz c) => ArrowMemSizable sz (StackT v c)
 instance (ArrowMemSizable sz c) => ArrowMemSizable sz (StateT s c) where
     -- TODO
 instance (ArrowMemSizable sz c) => ArrowMemSizable sz (ReaderT r c) where
+    -- TODO
+instance (ArrowMemSizable sz c) => ArrowMemSizable sz (WriterT r c) where
     -- TODO

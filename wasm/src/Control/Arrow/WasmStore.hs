@@ -16,6 +16,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Value
+import           Control.Arrow.Transformer.Writer
 
 import           Data.Profunctor
 
@@ -64,18 +65,18 @@ instance (Profunctor c, Arrow c, ArrowWasmStore v c) => ArrowWasmStore v (StateT
     -- modify (flip a) :: (StateT s c) (f,x) y
     -- readFunction (modify (flip a)) :: c (Int, x) y
     -- second (readFunction (modify (flip a))) :: c (s, (Int,x)) (s, y)
-    readFunction arr = lift $ transform (unlift arr)
+    readFunction a = lift $ transform (unlift a)
 --        -- proc (f,x) -> arr -< (s, (f,x)) :: c (f,x) (s, y)
 --        -- ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (f,x) y
 --        -- readFunction ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (Int, x) y
 --        -- c (s, (Int, x)) y
-        where transform arr = proc (s, (i,x)) -> do
+        where transform f = proc (s, (i,x)) -> readFunction (proc (f,(s2,x)) -> f -< (s2, (f,x))) -< (i,(s,x))
 --                   -- arr :: c (s, (f,x)) (s, y)
 --                   -- proc (f,(s2,x)) -> arr -< (s2, (f,x)) :: c (f,(s,x)) (s, y)
 --                   -- ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) :: c (f,(s,x)) y
 --                   -- func "" :: c (Int, (s,x)) y (for z = (s x))
-                                 y <- readFunction ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (i,(s,x))
-                                 returnA -< (s,y)
+                                 --(sNew,y) <- readFunction ((proc (f,(s2,x)) -> arr -< (s2, (f,x)))) -< (i,(s,x))
+                                 --returnA -< (sNew,y)
 
 
 --        proc (s, (i,x)) -> do
@@ -101,7 +102,7 @@ deriving instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore 
 instance (Monad f, Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (KleisliT f c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
-    readFunction arr = lift (readFunction (unlift arr))
+    readFunction a = lift (readFunction (unlift a))
 instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (ReaderT r c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
@@ -109,6 +110,11 @@ instance (Arrow c, Profunctor c, ArrowWasmStore v c) => ArrowWasmStore v (Reader
     -- lift :: c (r, (Int,x)) y -> c (Int,x) y
     -- transform :: c (r, (f,x)) y -> c (r, (Int,x)) y
     -- readFunction :: c (f,x) y -> c (Int,x) y
-    readFunction arr = lift $ transform (unlift arr)
-        where transform arr = proc (r, (i,x)) ->
-                                  readFunction (proc (f,(r,x)) -> arr -< (r, (f,x))) -< (i,(r,x))
+    readFunction a = lift $ transform (unlift a)
+        where transform f = proc (r, (i,x)) ->
+                                readFunction (proc (f,(r,x)) -> f -< (r, (f,x))) -< (i,(r,x))
+
+instance (Arrow c, Profunctor c, Monoid w, ArrowWasmStore v c) => ArrowWasmStore v (WriterT w c) where
+    readGlobal = lift' readGlobal
+    writeGlobal = lift' writeGlobal
+    readFunction a = lift (readFunction (unlift a))
