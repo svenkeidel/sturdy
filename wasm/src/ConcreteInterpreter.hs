@@ -150,14 +150,14 @@ evalNumericInst inst stack =
 --type TransStack = FrameT FrameData Value (StackT Value (->))
 --
 evalVariableInst :: (Instruction Natural) -> [Value] -> FrameData -> Vector Value 
-            -> GlobalState Value -> Int -> ([Value], (Vector Value, (GlobalState Value, ())))
-evalVariableInst inst stack fd locals store currentMem =
+            -> GlobalState Value -> ([Value], (Vector Value, (GlobalState Value, ())))
+evalVariableInst inst stack fd locals store =
     Trans.run
       (Generic.evalVariableInst ::
         GlobalStateT Value
           (FrameT FrameData Value
             (StackT Value
-              (->))) (Instruction Natural) ()) (stack, (locals, (fd,(store, (currentMem,inst)))))
+              (->))) (Instruction Natural) ()) (stack, (locals, (fd,(store, inst))))
 
 
 evalParametricInst :: (Instruction Natural) -> [Value] -> ([Value], ())
@@ -210,7 +210,7 @@ invokeExported store modInst funcName args =
                 (FrameT FrameData Value
                   (FailureT String
                     (LoggerT String
-                      (->)))))))) (Text, [Value]) [Value]) ([],(Vec.empty,((0,modInst),(store,(0,([],(Generic.LabelArities [],(funcName,args))))))))
+                      (->)))))))) (Text, [Value]) [Value]) ([],(Vec.empty,((0,modInst),(store,([],(Generic.LabelArities [],(funcName,args)))))))
 
 
 instantiate :: ValidModule -> IO (Either String (ModuleInstance, GlobalState Value))

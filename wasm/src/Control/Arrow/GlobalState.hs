@@ -26,7 +26,7 @@ import           Language.Wasm.Interpreter (ModuleInstance(..))
 
 
 
-class ArrowGlobalState v c | c -> v where
+class ArrowGlobalState v m c | c -> v, c -> m where
   -- | Reads a global variable. Cannot fail due to validation.
   readGlobal :: c Int v
   -- | Writes a global variable. Cannot fail due to validation.
@@ -44,11 +44,14 @@ class ArrowGlobalState v c | c -> v where
   -- | Invokes `h (ta,ix,x)` if `ix` cell is uninitialized.
   readTable :: c (Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y
 
-  -- | Executes a function relative to a memory instance. The memory instance exists due to validation.
-  withMemoryInstance :: c x y -> c (Int,x) y
+  fetchMemory :: c Int m
+  storeMemory :: c (Int, m) ()
 
-deriving instance (ArrowGlobalState v c) => ArrowGlobalState v (ValueT v2 c)
-instance (Profunctor c, Arrow c, ArrowGlobalState v c) => ArrowGlobalState v (StateT s c) where
+  -- | Executes a function relative to a memory instance. The memory instance exists due to validation.
+  -- withMemoryInstance :: c x y -> c (Int,x) y
+
+deriving instance (ArrowGlobalState v m c) => ArrowGlobalState v m (ValueT v2 c)
+instance (Profunctor c, Arrow c, ArrowGlobalState v m c) => ArrowGlobalState v m (StateT s c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
     -- readFunction :: (StateT s c) (f, x) y -> (StateT s c) (Int, x) y
@@ -97,13 +100,13 @@ instance (Profunctor c, Arrow c, ArrowGlobalState v c) => ArrowGlobalState v (St
 --                   y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (i,(s,x))
 --                   returnA -< (s,y)
 
-deriving instance (Arrow c, Profunctor c, ArrowGlobalState v c) => ArrowGlobalState v (ExceptT e c)
-deriving instance (Arrow c, Profunctor c, ArrowGlobalState v c) => ArrowGlobalState v (StackT s c)
-instance (Monad f, Arrow c, Profunctor c, ArrowGlobalState v c) => ArrowGlobalState v (KleisliT f c) where
+deriving instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (ExceptT e c)
+deriving instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (StackT s c)
+instance (Monad f, Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (KleisliT f c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
     readFunction a = lift (readFunction (unlift a))
-instance (Arrow c, Profunctor c, ArrowGlobalState v c) => ArrowGlobalState v (ReaderT r c) where
+instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (ReaderT r c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
     -- unlift arr :: c (r, (f,x)) y
@@ -114,7 +117,7 @@ instance (Arrow c, Profunctor c, ArrowGlobalState v c) => ArrowGlobalState v (Re
         where transform f = proc (r, (i,x)) ->
                                 readFunction (proc (f,(r,x)) -> f -< (r, (f,x))) -< (i,(r,x))
 
-instance (Arrow c, Profunctor c, Monoid w, ArrowGlobalState v c) => ArrowGlobalState v (WriterT w c) where
+instance (Arrow c, Profunctor c, Monoid w, ArrowGlobalState v m c) => ArrowGlobalState v m (WriterT w c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
     readFunction a = lift (readFunction (unlift a))

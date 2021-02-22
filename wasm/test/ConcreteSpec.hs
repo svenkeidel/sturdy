@@ -38,19 +38,19 @@ spec = do
         let inst = GetLocal 1
         let fd = (0, Wasm.emptyModInstance) 
         let store = emptyGlobalState
-        (fst $ evalVariableInst inst [] fd (fromList $ map (Value . Wasm.VI32) [5,8,7]) store 0) `shouldBe`
+        (fst $ evalVariableInst inst [] fd (fromList $ map (Value . Wasm.VI32) [5,8,7]) store) `shouldBe`
             [Value $ Wasm.VI32 8]
     it "evalVariableInst GetGlobal" $ do
         let inst = GetGlobal 1
         let store = emptyGlobalState{globalInstances = fromList $ map (\x -> GlobInst Mutable (Value $ Wasm.VI32 x)) [3,4,5]}
         let fd = (0, Wasm.emptyModInstance{globaladdrs = fromList [0,1,2]})
-        (fst $ evalVariableInst inst [] fd empty store 0) `shouldBe` [Value $ Wasm.VI32 4]
+        (fst $ evalVariableInst inst [] fd empty store) `shouldBe` [Value $ Wasm.VI32 4]
     it "evalVariabelInst SetGlobal" $ do
         let inst = SetGlobal 1
         let store = emptyGlobalState{globalInstances = fromList $ map (\x -> GlobInst Mutable (Value $ Wasm.VI32 x)) [3,4,5]}
         let fd = (0, Wasm.emptyModInstance{globaladdrs = fromList [0,1,2]})
         let stack = [Value $ Wasm.VI32 6]
-        (globalInstances $ fst $ snd $ snd $ evalVariableInst inst stack fd empty store 0) `shouldBe`
+        (globalInstances $ fst $ snd $ snd $ evalVariableInst inst stack fd empty store) `shouldBe`
             (fromList $ map (\x -> GlobInst Mutable (Value $ Wasm.VI32 x)) [3,6,5])
 
     it "evalParametricInst" $ do

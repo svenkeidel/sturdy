@@ -78,7 +78,7 @@ newtype TableInst = TableInst Wasm.TableInstance deriving (Show,Eq)
 data MemInst = MemInst (Maybe Word32) (Vector Word8) deriving (Show,Eq)
 data GlobInst v = GlobInst Mut v deriving (Show, Eq)
 
-newtype GlobalStateT v c x y = GlobalStateT (ReaderT Int (StateT (GlobalState v) c) x y)
+newtype GlobalStateT v c x y = GlobalStateT (StateT (GlobalState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
               ArrowStack st, ArrowLogger l)--, ArrowState (GlobalState v))
@@ -88,12 +88,13 @@ instance (ArrowReader r c) => ArrowReader r (GlobalStateT v c) where
     local a = lift $ lmap shuffle1 (local (unlift a))
 
 instance (ArrowState s c) => ArrowState s (GlobalStateT v c) where
+    -- TODO
 
 instance ArrowTrans (GlobalStateT v) where
     -- lift' :: c x y -> GlobalStateT v c x y
-    lift' a = GlobalStateT (lift' (lift' a))
+    lift' a = GlobalStateT (lift' a)
 
-instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v (GlobalStateT v c) where
+instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v Int (GlobalStateT v c) where
     readGlobal = 
         GlobalStateT $ proc i -> do
             GlobalState{globalInstances=vec} <- get -< ()
@@ -116,31 +117,40 @@ instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v (GlobalStateT v c) 
                 FuncInst fTy modInst code -> funcCont -< ((fTy,modInst,code),x)
                 _                         -> returnA -< error "not yet implemented" --hostCont -< ((fTy,code),x)
 
-    withMemoryInstance (GlobalStateT f) = GlobalStateT $ local f
+    --withMemoryInstance (GlobalStateT f) = GlobalStateT $ local f
 
-instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (GlobalStateT v c) where
-    memread (GlobalStateT sCont) (GlobalStateT eCont) = GlobalStateT $ proc (addr, size, x) -> do
+    fetchMemory = arr Prelude.id
+    storeMemory = arr $ const ()
+
+instance (ArrowChoice c, Profunctor c) => ArrowMemory Int Word32 (Vector Word8) (GlobalStateT v c) where
+    memread (GlobalStateT sCont) (GlobalStateT eCont) = GlobalStateT $ proc (i, (addr, size, x)) -> do
         GlobalState{memInstances=mems} <- get -< ()
-        currMem <- ask -< ()
-        let MemInst _ vec = mems ! currMem
+        --currMem <- ask -< ()
+        let MemInst _ vec = mems ! i
         let addrI = fromIntegral addr
         case (addrI+size <= length vec) of
             True  -> do
                 let content = Vec.slice addrI size vec
-                sCont -< (content,x)
-            False -> eCont -< x
-    memstore (GlobalStateT sCont) (GlobalStateT eCont) = GlobalStateT $ proc (addr, content, x) -> do
+                y <- sCont -< (content,x)
+                returnA -< (i,y)
+            False -> do
+                y <- eCont -< x
+                returnA -< (i,y)
+    memstore (GlobalStateT sCont) (GlobalStateT eCont) = GlobalStateT $ proc (i, (addr, content, x)) -> do
         store@GlobalState{memInstances=mems} <- get -< ()
-        currMem <- ask -< ()
-        let MemInst s vec = mems ! currMem
+        --currMem <- ask -< ()
+        let MemInst s vec = mems ! i
         let addrI = fromIntegral addr
         let size = length content
         case (addrI+size <= length vec) of
             True  -> do
                 let ind = Vec.enumFromN addrI size
-                put -< (store{memInstances=mems // [(currMem,MemInst s $ Vec.update_ vec ind content)]})
-                sCont -< x
-            False -> eCont -< x
+                put -< (store{memInstances=mems // [(i,MemInst s $ Vec.update_ vec ind content)]})
+                y <- sCont -< x
+                returnA -< (i,y)
+            False -> do
+                y <- eCont -< x
+                returnA -< (i,y)
 
 instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (GlobalStateT v c) where
     memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base+ (fromIntegral off))
