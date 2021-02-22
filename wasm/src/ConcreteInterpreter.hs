@@ -27,7 +27,7 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Frame
 import           Control.Arrow.Transformer.Concrete.Except
-import           Control.Arrow.Transformer.Concrete.WasmStore
+import           Control.Arrow.Transformer.Concrete.GlobalState
 
 import           Data.Concrete.Error
 
@@ -52,10 +52,10 @@ import           Numeric.Natural (Natural)
 --newtype WasmMemoryT c x y = WasmMemoryT (StateT (Vector Word8) c x y)
 --    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
 --              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
---              ArrowStack st, ArrowState (Vector Word8), ArrowReader r, ArrowWasmStore v2)
+--              ArrowStack st, ArrowState (Vector Word8), ArrowReader r, ArrowGlobalState v2)
 --
 --instance ArrowTrans (WasmMemoryT) where
---    -- lift' :: c x y -> WasmStoreT v c x y
+--    -- lift' :: c x y -> GlobalStateT v c x y
 --    lift' arr = WasmMemoryT (lift' arr)
 --
 --
@@ -150,11 +150,11 @@ evalNumericInst inst stack =
 --type TransStack = FrameT FrameData Value (StackT Value (->))
 --
 evalVariableInst :: (Instruction Natural) -> [Value] -> FrameData -> Vector Value 
-            -> WasmStore Value -> Int -> ([Value], (Vector Value, (WasmStore Value, ())))
+            -> GlobalState Value -> Int -> ([Value], (Vector Value, (GlobalState Value, ())))
 evalVariableInst inst stack fd locals store currentMem =
     Trans.run
       (Generic.evalVariableInst ::
-        WasmStoreT Value
+        GlobalStateT Value
           (FrameT FrameData Value
             (StackT Value
               (->))) (Instruction Natural) ()) (stack, (locals, (fd,(store, (currentMem,inst)))))
@@ -170,18 +170,18 @@ evalParametricInst inst stack =
 
 
 --eval :: [Instruction Natural] -> [Value] -> Generic.LabelArities -> Vector Value -> FrameData ->
---        WasmStore Value -> Int ->
+--        GlobalState Value -> Int ->
 --                                 ([Value], -- stack
 --                                   Error (Generic.Exc Value)
 --                                         (Vector Value, -- state of FrameT
---                                          (WasmStore Value, -- state of WasmStoreT
+--                                          (GlobalState Value, -- state of GlobalStateT
 --                                           ())))
 --eval inst stack r locals fd wasmStore currentMem =
 --    let ?fixpointAlgorithm = Function.fix in
 --    Trans.run
 --    (Generic.eval ::
 --      ValueT Value
---        (WasmStoreT Value
+--        (GlobalStateT Value
 --          (FrameT FrameData Value
 --            (ReaderT Generic.LabelArities
 --              (ExceptT (Generic.Exc Value)
@@ -190,14 +190,14 @@ evalParametricInst inst stack =
 
 
 
-invokeExported :: WasmStore Value
+invokeExported :: GlobalState Value
                         -> ModuleInstance
                         -> Text
                         -> [Value]
                         -> ([String], Error
                              [Char]
                              (Vector Value,
-                              (WasmStore Value, Error (Exc Value) ([Value], [Value]))))
+                              (GlobalState Value, Error (Exc Value) ([Value], [Value]))))
 invokeExported store modInst funcName args =
     let ?fixpointAlgorithm = Function.fix in
     Trans.run
@@ -206,27 +206,27 @@ invokeExported store modInst funcName args =
         (ReaderT Generic.LabelArities
           (DebuggableStackT Value
             (ExceptT (Generic.Exc Value)
-              (WasmStoreT Value
+              (GlobalStateT Value
                 (FrameT FrameData Value
                   (FailureT String
                     (LoggerT String
                       (->)))))))) (Text, [Value]) [Value]) ([],(Vec.empty,((0,modInst),(store,(0,([],(Generic.LabelArities [],(funcName,args))))))))
 
 
-instantiate :: ValidModule -> IO (Either String (ModuleInstance, WasmStore Value))
+instantiate :: ValidModule -> IO (Either String (ModuleInstance, GlobalState Value))
 instantiate valMod = do
     res <- Wasm.instantiate emptyStore emptyImports valMod
     case res of
         Right (modInst, store) -> do
-            wasmStore <- storeToWasmStore store
+            wasmStore <- storeToGlobalState store
             return $ Right $ (modInst, wasmStore)
         Left e                 -> return $ Left e
 
     where
-        storeToWasmStore (Wasm.Store funcI tableI memI globalI) = do
+        storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
             mems <- Vec.mapM convertMem memI
             globs <- Vec.mapM convertGlobals globalI
-            return $ WasmStore (Vec.map convertFuncs funcI)
+            return $ GlobalState (Vec.map convertFuncs funcI)
                                (Vec.map TableInst tableI)
                                mems
                                globs

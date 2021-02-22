@@ -24,7 +24,7 @@ import           Control.Arrow.Stack
 import           Control.Arrow.Trans
 import           Control.Arrow.Serialize
 import           Control.Arrow.Transformer.Stack
-import           Control.Arrow.WasmStore
+import           Control.Arrow.GlobalState
 import           Control.Arrow.Writer
 
 import           Data.Profunctor
@@ -32,7 +32,7 @@ import           Data.Profunctor
 newtype LoggerT v c x y = LoggerT (StackT v c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
               ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e,
-              ArrowWasmStore v1, ArrowFrame fd v1, ArrowMemory addr bytes,
+              ArrowGlobalState v1, ArrowFrame fd v1, ArrowMemory addr bytes,
               ArrowMemAddress v1 n addr, ArrowSerialize v1 bytes valTy loadTy storeTy,
               ArrowMemSizable v1, ArrowWriter w)
 

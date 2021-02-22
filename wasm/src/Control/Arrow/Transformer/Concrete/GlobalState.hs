@@ -6,7 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Control.Arrow.Transformer.Concrete.WasmStore where
+module Control.Arrow.Transformer.Concrete.GlobalState where
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -24,7 +24,7 @@ import           Control.Arrow.Stack
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Arrow.Trans
-import           Control.Arrow.WasmStore
+import           Control.Arrow.GlobalState
 
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
@@ -48,15 +48,15 @@ import           GenericInterpreter (LoadType,StoreType)
 newtype Value = Value Wasm.Value deriving (Show, Eq)
 data Mut = Const | Mutable deriving (Show, Eq)
 
-data WasmStore v = WasmStore {
+data GlobalState v = GlobalState {
     funcInstances :: Vector FuncInst,
     tableInstances :: Vector TableInst,
     memInstances :: Vector MemInst,
     globalInstances :: Vector (GlobInst v)
 } deriving (Show, Eq)
 
-emptyWasmStore :: WasmStore v
-emptyWasmStore = WasmStore {
+emptyGlobalState :: GlobalState v
+emptyGlobalState = GlobalState {
     funcInstances = Vec.empty,
     tableInstances = Vec.empty,
     memInstances = Vec.empty,
@@ -78,49 +78,49 @@ newtype TableInst = TableInst Wasm.TableInstance deriving (Show,Eq)
 data MemInst = MemInst (Maybe Word32) (Vector Word8) deriving (Show,Eq)
 data GlobInst v = GlobInst Mut v deriving (Show, Eq)
 
-newtype WasmStoreT v c x y = WasmStoreT (ReaderT Int (StateT (WasmStore v) c) x y)
+newtype GlobalStateT v c x y = GlobalStateT (ReaderT Int (StateT (GlobalState v) c) x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowLogger l)--, ArrowState (WasmStore v))
+              ArrowStack st, ArrowLogger l)--, ArrowState (GlobalState v))
 
-instance (ArrowReader r c) => ArrowReader r (WasmStoreT v c) where
+instance (ArrowReader r c) => ArrowReader r (GlobalStateT v c) where
     ask = lift' ask
     local a = lift $ lmap shuffle1 (local (unlift a))
 
-instance (ArrowState s c) => ArrowState s (WasmStoreT v c) where
+instance (ArrowState s c) => ArrowState s (GlobalStateT v c) where
 
-instance ArrowTrans (WasmStoreT v) where
-    -- lift' :: c x y -> WasmStoreT v c x y
-    lift' a = WasmStoreT (lift' (lift' a))
+instance ArrowTrans (GlobalStateT v) where
+    -- lift' :: c x y -> GlobalStateT v c x y
+    lift' a = GlobalStateT (lift' (lift' a))
 
-instance (ArrowChoice c, Profunctor c) => ArrowWasmStore v (WasmStoreT v c) where
+instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v (GlobalStateT v c) where
     readGlobal = 
-        WasmStoreT $ proc i -> do
-            WasmStore{globalInstances=vec} <- get -< ()
+        GlobalStateT $ proc i -> do
+            GlobalState{globalInstances=vec} <- get -< ()
             let (GlobInst _ val) = vec ! i
             returnA -< val
     writeGlobal =
-        WasmStoreT $ proc (i,v) -> do
-            store@WasmStore{globalInstances=vec} <- get -< ()
+        GlobalStateT $ proc (i,v) -> do
+            store@GlobalState{globalInstances=vec} <- get -< ()
             let (GlobInst m _) = vec ! i
             if m == Const
                 then returnA -< error $ "writing to constant global " ++ (show i)
                 else put -< store{globalInstances=vec // [(i, GlobInst m v)]}
     
-    -- funcCont :: ReaderT Int (StateT (WasmStore v) c) ((FuncType, ModuleInstance, Function),x) y
-    -- we need ReaderT Int (StateT (WasmStore v) c) (Int, x) y
-    readFunction (WasmStoreT funcCont) =
-        WasmStoreT $ proc (i,x) -> do
-            WasmStore{funcInstances = fs} <- get -< ()
+    -- funcCont :: ReaderT Int (StateT (GlobalState v) c) ((FuncType, ModuleInstance, Function),x) y
+    -- we need ReaderT Int (StateT (GlobalState v) c) (Int, x) y
+    readFunction (GlobalStateT funcCont) =
+        GlobalStateT $ proc (i,x) -> do
+            GlobalState{funcInstances = fs} <- get -< ()
             case fs ! i of
                 FuncInst fTy modInst code -> funcCont -< ((fTy,modInst,code),x)
                 _                         -> returnA -< error "not yet implemented" --hostCont -< ((fTy,code),x)
 
-    withMemoryInstance (WasmStoreT f) = WasmStoreT $ local f
+    withMemoryInstance (GlobalStateT f) = GlobalStateT $ local f
 
-instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (WasmStoreT v c) where
-    memread (WasmStoreT sCont) (WasmStoreT eCont) = WasmStoreT $ proc (addr, size, x) -> do
-        WasmStore{memInstances=mems} <- get -< ()
+instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (GlobalStateT v c) where
+    memread (GlobalStateT sCont) (GlobalStateT eCont) = GlobalStateT $ proc (addr, size, x) -> do
+        GlobalState{memInstances=mems} <- get -< ()
         currMem <- ask -< ()
         let MemInst _ vec = mems ! currMem
         let addrI = fromIntegral addr
@@ -129,8 +129,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (Was
                 let content = Vec.slice addrI size vec
                 sCont -< (content,x)
             False -> eCont -< x
-    memstore (WasmStoreT sCont) (WasmStoreT eCont) = WasmStoreT $ proc (addr, content, x) -> do
-        store@WasmStore{memInstances=mems} <- get -< ()
+    memstore (GlobalStateT sCont) (GlobalStateT eCont) = GlobalStateT $ proc (addr, content, x) -> do
+        store@GlobalState{memInstances=mems} <- get -< ()
         currMem <- ask -< ()
         let MemInst s vec = mems ! currMem
         let addrI = fromIntegral addr
@@ -142,18 +142,18 @@ instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (Was
                 sCont -< x
             False -> eCont -< x
 
-instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (WasmStoreT v c) where
+instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (GlobalStateT v c) where
     memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base+ (fromIntegral off))
 
-instance ArrowSerialize v (Vector Word8) ValueType LoadType StoreType (WasmStoreT v c) where
+instance ArrowSerialize v (Vector Word8) ValueType LoadType StoreType (GlobalStateT v c) where
 
-instance ArrowMemSizable v (WasmStoreT v c) where
-
-
+instance ArrowMemSizable v (GlobalStateT v c) where
 
 
-instance ArrowFix (Underlying (WasmStoreT v c) x y) => ArrowFix (WasmStoreT v c x y) where
-    type Fix (WasmStoreT v c x y) = Fix (Underlying (WasmStoreT v c) x y)
+
+
+instance ArrowFix (Underlying (GlobalStateT v c) x y) => ArrowFix (GlobalStateT v c x y) where
+    type Fix (GlobalStateT v c x y) = Fix (Underlying (GlobalStateT v c) x y)
 
 deriving instance Show Wasm.TableInstance
 deriving instance Eq Wasm.TableInstance

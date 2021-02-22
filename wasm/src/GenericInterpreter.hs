@@ -30,7 +30,7 @@ import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Stack
 import qualified Control.Arrow.Utils as Arr
-import           Control.Arrow.WasmStore
+import           Control.Arrow.GlobalState
 
 import           Data.Profunctor
 import           Data.Text.Lazy (Text)
@@ -53,7 +53,7 @@ newtype LabelArities = LabelArities {labels :: [Natural]}
 type FrameData = (Natural, ModuleInstance)
 
 ---- constraints to support (and call) host functions
---type HostFunctionSupport addr bytes v c = (ArrowApply c, ArrowWasmStore v c, ArrowWasmMemory addr bytes v c)
+--type HostFunctionSupport addr bytes v c = (ArrowApply c, ArrowGlobalState v c, ArrowWasmMemory addr bytes v c)
 ---- a host function is a function from a list of values (parameters) to a list of values (return values)
 --newtype HostFunction v c = HostFunction (
 --  forall addr bytes. HostFunctionSupport addr bytes v c => (c [v] [v]) )
@@ -117,11 +117,11 @@ class Show v => IsVal v c | c -> v where
 
 -- entry point to the generic interpreter
 -- the module instance comes from ArrowFrame
--- ArrowWasmStore and ArrowWasmMemory are properly initialized
+-- ArrowGlobalState and ArrowWasmMemory are properly initialized
 -- argument Text: name of the function to execute
 -- argument [v]: arguments going to be passed to the function
 invokeExported ::
-  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
+  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v c,
     ArrowStack v c,
     ArrowDebuggableStack v c,
     ArrowExcept (Exc v) c, ArrowReader LabelArities c,
@@ -145,7 +145,7 @@ invokeExported = proc (funcName, args) -> do
       _ -> fail -< printf "Function with name %s was not found in module's exports" (show funcName)
 
 invokeExternal ::
-  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
+  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v c,
     ArrowStack v c,
     ArrowDebuggableStack v c,
     ArrowExcept (Exc v) c, ArrowReader LabelArities c,
@@ -195,7 +195,7 @@ invokeExternal = proc (funcAddr, args) ->
 
 
 eval ::
-  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
+  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v c,
     ArrowStack v c,
     ArrowDebuggableStack v c,
     ArrowExcept (Exc v) c, ArrowReader LabelArities c,
@@ -250,7 +250,7 @@ evalControlInst ::
     ArrowExcept (Exc v) c,
     ArrowReader LabelArities c, -- return arity of nested labels
     ArrowFrame FrameData v c, -- frame data and local variables
-    ArrowWasmStore v c,
+    ArrowGlobalState v c,
     ArrowLogger String c,
     --HostFunctionSupport addr bytes v c,
     Exc.Join () c)
@@ -305,7 +305,7 @@ evalControlInst eval' = proc i -> case i of
       -< (tableAddr, fromIntegral ix, ftExpect)
 
 invokeChecked ::
-  ( ArrowChoice c, ArrowWasmStore v c, ArrowStack v c, ArrowReader LabelArities c,
+  ( ArrowChoice c, ArrowGlobalState v c, ArrowStack v c, ArrowReader LabelArities c,
     IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join () c,
     ArrowDebuggableStack v c, ArrowLogger String c)
     --HostFunctionSupport addr bytes v c)
@@ -435,7 +435,7 @@ evalParametricInst = proc i -> case i of
 evalMemoryInst ::
   ( ArrowChoice c,
     ArrowWasmMemory addr bytes v c,
-    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
+    ArrowGlobalState v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
   => c (Instruction Natural) ()
 evalMemoryInst = withCurrentMemory $ proc i -> case i of
   I32Load (MemArg off _) -> load 4 L_I32 I32 -< off
@@ -469,7 +469,7 @@ evalMemoryInst = withCurrentMemory $ proc i -> case i of
       (proc _ -> push <<< i32const -< 0xFFFFFFFF) -- 0xFFFFFFFF ~= -1
       -< (n, ())
 
-withCurrentMemory :: (ArrowChoice c, ArrowWasmStore v c, ArrowFrame FrameData v c) => c x y -> c x y
+withCurrentMemory :: (ArrowChoice c, ArrowGlobalState v c, ArrowFrame FrameData v c) => c x y -> c x y
 withCurrentMemory f = proc x -> do
   (_,modInst) <- frameData -< ()
   let memAddr = memaddrs modInst ! 0
@@ -478,7 +478,7 @@ withCurrentMemory f = proc x -> do
 load ::
   ( ArrowChoice c,
     ArrowWasmMemory addr bytes v c,
-    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
+    ArrowGlobalState v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
   => Int -> LoadType -> ValueType -> c Natural ()
 load byteSize loadType valType = proc off -> do
   base <- pop -< ()
@@ -495,7 +495,7 @@ load byteSize loadType valType = proc off -> do
 store ::
   ( ArrowChoice c,
     ArrowWasmMemory addr bytes v c,
-    ArrowWasmStore v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
+    ArrowGlobalState v c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
   => StoreType -> ValueType -> c Natural ()
 store storeType valType = proc off -> do
   v <- pop -< ()
@@ -511,7 +511,7 @@ store storeType valType = proc off -> do
     -< (v, valType, storeType, off)
 
 evalVariableInst ::
-  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowWasmStore v c,
+  ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v c,
     ArrowStack v c)
   => c (Instruction Natural) ()
 evalVariableInst = proc i -> case i of
