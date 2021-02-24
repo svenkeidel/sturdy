@@ -5,19 +5,19 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Control.Arrow.Transformer.Concrete.Frame where
+module Control.Arrow.Transformer.Concrete.WasmFrame where
 
 import           Control.Arrow
 import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Frame
 import           Control.Arrow.Reader
 import           Control.Arrow.Stack
 import           Control.Arrow.State
 import           Control.Arrow.Store
 import           Control.Arrow.Trans
+import           Control.Arrow.WasmFrame
 
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State

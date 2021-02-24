@@ -5,7 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Frame where
+module Control.Arrow.WasmFrame where
 
 import           Prelude hiding ((.),read)
 

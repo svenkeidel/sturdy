@@ -1,5 +1,6 @@
 module ConcreteSpec where
 
+import           Concrete
 import           ConcreteInterpreter
 import           GenericInterpreter(Exc(..))
 

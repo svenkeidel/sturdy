@@ -21,7 +21,6 @@ import           Control.Arrow.Except
 import qualified Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Frame
 import           Control.Arrow.Logger
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
@@ -31,6 +30,7 @@ import           Control.Arrow.Serialize
 import           Control.Arrow.Stack
 import qualified Control.Arrow.Utils as Arr
 import           Control.Arrow.GlobalState
+import           Control.Arrow.WasmFrame
 
 import           Data.Profunctor
 import           Data.Text.Lazy (Text)

@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Control.Arrow.Transformer.Concrete.GlobalState where
+module Control.Arrow.Transformer.Concrete.GlobalState2 where
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -45,30 +45,30 @@ import           Numeric.Natural (Natural)
 import           GenericInterpreter (LoadType,StoreType)
 import           Concrete
 
-newtype GlobalStateT v c x y = GlobalStateT (StateT (GlobalState v) c x y)
+newtype GlobalState2T v c x y = GlobalState2T (StateT (GlobalState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowLogger l)--, ArrowState (GlobalState v))
+              ArrowStack st, ArrowLogger l, ArrowMemory m addr bytes)--, ArrowState (GlobalState v))
 
-instance (ArrowReader r c) => ArrowReader r (GlobalStateT v c) where
+instance (ArrowReader r c) => ArrowReader r (GlobalState2T v c) where
     ask = lift' ask
     local a = lift $ lmap shuffle1 (local (unlift a))
 
-instance (ArrowState s c) => ArrowState s (GlobalStateT v c) where
+instance (ArrowState s c) => ArrowState s (GlobalState2T v c) where
     -- TODO
 
-instance ArrowTrans (GlobalStateT v) where
+instance ArrowTrans (GlobalState2T v) where
     -- lift' :: c x y -> GlobalStateT v c x y
-    lift' a = GlobalStateT (lift' a)
+    lift' a = GlobalState2T (lift' a)
 
-instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v Int (GlobalStateT v c) where
+instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v MemInst (GlobalState2T v c) where
     readGlobal = 
-        GlobalStateT $ proc i -> do
+        GlobalState2T $ proc i -> do
             GlobalState{globalInstances=vec} <- get -< ()
             let (GlobInst _ val) = vec ! i
             returnA -< val
     writeGlobal =
-        GlobalStateT $ proc (i,v) -> do
+        GlobalState2T $ proc (i,v) -> do
             store@GlobalState{globalInstances=vec} <- get -< ()
             let (GlobInst m _) = vec ! i
             if m == Const
@@ -77,8 +77,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v Int (GlobalStateT v
     
     -- funcCont :: ReaderT Int (StateT (GlobalState v) c) ((FuncType, ModuleInstance, Function),x) y
     -- we need ReaderT Int (StateT (GlobalState v) c) (Int, x) y
-    readFunction (GlobalStateT funcCont) =
-        GlobalStateT $ proc (i,x) -> do
+    readFunction (GlobalState2T funcCont) =
+        GlobalState2T $ proc (i,x) -> do
             GlobalState{funcInstances = fs} <- get -< ()
             case fs ! i of
                 FuncInst fTy modInst code -> funcCont -< ((fTy,modInst,code),x)
@@ -86,48 +86,23 @@ instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v Int (GlobalStateT v
 
     --withMemoryInstance (GlobalStateT f) = GlobalStateT $ local f
 
-    fetchMemory = arr Prelude.id
-    storeMemory = arr $ const ()
-
-instance (ArrowChoice c, Profunctor c) => ArrowMemory Int Word32 (Vector Word8) (GlobalStateT v c) where
-    memread (GlobalStateT sCont) (GlobalStateT eCont) = GlobalStateT $ proc (i, (addr, size, x)) -> do
+    fetchMemory = GlobalState2T $ proc i -> do
         GlobalState{memInstances=mems} <- get -< ()
-        --currMem <- ask -< ()
-        let MemInst _ vec = mems ! i
-        let addrI = fromIntegral addr
-        case (addrI+size <= length vec) of
-            True  -> do
-                let content = Vec.slice addrI size vec
-                y <- sCont -< (content,x)
-                returnA -< (i,y)
-            False -> do
-                y <- eCont -< x
-                returnA -< (i,y)
-    memstore (GlobalStateT sCont) (GlobalStateT eCont) = GlobalStateT $ proc (i, (addr, content, x)) -> do
-        store@GlobalState{memInstances=mems} <- get -< ()
-        --currMem <- ask -< ()
-        let MemInst s vec = mems ! i
-        let addrI = fromIntegral addr
-        let size = length content
-        case (addrI+size <= length vec) of
-            True  -> do
-                let ind = Vec.enumFromN addrI size
-                put -< (store{memInstances=mems // [(i,MemInst s $ Vec.update_ vec ind content)]})
-                y <- sCont -< x
-                returnA -< (i,y)
-            False -> do
-                y <- eCont -< x
-                returnA -< (i,y)
+        returnA -< mems ! i
+    
+    storeMemory = GlobalState2T $ proc (i,m) -> do
+        gs@GlobalState{memInstances=mems} <- get -< ()
+        put -< gs{memInstances=mems // [(i,m)]} 
 
-instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (GlobalStateT v c) where
+instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (GlobalState2T v c) where
     memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base+ (fromIntegral off))
 
-instance ArrowSerialize v (Vector Word8) ValueType LoadType StoreType (GlobalStateT v c) where
+instance ArrowSerialize v (Vector Word8) ValueType LoadType StoreType (GlobalState2T v c) where
 
-instance ArrowMemSizable v (GlobalStateT v c) where
-
-
+instance ArrowMemSizable v (GlobalState2T v c) where
 
 
-instance ArrowFix (Underlying (GlobalStateT v c) x y) => ArrowFix (GlobalStateT v c x y) where
-    type Fix (GlobalStateT v c x y) = Fix (Underlying (GlobalStateT v c) x y)
+
+
+instance ArrowFix (Underlying (GlobalState2T v c) x y) => ArrowFix (GlobalState2T v c x y) where
+    type Fix (GlobalState2T v c x y) = Fix (Underlying (GlobalState2T v c) x y)

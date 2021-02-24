@@ -12,7 +12,7 @@ import           Control.Arrow
 import           Control.Arrow.Trans
 
 import           Control.Arrow.Transformer.Concrete.Except
-import           Control.Arrow.Transformer.Concrete.Frame
+import           Control.Arrow.Transformer.Concrete.WasmFrame
 import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Stack

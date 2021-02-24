@@ -106,6 +106,8 @@ instance (Monad f, Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobal
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
     readFunction a = lift (readFunction (unlift a))
+    fetchMemory = lift' fetchMemory
+    storeMemory = lift' storeMemory
 instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (ReaderT r c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
@@ -116,8 +118,12 @@ instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m
     readFunction a = lift $ transform (unlift a)
         where transform f = proc (r, (i,x)) ->
                                 readFunction (proc (f,(r,x)) -> f -< (r, (f,x))) -< (i,(r,x))
+    fetchMemory = lift' fetchMemory
+    storeMemory = lift' storeMemory
 
 instance (Arrow c, Profunctor c, Monoid w, ArrowGlobalState v m c) => ArrowGlobalState v m (WriterT w c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
     readFunction a = lift (readFunction (unlift a))
+    fetchMemory = lift' fetchMemory
+    storeMemory = lift' storeMemory

@@ -14,7 +14,6 @@ import           Control.Arrow.DebuggableStack
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Frame
 import           Control.Arrow.Logger
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
@@ -26,6 +25,7 @@ import           Control.Arrow.Serialize
 import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.GlobalState
 import           Control.Arrow.Writer
+import           Control.Arrow.WasmFrame
 
 import           Data.Profunctor
 

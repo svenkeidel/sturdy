@@ -1,5 +1,4 @@
 {-# LANGUAGE Arrows #-}
---{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -12,6 +11,7 @@
 
 module ConcreteInterpreter where
 
+import           Concrete
 import           GenericInterpreter hiding (eval,evalNumericInst,evalParametricInst,invokeExported,store)
 import qualified GenericInterpreter as Generic
 
@@ -25,9 +25,9 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Value
 
 import           Control.Arrow.Transformer.Concrete.Failure
-import           Control.Arrow.Transformer.Concrete.Frame
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.GlobalState
+import           Control.Arrow.Transformer.Concrete.WasmFrame
 
 import           Data.Concrete.Error
 
