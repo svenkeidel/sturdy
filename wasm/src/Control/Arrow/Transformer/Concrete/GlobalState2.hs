@@ -42,7 +42,7 @@ import           Language.Wasm.Structure hiding (exports, Const)
 
 import           Numeric.Natural (Natural)
 
-import           GenericInterpreter (LoadType,StoreType)
+--import           GenericInterpreter (LoadType,StoreType)
 import           Concrete
 
 newtype GlobalState2T v c x y = GlobalState2T (StateT (GlobalState v) c x y)

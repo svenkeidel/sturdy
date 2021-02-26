@@ -46,3 +46,8 @@ data GlobInst v = GlobInst Mut v deriving (Show, Eq)
 
 deriving instance Show Wasm.TableInstance
 deriving instance Eq Wasm.TableInstance
+
+data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U | L_I32S | L_I32U
+  deriving Show
+data StoreType = S_I32 | S_I64 | S_F32 | S_F64 | S_I8 | S_I16
+  deriving Show

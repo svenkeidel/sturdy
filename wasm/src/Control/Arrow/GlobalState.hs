@@ -85,6 +85,8 @@ instance (Profunctor c, Arrow c, ArrowGlobalState v m c) => ArrowGlobalState v m
 --        proc (s, (i,x)) -> do
 --                            y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (s,(i,x))
 --                            returnA -< (s,y)
+    fetchMemory = lift' fetchMemory
+    storeMemory = lift' storeMemory
 
 --foo2 :: (c (f,x) y -> c (Int,x) y) -> c (s, (f,x)) (s,y) -> c (s, (Int,x)) (s,y)
 --foo2 func arr = proc (s, (i,x)) -> do

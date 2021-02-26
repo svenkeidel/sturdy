@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -30,6 +31,7 @@ import           Control.Arrow.Transformer.State
 
 import           Control.Category
 
+import           Data.Bits (Bits, (.&.), shiftR, shiftL)
 import           Data.Monoidal (shuffle1)
 import           Data.Profunctor
 import           Data.Vector (Vector, (!), (//))
@@ -42,13 +44,13 @@ import           Language.Wasm.Structure hiding (exports, Const)
 
 import           Numeric.Natural (Natural)
 
-import           GenericInterpreter (LoadType,StoreType)
+--import           GenericInterpreter (LoadType,StoreType)
 import           Concrete
 
 newtype GlobalStateT v c x y = GlobalStateT (StateT (GlobalState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowLogger l)--, ArrowState (GlobalState v))
+              ArrowStack st, ArrowLogger l, ArrowSerialize val dat valTy datDecTy datEncTy)--, ArrowState (GlobalState v))
 
 instance (ArrowReader r c) => ArrowReader r (GlobalStateT v c) where
     ask = lift' ask
@@ -121,8 +123,6 @@ instance (ArrowChoice c, Profunctor c) => ArrowMemory Int Word32 (Vector Word8) 
 
 instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (GlobalStateT v c) where
     memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base+ (fromIntegral off))
-
-instance ArrowSerialize v (Vector Word8) ValueType LoadType StoreType (GlobalStateT v c) where
 
 instance ArrowMemSizable v (GlobalStateT v c) where
 

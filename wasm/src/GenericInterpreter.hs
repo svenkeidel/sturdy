@@ -15,6 +15,8 @@ module GenericInterpreter where
 
 import Prelude hiding (Read, fail, log)
 
+import           Concrete
+
 import           Control.Arrow
 import           Control.Arrow.DebuggableStack
 import           Control.Arrow.Except
@@ -81,11 +83,6 @@ withMemoryInstance f = proc (i,x) -> do
     returnA -< y
 
 
-
-data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U | L_I32S | L_I32U
-  deriving Show
-data StoreType = S_I32 | S_I64 | S_F32 | S_F64 | S_I8 | S_I16
-  deriving Show
 
 class Show v => IsVal v c | c -> v where
   i32const :: c Word32 v

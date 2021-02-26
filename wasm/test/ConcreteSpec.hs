@@ -127,3 +127,12 @@ spec = do
         --                                                 isInfixOf "readFunction" x ||
         --                                                 isInfixOf "invoke" x)) ls)
         --        putStrLn ""
+
+    it "run test-mem" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "test-mem") [Value $ Wasm.VI32 42]
+        result `shouldBe` [Value $ Wasm.VI32 43]

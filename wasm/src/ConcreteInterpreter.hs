@@ -27,6 +27,7 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Except
 import           Control.Arrow.Transformer.Concrete.GlobalState
+import           Control.Arrow.Transformer.Concrete.Serialize
 import           Control.Arrow.Transformer.Concrete.WasmFrame
 
 import           Data.Concrete.Error
@@ -207,10 +208,11 @@ invokeExported store modInst funcName args =
           (DebuggableStackT Value
             (ExceptT (Generic.Exc Value)
               (GlobalStateT Value
-                (FrameT FrameData Value
-                  (FailureT String
-                    (LoggerT String
-                      (->)))))))) (Text, [Value]) [Value]) ([],(Vec.empty,((0,modInst),(store,([],(Generic.LabelArities [],(funcName,args)))))))
+                (SerializeT
+                  (FrameT FrameData Value
+                    (FailureT String
+                      (LoggerT String
+                        (->))))))))) (Text, [Value]) [Value]) ([],(Vec.empty,((0,modInst),(store,([],(Generic.LabelArities [],(funcName,args)))))))
 
 
 instantiate :: ValidModule -> IO (Either String (ModuleInstance, GlobalState Value))

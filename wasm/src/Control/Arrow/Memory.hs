@@ -72,7 +72,12 @@ instance (Arrow c, ArrowMemory m addr bytes c) => ArrowMemory m addr bytes (Stat
         (newM, (newS,y)) <- memstore (unlift a1) (unlift a2) -< (m, (addr,bytes,(s,x)))
         returnA -< (newS, (newM, y))
 
-instance (ArrowMemory m addr bytes c) => ArrowMemory m addr bytes (ReaderT r c) where
-    -- TODO
+instance (Arrow c, ArrowMemory m addr bytes c) => ArrowMemory m addr bytes (ReaderT r c) where
+    memread a1 a2 = lift $ proc (r, (m, (addr,i,x))) ->
+        memread (proc (bytes, (r,x)) -> unlift a1 -< (r, (bytes,x)))
+                (unlift a2)
+                -< (m, (addr,i,(r,x)))
+    memstore a1 a2 = lift $ proc (r, (m, (addr,bytes,x))) ->
+        memstore (unlift a1) (unlift a2) -< (m, (addr, bytes, (r,x)))
 instance (ArrowMemory m addr bytes c) => ArrowMemory m addr bytes (WriterT r c) where
     -- TODO

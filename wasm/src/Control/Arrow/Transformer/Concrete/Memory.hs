@@ -39,7 +39,7 @@ newtype MemoryT c x y = MemoryT (c x y)
 
 instance ArrowTrans MemoryT where
     -- lift' :: c x y -> MemoryT v c x y
-    lift' a = MemoryT a
+    lift' = MemoryT
 
 instance (ArrowChoice c, Profunctor c) => ArrowMemory MemInst Word32 (Vector Word8) (MemoryT c) where
     memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (m@(MemInst _ vec), (addr, size, x)) -> do
