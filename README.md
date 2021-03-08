@@ -44,6 +44,11 @@ stack test sturdy-pcf
 
 ## Publications
 
+**A Systematic Approach to Abstract Interpretation of Program Transformations**  
+Sven Keidel and Sebastian Erdweg.  
+Verification, Model Checking, and Abstract Interpretation (VMCAI). Springer, 2020.
+[[pdf](https://svenkeidel.de/papers/program-trans-analysis.pdf)]
+
 **Sound and Reusable Components for Abstract Interpretation**  
 Sven Keidel and Sebastian Erdweg.  
 _Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)_.
@@ -57,11 +62,6 @@ _International Conference on Functional Programming (ICFP)_.
 ACM, 2018
 [[pdf](https://doi.org/10.1145/3236767)]
 [[Talk](https://www.youtube.com/watch?v=zOqSlHAMGt4)]
-
-**A Systematic Approach to Abstract Interpretation of Program Transformations**  
-Sven Keidel and Sebastian Erdweg.  
-Verification, Model Checking, and Abstract Interpretation (VMCAI). Springer, 2020.
-[[pdf](https://svenkeidel.de/papers/program-trans-analysis.pdf)]
 
 ## Acknowledgments
 
