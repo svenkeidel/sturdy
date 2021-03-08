@@ -65,12 +65,13 @@ Verification, Model Checking, and Abstract Interpretation (VMCAI). Springer, 202
 
 ## Acknowledgments
 
-I want to thank everyone that has contributed to this project (in alphabetical order):
+The Sturdy project is a joint effort of the following people (in alphabetical order):
 
 Casper Bach Poulsen,
 Jente Hidskes,
 Matthijs Bijman,
 Sarah Müller,
 Sebastian Erdweg,
+Sven Keidel,
 Tobias Hombücher,
 Wouter Raateland
