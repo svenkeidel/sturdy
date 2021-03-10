@@ -43,13 +43,13 @@ newtype SerializeT c x y = SerializeT (c x y)
               ArrowStack st, ArrowLogger l, ArrowState s, ArrowGlobalState v m, ArrowReader m)
 
 instance (Profunctor c, ArrowChoice c) => ArrowSerialize Value (Vector Word8) ValueType LoadType StoreType (SerializeT c) where
-    decode sCont eCont = proc (dat, decTy, valTy, x) -> do
+    decode sCont = proc (dat, decTy, valTy, x) -> do
         case (valTy,decTy) of
             (I32,L_I32) -> do
                 let val = Vec.foldr (\w8 w32 -> (w32 `shiftL` 4) + (fromIntegral w8)) (fromIntegral $ Vec.last dat) dat
                 let result = Value $ Wasm.VI32 val
                 sCont -< (result, x)
-    encode sCont eCont = proc (Value val, valTy, datEncTy, x) -> do
+    encode sCont = proc (Value val, valTy, datEncTy, x) -> do
         case (val, valTy, datEncTy) of
             (Wasm.VI32 v, I32, S_I32) -> do
                 let vec = Vec.generate 4 (byte v)

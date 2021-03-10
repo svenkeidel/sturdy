@@ -42,6 +42,7 @@ instance ArrowTrans MemoryT where
     lift' = MemoryT
 
 instance (ArrowChoice c, Profunctor c) => ArrowMemory MemInst Word32 (Vector Word8) (MemoryT c) where
+    type Join y (MemoryT c) = ()
     memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (m@(MemInst _ vec), (addr, size, x)) -> do
         let addrI = fromIntegral addr
         case (addrI+size <= length vec) of

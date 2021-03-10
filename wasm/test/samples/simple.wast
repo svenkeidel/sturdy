@@ -28,4 +28,38 @@
     i32.const 1
     i32.add
 
-    ))
+    )
+
+  (func (export "test-br1") (result i32)
+    (block (result i32)
+           i32.const 42
+           br 0)
+  )
+
+  (func (export "test-br2") (result i32)
+    (block (result i32)
+      (block (result i32)
+        i32.const 42
+        br 1))
+    i32.const 1
+    i32.add
+  )
+
+  (func (export "test-br3") (param i32) (result i32)
+    (block (result i32)
+      (block (result i32)
+        (if (result i32) (i32.eq (get_local 0) (i32.const 0))
+          (then
+            i32.const 42
+            br 0
+          )
+          (else
+            i32.const 43
+            br 1
+          )
+        )
+      )
+    )
+  )
+
+)

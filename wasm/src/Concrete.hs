@@ -1,7 +1,10 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Concrete where
 
+import           Data.Abstract.FreeCompletion
+import           Data.Order
 import           Data.Vector (Vector, (!), (//))
 import qualified Data.Vector as Vec
 import           Data.Word
@@ -43,6 +46,14 @@ newtype TableInst = TableInst Wasm.TableInstance deriving (Show,Eq)
 data MemInst = MemInst (Maybe Word32) (Vector Word8) deriving (Show,Eq)
 data GlobInst v = GlobInst Mut v deriving (Show, Eq)
 
+instance (PreOrd v) => PreOrd (GlobInst v) where
+    (GlobInst m1 v1) ⊑ (GlobInst m2 v2) = m1 == m2 && v1 ⊑ v2
+
+instance (Complete v) => Complete (FreeCompletion (GlobInst v)) where
+    (Lower (GlobInst m1 v1)) ⊔ (Lower (GlobInst m2 v2))
+        | m1 == m2 = Lower $ GlobInst m1 (v1 ⊔ v2)
+        | otherwise = Top
+    _ ⊔  _ = Top
 
 deriving instance Show Wasm.TableInstance
 deriving instance Eq Wasm.TableInstance

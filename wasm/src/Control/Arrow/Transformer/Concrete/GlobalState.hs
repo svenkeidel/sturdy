@@ -64,7 +64,7 @@ instance ArrowTrans (GlobalStateT v) where
     lift' a = GlobalStateT (lift' a)
 
 instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v Int (GlobalStateT v c) where
-    readGlobal = 
+    readGlobal =
         GlobalStateT $ proc i -> do
             GlobalState{globalInstances=vec} <- get -< ()
             let (GlobInst _ val) = vec ! i
@@ -76,7 +76,7 @@ instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v Int (GlobalStateT v
             if m == Const
                 then returnA -< error $ "writing to constant global " ++ (show i)
                 else put -< store{globalInstances=vec // [(i, GlobInst m v)]}
-    
+
     -- funcCont :: ReaderT Int (StateT (GlobalState v) c) ((FuncType, ModuleInstance, Function),x) y
     -- we need ReaderT Int (StateT (GlobalState v) c) (Int, x) y
     readFunction (GlobalStateT funcCont) =
@@ -92,6 +92,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v Int (GlobalStateT v
     storeMemory = arr $ const ()
 
 instance (ArrowChoice c, Profunctor c) => ArrowMemory Int Word32 (Vector Word8) (GlobalStateT v c) where
+    type Join y (GlobalStateT v c) = ()
+
     memread (GlobalStateT sCont) (GlobalStateT eCont) = GlobalStateT $ proc (i, (addr, size, x)) -> do
         GlobalState{memInstances=mems} <- get -< ()
         --currMem <- ask -< ()

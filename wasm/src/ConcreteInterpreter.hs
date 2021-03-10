@@ -47,57 +47,11 @@ import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
 
--- memory instance: vec(byte) + optional max size
--- bytes are modeled as Word8
--- addresses are modeled as Word32
---newtype WasmMemoryT c x y = WasmMemoryT (StateT (Vector Word8) c x y)
---    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
---              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
---              ArrowStack st, ArrowState (Vector Word8), ArrowReader r, ArrowGlobalState v2)
---
---instance ArrowTrans (WasmMemoryT) where
---    -- lift' :: c x y -> GlobalStateT v c x y
---    lift' arr = WasmMemoryT (lift' arr)
---
---
---instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (WasmMemoryT c) where
---    memread sCont eCont = proc (addr, size, x) -> do
---        vec <- get -< ()
---        let addrI = fromIntegral addr
---        case (addrI+size <= length vec) of
---            True -> do
---                let content = Vec.slice addrI size vec
---                sCont -< (content,x)
---            False -> eCont -< x
---    memstore sCont eCont = proc (addr, content, x) -> do
---        vec <- get -< ()
---        let addrI = fromIntegral addr
---        let size = length content
---        case (addrI+size <= length vec) of
---            True  -> do
---                let ind = Vec.enumFromN addrI size
---                put -< (Vec.update_ vec ind content)
---                sCont -< x
---            False -> eCont -< x
---
---instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (WasmMemoryT c) where
---    memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base+ (fromIntegral off))
---
---instance ArrowSerialize Value (Vector Word8) ValueType LoadType StoreType (WasmMemoryT c) where
---
---instance ArrowMemSizable Value (WasmMemoryT c) where
---
---instance ArrowFix (Underlying (WasmMemoryT c) x y) => ArrowFix (WasmMemoryT c x y) where
---    type Fix (WasmMemoryT c x y) = Fix (Underlying (WasmMemoryT c) x y)
---
---
-
 toVal32 :: Word32 -> Value
 toVal32 = Value . Wasm.VI32
 
 toVal64 :: Word64 -> Value
 toVal64 = Value . Wasm.VI64
-
 
 instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
     i32const = proc w32 -> returnA -< Value $ Wasm.VI32 w32
@@ -134,6 +88,11 @@ instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
                     (Value (Wasm.VF64 _), F64) -> f -< x
                     _                          -> g -< x
 
+instance (Arrow c) => IsException (Exc Value) Value (ValueT Value c) where
+    type JoinExc y (ValueT Value c) = ()
+    exception = arr id
+    handleException = id
+
 addVal :: Wasm.Value -> Wasm.Value -> Wasm.Value
 addVal (Wasm.VI32 v1) (Wasm.VI32 v2) = Wasm.VI32 $ v1 + v2
 
@@ -150,7 +109,7 @@ evalNumericInst inst stack =
 
 --type TransStack = FrameT FrameData Value (StackT Value (->))
 --
-evalVariableInst :: (Instruction Natural) -> [Value] -> FrameData -> Vector Value 
+evalVariableInst :: (Instruction Natural) -> [Value] -> FrameData -> Vector Value
             -> GlobalState Value -> ([Value], (Vector Value, (GlobalState Value, ())))
 evalVariableInst inst stack fd locals store =
     Trans.run

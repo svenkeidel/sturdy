@@ -1,12 +1,15 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
+--{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 -- | A generic interpreter for WebAssembly.
@@ -25,7 +28,7 @@ import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Logger
 import           Control.Arrow.MemAddress
-import           Control.Arrow.Memory
+import           Control.Arrow.Memory as Mem
 import           Control.Arrow.MemSizable
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
@@ -34,7 +37,10 @@ import qualified Control.Arrow.Utils as Arr
 import           Control.Arrow.GlobalState
 import           Control.Arrow.WasmFrame
 
+import           Data.Hashable
+import           Data.Order
 import           Data.Profunctor
+import           Data.String
 import           Data.Text.Lazy (Text)
 import           Data.Vector hiding (length, (++))
 import           Data.Word
@@ -45,8 +51,26 @@ import           Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance
 import           Numeric.Natural (Natural)
 import           Text.Printf
 
+import           GHC.Generics
+import           GHC.Exts
+
 -- the kind of exceptions that can be thrown
-data Exc v = Trap String | Jump Natural [v] | CallReturn [v] deriving (Show, Eq)
+data Exc v = Trap String | Jump Natural [v] | CallReturn [v] deriving (Show, Eq, Generic)
+
+instance Hashable v => Hashable (Exc v)
+
+class IsException exc v c | c -> v where
+    type family JoinExc y (c :: * -> * -> *) :: Constraint
+    exception :: c (Exc v) exc
+    handleException :: JoinExc y c => c (Exc v, x) y -> c (exc,x) y
+
+--instance (Eq v) => Complete (Exc v) where
+--    x ⊔ y | x == y = x
+--          | otherwise = Top
+--
+--instance (Eq v) => PreOrd (Exc v) where
+--    _ ⊑ Top = True
+--    x ⊑ y | x == y = True
 
 -- used for storing the return "arity" of nested labels
 newtype LabelArities = LabelArities {labels :: [Natural]}
@@ -125,13 +149,15 @@ invokeExported ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v m c,
     ArrowStack v c,
     ArrowDebuggableStack v c,
-    ArrowExcept (Exc v) c, ArrowReader LabelArities c,
+    ArrowExcept exc c, IsException exc v c, JoinExc () c, ArrowReader LabelArities c,
     ArrowWasmMemory m addr bytes v c, --HostFunctionSupport addr bytes v c,
+    Mem.Join () c,
     IsVal v c, Show v,
     Exc.Join () c,
     Fail.Join [v] c,
     Fail.Join () c,
-    ArrowFail String c,
+    ArrowFail e c,
+    IsString e,
     ArrowFix (c [Instruction Natural] ()),
     ArrowLogger String c,
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
@@ -143,18 +169,20 @@ invokeExported = proc (funcName, args) -> do
   case find (\(ExportInstance n _) -> n == funcName) (exports modInst) of
       -- if found -> invoke
       Just (ExportInstance _ (ExternFunction addr)) -> invokeExternal -< (addr, args)
-      _ -> fail -< printf "Function with name %s was not found in module's exports" (show funcName)
+      _ -> fail -< fromString $ printf "Function with name %s was not found in module's exports" (show funcName)
 
 invokeExternal ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v m c,
     ArrowStack v c,
     ArrowDebuggableStack v c,
-    ArrowExcept (Exc v) c, ArrowReader LabelArities c,
+    ArrowExcept exc c, IsException exc v c, JoinExc () c, ArrowReader LabelArities c,
     ArrowWasmMemory m addr bytes v c, --HostFunctionSupport addr bytes v c,
+    Mem.Join () c,
     IsVal v c, Show v,
     Exc.Join () c,
     Fail.Join () c,
-    ArrowFail String c,
+    ArrowFail e c,
+    IsString e,
     ArrowFix (c [Instruction Natural] ()),
     ArrowLogger String c,
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
@@ -183,13 +211,13 @@ invokeExternal = proc (funcAddr, args) ->
     -- execute f if arguments match paramTys
     withCheckedType f = proc (paramTys, args, x) -> do
       if length paramTys /= length args
-        then fail -< printf "Wrong number of arguments in external invocation. Expected %d but got %d" (length paramTys) (length args)
+        then fail -< fromString $ printf "Wrong number of arguments in external invocation. Expected %d but got %d" (length paramTys) (length args)
         else returnA -< ()
       Arr.zipWith
         (proc (arg, ty) ->
           ifHasType
             (arr $ const ())
-            (proc (arg, ty) -> fail -< printf "Wrong argument type in external invocation. Expected %s but got %s" (show ty) (show arg))
+            (proc (arg, ty) -> fail -< fromString $ printf "Wrong argument type in external invocation. Expected %s but got %s" (show ty) (show arg))
             -< (arg, ty, (arg, ty)))
         -< (args, paramTys)
       f -< x
@@ -199,8 +227,9 @@ eval ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v m c,
     ArrowStack v c,
     ArrowDebuggableStack v c,
-    ArrowExcept (Exc v) c, ArrowReader LabelArities c,
+    ArrowExcept exc c, IsException exc v c, JoinExc () c, ArrowReader LabelArities c,
     ArrowWasmMemory m addr bytes v c, --HostFunctionSupport addr bytes v c,
+    Mem.Join () c,
     IsVal v c, Show v,
     Exc.Join () c,
     ArrowFix (c [Instruction Natural] ()),
@@ -248,7 +277,7 @@ evalControlInst ::
     ArrowStack v c, -- operand stack of computation
     ArrowDebuggableStack v c,
     IsVal v c, -- needs to support value operations
-    ArrowExcept (Exc v) c,
+    ArrowExcept exc c, IsException exc v c, JoinExc () c,
     ArrowReader LabelArities c, -- return arity of nested labels
     ArrowFrame FrameData v c, -- frame data and local variables
     ArrowGlobalState v m c,
@@ -257,7 +286,7 @@ evalControlInst ::
     Exc.Join () c)
   => c [Instruction Natural] () -> c (Instruction Natural) ()
 evalControlInst eval' = proc i -> case i of
-  Unreachable -> throw -< Trap "Execution of unreachable instruction"
+  Unreachable -> throw <<< exception -< Trap "Execution of unreachable instruction"
   Nop -> returnA -< ()
   Block rt is -> label eval' eval' -< (rt, is, [])
   Loop rt is -> label eval' eval' -< (rt, is, [Loop rt is])
@@ -280,7 +309,7 @@ evalControlInst eval' = proc i -> case i of
   Return -> do
     (n,_) <- frameData -< ()
     vs <- popn -< n
-    throw -< CallReturn vs
+    throw <<< exception -< CallReturn vs
   Call ix -> do
     (_, modInst) <- frameData -< ()
     let funcAddr = funcaddrs modInst ! fromIntegral ix
@@ -301,13 +330,13 @@ evalControlInst eval' = proc i -> case i of
     let ftExpect = funcTypes modInst ! fromIntegral ix
     readTable
       (invokeChecked eval')
-      (proc (ta,ix,_) -> throw -< Trap $ printf "Index %s out of bounds for table address %s" (show ix) (show ta))
-      (proc (ta,ix,_) -> throw -< Trap $ printf "Index %s uninitialized for table address %s" (show ix) (show ta))
+      (proc (ta,ix,_) -> throw <<< exception -< Trap $ printf "Index %s out of bounds for table address %s" (show ix) (show ta))
+      (proc (ta,ix,_) -> throw <<< exception -< Trap $ printf "Index %s uninitialized for table address %s" (show ix) (show ta))
       -< (tableAddr, fromIntegral ix, ftExpect)
 
 invokeChecked ::
   ( ArrowChoice c, ArrowGlobalState v m c, ArrowStack v c, ArrowReader LabelArities c,
-    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join () c,
+    IsVal v c, ArrowFrame FrameData v c, ArrowExcept exc c, IsException exc v c, JoinExc () c, Exc.Join () c,
     ArrowDebuggableStack v c, ArrowLogger String c)
     --HostFunctionSupport addr bytes v c)
   => c [Instruction Natural] () -> c (Int, FuncType) ()
@@ -322,7 +351,7 @@ invokeChecked eval' = proc (addr, ftExpect) ->
     withCheckedType f = proc (ftActual, ftExpect, x) ->
       if ftActual == ftExpect
       then f -< x
-      else throw -< Trap $ printf "Mismatched function type in indirect call. Expected %s, actual %s." (show ftExpect) (show ftActual)
+      else throw <<< exception -< Trap $ printf "Mismatched function type in indirect call. Expected %s, actual %s." (show ftExpect) (show ftActual)
 
 -- invoke function with code code within module instance funcModInst
 -- the function execution can finish by different reasons:
@@ -332,8 +361,8 @@ invokeChecked eval' = proc (addr, ftExpect) ->
 --   - TODO: what about break? Can we "break" to a function boundary? -> NO, only to block boundaries
 invoke ::
   ( ArrowChoice c, ArrowStack v c, ArrowReader LabelArities c,
-    IsVal v c, ArrowFrame FrameData v c, ArrowExcept (Exc v) c, Exc.Join y c,
-    ArrowDebuggableStack v c, ArrowLogger String c)
+    IsVal v c, ArrowFrame FrameData v c, ArrowExcept exc c, IsException exc v c, Exc.Join y c,
+    ArrowDebuggableStack v c, ArrowLogger String c, JoinExc y c)
   => c [Instruction Natural] y -> c (FuncType, ModuleInstance, Function) y
 invoke eval' = catch
     (proc (FuncType paramTys resultTys, funcModInst, Function _ localTys code) -> do
@@ -350,13 +379,14 @@ invoke eval' = catch
         log -< "end invoke, stack: " ++ (show stack3)
         returnA -< result
         )
-    (proc (_,e) -> case e of
-        CallReturn vs -> do
-            pushn -< vs
-            eval' -< []
-        Trap _ -> throw -< e
-        Jump _ _ -> returnA -< error "invalid module: tried to jump through a function boundary")
-        
+    (proc (_,e) -> handleException $
+                   (proc (exc,_) -> case exc of
+                       CallReturn vs -> do
+                           pushn -< vs
+                           eval' -< []
+                       Trap _ -> throw <<< exception -< exc
+                       Jump _ _ -> returnA -< error "invalid module: tried to jump through a function boundary")
+                   -< (e,()))
   where
     initLocal :: (ArrowChoice c, IsVal v c) => c ValueType v
     initLocal = proc ty ->  case ty of
@@ -373,17 +403,17 @@ invoke eval' = catch
 --  pushn <<< app -< (hostFunc, vs)
 
 
-branch :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader LabelArities c) => c Natural ()
+branch :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowReader LabelArities c) => c Natural ()
 branch = proc ix -> do
   LabelArities{labels=ls} <- ask -< ()
   vs <- popn -< ls !! fromIntegral ix
-  throw -< Jump ix vs
+  throw <<< exception -< Jump ix vs
 
 -- | Introduces a branching point `g` that can be jumped to from within `f`.
 -- | When escalating jumps, all label-local operands must be popped from the stack.
 -- | This implementation assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
-label :: (ArrowChoice c, ArrowExcept (Exc v) c, ArrowStack v c, ArrowReader LabelArities c, Exc.Join z c,
-          ArrowDebuggableStack v c, ArrowLogger String c, Show v)
+label :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowReader LabelArities c, Exc.Join z c,
+          ArrowDebuggableStack v c, ArrowLogger String c, Show v, JoinExc z c)
   => c x z -> c y z -> c (ResultType, x, y) z
 -- x: code to execute
 -- y: continuation to execute after a break to the current label
@@ -398,13 +428,15 @@ label f g = catch
     returnA -< result
   )
   -- after a break the results are popped from the stack and passed back via exception e
-  (proc ((_,_,y),e) -> case e of
-    Jump 0 vs -> do
-      pushn -< vs
-      g -< y
-    -- we expect all label-local operands are popped from the stack
-    Jump n vs -> throw -< Jump (n-1) vs
-    _ -> throw -< e
+  (proc ((_,_,y),e) -> handleException $
+                       (proc (exc,y) -> case exc of
+                           Jump 0 vs -> do
+                               pushn -< vs
+                               g -< y
+                           -- we expect all label-local operands are popped from the stack
+                           Jump n vs -> throw <<< exception -< Jump (n-1) vs
+                           _ -> throw <<< exception -< exc)
+                       -< (e,y)--case e of
   )
 
 localLabel :: (ArrowReader LabelArities c) => c x y -> c (ResultType, x) y
@@ -436,7 +468,8 @@ evalParametricInst = proc i -> case i of
 evalMemoryInst ::
   ( ArrowChoice c,
     ArrowWasmMemory m addr bytes v c,
-    ArrowGlobalState v m c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
+    Mem.Join () c,
+    ArrowGlobalState v m c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept exc c, IsException exc v c)
   => c (Instruction Natural) ()
 evalMemoryInst = proc i -> case i of --withCurrentMemory $ proc (m,i) -> case i of
   I32Load (MemArg off _) -> load 4 L_I32 I32 -< off
@@ -479,7 +512,8 @@ withCurrentMemory f = proc x -> do
 load ::
   ( ArrowChoice c,
     ArrowWasmMemory m addr bytes v c,
-    ArrowGlobalState v m c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
+    Mem.Join () c,
+    ArrowGlobalState v m c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept exc c, IsException exc v c)
   => Int -> LoadType -> ValueType -> c Natural ()
 load byteSize loadType valType = proc off -> do
   base <- pop -< ()
@@ -488,15 +522,16 @@ load byteSize loadType valType = proc off -> do
     (proc (bytes,_) ->
       decode
         (push <<^ fst)
-        (error "decode failure")
+        --(error "decode failure")
         -< (bytes, loadType, valType, ()))
-    (proc addr -> throw -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr)))
+    (proc addr -> throw <<< exception -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr)))
     -< (addr, byteSize, addr)
 
 store ::
   ( ArrowChoice c,
     ArrowWasmMemory m addr bytes v c,
-    ArrowGlobalState v m c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept (Exc v) c)
+    Mem.Join () c,
+    ArrowGlobalState v m c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept exc c, IsException exc v c)
   => StoreType -> ValueType -> c Natural ()
 store storeType valType = proc off -> do
   v <- pop -< ()
@@ -506,9 +541,9 @@ store storeType valType = proc off -> do
       addr <- memaddr -< (base, off)
       withCurrentMemory (memstore
         (arr $ const ())
-        (proc (addr,bytes) -> throw -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr)))
+        (proc (addr,bytes) -> throw <<< exception -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr)))
         -< (addr, bytes, (addr, bytes)))
-    (error "encode failure")
+    --(error "encode failure")
     -< (v, valType, storeType, off)
 
 evalVariableInst ::
@@ -535,7 +570,7 @@ evalVariableInst = proc i -> case i of
 
 
 evalNumericInst ::
-  ( ArrowChoice c, ArrowStack v c, ArrowExcept (Exc v) c, IsVal v c, Show v)
+  ( ArrowChoice c, ArrowStack v c, ArrowExcept exc c, IsException exc v c, IsVal v c, Show v)
   => c (Instruction Natural) v
 evalNumericInst = proc i -> case i of
   I32Const lit -> i32const -< lit
@@ -550,7 +585,7 @@ evalNumericInst = proc i -> case i of
     res <- iBinOp -< (bs, op, v1, v2)
     case res of
       Just v' -> returnA -< v'
-      Nothing -> throw -< Trap $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2))
+      Nothing -> throw <<< exception -< Trap $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2))
   I32Eqz -> do
     v <- pop -< ()
     i32eqz -< v
@@ -577,13 +612,13 @@ evalNumericInst = proc i -> case i of
     res <- iTruncFU -< (bs1, bs2, v)
     case res of
       Just v' -> returnA -< v'
-      Nothing -> throw -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v)
+      Nothing -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v)
   ITruncFS bs1 bs2 -> do
     v <- pop -< ()
     res <- iTruncFS -< (bs1, bs2, v)
     case res of
       Just v' -> returnA -< v'
-      Nothing -> throw -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v)
+      Nothing -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v)
   I64ExtendSI32 -> do
     v <- pop -< ()
     i64ExtendSI32 -< v

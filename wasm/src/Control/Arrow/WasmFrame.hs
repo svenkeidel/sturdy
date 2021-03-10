@@ -23,7 +23,11 @@ import           Control.Arrow.Store
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 
-import           Control.Arrow.Transformer.Concrete.Except
+import           Control.Arrow.Transformer.Abstract.Error
+import qualified Control.Arrow.Transformer.Abstract.Except as AE
+import qualified Control.Arrow.Transformer.Abstract.Store as AbsStore
+import qualified Control.Arrow.Transformer.Concrete.Store as ConcStore
+import qualified Control.Arrow.Transformer.Concrete.Except as CE
 import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Stack
@@ -31,6 +35,7 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Writer
 
 import           Data.Monoidal (shuffle1)
+import qualified Data.Order as O
 import           Data.Profunctor
 import           Data.Coerce
 import           Data.Vector
@@ -57,7 +62,7 @@ instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StateT v
     -- lift :: c (val, (fd, [v], x)) (val, y) -> StateT val c (fd, [v], x) y
     inNewFrame a = lift $ shuffle (inNewFrame (unlift a))
         where shuffle arr = proc (val, (fd, vs, x)) -> arr -< (fd, vs, (val,x))
-                                        
+
     frameData = lift' frameData
     frameLookup = lift' frameLookup
     frameUpdate = lift' frameUpdate
@@ -72,7 +77,9 @@ instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (ReaderT 
 
 
 deriving instance (ArrowFrame fd v c) => ArrowFrame fd v (ValueT v2 c)
-deriving instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (ExceptT e c)
+deriving instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (CE.ExceptT e c)
+deriving instance (O.Complete e, Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (AE.ExceptT e c)
+deriving instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (ErrorT e c)
 instance (Monad f, Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (KleisliT f c) where
     inNewFrame a = lift (inNewFrame (unlift a))
     frameData = lift' frameData
@@ -84,3 +91,5 @@ instance (Profunctor c, Arrow c, ArrowFrame fd v c, Monoid w) => ArrowFrame fd v
     frameData = lift' frameData
     frameLookup = lift' frameLookup
     frameUpdate = lift' frameUpdate
+
+deriving instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (AbsStore.StoreT s c)

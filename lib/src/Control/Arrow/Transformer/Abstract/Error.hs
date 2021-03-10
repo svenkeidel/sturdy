@@ -5,7 +5,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Arrow.Transformer.Abstract.Error(ErrorT,runErrorT) where
+module Control.Arrow.Transformer.Abstract.Error(ErrorT(..),runErrorT) where
 
 import Prelude hiding (id,lookup,(.),read,fail)
 

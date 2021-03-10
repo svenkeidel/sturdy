@@ -10,7 +10,8 @@ module Control.Arrow.GlobalState where
 import           Control.Arrow
 import           Control.Arrow.Trans
 
-import           Control.Arrow.Transformer.Concrete.Except
+import           Control.Arrow.Transformer.Concrete.Except as CE
+import           Control.Arrow.Transformer.Abstract.Except as AE
 import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Stack
@@ -18,6 +19,7 @@ import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Writer
 
+import qualified Data.Order as O
 import           Data.Profunctor
 
 import           Language.Wasm.Structure hiding (exports)
@@ -102,7 +104,8 @@ instance (Profunctor c, Arrow c, ArrowGlobalState v m c) => ArrowGlobalState v m
 --                   y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (i,(s,x))
 --                   returnA -< (s,y)
 
-deriving instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (ExceptT e c)
+deriving instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (CE.ExceptT e c)
+deriving instance (O.Complete e, Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (AE.ExceptT e c)
 deriving instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (StackT s c)
 instance (Monad f, Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (KleisliT f c) where
     readGlobal = lift' readGlobal

@@ -6,7 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE GADTs #-}
-module Control.Arrow.Transformer.Abstract.Except(ExceptT,runExceptT) where
+module Control.Arrow.Transformer.Abstract.Except(ExceptT(..),runExceptT) where
 
 import Prelude hiding (id,lookup,(.),read,fail)
 

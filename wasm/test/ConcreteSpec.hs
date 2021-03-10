@@ -37,7 +37,7 @@ spec = do
 
     it "evalVariableInst GetLocal" $ do
         let inst = GetLocal 1
-        let fd = (0, Wasm.emptyModInstance) 
+        let fd = (0, Wasm.emptyModInstance)
         let store = emptyGlobalState
         (fst $ evalVariableInst inst [] fd (fromList $ map (Value . Wasm.VI32) [5,8,7]) store) `shouldBe`
             [Value $ Wasm.VI32 8]
@@ -136,3 +136,30 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "test-mem") [Value $ Wasm.VI32 42]
         result `shouldBe` [Value $ Wasm.VI32 43]
+
+    it "run test-br1" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "test-br1") []
+        result `shouldBe` [Value $ Wasm.VI32 42]
+
+    it "run test-br2" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "test-br2") []
+        result `shouldBe` [Value $ Wasm.VI32 43]
+
+    it "run test-br3" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "test-br3") [Value $ Wasm.VI32 0]
+        result `shouldBe` [Value $ Wasm.VI32 42]
