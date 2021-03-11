@@ -12,6 +12,7 @@ import qualified Data.ByteString.Lazy as LBS
 import           Data.Abstract.Error
 import qualified Data.Abstract.Except as Exc
 import           Data.Abstract.FreeCompletion
+import qualified Data.HashSet as HashSet
 import           Data.List (isInfixOf)
 import           Data.List.Singleton (singleton)
 import qualified Data.Abstract.Powerset as Pow
@@ -54,6 +55,80 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Success (_,result)))))) = invokeExported store modInst (pack "test-br3") [Value $ Lower $ VI32 ()]
         result `shouldBe` [Value $ Lower $ VI32 ()]
+
+    it "run test-br-and-return" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Exc.Success (_,result)))))) = invokeExported store modInst (pack "test-br-and-return") [Value $ Lower $ VI32 ()]
+        result `shouldBe` [Value $ Lower $ VI32 ()]
+
+    it "run test-unreachable" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable") []
+        res `shouldBe` [Value $ Lower $ VI32 ()]
+
+    it "run test-unreachable2" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable2") []
+        res `shouldBe` [Value $ Lower $ VI32 ()]
+
+    it "run test-unreachable3" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable3") []
+        res `shouldBe` [Value $ Lower $ VI32 ()]
+
+    it "run test-unreachable4" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Exc.Fail (Exc e)))))) = invokeExported store modInst (pack "test-unreachable4") []
+        (HashSet.toList e) `shouldBe` [Trap "Execution of unreachable instruction"]
+
+    it "run test-unreachable5" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable5") [Value $ Lower $ VI32 ()]
+        res `shouldBe` [Value $ Lower $ VI32 ()]
+        --(HashSet.toList e) `shouldBe` [Trap "Execution of unreachable instruction"]
+
+    it "run test-br-and-return3" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-br-and-return3") [Value $ Lower $ VI32 ()]
+        res `shouldBe` [Value $ Lower $ VI32 ()]
+
+    it "run test-br-and-return2" $ do
+        let path = "test/samples/simple.wast"
+        content <- LBS.readFile path
+        let Right m = parse content
+        let Right validMod = validate m
+        Right (modInst, store) <- instantiate validMod
+        let (_, (Success (_,(_,(Exc.Success (_, res))))))= invokeExported store modInst (pack "test-br-and-return2") [Value $ Lower $ VI32 ()]
+        res `shouldBe` [Value $ Lower $ VI32 ()]
+        --result `shouldBe` [Value $ Lower $ VI32 ()]
 --    it "run const" $ do
 --        let path = "test/samples/simple.wast"
 --        content <- LBS.readFile path

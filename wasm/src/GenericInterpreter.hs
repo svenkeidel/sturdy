@@ -109,35 +109,37 @@ withMemoryInstance f = proc (i,x) -> do
 
 
 class Show v => IsVal v c | c -> v where
-  i32const :: c Word32 v
-  i64const :: c Word64 v
-  f32const :: c Float v
-  f64const :: c Double v
-  iUnOp :: c (BitSize, IUnOp, v) v
-  iBinOp :: c (BitSize, IBinOp, v, v) (Maybe v)
-  i32eqz :: c v v
-  i64eqz :: c v v
-  iRelOp :: c (BitSize, IRelOp, v, v) v
-  fUnOp :: c (BitSize, FUnOp, v) v
-  fBinOp :: c (BitSize, FBinOp, v, v) v
-  fRelOp :: c (BitSize, FRelOp, v, v) v
-  i32WrapI64 :: c v v
-  iTruncFU :: c (BitSize, BitSize, v) (Maybe v)
-  iTruncFS :: c (BitSize, BitSize, v) (Maybe v)
-  i64ExtendSI32 :: c v v
-  i64ExtendUI32 :: c v v
-  fConvertIU :: c (BitSize, BitSize, v) v
-  fConvertIS :: c (BitSize, BitSize, v) v
-  f32DemoteF64 :: c v v
-  f64PromoteF32 :: c v v
-  iReinterpretF :: c (BitSize, v) v
-  fReinterpretI :: c (BitSize, v) v
-  i32ifNeqz :: c x y -> c x y -> c (v, x) y
-  -- | `listLookup f g (v, xs, x)`
-  -- | Looks up the `v`-th element in `xs` and passes it to `f`, or
-  -- | passes `x` to `g` if `v` is out of range of `xs`.
-  listLookup :: c x y -> c x y -> c (v, [x], x) y
-  ifHasType :: c x y -> c x y -> c (v, ValueType, x) y
+    type family JoinVal y (c :: * -> * -> *) :: Constraint
+
+    i32const :: c Word32 v
+    i64const :: c Word64 v
+    f32const :: c Float v
+    f64const :: c Double v
+    iUnOp :: c (BitSize, IUnOp, v) v
+    iBinOp :: c (BitSize, IBinOp, v, v) (Maybe v)
+    i32eqz :: c v v
+    i64eqz :: c v v
+    iRelOp :: c (BitSize, IRelOp, v, v) v
+    fUnOp :: c (BitSize, FUnOp, v) v
+    fBinOp :: c (BitSize, FBinOp, v, v) v
+    fRelOp :: c (BitSize, FRelOp, v, v) v
+    i32WrapI64 :: c v v
+    iTruncFU :: c (BitSize, BitSize, v) (Maybe v)
+    iTruncFS :: c (BitSize, BitSize, v) (Maybe v)
+    i64ExtendSI32 :: c v v
+    i64ExtendUI32 :: c v v
+    fConvertIU :: c (BitSize, BitSize, v) v
+    fConvertIS :: c (BitSize, BitSize, v) v
+    f32DemoteF64 :: c v v
+    f64PromoteF32 :: c v v
+    iReinterpretF :: c (BitSize, v) v
+    fReinterpretI :: c (BitSize, v) v
+    i32ifNeqz :: (JoinVal y c) => c x y -> c x y -> c (v, x) y
+    -- | `listLookup f g (v, xs, x)`
+    -- | Looks up the `v`-th element in `xs` and passes it to `f`, or
+    -- | passes `x` to `g` if `v` is out of range of `xs`.
+    listLookup :: c x y -> c x y -> c (v, [x], x) y
+    ifHasType :: c x y -> c x y -> c (v, ValueType, x) y
 
 
 -- entry point to the generic interpreter
@@ -152,7 +154,7 @@ invokeExported ::
     ArrowExcept exc c, IsException exc v c, JoinExc () c, ArrowReader LabelArities c,
     ArrowWasmMemory m addr bytes v c, --HostFunctionSupport addr bytes v c,
     Mem.Join () c,
-    IsVal v c, Show v,
+    IsVal v c, JoinVal () c, Show v,
     Exc.Join () c,
     Fail.Join [v] c,
     Fail.Join () c,
@@ -178,7 +180,7 @@ invokeExternal ::
     ArrowExcept exc c, IsException exc v c, JoinExc () c, ArrowReader LabelArities c,
     ArrowWasmMemory m addr bytes v c, --HostFunctionSupport addr bytes v c,
     Mem.Join () c,
-    IsVal v c, Show v,
+    IsVal v c, JoinVal () c, Show v,
     Exc.Join () c,
     Fail.Join () c,
     ArrowFail e c,
@@ -230,7 +232,7 @@ eval ::
     ArrowExcept exc c, IsException exc v c, JoinExc () c, ArrowReader LabelArities c,
     ArrowWasmMemory m addr bytes v c, --HostFunctionSupport addr bytes v c,
     Mem.Join () c,
-    IsVal v c, Show v,
+    IsVal v c, JoinVal () c, Show v,
     Exc.Join () c,
     ArrowFix (c [Instruction Natural] ()),
     ArrowLogger String c,
@@ -276,7 +278,7 @@ evalControlInst ::
   ( ArrowChoice c, Profunctor c,
     ArrowStack v c, -- operand stack of computation
     ArrowDebuggableStack v c,
-    IsVal v c, -- needs to support value operations
+    IsVal v c, JoinVal () c, -- needs to support value operations
     ArrowExcept exc c, IsException exc v c, JoinExc () c,
     ArrowReader LabelArities c, -- return arity of nested labels
     ArrowFrame FrameData v c, -- frame data and local variables
@@ -451,7 +453,7 @@ localNoLabels f = proc x -> do
   --r <- ask -< ()
   local f -< (LabelArities{labels=[]}, x)
 
-evalParametricInst :: (ArrowChoice c, Profunctor c, ArrowStack v c, IsVal v c)
+evalParametricInst :: (ArrowChoice c, Profunctor c, ArrowStack v c, IsVal v c, JoinVal () c)
   => c (Instruction Natural) ()
 evalParametricInst = proc i -> case i of
   Drop -> const () ^<< pop -< ()

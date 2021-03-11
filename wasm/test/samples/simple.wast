@@ -62,4 +62,98 @@
     )
   )
 
+  (func (export "test-br-and-return") (param i32) (result i32)
+    (block (result i32)
+      (block (result i32)
+        (if (result i32) (i32.eq (get_local 0) (i32.const 0))
+          (then
+            i32.const 42
+            return
+          )
+          (else
+            i32.const 43
+            br 1
+          )
+        )
+      )
+    )
+  )
+
+  (func (export "test-unreachable") (result i32)
+    i32.const 42
+    return
+    unreachable
+  )
+
+  (func (export "test-unreachable2") (result i32)
+    (block (result i32)
+      i32.const 42
+      return
+    )
+    unreachable
+  )
+
+  (func (export "test-unreachable3") (result i32)
+    (block (result i32)
+      i32.const 42
+      br 1
+    )
+    unreachable
+  )
+
+  (func (export "test-unreachable4") (result i32)
+    (block (result i32)
+      i32.const 42
+      br 0
+    )
+    unreachable
+  )
+
+  (func (export "test-unreachable5") (param i32) (result i32)
+    (if (result i32) (i32.eq (get_local 0) (i32.const 0))
+      (then
+        i32.const 42
+        br 1
+      )
+      (else
+        i32.const 43
+        br 1
+      )
+    )
+    unreachable
+  )
+
+  (func (export "test-br-and-return3") (param i32) (result i32)
+      (block (result i32)
+        (if (result i32) (i32.eq (get_local 0) (i32.const 0))
+          (then
+            i32.const 42
+            br 1
+          )
+          (else
+            i32.const 43
+            br 1
+          )
+        )
+        unreachable
+      )
+    )
+
+  (func (export "test-br-and-return2") (param i32) (result i32)
+    (block (result i32)
+      (block (result i32)
+        (if (result i32) (i32.eq (get_local 0) (i32.const 0))
+          (then
+            i32.const 42
+            return
+          )
+          (else
+            i32.const 43
+            br 2
+          )
+        )
+      )
+      unreachable
+    )
+  )
 )

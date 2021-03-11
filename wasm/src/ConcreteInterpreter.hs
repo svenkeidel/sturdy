@@ -54,6 +54,8 @@ toVal64 :: Word64 -> Value
 toVal64 = Value . Wasm.VI64
 
 instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
+    type JoinVal y (ValueT Value c) = ()
+
     i32const = proc w32 -> returnA -< Value $ Wasm.VI32 w32
     i64const = proc w64 -> returnA -< Value $ Wasm.VI64 w64
     iBinOp = proc (bs,op,Value v1,Value v2) ->

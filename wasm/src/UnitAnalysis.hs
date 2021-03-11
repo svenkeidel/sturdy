@@ -47,7 +47,7 @@ import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.WasmFrame
 
-import           Control.Category
+import           Control.Category (Category)
 
 import           Data.Abstract.FreeCompletion as FC
 import           Data.Abstract.Sign
@@ -116,6 +116,8 @@ tailA f = proc () -> do
                   (a:as) -> returnA -< as
 
 instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
+    type JoinVal y (ValueT Value c) = ArrowComplete y (ValueT Value c)
+
     i32const = proc _ -> returnA -< valueI32
     i64const = proc _ -> returnA -< valueI64
     f32const = proc _ -> returnA -< valueF32
@@ -147,6 +149,7 @@ deriving instance ArrowComplete () c => ArrowComplete () (ValueT v c)
 
 instance (ArrowChoice c) => IsException (Exc Value) Value (ValueT Value c) where
     type JoinExc y (ValueT Value c) = ArrowComplete y (ValueT Value c)
+    exception = arr $ Exc . HashSet.singleton
     handleException f = proc (Exc excs,x) -> do
                             --ys <- mapList f -< (HashSet.toList excs,x)
                             --joinList _j -< (_init,ys)

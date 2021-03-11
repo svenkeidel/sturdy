@@ -59,7 +59,7 @@ data GlobalState v = GlobalState {
     funcInstances :: Vector FuncInst,
     tableInstances :: Vector TableInst,
     globalInstances:: Vector (FreeCompletion (GlobInst v))
-}
+} deriving (Show)
 
 instance (PreOrd v) => PreOrd (GlobalState v) where
     s1 ⊑ s2 = let gs1 = globalInstances s1 in
