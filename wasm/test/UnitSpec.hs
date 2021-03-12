@@ -3,7 +3,10 @@
 module UnitSpec where
 
 import           Abstract (BaseValue(..))
+import qualified Concrete as Concrete
+import qualified ConcreteInterpreter as Concrete
 import           UnitAnalysis
+import           Soundness
 import           GenericInterpreter(Exc(..))
 
 import           Control.Arrow.Transformer.Abstract.WasmFrame (Vector(..))
@@ -33,19 +36,26 @@ main = hspec spec
 
 getFunctionBody (Function _ _ b) = b
 
+readModule :: String -> IO ValidModule
+readModule path = do
+    content <- LBS.readFile path
+    let Right m = parse content
+    let Right validMod = validate m
+    return validMod
+
 spec :: Spec
 spec = do
+
     it "run noop" $ do
-        let path = "test/samples/simple.wast"
-        content <- LBS.readFile path
-        let Right m = parse content
-        let Right validMod = validate m
+        validMod <- readModule "test/samples/simple.wast"
         Right (modInst, store) <- instantiate validMod
         let (log, Success (locals,(Lower state,(Exc.Success (stack,result))))) = invokeExported store modInst (pack "noop") []
         locals `shouldBe` (Vector $ Vec.empty)
         stack `shouldBe` []
         result `shouldBe` [Value $ Lower $ VI32 ()]
-        --result `shouldBe` [Value $ Wasm.VI32 0]
+        let args = [[]]
+        sound <- isSoundlyAbstracted validMod "noop" args
+        sound `shouldBe` True
 
     it "run test-br3" $ do
         let path = "test/samples/simple.wast"
@@ -55,6 +65,9 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Success (_,result)))))) = invokeExported store modInst (pack "test-br3") [Value $ Lower $ VI32 ()]
         result `shouldBe` [Value $ Lower $ VI32 ()]
+        let args = [[Concrete.Value $ Wasm.VI32 10]]
+        sound <- isSoundlyAbstracted validMod "test-br3" args
+        sound `shouldBe` True
 
     it "run test-br-and-return" $ do
         let path = "test/samples/simple.wast"
@@ -64,6 +77,9 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Success (_,result)))))) = invokeExported store modInst (pack "test-br-and-return") [Value $ Lower $ VI32 ()]
         result `shouldBe` [Value $ Lower $ VI32 ()]
+        let args = [[Concrete.Value $ Wasm.VI32 10]]
+        sound <- isSoundlyAbstracted validMod "test-br-and-return" args
+        sound `shouldBe` True
 
     it "run test-unreachable" $ do
         let path = "test/samples/simple.wast"
@@ -73,6 +89,9 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable") []
         res `shouldBe` [Value $ Lower $ VI32 ()]
+        let args = [[]]
+        sound <- isSoundlyAbstracted validMod "test-unreachable" args
+        sound `shouldBe` True
 
     it "run test-unreachable2" $ do
         let path = "test/samples/simple.wast"
@@ -82,6 +101,9 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable2") []
         res `shouldBe` [Value $ Lower $ VI32 ()]
+        let args = [[]]
+        sound <- isSoundlyAbstracted validMod "test-unreachable2" args
+        sound `shouldBe` True
 
     it "run test-unreachable3" $ do
         let path = "test/samples/simple.wast"
@@ -91,6 +113,9 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable3") []
         res `shouldBe` [Value $ Lower $ VI32 ()]
+        let args = [[]]
+        sound <- isSoundlyAbstracted validMod "test-unreachable3" args
+        sound `shouldBe` True
 
     it "run test-unreachable4" $ do
         let path = "test/samples/simple.wast"
@@ -100,6 +125,9 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Fail (Exc e)))))) = invokeExported store modInst (pack "test-unreachable4") []
         (HashSet.toList e) `shouldBe` [Trap "Execution of unreachable instruction"]
+        let args = [[]]
+        sound <- isSoundlyAbstracted validMod "test-unreachable4" args
+        sound `shouldBe` True
 
     it "run test-unreachable5" $ do
         let path = "test/samples/simple.wast"
@@ -109,6 +137,9 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable5") [Value $ Lower $ VI32 ()]
         res `shouldBe` [Value $ Lower $ VI32 ()]
+        let args = [[Concrete.Value $ Wasm.VI32 10]]
+        sound <- isSoundlyAbstracted validMod "test-unreachable5" args
+        sound `shouldBe` True
         --(HashSet.toList e) `shouldBe` [Trap "Execution of unreachable instruction"]
 
     it "run test-br-and-return3" $ do
@@ -119,6 +150,9 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-br-and-return3") [Value $ Lower $ VI32 ()]
         res `shouldBe` [Value $ Lower $ VI32 ()]
+        let args = [[Concrete.Value $ Wasm.VI32 10]]
+        sound <- isSoundlyAbstracted validMod "test-br-and-return3" args
+        sound `shouldBe` True
 
     it "run test-br-and-return2" $ do
         let path = "test/samples/simple.wast"
@@ -128,6 +162,9 @@ spec = do
         Right (modInst, store) <- instantiate validMod
         let (_, (Success (_,(_,(Exc.Success (_, res))))))= invokeExported store modInst (pack "test-br-and-return2") [Value $ Lower $ VI32 ()]
         res `shouldBe` [Value $ Lower $ VI32 ()]
+        let args = [[Concrete.Value $ Wasm.VI32 10]]
+        sound <- isSoundlyAbstracted validMod "test-br-and-return2" args
+        sound `shouldBe` True
         --result `shouldBe` [Value $ Lower $ VI32 ()]
 --    it "run const" $ do
 --        let path = "test/samples/simple.wast"
