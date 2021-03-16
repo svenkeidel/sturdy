@@ -73,7 +73,8 @@ class IsException exc v c | c -> v where
 --    x ⊑ y | x == y = True
 
 -- used for storing the return "arity" of nested labels
-newtype LabelArities = LabelArities {labels :: [Natural]}
+newtype LabelArities = LabelArities {labels :: [Natural]} deriving (Eq,Show,Generic)
+instance Hashable LabelArities
 
 -- stores a frame's static data (return arity and module instance)
 type FrameData = (Natural, ModuleInstance)

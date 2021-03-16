@@ -15,6 +15,7 @@ import qualified Data.ByteString.Lazy as LBS
 import           Data.Abstract.Error
 import qualified Data.Abstract.Except as Exc
 import           Data.Abstract.FreeCompletion
+import           Data.Abstract.Terminating
 import qualified Data.HashSet as HashSet
 import           Data.List (isInfixOf)
 import           Data.List.Singleton (singleton)
@@ -34,6 +35,9 @@ import           Test.Hspec
 main :: IO ()
 main = hspec spec
 
+term :: Terminating a -> a
+term (Terminating a) = a
+
 getFunctionBody (Function _ _ b) = b
 
 readModule :: String -> IO ValidModule
@@ -49,10 +53,11 @@ spec = do
     it "run noop" $ do
         validMod <- readModule "test/samples/simple.wast"
         Right (modInst, store) <- instantiate validMod
-        let (log, Success (locals,(Lower state,(Exc.Success (stack,result))))) = invokeExported store modInst (pack "noop") []
+        let (log, Success (locals,(Lower state,(Exc.Success (stack,result))))) = term $ invokeExported store modInst (pack "noop") []
         locals `shouldBe` (Vector $ Vec.empty)
         stack `shouldBe` []
         result `shouldBe` [Value $ Lower $ VI32 ()]
+
         let args = [[]]
         sound <- isSoundlyAbstracted validMod "noop" args
         sound `shouldBe` True
@@ -63,7 +68,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (_, (Success (_,(_,(Exc.Success (_,result)))))) = invokeExported store modInst (pack "test-br3") [Value $ Lower $ VI32 ()]
+        let (_, (Success (_,(_,(Exc.Success (_,result)))))) = term $ invokeExported store modInst (pack "test-br3") [Value $ Lower $ VI32 ()]
         result `shouldBe` [Value $ Lower $ VI32 ()]
         let args = [[Concrete.Value $ Wasm.VI32 10]]
         sound <- isSoundlyAbstracted validMod "test-br3" args
@@ -75,7 +80,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (_, (Success (_,(_,(Exc.Success (_,result)))))) = invokeExported store modInst (pack "test-br-and-return") [Value $ Lower $ VI32 ()]
+        let (_, (Success (_,(_,(Exc.Success (_,result)))))) = term $ invokeExported store modInst (pack "test-br-and-return") [Value $ Lower $ VI32 ()]
         result `shouldBe` [Value $ Lower $ VI32 ()]
         let args = [[Concrete.Value $ Wasm.VI32 10]]
         sound <- isSoundlyAbstracted validMod "test-br-and-return" args
@@ -87,7 +92,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable") []
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = term $ invokeExported store modInst (pack "test-unreachable") []
         res `shouldBe` [Value $ Lower $ VI32 ()]
         let args = [[]]
         sound <- isSoundlyAbstracted validMod "test-unreachable" args
@@ -99,7 +104,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable2") []
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = term $ invokeExported store modInst (pack "test-unreachable2") []
         res `shouldBe` [Value $ Lower $ VI32 ()]
         let args = [[]]
         sound <- isSoundlyAbstracted validMod "test-unreachable2" args
@@ -111,7 +116,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable3") []
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = term $ invokeExported store modInst (pack "test-unreachable3") []
         res `shouldBe` [Value $ Lower $ VI32 ()]
         let args = [[]]
         sound <- isSoundlyAbstracted validMod "test-unreachable3" args
@@ -123,7 +128,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (_, (Success (_,(_,(Exc.Fail (Exc e)))))) = invokeExported store modInst (pack "test-unreachable4") []
+        let (_, (Success (_,(_,(Exc.Fail (Exc e)))))) = term $ invokeExported store modInst (pack "test-unreachable4") []
         (HashSet.toList e) `shouldBe` [Trap "Execution of unreachable instruction"]
         let args = [[]]
         sound <- isSoundlyAbstracted validMod "test-unreachable4" args
@@ -135,7 +140,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-unreachable5") [Value $ Lower $ VI32 ()]
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = term $ invokeExported store modInst (pack "test-unreachable5") [Value $ Lower $ VI32 ()]
         res `shouldBe` [Value $ Lower $ VI32 ()]
         let args = [[Concrete.Value $ Wasm.VI32 10]]
         sound <- isSoundlyAbstracted validMod "test-unreachable5" args
@@ -148,7 +153,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = invokeExported store modInst (pack "test-br-and-return3") [Value $ Lower $ VI32 ()]
+        let (_, (Success (_,(_,(Exc.Success (_, res)))))) = term $ invokeExported store modInst (pack "test-br-and-return3") [Value $ Lower $ VI32 ()]
         res `shouldBe` [Value $ Lower $ VI32 ()]
         let args = [[Concrete.Value $ Wasm.VI32 10]]
         sound <- isSoundlyAbstracted validMod "test-br-and-return3" args
@@ -160,7 +165,7 @@ spec = do
         let Right m = parse content
         let Right validMod = validate m
         Right (modInst, store) <- instantiate validMod
-        let (_, (Success (_,(_,(Exc.Success (_, res))))))= invokeExported store modInst (pack "test-br-and-return2") [Value $ Lower $ VI32 ()]
+        let (_, (Success (_,(_,(Exc.Success (_, res))))))= term $ invokeExported store modInst (pack "test-br-and-return2") [Value $ Lower $ VI32 ()]
         res `shouldBe` [Value $ Lower $ VI32 ()]
         let args = [[Concrete.Value $ Wasm.VI32 10]]
         sound <- isSoundlyAbstracted validMod "test-br-and-return2" args
@@ -172,7 +177,7 @@ spec = do
 --        let Right m = parse content
 --        let Right validMod = validate m
 --        Right (modInst, store) <- instantiate validMod
---        let (_,(Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "const") [Value $ Wasm.VI32 5]
+--        let (_,(Success (_,(_,(Success (_,result)))))) = term $ invokeExported store modInst (pack "const") [Value $ Wasm.VI32 5]
 --        result `shouldBe` [Value $ Wasm.VI32 5]
 --
 --    it "run half-fact" $ do
@@ -181,7 +186,7 @@ spec = do
 --        let Right m = parse content
 --        let Right validMod = validate m
 --        Right (modInst, store) <- instantiate validMod
---        let (_, (Success (_,(_,(Success (_,result1)))))) = invokeExported store modInst (pack "half-fac") [Value $ Wasm.VI32 0]
+--        let (_, (Success (_,(_,(Success (_,result1)))))) = term $ invokeExported store modInst (pack "half-fac") [Value $ Wasm.VI32 0]
 --        result1 `shouldBe` [Value $ Wasm.VI32 1]
 --
 --    it "run half-fact-64" $ do
@@ -192,7 +197,7 @@ spec = do
 --        --let halfFac64Code = (getFunctionBody . (!! 3) . functions . getModule) validMod
 --        --putStrLn $ show validMod
 --        Right (modInst, store) <- instantiate validMod
---        let (_, (Success (_,(_,(Success (_,result1)))))) = invokeExported store modInst (pack "half-fac-64") [Value $ Wasm.VI64 0]
+--        let (_, (Success (_,(_,(Success (_,result1)))))) = term $ invokeExported store modInst (pack "half-fac-64") [Value $ Wasm.VI64 0]
 --        result1 `shouldBe` [Value $ Wasm.VI64 1]
 --        --mapM_ (putStrLn . show) halfFac64Code
 --        --putStrLn ""
@@ -208,7 +213,7 @@ spec = do
 --        --putStrLn ""
 --        Right (modInst, store) <- instantiate validMod
 --        let params = map (singleton . Value . Wasm.VI64) [0 .. 8]
---        let results = map (invokeExported store modInst (pack "fac-rec")) params
+--        let results = map (term $ invokeExported store modInst (pack "fac-rec")) params
 --        let rs = map (\(_,Success (_,(_,(Success (_,r))))) -> r) results
 --        --let logs = zip [0 ..] ls
 --        --mapM_ printLogs logs
@@ -228,5 +233,5 @@ spec = do
 --        let Right m = parse content
 --        let Right validMod = validate m
 --        Right (modInst, store) <- instantiate validMod
---        let (_, (Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "test-mem") [Value $ Wasm.VI32 42]
+--        let (_, (Success (_,(_,(Success (_,result)))))) = term $ invokeExported store modInst (pack "test-mem") [Value $ Wasm.VI32 42]
 --        result `shouldBe` [Value $ Wasm.VI32 43]

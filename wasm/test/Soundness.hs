@@ -18,6 +18,7 @@ import           Data.Abstract.Except (Except)
 import qualified Data.Abstract.Except as Except
 import           Data.Abstract.FreeCompletion
 import           Data.Abstract.DiscretePowerset (Pow(..))
+import           Data.Abstract.Terminating
 import qualified Data.Concrete.Error as CE
 import qualified Data.HashSet as HashSet
 import           Data.Order
@@ -35,13 +36,13 @@ type ConcResult = CE.Error
                        CE.Error
                          (Generic.Exc Concrete.Value)
                          ([Concrete.Value], [Concrete.Value])))
-type AbsResult = AE.Error
+type AbsResult = (AE.Error
                    (Pow String)
                    (Frame.Vector UnitA.Value,
                      (FreeCompletion (Abstract.GlobalState UnitA.Value),
                       Except
                         (UnitA.Exc UnitA.Value)
-                        (AbsList UnitA.Value, AbsList UnitA.Value)))
+                        (AbsList UnitA.Value, AbsList UnitA.Value))))
 
 alphaResult :: [ConcResult] -> AbsResult
 alphaResult = alphaError alphaString1
@@ -107,7 +108,8 @@ isSoundlyAbstracted mod func argsList = do
     Right (absModInst, absStore) <- UnitA.instantiate mod
     let (AbsList absArgs) = foldr1 (⊔) $ (map (AbsList . map alphaVal1)) $ argsList
     let concResults = map (snd . Concrete.invokeExported concStore concModInst (pack func)) argsList
-    let absResult = resultToAbsList $ snd $ UnitA.invokeExported absStore absModInst (pack func) absArgs
+    let (Terminating temp) = UnitA.invokeExported absStore absModInst (pack func) absArgs
+    let absResult = resultToAbsList $ snd $ temp
     return $ alphaResult concResults ⊑ absResult
 
     where

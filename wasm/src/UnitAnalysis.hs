@@ -22,7 +22,8 @@ import           Control.Arrow.Const
 import           Control.Arrow.Logger
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
-import           Control.Arrow.Fix
+import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Chaotic (innermost)
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
 import           Control.Arrow.MemSizable
@@ -38,6 +39,11 @@ import           Control.Arrow.WasmFrame
 
 import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
+import           Control.Arrow.Transformer.Abstract.Fix.Component
+import qualified Control.Arrow.Transformer.Abstract.Fix.Stack as Fix
+import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Arrow.Transformer.Abstract.DebuggableStack
 import           Control.Arrow.Transformer.Abstract.Logger
@@ -52,6 +58,7 @@ import           Control.Category (Category)
 import           Data.Abstract.FreeCompletion as FC
 import           Data.Abstract.Sign
 import qualified Data.Abstract.Sign as S
+import           Data.Abstract.Terminating
 import qualified Data.Function as Function
 import           Data.Hashable
 import           Data.HashSet as HashSet
@@ -212,19 +219,35 @@ instance ArrowFix (Underlying (GlobalStateT v c) x y) => ArrowFix (GlobalStateT 
 
 deriving instance (ArrowComplete (FreeCompletion (GlobalState v), y) c) => ArrowComplete y (GlobalStateT v c)
 
+type In = (Pow.Pow [String],
+                       (Vector Value,
+                        ((Natural, ModuleInstance),
+                         (FreeCompletion (GlobalState Value),
+                          (AbsList Value, (LabelArities, [Instruction Natural]))))))
+
+type Out = Terminating
+                        (Pow.Pow [String],
+                         Error
+                           (Pow String)
+                           (Vector Value,
+                            (FreeCompletion (GlobalState Value),
+                             Except (Exc Value) (AbsList Value, ()))))
+
 invokeExported :: GlobalState Value
                       -> ModuleInstance
                       -> Text
                       -> [Value]
-                      -> (Pow.Pow [String],
+                      -> Terminating (Pow.Pow [String],
                            Error (Pow String)
                                  (Vector Value,
                                    (FreeCompletion (GlobalState Value),
                                      Except (Exc Value)
                                             (AbsList Value, [Value]))))
 invokeExported store modInst funcName args =
-    let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
-    Trans.run
+    let ?cacheWidening = error "todo" in
+    --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
+    let ?fixpointAlgorithm = fixpointAlgorithm $ Fix.filter isLoop $ innermost in
+    snd $ Trans.run
     (Generic.invokeExported ::
       ValueT Value
         (ReaderT Generic.LabelArities
@@ -234,7 +257,16 @@ invokeExported store modInst funcName args =
                 (FrameT FrameData Value
                   (ErrorT (Pow String)
                     (LoggerT String
-                      (->)))))))) (Text, [Value]) [Value]) (Pow.singleton [],(Vector $ Vec.empty,((0,modInst),(Lower store,([],(Generic.LabelArities [],(funcName, args)))))))
+                      (TerminatingT
+                        (FixT
+                          (ComponentT Component In
+                            (Fix.StackT Fix.Stack In
+                              (CacheT Cache In Out
+                                (->))))))))))))) (Text, [Value]) [Value]) (Pow.singleton [],(Vector $ Vec.empty,((0,modInst),(Lower store,([],(Generic.LabelArities [],(funcName, args)))))))
+    where
+        isLoop (_,(_,(_,(_,(_,(_,inst)))))) = case inst of
+            Loop {} : _ -> True
+            _           -> False
 
 instantiate :: ValidModule -> IO (Either String (ModuleInstance, GlobalState Value))
 instantiate valMod = do

@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -30,13 +31,17 @@ import           Control.Arrow.Utils hiding (zipWith, all)
 import           Control.Arrow.WasmFrame
 import           Control.Arrow.Writer
 
+import           Data.Hashable
 import           Data.Order
 import           Data.Profunctor
 import           Data.Coerce
 
+import           GHC.Generics
 import           GHC.Exts
 
-newtype AbsList v = AbsList [v] deriving (Show,Eq)
+newtype AbsList v = AbsList [v] deriving (Show,Eq,Generic)
+
+instance (Hashable v) => Hashable (AbsList v)
 
 instance (PreOrd v) => PreOrd (AbsList v) where
     (AbsList v1) ⊑ (AbsList v2) = all id $ zipWith (⊑) v1 v2

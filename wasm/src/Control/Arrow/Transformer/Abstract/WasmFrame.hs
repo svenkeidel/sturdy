@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -7,6 +8,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Control.Arrow.Transformer.Abstract.WasmFrame where
+
+import           Concrete
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -26,12 +29,21 @@ import           Control.Arrow.Transformer.State
 
 import           Control.Category hiding (id)
 
+import           Data.Hashable
 import           Data.Monoidal (shuffle1)
 import           Data.Order
 import           Data.Profunctor
 import qualified Data.Vector as Vec
 
-newtype Vector v = Vector (Vec.Vector v) deriving (Show,Eq)
+import           GHC.Generics
+
+newtype Vector v = Vector (Vec.Vector v) deriving (Show,Eq,Generic)
+
+instance (Hashable v) => Hashable (Vector v)
+----    hashWithSalt salt (Vector v) = hashWithSalt salt (Vec.toList v)
+--
+--instance (Hashable v) => Hashable (Vec.Vector v) where
+--    hashWithSalt salt v = hashWithSalt salt (Vec.toList v)
 
 instance (PreOrd v) => PreOrd (Vector v) where
     (Vector v1) ⊑ (Vector v2) = all id $ Vec.zipWith (⊑) v1 v2

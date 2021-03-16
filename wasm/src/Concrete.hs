@@ -1,9 +1,11 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Concrete where
 
 import           Data.Abstract.FreeCompletion
+import           Data.Hashable
 import           Data.Order
 import           Data.Vector (Vector, (!), (//))
 import qualified Data.Vector as Vec
@@ -13,8 +15,12 @@ import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Structure hiding (exports, Const)
 
+import           GHC.Generics
+
 newtype Value = Value Wasm.Value deriving (Show, Eq)
-data Mut = Const | Mutable deriving (Show, Eq)
+data Mut = Const | Mutable deriving (Show, Eq, Generic)
+
+instance Hashable Mut
 
 data GlobalState v = GlobalState {
     funcInstances :: Vector FuncInst,
@@ -40,11 +46,40 @@ data FuncInst =
     | HostInst {
         funcType :: FuncType
         --hostCode :: HostFunction v c
-    } deriving (Show,Eq)
+    } deriving (Show,Eq, Generic)
 
-newtype TableInst = TableInst Wasm.TableInstance deriving (Show,Eq)
+
+instance (Hashable v) => Hashable (Vector v) where
+    hashWithSalt salt v = hashWithSalt salt (Vec.toList v)
+instance Hashable MemArg
+instance Hashable BitSize
+instance Hashable IUnOp
+instance Hashable IBinOp
+instance Hashable IRelOp
+instance Hashable FUnOp
+instance Hashable FBinOp
+instance Hashable FRelOp
+instance Hashable Wasm.ExportInstance
+deriving instance Generic Wasm.ExportInstance
+instance Hashable Wasm.ExternalValue
+deriving instance Generic Wasm.ExternalValue
+instance (Hashable v) => Hashable (Instruction v)
+instance Hashable ValueType
+instance Hashable Function
+instance Hashable FuncInst
+instance Hashable FuncType
+instance Hashable ModuleInstance
+deriving instance Generic ModuleInstance
+instance Hashable TableInst
+instance Hashable Wasm.TableInstance
+deriving instance Generic Wasm.TableInstance
+instance Hashable Limit
+
+newtype TableInst = TableInst Wasm.TableInstance deriving (Show,Eq,Generic)
 data MemInst = MemInst (Maybe Word32) (Vector Word8) deriving (Show,Eq)
-data GlobInst v = GlobInst Mut v deriving (Show, Eq)
+data GlobInst v = GlobInst Mut v deriving (Show, Eq, Generic)
+
+instance (Hashable v) => Hashable (GlobInst v)
 
 instance (PreOrd v) => PreOrd (GlobInst v) where
     (GlobInst m1 v1) ⊑ (GlobInst m2 v2) = m1 == m2 && v1 ⊑ v2
