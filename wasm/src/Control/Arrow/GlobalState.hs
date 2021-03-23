@@ -22,8 +22,10 @@ import           Control.Arrow.Transformer.Writer
 import qualified Data.Order as O
 import           Data.Profunctor
 
-import           Language.Wasm.Structure hiding (exports)
+import           Language.Wasm.Structure hiding (exports, Function)
 import           Language.Wasm.Interpreter (ModuleInstance(..))
+
+import           Data
 
 
 

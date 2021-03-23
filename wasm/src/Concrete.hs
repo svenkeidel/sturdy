@@ -4,21 +4,22 @@
 
 module Concrete where
 
+import           Data
 import           Data.Abstract.FreeCompletion
 import           Data.Hashable
 import           Data.Order
+import           Data.Text.Prettyprint.Doc
 import           Data.Vector (Vector, (!), (//))
 import qualified Data.Vector as Vec
 import           Data.Word
 
 import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure hiding (exports, Const)
+import           Language.Wasm.Structure hiding (exports, Const, Function, Expression, Instruction)
 
 import           GHC.Generics
 
 newtype Value = Value Wasm.Value deriving (Show, Eq)
-data Mut = Const | Mutable deriving (Show, Eq, Generic)
 
 instance Hashable Mut
 
@@ -36,17 +37,6 @@ emptyGlobalState = GlobalState {
     memInstances = Vec.empty,
     globalInstances = Vec.empty
 }
-
-data FuncInst =
-    FuncInst {
-        funcType :: FuncType,
-        moduleInstance :: ModuleInstance,
-        code :: Function
-    }
-    | HostInst {
-        funcType :: FuncType
-        --hostCode :: HostFunction v c
-    } deriving (Show,Eq, Generic)
 
 
 instance (Hashable v) => Hashable (Vector v) where
@@ -70,6 +60,7 @@ instance Hashable FuncInst
 instance Hashable FuncType
 instance Hashable ModuleInstance
 deriving instance Generic ModuleInstance
+instance Pretty ModuleInstance where pretty = viaShow
 instance Hashable TableInst
 instance Hashable Wasm.TableInstance
 deriving instance Generic Wasm.TableInstance

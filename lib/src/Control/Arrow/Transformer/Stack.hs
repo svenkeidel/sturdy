@@ -55,7 +55,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowStack v (StackT v c) where
     st <- get -< ()
     put -< []
     y <- f -< x
-    put -< st
+    stNew <- get -< ()
+    put -< stNew ++ st
     returnA -< y
   --pop2 = StackT $ modify $ arr $ \((),v2:v1:st) -> ((v1,v2), st)
   --popn = StackT $ modify $ arr $ \(n,st) -> splitAt (fromIntegral n) st

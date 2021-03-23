@@ -19,6 +19,8 @@ module GenericInterpreter where
 import Prelude hiding (Read, fail, log)
 
 import           Concrete
+import           Data (Instruction(..), Function(..))
+--import           Data hiding (label,iUnOp,iBinOp)
 
 import           Control.Arrow
 import           Control.Arrow.DebuggableStack
@@ -42,10 +44,13 @@ import           Data.Order
 import           Data.Profunctor
 import           Data.String
 import           Data.Text.Lazy (Text)
+import           Data.Text.Prettyprint.Doc
 import           Data.Vector hiding (length, (++))
 import           Data.Word
 
-import           Language.Wasm.Structure hiding (exports)
+--import           Language.Wasm.Structure hiding (exports, Instruction)
+import           Language.Wasm.Structure (ValueType(..), BitSize, IUnOp(..), IBinOp(..), IRelOp(..),
+                                          FUnOp(..), FBinOp(..), FRelOp(..), MemArg(..), FuncType(..), ResultType)
 import           Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance, ExportInstance(..), ExternalValue(..))
 
 import           Numeric.Natural (Natural)
@@ -75,6 +80,7 @@ class IsException exc v c | c -> v where
 -- used for storing the return "arity" of nested labels
 newtype LabelArities = LabelArities {labels :: [Natural]} deriving (Eq,Show,Generic)
 instance Hashable LabelArities
+instance Pretty LabelArities where pretty = viaShow
 
 -- stores a frame's static data (return arity and module instance)
 type FrameData = (Natural, ModuleInstance)
@@ -151,7 +157,7 @@ class Show v => IsVal v c | c -> v where
 invokeExported ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v m c,
     ArrowStack v c,
-    ArrowDebuggableStack v c,
+    ArrowStack v c,
     ArrowExcept exc c, IsException exc v c, JoinExc () c, ArrowReader LabelArities c,
     ArrowWasmMemory m addr bytes v c, --HostFunctionSupport addr bytes v c,
     Mem.Join () c,
@@ -162,7 +168,7 @@ invokeExported ::
     ArrowFail e c,
     IsString e,
     ArrowFix (c [Instruction Natural] ()),
-    ArrowLogger String c,
+    --ArrowLogger String c,
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
     )
   => c (Text, [v]) [v]
@@ -177,7 +183,7 @@ invokeExported = proc (funcName, args) -> do
 invokeExternal ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v m c,
     ArrowStack v c,
-    ArrowDebuggableStack v c,
+    ArrowStack v c,
     ArrowExcept exc c, IsException exc v c, JoinExc () c, ArrowReader LabelArities c,
     ArrowWasmMemory m addr bytes v c, --HostFunctionSupport addr bytes v c,
     Mem.Join () c,
@@ -187,7 +193,7 @@ invokeExternal ::
     ArrowFail e c,
     IsString e,
     ArrowFix (c [Instruction Natural] ()),
-    ArrowLogger String c,
+    --ArrowLogger String c,
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
     )
   => c (Int, [v]) [v]
@@ -229,105 +235,105 @@ invokeExternal = proc (funcAddr, args) ->
 eval ::
   ( ArrowChoice c, ArrowFrame FrameData v c, ArrowGlobalState v m c,
     ArrowStack v c,
-    ArrowDebuggableStack v c,
+    ArrowStack v c,
     ArrowExcept exc c, IsException exc v c, JoinExc () c, ArrowReader LabelArities c,
     ArrowWasmMemory m addr bytes v c, --HostFunctionSupport addr bytes v c,
     Mem.Join () c,
     IsVal v c, JoinVal () c, Show v,
     Exc.Join () c,
     ArrowFix (c [Instruction Natural] ()),
-    ArrowLogger String c,
+    --ArrowLogger String c,
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ()))
     )
   => c [Instruction Natural] ()
 eval = fix $ \eval' -> proc is -> do
-    stack <- getStack -< ()
+    --stack <- getStack -< ()
     case is of
       [] -> returnA -< ()
       i:is' | isNumericInst i -> do
-        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         push <<< evalNumericInst -< i
-        stack2 <- getStack -< ()
-        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        --stack2 <- getStack -< ()
+        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
       i:is' | isVariableInst i -> do
-        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         evalVariableInst -< i
-        stack2 <- getStack -< ()
-        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        --stack2 <- getStack -< ()
+        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
       i:is' | isParametricInst i -> do
-        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         evalParametricInst -< i
-        stack2 <- getStack -< ()
-        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        --stack2 <- getStack -< ()
+        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
       i:is' | isControlInst i -> do
-        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         evalControlInst eval' -< i
-        stack2 <- getStack -< ()
-        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        --stack2 <- getStack -< ()
+        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
       i:is' | isMemoryInst i -> do
-        log -< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
+        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         evalMemoryInst -< i
-        stack2 <- getStack -< ()
-        log -< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
+        --stack2 <- getStack -< ()
+        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
 
 evalControlInst ::
   ( ArrowChoice c, Profunctor c,
     ArrowStack v c, -- operand stack of computation
-    ArrowDebuggableStack v c,
+    ArrowStack v c,
     IsVal v c, JoinVal () c, -- needs to support value operations
     ArrowExcept exc c, IsException exc v c, JoinExc () c,
     ArrowReader LabelArities c, -- return arity of nested labels
     ArrowFrame FrameData v c, -- frame data and local variables
     ArrowGlobalState v m c,
-    ArrowLogger String c,
+    --ArrowLogger String c,
     --HostFunctionSupport addr bytes v c,
     Exc.Join () c)
   => c [Instruction Natural] () -> c (Instruction Natural) ()
 evalControlInst eval' = proc i -> case i of
-  Unreachable -> throw <<< exception -< Trap "Execution of unreachable instruction"
-  Nop -> returnA -< ()
-  Block rt is -> label eval' eval' -< (rt, is, [])
-  Loop rt is -> label eval' eval' -< (rt, is, [Loop rt is])
-  If rt isNZero isZero -> do
+  Unreachable _ -> throw <<< exception -< Trap "Execution of unreachable instruction"
+  Nop _ -> returnA -< ()
+  Block rt is _ -> label eval' eval' -< (rt, is, [])
+  Loop rt is l -> label eval' eval' -< (rt, is, [Loop rt is l])
+  If rt isNZero isZero _ -> do
     v <- pop -< ()
     i32ifNeqz
       (proc (rt, isNZero, _) -> label eval' eval' -< (rt, isNZero, []))
       (proc (rt, _, isZero) -> label eval' eval' -< (rt, isZero, []))
       -< (v, (rt, isNZero, isZero))
-  Br ix -> branch -< ix
-  BrIf ix -> do
+  Br ix _ -> branch -< ix
+  BrIf ix _ -> do
     v <- pop -< ()
     i32ifNeqz
       branch
       (arr $ const ())
       -< (v, ix)
-  BrTable ls ldefault -> do
+  BrTable ls ldefault _ -> do
     v <- pop -< ()
     listLookup branch branch -< (v, ls, ldefault)
-  Return -> do
+  Return _ -> do
     (n,_) <- frameData -< ()
     vs <- popn -< n
     throw <<< exception -< CallReturn vs
-  Call ix -> do
+  Call ix _ -> do
     (_, modInst) <- frameData -< ()
     let funcAddr = funcaddrs modInst ! fromIntegral ix
     result <- readFunction (proc (funcAddr, ()) -> do
-                    stack <- getStack -< ()
-                    log -< "readFunction start, stack: " ++ (show stack)
+                    --stack <- getStack -< ()
+                    --log-< "readFunction start, stack: " ++ (show stack)
                     result <- invoke eval' <<^ fst -< (funcAddr, ())
-                    stack2 <- getStack -< ()
-                    log -< "readFunction end, stack: " ++ (show stack2)
+                    --stack2 <- getStack -< ()
+                    --log-< "readFunction end, stack: " ++ (show stack2)
                     returnA -< result
         ) -< (funcAddr, ()) --(invokeHost <<^ fst) -< (funcAddr, ())
-    stack <- getStack -< ()
-    log -< "before returning to eval, stack: " ++ (show stack)
+    --stack <- getStack -< ()
+    --log-< "before returning to eval, stack: " ++ (show stack)
     returnA -< result
-  CallIndirect ix -> do
+  CallIndirect ix _ -> do
     (_, modInst) <- frameData -< ()
     let tableAddr = tableaddrs modInst ! 0
     let ftExpect = funcTypes modInst ! fromIntegral ix
@@ -340,7 +346,7 @@ evalControlInst eval' = proc i -> case i of
 invokeChecked ::
   ( ArrowChoice c, ArrowGlobalState v m c, ArrowStack v c, ArrowReader LabelArities c,
     IsVal v c, ArrowFrame FrameData v c, ArrowExcept exc c, IsException exc v c, JoinExc () c, Exc.Join () c,
-    ArrowDebuggableStack v c, ArrowLogger String c)
+    ArrowStack v c) --ArrowLogger String c)
     --HostFunctionSupport addr bytes v c)
   => c [Instruction Natural] () -> c (Int, FuncType) ()
 invokeChecked eval' = proc (addr, ftExpect) ->
@@ -365,21 +371,21 @@ invokeChecked eval' = proc (addr, ftExpect) ->
 invoke ::
   ( ArrowChoice c, ArrowStack v c, ArrowReader LabelArities c,
     IsVal v c, ArrowFrame FrameData v c, ArrowExcept exc c, IsException exc v c, Exc.Join y c,
-    ArrowDebuggableStack v c, ArrowLogger String c, JoinExc y c)
+    ArrowStack v c, JoinExc y c)
   => c [Instruction Natural] y -> c (FuncType, ModuleInstance, Function) y
 invoke eval' = catch
     (proc (FuncType paramTys resultTys, funcModInst, Function _ localTys code) -> do
-        stack1 <- getStack -< ()
-        log -< "start invoke, stack: " ++ (show stack1)
+        --stack1 <- getStack -< ()
+        --log-< "start invoke, stack: " ++ (show stack1)
         vs <- popn -< fromIntegral $ length paramTys
         zeros <- Arr.map initLocal -< localTys
         let rtLength = fromIntegral $ length resultTys
-        stack2 <- getStack -< ()
-        log -< "invoke before transfering control, stack: " ++ (show stack2)
+        --stack2 <- getStack -< ()
+        --log-< "invoke before transfering control, stack: " ++ (show stack2)
         -- TODO: removed localFreshStack, not sure if that is what we want
-        result <- inNewFrame (localNoLabels $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
-        stack3 <- getStack -< ()
-        log -< "end invoke, stack: " ++ (show stack3)
+        result <- inNewFrame (localNoLabels $ localFreshStack $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
+        --stack3 <- getStack -< ()
+        --log-< "end invoke, stack: " ++ (show stack3)
         returnA -< result
         )
     (proc (_,e) -> handleException $
@@ -416,18 +422,18 @@ branch = proc ix -> do
 -- | When escalating jumps, all label-local operands must be popped from the stack.
 -- | This implementation assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
 label :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowReader LabelArities c, Exc.Join z c,
-          ArrowDebuggableStack v c, ArrowLogger String c, Show v, JoinExc z c)
+          ArrowStack v c, Show v, JoinExc z c)
   => c x z -> c y z -> c (ResultType, x, y) z
 -- x: code to execute
 -- y: continuation to execute after a break to the current label
 label f g = catch
   -- after executing f without a break we expect |rt| results on top of the stack
   (proc (rt,x,_) -> do
-    stack <- getStack -< ()
-    log -< "labal start, stack: " ++ (show stack)
+    --stack <- getStack -< ()
+    --log-< "labal start, stack: " ++ (show stack)
     result <- localLabel f -< (rt, x)
-    stack2 <- getStack -< ()
-    log -< "label end, stack: " ++ (show stack2)
+    --stack2 <- getStack -< ()
+    --log-< "label end, stack: " ++ (show stack2)
     returnA -< result
   )
   -- after a break the results are popped from the stack and passed back via exception e
@@ -457,8 +463,8 @@ localNoLabels f = proc x -> do
 evalParametricInst :: (ArrowChoice c, Profunctor c, ArrowStack v c, IsVal v c, JoinVal () c)
   => c (Instruction Natural) ()
 evalParametricInst = proc i -> case i of
-  Drop -> const () ^<< pop -< ()
-  Select -> do
+  Drop _ -> const () ^<< pop -< ()
+  Select _ -> do
     v <- pop -< ()
     i32ifNeqz
       (const () ^<< pop)
@@ -475,29 +481,29 @@ evalMemoryInst ::
     ArrowGlobalState v m c, ArrowFrame FrameData v c, ArrowStack v c, IsVal v c, ArrowExcept exc c, IsException exc v c)
   => c (Instruction Natural) ()
 evalMemoryInst = proc i -> case i of --withCurrentMemory $ proc (m,i) -> case i of
-  I32Load (MemArg off _) -> load 4 L_I32 I32 -< off
-  I64Load (MemArg off _) -> load 8 L_I64 I64 -< off
-  F32Load (MemArg off _) -> load 4 L_F32 F32 -< off
-  F64Load (MemArg off _) -> load 8 L_F64 F64 -< off
-  I32Load8S (MemArg off _) -> load 1 L_I8S I32 -< off
-  I32Load8U (MemArg off _) -> load 1 L_I8U I32 -< off
-  I32Load16S (MemArg off _) -> load 2 L_I16S I32 -< off
-  I32Load16U (MemArg off _) -> load 2 L_I16U I32 -< off
-  I64Load8S (MemArg off _) -> load 1 L_I8S I64 -< off
-  I64Load8U (MemArg off _) -> load 1 L_I8U I64 -< off
-  I64Load16S (MemArg off _) -> load 2 L_I16S I64 -< off
-  I64Load16U (MemArg off _) -> load 2 L_I16U I64 -< off
-  I64Load32S (MemArg off _) -> load 4 L_I32S I64 -< off
-  I64Load32U (MemArg off _) -> load 4 L_I32U I64 -< off
-  I32Store (MemArg off _) -> store S_I32 I32 -< off
-  I64Store (MemArg off _) -> store S_I64 I64 -< off
-  F32Store (MemArg off _) -> store S_F32 F32 -< off
-  F64Store (MemArg off _) -> store S_F64 F64 -< off
-  I32Store8 (MemArg off _) -> store S_I8 I32 -< off
-  I32Store16 (MemArg off _) -> store S_I16 I32 -< off
-  I64Store8 (MemArg off _) -> store S_I8 I64 -< off
-  I64Store16 (MemArg off _) -> store S_I16 I64 -< off
-  I64Store32 (MemArg off _) -> store S_I32 I64 -< off
+  I32Load (MemArg off _) _ -> load 4 L_I32 I32 -< off
+  I64Load (MemArg off _) _ -> load 8 L_I64 I64 -< off
+  F32Load (MemArg off _) _ -> load 4 L_F32 F32 -< off
+  F64Load (MemArg off _) _ -> load 8 L_F64 F64 -< off
+  I32Load8S (MemArg off _) _ -> load 1 L_I8S I32 -< off
+  I32Load8U (MemArg off _) _ -> load 1 L_I8U I32 -< off
+  I32Load16S (MemArg off _) _ -> load 2 L_I16S I32 -< off
+  I32Load16U (MemArg off _) _ -> load 2 L_I16U I32 -< off
+  I64Load8S (MemArg off _) _ -> load 1 L_I8S I64 -< off
+  I64Load8U (MemArg off _) _ -> load 1 L_I8U I64 -< off
+  I64Load16S (MemArg off _) _ -> load 2 L_I16S I64 -< off
+  I64Load16U (MemArg off _) _ -> load 2 L_I16U I64 -< off
+  I64Load32S (MemArg off _) _ -> load 4 L_I32S I64 -< off
+  I64Load32U (MemArg off _) _ -> load 4 L_I32U I64 -< off
+  I32Store (MemArg off _) _ -> store S_I32 I32 -< off
+  I64Store (MemArg off _) _ -> store S_I64 I64 -< off
+  F32Store (MemArg off _) _ -> store S_F32 F32 -< off
+  F64Store (MemArg off _) _ -> store S_F64 F64 -< off
+  I32Store8 (MemArg off _) _ -> store S_I8 I32 -< off
+  I32Store16 (MemArg off _) _ -> store S_I16 I32 -< off
+  I64Store8 (MemArg off _) _ -> store S_I8 I64 -< off
+  I64Store16 (MemArg off _) _ -> store S_I16 I64 -< off
+  I64Store32 (MemArg off _) _ -> store S_I32 I64 -< off
 --  CurrentMemory -> push <<< memsize -< ()
 --  GrowMemory -> do
 --    n <- pop -< ()
@@ -554,18 +560,18 @@ evalVariableInst ::
     ArrowStack v c)
   => c (Instruction Natural) ()
 evalVariableInst = proc i -> case i of
-  GetLocal ix -> push <<< frameLookup -< ix
-  SetLocal ix -> do
+  GetLocal ix _ -> push <<< frameLookup -< ix
+  SetLocal ix _-> do
     v <- pop -< ()
     frameUpdate -< (ix, v)
-  TeeLocal ix -> do
+  TeeLocal ix _ -> do
     v <- peek -< ()
     frameUpdate -< (ix, v)
-  GetGlobal ix ->  do
+  GetGlobal ix _ ->  do
     (_,modInst) <- frameData -< ()
     let globalAddr = globaladdrs modInst ! fromIntegral ix
     push <<< readGlobal -< globalAddr
-  SetGlobal ix -> do
+  SetGlobal ix _ -> do
     v <- pop -< ()
     (_,modInst) <- frameData -< ()
     let globalAddr = globaladdrs modInst ! fromIntegral ix
@@ -576,162 +582,162 @@ evalNumericInst ::
   ( ArrowChoice c, ArrowStack v c, ArrowExcept exc c, IsException exc v c, IsVal v c, Show v)
   => c (Instruction Natural) v
 evalNumericInst = proc i -> case i of
-  I32Const lit -> i32const -< lit
-  I64Const lit -> i64const -< lit
-  F32Const lit -> f32const -< lit
-  F64Const lit -> f64const -< lit
-  IUnOp bs op -> do
+  I32Const lit _ -> i32const -< lit
+  I64Const lit _ -> i64const -< lit
+  F32Const lit _ -> f32const -< lit
+  F64Const lit _ -> f64const -< lit
+  IUnOp bs op _ -> do
     v <- pop -< ()
     iUnOp -< (bs, op, v)
-  IBinOp bs op -> do
+  IBinOp bs op _ -> do
     (v1,v2) <- pop2 -< ()
     res <- iBinOp -< (bs, op, v1, v2)
     case res of
       Just v' -> returnA -< v'
       Nothing -> throw <<< exception -< Trap $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2))
-  I32Eqz -> do
+  I32Eqz _ -> do
     v <- pop -< ()
     i32eqz -< v
-  I64Eqz -> do
+  I64Eqz _ -> do
     v <- pop -< ()
     i64eqz -< v
-  IRelOp bs op -> do
+  IRelOp bs op _ -> do
     (v1,v2) <- pop2 -< ()
     iRelOp -< (bs, op, v1, v2)
-  FBinOp bs op -> do
+  FBinOp bs op _ -> do
     (v1,v2) <- pop2 -< ()
     fBinOp -< (bs, op, v1, v2)
-  FUnOp bs op -> do
+  FUnOp bs op _ -> do
     v <- pop -< ()
     fUnOp -< (bs, op, v)
-  FRelOp bs op -> do
+  FRelOp bs op _ -> do
     (v1,v2) <- pop2 -< ()
     fRelOp -< (bs, op, v1, v2)
-  I32WrapI64 -> do
+  I32WrapI64 _ -> do
     v <- pop -< ()
     i32WrapI64 -< v
-  ITruncFU bs1 bs2 -> do
+  ITruncFU bs1 bs2 _ -> do
     v <- pop -< ()
     res <- iTruncFU -< (bs1, bs2, v)
     case res of
       Just v' -> returnA -< v'
       Nothing -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v)
-  ITruncFS bs1 bs2 -> do
+  ITruncFS bs1 bs2 _ -> do
     v <- pop -< ()
     res <- iTruncFS -< (bs1, bs2, v)
     case res of
       Just v' -> returnA -< v'
       Nothing -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v)
-  I64ExtendSI32 -> do
+  I64ExtendSI32 _ -> do
     v <- pop -< ()
     i64ExtendSI32 -< v
-  I64ExtendUI32 -> do
+  I64ExtendUI32 _ -> do
     v <- pop -< ()
     i64ExtendUI32 -< v
-  FConvertIU bs1 bs2 -> do
+  FConvertIU bs1 bs2 _ -> do
     v <- pop -< ()
     fConvertIU -< (bs1, bs2, v)
-  FConvertIS bs1 bs2 -> do
+  FConvertIS bs1 bs2 _ -> do
     v <- pop -< ()
     fConvertIS -< (bs1, bs2, v)
-  F32DemoteF64 -> do
+  F32DemoteF64 _ -> do
     v <- pop -< ()
     f32DemoteF64 -< v
-  F64PromoteF32 -> do
+  F64PromoteF32 _ -> do
     v <- pop -< ()
     f64PromoteF32 -< v
-  IReinterpretF bs -> do
+  IReinterpretF bs _ -> do
     v <- pop -< ()
     iReinterpretF -< (bs, v)
-  FReinterpretI bs -> do
+  FReinterpretI bs _ -> do
     v <- pop -< ()
     fReinterpretI -< (bs, v)
 
 
 isControlInst :: Instruction index -> Bool
 isControlInst i = case i of
-  Unreachable -> True
-  Nop -> True
-  Block{} -> True
+  Unreachable _ -> True
+  Nop _ -> True
+  Block{}-> True
   Loop{} -> True
   If{} -> True
-  Br _ -> True
-  BrIf _ -> True
-  BrTable _ _ -> True
-  Return -> True
-  Call _ -> True
-  CallIndirect _ -> True
+  Br{} -> True
+  BrIf{} -> True
+  BrTable{} -> True
+  Return _  -> True
+  Call{} -> True
+  CallIndirect{} -> True
   _ -> False
 
 isParametricInst :: Instruction index -> Bool
 isParametricInst i = case i of
-  Drop -> True
-  Select -> True
+  Drop _ -> True
+  Select _ -> True
   _ -> False
 
 isMemoryInst :: Instruction index -> Bool
 isMemoryInst i = case i of
-  I32Load _ -> True
-  I64Load _ -> True
-  F32Load _ -> True
-  F64Load _ -> True
-  I32Load8S _ -> True
-  I32Load8U _ -> True
-  I32Load16S _ -> True
-  I32Load16U _ -> True
-  I64Load8S _ -> True
-  I64Load8U _ -> True
-  I64Load16S _ -> True
-  I64Load16U _ -> True
-  I64Load32S _ -> True
-  I64Load32U _ -> True
-  I32Store _ -> True
-  I64Store _ -> True
-  F32Store _ -> True
-  F64Store _ -> True
-  I32Store8 _ -> True
-  I32Store16 _ -> True
-  I64Store8 _ -> True
-  I64Store16 _ -> True
-  I64Store32 _ -> True
-  CurrentMemory -> True
-  GrowMemory -> True
+  I32Load _ _ -> True
+  I64Load _ _ -> True
+  F32Load _ _ -> True
+  F64Load _ _ -> True
+  I32Load8S _ _ -> True
+  I32Load8U _ _ -> True
+  I32Load16S _ _ -> True
+  I32Load16U _ _ -> True
+  I64Load8S _ _ -> True
+  I64Load8U _ _ -> True
+  I64Load16S _ _ -> True
+  I64Load16U _ _ -> True
+  I64Load32S _ _ -> True
+  I64Load32U _ _ -> True
+  I32Store _ _ -> True
+  I64Store _ _ -> True
+  F32Store _ _ -> True
+  F64Store _ _ -> True
+  I32Store8 _ _ -> True
+  I32Store16 _ _ -> True
+  I64Store8 _ _ -> True
+  I64Store16 _ _ -> True
+  I64Store32 _ _ -> True
+  CurrentMemory _ -> True
+  GrowMemory _ -> True
   _ -> False
 
 
 isVariableInst :: Instruction index -> Bool
 isVariableInst i = case i of
-  GetLocal _ -> True
-  SetLocal _ -> True
-  TeeLocal _ -> True
-  GetGlobal _ -> True
-  SetGlobal _ -> True
+  GetLocal _ _ -> True
+  SetLocal _ _ -> True
+  TeeLocal _ _ -> True
+  GetGlobal _ _ -> True
+  SetGlobal _ _ -> True
   _ -> False
 
 isNumericInst :: Instruction index -> Bool
 isNumericInst i = case i of
-  I32Const _ -> True
-  I64Const _ -> True
-  F32Const _ -> True
-  F64Const _ -> True
-  IUnOp _ _ -> True
-  IBinOp _ _ -> True
-  I32Eqz -> True
-  I64Eqz -> True
-  IRelOp _ _ -> True
-  FUnOp _ _ -> True
-  FBinOp _ _ -> True
-  FRelOp _ _ -> True
-  I32WrapI64 -> True
-  ITruncFU _ _ -> True
-  ITruncFS _ _ -> True
-  I64ExtendSI32 -> True
-  I64ExtendUI32 -> True
-  FConvertIU  _ _ -> True
-  FConvertIS _ _ -> True
-  F32DemoteF64 -> True
-  F64PromoteF32 -> True
-  IReinterpretF _ -> True
-  FReinterpretI _ -> True
+  I32Const _ _ -> True
+  I64Const _ _ -> True
+  F32Const _ _ -> True
+  F64Const _ _ -> True
+  IUnOp _ _ _ -> True
+  IBinOp _ _ _ -> True
+  I32Eqz _ -> True
+  I64Eqz _ -> True
+  IRelOp _ _ _ -> True
+  FUnOp _ _ _ -> True
+  FBinOp _ _ _ -> True
+  FRelOp _ _ _ -> True
+  I32WrapI64 _ -> True
+  ITruncFU _ _ _ -> True
+  ITruncFS _ _ _ -> True
+  I64ExtendSI32 _ -> True
+  I64ExtendUI32 _ -> True
+  FConvertIU  _ _ _ -> True
+  FConvertIS _ _ _ -> True
+  F32DemoteF64 _ -> True
+  F64PromoteF32 _ -> True
+  IReinterpretF _ _ -> True
+  FReinterpretI _ _ -> True
   _ -> False
 

@@ -19,6 +19,7 @@ dependencies:
   - bytestring
   - primitive
   - list-singleton
+  - prettyprinter
 
 library:
   ghc-options: -Wall
@@ -37,3 +38,4 @@ tests:
     dependencies:
       - hspec
       - sturdy-wasm
+      - prettyprinter

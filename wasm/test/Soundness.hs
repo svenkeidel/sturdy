@@ -109,7 +109,7 @@ isSoundlyAbstracted mod func argsList = do
     let (AbsList absArgs) = foldr1 (⊔) $ (map (AbsList . map alphaVal1)) $ argsList
     let concResults = map (snd . Concrete.invokeExported concStore concModInst (pack func)) argsList
     let (Terminating temp) = UnitA.invokeExported absStore absModInst (pack func) absArgs
-    let absResult = resultToAbsList $ snd $ temp
+    let absResult = resultToAbsList $ temp
     return $ alphaResult concResults ⊑ absResult
 
     where

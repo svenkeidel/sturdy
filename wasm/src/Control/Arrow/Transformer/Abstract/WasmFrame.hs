@@ -33,11 +33,12 @@ import           Data.Hashable
 import           Data.Monoidal (shuffle1)
 import           Data.Order
 import           Data.Profunctor
+import           Data.Text.Prettyprint.Doc
 import qualified Data.Vector as Vec
 
 import           GHC.Generics
 
-newtype Vector v = Vector (Vec.Vector v) deriving (Show,Eq,Generic)
+newtype Vector v = Vector (Vec.Vector v) deriving (Show,Eq,Generic,Pretty)
 
 instance (Hashable v) => Hashable (Vector v)
 ----    hashWithSalt salt (Vector v) = hashWithSalt salt (Vec.toList v)

@@ -34,12 +34,13 @@ import           Control.Arrow.Writer
 import           Data.Hashable
 import           Data.Order
 import           Data.Profunctor
+import           Data.Text.Prettyprint.Doc
 import           Data.Coerce
 
 import           GHC.Generics
 import           GHC.Exts
 
-newtype AbsList v = AbsList [v] deriving (Show,Eq,Generic)
+newtype AbsList v = AbsList [v] deriving (Show,Eq,Generic,Pretty)
 
 instance (Hashable v) => Hashable (AbsList v)
 
@@ -87,10 +88,11 @@ instance (ArrowChoice c, Profunctor c) => ArrowStack v (StackT v c) where
       [] -> g -< x
       _ -> f -< x
   localFreshStack (StackT f) = StackT $ proc x -> do
-    st <- get -< ()
+    (AbsList st) <- get -< ()
     put -< []
     y <- f -< x
-    put -< st
+    (AbsList stNew) <- get -< ()
+    put -< AbsList $ stNew ++ st
     returnA -< y
   --pop2 = StackT $ modify $ arr $ \((),v2:v1:st) -> ((v1,v2), st)
   --popn = StackT $ modify $ arr $ \(n,st) -> splitAt (fromIntegral n) st

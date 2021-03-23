@@ -1,10 +1,12 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -13,7 +15,8 @@ module UnitAnalysis where
 
 import           Abstract
 import qualified Abstract as A
-import           Concrete (LoadType, StoreType, FuncInst(..), GlobInst(..), TableInst(..), Mut(..))
+import           Concrete (LoadType, StoreType, GlobInst(..), TableInst(..))
+import           Data
 import           GenericInterpreter hiding (Exc)
 import qualified GenericInterpreter as Generic
 
@@ -47,7 +50,7 @@ import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Control.Arrow.Transformer.Abstract.DebuggableStack
 import           Control.Arrow.Transformer.Abstract.Logger
-import           Control.Arrow.Transformer.Abstract.Stack (AbsList)
+import           Control.Arrow.Transformer.Abstract.Stack (AbsList, StackT)
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Value
@@ -63,25 +66,34 @@ import qualified Data.Function as Function
 import           Data.Hashable
 import           Data.HashSet as HashSet
 import           Data.IORef
+import           Data.Label
 import           Data.Order
 import           Data.Abstract.DiscretePowerset
-import           Data.Abstract.Error
+import           Data.Abstract.Error as Error
 import           Data.Abstract.Except
 import qualified Data.Abstract.Powerset as Pow
+import qualified Data.Abstract.Widening as W
 import           Data.Profunctor
 import           Data.Text.Lazy (Text)
+import           Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Vector as Vec
 
 import           Language.Wasm.Interpreter (ModuleInstance,emptyStore,emptyImports)
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure hiding (exports, Const)
+--import           Language.Wasm.Structure hiding (exports, Const)
+import           Language.Wasm.Structure (BitSize(..), IUnOp(..), IBinOp(..), IRelOp(..), FUnOp(..),
+                                          FBinOp(..), FRelOp(..), ValueType(..))
+import qualified Language.Wasm.Structure as Wasm
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
 
 newtype Exc v = Exc (HashSet (Generic.Exc v)) deriving (Eq, Show, Hashable, PreOrd, Complete)
 
-newtype Value = Value (FreeCompletion (BaseValue () () () ())) deriving (Eq, Show, Hashable, PreOrd, Complete)
+instance (Show v) => Pretty (Exc v) where pretty = viaShow
+instance (Show n) => Pretty (Instruction n) where pretty = viaShow
+
+newtype Value = Value (FreeCompletion (BaseValue () () () ())) deriving (Eq, Show, Hashable, PreOrd, Complete, Pretty)
 
 valueI32 = Value $ Lower $ VI32 ()
 valueI64 = Value $ Lower $ VI64 ()
@@ -219,14 +231,14 @@ instance ArrowFix (Underlying (GlobalStateT v c) x y) => ArrowFix (GlobalStateT 
 
 deriving instance (ArrowComplete (FreeCompletion (GlobalState v), y) c) => ArrowComplete y (GlobalStateT v c)
 
-type In = (Pow.Pow [String],
+type In = (
                        (Vector Value,
                         ((Natural, ModuleInstance),
                          (FreeCompletion (GlobalState Value),
                           (AbsList Value, (LabelArities, [Instruction Natural]))))))
 
 type Out = Terminating
-                        (Pow.Pow [String],
+                        (
                          Error
                            (Pow String)
                            (Vector Value,
@@ -234,39 +246,47 @@ type Out = Terminating
                              Except (Exc Value) (AbsList Value, ()))))
 
 invokeExported :: GlobalState Value
-                      -> ModuleInstance
-                      -> Text
-                      -> [Value]
-                      -> Terminating (Pow.Pow [String],
-                           Error (Pow String)
-                                 (Vector Value,
-                                   (FreeCompletion (GlobalState Value),
-                                     Except (Exc Value)
-                                            (AbsList Value, [Value]))))
+                                     -> ModuleInstance
+                                     -> Text
+                                     -> [Value]
+                                     -> Terminating
+                                          (Error
+                                             (Pow String)
+                                             (Vector Value,
+                                              (FreeCompletion (GlobalState Value),
+                                               Except (Exc Value) (AbsList Value, [Value]))))
 invokeExported store modInst funcName args =
-    let ?cacheWidening = error "todo" in
+    let ?cacheWidening = W.finite in
     --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
-    let ?fixpointAlgorithm = fixpointAlgorithm $ Fix.filter isLoop $ innermost in
+    --let algo = (trace p1 p2) . (Fix.filter isRecursive $ innermost) in
+    let algo = Fix.filter isRecursive $ innermost in
+    let ?fixpointAlgorithm = fixpointAlgorithm algo in
     snd $ Trans.run
     (Generic.invokeExported ::
       ValueT Value
         (ReaderT Generic.LabelArities
-          (DebuggableStackT Value
+          (StackT Value
             (ExceptT (Exc Value)
               (GlobalStateT Value
                 (FrameT FrameData Value
                   (ErrorT (Pow String)
-                    (LoggerT String
+                    --(LoggerT String
                       (TerminatingT
                         (FixT
                           (ComponentT Component In
                             (Fix.StackT Fix.Stack In
                               (CacheT Cache In Out
-                                (->))))))))))))) (Text, [Value]) [Value]) (Pow.singleton [],(Vector $ Vec.empty,((0,modInst),(Lower store,([],(Generic.LabelArities [],(funcName, args)))))))
+                                (->)))))))))))) (Text, [Value]) [Value]) (Vector $ Vec.empty,((0,modInst),(Lower store,([],(Generic.LabelArities [],(funcName, args))))))
     where
-        isLoop (_,(_,(_,(_,(_,(_,inst)))))) = case inst of
+        isRecursive (_,(_,(_,(_,(_,inst))))) = case inst of
             Loop {} : _ -> True
+            Call _ _ : _  -> True
+            CallIndirect _ _ : _ -> error "todo"
             _           -> False
+        p1 (locals,(_,(_,(stack,(la, instr))))) = --braces $ hsep (punctuate "," (pretty <$> toList stack))
+                        hsep [pretty stack, pretty locals, pretty la, pretty instr]
+        p2 (Terminating (Error.Success (stack, (_,rest)))) = pretty rest
+        p2 x = pretty x
 
 instantiate :: ValidModule -> IO (Either String (ModuleInstance, GlobalState Value))
 instantiate valMod = do
@@ -279,13 +299,14 @@ instantiate valMod = do
 
     where
         storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
+            let funcs = generate $ Vec.mapM convertFuncInst funcI
             globs <- Vec.mapM convertGlobals globalI
-            return $ GlobalState (Vec.map convertFuncs funcI)
+            return $ GlobalState funcs
                                  (Vec.map TableInst tableI)
                                  globs
 
-        convertFuncs (Wasm.FunctionInstance t m c) = FuncInst t m c
-        convertFuncs (Wasm.HostInstance t _) = HostInst t
+--        convertFuncs (Wasm.FunctionInstance t m c) = error "todo" --FuncInst t m c
+--        convertFuncs (Wasm.HostInstance t _) = HostInst t
 
         convertGlobals (Wasm.GIConst _ v) = return $ Lower $ GlobInst Const (alpha v)
         convertGlobals (Wasm.GIMut _ v) = do

@@ -44,6 +44,7 @@ import           Numeric.Natural (Natural)
 
 --import           GenericInterpreter (LoadType,StoreType)
 import           Concrete
+import           Data
 
 newtype GlobalState2T v c x y = GlobalState2T (StateT (GlobalState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
@@ -62,7 +63,7 @@ instance ArrowTrans (GlobalState2T v) where
     lift' a = GlobalState2T (lift' a)
 
 instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v MemInst (GlobalState2T v c) where
-    readGlobal = 
+    readGlobal =
         GlobalState2T $ proc i -> do
             GlobalState{globalInstances=vec} <- get -< ()
             let (GlobInst _ val) = vec ! i
@@ -74,7 +75,7 @@ instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v MemInst (GlobalStat
             if m == Const
                 then returnA -< error $ "writing to constant global " ++ (show i)
                 else put -< store{globalInstances=vec // [(i, GlobInst m v)]}
-    
+
     -- funcCont :: ReaderT Int (StateT (GlobalState v) c) ((FuncType, ModuleInstance, Function),x) y
     -- we need ReaderT Int (StateT (GlobalState v) c) (Int, x) y
     readFunction (GlobalState2T funcCont) =
@@ -89,10 +90,10 @@ instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v MemInst (GlobalStat
     fetchMemory = GlobalState2T $ proc i -> do
         GlobalState{memInstances=mems} <- get -< ()
         returnA -< mems ! i
-    
+
     storeMemory = GlobalState2T $ proc (i,m) -> do
         gs@GlobalState{memInstances=mems} <- get -< ()
-        put -< gs{memInstances=mems // [(i,m)]} 
+        put -< gs{memInstances=mems // [(i,m)]}
 
 instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (GlobalState2T v c) where
     memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base+ (fromIntegral off))

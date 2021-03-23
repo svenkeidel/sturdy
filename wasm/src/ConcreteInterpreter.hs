@@ -11,6 +11,7 @@
 
 module ConcreteInterpreter where
 
+import           Data
 import           Concrete
 import           GenericInterpreter hiding (eval,evalNumericInst,evalParametricInst,invokeExported,store)
 import qualified GenericInterpreter as Generic
@@ -30,10 +31,13 @@ import           Control.Arrow.Transformer.Concrete.GlobalState
 import           Control.Arrow.Transformer.Concrete.Serialize
 import           Control.Arrow.Transformer.Concrete.WasmFrame
 
+import           Control.Monad.State
+
 import           Data.Concrete.Error
 
 import qualified Data.Function as Function
 import           Data.IORef
+import           Data.Label
 import qualified Data.Primitive.ByteArray as ByteArray
 import           Data.Text.Lazy (Text)
 import           Data.Vector (Vector)
@@ -42,7 +46,8 @@ import           Data.Word
 
 import           Language.Wasm.Interpreter (ModuleInstance,emptyStore,emptyImports)
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure hiding (exports, Const)
+import           Language.Wasm.Structure hiding (exports, Const, Instruction, Function,Expression)
+import qualified Language.Wasm.Structure as Wasm
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
@@ -187,15 +192,13 @@ instantiate valMod = do
 
     where
         storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
+            let funcs = generate $ Vec.mapM convertFuncInst funcI
             mems <- Vec.mapM convertMem memI
             globs <- Vec.mapM convertGlobals globalI
-            return $ GlobalState (Vec.map convertFuncs funcI)
+            return $ GlobalState funcs --(Vec.map convertFuncs funcI)
                                (Vec.map TableInst tableI)
                                mems
                                globs
-
-        convertFuncs (Wasm.FunctionInstance t m c) = FuncInst t m c
-        convertFuncs (Wasm.HostInstance t _) = HostInst t
 
         convertMem (Wasm.MemoryInstance (Limit _ n) mem) = do
             memStore <- readIORef mem

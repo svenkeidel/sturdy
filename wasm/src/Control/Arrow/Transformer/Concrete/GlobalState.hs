@@ -46,6 +46,7 @@ import           Numeric.Natural (Natural)
 
 --import           GenericInterpreter (LoadType,StoreType)
 import           Concrete
+import           Data
 
 newtype GlobalStateT v c x y = GlobalStateT (StateT (GlobalState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,

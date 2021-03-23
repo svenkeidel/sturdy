@@ -5,7 +5,8 @@
 
 module Abstract where
 
-import           Concrete (TableInst, GlobInst, FuncInst)
+import           Data
+import           Concrete (TableInst, GlobInst)
 import           GenericInterpreter hiding (Top)
 
 import           Control.Arrow
@@ -16,6 +17,7 @@ import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as FC
 import           Data.Hashable
 import           Data.Order
+import           Data.Text.Prettyprint.Doc
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vec
 
@@ -40,6 +42,8 @@ instance UpperBounded IsZero where
 
 data BaseValue ai32 ai64 af32 af64 = VI32 ai32 | VI64 ai64 | VF32 af32 | VF64 af64 deriving (Show, Eq, Generic)
 instance (Hashable ai32, Hashable ai64, Hashable af32, Hashable af64) => Hashable (BaseValue ai32 ai64 af32 af64)
+instance (Show ai32, Show ai64, Show af32, Show af64) => Pretty (BaseValue ai32 ai64 af32 af64) where
+    pretty = viaShow
 
 instance (PreOrd ai32, PreOrd ai64, PreOrd af32, PreOrd af64) => PreOrd (BaseValue ai32 ai64 af32 af64) where
     (VI32 v1) ⊑ (VI32 v2) = v1 ⊑ v2
@@ -60,6 +64,8 @@ data GlobalState v = GlobalState {
     tableInstances :: Vector TableInst,
     globalInstances:: Vector (FreeCompletion (GlobInst v))
 } deriving (Show,Eq,Generic)
+
+instance (Show v) => Pretty (GlobalState v) where pretty = viaShow
 
 instance (Hashable v) => Hashable (GlobalState v)
 
