@@ -1,25 +1,101 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Data where
 
---import           Control.DeepSeq (NFData)
 import           Control.Monad.State
+
+import           Data.Hashable
+import           Data.IORef
 import           Data.Label
+import           Data.Order
+import qualified Data.Primitive.ByteArray as ByteArray
 import           Data.Text.Prettyprint.Doc
-import           GHC.Generics (Generic)
 import           Data.Vector (Vector)
-import           Data.Word (Word32, Word64)
+import qualified Data.Vector as Vec
+import           Data.Word (Word8, Word32, Word64)
+
 import           Numeric.Natural (Natural)
 
-import           Language.Wasm.Interpreter (ModuleInstance)
+import           Language.Wasm.Interpreter (ModuleInstance,emptyStore,emptyImports)
 import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Structure (ResultType, MemArg, BitSize, IUnOp(..), IBinOp(..), IRelOp(..),
                                           FUnOp(..), FBinOp(..), FRelOp(..), FuncType, TypeIndex, LocalsType)
 import qualified Language.Wasm.Structure as Wasm
+import           Language.Wasm.Validate (ValidModule)
 
-data Mut = Const | Mutable deriving (Show, Eq, Generic)
+import           GHC.Generics (Generic)
+import           GHC.Exts
 
 instance (Show v) => Pretty (Vector v) where pretty = viaShow
+
+instance (Hashable v) => Hashable (Vector v) where
+    hashWithSalt salt v = hashWithSalt salt (Vec.toList v)
+
+-- wrappers
+newtype JoinVector v = JoinVector (Vector v) deriving (Show,Eq,Generic,Pretty)
+
+instance (Hashable v) => Hashable (JoinVector v)
+----    hashWithSalt salt (Vector v) = hashWithSalt salt (Vec.toList v)
+--
+--instance (Hashable v) => Hashable (Vec.Vector v) where
+--    hashWithSalt salt v = hashWithSalt salt (Vec.toList v)
+
+instance (PreOrd v) => PreOrd (JoinVector v) where
+    (JoinVector v1) ⊑ (JoinVector v2) = all id $ Vec.zipWith (⊑) v1 v2
+
+instance (Complete v) => Complete (JoinVector v) where
+    (JoinVector v1) ⊔ (JoinVector v2) = JoinVector $ Vec.zipWith (⊔) v1 v2
+
+newtype JoinList v = JoinList [v] deriving (Show,Eq,Generic,Pretty)
+
+instance (Hashable v) => Hashable (JoinList v)
+
+instance (PreOrd v) => PreOrd (JoinList v) where
+    (JoinList v1) ⊑ (JoinList v2) = all id $ zipWith (⊑) v1 v2
+
+instance (Complete v) => Complete (JoinList v) where
+    (JoinList v1) ⊔ (JoinList v2) = JoinList $ zipWith (⊔) v1 v2
+
+instance IsList (JoinList v) where
+    type Item (JoinList v) = v
+    fromList = JoinList
+    toList (JoinList vs) = vs
+
+
+-- static part of global state
+
+data StaticGlobalState v = StaticGlobalState {
+    funcInstances :: Vector FuncInst,
+    globalInstances :: Vector (GlobInst v)
+} deriving (Show,Eq,Generic)
+
+instance (PreOrd v) => PreOrd (StaticGlobalState v) where
+    (StaticGlobalState f1 g1) ⊑ (StaticGlobalState f2 g2)
+        | f1 == f2 && Vec.length g1 == Vec.length g2 = Vec.all id $ Vec.zipWith (⊑) g1 g2
+
+instance (Complete v) => Complete (StaticGlobalState v) where
+    (StaticGlobalState f1 g1) ⊔ (StaticGlobalState f2 g2)
+        | f1 == f2 && Vec.length g1 == Vec.length g2 = StaticGlobalState f1 (Vec.zipWith (⊔) g1 g2)
+
+instance (Hashable v) => Hashable (StaticGlobalState v)
+
+data GlobInst v = GlobInst Mut v deriving (Show, Eq, Generic)
+
+instance (Hashable v) => Hashable (GlobInst v)
+
+instance (PreOrd v) => PreOrd (GlobInst v) where
+    (GlobInst m1 v1) ⊑ (GlobInst m2 v2)
+        | m1 == m2 = v1 ⊑ v2
+
+instance (Complete v) => Complete (GlobInst v) where
+    (GlobInst m1 v1) ⊔ (GlobInst m2 v2)
+        | m1 == m2 = GlobInst m1 (v1 ⊔ v2)
+
+data Mut = Const | Mutable deriving (Show, Eq, Generic)
+instance Hashable Mut
 
 data FuncInst =
     FuncInst {
@@ -37,6 +113,11 @@ data Function = Function {
     localTypes :: LocalsType,
     funcBody :: Expression
 } deriving (Show, Eq, Generic)
+
+instance Hashable Function
+instance Hashable FuncInst
+
+-- labeled expressions
 
 type Expression = [Instruction Natural]
 
@@ -257,3 +338,68 @@ convertFunc (Wasm.Function ft lt bd) = Function ft lt <$> sequence (convertExpr 
 
 convertFuncInst :: Wasm.FunctionInstance -> State Label FuncInst
 convertFuncInst (Wasm.FunctionInstance t m c) = FuncInst t m <$> convertFunc c
+
+-- instatiation of modules
+
+instantiate :: ValidModule
+                -> (Wasm.Value -> v)
+                -> (Maybe Word32 -> [Word8] -> m)
+                -> (Wasm.TableInstance -> t)
+                -> IO (Either String (ModuleInstance, StaticGlobalState v, Vector m, Vector t))
+instantiate valMod alpha toMem toTable = do
+    res <- Wasm.instantiate emptyStore emptyImports valMod
+    case res of
+        Right (modInst, store) -> do
+            (staticState,tables,mems) <- storeToGlobalState store
+            return $ Right $ (modInst, staticState, tables, mems)
+        Left e                 -> return $ Left e
+
+    where
+        storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
+            let funcs = generate $ Vec.mapM convertFuncInst funcI
+            mems <- Vec.mapM convertMem memI
+            globs <- Vec.mapM convertGlobal globalI
+            return $ (StaticGlobalState funcs globs,
+                      mems,
+                      Vec.map toTable tableI)
+
+        convertMem (Wasm.MemoryInstance (Wasm.Limit _ n) mem) = do
+            memStore <- readIORef mem
+            size <- ByteArray.getSizeofMutableByteArray memStore
+            list <- sequence $ map (\x -> ByteArray.readByteArray memStore x) [0 .. (size-1)]
+            let sizeConverted = fmap fromIntegral n
+            return $ toMem sizeConverted list
+            --return $ MemInst sizeConverted $ Vec.fromList list
+
+        convertGlobal (Wasm.GIConst _ v) =  return $ GlobInst Const (alpha v)
+        convertGlobal (Wasm.GIMut _ v) = do
+            val <- readIORef v
+            return $ GlobInst Mutable (alpha val)
+
+
+data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U | L_I32S | L_I32U
+  deriving Show
+data StoreType = S_I32 | S_I64 | S_F32 | S_F64 | S_I8 | S_I16
+  deriving Show
+
+-- orphan instances
+
+instance (Hashable v) => Hashable (Instruction v)
+instance Hashable FuncType
+instance Hashable Wasm.ValueType
+instance Hashable ModuleInstance
+instance Hashable MemArg
+instance Hashable BitSize
+instance Hashable Wasm.ExportInstance
+instance Hashable IUnOp
+instance Hashable IBinOp
+instance Hashable IRelOp
+instance Hashable FUnOp
+instance Hashable FBinOp
+instance Hashable FRelOp
+instance Hashable Wasm.ExternalValue
+
+
+deriving instance Generic ModuleInstance
+deriving instance Generic Wasm.ExportInstance
+deriving instance Generic Wasm.ExternalValue

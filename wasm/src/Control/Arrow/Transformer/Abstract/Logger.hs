@@ -36,7 +36,7 @@ import           Data.Profunctor
 newtype LoggerT v c x y = LoggerT (StateT (Pow [v]) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowTrans, ArrowLift, ArrowRun,
               ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e,
-              ArrowGlobalState v1 m, ArrowFrame fd v1, ArrowMemory m addr bytes,
+              ArrowGlobalState v1 m, ArrowFrame fd v1, ArrowMemory addr bytes,
               ArrowMemAddress v1 n addr, ArrowSerialize v1 bytes valTy loadTy storeTy,
               ArrowMemSizable v1, ArrowWriter w, ArrowStack s, ArrowDebuggableStack s, ArrowJoin)
 

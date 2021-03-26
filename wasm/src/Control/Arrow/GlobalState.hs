@@ -46,7 +46,7 @@ class ArrowGlobalState v m c | c -> v, c -> m where
   -- | Invokes `f (fa, x)` if all goes well.
   -- | Invokes `g (ta,ix,x)` if `ix` is out of bounds.
   -- | Invokes `h (ta,ix,x)` if `ix` cell is uninitialized.
-  readTable :: c (Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y -> c (Int,Int,x) y
+  readTable :: c (Int,x) y -> c (Int,v,x) y -> c (Int,v,x) y -> c (Int,v,x) y
 
   fetchMemory :: c Int m
   storeMemory :: c (Int, m) ()

@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -15,10 +16,10 @@ module UnitAnalysis where
 
 import           Abstract
 import qualified Abstract as A
-import           Concrete (LoadType, StoreType, GlobInst(..), TableInst(..))
 import           Data
 import           GenericInterpreter hiding (Exc)
 import qualified GenericInterpreter as Generic
+import           UnitAnalysisValue
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -46,15 +47,17 @@ import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
 import           Control.Arrow.Transformer.Abstract.Fix.Component
 import qualified Control.Arrow.Transformer.Abstract.Fix.Stack as Fix
+import           Control.Arrow.Transformer.Abstract.Memory
+import           Control.Arrow.Transformer.Abstract.Serialize
+import           Control.Arrow.Transformer.Abstract.Table
 import           Control.Arrow.Transformer.Abstract.Terminating
 
-import           Control.Arrow.Transformer.Abstract.DebuggableStack
-import           Control.Arrow.Transformer.Abstract.Logger
-import           Control.Arrow.Transformer.Abstract.Stack (AbsList, StackT)
+import           Control.Arrow.Transformer.Stack (StackT)
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.StaticGlobalState
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Value
-import           Control.Arrow.Transformer.Abstract.WasmFrame
+import           Control.Arrow.Transformer.WasmFrame
 
 import           Control.Category (Category)
 
@@ -93,15 +96,10 @@ newtype Exc v = Exc (HashSet (Generic.Exc v)) deriving (Eq, Show, Hashable, PreO
 instance (Show v) => Pretty (Exc v) where pretty = viaShow
 instance (Show n) => Pretty (Instruction n) where pretty = viaShow
 
-newtype Value = Value (FreeCompletion (BaseValue () () () ())) deriving (Eq, Show, Hashable, PreOrd, Complete, Pretty)
 
-valueI32 = Value $ Lower $ VI32 ()
-valueI64 = Value $ Lower $ VI64 ()
-valueF32 = Value $ Lower $ VF32 ()
-valueF64 = Value $ Lower $ VF64 ()
 
 alpha :: Wasm.Value -> Value
-alpha v = Value $ Lower $ case v of
+alpha v = Value $ case v of
                               Wasm.VI32 _ -> VI32 ()
                               Wasm.VI64 _ -> VI64 ()
                               Wasm.VF32 _ -> VF32 ()
@@ -134,37 +132,6 @@ tailA f = proc () -> do
               case aList of
                   (a:as) -> returnA -< as
 
-instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
-    type JoinVal y (ValueT Value c) = ArrowComplete y (ValueT Value c)
-
-    i32const = proc _ -> returnA -< valueI32
-    i64const = proc _ -> returnA -< valueI64
-    f32const = proc _ -> returnA -< valueF32
-    f64const = proc _ -> returnA -< valueF64
-    iBinOp = proc (bs, op, Value v1, Value v2) ->
-        case (bs,op,v1,v2) of
-            (BS32, IAdd, Lower (VI32 _), Lower (VI32 _)) -> returnA -< Just valueI32
-            (BS32, IMul, Lower (VI32 _), Lower (VI32 _)) -> returnA -< Just valueI32
-            (BS32, ISub, Lower (VI32 _), Lower (VI32 _)) -> returnA -< Just valueI32
-            (BS64, IAdd, Lower (VI64 _), Lower (VI64 _)) -> returnA -< Just valueI64
-            (BS64, IMul, Lower (VI64 _), Lower (VI64 _)) -> returnA -< Just valueI64
-            (BS64, ISub, Lower (VI64 _), Lower (VI64 _)) -> returnA -< Just valueI64
-    iRelOp = proc (bs,op,Value v1, Value v2) ->
-        case (bs,op,v1,v2) of
-            (BS32, IEq, Lower (VI32 _), Lower (VI32 _)) -> returnA -< valueI32
-            (BS64, IEq, Lower (VI64 _), Lower (VI64 _)) -> returnA -< valueI32
-    i32ifNeqz f g = proc (Value v, x) -> do
-        case v of
-            (Lower (VI32 _)) -> (f -< x) <⊔> (g -< x)
-    ifHasType f g = proc (Value v,t,x) -> do
-        case (v,t) of
-            (Lower (VI32 _), I32) -> f -< x
-            (Lower (VI64 _), I64) -> f -< x
-            (Lower (VF32 _), F32) -> f -< x
-            (Lower (VF64 _), F64) -> f -< x
-            _                     -> g -< x
-
-deriving instance ArrowComplete () c => ArrowComplete () (ValueT v c)
 
 instance (ArrowChoice c) => IsException (Exc Value) Value (ValueT Value c) where
     type JoinExc y (ValueT Value c) = ArrowComplete y (ValueT Value c)
@@ -179,83 +146,87 @@ instance (ArrowChoice c) => IsException (Exc Value) Value (ValueT Value c) where
 --                      yn <- f -< nth
 --                      returnA -< y1 ⊔ y2 ⊔ ... ⊔ yn
 
-newtype GlobalStateT v c x y = GlobalStateT (StateT (FreeCompletion (GlobalState v)) c x y)
-    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowReader r,
-              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowLogger l, ArrowJoin)
+--newtype GlobalStateT v c x y = GlobalStateT (StateT (FreeCompletion (GlobalState v)) c x y)
+--    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowReader r,
+--              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowRun, ArrowFrame fd val,
+--              ArrowStack st, ArrowLogger l, ArrowJoin)
+--
+--instance (ArrowState s c) => ArrowState s (GlobalStateT v c) where
+--    -- TODO
+--
+--instance ArrowTrans (GlobalStateT v) where
+--    lift' a = GlobalStateT (lift' a)
+--
+--instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v Int (GlobalStateT v c) where
+--    readFunction (GlobalStateT funcCont) =
+--        GlobalStateT $ proc (i,x) -> do
+--            Lower(GlobalState{funcInstances = fs}) <- get -< ()
+--            case fs Vec.! i of
+--                FuncInst fTy modInst code -> funcCont -< ((fTy,modInst,code),x)
+--                _                         -> returnA -< error "not yet implemented" --hostCont -< ((fTy,code),x)
+--    fetchMemory = arr Prelude.id
+--    storeMemory = arr $ const ()
+--
+--instance (Profunctor c, ArrowChoice c) => ArrowMemory Int () () (GlobalStateT Value c) where
+--    type Join y (GlobalStateT Value c) = ArrowComplete y (GlobalStateT Value c)
+--    memread sCont eCont = proc (i, (_, _, x)) -> do
+--        y <- (sCont -< ((),x)) <⊔> (eCont -< x)
+--        returnA -< (i, y)
+--    memstore sCont eCont = proc (i, (_, _, x)) -> do
+--        y <- (sCont -< x) <⊔> (eCont -< x)
+--        returnA -< (i, y)
+--
+--instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural () (GlobalStateT Value c) where
+--    memaddr = arr $ const ()
+--
+--toTopVal :: ValueType -> Value
+--toTopVal I32 = Value $ Lower $ VI32 top
+--toTopVal I64 = Value $ Lower $ VI64 top
+--toTopVal F32 = Value $ Lower $ VF32 top
+--toTopVal F64 = Value $ Lower $ VF64 top
+--
+--instance (Profunctor c, Arrow c) => ArrowSerialize Value () ValueType LoadType StoreType (GlobalStateT Value c) where
+--    decode sCont = proc ((), _, valTy, x) -> sCont -< (toTopVal valTy, x)
+--    encode sCont = proc (_,_,_,x) -> sCont -< ((),x)
+--
+--instance ArrowMemSizable sz (GlobalStateT Value c) where
+--    -- TODO
+--
+--instance ArrowFix (Underlying (GlobalStateT v c) x y) => ArrowFix (GlobalStateT v c x y) where
+--    type Fix (GlobalStateT v c x y) = Fix (Underlying (GlobalStateT v c) x y)
 
-instance (ArrowState s c) => ArrowState s (GlobalStateT v c) where
-    -- TODO
 
-instance ArrowTrans (GlobalStateT v) where
-    lift' a = GlobalStateT (lift' a)
-
-instance (ArrowChoice c, Profunctor c) => ArrowGlobalState v Int (GlobalStateT v c) where
-    readFunction (GlobalStateT funcCont) =
-        GlobalStateT $ proc (i,x) -> do
-            Lower(GlobalState{funcInstances = fs}) <- get -< ()
-            case fs Vec.! i of
-                FuncInst fTy modInst code -> funcCont -< ((fTy,modInst,code),x)
-                _                         -> returnA -< error "not yet implemented" --hostCont -< ((fTy,code),x)
-    fetchMemory = arr Prelude.id
-    storeMemory = arr $ const ()
-
-instance (Profunctor c, ArrowChoice c) => ArrowMemory Int () () (GlobalStateT Value c) where
-    type Join y (GlobalStateT Value c) = ArrowComplete y (GlobalStateT Value c)
-    memread sCont eCont = proc (i, (_, _, x)) -> do
-        y <- (sCont -< ((),x)) <⊔> (eCont -< x)
-        returnA -< (i, y)
-    memstore sCont eCont = proc (i, (_, _, x)) -> do
-        y <- (sCont -< x) <⊔> (eCont -< x)
-        returnA -< (i, y)
-
-instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural () (GlobalStateT Value c) where
-    memaddr = arr $ const ()
-
-toTopVal :: ValueType -> Value
-toTopVal I32 = Value $ Lower $ VI32 top
-toTopVal I64 = Value $ Lower $ VI64 top
-toTopVal F32 = Value $ Lower $ VF32 top
-toTopVal F64 = Value $ Lower $ VF64 top
-
-instance (Profunctor c, Arrow c) => ArrowSerialize Value () ValueType LoadType StoreType (GlobalStateT Value c) where
-    decode sCont = proc ((), _, valTy, x) -> sCont -< (toTopVal valTy, x)
-    encode sCont = proc (_,_,_,x) -> sCont -< ((),x)
-
-instance ArrowMemSizable sz (GlobalStateT Value c) where
-    -- TODO
-
-instance ArrowFix (Underlying (GlobalStateT v c) x y) => ArrowFix (GlobalStateT v c x y) where
-    type Fix (GlobalStateT v c x y) = Fix (Underlying (GlobalStateT v c) x y)
-
-
-deriving instance (ArrowComplete (FreeCompletion (GlobalState v), y) c) => ArrowComplete y (GlobalStateT v c)
+--deriving instance (ArrowComplete (FreeCompletion (GlobalState v), y) c) => ArrowComplete y (GlobalStateT v c)
 
 type In = (
-                       (Vector Value,
+                       (JoinVector Value,
                         ((Natural, ModuleInstance),
-                         (FreeCompletion (GlobalState Value),
-                          (AbsList Value, (LabelArities, [Instruction Natural]))))))
+                         (Tables,
+                          (StaticGlobalState Value,
+                           (JoinList Value, (LabelArities, [Instruction Natural])))))))
 
 type Out = Terminating
                         (
                          Error
                            (Pow String)
-                           (Vector Value,
-                            (FreeCompletion (GlobalState Value),
-                             Except (Exc Value) (AbsList Value, ()))))
+                           (JoinVector Value,
+                            (Tables,
+                             (StaticGlobalState Value,
+                              Except (Exc Value) (JoinList Value, ())))))
 
-invokeExported :: GlobalState Value
+invokeExported :: StaticGlobalState Value
+                                     -> Tables
                                      -> ModuleInstance
                                      -> Text
                                      -> [Value]
                                      -> Terminating
                                           (Error
                                              (Pow String)
-                                             (Vector Value,
-                                              (FreeCompletion (GlobalState Value),
-                                               Except (Exc Value) (AbsList Value, [Value]))))
-invokeExported store modInst funcName args =
+                                             (JoinVector Value,
+                                              (Tables,
+                                                (StaticGlobalState Value,
+                                                 Except (Exc Value) (JoinList Value, [Value])))))
+invokeExported store tab modInst funcName args =
     let ?cacheWidening = W.finite in
     --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
     --let algo = (trace p1 p2) . (Fix.filter isRecursive $ innermost) in
@@ -267,18 +238,21 @@ invokeExported store modInst funcName args =
         (ReaderT Generic.LabelArities
           (StackT Value
             (ExceptT (Exc Value)
-              (GlobalStateT Value
-                (FrameT FrameData Value
-                  (ErrorT (Pow String)
+              (StaticGlobalStateT Value
+                (MemoryT
+                  (SerializeT
+                    (TableT
+                      (FrameT FrameData Value
+                        (ErrorT (Pow String)
                     --(LoggerT String
-                      (TerminatingT
-                        (FixT
-                          (ComponentT Component In
-                            (Fix.StackT Fix.Stack In
-                              (CacheT Cache In Out
-                                (->)))))))))))) (Text, [Value]) [Value]) (Vector $ Vec.empty,((0,modInst),(Lower store,([],(Generic.LabelArities [],(funcName, args))))))
+                          (TerminatingT
+                            (FixT
+                              (ComponentT Component In
+                                (Fix.StackT Fix.Stack  In
+                                  (CacheT Cache In Out
+                                    (->))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(store,([],(Generic.LabelArities [],(funcName, args)))))))
     where
-        isRecursive (_,(_,(_,(_,(_,inst))))) = case inst of
+        isRecursive (_,(_,(_,(_,(_,(_,inst)))))) = case inst of
             Loop {} : _ -> True
             Call _ _ : _  -> True
             CallIndirect _ _ : _ -> error "todo"
@@ -288,27 +262,31 @@ invokeExported store modInst funcName args =
         p2 (Terminating (Error.Success (stack, (_,rest)))) = pretty rest
         p2 x = pretty x
 
-instantiate :: ValidModule -> IO (Either String (ModuleInstance, GlobalState Value))
-instantiate valMod = do
-    res <- Wasm.instantiate emptyStore emptyImports valMod
-    case res of
-        Right (modInst, store) -> do
-            wasmStore <- storeToGlobalState store
-            return $ Right $ (modInst, wasmStore)
-        Left e -> return $ Left e
+instantiateAbstract :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Tables))
+instantiateAbstract valMod = do res <- instantiate valMod alpha (\_ _ -> ()) TableInst
+                                return $ fmap (\(m,s,_,tab) -> (m,s,JoinVector tab)) res
 
-    where
-        storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
-            let funcs = generate $ Vec.mapM convertFuncInst funcI
-            globs <- Vec.mapM convertGlobals globalI
-            return $ GlobalState funcs
-                                 (Vec.map TableInst tableI)
-                                 globs
-
---        convertFuncs (Wasm.FunctionInstance t m c) = error "todo" --FuncInst t m c
---        convertFuncs (Wasm.HostInstance t _) = HostInst t
-
-        convertGlobals (Wasm.GIConst _ v) = return $ Lower $ GlobInst Const (alpha v)
-        convertGlobals (Wasm.GIMut _ v) = do
-            val <- readIORef v
-            return $ Lower $ GlobInst Mutable (alpha val)
+--instantiate :: ValidModule -> IO (Either String (ModuleInstance, GlobalState Value))
+--instantiate valMod = do
+--    res <- Wasm.instantiate emptyStore emptyImports valMod
+--    case res of
+--        Right (modInst, store) -> do
+--            wasmStore <- storeToGlobalState store
+--            return $ Right $ (modInst, wasmStore)
+--        Left e -> return $ Left e
+--
+--    where
+--        storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
+--            let funcs = generate $ Vec.mapM convertFuncInst funcI
+--            globs <- Vec.mapM convertGlobals globalI
+--            return $ GlobalState funcs
+--                                 (Vec.map TableInst tableI)
+--                                 globs
+--
+----        convertFuncs (Wasm.FunctionInstance t m c) = error "todo" --FuncInst t m c
+----        convertFuncs (Wasm.HostInstance t _) = HostInst t
+--
+--        convertGlobals (Wasm.GIConst _ v) = return $ Lower $ GlobInst Const (alpha v)
+--        convertGlobals (Wasm.GIMut _ v) = do
+--            val <- readIORef v
+--            return $ Lower $ GlobInst Mutable (alpha val)

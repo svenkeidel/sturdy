@@ -4,6 +4,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -19,17 +20,17 @@ import qualified GenericInterpreter as Generic
 import           Control.Arrow
 import qualified Control.Arrow.Trans as Trans
 
-import           Control.Arrow.Transformer.DebuggableStack
-import           Control.Arrow.Transformer.Logger
 import           Control.Arrow.Transformer.Stack
+import           Control.Arrow.Transformer.StaticGlobalState
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Value
+import           Control.Arrow.Transformer.WasmFrame
 
 import           Control.Arrow.Transformer.Concrete.Failure
 import           Control.Arrow.Transformer.Concrete.Except
-import           Control.Arrow.Transformer.Concrete.GlobalState
+import           Control.Arrow.Transformer.Concrete.Memory
 import           Control.Arrow.Transformer.Concrete.Serialize
-import           Control.Arrow.Transformer.Concrete.WasmFrame
+import           Control.Arrow.Transformer.Concrete.Table
 
 import           Control.Monad.State
 
@@ -46,7 +47,7 @@ import           Data.Word
 
 import           Language.Wasm.Interpreter (ModuleInstance,emptyStore,emptyImports)
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure hiding (exports, Const, Instruction, Function,Expression)
+import           Language.Wasm.Structure hiding (exports, Const, Instruction, Function,Expression,Memory,Table)
 import qualified Language.Wasm.Structure as Wasm
 import           Language.Wasm.Validate (ValidModule)
 
@@ -104,37 +105,39 @@ addVal :: Wasm.Value -> Wasm.Value -> Wasm.Value
 addVal (Wasm.VI32 v1) (Wasm.VI32 v2) = Wasm.VI32 $ v1 + v2
 
 
-evalNumericInst :: (Instruction Natural) -> [Value] -> Error (Exc Value) Value
-evalNumericInst inst stack =
-    snd $ Trans.run
-      (Generic.evalNumericInst ::
-        ValueT Value
-          (ExceptT (Exc Value)
-            (StackT Value
-              (->))) (Instruction Natural) Value) (stack,inst)
-
-
---type TransStack = FrameT FrameData Value (StackT Value (->))
+--evalNumericInst :: (Instruction Natural) -> [Value] -> Error (Exc Value) Value
+--evalNumericInst inst stack =
+--    snd $ Trans.run
+--      (Generic.evalNumericInst ::
+--        ValueT Value
+--          (ExceptT (Exc Value)
+--            (StackT Value
+--              (->))) (Instruction Natural) Value) (AbsList stack,inst)
 --
-evalVariableInst :: (Instruction Natural) -> [Value] -> FrameData -> Vector Value
-            -> GlobalState Value -> ([Value], (Vector Value, (GlobalState Value, ())))
-evalVariableInst inst stack fd locals store =
-    Trans.run
-      (Generic.evalVariableInst ::
-        GlobalStateT Value
-          (FrameT FrameData Value
-            (StackT Value
-              (->))) (Instruction Natural) ()) (stack, (locals, (fd,(store, inst))))
-
-
-evalParametricInst :: (Instruction Natural) -> [Value] -> ([Value], ())
-evalParametricInst inst stack =
-    Trans.run
-      (Generic.evalParametricInst ::
-        ValueT Value
-          (StackT Value
-            (->)) (Instruction Natural) ()) (stack,inst)
-
+--
+----type TransStack = FrameT FrameData Value (StackT Value (->))
+----
+--evalVariableInst :: (Instruction Natural) -> [Value] -> FrameData -> Vector Value
+--            -> GlobalState Value -> ([Value], (Vector Value, (GlobalState Value, ())))
+--evalVariableInst inst stack fd locals store =
+--    unabs $ Trans.run
+--      (Generic.evalVariableInst ::
+--        GlobalStateT Value
+--          (FrameT FrameData Value
+--            (StackT Value
+--              (->))) (Instruction Natural) ()) (AbsList stack, (locals, (fd,(store, inst))))
+--    where unabs (AbsList x,y) = (x,y)
+--
+--
+--evalParametricInst :: (Instruction Natural) -> [Value] -> ([Value], ())
+--evalParametricInst inst stack =
+--    unabs $ Trans.run
+--      (Generic.evalParametricInst ::
+--        ValueT Value
+--          (StackT Value
+--            (->)) (Instruction Natural) ()) (AbsList stack,inst)
+--    where unabs (AbsList x,y) = (x,y)
+--
 
 --eval :: [Instruction Natural] -> [Value] -> Generic.LabelArities -> Vector Value -> FrameData ->
 --        GlobalState Value -> Int ->
@@ -155,59 +158,72 @@ evalParametricInst inst stack =
 --                (StackT Value
 --                  (->)))))) [Instruction Natural] ()) (stack,(r,(locals,(fd,(wasmStore,(currentMem,inst))))))
 
+type Result = (Error
+                             [Char]
+                             (JoinVector Value,
+                              (Tables,
+                               (Memories,
+                                (StaticGlobalState Value, Error (Exc Value) (JoinList Value, [Value]))))))
 
 
-invokeExported :: GlobalState Value
+invokeExported :: StaticGlobalState Value
+                        -> Memories
+                        -> Tables
                         -> ModuleInstance
                         -> Text
                         -> [Value]
-                        -> ([String], Error
+                        -> (Error
                              [Char]
-                             (Vector Value,
-                              (GlobalState Value, Error (Exc Value) ([Value], [Value]))))
-invokeExported store modInst funcName args =
+                             (JoinVector Value,
+                              (Tables,
+                               (Memories,
+                                (StaticGlobalState Value, Error (Exc Value) (JoinList Value, [Value]))))))
+invokeExported staticS mem tab modInst funcName args =
     let ?fixpointAlgorithm = Function.fix in
     Trans.run
     (Generic.invokeExported ::
       ValueT Value
         (ReaderT Generic.LabelArities
-          (DebuggableStackT Value
+          (StackT Value
             (ExceptT (Generic.Exc Value)
-              (GlobalStateT Value
-                (SerializeT
-                  (FrameT FrameData Value
-                    (FailureT String
-                      (LoggerT String
-                        (->))))))))) (Text, [Value]) [Value]) ([],(Vec.empty,((0,modInst),(store,([],(Generic.LabelArities [],(funcName,args)))))))
+              (StaticGlobalStateT Value
+                (MemoryT
+                  (SerializeT
+                    (TableT
+                      (FrameT FrameData Value
+                        (FailureT String
+                          (->)))))))))) (Text, [Value]) [Value]) (JoinVector Vec.empty,((0,modInst),(tab,(mem,(staticS,([],(Generic.LabelArities [],(funcName,args))))))))
 
 
-instantiate :: ValidModule -> IO (Either String (ModuleInstance, GlobalState Value))
-instantiate valMod = do
-    res <- Wasm.instantiate emptyStore emptyImports valMod
-    case res of
-        Right (modInst, store) -> do
-            wasmStore <- storeToGlobalState store
-            return $ Right $ (modInst, wasmStore)
-        Left e                 -> return $ Left e
-
+instantiateConcrete :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Memories, Tables))
+instantiateConcrete valMod = instantiate valMod Value toMem TableInst
     where
-        storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
-            let funcs = generate $ Vec.mapM convertFuncInst funcI
-            mems <- Vec.mapM convertMem memI
-            globs <- Vec.mapM convertGlobals globalI
-            return $ GlobalState funcs --(Vec.map convertFuncs funcI)
-                               (Vec.map TableInst tableI)
-                               mems
-                               globs
-
-        convertMem (Wasm.MemoryInstance (Limit _ n) mem) = do
-            memStore <- readIORef mem
-            size <- ByteArray.getSizeofMutableByteArray memStore
-            list <- sequence $ map (\x -> ByteArray.readByteArray memStore x) [0 .. (size-1)]
-            let sizeConverted = fmap fromIntegral n
-            return $ MemInst sizeConverted $ Vec.fromList list
-
-        convertGlobals (Wasm.GIConst _ v) =  return $ GlobInst Const (Value v)
-        convertGlobals (Wasm.GIMut _ v) = do
-            val <- readIORef v
-            return $ GlobInst Mutable (Value val)
+        toMem size lst = MemInst size (Vec.fromList lst)
+--    res <- Wasm.instantiate emptyStore emptyImports valMod
+--    case res of
+--        Right (modInst, store) -> do
+--            wasmStore <- storeToGlobalState store
+--            return $ Right $ (modInst, wasmStore)
+--        Left e                 -> return $ Left e
+--
+--    where
+--        storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
+--            let funcs = generate $ Vec.mapM convertFuncInst funcI
+--            mems <- Vec.mapM convertMem memI
+--            globs <- Vec.mapM convertGlobals globalI
+--            return $ GlobalState funcs --(Vec.map convertFuncs funcI)
+--                               (Vec.map TableInst tableI)
+--                               mems
+--                               globs
+--
+--        convertMem (Wasm.MemoryInstance (Limit _ n) mem) = do
+--            memStore <- readIORef mem
+--            size <- ByteArray.getSizeofMutableByteArray memStore
+--            list <- sequence $ map (\x -> ByteArray.readByteArray memStore x) [0 .. (size-1)]
+--            let sizeConverted = fmap fromIntegral n
+--            return $ MemInst sizeConverted $ Vec.fromList list
+--
+--        convertGlobals (Wasm.GIConst _ v) =  return $ GlobInst Const (Value v)
+--        convertGlobals (Wasm.GIMut _ v) = do
+--            val <- readIORef v
+--            return $ GlobInst Mutable (Value val)

@@ -15,7 +15,7 @@ import           Control.Arrow.Transformer.Concrete.Except as CE
 import           Control.Arrow.Transformer.Abstract.Except as AE
 import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
-import           Control.Arrow.Transformer.Stack
+--import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Writer
@@ -35,7 +35,7 @@ instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize va
     decode a = lift $ decode (unlift a)
 
     encode a= lift $ encode (unlift a)
-deriving instance (Arrow c, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (StackT v c)
+--deriving instance (Arrow c, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (StackT v c)
 instance (Arrow c, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (StateT s c) where
     decode a = lift $ proc (s, (dat, datdecTy, valTy, x)) ->
         decode (proc (val, (s,x)) -> (unlift a) -< (s, (val,x)))
