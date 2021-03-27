@@ -115,10 +115,6 @@ mapList f = proc (as,x) -> do
                             b <- f -< (a,x)
                             returnA -< b:bs
 
-joinList1'' :: (ArrowChoice c, ArrowComplete y c) => c (v,x) y -> c ([v],x) y
-joinList1'' f = proc (vs,x) -> case vs of
-                    [v]    -> f -< (v,x)
-                    (v:vss) -> (f -< (v,x)) <⊔> (joinList1'' f -< (vss,x))
 --joinList1'' f = proc (acc,bs) -> do
 --                 case bs of
 --                     [] -> returnA -< acc
@@ -210,9 +206,18 @@ type Out = Terminating
                          Error
                            (Pow String)
                            (JoinVector Value,
-                            (Tables,
+                            --(Tables,
                              (StaticGlobalState Value,
-                              Except (Exc Value) (JoinList Value, ())))))
+                              Except (Exc Value) (JoinList Value, ()))))
+
+
+type Result = Terminating
+                                          (Error
+                                             (Pow String)
+                                             (JoinVector Value,
+                                              --(Tables,
+                                                (StaticGlobalState Value,
+                                                 Except (Exc Value) (JoinList Value, [Value]))))
 
 invokeExported :: StaticGlobalState Value
                                      -> Tables
@@ -223,9 +228,9 @@ invokeExported :: StaticGlobalState Value
                                           (Error
                                              (Pow String)
                                              (JoinVector Value,
-                                              (Tables,
+                                              --(Tables,
                                                 (StaticGlobalState Value,
-                                                 Except (Exc Value) (JoinList Value, [Value])))))
+                                                 Except (Exc Value) (JoinList Value, [Value]))))
 invokeExported store tab modInst funcName args =
     let ?cacheWidening = W.finite in
     --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
@@ -255,7 +260,7 @@ invokeExported store tab modInst funcName args =
         isRecursive (_,(_,(_,(_,(_,(_,inst)))))) = case inst of
             Loop {} : _ -> True
             Call _ _ : _  -> True
-            CallIndirect _ _ : _ -> error "todo"
+            CallIndirect _ _ : _ -> True --error "todo"
             _           -> False
         p1 (locals,(_,(_,(stack,(la, instr))))) = --braces $ hsep (punctuate "," (pretty <$> toList stack))
                         hsep [pretty stack, pretty locals, pretty la, pretty instr]

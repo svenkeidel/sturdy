@@ -15,7 +15,6 @@ import           Control.Arrow.Transformer.Abstract.Except as AE
 import           Control.Arrow.Transformer.Concrete.Except as CE
 import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
---import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Writer
@@ -54,35 +53,23 @@ instance (Arrow c, Profunctor c, Functor f, ArrowMemory addr bytes c) => ArrowMe
         (memstore (unlift a1) (unlift a2))-- >>^ moveIn
         where moveIn (m, ey) = fmap ((,) m) ey
 
---deriving instance (Arrow c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (StackT e c)
 instance (Arrow c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (StateT s c) where
     type Join y (StateT s c) = Join (s,y) c
-    -- a1 :: StateT s c (bytes,x) y, a2 :: StateT s c x y
-    -- c1 :: c (s, (bytes,x)) (s,y), c2 :: c (s,x) (s,y)
-    -- memread :: c (bytes,x) y -> c x y -> c (m, (addr, Int, x)) (m,y)
-    -- memread on StateT :: StateT s c (bytes,x) y -> StateT s c x y -> StateT s c (m,(addr,Int,x)) (m,y)
-    -- StateT s c (m,(addr,bytes,x)) (m,y) has the form
-    --          StateT $ c (s,(m,(addr,Int,x))) (s,(m,y))
-    -- we need c (s, (m, (addr,Int,x))) (s, (m,y))
---    memread a1 a2 = lift $ proc (s, (m, (addr,i,x))) -> do
---    -- memread :: c (bytes,x) y -> c x y -> c (m, (addr, Int, x)) (m,y)
---    -- memread :: c (bytes,(s,x)) (s,y) -> c (s,x) (s,y) -> c (m, (addr, Int, (s,x))) (m, (s,y))
---        (newM, (newS,y)) <- memread (proc (bytes,(s,x)) -> unlift a1 -< (s, (bytes,x)))
---                                    (unlift a2)
---                                    -< (m, (addr,i,(s,x)))
---        returnA -< (newS, (newM, y))
---
---    memstore a1 a2 = lift $ proc (s, (m, (addr,bytes,x))) -> do
---        (newM, (newS,y)) <- memstore (unlift a1) (unlift a2) -< (m, (addr,bytes,(s,x)))
---        returnA -< (newS, (newM, y))
+    memread a1 a2 = lift $ proc (s, (ma,addr,i,x)) -> do
+        memread (proc (bytes,(s,x)) -> unlift a1 -< (s, (bytes,x)))
+                (unlift a2)
+                -< (ma,addr,i,(s,x))
+
+    memstore a1 a2 = lift $ proc (s, (ma,addr,bytes,x)) -> do
+        memstore (unlift a1) (unlift a2) -< (ma,addr,bytes,(s,x))
 
 instance (Arrow c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (ReaderT r c) where
     type Join y (ReaderT r c) = Join y c
---    memread a1 a2 = lift $ proc (r, (m, (addr,i,x))) ->
---        memread (proc (bytes, (r,x)) -> unlift a1 -< (r, (bytes,x)))
---                (unlift a2)
---                -< (m, (addr,i,(r,x)))
---    memstore a1 a2 = lift $ proc (r, (m, (addr,bytes,x))) ->
---        memstore (unlift a1) (unlift a2) -< (m, (addr, bytes, (r,x)))
+    memread a1 a2 = lift $ proc (r, (ma,addr,i,x)) ->
+        memread (proc (bytes, (r,x)) -> unlift a1 -< (r, (bytes,x)))
+                (unlift a2)
+                -< (ma,addr,i,(r,x))
+    memstore a1 a2 = lift $ proc (r, (ma,addr,bytes,x)) ->
+        memstore (unlift a1) (unlift a2) -< (ma, addr, bytes, (r,x))
 instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (WriterT r c) where
     -- TODO

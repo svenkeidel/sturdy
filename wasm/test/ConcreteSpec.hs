@@ -90,10 +90,15 @@ spec = do
         let rs = map succResult results
         rs `shouldBe` (map (singleton . Value . Wasm.VI64) [1,1,2,6,24,120,720,5040,40320])
 
---    it "run test-mem" $ do
---        result <- runFunc "simple" "test-mem" [Value $ Wasm.VI32 42]
---        (succResult result) `shouldBe` [Value $ Wasm.VI32 43]
---
+    it "run test-mem" $ do
+        result <- runFunc "simple" "test-mem" [Value $ Wasm.VI32 42]
+        (succResult result) `shouldBe` [Value $ Wasm.VI32 43]
+
+    it "run test-call-indirect" $ do
+        result <- runFunc "simple" "test-call-indirect" []
+        --result `shouldSatisfy` (const False)
+        (succResult result) `shouldBe` [Value $ Wasm.VI32 0]
+
 --    it "run test-br1" $ do
 --        let path = "test/samples/simple.wast"
 --        content <- LBS.readFile path

@@ -168,7 +168,8 @@ invokeExported ::
     Mem.Join () c,
     JoinVal () c, Show v,
     Fail.Join [v] c,
-    Fail.Join () c)
+    Fail.Join () c,
+    JoinTable () c)
   => c (Text, [v]) [v]
 invokeExported = proc (funcName, args) -> do
   (_, modInst) <- frameData -< () -- get the module instance
@@ -185,7 +186,8 @@ invokeExternal ::
     Mem.Join () c,
     JoinVal () c, Show v,
     Exc.Join () c,
-    Fail.Join () c)
+    Fail.Join () c,
+    JoinTable () c)
   => c (Int, [v]) [v]
 invokeExternal = proc (funcAddr, args) ->
   readFunction
@@ -228,7 +230,8 @@ eval ::
     JoinExc () c,
     Mem.Join () c,
     JoinVal () c, Show v,
-    Exc.Join () c)
+    Exc.Join () c,
+    JoinTable () c)
   => c [Instruction Natural] ()
 eval = fix $ \eval' -> proc is -> do
     --stack <- getStack -< ()
@@ -271,7 +274,8 @@ evalControlInst ::
     ArrowDynamicComponents v addr bytes exc e c,
     JoinVal () c,
     JoinExc () c,
-    Exc.Join () c)
+    Exc.Join () c,
+    JoinTable () c)
   => c [Instruction Natural] () -> c (Instruction Natural) ()
 evalControlInst eval' = proc i -> case i of
   Unreachable _ -> throw <<< exception -< Trap "Execution of unreachable instruction"

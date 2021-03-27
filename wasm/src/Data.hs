@@ -1,9 +1,13 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Data where
+
+import           Control.Arrow (ArrowChoice)
+import           Control.Arrow.Order(ArrowComplete,(<⊔>))
 
 import           Control.Monad.State
 
@@ -71,6 +75,9 @@ data StaticGlobalState v = StaticGlobalState {
     funcInstances :: Vector FuncInst,
     globalInstances :: Vector (GlobInst v)
 } deriving (Show,Eq,Generic)
+
+instance (Show v) => Pretty (StaticGlobalState v) where
+    pretty = viaShow
 
 instance (PreOrd v) => PreOrd (StaticGlobalState v) where
     (StaticGlobalState f1 g1) ⊑ (StaticGlobalState f2 g2)
@@ -299,6 +306,7 @@ convertInstruction i = case i of
     Wasm.BrTable is i -> brTable is i
     Wasm.Return -> return_
     Wasm.Call i -> call i
+    Wasm.CallIndirect i -> callIndirect i
     Wasm.Drop -> drop_
     Wasm.Select -> select
     Wasm.GetLocal i -> getLocal i
@@ -381,6 +389,13 @@ data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U 
   deriving Show
 data StoreType = S_I32 | S_I64 | S_F32 | S_F64 | S_I8 | S_I16
   deriving Show
+
+-- helper functions
+
+joinList1'' :: (ArrowChoice c, ArrowComplete y c) => c (v,x) y -> c ([v],x) y
+joinList1'' f = proc (vs,x) -> case vs of
+                    [v]    -> f -< (v,x)
+                    (v:vss) -> (f -< (v,x)) <⊔> (joinList1'' f -< (vss,x))
 
 -- orphan instances
 

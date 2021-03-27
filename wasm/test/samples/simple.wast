@@ -1,5 +1,14 @@
 (module
   (memory 1)
+
+  (table anyfunc
+    (elem
+      $noop
+    )
+  )
+
+  (type $out-i32 (func (result i32)))
+
   ;; Recursive factorial
   (func (export "const") (param i32) (result i32)
     (get_local 0)
@@ -182,5 +191,9 @@
       )
       unreachable
     )
+  )
+
+  (func (export "test-call-indirect") (result i32)
+    (call_indirect (type $out-i32) (i32.const 0))
   )
 )

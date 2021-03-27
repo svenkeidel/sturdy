@@ -5,7 +5,8 @@ module UnitSpec where
 import           Abstract (BaseValue(..))
 import qualified Concrete as Concrete
 import qualified ConcreteInterpreter as Concrete
-import           UnitAnalysis
+import           UnitAnalysis as U
+import           UnitAnalysisValue
 import           Soundness
 import           GenericInterpreter(Exc(..))
 
@@ -50,14 +51,26 @@ readModule path = do
     let Right validMod = validate m
     return validMod
 
+runFunc :: String -> String -> [Value] -> IO Result
+runFunc modName funcName args = do
+    mod <- readModule ("test/samples/" ++ modName ++ ".wast")
+    Right (modInst, staticS, tabs) <- instantiateAbstract mod
+    return $ invokeExported staticS tabs modInst (pack funcName) args
+
+succResult :: Result -> [Value]
+succResult (Terminating (Success (_,(_,(Exc.Success (_,result)))))) = result
+
+excResult :: Result -> Exc.Except (U.Exc Value) [Value]
+excResult (Terminating (Success (_,(_,(Exc.Success (_,result)))))) = Exc.Success result
+excResult (Terminating (Success (_,(_,(Exc.SuccessOrFail e (_,result)))))) = Exc.SuccessOrFail e result
+excResult (Terminating (Success (_,(_,(Exc.Fail e))))) = Exc.Fail e
 
 
 spec :: Spec
 spec = do
-    it "" $ do
-        pending
---
---    it "run fact" $ do
+    it "run fact" $ do
+        result <- runFunc "fact" "fac-rec" [Value $ VI64 ()]
+        (succResult result) `shouldBe` [Value $ VI64 ()]
 --        validMod <- readModule "test/samples/fact.wast"
 --        Right (modInst, store) <- instantiate validMod
 --        let (Success (_,(_,(Exc.Success (_,result))))) = term $ invokeExported store modInst (pack "fac-rec") [Value $ Lower $ VI64 ()]
@@ -73,29 +86,25 @@ spec = do
 ----        putStrLn (show temp)
 --        sound <- isSoundlyAbstracted validMod "fac-rec" args
 --        sound `shouldBe` True
---
---    it "run test2" $ do
---        let path = "test/samples/simple.wast"
---        content <- LBS.readFile path
---        let Right m = parse content
---        let Right validMod = validate m
---        Right (modInst, store) <- instantiate validMod
---        let ((Success (_,(_,(Exc.Success (_,result)))))) = term $ invokeExported store modInst (pack "test2") []
---        result `shouldBe` [Value $ Lower $ VI32 ()]
---
---
---    it "run test-br3" $ do
---        let path = "test/samples/simple.wast"
---        content <- LBS.readFile path
---        let Right m = parse content
---        let Right validMod = validate m
---        Right (modInst, store) <- instantiate validMod
---        let ((Success (_,(_,(Exc.Success (_,result)))))) = term $ invokeExported store modInst (pack "test-br3") [Value $ Lower $ VI32 ()]
---        result `shouldBe` [Value $ Lower $ VI32 ()]
+
+    it "run test2" $ do
+        result <- runFunc "simple" "test2" []
+        (succResult result) `shouldBe` [Value $ VI32 ()]
+
+
+    it "run test-br3" $ do
+        result <- runFunc "simple" "test-br3" [Value $ VI32 ()]
+        (succResult result) `shouldBe` [Value $ VI32 ()]
 --        let args = [[Concrete.Value $ Wasm.VI32 10]]
 --        sound <- isSoundlyAbstracted validMod "test-br3" args
 --        sound `shouldBe` True
---
+
+    it "run test-call-indirect" $ do
+        result <- runFunc "simple" "test-call-indirect" []
+        (excResult result) `shouldSatisfy` (\x -> case x of
+                                              (Exc.SuccessOrFail _ [Value (VI32 ())]) -> True
+                                              _ -> False)
+
 --    it "run non-terminating" $ do
 --        validMod <- readModule "test/samples/simple.wast"
 --        Right (modInst, store) <- instantiate validMod
