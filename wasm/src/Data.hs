@@ -202,6 +202,75 @@ data Instruction index =
     | FReinterpretI BitSize Label
     deriving (Show, Eq, Generic)
 
+instance HasLabel (Instruction i) where
+    label e = case e of
+        Unreachable l -> l
+        Nop l -> l
+        Block _ _ l -> l
+        Loop _ _ l -> l
+        If _ _ _ l -> l
+        Br _ l -> l
+        BrIf _ l -> l
+        BrTable _ _ l -> l
+        Return l -> l
+        Call _ l -> l
+        CallIndirect _ l -> l
+        Drop l -> l
+        Select l -> l
+        GetLocal _ l -> l
+        SetLocal _ l -> l
+        TeeLocal _ l -> l
+        GetGlobal _ l -> l
+        SetGlobal _ l -> l
+        I32Load _ l -> l
+        I64Load _ l -> l
+        F32Load _ l -> l
+        F64Load _ l -> l
+        I32Load8S _ l -> l
+        I32Load8U _ l -> l
+        I32Load16S _ l -> l
+        I32Load16U _ l -> l
+        I64Load8S _ l -> l
+        I64Load8U _ l -> l
+        I64Load16S _ l -> l
+        I64Load16U _ l -> l
+        I64Load32S _ l -> l
+        I64Load32U _ l -> l
+        I32Store _ l -> l
+        I64Store _ l -> l
+        F32Store _ l -> l
+        F64Store _ l -> l
+        I32Store8 _ l -> l
+        I32Store16 _ l -> l
+        I64Store8 _ l -> l
+        I64Store16 _ l -> l
+        I64Store32 _ l -> l
+        CurrentMemory l -> l
+        GrowMemory l -> l
+        I32Const _ l -> l
+        I64Const _ l -> l
+        F32Const _ l -> l
+        F64Const _ l -> l
+        IUnOp _ _ l -> l
+        IBinOp _ _ l -> l
+        I32Eqz l -> l
+        I64Eqz l -> l
+        IRelOp _ _ l -> l
+        FUnOp _ _ l -> l
+        FBinOp _ _ l -> l
+        FRelOp _ _ l -> l
+        I32WrapI64 l -> l
+        ITruncFU _ _ l -> l
+        ITruncFS _ _  l -> l
+        I64ExtendSI32 l -> l
+        I64ExtendUI32 l -> l
+        FConvertIU _ _  l -> l
+        FConvertIS _ _ l -> l
+        F32DemoteF64 l -> l
+        F64PromoteF32 l -> l
+        IReinterpretF _ l -> l
+        FReinterpretI _ l -> l
+
 type LInstruction = State Label (Instruction Natural)
 
 unreachable :: LInstruction

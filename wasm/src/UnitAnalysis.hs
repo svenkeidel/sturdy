@@ -28,6 +28,7 @@ import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic (innermost)
+import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
 import           Control.Arrow.MemSizable
@@ -46,6 +47,7 @@ import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
 import           Control.Arrow.Transformer.Abstract.Fix.Component
+import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import qualified Control.Arrow.Transformer.Abstract.Fix.Stack as Fix
 import           Control.Arrow.Transformer.Abstract.Memory
 import           Control.Arrow.Transformer.Abstract.Serialize
@@ -211,33 +213,27 @@ type Out = Terminating
                               Except (Exc Value) (JoinList Value, ()))))
 
 
-type Result = Terminating
+type Result = (CFG (Instruction Natural), Terminating
                                           (Error
                                              (Pow String)
                                              (JoinVector Value,
                                               --(Tables,
                                                 (StaticGlobalState Value,
-                                                 Except (Exc Value) (JoinList Value, [Value]))))
+                                                 Except (Exc Value) (JoinList Value, [Value])))))
 
 invokeExported :: StaticGlobalState Value
                                      -> Tables
                                      -> ModuleInstance
                                      -> Text
                                      -> [Value]
-                                     -> Terminating
-                                          (Error
-                                             (Pow String)
-                                             (JoinVector Value,
-                                              --(Tables,
-                                                (StaticGlobalState Value,
-                                                 Except (Exc Value) (JoinList Value, [Value]))))
+                                     -> Result
 invokeExported store tab modInst funcName args =
     let ?cacheWidening = W.finite in
     --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
     --let algo = (trace p1 p2) . (Fix.filter isRecursive $ innermost) in
-    let algo = Fix.filter isRecursive $ innermost in
+    let algo = (recordControlFlowGraph' getExpression) . (Fix.filter isRecursive $ innermost) in
     let ?fixpointAlgorithm = fixpointAlgorithm algo in
-    snd $ Trans.run
+    (\(cfg,(_,res)) -> (cfg,res)) $ Trans.run
     (Generic.invokeExported ::
       ValueT Value
         (ReaderT Generic.LabelArities
@@ -255,7 +251,8 @@ invokeExported store tab modInst funcName args =
                               (ComponentT Component In
                                 (Fix.StackT Fix.Stack  In
                                   (CacheT Cache In Out
-                                    (->))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(store,([],(Generic.LabelArities [],(funcName, args)))))))
+                                    (ControlFlowT (Instruction Natural)
+                                      (->)))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(store,([],(Generic.LabelArities [],(funcName, args)))))))
     where
         isRecursive (_,(_,(_,(_,(_,(_,inst)))))) = case inst of
             Loop {} : _ -> True
@@ -266,6 +263,8 @@ invokeExported store tab modInst funcName args =
                         hsep [pretty stack, pretty locals, pretty la, pretty instr]
         p2 (Terminating (Error.Success (stack, (_,rest)))) = pretty rest
         p2 x = pretty x
+
+        getExpression (_,(_,(_,(_,(_,(_,exprs)))))) = case exprs of e:_ -> Just e; _ -> Nothing
 
 instantiateAbstract :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Tables))
 instantiateAbstract valMod = do res <- instantiate valMod alpha (\_ _ -> ()) TableInst

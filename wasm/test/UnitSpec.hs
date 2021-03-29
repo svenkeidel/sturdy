@@ -58,18 +58,20 @@ runFunc modName funcName args = do
     return $ invokeExported staticS tabs modInst (pack funcName) args
 
 succResult :: Result -> [Value]
-succResult (Terminating (Success (_,(_,(Exc.Success (_,result)))))) = result
+succResult (_,(Terminating (Success (_,(_,(Exc.Success (_,result))))))) = result
 
 excResult :: Result -> Exc.Except (U.Exc Value) [Value]
-excResult (Terminating (Success (_,(_,(Exc.Success (_,result)))))) = Exc.Success result
-excResult (Terminating (Success (_,(_,(Exc.SuccessOrFail e (_,result)))))) = Exc.SuccessOrFail e result
-excResult (Terminating (Success (_,(_,(Exc.Fail e))))) = Exc.Fail e
+excResult (_,(Terminating (Success (_,(_,(Exc.Success (_,result))))))) = Exc.Success result
+excResult (_,(Terminating (Success (_,(_,(Exc.SuccessOrFail e (_,result))))))) = Exc.SuccessOrFail e result
+excResult (_,(Terminating (Success (_,(_,(Exc.Fail e)))))) = Exc.Fail e
 
 
 spec :: Spec
 spec = do
     it "run fact" $ do
         result <- runFunc "fact" "fac-rec" [Value $ VI64 ()]
+        let cfg = fst result
+        --putStrLn $ show cfg
         (succResult result) `shouldBe` [Value $ VI64 ()]
 --        validMod <- readModule "test/samples/fact.wast"
 --        Right (modInst, store) <- instantiate validMod
@@ -105,6 +107,11 @@ spec = do
                                               (Exc.SuccessOrFail _ [Value (VI32 ())]) -> True
                                               _ -> False)
 
+    it "run test-unreachable" $ do
+        result <- runFunc "simple" "test-unreachable" []
+        let cfg = fst result
+        --putStrLn $ show cfg
+        (succResult result) `shouldBe` [Value $ VI32 ()]
 --    it "run non-terminating" $ do
 --        validMod <- readModule "test/samples/simple.wast"
 --        Right (modInst, store) <- instantiate validMod
