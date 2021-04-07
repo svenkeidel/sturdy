@@ -39,3 +39,4 @@ tests:
       - hspec
       - sturdy-wasm
       - prettyprinter
+      - fgl

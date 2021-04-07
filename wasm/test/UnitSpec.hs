@@ -9,6 +9,7 @@ import           UnitAnalysis as U
 import           UnitAnalysisValue
 import           Soundness
 import           GenericInterpreter(Exc(..))
+import           GraphToDot
 
 --import           Control.Arrow.Transformer.Abstract.WasmFrame (Vector(..))
 --import           Control.Arrow.Transformer.Abstract.Stack (AbsList(..))
@@ -112,6 +113,13 @@ spec = do
         let cfg = fst result
         --putStrLn $ show cfg
         (succResult result) `shouldBe` [Value $ VI32 ()]
+
+    it "print cfg" $ do
+        result <- runFunc "fact" "fac-rec" [Value $ VI64 ()]
+        let cfg = fst result
+        putStrLn (show cfg)
+        putStrLn $ graphToDot show cfg
+        pending
 --    it "run non-terminating" $ do
 --        validMod <- readModule "test/samples/simple.wast"
 --        Right (modInst, store) <- instantiate validMod
