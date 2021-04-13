@@ -9,7 +9,6 @@
 
   (type $out-i32 (func (result i32)))
 
-  ;; Recursive factorial
   (func (export "const") (param i32) (result i32)
     (get_local 0)
   )
@@ -29,6 +28,21 @@
     (call $test1)
     (i32.add)
   )
+
+  (func $fac-rec (export "fac-rec") (param i64) (result i64)
+    get_local 0
+    i64.const 0
+    i64.eq
+    (if (result i64)
+      (then
+        i64.const 1)
+      (else
+        get_local 0
+        get_local 0
+        i64.const 1
+        i64.sub
+        call $fac-rec
+        i64.mul)))
 
   (func (export "half-fac") (param i32) (result i32)
     (if (result i32) (i32.eq (get_local 0) (i32.const 0))

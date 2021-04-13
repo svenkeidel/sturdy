@@ -5,6 +5,7 @@ module UnitSpec where
 import           Abstract (BaseValue(..))
 import qualified Concrete as Concrete
 import qualified ConcreteInterpreter as Concrete
+import qualified Data as D
 import           UnitAnalysis as U
 import           UnitAnalysisValue
 import           Soundness
@@ -34,6 +35,8 @@ import           Language.Wasm.Interpreter (ModuleInstance(..))
 import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Structure
 import           Language.Wasm.Validate
+
+import           Numeric.Natural
 
 import           Test.Hspec
 
@@ -118,8 +121,19 @@ spec = do
         result <- runFunc "fact" "fac-rec" [Value $ VI64 ()]
         let cfg = fst result
         putStrLn (show cfg)
-        putStrLn $ graphToDot show cfg
+        putStrLn $ graphToDot showForGraph cfg
         pending
+
+
+showForGraph :: D.Instruction Natural -> String
+showForGraph (D.I32Const i _) = "I32Const " ++ (show i)
+showForGraph (D.I64Const i _) = "I64Const " ++ (show i)
+showForGraph (D.GetLocal n _) = "GetLocal " ++ (show n)
+showForGraph (D.IRelOp bs op _) = "IRelOp " ++ (show bs) ++ " " ++ (show op)
+showForGraph (D.IBinOp bs op _) = "IBinOp " ++ (show bs) ++ " " ++ (show op)
+showForGraph (D.Call i _) = "Call " ++ (show i)
+showForGraph (D.If t _ _ _) = "If " ++ (show t)
+
 --    it "run non-terminating" $ do
 --        validMod <- readModule "test/samples/simple.wast"
 --        Right (modInst, store) <- instantiate validMod

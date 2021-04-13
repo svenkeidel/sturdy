@@ -38,14 +38,14 @@ instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
     i64const = proc _ -> returnA -< valueI64
     f32const = proc _ -> returnA -< valueF32
     f64const = proc _ -> returnA -< valueF64
-    iBinOp = proc (bs, op, Value v1, Value v2) ->
+    iBinOp eCont = proc (bs, op, Value v1, Value v2) ->
         case (bs,op,v1,v2) of
-            (BS32, IAdd, VI32 _, VI32 _) -> returnA -< Just valueI32
-            (BS32, IMul, VI32 _, VI32 _) -> returnA -< Just valueI32
-            (BS32, ISub, VI32 _, VI32 _) -> returnA -< Just valueI32
-            (BS64, IAdd, VI64 _, VI64 _) -> returnA -< Just valueI64
-            (BS64, IMul, VI64 _, VI64 _) -> returnA -< Just valueI64
-            (BS64, ISub, VI64 _, VI64 _) -> returnA -< Just valueI64
+            (BS32, IAdd, VI32 _, VI32 _) -> returnA -< valueI32
+            (BS32, IMul, VI32 _, VI32 _) -> returnA -< valueI32
+            (BS32, ISub, VI32 _, VI32 _) -> returnA -< valueI32
+            (BS64, IAdd, VI64 _, VI64 _) -> returnA -< valueI64
+            (BS64, IMul, VI64 _, VI64 _) -> returnA -< valueI64
+            (BS64, ISub, VI64 _, VI64 _) -> returnA -< valueI64
     iRelOp = proc (bs,op,Value v1, Value v2) ->
         case (bs,op,v1,v2) of
             (BS32, IEq, VI32 _, VI32 _) -> returnA -< valueI32

@@ -64,14 +64,14 @@ instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
 
     i32const = proc w32 -> returnA -< Value $ Wasm.VI32 w32
     i64const = proc w64 -> returnA -< Value $ Wasm.VI64 w64
-    iBinOp = proc (bs,op,Value v1,Value v2) ->
+    iBinOp eCont = proc (bs,op,Value v1,Value v2) ->
                 case (bs,op,v1,v2) of
-                    (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< Just $ toVal32 $ val1 + val2
-                    (BS32, IMul, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< Just $ toVal32 $ val1 * val2
-                    (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< Just $ toVal32 $ val1 - val2
-                    (BS64, IAdd, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< Just $ toVal64 $ val1 + val2
-                    (BS64, IMul, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< Just $ toVal64 $ val1 * val2
-                    (BS64, ISub, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< Just $ toVal64 $ val1 - val2
+                    (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 + val2
+                    (BS32, IMul, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 * val2
+                    (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 - val2
+                    (BS64, IAdd, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 + val2
+                    (BS64, IMul, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 * val2
+                    (BS64, ISub, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 - val2
     iRelOp = proc (bs,op,Value v1, Value v2) ->
                 case (bs,op,v1,v2) of
                     (BS32, IEq, Wasm.VI32 val1, Wasm.VI32 val2) ->
