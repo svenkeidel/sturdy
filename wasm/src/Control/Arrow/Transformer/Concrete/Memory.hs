@@ -54,16 +54,22 @@ instance ArrowTrans MemoryT where
 
 instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (MemoryT c) where
     type Join y (MemoryT c) = ()
-    memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (index,addr,size,x) -> do
+    memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (memIndex,addr,size,x) -> do
         let addrI = fromIntegral addr
         mems <- get -< ()
-        let (MemInst _ vec) = mems ! index
-        case (addrI+size <= length vec) of
-            True -> do
-                let content = Vec.slice addrI size vec
-                sCont -< (content,x)
-            False -> do
-                eCont -< x
+        let (MemInst _ vec) = mems ! memIndex
+        if (addrI+size <= length vec)
+          then do
+            let bytes = Vec.slice addrI size vec
+            sCont -< (bytes,x)
+          else
+            eCont -< x
+--        case (addrI+size <= length vec) of
+--            True -> do
+--                let content = Vec.slice addrI size vec
+--                sCont -< (content,x)
+--            False -> do
+--                eCont -< x
 
     memstore (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (index,addr, content, x) -> do
         let addrI = fromIntegral addr
