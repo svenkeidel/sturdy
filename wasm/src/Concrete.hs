@@ -1,16 +1,13 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Concrete where
 
-import           Data
-import           Data.Abstract.FreeCompletion
+import           Data()
 import           Data.Hashable
-import           Data.Order
 import           Data.Text.Prettyprint.Doc
-import           Data.Vector (Vector, (!), (//))
-import qualified Data.Vector as Vec
+import           Data.Vector (Vector)
 import           Data.Word
 
 import           Language.Wasm.Interpreter (ModuleInstance)

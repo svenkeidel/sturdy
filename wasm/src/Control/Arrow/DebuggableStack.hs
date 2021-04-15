@@ -18,7 +18,6 @@ import           Control.Arrow.Transformer.Writer
 
 import           Data.Profunctor.Unsafe
 
-import Numeric.Natural (Natural)
 
 class ArrowStack v c => ArrowDebuggableStack v c | c -> v where
     getStack :: c () [v]

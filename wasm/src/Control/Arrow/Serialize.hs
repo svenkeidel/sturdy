@@ -55,6 +55,7 @@ instance (Arrow c, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSer
         encode (proc (dat, (r,x)) -> (unlift a) -< (r, (dat,x)))
                -< (val, valTy, datEncTy, (r,x))
 instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (WriterT w c) where
-    -- TODO
+  decode = error "TODO: implement WriterT.decode"
+  encode = error "TODO: implement WriterT.encode"
 
 deriving instance (Arrow c, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (AbsStore.StoreT store c)

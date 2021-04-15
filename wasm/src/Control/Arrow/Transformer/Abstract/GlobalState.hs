@@ -8,35 +8,35 @@ module Control.Arrow.Transformer.Abstract.GlobalState where
 
 import           Prelude hiding (read)
 
-import           Abstract
+-- import           Abstract
 
-import           Control.Arrow
-import           Control.Arrow.Const
-import           Control.Arrow.Logger
-import           Control.Arrow.Except
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.MemAddress
-import           Control.Arrow.Memory
-import           Control.Arrow.MemSizable
-import           Control.Arrow.Reader
-import           Control.Arrow.Serialize
-import           Control.Arrow.Stack
-import           Control.Arrow.State
-import           Control.Arrow.Store
-import           Control.Arrow.Trans
-import           Control.Arrow.GlobalState
-import           Control.Arrow.WasmFrame
+-- import           Control.Arrow
+-- import           Control.Arrow.Const
+-- import           Control.Arrow.Logger
+-- import           Control.Arrow.Except
+-- import           Control.Arrow.Fail
+-- import           Control.Arrow.Fix
+-- import           Control.Arrow.MemAddress
+-- import           Control.Arrow.Memory
+-- import           Control.Arrow.MemSizable
+-- import           Control.Arrow.Reader
+-- import           Control.Arrow.Serialize
+-- import           Control.Arrow.Stack
+-- import           Control.Arrow.State
+-- import           Control.Arrow.Store
+-- import           Control.Arrow.Trans
+-- import           Control.Arrow.GlobalState
+-- import           Control.Arrow.WasmFrame
 
-import           Control.Arrow.Transformer.State
-import           Control.Arrow.Transformer.Abstract.Store
+-- import           Control.Arrow.Transformer.State
+-- import           Control.Arrow.Transformer.Abstract.Store
 
-import           Control.Category
+-- import           Control.Category
 
-import           Data.Abstract.FreeCompletion
-import           Data.Abstract.Map (Map)
+-- import           Data.Abstract.FreeCompletion
+-- import           Data.Abstract.Map (Map)
 
-import           Data.Profunctor
+-- import           Data.Profunctor
 
 --newtype GlobalStateT v storeV c x y = GlobalStateT (StateT (GlobalState v) (StoreT (Map (Int,v) storeV) c) x y)
 --    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowReader r,

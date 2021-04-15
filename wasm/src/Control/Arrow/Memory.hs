@@ -45,13 +45,13 @@ instance (Arrow c, Profunctor c, Functor f, ArrowMemory addr bytes c) => ArrowMe
     -- we need c (m, (addr, Int, x)) (m, y)
     memread a1 a2 = lift $
         -- lift :: c x (e y) -> KleisliT e c x y
-        (memread (unlift a1) (unlift a2))-- >>^ moveIn -- :: c (m, (addr, Int, x)) (e (m,y))
+        memread (unlift a1) (unlift a2) -- >>^ moveIn -- :: c (m, (addr, Int, x)) (e (m,y))
         -- moveIn :: (m, (e y)) -> (e (m,y))
-        where moveIn (m, ey) = fmap ((,) m) ey
+        -- where moveIn (m, ey) = fmap ((,) m) ey
 
     memstore a1 a2 = lift $
-        (memstore (unlift a1) (unlift a2))-- >>^ moveIn
-        where moveIn (m, ey) = fmap ((,) m) ey
+        memstore (unlift a1) (unlift a2)-- >>^ moveIn
+        -- where moveIn (m, ey) = fmap ((,) m) ey
 
 instance (Arrow c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (StateT s c) where
     type Join y (StateT s c) = Join (s,y) c
@@ -72,4 +72,6 @@ instance (Arrow c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (ReaderT 
     memstore a1 a2 = lift $ proc (r, (ma,addr,bytes,x)) ->
         memstore (unlift a1) (unlift a2) -< (ma, addr, bytes, (r,x))
 instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (WriterT r c) where
-    -- TODO
+  type Join x (WriterT r c) = Join (r,x) c
+  memread = error "TODO: Implement WriterT.memread"
+  memstore = error "TODO: Implement WriterT.memstore"

@@ -48,13 +48,13 @@ instance (Arrow c, Profunctor c, ArrowStaticGlobalState v c) => ArrowStaticGloba
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
     readFunction a = lift $ transform (unlift a)
-        where transform f = proc (s, (i,x)) -> readFunction (proc (f,(s2,x)) -> f -< (s2, (f,x))) -< (i,(s,x))
+        where transform f = proc (s, (i,x)) -> readFunction (proc (y,(s2,x)) -> f -< (s2, (y,x))) -< (i,(s,x))
 instance (Arrow c, Profunctor c, ArrowStaticGlobalState v c) => ArrowStaticGlobalState v (ReaderT r c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal
     readFunction a = lift $ transform (unlift a)
         where transform f = proc (r, (i,x)) ->
-                                readFunction (proc (f,(r,x)) -> f -< (r, (f,x))) -< (i,(r,x))
+                                readFunction (proc (y,(r,x)) -> f -< (r, (y,x))) -< (i,(r,x))
 instance (Arrow c, Profunctor c, Monoid r, ArrowStaticGlobalState v c) => ArrowStaticGlobalState v (WriterT r c) where
     readGlobal = lift' readGlobal
     writeGlobal = lift' writeGlobal

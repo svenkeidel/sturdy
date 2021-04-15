@@ -30,18 +30,11 @@ import           Control.Arrow.StaticGlobalState
 import           Control.Arrow.Table
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
-import           Control.Arrow.Utils hiding (zipWith, all)
 import           Control.Arrow.WasmFrame
 import           Control.Arrow.Writer
 
-import           Data.Hashable
-import           Data.Order
 import           Data.Profunctor
-import           Data.Text.Prettyprint.Doc
-import           Data.Coerce
 
-import           GHC.Generics
-import           GHC.Exts
 
 -- | Arrow transformer that adds a stack to a computation.
 newtype StackT v c x y = StackT (StateT (JoinList v) c x y)
@@ -67,7 +60,7 @@ deriving instance (ArrowComplete (JoinList v, y) c) => ArrowComplete y (StackT v
 --execStackT f = rmap pi1 (runStackT f)
 
 instance (ArrowChoice c, Profunctor c) => ArrowStack v (StackT v c) where
-  push = StackT $ modify $ arr $ \(v,(JoinList st)) -> ((), JoinList $ v:st)
+  push = StackT $ modify $ arr $ \(v, JoinList st) -> ((), JoinList $ v : st)
   pop = StackT $ modify $ arr $ \((), JoinList (v:st)) -> (v, JoinList st)
   peek = StackT $ get >>^ (\(JoinList vs) -> head vs)
   ifEmpty (StackT f) (StackT g) = StackT $ proc x -> do

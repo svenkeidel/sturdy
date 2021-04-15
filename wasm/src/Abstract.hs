@@ -7,24 +7,15 @@ module Abstract where
 
 import           Data
 --import           Concrete (TableInst, GlobInst)
-import           GenericInterpreter hiding (Top)
+import           GenericInterpreter()
 
-import           Control.Arrow
-
-import           Control.Arrow.Transformer.Value
-
-import           Data.Abstract.FreeCompletion hiding (Top)
-import qualified Data.Abstract.FreeCompletion as FC
 import           Data.Hashable
 import           Data.Order
 import           Data.Text.Prettyprint.Doc
-import           Data.Vector (Vector)
-import qualified Data.Vector as Vec
 
 import           GHC.Generics
 
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure hiding (exports, Const)
 
 --data IsZero = Zero | NotZero | Top deriving (Eq, Show, Generic)
 --
@@ -58,16 +49,17 @@ instance (Complete ai32, Complete ai64, Complete af32, Complete af64) => Complet
     (VI64 v1) ⊔ (VI64 v2) = VI64 $ v1 ⊔ v2
     (VF32 v1) ⊔ (VF32 v2) = VF32 $ v1 ⊔ v2
     (VF64 v1) ⊔ (VF64 v2) = VF64 $ v1 ⊔ v2
+    _         ⊔ _         = error "least upper bound of base values with different types is unsupported"
 
 type Tables = JoinVector TableInst
 
 newtype TableInst = TableInst Wasm.TableInstance deriving (Show,Eq,Generic)
 
-instance PreOrd (TableInst) where
-    -- TODO
+instance PreOrd TableInst where
+  (⊑) = error "TODO: implement TableInst.⊑"
 
 instance Complete TableInst where
-    -- TODO
+  (⊔) = error "TODO: implement TableInst.⊔"
 
 instance Hashable TableInst
 

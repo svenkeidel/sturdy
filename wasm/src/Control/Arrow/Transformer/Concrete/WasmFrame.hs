@@ -37,7 +37,7 @@ newtype FrameT fd v c x y = FrameT (ReaderT fd (StateT (Vector v) c) x y)
 
 instance (ArrowReader r c) => ArrowReader r (FrameT fd v c) where
     -- ask :: (FrameT fd v c) () r
-    ask = FrameT (ReaderT $ proc (fd, ()) -> ask -< ())
+    ask = FrameT (ReaderT $ proc (_fd, ()) -> ask -< ())
     local a = lift $ lmap shuffle1 (local (unlift a))
 
 instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where

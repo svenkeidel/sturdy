@@ -1,6 +1,6 @@
 flags: {}
 extra-package-dbs: []
-resolver: lts-16.5
+resolver: lts-17.2
 packages:
 - 'arrows'
 - 'lib'

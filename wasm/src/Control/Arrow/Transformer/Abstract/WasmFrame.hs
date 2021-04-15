@@ -9,7 +9,7 @@
 
 module Control.Arrow.Transformer.Abstract.WasmFrame where
 
-import           Concrete
+import           Concrete()
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -47,7 +47,7 @@ instance (Hashable v) => Hashable (Vector v)
 --    hashWithSalt salt v = hashWithSalt salt (Vec.toList v)
 
 instance (PreOrd v) => PreOrd (Vector v) where
-    (Vector v1) ⊑ (Vector v2) = all id $ Vec.zipWith (⊑) v1 v2
+    (Vector v1) ⊑ (Vector v2) = and $ Vec.zipWith (⊑) v1 v2
 
 instance (Complete v) => Complete (Vector v) where
     (Vector v1) ⊔ (Vector v2) = Vector $ Vec.zipWith (⊔) v1 v2
@@ -60,7 +60,7 @@ newtype FrameT fd v c x y = FrameT (ReaderT fd (StateT (Vector v) c) x y)
 
 instance (ArrowReader r c) => ArrowReader r (FrameT fd v c) where
     -- ask :: (FrameT fd v c) () r
-    ask = FrameT (ReaderT $ proc (fd, ()) -> ask -< ())
+    ask = FrameT (ReaderT $ proc (_fd, ()) -> ask -< ())
     local a = lift $ lmap shuffle1 (local (unlift a))
 
 instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where

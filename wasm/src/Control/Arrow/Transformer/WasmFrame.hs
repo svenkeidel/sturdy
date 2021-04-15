@@ -29,14 +29,10 @@ import           Control.Arrow.Transformer.State
 
 import           Control.Category hiding (id)
 
-import           Data.Hashable
 import           Data.Monoidal (shuffle1)
-import           Data.Order
 import           Data.Profunctor
-import           Data.Text.Prettyprint.Doc
 import qualified Data.Vector as Vec
 
-import           GHC.Generics
 
 -- | Arrow transformer that adds a frame to a computation.
 newtype FrameT fd v c x y = FrameT (ReaderT fd (StateT (JoinVector v) c) x y)
@@ -46,7 +42,7 @@ newtype FrameT fd v c x y = FrameT (ReaderT fd (StateT (JoinVector v) c) x y)
 
 instance (ArrowReader r c) => ArrowReader r (FrameT fd v c) where
     -- ask :: (FrameT fd v c) () r
-    ask = FrameT (ReaderT $ proc (fd, ()) -> ask -< ())
+    ask = FrameT (ReaderT $ proc (_fd, ()) -> ask -< ())
     local a = lift $ lmap shuffle1 (local (unlift a))
 
 instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where

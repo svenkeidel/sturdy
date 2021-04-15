@@ -56,8 +56,8 @@ class ArrowGlobalState v m c | c -> v, c -> m where
 
 deriving instance (ArrowGlobalState v m c) => ArrowGlobalState v m (ValueT v2 c)
 instance (Profunctor c, Arrow c, ArrowGlobalState v m c) => ArrowGlobalState v m (StateT s c) where
-    readGlobal = lift' readGlobal
-    writeGlobal = lift' writeGlobal
+  readGlobal = lift' readGlobal
+  writeGlobal = lift' writeGlobal
     -- readFunction :: (StateT s c) (f, x) y -> (StateT s c) (Int, x) y
     -- a :: (StateT s c) (f, x) y
     -- unlift a :: Underlying (StateT s c) (f, x) y
@@ -72,12 +72,12 @@ instance (Profunctor c, Arrow c, ArrowGlobalState v m c) => ArrowGlobalState v m
     -- modify (flip a) :: (StateT s c) (f,x) y
     -- readFunction (modify (flip a)) :: c (Int, x) y
     -- second (readFunction (modify (flip a))) :: c (s, (Int,x)) (s, y)
-    readFunction a = lift $ transform (unlift a)
+  readFunction a = lift $ transform (unlift a)
 --        -- proc (f,x) -> arr -< (s, (f,x)) :: c (f,x) (s, y)
 --        -- ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (f,x) y
 --        -- readFunction ((proc (f,x) -> arr -< (s, (f,x))) >>^ snd) :: c (Int, x) y
 --        -- c (s, (Int, x)) y
-        where transform f = proc (s, (i,x)) -> readFunction (proc (f,(s2,x)) -> f -< (s2, (f,x))) -< (i,(s,x))
+        where transform f = proc (s, (i,x)) -> readFunction (proc (fun,(s2,x)) -> f -< (s2, (fun,x))) -< (i,(s,x))
 --                   -- arr :: c (s, (f,x)) (s, y)
 --                   -- proc (f,(s2,x)) -> arr -< (s2, (f,x)) :: c (f,(s,x)) (s, y)
 --                   -- ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) :: c (f,(s,x)) y
@@ -89,8 +89,8 @@ instance (Profunctor c, Arrow c, ArrowGlobalState v m c) => ArrowGlobalState v m
 --        proc (s, (i,x)) -> do
 --                            y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (s,(i,x))
 --                            returnA -< (s,y)
-    fetchMemory = lift' fetchMemory
-    storeMemory = lift' storeMemory
+  fetchMemory = lift' fetchMemory
+  storeMemory = lift' storeMemory
 
 --foo2 :: (c (f,x) y -> c (Int,x) y) -> c (s, (f,x)) (s,y) -> c (s, (Int,x)) (s,y)
 --foo2 func arr = proc (s, (i,x)) -> do
@@ -105,32 +105,37 @@ instance (Profunctor c, Arrow c, ArrowGlobalState v m c) => ArrowGlobalState v m
 --                   -- func "" :: c (Int, (s,x)) y (for z = (s x))
 --                   y <- func ((proc (f,(s2,x)) -> arr -< (s2, (f,x))) >>^ snd) -< (i,(s,x))
 --                   returnA -< (s,y)
+  readTable = error "TODO: Implement StateT.readTable"
+
 
 deriving instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (CE.ExceptT e c)
 deriving instance (O.Complete e, Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (AE.ExceptT e c)
 deriving instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (StackT s c)
 instance (Monad f, Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (KleisliT f c) where
-    readGlobal = lift' readGlobal
-    writeGlobal = lift' writeGlobal
-    readFunction a = lift (readFunction (unlift a))
-    fetchMemory = lift' fetchMemory
-    storeMemory = lift' storeMemory
+  readGlobal = lift' readGlobal
+  writeGlobal = lift' writeGlobal
+  readFunction a = lift (readFunction (unlift a))
+  fetchMemory = lift' fetchMemory
+  storeMemory = lift' storeMemory
+  readTable = error "TODO: Implement KleisliT.readTable"
 instance (Arrow c, Profunctor c, ArrowGlobalState v m c) => ArrowGlobalState v m (ReaderT r c) where
-    readGlobal = lift' readGlobal
-    writeGlobal = lift' writeGlobal
-    -- unlift arr :: c (r, (f,x)) y
-    -- lift :: c (r, (Int,x)) y -> c (Int,x) y
-    -- transform :: c (r, (f,x)) y -> c (r, (Int,x)) y
-    -- readFunction :: c (f,x) y -> c (Int,x) y
-    readFunction a = lift $ transform (unlift a)
-        where transform f = proc (r, (i,x)) ->
-                                readFunction (proc (f,(r,x)) -> f -< (r, (f,x))) -< (i,(r,x))
-    fetchMemory = lift' fetchMemory
-    storeMemory = lift' storeMemory
+  readGlobal = lift' readGlobal
+  writeGlobal = lift' writeGlobal
+  -- unlift arr :: c (r, (f,x)) y
+  -- lift :: c (r, (Int,x)) y -> c (Int,x) y
+  -- transform :: c (r, (f,x)) y -> c (r, (Int,x)) y
+  -- readFunction :: c (f,x) y -> c (Int,x) y
+  readFunction a = lift $ transform (unlift a)
+      where transform f = proc (r, (i,x)) ->
+                              readFunction (proc (fun,(r,x)) -> f -< (r, (fun,x))) -< (i,(r,x))
+  fetchMemory = lift' fetchMemory
+  storeMemory = lift' storeMemory
+  readTable = error "TODO: Implement ReaderT.readTable"
 
 instance (Arrow c, Profunctor c, Monoid w, ArrowGlobalState v m c) => ArrowGlobalState v m (WriterT w c) where
-    readGlobal = lift' readGlobal
-    writeGlobal = lift' writeGlobal
-    readFunction a = lift (readFunction (unlift a))
-    fetchMemory = lift' fetchMemory
-    storeMemory = lift' storeMemory
+  readGlobal = lift' readGlobal
+  writeGlobal = lift' writeGlobal
+  readFunction a = lift (readFunction (unlift a))
+  fetchMemory = lift' fetchMemory
+  storeMemory = lift' storeMemory
+  readTable = error "TODO: Implement WriterT.readTable"
