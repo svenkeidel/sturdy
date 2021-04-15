@@ -15,7 +15,6 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Logger
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
 import           Control.Arrow.MemSizable
@@ -49,41 +48,42 @@ newtype MemoryT c x y = MemoryT (StateT Memories c x y)
               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v)
 
 instance ArrowTrans MemoryT where
-    -- lift' :: c x y -> MemoryT v c x y
-    lift' a = MemoryT (lift' a)
+  -- lift' :: c x y -> MemoryT v c x y
+  lift' a = MemoryT (lift' a)
 
 instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (MemoryT c) where
-    type Join y (MemoryT c) = ()
-    memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (index,addr,size,x) -> do
-        let addrI = fromIntegral addr
-        mems <- get -< ()
-        let (MemInst _ vec) = mems ! index
-        case (addrI+size <= length vec) of
-            True -> do
-                let content = Vec.slice addrI size vec
-                sCont -< (content,x)
-            False -> do
-                eCont -< x
+  type Join y (MemoryT c) = ()
+  memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (index,addr,size,x) -> do
+      let addrI = fromIntegral addr
+      mems <- get -< ()
+      let (MemInst _ vec) = mems ! index
+      case (addrI+size <= length vec) of
+          True -> do
+              let content = Vec.slice addrI size vec
+              sCont -< (content,x)
+          False -> do
+              eCont -< x
 
-    memstore (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (index,addr, content, x) -> do
-        let addrI = fromIntegral addr
-        mems <- get -< ()
-        let (MemInst maxSize vec) = mems ! index
-        let size = length content
-        case (addrI+size <= length vec) of
-            True -> do
-                let ind = Vec.enumFromN addrI size
-                let newMem = MemInst maxSize (Vec.update_ vec ind content)
-                put -< mems // [(index,newMem)]
-                sCont -< x
-            False -> do
-                eCont -< x
+  memstore (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (index,addr, content, x) -> do
+      let addrI = fromIntegral addr
+      mems <- get -< ()
+      let (MemInst maxSize vec) = mems ! index
+      let size = length content
+      case (addrI+size <= length vec) of
+          True -> do
+              let ind = Vec.enumFromN addrI size
+              let newMem = MemInst maxSize (Vec.update_ vec ind content)
+              put -< mems // [(index,newMem)]
+              sCont -< x
+          False -> do
+              eCont -< x
 
 instance ArrowMemSizable Value (MemoryT c) where
-    -- TODO
+  memsize = error "TODO: implement MemoryT.memsize"
+  memgrow = error "TODO: implement MemoryT.memgrow"
 
 instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (MemoryT c) where
-    memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base+ (fromIntegral off))
+  memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base + fromIntegral off)
 
 instance (ArrowLift c, ArrowFix (Underlying (MemoryT c) x y)) => ArrowFix (MemoryT c x y) where
-    type Fix (MemoryT c x y) = Fix (Underlying (MemoryT c) x y)
+  type Fix (MemoryT c x y) = Fix (Underlying (MemoryT c) x y)

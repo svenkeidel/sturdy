@@ -3,10 +3,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data where
 
-import           Control.Arrow (ArrowChoice)
+import           Control.Arrow (ArrowChoice,returnA)
 import           Control.Arrow.Order(ArrowComplete,(<⊔>))
 
 import           Control.Monad.State
@@ -16,7 +16,7 @@ import           Data.IORef
 import           Data.Label
 import           Data.Order
 import qualified Data.Primitive.ByteArray as ByteArray
-import           Data.Text.Prettyprint.Doc
+import           Data.Text.Prettyprint.Doc hiding (list)
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import           Data.Word (Word8, Word32, Word64)
@@ -48,7 +48,7 @@ instance (Hashable v) => Hashable (JoinVector v)
 --    hashWithSalt salt v = hashWithSalt salt (Vec.toList v)
 
 instance (PreOrd v) => PreOrd (JoinVector v) where
-    (JoinVector v1) ⊑ (JoinVector v2) = all id $ Vec.zipWith (⊑) v1 v2
+    (JoinVector v1) ⊑ (JoinVector v2) = and $ Vec.zipWith (⊑) v1 v2
 
 instance (Complete v) => Complete (JoinVector v) where
     (JoinVector v1) ⊔ (JoinVector v2) = JoinVector $ Vec.zipWith (⊔) v1 v2
@@ -58,7 +58,7 @@ newtype JoinList v = JoinList [v] deriving (Show,Eq,Generic,Pretty)
 instance (Hashable v) => Hashable (JoinList v)
 
 instance (PreOrd v) => PreOrd (JoinList v) where
-    (JoinList v1) ⊑ (JoinList v2) = all id $ zipWith (⊑) v1 v2
+    (JoinList v1) ⊑ (JoinList v2) = and $ zipWith (⊑) v1 v2
 
 instance (Complete v) => Complete (JoinList v) where
     (JoinList v1) ⊔ (JoinList v2) = JoinList $ zipWith (⊔) v1 v2
@@ -81,11 +81,12 @@ instance (Show v) => Pretty (StaticGlobalState v) where
 
 instance (PreOrd v) => PreOrd (StaticGlobalState v) where
     (StaticGlobalState f1 g1) ⊑ (StaticGlobalState f2 g2)
-        | f1 == f2 && Vec.length g1 == Vec.length g2 = Vec.all id $ Vec.zipWith (⊑) g1 g2
+        = f1 == f2 && Vec.length g1 == Vec.length g2 && and (Vec.zipWith (⊑) g1 g2)
 
 instance (Complete v) => Complete (StaticGlobalState v) where
     (StaticGlobalState f1 g1) ⊔ (StaticGlobalState f2 g2)
         | f1 == f2 && Vec.length g1 == Vec.length g2 = StaticGlobalState f1 (Vec.zipWith (⊔) g1 g2)
+        | otherwise = error "Least upper bound for StaticGlobalState does not exist if vectors have differing lengths"
 
 instance (Hashable v) => Hashable (StaticGlobalState v)
 
@@ -94,12 +95,12 @@ data GlobInst v = GlobInst Mut v deriving (Show, Eq, Generic)
 instance (Hashable v) => Hashable (GlobInst v)
 
 instance (PreOrd v) => PreOrd (GlobInst v) where
-    (GlobInst m1 v1) ⊑ (GlobInst m2 v2)
-        | m1 == m2 = v1 ⊑ v2
+    (GlobInst m1 v1) ⊑ (GlobInst m2 v2) = m1 == m2 && v1 ⊑ v2
 
 instance (Complete v) => Complete (GlobInst v) where
     (GlobInst m1 v1) ⊔ (GlobInst m2 v2)
         | m1 == m2 = GlobInst m1 (v1 ⊔ v2)
+        | otherwise = error "Least upper bound for GlobalInst does not exist"
 
 data Mut = Const | Mutable deriving (Show, Eq, Generic)
 instance Hashable Mut
@@ -278,9 +279,9 @@ unreachable = Unreachable <$> fresh
 nop :: LInstruction
 nop = Nop <$> fresh
 block :: ResultType -> [LInstruction] -> LInstruction
-block rt body = Block rt <$> sequence body <*> fresh
+block rt bdy = Block rt <$> sequence bdy <*> fresh
 loop :: ResultType -> [LInstruction] -> LInstruction
-loop rt body = Loop rt <$> sequence body <*> fresh
+loop rt bdy = Loop rt <$> sequence bdy <*> fresh
 if_ :: ResultType -> [LInstruction] -> [LInstruction] -> LInstruction
 if_ rt bTrue bFalse = If rt <$> sequence bTrue <*> sequence bFalse <*> fresh
 br :: Natural -> LInstruction
@@ -364,48 +365,50 @@ i64ExtendUI32 = I64ExtendUI32 <$> fresh
 
 
 convertInstruction :: Wasm.Instruction Natural -> LInstruction
-convertInstruction i = case i of
-    Wasm.Unreachable -> unreachable
-    Wasm.Nop -> nop
-    Wasm.Block rt body -> block rt (map convertInstruction body)
-    Wasm.Loop rt body -> loop rt (map convertInstruction body)
-    Wasm.If rt t f -> if_ rt (map convertInstruction t) (map convertInstruction f)
-    Wasm.Br i -> br i
-    Wasm.BrIf i -> brIf i
-    Wasm.BrTable is i -> brTable is i
-    Wasm.Return -> return_
-    Wasm.Call i -> call i
-    Wasm.CallIndirect i -> callIndirect i
-    Wasm.Drop -> drop_
-    Wasm.Select -> select
-    Wasm.GetLocal i -> getLocal i
-    Wasm.SetLocal i -> setLocal i
-    Wasm.TeeLocal i -> teeLocal i
-    Wasm.GetGlobal i -> getGlobal i
-    Wasm.SetGlobal i -> setGlobal i
+convertInstruction inst = case inst of
+  Wasm.Unreachable -> unreachable
+  Wasm.Nop -> nop
+  Wasm.Block rt bdy -> block rt (map convertInstruction bdy)
+  Wasm.Loop rt bdy -> loop rt (map convertInstruction bdy)
+  Wasm.If rt t f -> if_ rt (map convertInstruction t) (map convertInstruction f)
+  Wasm.Br i -> br i
+  Wasm.BrIf i -> brIf i
+  Wasm.BrTable is i -> brTable is i
+  Wasm.Return -> return_
+  Wasm.Call i -> call i
+  Wasm.CallIndirect i -> callIndirect i
+  Wasm.Drop -> drop_
+  Wasm.Select -> select
+  Wasm.GetLocal i -> getLocal i
+  Wasm.SetLocal i -> setLocal i
+  Wasm.TeeLocal i -> teeLocal i
+  Wasm.GetGlobal i -> getGlobal i
+  Wasm.SetGlobal i -> setGlobal i
 
-    Wasm.I32Load m -> i32Load m
-    Wasm.I64Load m -> i64Load m
-    Wasm.F32Load m -> f32Load m
-    Wasm.F64Load m -> f64Load m
+  Wasm.I32Load m -> i32Load m
+  Wasm.I64Load m -> i64Load m
+  Wasm.F32Load m -> f32Load m
+  Wasm.F64Load m -> f64Load m
 
-    Wasm.I32Store m -> i32Store m
-    Wasm.I64Store m -> i64Store m
-    Wasm.F32Store m -> f32Store m
-    Wasm.F64Store m -> f64Store m
+  Wasm.I32Store m -> i32Store m
+  Wasm.I64Store m -> i64Store m
+  Wasm.F32Store m -> f32Store m
+  Wasm.F64Store m -> f64Store m
 
-    Wasm.I32Const w32 -> i32Const w32
-    Wasm.I64Const w64 -> i64Const w64
-    Wasm.F32Const f -> f32Const f
-    Wasm.F64Const d -> f64Const d
-    Wasm.IUnOp bs op -> iUnOp bs op
-    Wasm.IBinOp bs op -> iBinOp bs op
-    Wasm.I32Eqz -> i32Eqz
-    Wasm.I64Eqz -> i64Eqz
-    Wasm.IRelOp bs op -> iRelOp bs op
-    Wasm.FUnOp bs op -> fUnOp bs op
-    Wasm.FBinOp bs op -> fBinOp bs op
-    Wasm.FRelOp bs op -> fRelOp bs op
+  Wasm.I32Const w32 -> i32Const w32
+  Wasm.I64Const w64 -> i64Const w64
+  Wasm.F32Const f -> f32Const f
+  Wasm.F64Const d -> f64Const d
+  Wasm.IUnOp bs op -> iUnOp bs op
+  Wasm.IBinOp bs op -> iBinOp bs op
+  Wasm.I32Eqz -> i32Eqz
+  Wasm.I64Eqz -> i64Eqz
+  Wasm.IRelOp bs op -> iRelOp bs op
+  Wasm.FUnOp bs op -> fUnOp bs op
+  Wasm.FBinOp bs op -> fBinOp bs op
+  Wasm.FRelOp bs op -> fRelOp bs op
+
+  _ -> error "convertInstruction: unsupported instruction"
 
 convertExpr :: Wasm.Expression -> [LInstruction]
 convertExpr = map convertInstruction
@@ -415,6 +418,8 @@ convertFunc (Wasm.Function ft lt bd) = Function ft lt <$> sequence (convertExpr 
 
 convertFuncInst :: Wasm.FunctionInstance -> State Label FuncInst
 convertFuncInst (Wasm.FunctionInstance t m c) = FuncInst t m <$> convertFunc c
+convertFuncInst _ = error "convertFuncInst: unsupported instruction"
+
 
 -- instatiation of modules
 
@@ -428,7 +433,7 @@ instantiate valMod alpha toMem toTable = do
     case res of
         Right (modInst, store) -> do
             (staticState,tables,mems) <- storeToGlobalState store
-            return $ Right $ (modInst, staticState, tables, mems)
+            return $ Right (modInst, staticState, tables, mems)
         Left e                 -> return $ Left e
 
     where
@@ -436,14 +441,14 @@ instantiate valMod alpha toMem toTable = do
             let funcs = generate $ Vec.mapM convertFuncInst funcI
             mems <- Vec.mapM convertMem memI
             globs <- Vec.mapM convertGlobal globalI
-            return $ (StaticGlobalState funcs globs,
-                      mems,
-                      Vec.map toTable tableI)
+            return (StaticGlobalState funcs globs,
+                    mems,
+                    Vec.map toTable tableI)
 
         convertMem (Wasm.MemoryInstance (Wasm.Limit _ n) mem) = do
             memStore <- readIORef mem
             size <- ByteArray.getSizeofMutableByteArray memStore
-            list <- sequence $ map (\x -> ByteArray.readByteArray memStore x) [0 .. (size-1)]
+            list <- mapM (\x -> ByteArray.readByteArray memStore x) [0 .. (size-1)]
             let sizeConverted = fmap fromIntegral n
             return $ toMem sizeConverted list
             --return $ MemInst sizeConverted $ Vec.fromList list
@@ -463,8 +468,9 @@ data StoreType = S_I32 | S_I64 | S_F32 | S_F64 | S_I8 | S_I16
 
 joinList1'' :: (ArrowChoice c, ArrowComplete y c) => c (v,x) y -> c ([v],x) y
 joinList1'' f = proc (vs,x) -> case vs of
-                    [v]    -> f -< (v,x)
-                    (v:vss) -> (f -< (v,x)) <⊔> (joinList1'' f -< (vss,x))
+  [v]    -> f -< (v,x)
+  (v:vss) -> (f -< (v,x)) <⊔> (joinList1'' f -< (vss,x))
+  _ -> returnA -< error "joinList1'': cannot join empty list"
 
 -- orphan instances
 

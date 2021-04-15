@@ -18,11 +18,6 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix hiding (filter)
-import           Control.Arrow.GlobalState
-import           Control.Arrow.Logger
-import           Control.Arrow.MemAddress
-import           Control.Arrow.Memory
-import           Control.Arrow.MemSizable
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize

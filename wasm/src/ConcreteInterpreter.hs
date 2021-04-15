@@ -9,7 +9,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module ConcreteInterpreter where
 
 import           Data
@@ -32,26 +32,17 @@ import           Control.Arrow.Transformer.Concrete.Memory
 import           Control.Arrow.Transformer.Concrete.Serialize
 import           Control.Arrow.Transformer.Concrete.Table
 
-import           Control.Monad.State
-
 import           Data.Concrete.Error
 
 import qualified Data.Function as Function
-import           Data.IORef
-import           Data.Label
-import qualified Data.Primitive.ByteArray as ByteArray
 import           Data.Text.Lazy (Text)
-import           Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import           Data.Word
 
-import           Language.Wasm.Interpreter (ModuleInstance,emptyStore,emptyImports)
+import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Structure hiding (exports, Const, Instruction, Function,Expression,Memory,Table)
-import qualified Language.Wasm.Structure as Wasm
 import           Language.Wasm.Validate (ValidModule)
-
-import           Numeric.Natural (Natural)
 
 toVal32 :: Word32 -> Value
 toVal32 = Value . Wasm.VI32
@@ -59,34 +50,35 @@ toVal32 = Value . Wasm.VI32
 toVal64 :: Word64 -> Value
 toVal64 = Value . Wasm.VI64
 
-instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
+instance ArrowChoice c => IsVal Value (ValueT Value c) where
     type JoinVal y (ValueT Value c) = ()
 
     i32const = proc w32 -> returnA -< Value $ Wasm.VI32 w32
     i64const = proc w64 -> returnA -< Value $ Wasm.VI64 w64
-    iBinOp eCont = proc (bs,op,Value v1,Value v2) ->
-                case (bs,op,v1,v2) of
-                    (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 + val2
-                    (BS32, IMul, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 * val2
-                    (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 - val2
-                    (BS64, IAdd, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 + val2
-                    (BS64, IMul, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 * val2
-                    (BS64, ISub, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 - val2
+    iBinOp _eCont = proc (bs,op,Value v1,Value v2) ->
+      case (bs,op,v1,v2) of
+        (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 + val2
+        (BS32, IMul, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 * val2
+        (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 - val2
+        (BS64, IAdd, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 + val2
+        (BS64, IMul, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 * val2
+        (BS64, ISub, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 - val2
+        _ -> returnA -< error "iBinOp: cannot apply binary operator to given arguments."
     iRelOp = proc (bs,op,Value v1, Value v2) ->
-                case (bs,op,v1,v2) of
-                    (BS32, IEq, Wasm.VI32 val1, Wasm.VI32 val2) ->
-                        returnA -< toVal32 $ if val1 == val2 then 1 else 0
+      case (bs,op,v1,v2) of
+      (BS32, IEq, Wasm.VI32 val1, Wasm.VI32 val2) ->
+        returnA -< toVal32 $ if val1 == val2 then 1 else 0
 --                    (BS64, ILtU, Wasm.VI64 val1, Wasm.VI64 val2) ->
 --                        returnA -< toVal64 $ if val1 < val2 then 1 else 0
-                    (BS64, IEq, Wasm.VI64 val1, Wasm.VI64 val2) ->
-                        returnA -< toVal32 $ if val1 == val2 then 1 else 0
-
+      (BS64, IEq, Wasm.VI64 val1, Wasm.VI64 val2) ->
+        returnA -< toVal32 $ if val1 == val2 then 1 else 0
+      _ -> returnA -< error "iRelOp: cannot apply binary operator to given arguments."
 
     i32ifNeqz f g = proc (v, x) -> do
-                      case v of
-                        Value (Wasm.VI32 0) -> g -< x
-                        Value (Wasm.VI32 _) -> f -< x
-                        _              -> returnA -< error "validation failure"
+      case v of
+        Value (Wasm.VI32 0) -> g -< x
+        Value (Wasm.VI32 _) -> f -< x
+        _                   -> returnA -< error "i32ifNeqz: condition of unexpected type"
 
     ifHasType f g = proc (v,t,x) -> do
                 case (v,t) of
@@ -96,6 +88,27 @@ instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
                     (Value (Wasm.VF64 _), F64) -> f -< x
                     _                          -> g -< x
 
+    f32const = error "TODO: implement f32const"
+    f64const = error "TODO: implement f64const"
+    iUnOp = error "TODO: implement iUnOp"
+    i32eqz = error "TODO: implement i32eqz"
+    i64eqz = error "TODO: implement i64eqz"
+    fUnOp = error "TODO: implement fUnOp"
+    fBinOp = error "TODO: implement fBinOp"
+    fRelOp = error "TODO: implement fRelOp"
+    i32WrapI64 = error "TODO: implement i32WrapI64"
+    iTruncFU = error "TODO: implement iTruncFU"
+    iTruncFS = error "TODO: implement iTruncFS"
+    i64ExtendSI32 = error "TODO: implement i64ExtendSI32"
+    i64ExtendUI32 = error "TODO: implement i64ExtendUI32"
+    fConvertIU = error "TODO: implement fConvertIU"
+    fConvertIS = error "TODO: implement fConvertIS"
+    f32DemoteF64 = error "TODO: implement f32DemoteF64"
+    f64PromoteF32 = error "TODO: implement f64PromoteF32"
+    iReinterpretF = error "TODO: implement iReinterpretF"
+    fReinterpretI = error "TODO: implement IReinterpretI"
+    listLookup = error "TODO: implement listLookup"
+
 instance (Arrow c) => IsException (Exc Value) Value (ValueT Value c) where
     type JoinExc y (ValueT Value c) = ()
     exception = arr id
@@ -103,6 +116,7 @@ instance (Arrow c) => IsException (Exc Value) Value (ValueT Value c) where
 
 addVal :: Wasm.Value -> Wasm.Value -> Wasm.Value
 addVal (Wasm.VI32 v1) (Wasm.VI32 v2) = Wasm.VI32 $ v1 + v2
+addVal _ _ = error "addVal: cannot add values. Unexpected types"
 
 
 --evalNumericInst :: (Instruction Natural) -> [Value] -> Error (Exc Value) Value
@@ -172,12 +186,12 @@ invokeExported :: StaticGlobalState Value
                         -> ModuleInstance
                         -> Text
                         -> [Value]
-                        -> (Error
+                        -> Error
                              [Char]
                              (JoinVector Value,
                               (Tables,
                                (Memories,
-                                (StaticGlobalState Value, Error (Exc Value) (JoinList Value, [Value]))))))
+                                (StaticGlobalState Value, Error (Exc Value) (JoinList Value, [Value])))))
 invokeExported staticS mem tab modInst funcName args =
     let ?fixpointAlgorithm = Function.fix in
     Trans.run

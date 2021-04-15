@@ -54,4 +54,5 @@ instance (Arrow c, ArrowTable v c) => ArrowTable v (ReaderT r c) where
                   (proc (i,v,(r,x)) -> unlift h -< (r, (i,v,x)))
                   -< (ta,ix,(r,x))
 instance (ArrowTable v c) => ArrowTable v (WriterT r c) where
-    -- TODO
+  type JoinTable y (WriterT r c) = JoinTable (r,y) c
+  readTable = error "TODO: Implement WriterT.readTable"

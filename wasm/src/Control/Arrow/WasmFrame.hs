@@ -9,36 +9,22 @@ module Control.Arrow.WasmFrame where
 
 import           Prelude hiding ((.),read)
 
-import           Control.Category
 
 import           Control.Arrow
-import           Control.Arrow.Const
-import           Control.Arrow.Except
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Reader as Reader
-import           Control.Arrow.Stack
-import           Control.Arrow.State
-import           Control.Arrow.Store
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.State
 
 import           Control.Arrow.Transformer.Abstract.Error
 import qualified Control.Arrow.Transformer.Abstract.Except as AE
 import qualified Control.Arrow.Transformer.Abstract.Store as AbsStore
-import qualified Control.Arrow.Transformer.Concrete.Store as ConcStore
 import qualified Control.Arrow.Transformer.Concrete.Except as CE
 import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
---import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Writer
 
-import           Data.Monoidal (shuffle1)
 import qualified Data.Order as O
 import           Data.Profunctor
-import           Data.Coerce
-import           Data.Vector
 
 import Numeric.Natural (Natural)
 
@@ -61,7 +47,7 @@ instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StateT v
     -- inNewFrame (unlift a) :: c (fd, [v], (val,x)) (val,y)
     -- lift :: c (val, (fd, [v], x)) (val, y) -> StateT val c (fd, [v], x) y
     inNewFrame a = lift $ shuffle (inNewFrame (unlift a))
-        where shuffle arr = proc (val, (fd, vs, x)) -> arr -< (fd, vs, (val,x))
+        where shuffle f = proc (val, (fd, vs, x)) -> f -< (fd, vs, (val,x))
 
     frameData = lift' frameData
     frameLookup = lift' frameLookup
@@ -69,7 +55,7 @@ instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (StateT v
 
 instance (Profunctor c, Arrow c, ArrowFrame fd v c) => ArrowFrame fd v (ReaderT r c) where
     inNewFrame (ReaderT a) = ReaderT $ shuffle (inNewFrame a)
-        where shuffle arr = proc (r, (fd, v, x)) -> arr -< (fd, v, (r,x))
+        where shuffle f = proc (r, (fd, v, x)) -> f -< (fd, v, (r,x))
 
     frameData = lift' frameData
     frameLookup = lift' frameLookup

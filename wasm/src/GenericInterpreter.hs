@@ -18,17 +18,15 @@ module GenericInterpreter where
 
 import Prelude hiding (Read, fail, log)
 
-import           Concrete
+import           Concrete()
 import           Data (Instruction(..), Function(..), LoadType(..), StoreType(..))
 --import           Data hiding (label,iUnOp,iBinOp)
 
 import           Control.Arrow
-import           Control.Arrow.DebuggableStack
 import           Control.Arrow.Except
 import qualified Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Logger
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory as Mem
 import           Control.Arrow.MemSizable
@@ -41,7 +39,6 @@ import           Control.Arrow.StaticGlobalState
 import           Control.Arrow.WasmFrame
 
 import           Data.Hashable
-import           Data.Order
 import           Data.Profunctor
 import           Data.String
 import           Data.Text.Lazy (Text)

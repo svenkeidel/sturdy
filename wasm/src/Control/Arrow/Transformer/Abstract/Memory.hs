@@ -16,7 +16,6 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Logger
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
 import           Control.Arrow.MemSizable
@@ -24,7 +23,6 @@ import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Stack
-import           Control.Arrow.State
 import           Control.Arrow.StaticGlobalState
 import           Control.Arrow.Store
 import           Control.Arrow.Table
@@ -42,19 +40,20 @@ newtype MemoryT c x y = MemoryT (c x y)
               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
 
 instance ArrowTrans MemoryT where
-    -- lift' :: c x y -> MemoryT v c x y
-    lift' = MemoryT
+  -- lift' :: c x y -> MemoryT v c x y
+  lift' = MemoryT
 
 instance (Profunctor c, ArrowChoice c) => ArrowMemory () () (MemoryT c) where
-    type Join y (MemoryT c) = ArrowComplete y (MemoryT c)
-    memread sCont eCont = proc (_,(),_,x) -> (sCont -< ((),x)) <⊔> (eCont -< x)
-    memstore sCont eCont = proc (_,(),(),x) -> (sCont -< x) <⊔> (eCont -< x)
+  type Join y (MemoryT c) = ArrowComplete y (MemoryT c)
+  memread sCont eCont = proc (_,(),_,x) -> (sCont -< ((),x)) <⊔> (eCont -< x)
+  memstore sCont eCont = proc (_,(),(),x) -> (sCont -< x) <⊔> (eCont -< x)
 
 instance (Arrow c, Profunctor c) => ArrowMemAddress base off () (MemoryT c) where
-    memaddr = arr $ const ()
+  memaddr = arr $ const ()
 
 instance ArrowMemSizable Value (MemoryT c) where
-    -- TODO
+  memsize = error "TODO: implement MemoryT.memsize"
+  memgrow = error "TODO: implement MemoryT.memgrow"
 
 deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (MemoryT c)
 

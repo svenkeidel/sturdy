@@ -46,6 +46,8 @@ newtype StaticGlobalStateT v c x y = StaticGlobalStateT (StateT (StaticGlobalSta
               ArrowMemSizable val, ArrowMemAddress base off addr, ArrowTable v1, ArrowJoin)
 
 instance (ArrowState s c) => ArrowState s (StaticGlobalStateT v c) where
+  get = error "TODO: implement StaticGlobalStateT.get"
+  put = error "TODO: implement StaticGlobalStateT.put"
     -- TODO
 
 instance ArrowTrans (StaticGlobalStateT v) where
@@ -62,13 +64,13 @@ instance (ArrowChoice c, Profunctor c) => ArrowStaticGlobalState v (StaticGlobal
             store@StaticGlobalState{globalInstances=vec} <- get -< ()
             let (GlobInst m _) = vec ! i
             if m == Const
-                then returnA -< error $ "writing to constant global " ++ (show i)
+                then returnA -< error $ "writing to constant global " ++ show i
                 else put -< store{globalInstances=vec // [(i, GlobInst m v)]}
     readFunction (StaticGlobalStateT funcCont) =
         StaticGlobalStateT $ proc (i,x) -> do
             StaticGlobalState{funcInstances = fs} <- get -< ()
             case fs ! i of
-                FuncInst fTy modInst code -> funcCont -< ((fTy,modInst,code),x)
+                FuncInst fTy modInst bdy  -> funcCont -< ((fTy,modInst,bdy),x)
                 _                         -> returnA -< error "not yet implemented" --hostCont -< ((fTy,code),x)
 
 instance ArrowFix (Underlying (StaticGlobalStateT v c) x y) => ArrowFix (StaticGlobalStateT v c x y) where

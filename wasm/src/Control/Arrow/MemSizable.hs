@@ -29,11 +29,14 @@ deriving instance (Arrow c, Profunctor c, ArrowMemSizable sz c) => ArrowMemSizab
 deriving instance (O.Complete e, Arrow c, Profunctor c, ArrowMemSizable sz c) => ArrowMemSizable sz (AE.ExceptT e c)
 instance (Monad f, Arrow c, Profunctor c, ArrowMemSizable sz c) => ArrowMemSizable sz (KleisliT f c) where
     memsize = lift' memsize
-    -- TODO
+    memgrow = error "TODO: implement KleisliT.memgrow"
 --deriving instance (ArrowMemSizable sz c) => ArrowMemSizable sz (StackT v c)
 instance (ArrowMemSizable sz c) => ArrowMemSizable sz (StateT s c) where
-    -- TODO
+    memsize = error "TODO: implement StateT.memSize"
+    memgrow = error "TODO: implement StateT.memgrow"
 instance (ArrowMemSizable sz c) => ArrowMemSizable sz (ReaderT r c) where
-    -- TODO
+    memsize = error "TODO: implement ReaderT.memSize"
+    memgrow = error "TODO: implement ReaderT.memgrow"
 instance (ArrowMemSizable sz c) => ArrowMemSizable sz (WriterT r c) where
-    -- TODO
+    memsize = error "TODO: implement WriterT.memSize"
+    memgrow = error "TODO: implement WriterT.memgrow"

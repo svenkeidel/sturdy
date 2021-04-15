@@ -17,7 +17,6 @@ import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Logger
-import           Control.Arrow.Memory
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Stack
@@ -45,20 +44,22 @@ newtype SerializeT c x y = SerializeT (c x y)
               ArrowStack st, ArrowLogger l, ArrowState s, ArrowStaticGlobalState v, ArrowReader m, ArrowTable v)
 
 instance (Profunctor c, ArrowChoice c) => ArrowSerialize Value (Vector Word8) ValueType LoadType StoreType (SerializeT c) where
-    decode sCont = proc (dat, decTy, valTy, x) -> do
-        case (valTy,decTy) of
-            (I32,L_I32) -> do
-                let val = Vec.foldr (\w8 w32 -> (w32 `shiftL` 4) + (fromIntegral w8)) (fromIntegral $ Vec.last dat) dat
-                let result = Value $ Wasm.VI32 val
-                sCont -< (result, x)
-    encode sCont = proc (Value val, valTy, datEncTy, x) -> do
-        case (val, valTy, datEncTy) of
-            (Wasm.VI32 v, I32, S_I32) -> do
-                let vec = Vec.generate 4 (byte v)
-                sCont -< (vec, x)
+  decode sCont = proc (dat, decTy, valTy, x) -> do
+    case (valTy,decTy) of
+      (I32,L_I32) -> do
+        let val = Vec.foldr (\w8 w32 -> (w32 `shiftL` 4) + fromIntegral w8) (fromIntegral $ Vec.last dat) dat
+        let result = Value $ Wasm.VI32 val
+        sCont -< (result, x)
+      _ -> returnA -< error "decode: do not support type"
+  encode sCont = proc (Value val, valTy, datEncTy, x) -> do
+    case (val, valTy, datEncTy) of
+      (Wasm.VI32 v, I32, S_I32) -> do
+        let vec = Vec.generate 4 (byte v)
+        sCont -< (vec, x)
+      _ -> returnA -< error "encode: do not support type"
 
-        where byte :: (Integral i, Bits i) => i -> Int -> Word8
-              byte v i = fromIntegral $ (v `shiftR` (i*8)) .&. 0xFF
+    where byte :: (Integral i, Bits i) => i -> Int -> Word8
+          byte v i = fromIntegral $ (v `shiftR` (i*8)) .&. 0xFF
 
 instance ArrowTrans SerializeT where
     lift' = SerializeT
