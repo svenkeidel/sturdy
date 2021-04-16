@@ -12,13 +12,14 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ConcreteInterpreter where
 
-import           Data
+import           Data hiding (I32Eqz)
 import           Concrete
 import           GenericInterpreter hiding (eval,evalNumericInst,evalParametricInst,invokeExported,store)
 import qualified GenericInterpreter as Generic
 
 import           Control.Arrow
 import qualified Control.Arrow.Trans as Trans
+import           Control.Arrow.Except
 
 import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.StaticGlobalState
@@ -37,45 +38,75 @@ import           Data.Concrete.Error
 import qualified Data.Function as Function
 import           Data.Text.Lazy (Text)
 import qualified Data.Vector as Vec
+import           Data.Int
 import           Data.Word
+import           Data.Bits
 
 import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Structure hiding (exports, Const, Instruction, Function,Expression,Memory,Table)
 import           Language.Wasm.Validate (ValidModule)
 
-toVal32 :: Word32 -> Value
-toVal32 = Value . Wasm.VI32
+trap :: IsException (Exc v) v c => c String x
+trap = throw <<< exception <<^ Trap
 
-toVal64 :: Word64 -> Value
-toVal64 = Value . Wasm.VI64
-
-instance ArrowChoice c => IsVal Value (ValueT Value c) where
+instance (IsException (Exc Value) Value (ValueT Value c), ArrowChoice c) => IsVal Value (ValueT Value c) where
     type JoinVal y (ValueT Value c) = ()
 
-    i32const = proc w32 -> returnA -< Value $ Wasm.VI32 w32
-    i64const = proc w64 -> returnA -< Value $ Wasm.VI64 w64
-    iBinOp _eCont = proc (bs,op,Value v1,Value v2) ->
-      case (bs,op,v1,v2) of
-        (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 + val2
-        (BS32, IMul, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 * val2
-        (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< toVal32 $ val1 - val2
-        (BS64, IAdd, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 + val2
-        (BS64, IMul, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 * val2
-        (BS64, ISub, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< toVal64 $ val1 - val2
-        _ -> returnA -< error "iBinOp: cannot apply binary operator to given arguments."
-    iRelOp = proc (bs,op,Value v1, Value v2) ->
-      case (bs,op,v1,v2) of
-      (BS32, IEq, Wasm.VI32 val1, Wasm.VI32 val2) ->
-        returnA -< toVal32 $ if val1 == val2 then 1 else 0
---                    (BS64, ILtU, Wasm.VI64 val1, Wasm.VI64 val2) ->
---                        returnA -< toVal64 $ if val1 < val2 then 1 else 0
-      (BS64, IEq, Wasm.VI64 val1, Wasm.VI64 val2) ->
-        returnA -< toVal32 $ if val1 == val2 then 1 else 0
-      _ -> returnA -< error "iRelOp: cannot apply binary operator to given arguments."
+    i32const = proc w32 -> returnA -< int32 w32
+    i64const = proc w64 -> returnA -< int64 w64
 
-    i32ifNeqz f g = proc (v, x) -> do
-      case v of
+    iUnOp = proc (bs,op,Value v0) -> case (bs,op,v0) of
+        (BS32, IClz, Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ countLeadingZeros v
+        (BS32, ICtz, Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ countTrailingZeros v
+        (BS32, IPopcnt, Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ popCount v
+        _ -> trap -< "iUnOp: cannot apply operator to arguements"
+    iBinOp _eCont = proc (bs,op,Value v1,Value v2) -> case (bs,op,v1,v2) of
+        (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 + val2
+        (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 - val2
+        (BS32, IMul, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 * val2
+        (BS32, IDivU, Wasm.VI32 val1, Wasm.VI32 val2) ->
+          if val2 == 0
+          then trap -< "divide by 0"
+          else returnA -< int32 $ val1 `quot` val2
+        (BS32, IDivS, Wasm.VI32 val1, Wasm.VI32 val2) ->
+          if val2 == 0 || (val1 == 0x80000000 && val2 == 0xFFFFFFFF)
+          then trap -< "divide by 0"
+          else returnA -< int32 $ asWord32 (asInt32 val1 `quot` asInt32 val2)
+        (BS32, IRemU, Wasm.VI32 val1, Wasm.VI32 val2) ->
+          if val2 == 0
+          then trap -< "divide by 0"
+          else returnA -< int32 $ val1 `rem` val2
+        (BS32, IRemS, Wasm.VI32 val1, Wasm.VI32 val2) ->
+          if val2 == 0
+          then trap -< "divide by 0"
+          else returnA -< int32 $ asWord32 (asInt32 val1 `rem` asInt32 val2)
+        (BS32, IAnd,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 .&. val2
+        (BS32, IOr,   Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 .|. val2
+        (BS32, IXor,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `xor` val2
+        (BS32, IShl,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `shiftL` (fromIntegral val2 `rem` 32)
+        (BS32, IShrU, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `shiftR` (fromIntegral val2 `rem` 32)
+        (BS32, IShrS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ asWord32 $ asInt32 val1 `shiftR` (fromIntegral val2 `rem` 32)
+        (BS32, IRotl, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `rotateL` fromIntegral val2
+        (BS32, IRotr, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `rotateR` fromIntegral val2
+        -- (BS64, IAdd,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 + val2
+        -- (BS64, IMul,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 * val2
+        -- (BS64, ISub,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 - val2
+        _ -> returnA -< error "iBinOp: cannot apply binary operator to given arguments."
+    iRelOp = proc (bs,op,Value v1, Value v2) -> case (bs,op,v1,v2) of
+        (BS32, IEq,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 == val2 then 1 else 0
+        (BS32, INe,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 /= val2 then 1 else 0
+        (BS32, ILtU, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 <  val2 then 1 else 0
+        (BS32, ILtS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if asInt32 val1 < asInt32 val2 then 1 else 0
+        (BS32, IGtU, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 >  val2 then 1 else 0
+        (BS32, IGtS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if asInt32 val1 > asInt32 val2 then 1 else 0
+        (BS32, ILeU, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 <= val2 then 1 else 0
+        (BS32, ILeS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if asInt32 val1 <= asInt32 val2 then 1 else 0
+        (BS32, IGeU, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 >= val2 then 1 else 0
+        (BS32, IGeS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if asInt32 val1 >= asInt32 val2 then 1 else 0
+        _ -> returnA -< error "iRelOp: cannot apply binary operator to given arguments."
+
+    i32ifNeqz f g = proc (v, x) -> case v of
         Value (Wasm.VI32 0) -> g -< x
         Value (Wasm.VI32 _) -> f -< x
         _                   -> returnA -< error "i32ifNeqz: condition of unexpected type"
@@ -90,7 +121,6 @@ instance ArrowChoice c => IsVal Value (ValueT Value c) where
 
     f32const = error "TODO: implement f32const"
     f64const = error "TODO: implement f64const"
-    iUnOp = error "TODO: implement iUnOp"
     i32eqz = error "TODO: implement i32eqz"
     i64eqz = error "TODO: implement i64eqz"
     fUnOp = error "TODO: implement fUnOp"
@@ -109,7 +139,7 @@ instance ArrowChoice c => IsVal Value (ValueT Value c) where
     fReinterpretI = error "TODO: implement IReinterpretI"
     listLookup = error "TODO: implement listLookup"
 
-instance (Arrow c) => IsException (Exc Value) Value (ValueT Value c) where
+instance (ArrowExcept (Exc Value) c) => IsException (Exc Value) Value (ValueT Value c) where
     type JoinExc y (ValueT Value c) = ()
     exception = arr id
     handleException = id
@@ -241,3 +271,32 @@ instantiateConcrete valMod = instantiate valMod Value toMem TableInst
 --        convertGlobals (Wasm.GIMut _ v) = do
 --            val <- readIORef v
 --            return $ GlobInst Mutable (Value val)
+
+int32 :: Word32 -> Value
+int32 = Value . Wasm.VI32
+
+int64 :: Word64 -> Value
+int64 = Value . Wasm.VI64
+
+-- Conversion functions copied from https://github.com/SPY/haskell-wasm/blob/master/src/Language/Wasm/Interpreter.hs
+asInt32 :: Word32 -> Int32
+asInt32 w =
+    if w < 0x80000000
+    then fromIntegral w
+    else -1 * fromIntegral (0xFFFFFFFF - w + 1)
+
+asInt64 :: Word64 -> Int64
+asInt64 w =
+    if w < 0x8000000000000000
+    then fromIntegral w
+    else -1 * fromIntegral (0xFFFFFFFFFFFFFFFF - w + 1)
+
+asWord32 :: Int32 -> Word32
+asWord32 i
+    | i >= 0 = fromIntegral i
+    | otherwise = 0xFFFFFFFF - fromIntegral (abs i) + 1
+
+asWord64 :: Int64 -> Word64
+asWord64 i
+    | i >= 0 = fromIntegral i
+    | otherwise = 0xFFFFFFFFFFFFFFFF - fromIntegral (abs i) + 1

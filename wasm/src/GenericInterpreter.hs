@@ -62,7 +62,7 @@ data Exc v = Trap String | Jump Natural [v] | CallReturn [v] deriving (Show, Eq,
 
 instance Hashable v => Hashable (Exc v)
 
-class IsException exc v c | c -> v where
+class ArrowExcept exc c => IsException exc v c | c -> v where
     type family JoinExc y (c :: * -> * -> *) :: Constraint
     exception :: c (Exc v) exc
     handleException :: JoinExc y c => c (Exc v, x) y -> c (exc,x) y

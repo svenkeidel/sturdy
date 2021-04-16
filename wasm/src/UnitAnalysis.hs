@@ -25,6 +25,12 @@ import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic (innermost)
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Order
+import           Control.Arrow.Except
+import           Control.Arrow.Trans as Trans
+
+import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Except
@@ -64,6 +70,7 @@ import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
+import Control.Arrow.Except (ArrowExcept)
 
 newtype Exc v = Exc (HashSet (Generic.Exc v)) deriving (Eq, Show, Hashable, PreOrd, Complete)
 
@@ -101,7 +108,7 @@ tailA f = proc () -> do
     []     -> returnA -< error "tailA: cannot return the tail of an empty list"
 
 
-instance (ArrowChoice c) => IsException (Exc Value) Value (ValueT Value c) where
+instance (ArrowExcept (Exc Value) c, ArrowChoice c) => IsException (Exc Value) Value (ValueT Value c) where
     type JoinExc y (ValueT Value c) = ArrowComplete y (ValueT Value c)
     exception = arr $ Exc . HashSet.singleton
     handleException f = proc (Exc excs,x) -> do
