@@ -19,11 +19,12 @@ import           Control.Arrow.Transformer.State
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Writer
 
+import qualified Data.Order as O
 import           Data.Profunctor
 
 import           GHC.Exts (Constraint)
 
-class ArrowMemory addr bytes c | c -> addr, c -> bytes where
+class ArrowMemory addr bytes sz c | c -> addr, c -> bytes, c -> sz where
     type family Join y c :: Constraint
 
     -- | memread f g (ma,addr,size,x)
@@ -32,38 +33,38 @@ class ArrowMemory addr bytes c | c -> addr, c -> bytes where
     -- | Invokes `g x` if memory access is out of bounds.
     memread :: Join y c => c (bytes, x) y -> c x y -> c (Int, addr, Int, x) y
     memstore :: Join y c => c x y -> c x y -> c (Int, addr, bytes, x) y
+    memsize :: c Int sz
+    memgrow :: Join y c => c (sz,x) y -> c x y -> c (Int,sz,x) y
 
 
-deriving instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (ValueT val2 c)
-deriving instance (Arrow c, Profunctor c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (CE.ExceptT e c)
-deriving instance (Arrow c, Profunctor c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (AE.ExceptT e c)
-instance (Arrow c, Profunctor c, Functor f, ArrowMemory addr bytes c) => ArrowMemory addr bytes (KleisliT f c) where
+deriving instance (ArrowMemory addr bytes sz c) => ArrowMemory addr bytes sz (ValueT val2 c)
+deriving instance (Arrow c, Profunctor c, ArrowMemory addr bytes sz c) => ArrowMemory addr bytes sz (CE.ExceptT e c)
+deriving instance (O.Complete e, Arrow c, Profunctor c, ArrowMemory addr bytes sz c) => ArrowMemory addr bytes sz (AE.ExceptT e c)
+instance (Arrow c, Profunctor c, Monad f, ArrowMemory addr bytes sz c) => ArrowMemory addr bytes sz (KleisliT f c) where
     type Join y (KleisliT f c) = Join (f y) c
-    -- a1 :: KleisliT e c (bytes,x) y, a2 :: KleisliT e c x y
-    -- c1 :: c (bytes,x) (e y), c2 :: c x (e y)
-    -- memread :: c (bytes, x) y -> c x y -> c (m, (addr, Int, x)) (m,y)
-    -- we need c (m, (addr, Int, x)) (m, y)
     memread a1 a2 = lift $
-        -- lift :: c x (e y) -> KleisliT e c x y
-        memread (unlift a1) (unlift a2) -- >>^ moveIn -- :: c (m, (addr, Int, x)) (e (m,y))
-        -- moveIn :: (m, (e y)) -> (e (m,y))
-        -- where moveIn (m, ey) = fmap ((,) m) ey
-
+        memread (unlift a1) (unlift a2)
     memstore a1 a2 = lift $
-        memstore (unlift a1) (unlift a2)-- >>^ moveIn
-        -- where moveIn (m, ey) = fmap ((,) m) ey
+        memstore (unlift a1) (unlift a2)
+    memsize = lift' memsize
+    memgrow a1 a2 = lift $
+        memgrow (unlift a1) (unlift a2)
 
-instance (Arrow c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (StateT s c) where
+instance (Arrow c, Profunctor c, ArrowMemory addr bytes sz c) => ArrowMemory addr bytes sz (StateT s c) where
     type Join y (StateT s c) = Join (s,y) c
     memread a1 a2 = lift $ proc (s, (ma,addr,i,x)) -> do
         memread (proc (bytes,(s,x)) -> unlift a1 -< (s, (bytes,x)))
                 (unlift a2)
                 -< (ma,addr,i,(s,x))
-
     memstore a1 a2 = lift $ proc (s, (ma,addr,bytes,x)) -> do
         memstore (unlift a1) (unlift a2) -< (ma,addr,bytes,(s,x))
+    memsize = lift' memsize
+    memgrow a1 a2 = lift $ proc (s, (ma,sz,x)) -> do
+        memgrow (proc (sz,(s,x)) -> unlift a1 -< (s, (sz,x)))
+                (unlift a2)
+                -< (ma,sz,(s,x))
 
-instance (Arrow c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (ReaderT r c) where
+instance (Arrow c, Profunctor c, ArrowMemory addr bytes sz c) => ArrowMemory addr bytes sz (ReaderT r c) where
     type Join y (ReaderT r c) = Join y c
     memread a1 a2 = lift $ proc (r, (ma,addr,i,x)) ->
         memread (proc (bytes, (r,x)) -> unlift a1 -< (r, (bytes,x)))
@@ -71,7 +72,14 @@ instance (Arrow c, ArrowMemory addr bytes c) => ArrowMemory addr bytes (ReaderT 
                 -< (ma,addr,i,(r,x))
     memstore a1 a2 = lift $ proc (r, (ma,addr,bytes,x)) ->
         memstore (unlift a1) (unlift a2) -< (ma, addr, bytes, (r,x))
-instance (ArrowMemory addr bytes c) => ArrowMemory addr bytes (WriterT r c) where
-  type Join x (WriterT r c) = Join (r,x) c
-  memread = error "TODO: Implement WriterT.memread"
-  memstore = error "TODO: Implement WriterT.memstore"
+    memsize = lift' memsize
+    memgrow a1 a2 = lift $ proc (r, (ma,sz,x)) ->
+        memgrow (proc (sz, (r,x)) -> unlift a1 -< (r, (sz,x)))
+                (unlift a2)
+                -< (ma,sz,(r,x))
+instance (Arrow c, Profunctor c, Monoid r, ArrowMemory addr bytes sz c) => ArrowMemory addr bytes sz (WriterT r c) where
+    type Join x (WriterT r c) = Join (r,x) c
+    memread = error "TODO: implement WriterT.memread"
+    memstore = error "TODO: implement WriterT.memstore"
+    memsize = lift' memsize
+    memgrow = error "TODO: implement WriterT.memgrow"

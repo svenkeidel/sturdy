@@ -57,10 +57,13 @@ instance (IsException (Exc Value) Value (ValueT Value c), ArrowChoice c) => IsVa
     i64const = proc w64 -> returnA -< int64 w64
 
     iUnOp = proc (bs,op,Value v0) -> case (bs,op,v0) of
-        (BS32, IClz, Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ countLeadingZeros v
-        (BS32, ICtz, Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ countTrailingZeros v
+        (BS32, IClz,    Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ countLeadingZeros v
+        (BS32, ICtz,    Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ countTrailingZeros v
         (BS32, IPopcnt, Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ popCount v
-        _ -> trap -< "iUnOp: cannot apply operator to arguements"
+        (BS64, IClz,    Wasm.VI64 v) -> returnA -< int64 $ fromIntegral $ countLeadingZeros v
+        (BS64, ICtz,    Wasm.VI64 v) -> returnA -< int64 $ fromIntegral $ countTrailingZeros v
+        (BS64, IPopcnt, Wasm.VI64 v) -> returnA -< int64 $ fromIntegral $ popCount v
+        _ -> returnA -< error "iUnOp: cannot apply operator to arguements"
     iBinOp _eCont = proc (bs,op,Value v1,Value v2) -> case (bs,op,v1,v2) of
         (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 + val2
         (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 - val2
@@ -89,9 +92,34 @@ instance (IsException (Exc Value) Value (ValueT Value c), ArrowChoice c) => IsVa
         (BS32, IShrS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ asWord32 $ asInt32 val1 `shiftR` (fromIntegral val2 `rem` 32)
         (BS32, IRotl, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `rotateL` fromIntegral val2
         (BS32, IRotr, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `rotateR` fromIntegral val2
-        -- (BS64, IAdd,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 + val2
-        -- (BS64, IMul,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 * val2
-        -- (BS64, ISub,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 - val2
+
+        (BS64, IAdd,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 + val2
+        (BS64, ISub,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 - val2
+        (BS64, IMul,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 * val2
+        (BS64, IDivU, Wasm.VI64 val1, Wasm.VI64 val2) ->
+          if val2 == 0
+          then trap -< "divide by 0"
+          else returnA -< int64 $ val1 `quot` val2
+        (BS64, IDivS, Wasm.VI64 val1, Wasm.VI64 val2) ->
+          if val2 == 0 || (val1 == 0x8000000000000000 && val2 == 0xFFFFFFFFFFFFFFFF)
+          then trap -< "divide by 0"
+          else returnA -< int64 $ asWord64 (asInt64 val1 `quot` asInt64 val2)
+        (BS64, IRemU, Wasm.VI64 val1, Wasm.VI64 val2) ->
+          if val2 == 0
+          then trap -< "divide by 0"
+          else returnA -< int64 $ val1 `rem` val2
+        (BS64, IRemS, Wasm.VI64 val1, Wasm.VI64 val2) ->
+          if val2 == 0
+          then trap -< "divide by 0"
+          else returnA -< int64 $ asWord64 (asInt64 val1 `rem` asInt64 val2)
+        (BS64, IAnd,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 .&. val2
+        (BS64, IOr,   Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 .|. val2
+        (BS64, IXor,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `xor` val2
+        (BS64, IShl,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `shiftL` (fromIntegral val2 `rem` 64)
+        (BS64, IShrU, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `shiftR` (fromIntegral val2 `rem` 64)
+        (BS64, IShrS, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ asWord64 $ asInt64 val1 `shiftR` (fromIntegral val2 `rem` 64)
+        (BS64, IRotl, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `rotateL` fromIntegral val2
+        (BS64, IRotr, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `rotateR` fromIntegral val2
         _ -> returnA -< error "iBinOp: cannot apply binary operator to given arguments."
     iRelOp = proc (bs,op,Value v1, Value v2) -> case (bs,op,v1,v2) of
         (BS32, IEq,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 == val2 then 1 else 0
@@ -104,7 +132,25 @@ instance (IsException (Exc Value) Value (ValueT Value c), ArrowChoice c) => IsVa
         (BS32, ILeS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if asInt32 val1 <= asInt32 val2 then 1 else 0
         (BS32, IGeU, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 >= val2 then 1 else 0
         (BS32, IGeS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if asInt32 val1 >= asInt32 val2 then 1 else 0
+
+        (BS64, IEq,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if val1 == val2 then 1 else 0
+        (BS64, INe,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if val1 /= val2 then 1 else 0
+        (BS64, ILtU, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if val1 <  val2 then 1 else 0
+        (BS64, ILtS, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if asInt64 val1 < asInt64 val2 then 1 else 0
+        (BS64, IGtU, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if val1 >  val2 then 1 else 0
+        (BS64, IGtS, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if asInt64 val1 > asInt64 val2 then 1 else 0
+        (BS64, ILeU, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if val1 <= val2 then 1 else 0
+        (BS64, ILeS, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if asInt64 val1 <= asInt64 val2 then 1 else 0
+        (BS64, IGeU, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if val1 >= val2 then 1 else 0
+        (BS64, IGeS, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int32 $ if asInt64 val1 >= asInt64 val2 then 1 else 0
         _ -> returnA -< error "iRelOp: cannot apply binary operator to given arguments."
+
+    i32eqz = proc (Value v) -> case v of
+        (Wasm.VI32 val) -> returnA -< int32 $ if val == 0 then 1 else 0
+        _ -> returnA -< error "i32eqz: cannot apply operator to given argument."
+    i64eqz = proc (Value v) -> case v of
+        (Wasm.VI64 val) -> returnA -< int32 $ if val == 0 then 1 else 0
+        _ -> returnA -< error "i64eqz: cannot apply operator to given argument."
 
     i32ifNeqz f g = proc (v, x) -> case v of
         Value (Wasm.VI32 0) -> g -< x
@@ -121,8 +167,6 @@ instance (IsException (Exc Value) Value (ValueT Value c), ArrowChoice c) => IsVa
 
     f32const = error "TODO: implement f32const"
     f64const = error "TODO: implement f64const"
-    i32eqz = error "TODO: implement i32eqz"
-    i64eqz = error "TODO: implement i64eqz"
     fUnOp = error "TODO: implement fUnOp"
     fBinOp = error "TODO: implement fBinOp"
     fRelOp = error "TODO: implement fRelOp"
@@ -271,12 +315,6 @@ instantiateConcrete valMod = instantiate valMod Value toMem TableInst
 --        convertGlobals (Wasm.GIMut _ v) = do
 --            val <- readIORef v
 --            return $ GlobInst Mutable (Value val)
-
-int32 :: Word32 -> Value
-int32 = Value . Wasm.VI32
-
-int64 :: Word64 -> Value
-int64 = Value . Wasm.VI64
 
 -- Conversion functions copied from https://github.com/SPY/haskell-wasm/blob/master/src/Language/Wasm/Interpreter.hs
 asInt32 :: Word32 -> Int32

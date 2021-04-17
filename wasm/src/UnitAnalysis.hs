@@ -25,12 +25,7 @@ import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic (innermost)
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Order
-import           Control.Arrow.Except
-import           Control.Arrow.Trans as Trans
-
-import           Control.Arrow.Transformer.Abstract.Except
-import           Control.Arrow.Transformer.Abstract.Error
-import           Control.Arrow.Transformer.Abstract.Fix
+import           Control.Arrow.Except (ArrowExcept)
 import           Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Except
@@ -70,7 +65,7 @@ import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
-import Control.Arrow.Except (ArrowExcept)
+--import Control.Arrow.Except (ArrowExcept)
 
 newtype Exc v = Exc (HashSet (Generic.Exc v)) deriving (Eq, Show, Hashable, PreOrd, Complete)
 

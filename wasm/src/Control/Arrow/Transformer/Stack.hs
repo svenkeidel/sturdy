@@ -20,10 +20,10 @@ import           Control.Arrow.Fix
 --import           Control.Arrow.Logger
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
-import           Control.Arrow.MemSizable
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
+import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.State
 import           Control.Arrow.StaticGlobalState
@@ -40,9 +40,9 @@ import           Data.Profunctor
 newtype StackT v c x y = StackT (StateT (JoinList v) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowTrans,ArrowLift,ArrowRun,
             ArrowConst r, ArrowReader r, ArrowFail e, ArrowExcept e, ArrowWriter w,
-            ArrowStaticGlobalState v1, ArrowFrame fd v1, ArrowMemory addr bytes,
+            ArrowStaticGlobalState v1, ArrowFrame fd v1, ArrowMemory addr bytes sz,
             ArrowMemAddress v1 n addr, ArrowSerialize v1 bytes valTy loadTy storeTy,
-            ArrowMemSizable v1, ArrowTable v1)
+            ArrowSize v1 sz, ArrowTable v1)
 
 deriving instance (ArrowComplete (JoinList v, y) c) => ArrowComplete y (StackT v c)
 

@@ -19,10 +19,10 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
-import           Control.Arrow.MemSizable
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
+import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.State
 import           Control.Arrow.StaticGlobalState
@@ -42,8 +42,8 @@ import           Data.Profunctor
 newtype StaticGlobalStateT v c x y = StaticGlobalStateT (StateT (StaticGlobalState v) c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowReader r,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowSerialize val dat valTy datDecTy datEncTy, ArrowMemory addr bytes,
-              ArrowMemSizable val, ArrowMemAddress base off addr, ArrowTable v1, ArrowJoin)
+              ArrowStack st, ArrowSerialize val dat valTy datDecTy datEncTy, ArrowMemory addr bytes sz,
+              ArrowSize val sz, ArrowMemAddress base off addr, ArrowTable v1, ArrowJoin)
 
 instance (ArrowState s c) => ArrowState s (StaticGlobalStateT v c) where
   get = error "TODO: implement StaticGlobalStateT.get"

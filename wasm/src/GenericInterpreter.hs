@@ -29,9 +29,9 @@ import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory as Mem
-import           Control.Arrow.MemSizable
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
+import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.Table
 import qualified Control.Arrow.Utils as Arr
@@ -96,11 +96,11 @@ type FrameData = (Natural, ModuleInstance)
 
 
 
-type ArrowWasmMemory addr bytes v c =
-  ( ArrowMemory addr bytes c,
+type ArrowWasmMemory addr bytes sz v c =
+  ( ArrowMemory addr bytes sz c,
     ArrowMemAddress v Natural addr c,
+    ArrowSize v sz c,
     ArrowSerialize v bytes ValueType LoadType StoreType c,
-    ArrowMemSizable v c,
     Show addr, Show bytes)
 
 type ArrowStaticComponents v c =
@@ -109,9 +109,9 @@ type ArrowStaticComponents v c =
     ArrowFrame FrameData v c,
     ArrowReader LabelArities c)
 
-type ArrowDynamicComponents v addr bytes exc e c =
+type ArrowDynamicComponents v addr bytes sz exc e c =
   ( ArrowTable v c,
-    ArrowWasmMemory addr bytes v c,
+    ArrowWasmMemory addr bytes sz v c,
     IsVal v c,
     ArrowExcept exc c, IsException exc v c,
     ArrowFail e c, IsString e,
@@ -160,7 +160,7 @@ class Show v => IsVal v c | c -> v where
 -- argument [v]: arguments going to be passed to the function
 invokeExported ::
   ( ArrowChoice c,
-    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes exc e c,
+    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
     JoinExc () c, Exc.Join () c,
     Mem.Join () c,
     JoinVal () c, Show v,
@@ -178,7 +178,7 @@ invokeExported = proc (funcName, args) -> do
 
 invokeExternal ::
   ( ArrowChoice c,
-    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes exc e c,
+    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
     JoinExc () c,
     Mem.Join () c,
     JoinVal () c, Show v,
@@ -223,7 +223,7 @@ invokeExternal = proc (funcAddr, args) ->
 
 eval ::
   ( ArrowChoice c,
-    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes exc e c,
+    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
     JoinExc () c,
     Mem.Join () c,
     JoinVal () c, Show v,
@@ -268,7 +268,7 @@ eval = fix $ \eval' -> proc is -> do
 evalControlInst ::
   ( ArrowChoice c, Profunctor c,
     ArrowStaticComponents v c,
-    ArrowDynamicComponents v addr bytes exc e c,
+    ArrowDynamicComponents v addr bytes sz exc e c,
     JoinVal () c,
     JoinExc () c,
     Exc.Join () c,
@@ -457,7 +457,7 @@ evalParametricInst = proc i -> case i of
 
 evalMemoryInst ::
   ( ArrowChoice c,
-    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes exc e c,
+    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
     Mem.Join () c)
   => c (Instruction Natural) ()
 evalMemoryInst = proc i -> case i of --withCurrentMemory $ proc (m,i) -> case i of
@@ -484,13 +484,19 @@ evalMemoryInst = proc i -> case i of --withCurrentMemory $ proc (m,i) -> case i 
   I64Store8 (MemArg off _) _ -> store S_I8 I64 -< off
   I64Store16 (MemArg off _) _ -> store S_I16 I64 -< off
   I64Store32 (MemArg off _) _ -> store S_I32 I64 -< off
---  CurrentMemory -> push <<< memsize -< ()
---  GrowMemory -> do
---    n <- pop -< ()
---    memgrow
---      (push <<^ fst)
---      (proc _ -> push <<< i32const -< 0xFFFFFFFF) -- 0xFFFFFFFF ~= -1
---      -< (n, ())
+  CurrentMemory _ -> push <<< sizeToVal <<< memsize <<< memoryIndex -< ()
+  GrowMemory _ -> do
+    n <- valToSize <<< pop -< ()
+    memIndex <- memoryIndex -< ()
+    memgrow
+      (push <<< sizeToVal <<^ fst)
+      (proc _ -> push <<< i32const -< 0xFFFFFFFF) -- 0xFFFFFFFF ~= -1
+      -< (memIndex, n, ())
+
+memoryIndex :: (Arrow c, ArrowFrame FrameData v c) => c () Int
+memoryIndex = proc () -> do
+  (_,modInst) <- frameData -< ()
+  returnA -< memaddrs modInst ! 0
 
 --withCurrentMemory :: (ArrowChoice c, ArrowGlobalState v m c, ArrowMemory addr bytes c, ArrowFrame FrameData v c) => c (m,x) (m,y) -> c x y
 --withCurrentMemory f = proc x -> do
@@ -500,26 +506,24 @@ evalMemoryInst = proc i -> case i of --withCurrentMemory $ proc (m,i) -> case i 
 
 load ::
   ( ArrowChoice c,
-    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes exc e c,
+    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
     Mem.Join () c)
   => Int -> LoadType -> ValueType -> c Natural ()
 load byteSize loadType valType = proc off -> do
   base <- pop -< ()
   addr <- memaddr -< (base, off)
-  (_,modInst) <- frameData -< ()
-  let memAddr = memaddrs modInst ! 0
+  memIndex <- memoryIndex -< ()
   memread
     (proc (bytes,_) ->
       decode
         (push <<^ fst)
-        --(error "decode failure")
         -< (bytes, loadType, valType, ()))
     (proc addr -> throw <<< exception -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
-    -< (memAddr, addr, byteSize, addr)
+    -< (memIndex, addr, byteSize, addr)
 
 store ::
   ( ArrowChoice c,
-    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes exc e c,
+    ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
     Mem.Join () c)
   => StoreType -> ValueType -> c Natural ()
 store storeType valType = proc off -> do
@@ -528,13 +532,11 @@ store storeType valType = proc off -> do
     (proc (bytes,off) -> do
       base <- pop -< ()
       addr <- memaddr -< (base, off)
-      (_,modInst) <- frameData -< ()
-      let memAddr = memaddrs modInst ! 0
+      memIndex <- memoryIndex -< ()
       memstore
         (arr $ const ())
         (proc (addr,bytes) -> throw <<< exception -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr))
-        -< (memAddr, addr, bytes, (addr, bytes)))
-    --(error "encode failure")
+        -< (memIndex, addr, bytes, (addr, bytes)))
     -< (v, valType, storeType, off)
 
 evalVariableInst ::
@@ -575,9 +577,6 @@ evalNumericInst = proc i -> case i of
     iBinOp
       (proc (op,v1,v2) -> throw <<< exception -< Trap $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2)))
       -< (bs, op, v1, v2)
---    case res of
---      Just v' -> returnA -< v'
---      Nothing -> throw <<< exception -< Trap $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2))
   I32Eqz _ -> do
     v <- pop -< ()
     i32eqz -< v

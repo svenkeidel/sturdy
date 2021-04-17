@@ -9,7 +9,8 @@
 
 module Control.Arrow.Transformer.Abstract.Memory where
 
-import           UnitAnalysisValue
+import           Abstract (BaseValue(..))
+import           UnitAnalysisValue (Value(..),valueI32)
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -18,10 +19,10 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
-import           Control.Arrow.MemSizable
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
+import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.StaticGlobalState
 import           Control.Arrow.Store
@@ -43,17 +44,22 @@ instance ArrowTrans MemoryT where
   -- lift' :: c x y -> MemoryT v c x y
   lift' = MemoryT
 
-instance (Profunctor c, ArrowChoice c) => ArrowMemory () () (MemoryT c) where
+instance (Profunctor c, ArrowChoice c) => ArrowMemory () () () (MemoryT c) where
   type Join y (MemoryT c) = ArrowComplete y (MemoryT c)
   memread sCont eCont = proc (_,(),_,x) -> (sCont -< ((),x)) <⊔> (eCont -< x)
   memstore sCont eCont = proc (_,(),(),x) -> (sCont -< x) <⊔> (eCont -< x)
+  memsize = arr $ const ()
+  memgrow sCont eCont = proc (_,(),x) -> (sCont -< ((),x)) <⊔> (eCont -< x)
+
+instance (ArrowChoice c, Profunctor c) => ArrowSize Value () (MemoryT c) where
+  valToSize = proc (Value v) -> case v of
+    (VI32 _) -> returnA -< ()
+    _ -> returnA -< error "valToSize: arguments needs to be an i32 integer."
+  sizeToVal = proc () -> returnA -< valueI32
 
 instance (Arrow c, Profunctor c) => ArrowMemAddress base off () (MemoryT c) where
   memaddr = arr $ const ()
 
-instance ArrowMemSizable Value (MemoryT c) where
-  memsize = error "TODO: implement MemoryT.memsize"
-  memgrow = error "TODO: implement MemoryT.memgrow"
 
 deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (MemoryT c)
 

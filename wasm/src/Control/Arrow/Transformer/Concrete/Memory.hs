@@ -9,6 +9,7 @@
 module Control.Arrow.Transformer.Concrete.Memory where
 
 import           Concrete
+import           Data (pageSize)
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -17,9 +18,9 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.MemAddress
 import           Control.Arrow.Memory
-import           Control.Arrow.MemSizable
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
+import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.State
 import           Control.Arrow.StaticGlobalState
@@ -51,7 +52,7 @@ instance ArrowTrans MemoryT where
   -- lift' :: c x y -> MemoryT v c x y
   lift' a = MemoryT (lift' a)
 
-instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (MemoryT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) Int (MemoryT c) where
     type Join y (MemoryT c) = ()
     memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (memIndex,addr,size,x) -> do
         let addrI = fromIntegral addr
@@ -63,30 +64,45 @@ instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) (Mem
             sCont -< (bytes,x)
           else
             eCont -< x
---        case (addrI+size <= length vec) of
---            True -> do
---                let content = Vec.slice addrI size vec
---                sCont -< (content,x)
---            False -> do
---                eCont -< x
 
-  memstore (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (index,addr, content, x) -> do
-      let addrI = fromIntegral addr
-      mems <- get -< ()
-      let (MemInst maxSize vec) = mems ! index
-      let size = length content
-      case (addrI+size <= length vec) of
-          True -> do
-              let ind = Vec.enumFromN addrI size
-              let newMem = MemInst maxSize (Vec.update_ vec ind content)
-              put -< mems // [(index,newMem)]
-              sCont -< x
-          False -> do
-              eCont -< x
+    memstore (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (memIndex, addr, content, x) -> do
+        let addrI = fromIntegral addr
+        mems <- get -< ()
+        let (MemInst maxSize vec) = mems ! memIndex
+        let size = length content
+        case (addrI+size <= length vec) of
+            True -> do
+                let ind = Vec.enumFromN addrI size
+                let newMem = MemInst maxSize (Vec.update_ vec ind content)
+                put -< mems // [(memIndex,newMem)]
+                sCont -< x
+            False -> do
+                eCont -< x
 
-instance ArrowMemSizable Value (MemoryT c) where
-  memsize = error "TODO: implement MemoryT.memsize"
-  memgrow = error "TODO: implement MemoryT.memgrow"
+    memsize = MemoryT $ proc memIndex -> do
+        mems <- get -< ()
+        let (MemInst _ vec) = mems ! memIndex
+        let size = length vec
+        returnA -< size `quot` pageSize
+    memgrow (MemoryT _) (MemoryT eCont) = MemoryT $ proc (_,_,x) -> do
+        -- TODO: allow to grow the memory
+        eCont -< x
+--        mems <- get -< ()
+--        let (MemInst maxSize vec) = mems ! memIndex
+--        let oldSize = (length vec) `quot` pageSize
+--        if (oldSize + sz > maxSize)
+--            then eCont -< x
+--            -- we don't allow to grow memory so far -> TODO
+--            else eCont -< x
+--              -- TODO: grow memory
+--              -- return old size
+--              --sCont -< (oldSize,x)
+
+instance (ArrowChoice c, Profunctor c) => ArrowSize Value Int (MemoryT c) where
+    valToSize = proc (Value v) -> case v of
+        (Wasm.VI32 val) -> returnA -< fromIntegral val
+        _ -> returnA -< error "valToSize: arguments needs to be an i32 integer"
+    sizeToVal = proc sz -> returnA -< int32 $ fromIntegral sz
 
 instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (MemoryT c) where
   memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base + fromIntegral off)

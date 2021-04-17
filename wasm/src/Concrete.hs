@@ -21,6 +21,12 @@ newtype Value = Value Wasm.Value deriving (Show, Eq)
 type Memories = Vector MemInst
 type Tables = Vector TableInst
 
+int32 :: Word32 -> Value
+int32 = Value . Wasm.VI32
+
+int64 :: Word64 -> Value
+int64 = Value . Wasm.VI64
+
 --data DynamicGlobalState = DynamicGlobalState {
 --    tableInstances :: Vector TableInst,
 --    memInstances :: Vector MemInst

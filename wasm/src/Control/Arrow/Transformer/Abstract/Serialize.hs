@@ -23,6 +23,7 @@ import           Control.Arrow.Memory
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
+import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.State
 import           Control.Arrow.StaticGlobalState
@@ -42,7 +43,7 @@ newtype SerializeT c x y = SerializeT (c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
               ArrowStack st, ArrowLogger l, ArrowState s, ArrowStaticGlobalState v, ArrowReader m, ArrowTable v,
-              ArrowMemory addr bytes, ArrowJoin)
+              ArrowMemory addr bytes sz, ArrowSize v sz, ArrowJoin)
 
 instance ArrowTrans SerializeT where
     lift' = SerializeT

@@ -33,6 +33,9 @@ import           Language.Wasm.Validate (ValidModule)
 import           GHC.Generics (Generic)
 import           GHC.Exts
 
+pageSize :: Int
+pageSize = 64 * 1024
+
 instance (Show v) => Pretty (Vector v) where pretty = viaShow
 
 instance (Hashable v) => Hashable (Vector v) where
