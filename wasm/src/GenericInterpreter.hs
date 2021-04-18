@@ -127,7 +127,7 @@ class Show v => IsVal v c | c -> v where
     f32const :: c Float v
     f64const :: c Double v
     iUnOp :: c (BitSize, IUnOp, v) v
-    iBinOp :: c (IBinOp, v, v) v -> c (BitSize, IBinOp, v, v) v
+    iBinOp :: (JoinVal v c) => c (IBinOp, v, v) v -> c (BitSize, IBinOp, v, v) v
     i32eqz :: c v v
     i64eqz :: c v v
     iRelOp :: c (BitSize, IRelOp, v, v) v
@@ -135,8 +135,8 @@ class Show v => IsVal v c | c -> v where
     fBinOp :: c (BitSize, FBinOp, v, v) v
     fRelOp :: c (BitSize, FRelOp, v, v) v
     i32WrapI64 :: c v v
-    iTruncFU :: c (BitSize, BitSize, v) v -> c (BitSize, BitSize, v) v
-    iTruncFS :: c (BitSize, BitSize, v) v -> c (BitSize, BitSize, v) v
+    iTruncFU :: (JoinVal v c) => c (BitSize, BitSize, v) v -> c (BitSize, BitSize, v) v
+    iTruncFS :: (JoinVal v c) => c (BitSize, BitSize, v) v -> c (BitSize, BitSize, v) v
     i64ExtendSI32 :: c v v
     i64ExtendUI32 :: c v v
     fConvertIU :: c (BitSize, BitSize, v) v
@@ -149,7 +149,7 @@ class Show v => IsVal v c | c -> v where
     -- | `listLookup f g (v, xs, x)`
     -- | Looks up the `v`-th element in `xs` and passes it to `f`, or
     -- | passes `x` to `g` if `v` is out of range of `xs`.
-    listLookup :: c x y -> c x y -> c (v, [x], x) y
+    listLookup :: (JoinVal y c) => c x y -> c x y -> c (v, [x], x) y
     ifHasType :: c x y -> c x y -> c (v, ValueType, x) y
 
 
@@ -163,7 +163,7 @@ invokeExported ::
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
     JoinExc () c, Exc.Join () c,
     Mem.Join () c,
-    JoinVal () c, Show v,
+    JoinVal () c, JoinVal v c, Show v,
     Fail.Join [v] c,
     Fail.Join () c,
     JoinTable () c)
@@ -181,7 +181,7 @@ invokeExternal ::
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
     JoinExc () c,
     Mem.Join () c,
-    JoinVal () c, Show v,
+    JoinVal () c, JoinVal v c, Show v,
     Exc.Join () c,
     Fail.Join () c,
     JoinTable () c)
@@ -226,7 +226,7 @@ eval ::
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
     JoinExc () c,
     Mem.Join () c,
-    JoinVal () c, Show v,
+    JoinVal () c, JoinVal v c, Show v,
     Exc.Join () c,
     JoinTable () c)
   => c [Instruction Natural] ()
@@ -562,7 +562,7 @@ evalVariableInst = proc i -> case i of
 
 
 evalNumericInst ::
-  ( ArrowChoice c, ArrowStack v c, ArrowExcept exc c, IsException exc v c, IsVal v c, Show v)
+  ( ArrowChoice c, ArrowStack v c, ArrowExcept exc c, IsException exc v c, IsVal v c, Show v, JoinVal v c)
   => c (Instruction Natural) v
 evalNumericInst = proc i -> case i of
   I32Const lit _ -> i32const -< lit
