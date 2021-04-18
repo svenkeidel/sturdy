@@ -20,6 +20,7 @@ dependencies:
   - primitive
   - list-singleton
   - prettyprinter
+  - ieee754
 
 library:
   ghc-options: -Wall

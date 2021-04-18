@@ -27,6 +27,12 @@ int32 = Value . Wasm.VI32
 int64 :: Word64 -> Value
 int64 = Value . Wasm.VI64
 
+float32 :: Float -> Value
+float32 = Value . Wasm.VF32
+
+float64 :: Double -> Value
+float64 = Value . Wasm.VF64
+
 --data DynamicGlobalState = DynamicGlobalState {
 --    tableInstances :: Vector TableInst,
 --    memInstances :: Vector MemInst

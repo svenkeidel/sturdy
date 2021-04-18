@@ -135,8 +135,8 @@ class Show v => IsVal v c | c -> v where
     fBinOp :: c (BitSize, FBinOp, v, v) v
     fRelOp :: c (BitSize, FRelOp, v, v) v
     i32WrapI64 :: c v v
-    iTruncFU :: c (BitSize, BitSize, v) (Maybe v)
-    iTruncFS :: c (BitSize, BitSize, v) (Maybe v)
+    iTruncFU :: c (BitSize, BitSize, v) v -> c (BitSize, BitSize, v) v
+    iTruncFS :: c (BitSize, BitSize, v) v -> c (BitSize, BitSize, v) v
     i64ExtendSI32 :: c v v
     i64ExtendUI32 :: c v v
     fConvertIU :: c (BitSize, BitSize, v) v
@@ -600,16 +600,14 @@ evalNumericInst = proc i -> case i of
     i32WrapI64 -< v
   ITruncFU bs1 bs2 _ -> do
     v <- pop -< ()
-    res <- iTruncFU -< (bs1, bs2, v)
-    case res of
-      Just v' -> returnA -< v'
-      Nothing -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v)
+    iTruncFU
+     (proc (bs1,bs2,v) -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v))
+     -< (bs1,bs2,v)
   ITruncFS bs1 bs2 _ -> do
     v <- pop -< ()
-    res <- iTruncFS -< (bs1, bs2, v)
-    case res of
-      Just v' -> returnA -< v'
-      Nothing -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v)
+    iTruncFS
+      (proc (bs1,bs2,v) -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v))
+      -< (bs1,bs2,v)
   I64ExtendSI32 _ -> do
     v <- pop -< ()
     i64ExtendSI32 -< v
