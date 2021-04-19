@@ -23,6 +23,7 @@ import           Language.Wasm.Structure (BitSize(..), IBinOp(..), IRelOp(..), V
 import           Data.Hashable
 import           Data.Order
 import           Data.Text.Prettyprint.Doc as Pretty
+import Text.Printf (printf)
 
 newtype Value = Value (BaseValue () () () ()) deriving (Eq, Show, Hashable, PreOrd, Complete, Pretty)
 
@@ -48,14 +49,14 @@ instance ArrowChoice c => IsVal Value (ValueT Value c) where
         (BS64, ICtz,    VI64 _) -> returnA -< valueI64
         (BS64, IPopcnt, VI64 _) -> returnA -< valueI64
         _ -> returnA -< error "iUnOp: cannot apply operator to arguments"
-    iBinOp eCont = proc (bs,op,x@(Value v1),y@(Value v2)) -> case (bs,op,v1,v2) of
+    iBinOp = proc (bs,op,x@(Value v1),y@(Value v2)) -> case (bs,op,v1,v2) of
         (BS32, IAdd,  VI32 _, VI32 _) -> returnA -< valueI32
         (BS32, ISub,  VI32 _, VI32 _) -> returnA -< valueI32
         (BS32, IMul,  VI32 _, VI32 _) -> returnA -< valueI32
-        (BS32, IDivU, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (eCont -< (op,x,y))
-        (BS32, IDivS, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (eCont -< (op,x,y))
-        (BS32, IRemU, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (eCont -< (op,x,y))
-        (BS32, IRemS, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (eCont -< (op,x,y))
+        (BS32, IDivU, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (operatorError -< (op,x,y))
+        (BS32, IDivS, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (operatorError -< (op,x,y))
+        (BS32, IRemU, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (operatorError -< (op,x,y))
+        (BS32, IRemS, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (operatorError -< (op,x,y))
         (BS32, IAnd,  VI32 _, VI32 _) -> returnA -< valueI32
         (BS32, IOr,   VI32 _, VI32 _) -> returnA -< valueI32
         (BS32, IXor,  VI32 _, VI32 _) -> returnA -< valueI32
@@ -68,10 +69,10 @@ instance ArrowChoice c => IsVal Value (ValueT Value c) where
         (BS64, IAdd,  VI64 _, VI64 _) -> returnA -< valueI64
         (BS64, ISub,  VI64 _, VI64 _) -> returnA -< valueI64
         (BS64, IMul,  VI64 _, VI64 _) -> returnA -< valueI64
-        (BS64, IDivU, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (eCont -< (op,x,y))
-        (BS64, IDivS, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (eCont -< (op,x,y))
-        (BS64, IRemU, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (eCont -< (op,x,y))
-        (BS64, IRemS, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (eCont -< (op,x,y))
+        (BS64, IDivU, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (operatorError -< (op,x,y))
+        (BS64, IDivS, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (operatorError -< (op,x,y))
+        (BS64, IRemU, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (operatorError -< (op,x,y))
+        (BS64, IRemS, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (operatorError -< (op,x,y))
         (BS64, IAnd,  VI64 _, VI64 _) -> returnA -< valueI64
         (BS64, IOr,   VI64 _, VI64 _) -> returnA -< valueI64
         (BS64, IXor,  VI64 _, VI64 _) -> returnA -< valueI64
@@ -81,6 +82,9 @@ instance ArrowChoice c => IsVal Value (ValueT Value c) where
         (BS64, IRotl, VI64 _, VI64 _) -> returnA -< valueI64
         (BS64, IRotr, VI64 _, VI64 _) -> returnA -< valueI64
         _ -> returnA -< error "iBinOp: cannot apply binary operator to given arguments."
+      where
+        operatorError = proc (op,v1,v2) -> returnA -< error $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2))
+
     iRelOp = proc (bs,op,Value v1, Value v2) -> case (bs,op,v1,v2) of
         (BS32, IEq,  VI32 _, VI32 _) -> returnA -< valueI32
         (BS32, INe,  VI32 _, VI32 _) -> returnA -< valueI32

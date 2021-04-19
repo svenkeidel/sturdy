@@ -127,7 +127,7 @@ class Show v => IsVal v c | c -> v where
     f32const :: c Float v
     f64const :: c Double v
     iUnOp :: c (BitSize, IUnOp, v) v
-    iBinOp :: (JoinVal v c) => c (IBinOp, v, v) v -> c (BitSize, IBinOp, v, v) v
+    iBinOp :: JoinVal v c => c (BitSize, IBinOp, v, v) v
     i32eqz :: c v v
     i64eqz :: c v v
     iRelOp :: c (BitSize, IRelOp, v, v) v
@@ -575,7 +575,7 @@ evalNumericInst = proc i -> case i of
   IBinOp bs op _ -> do
     (v1,v2) <- pop2 -< ()
     iBinOp
-      (proc (op,v1,v2) -> throw <<< exception -< Trap $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2)))
+      -- (proc (op,v1,v2) -> throw <<< exception -< Trap $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2)))
       -< (bs, op, v1, v2)
   I32Eqz _ -> do
     v <- pop -< ()

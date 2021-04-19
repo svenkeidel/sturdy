@@ -51,6 +51,7 @@ import           Language.Wasm.Structure hiding (exports, Const, Instruction, Fu
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.IEEE (copySign)
+import Text.Printf (printf)
 
 --trap :: IsException (Exc v) v c => c String x
 --trap = throw <<< exception <<^ Trap
@@ -71,25 +72,26 @@ instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
         (BS64, ICtz,    Wasm.VI64 v) -> returnA -< int64 $ fromIntegral $ countTrailingZeros v
         (BS64, IPopcnt, Wasm.VI64 v) -> returnA -< int64 $ fromIntegral $ popCount v
         _ -> returnA -< error "iUnOp: cannot apply operator to arguements"
-    iBinOp eCont = proc (bs,op,x@(Value v1),y@(Value v2)) -> case (bs,op,v1,v2) of
+
+    iBinOp = proc (bs,op,x@(Value v1),y@(Value v2)) -> case (bs,op,v1,v2) of
         (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 + val2
         (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 - val2
         (BS32, IMul, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 * val2
         (BS32, IDivU, Wasm.VI32 val1, Wasm.VI32 val2) ->
           if val2 == 0
-          then eCont -< (op,x,y)
+          then operatorError -< (op,x,y)
           else returnA -< int32 $ val1 `quot` val2
         (BS32, IDivS, Wasm.VI32 val1, Wasm.VI32 val2) ->
           if val2 == 0 || (val1 == 0x80000000 && val2 == 0xFFFFFFFF)
-          then eCont -< (op,x,y)
+          then operatorError -< (op,x,y)
           else returnA -< int32 $ asWord32 (asInt32 val1 `quot` asInt32 val2)
         (BS32, IRemU, Wasm.VI32 val1, Wasm.VI32 val2) ->
           if val2 == 0
-          then eCont -< (op,x,y)
+          then operatorError -< (op,x,y)
           else returnA -< int32 $ val1 `rem` val2
         (BS32, IRemS, Wasm.VI32 val1, Wasm.VI32 val2) ->
           if val2 == 0
-          then eCont -< (op,x,y)
+          then operatorError -< (op,x,y)
           else returnA -< int32 $ asWord32 (asInt32 val1 `rem` asInt32 val2)
         (BS32, IAnd,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 .&. val2
         (BS32, IOr,   Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 .|. val2
@@ -105,19 +107,19 @@ instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
         (BS64, IMul,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 * val2
         (BS64, IDivU, Wasm.VI64 val1, Wasm.VI64 val2) ->
           if val2 == 0
-          then eCont -< (op,x,y)
+          then operatorError -< (op,x,y)
           else returnA -< int64 $ val1 `quot` val2
         (BS64, IDivS, Wasm.VI64 val1, Wasm.VI64 val2) ->
           if val2 == 0 || (val1 == 0x8000000000000000 && val2 == 0xFFFFFFFFFFFFFFFF)
-          then eCont -< (op,x,y)
+          then operatorError -< (op,x,y)
           else returnA -< int64 $ asWord64 (asInt64 val1 `quot` asInt64 val2)
         (BS64, IRemU, Wasm.VI64 val1, Wasm.VI64 val2) ->
           if val2 == 0
-          then eCont -< (op,x,y)
+          then operatorError -< (op,x,y)
           else returnA -< int64 $ val1 `rem` val2
         (BS64, IRemS, Wasm.VI64 val1, Wasm.VI64 val2) ->
           if val2 == 0
-          then eCont -< (op,x,y)
+          then operatorError -< (op,x,y)
           else returnA -< int64 $ asWord64 (asInt64 val1 `rem` asInt64 val2)
         (BS64, IAnd,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 .&. val2
         (BS64, IOr,   Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 .|. val2
@@ -127,7 +129,10 @@ instance (ArrowChoice c) => IsVal Value (ValueT Value c) where
         (BS64, IShrS, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ asWord64 $ asInt64 val1 `shiftR` (fromIntegral val2 `rem` 64)
         (BS64, IRotl, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `rotateL` fromIntegral val2
         (BS64, IRotr, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `rotateR` fromIntegral val2
-        _ -> returnA -< error "iBinOp: cannot apply binary operator to given arguments."
+        _ -> operatorError -< (op,x,y)
+      where
+        operatorError = proc (op,v1,v2) -> returnA -< error $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2))
+
     iRelOp = proc (bs,op,Value v1, Value v2) -> case (bs,op,v1,v2) of
         (BS32, IEq,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 == val2 then 1 else 0
         (BS32, INe,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ if val1 /= val2 then 1 else 0
