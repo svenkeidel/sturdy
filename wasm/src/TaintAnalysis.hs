@@ -14,8 +14,10 @@ module TaintAnalysis where
 import           Abstract
 import           Data(joinList1'')
 import           GenericInterpreter
+import qualified UnitAnalysis as Abs
 
 import           Control.Arrow
+import           Control.Arrow.Except
 import           Control.Arrow.Order
 
 import           Control.Arrow.Transformer.Value
@@ -24,6 +26,7 @@ import           Language.Wasm.Structure (BitSize(..), IBinOp(..), IRelOp(..), V
                                           FUnOp(..), FBinOp(..), FRelOp(..))
 
 import           Data.Hashable
+import           Data.HashSet as HashSet
 import           Data.Order
 import           Data.Text.Prettyprint.Doc as Pretty
 import           GHC.Generics
@@ -65,9 +68,28 @@ liftValueT :: ValueT v c x y -> ValueT (Value v) c x y
 liftValueT = coerce
 {-# INLINE liftValueT #-}
 
+unliftValueT :: ValueT (Value v) c x y -> ValueT v c x y
+unliftValueT = coerce
+{-# INLINE unliftValueT #-}
+
 liftValueT1 :: (ValueT v c x y -> ValueT v c x' y') -> (ValueT (Value v) c x y -> ValueT (Value v) c x' y')
 liftValueT1 = coerce
 {-# INLINE liftValueT1 #-}
+
+--instance (ArrowExcept (Exc Value) c, ArrowChoice c) => IsException (Exc Value) (Value v) (ValueT (Value v) c) where
+--  exception = proc (Exc (Value v)) ->
+--    liftValueT exception -< (Exc v)
+
+instance (Hashable v, ArrowExcept (Abs.Exc (Value v)) c, ArrowChoice c) => IsException (Abs.Exc (Value v)) (Value v) (ValueT (Value v) c) where
+  type JoinExc y (ValueT (Value v) c) = ArrowComplete y (ValueT (Value v) c)
+  exception = arr $ Abs.Exc . HashSet.singleton
+  handleException f = proc (Abs.Exc excs,x) ->
+    joinList1'' f -< (HashSet.toList excs,x)
+
+--instance (ArrowExcept (Exc (Value v)) c) => IsException (Exc (Value v)) (Value v) (ValueT (Value v) c) where
+--  type JoinExc y (ValueT (Value v) c) = ()
+--  exception = arr id
+--  handleException = id
 
 instance (JoinVal v (ValueT v c), IsVal v (ValueT v c), ArrowChoice c) => IsVal (Value v) (ValueT (Value v) c) where
   type JoinVal y (ValueT (Value v) c) = JoinVal y (ValueT v c)
@@ -81,9 +103,11 @@ instance (JoinVal v (ValueT v c), IsVal v (ValueT v c), ArrowChoice c) => IsVal 
     v' <- liftValueT iUnOp -< (bs,op,v)
     returnA -< Value t v'
 
-  iBinOp = proc (bs,op,Value t1 v1, Value t2 v2) -> do
-    v <- liftValueT iBinOp -< (bs,op,v1,v2)
-    returnA -< Value (t1 ⊔ t2) v
+  iBinOp eCont sCont = proc (bs,op,Value t1 v1, Value t2 v2,x) ->
+    liftValueT (iBinOp
+      (proc (op,v1,v2,(t1,t2,_,x)) -> (unliftValueT eCont) -< (op,Value t1 v1,Value t2 v2,x))
+      (proc (v,(_,_,t,x)) -> (unliftValueT sCont) -< (Value t v,x)))
+      -< (bs,op,v1,v2,(t1,t2,t1 ⊔ t2,x))
 
   iRelOp = proc (bs,op,Value t1 v1, Value t2 v2) -> do
     v <- liftValueT iRelOp -< (bs,op,v1,v2)
@@ -97,13 +121,17 @@ instance (JoinVal v (ValueT v c), IsVal v (ValueT v c), ArrowChoice c) => IsVal 
     v' <- liftValueT i64eqz -< v
     returnA -< Value t v'
 
---     ifHasType f g = proc (Value v,t,x) -> do
---       case (v,t) of
---         (VI32 _, I32) -> f -< x
---         (VI64 _, I64) -> f -< x
---         (VF32 _, F32) -> f -< x
---         (VF64 _, F64) -> f -< x
---         _             -> g -< x
+  i32ifNeqz f g = proc (Value _t v, x) ->
+    liftValueT (i32ifNeqz
+      (unliftValueT f)
+      (unliftValueT g))
+      -< (v, x)
+
+  ifHasType f g = proc (Value _t v,valTy,x) -> do
+    liftValueT (ifHasType
+      (unliftValueT f)
+      (unliftValueT g))
+      -< (v,valTy,x)
 
 --     fUnOp = proc (bs,op,Value v) -> case (bs,op,v) of
 --         (BS32, FAbs,     VF32 _) -> returnA -< valueF32

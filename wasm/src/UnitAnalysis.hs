@@ -16,7 +16,7 @@ module UnitAnalysis where
 
 import           Abstract
 import           Data
-import           GenericInterpreter hiding (Exc)
+import           GenericInterpreter hiding (Exc,Err)
 import qualified GenericInterpreter as Generic
 import           UnitAnalysisValue
 
@@ -51,7 +51,7 @@ import           Data.Abstract.Terminating
 import           Data.Hashable
 import           Data.HashSet as HashSet
 import           Data.Order
-import           Data.Abstract.DiscretePowerset
+import           Data.Abstract.DiscretePowerset as Pow
 import           Data.Abstract.Error as Error
 import           Data.Abstract.Except
 import qualified Data.Abstract.Widening as W
@@ -61,13 +61,13 @@ import qualified Data.Vector as Vec
 
 import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm
---import           Language.Wasm.Structure hiding (exports, Const)
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
---import Control.Arrow.Except (ArrowExcept)
 
 newtype Exc v = Exc (HashSet (Generic.Exc v)) deriving (Eq, Show, Hashable, PreOrd, Complete)
+
+newtype Err = Err (Pow Generic.Err) deriving (Eq, Show, Hashable, PreOrd, Complete)
 
 instance (Show v) => Pretty (Exc v) where pretty = viaShow
 instance (Show n) => Pretty (Instruction n) where pretty = viaShow
@@ -88,13 +88,6 @@ mapList f = proc (as,x) -> do
       b <- f -< (a,x)
       returnA -< b:bs
 
---joinList1'' f = proc (acc,bs) -> do
---                 case bs of
---                     [] -> returnA -< acc
---                     (b:bss) -> do
---                         newA <- f -< (acc,b)
---                         joinList f -< (newA,bss)
-
 tailA :: (ArrowChoice c) => c () [a] -> c () [a]
 tailA f = proc () -> do
   aList <- f -< ()
@@ -111,6 +104,9 @@ instance (ArrowExcept (Exc Value) c, ArrowChoice c) => IsException (Exc Value) V
                             --joinList _j -< (_init,ys)
                             joinList1'' f -< (HashSet.toList excs,x)
 
+instance Arrow c => IsErr Err (ValueT Value c) where
+    err = arr $ Err . Pow.singleton
+
 type In = (JoinVector Value,
             ((Natural, ModuleInstance),
               (Tables,
@@ -119,7 +115,7 @@ type In = (JoinVector Value,
 
 type Out = Terminating
              (Error
-                (Pow String)
+                Err
                 (JoinVector Value,
                 --(Tables,
                   (StaticGlobalState Value,
@@ -128,7 +124,7 @@ type Out = Terminating
 
 type Result = (CFG (Instruction Natural), Terminating
                                           (Error
-                                             (Pow String)
+                                             Err
                                              (JoinVector Value,
                                               --(Tables,
                                                 (StaticGlobalState Value,
@@ -157,8 +153,7 @@ invokeExported initialStore tab modInst funcName args =
                   (SerializeT
                     (TableT
                       (FrameT FrameData Value
-                        (ErrorT (Pow String)
-                    --(LoggerT String
+                        (ErrorT Err
                           (TerminatingT
                             (FixT
                               (ComponentT Component In

@@ -40,7 +40,6 @@ import           Control.Arrow.WasmFrame
 
 import           Data.Hashable
 import           Data.Profunctor
-import           Data.String
 import           Data.Text.Lazy (Text)
 import           Data.Text.Prettyprint.Doc
 import           Data.Vector hiding (length, (++))
@@ -58,22 +57,26 @@ import           GHC.Generics
 import           GHC.Exts
 
 -- the kind of exceptions that can be thrown
-data Exc v = Trap String | Jump Natural [v] | CallReturn [v] deriving (Show, Eq, Generic)
+data Exc v = Jump Natural [v] | CallReturn [v] deriving (Show, Eq, Generic)
+
+data Err = Trap String | InvocationError String deriving (Show, Eq, Generic)
 
 instance Hashable v => Hashable (Exc v)
+instance Hashable Err
 
 class ArrowExcept exc c => IsException exc v c | c -> v where
     type family JoinExc y (c :: * -> * -> *) :: Constraint
     exception :: c (Exc v) exc
     handleException :: JoinExc y c => c (Exc v, x) y -> c (exc,x) y
 
---instance (Eq v) => Complete (Exc v) where
---    x ⊔ y | x == y = x
---          | otherwise = Top
---
---instance (Eq v) => PreOrd (Exc v) where
---    _ ⊑ Top = True
---    x ⊑ y | x == y = True
+class IsErr err c | c -> err where
+    err :: c Err err
+
+trap :: (Fail.Join x c, ArrowFail err c, IsErr err c) => c String x
+trap = proc s -> fail <<< err -< (Trap s)
+
+invocationError :: (Fail.Join x c, ArrowFail err c, IsErr err c) => c String x
+invocationError = proc s -> fail <<< err -< (InvocationError s)
 
 -- used for storing the return "arity" of nested labels
 newtype LabelArities = LabelArities {labels :: [Natural]} deriving (Eq,Show,Generic)
@@ -114,7 +117,7 @@ type ArrowDynamicComponents v addr bytes sz exc e c =
     ArrowWasmMemory addr bytes sz v c,
     IsVal v c,
     ArrowExcept exc c, IsException exc v c,
-    ArrowFail e c, IsString e,
+    ArrowFail e c, IsErr e c,
     ArrowFix (c [Instruction Natural] ()),
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ())))
 
@@ -127,7 +130,7 @@ class Show v => IsVal v c | c -> v where
     f32const :: c Float v
     f64const :: c Double v
     iUnOp :: c (BitSize, IUnOp, v) v
-    iBinOp :: JoinVal v c => c (BitSize, IBinOp, v, v) v
+    iBinOp :: (JoinVal v c) => c (IBinOp, v, v, x) y -> c (v, x) y -> c (BitSize, IBinOp, v, v, x) y
     i32eqz :: c v v
     i64eqz :: c v v
     iRelOp :: c (BitSize, IRelOp, v, v) v
@@ -166,6 +169,7 @@ invokeExported ::
     JoinVal () c, JoinVal v c, Show v,
     Fail.Join [v] c,
     Fail.Join () c,
+    Fail.Join v c,
     JoinTable () c)
   => c (Text, [v]) [v]
 invokeExported = proc (funcName, args) -> do
@@ -174,7 +178,7 @@ invokeExported = proc (funcName, args) -> do
   case find (\(ExportInstance n _) -> n == funcName) (exports modInst) of
       -- if found -> invoke
       Just (ExportInstance _ (ExternFunction addr)) -> invokeExternal -< (addr, args)
-      _ -> fail -< fromString $ printf "Function with name %s was not found in module's exports" (show funcName)
+      _ -> invocationError  -< printf "Function with name %s was not found in module's exports" (show funcName)
 
 invokeExternal ::
   ( ArrowChoice c,
@@ -184,6 +188,7 @@ invokeExternal ::
     JoinVal () c, JoinVal v c, Show v,
     Exc.Join () c,
     Fail.Join () c,
+    Fail.Join v c,
     JoinTable () c)
   => c (Int, [v]) [v]
 invokeExternal = proc (funcAddr, args) ->
@@ -209,13 +214,13 @@ invokeExternal = proc (funcAddr, args) ->
     -- execute f if arguments match paramTys
     withCheckedType f = proc (paramTys, args, x) -> do
       if length paramTys /= length args
-        then fail -< fromString $ printf "Wrong number of arguments in external invocation. Expected %d but got %d" (length paramTys) (length args)
+        then invocationError -< printf "Wrong number of arguments in external invocation. Expected %d but got %d" (length paramTys) (length args)
         else returnA -< ()
       Arr.zipWith
         (proc (arg, ty) ->
           ifHasType
             (arr $ const ())
-            (proc (arg, ty) -> fail -< fromString $ printf "Wrong argument type in external invocation. Expected %s but got %s" (show ty) (show arg))
+            (proc (arg, ty) -> invocationError -< printf "Wrong argument type in external invocation. Expected %s but got %s" (show ty) (show arg))
             -< (arg, ty, (arg, ty)))
         -< (args, paramTys)
       f -< x
@@ -224,11 +229,13 @@ invokeExternal = proc (funcAddr, args) ->
 eval ::
   ( ArrowChoice c,
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
+    Fail.Join () c,
     JoinExc () c,
     Mem.Join () c,
     JoinVal () c, JoinVal v c, Show v,
     Exc.Join () c,
-    JoinTable () c)
+    JoinTable () c,
+    Fail.Join v c)
   => c [Instruction Natural] ()
 eval = fix $ \eval' -> proc is -> do
     --stack <- getStack -< ()
@@ -269,13 +276,14 @@ evalControlInst ::
   ( ArrowChoice c, Profunctor c,
     ArrowStaticComponents v c,
     ArrowDynamicComponents v addr bytes sz exc e c,
+    Fail.Join () c,
     JoinVal () c,
     JoinExc () c,
     Exc.Join () c,
     JoinTable () c)
   => c [Instruction Natural] () -> c (Instruction Natural) ()
 evalControlInst eval' = proc i -> case i of
-  Unreachable _ -> throw <<< exception -< Trap "Execution of unreachable instruction"
+  Unreachable _ -> trap -< "Execution of unreachable instruction"
   Nop _ -> returnA -< ()
   Block rt is _ -> label eval' eval' -< (rt, is, [])
   Loop rt is l -> label eval' eval' -< (rt, is, [Loop rt is l])
@@ -320,15 +328,16 @@ evalControlInst eval' = proc i -> case i of
     funcAddr <- pop -< ()
     readTable
       (invokeChecked eval')
-      (proc (ta,ix,_) -> throw <<< exception -< Trap $ printf "Index %s out of bounds for table address %s" (show ix) (show ta))
-      (proc (ta,ix,_) -> throw <<< exception -< Trap $ printf "Index %s uninitialized for table address %s" (show ix) (show ta))
+      (proc (ta,ix,_) -> trap -< printf "Index %s out of bounds for table address %s" (show ix) (show ta))
+      (proc (ta,ix,_) -> trap -< printf "Index %s uninitialized for table address %s" (show ix) (show ta))
       -< (tableAddr, funcAddr, ftExpect)
 
 invokeChecked ::
   ( ArrowChoice c,
     ArrowStaticComponents v c,
     --ArrowGlobalState v m c,
-    IsVal v c, ArrowExcept exc c, IsException exc v c, JoinExc () c, Exc.Join () c)
+    IsVal v c, ArrowExcept exc c, IsException exc v c, JoinExc () c, Exc.Join () c, Fail.Join () c,
+    ArrowFail err c, IsErr err c)
   => c [Instruction Natural] () -> c (Int, FuncType) ()
 invokeChecked eval' = proc (addr, ftExpect) ->
   readFunction
@@ -341,7 +350,7 @@ invokeChecked eval' = proc (addr, ftExpect) ->
     withCheckedType f = proc (ftActual, ftExpect, x) ->
       if ftActual == ftExpect
       then f -< x
-      else throw <<< exception -< Trap $ printf "Mismatched function type in indirect call. Expected %s, actual %s." (show ftExpect) (show ftActual)
+      else trap -< printf "Mismatched function type in indirect call. Expected %s, actual %s." (show ftExpect) (show ftActual)
 
 -- invoke function with code code within module instance funcModInst
 -- the function execution can finish by different reasons:
@@ -374,7 +383,7 @@ invoke eval' = catch
                        CallReturn vs -> do
                            pushn -< vs
                            eval' -< []
-                       Trap _ -> throw <<< exception -< exc
+                       --Trap _ -> throw <<< exception -< exc
                        Jump _ _ -> returnA -< error "invalid module: tried to jump through a function boundary")
                    -< (e,()))
   where
@@ -458,7 +467,7 @@ evalParametricInst = proc i -> case i of
 evalMemoryInst ::
   ( ArrowChoice c,
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
-    Mem.Join () c)
+    Mem.Join () c, Fail.Join () c)
   => c (Instruction Natural) ()
 evalMemoryInst = proc i -> case i of --withCurrentMemory $ proc (m,i) -> case i of
   I32Load (MemArg off _) _ -> load 4 L_I32 I32 -< off
@@ -507,7 +516,7 @@ memoryIndex = proc () -> do
 load ::
   ( ArrowChoice c,
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
-    Mem.Join () c)
+    Mem.Join () c, Fail.Join () c)
   => Int -> LoadType -> ValueType -> c Natural ()
 load byteSize loadType valType = proc off -> do
   base <- pop -< ()
@@ -518,13 +527,13 @@ load byteSize loadType valType = proc off -> do
       decode
         (push <<^ fst)
         -< (bytes, loadType, valType, ()))
-    (proc addr -> throw <<< exception -< Trap $ printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
+    (proc addr -> trap -< printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
     -< (memIndex, addr, byteSize, addr)
 
 store ::
   ( ArrowChoice c,
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
-    Mem.Join () c)
+    Mem.Join () c, Fail.Join () c)
   => StoreType -> ValueType -> c Natural ()
 store storeType valType = proc off -> do
   v <- pop -< ()
@@ -535,7 +544,7 @@ store storeType valType = proc off -> do
       memIndex <- memoryIndex -< ()
       memstore
         (arr $ const ())
-        (proc (addr,bytes) -> throw <<< exception -< Trap $ printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr))
+        (proc (addr,bytes) -> trap -< printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr))
         -< (memIndex, addr, bytes, (addr, bytes)))
     -< (v, valType, storeType, off)
 
@@ -562,7 +571,8 @@ evalVariableInst = proc i -> case i of
 
 
 evalNumericInst ::
-  ( ArrowChoice c, ArrowStack v c, ArrowExcept exc c, IsException exc v c, IsVal v c, Show v, JoinVal v c)
+  ( ArrowChoice c, ArrowStack v c, ArrowExcept exc c, IsException exc v c, IsVal v c, Show v, JoinVal v c,
+    Fail.Join v c, IsErr err c, ArrowFail err c)
   => c (Instruction Natural) v
 evalNumericInst = proc i -> case i of
   I32Const lit _ -> i32const -< lit
@@ -575,8 +585,9 @@ evalNumericInst = proc i -> case i of
   IBinOp bs op _ -> do
     (v1,v2) <- pop2 -< ()
     iBinOp
-      -- (proc (op,v1,v2) -> throw <<< exception -< Trap $ printf "Binary operator %s failed on %s" (show op) (show (v1,v2)))
-      -< (bs, op, v1, v2)
+      (proc (op,v1,v2,_) -> trap -< printf "Binary operator %s failed on %s" (show op) (show (v1,v2)))
+      (proc (v,_) -> returnA -< v)
+      -< (bs, op, v1, v2, ())
   I32Eqz _ -> do
     v <- pop -< ()
     i32eqz -< v
@@ -601,12 +612,12 @@ evalNumericInst = proc i -> case i of
   ITruncFU bs1 bs2 _ -> do
     v <- pop -< ()
     iTruncFU
-     (proc (bs1,bs2,v) -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v))
+     (proc (bs1,bs2,v) -> trap -< printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v))
      -< (bs1,bs2,v)
   ITruncFS bs1 bs2 _ -> do
     v <- pop -< ()
     iTruncFS
-      (proc (bs1,bs2,v) -> throw <<< exception -< Trap $ printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v))
+      (proc (bs1,bs2,v) -> trap -< printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v))
       -< (bs1,bs2,v)
   I64ExtendSI32 _ -> do
     v <- pop -< ()
