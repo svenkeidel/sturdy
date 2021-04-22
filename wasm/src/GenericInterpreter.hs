@@ -79,9 +79,9 @@ invocationError :: (Fail.Join x c, ArrowFail err c, IsErr err c) => c String x
 invocationError = proc s -> fail <<< err -< (InvocationError s)
 
 -- used for storing the return "arity" of nested labels
-newtype LabelArities = LabelArities {labels :: [Natural]} deriving (Eq,Show,Generic)
-instance Hashable LabelArities
-instance Pretty LabelArities where pretty = viaShow
+newtype JumpTypes = JumpTypes {jumpTypes :: [ResultType]} deriving (Eq,Show,Generic)
+instance Hashable JumpTypes
+instance Pretty JumpTypes where pretty = viaShow
 
 -- stores a frame's static data (return arity and module instance)
 type FrameData = (Natural, ModuleInstance)
@@ -110,7 +110,7 @@ type ArrowStaticComponents v c =
   ( ArrowStaticGlobalState v c,
     ArrowStack v c,
     ArrowFrame FrameData v c,
-    ArrowReader LabelArities c)
+    ArrowReader JumpTypes c)
 
 type ArrowDynamicComponents v addr bytes sz exc e c =
   ( ArrowTable v c,
@@ -130,7 +130,7 @@ class Show v => IsVal v c | c -> v where
     f32const :: c Float v
     f64const :: c Double v
     iUnOp :: c (BitSize, IUnOp, v) v
-    iBinOp :: (JoinVal v c) => c (IBinOp, v, v, x) y -> c (v, x) y -> c (BitSize, IBinOp, v, v, x) y
+    iBinOp :: JoinVal v c => c (BitSize, IBinOp, v, v) v
     i32eqz :: c v v
     i64eqz :: c v v
     iRelOp :: c (BitSize, IRelOp, v, v) v
@@ -138,8 +138,8 @@ class Show v => IsVal v c | c -> v where
     fBinOp :: c (BitSize, FBinOp, v, v) v
     fRelOp :: c (BitSize, FRelOp, v, v) v
     i32WrapI64 :: c v v
-    iTruncFU :: (JoinVal v c) => c (BitSize, BitSize, v) v -> c (BitSize, BitSize, v) v
-    iTruncFS :: (JoinVal v c) => c (BitSize, BitSize, v) v -> c (BitSize, BitSize, v) v
+    iTruncFU :: JoinVal v c => c (BitSize, BitSize, v) v
+    iTruncFS :: JoinVal v c => c (BitSize, BitSize, v) v
     i64ExtendSI32 :: c v v
     i64ExtendUI32 :: c v v
     fConvertIU :: c (BitSize, BitSize, v) v
@@ -359,7 +359,7 @@ invokeChecked eval' = proc (addr, ftExpect) ->
 --   - the function produces a trap -> no result, trap is propagated
 --   - TODO: what about break? Can we "break" to a function boundary? -> NO, only to block boundaries
 invoke ::
-  ( ArrowChoice c, ArrowStack v c, ArrowReader LabelArities c,
+  ( ArrowChoice c, ArrowStack v c, ArrowReader JumpTypes c,
     IsVal v c, ArrowFrame FrameData v c, ArrowExcept exc c, IsException exc v c, Exc.Join y c,
     ArrowStack v c, JoinExc y c)
   => c [Instruction Natural] y -> c (FuncType, ModuleInstance, Function) y
@@ -402,16 +402,16 @@ invoke eval' = catch
 --  pushn <<< app -< (hostFunc, vs)
 
 
-branch :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowReader LabelArities c) => c Natural ()
+branch :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowReader JumpTypes c) => c Natural ()
 branch = proc ix -> do
-  LabelArities{labels=ls} <- ask -< ()
-  vs <- popn -< ls !! fromIntegral ix
+  JumpTypes{jumpTypes=ls} <- ask -< ()
+  vs <- popn -< fromIntegral $ length $ ls !! fromIntegral ix
   throw <<< exception -< Jump ix vs
 
 -- | Introduces a branching point `g` that can be jumped to from within `f`.
 -- | When escalating jumps, all label-local operands must be popped from the stack.
 -- | This implementation assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
-label :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowReader LabelArities c, Exc.Join z c,
+label :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowReader JumpTypes c, Exc.Join z c,
           ArrowStack v c, Show v, JoinExc z c)
   => c x z -> c y z -> c (ResultType, x, y) z
 -- x: code to execute
@@ -438,17 +438,17 @@ label f g = catch
                        -< (e,y)--case e of
   )
 
-localLabel :: (ArrowReader LabelArities c) => c x y -> c (ResultType, x) y
+localLabel :: (ArrowReader JumpTypes c) => c x y -> c (ResultType, x) y
 localLabel f = proc (rt, x) -> do
-  r@LabelArities{labels=ls} <- ask -< ()
-  let l = fromIntegral $ length rt
-  local f -< (r{labels=l:ls}, x)
+  r@JumpTypes{jumpTypes=ls} <- ask -< ()
+  --let l = fromIntegral $ length rt
+  local f -< (r{jumpTypes=rt:ls}, x)
 
 -- reset all label arities locally and execute f
-localNoLabels :: (ArrowReader LabelArities c) => c x y -> c x y
+localNoLabels :: (ArrowReader JumpTypes c) => c x y -> c x y
 localNoLabels f = proc x -> do
   --r <- ask -< ()
-  local f -< (LabelArities{labels=[]}, x)
+  local f -< (JumpTypes{jumpTypes=[]}, x)
 
 evalParametricInst :: (ArrowChoice c, Profunctor c, ArrowStack v c, IsVal v c, JoinVal () c)
   => c (Instruction Natural) ()
@@ -584,10 +584,7 @@ evalNumericInst = proc i -> case i of
     iUnOp -< (bs, op, v)
   IBinOp bs op _ -> do
     (v1,v2) <- pop2 -< ()
-    iBinOp
-      (proc (op,v1,v2,_) -> trap -< printf "Binary operator %s failed on %s" (show op) (show (v1,v2)))
-      (proc (v,_) -> returnA -< v)
-      -< (bs, op, v1, v2, ())
+    iBinOp -< (bs, op, v1, v2)
   I32Eqz _ -> do
     v <- pop -< ()
     i32eqz -< v
@@ -611,14 +608,10 @@ evalNumericInst = proc i -> case i of
     i32WrapI64 -< v
   ITruncFU bs1 bs2 _ -> do
     v <- pop -< ()
-    iTruncFU
-     (proc (bs1,bs2,v) -> trap -< printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v))
-     -< (bs1,bs2,v)
+    iTruncFU -< (bs1,bs2,v)
   ITruncFS bs1 bs2 _ -> do
     v <- pop -< ()
-    iTruncFS
-      (proc (bs1,bs2,v) -> trap -< printf "Truncation operator from %s to %s failed on %s" (show bs1) (show bs2) (show v))
-      -< (bs1,bs2,v)
+    iTruncFS -< (bs1,bs2,v)
   I64ExtendSI32 _ -> do
     v <- pop -< ()
     i64ExtendSI32 -< v

@@ -9,8 +9,7 @@
 
 module Control.Arrow.Transformer.Abstract.Memory where
 
-import           Abstract (BaseValue(..))
-import           UnitAnalysisValue (Value(..),valueI32)
+import           Abstract (Size(..),Addr(..),Bytes(..))
 
 import           Control.Arrow
 import           Control.Arrow.Const
@@ -37,28 +36,28 @@ import           Data.Profunctor
 newtype MemoryT c x y = MemoryT (c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowReader r, ArrowStaticGlobalState val,
+              ArrowStack st, ArrowReader r, ArrowStaticGlobalState val, ArrowSize v sz, ArrowMemAddress base off addr,
               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
 
 instance ArrowTrans MemoryT where
   -- lift' :: c x y -> MemoryT v c x y
   lift' = MemoryT
 
-instance (Profunctor c, ArrowChoice c) => ArrowMemory () () () (MemoryT c) where
+instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes Size (MemoryT c) where
   type Join y (MemoryT c) = ArrowComplete y (MemoryT c)
-  memread sCont eCont = proc (_,(),_,x) -> (sCont -< ((),x)) <⊔> (eCont -< x)
-  memstore sCont eCont = proc (_,(),(),x) -> (sCont -< x) <⊔> (eCont -< x)
-  memsize = arr $ const ()
-  memgrow sCont eCont = proc (_,(),x) -> (sCont -< ((),x)) <⊔> (eCont -< x)
+  memread sCont eCont = proc (_,Addr,_,x) -> (sCont -< (Bytes,x)) <⊔> (eCont -< x)
+  memstore sCont eCont = proc (_,Addr,Bytes,x) -> (sCont -< x) <⊔> (eCont -< x)
+  memsize = arr $ const Size
+  memgrow sCont eCont = proc (_,Size,x) -> (sCont -< (Size,x)) <⊔> (eCont -< x)
 
-instance (ArrowChoice c, Profunctor c) => ArrowSize Value () (MemoryT c) where
-  valToSize = proc (Value v) -> case v of
-    (VI32 _) -> returnA -< ()
-    _ -> returnA -< error "valToSize: arguments needs to be an i32 integer."
-  sizeToVal = proc () -> returnA -< valueI32
+--instance (ArrowChoice c, Profunctor c) => ArrowSize Value () (MemoryT c) where
+--  valToSize = proc (Value v) -> case v of
+--    (VI32 _) -> returnA -< ()
+--    _ -> returnA -< error "valToSize: arguments needs to be an i32 integer."
+--  sizeToVal = proc () -> returnA -< valueI32
 
-instance (Arrow c, Profunctor c) => ArrowMemAddress base off () (MemoryT c) where
-  memaddr = arr $ const ()
+--instance (Arrow c, Profunctor c) => ArrowMemAddress base off Addr (MemoryT c) where
+--  memaddr = arr $ const Addr
 
 
 deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (MemoryT c)

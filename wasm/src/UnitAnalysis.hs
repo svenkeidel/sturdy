@@ -24,8 +24,6 @@ import           Control.Arrow
 import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic (innermost)
 import           Control.Arrow.Fix.ControlFlow
-import           Control.Arrow.Order
-import           Control.Arrow.Except (ArrowExcept)
 import           Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Except
@@ -39,6 +37,8 @@ import           Control.Arrow.Transformer.Abstract.Memory
 import           Control.Arrow.Transformer.Abstract.Serialize
 import           Control.Arrow.Transformer.Abstract.Table
 import           Control.Arrow.Transformer.Abstract.Terminating
+import           Control.Arrow.Transformer.Abstract.UnitMemAddress
+import           Control.Arrow.Transformer.Abstract.UnitSize
 
 import           Control.Arrow.Transformer.Stack (StackT)
 import           Control.Arrow.Transformer.StaticGlobalState
@@ -48,15 +48,10 @@ import           Control.Arrow.Transformer.WasmFrame
 
 
 import           Data.Abstract.Terminating
-import           Data.Hashable
-import           Data.HashSet as HashSet
-import           Data.Order
-import           Data.Abstract.DiscretePowerset as Pow
 import           Data.Abstract.Error as Error
 import           Data.Abstract.Except
 import qualified Data.Abstract.Widening as W
 import           Data.Text.Lazy (Text)
-import           Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Vector as Vec
 
 import           Language.Wasm.Interpreter (ModuleInstance)
@@ -64,13 +59,6 @@ import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
-
-newtype Exc v = Exc (HashSet (Generic.Exc v)) deriving (Eq, Show, Hashable, PreOrd, Complete)
-
-newtype Err = Err (Pow Generic.Err) deriving (Eq, Show, Hashable, PreOrd, Complete)
-
-instance (Show v) => Pretty (Exc v) where pretty = viaShow
-instance (Show n) => Pretty (Instruction n) where pretty = viaShow
 
 alpha :: Wasm.Value -> Value
 alpha v = Value $ case v of
@@ -96,22 +84,11 @@ tailA f = proc () -> do
     []     -> returnA -< error "tailA: cannot return the tail of an empty list"
 
 
-instance (ArrowExcept (Exc Value) c, ArrowChoice c) => IsException (Exc Value) Value (ValueT Value c) where
-    type JoinExc y (ValueT Value c) = ArrowComplete y (ValueT Value c)
-    exception = arr $ Exc . HashSet.singleton
-    handleException f = proc (Exc excs,x) -> do
-                            --ys <- mapList f -< (HashSet.toList excs,x)
-                            --joinList _j -< (_init,ys)
-                            joinList1'' f -< (HashSet.toList excs,x)
-
-instance Arrow c => IsErr Err (ValueT Value c) where
-    err = arr $ Err . Pow.singleton
-
 type In = (JoinVector Value,
             ((Natural, ModuleInstance),
               (Tables,
               (StaticGlobalState Value,
-                (JoinList Value, (LabelArities, [Instruction Natural]))))))
+                (JoinList Value, (JumpTypes, [Instruction Natural]))))))
 
 type Out = Terminating
              (Error
@@ -145,22 +122,24 @@ invokeExported initialStore tab modInst funcName args =
     (\(cfg,(_,res)) -> (cfg,res)) $ Trans.run
     (Generic.invokeExported ::
       ValueT Value
-        (ReaderT Generic.LabelArities
+        (ReaderT Generic.JumpTypes
           (StackT Value
             (ExceptT (Exc Value)
               (StaticGlobalStateT Value
                 (MemoryT
-                  (SerializeT
-                    (TableT
-                      (FrameT FrameData Value
-                        (ErrorT Err
-                          (TerminatingT
-                            (FixT
-                              (ComponentT Component In
-                                (Fix.StackT Fix.Stack  In
-                                  (CacheT Cache In Out
-                                    (ControlFlowT (Instruction Natural)
-                                      (->)))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(initialStore,([],(Generic.LabelArities [],(funcName, args)))))))
+                  (MemAddressT
+                    (SizeT Value
+                      (SerializeT Value
+                        (TableT Value
+                          (FrameT FrameData Value
+                            (ErrorT Err
+                              (TerminatingT
+                                (FixT
+                                  (ComponentT Component In
+                                    (Fix.StackT Fix.Stack  In
+                                      (CacheT Cache In Out
+                                        (ControlFlowT (Instruction Natural)
+                                          (->)))))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(initialStore,([],(Generic.JumpTypes [],(funcName, args)))))))
     where
         isRecursive (_,(_,(_,(_,(_,(_,inst)))))) = case inst of
             Loop {} : _ -> True

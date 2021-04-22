@@ -41,41 +41,6 @@ succResult (Success (_,(_,(_,(_,(Success (_,result))))))) = result
 
 spec :: Spec
 spec = do
---    it "evalNumericInst" $ do
---        let inst = I32Const 5 0
---        (evalNumericInst inst []) `shouldBe` (Success $ Value $ Wasm.VI32 5)
---        let inst = IBinOp BS32 IAdd 0
---        (evalNumericInst inst [Value $ Wasm.VI32 10, Value $ Wasm.VI32 1]) `shouldBe`
---            (Success $ Value $ Wasm.VI32 11)
---
---    it "evalVariableInst GetLocal" $ do
---        let inst = GetLocal 1 0
---        let fd = (0, Wasm.emptyModInstance)
---        let store = emptyGlobalState
---        (fst $ evalVariableInst inst [] fd (fromList $ map (Value . Wasm.VI32) [5,8,7]) store) `shouldBe`
---            [Value $ Wasm.VI32 8]
---    it "evalVariableInst GetGlobal" $ do
---        let inst = GetGlobal 1 0
---        let store = emptyGlobalState{globalInstances = fromList $ map (\x -> GlobInst Mutable (Value $ Wasm.VI32 x)) [3,4,5]}
---        let fd = (0, Wasm.emptyModInstance{globaladdrs = fromList [0,1,2]})
---        (fst $ evalVariableInst inst [] fd empty store) `shouldBe` [Value $ Wasm.VI32 4]
---    it "evalVariabelInst SetGlobal" $ do
---        let inst = SetGlobal 1 0
---        let store = emptyGlobalState{globalInstances = fromList $ map (\x -> GlobInst Mutable (Value $ Wasm.VI32 x)) [3,4,5]}
---        let fd = (0, Wasm.emptyModInstance{globaladdrs = fromList [0,1,2]})
---        let stack = [Value $ Wasm.VI32 6]
---        (globalInstances $ fst $ snd $ snd $ evalVariableInst inst stack fd empty store) `shouldBe`
---            (fromList $ map (\x -> GlobInst Mutable (Value $ Wasm.VI32 x)) [3,6,5])
---
---    it "evalParametricInst" $ do
---        let inst = Drop 0
---        let stack = map (Value . Wasm.VI32) [1,2,3]
---        (fst $ evalParametricInst inst stack) `shouldBe` (map (Value . Wasm.VI32) [2,3])
---        let inst = Select 0
---        (fst $ evalParametricInst inst stack) `shouldBe` [Value $ Wasm.VI32 3]
---        let stack = map (Value . Wasm.VI32) [0,1,2]
---        (fst $ evalParametricInst inst stack) `shouldBe` [Value $ Wasm.VI32 1]
-
     it "run noop" $ do
         result <- runFunc "simple" "noop" []
         (succResult result) `shouldBe` [Value $ Wasm.VI32 0]

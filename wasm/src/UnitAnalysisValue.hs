@@ -5,14 +5,18 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module UnitAnalysisValue where
 
 import           Abstract
-import           Data(joinList1'')
-import           GenericInterpreter
+import           Data(joinList1'',Instruction)
+import           GenericInterpreter hiding (Exc,Err)
+import qualified GenericInterpreter as Generic
 
 import           Control.Arrow
+import           Control.Arrow.Except
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Order
 
 import           Control.Arrow.Transformer.Value
@@ -20,9 +24,32 @@ import           Control.Arrow.Transformer.Value
 import           Language.Wasm.Structure (BitSize(..), IBinOp(..), IRelOp(..), ValueType(..), IUnOp(..),
                                           FUnOp(..), FBinOp(..), FRelOp(..))
 
+import           Data.Abstract.DiscretePowerset as Pow
 import           Data.Hashable
+import           Data.HashSet as HashSet
 import           Data.Order
 import           Data.Text.Prettyprint.Doc as Pretty
+
+import           Text.Printf
+
+newtype Exc v = Exc (HashSet (Generic.Exc v)) deriving (Eq, Show, Hashable, PreOrd, Complete)
+
+newtype Err = Err (Pow Generic.Err) deriving (Eq, Show, Hashable, PreOrd, Complete)
+
+instance (Show v) => Pretty (Exc v) where pretty = viaShow
+instance (Show n) => Pretty (Instruction n) where pretty = viaShow
+
+
+instance (ArrowExcept (Exc Value) c, ArrowChoice c) => IsException (Exc Value) Value (ValueT Value c) where
+    type JoinExc y (ValueT Value c) = ArrowComplete y (ValueT Value c)
+    exception = arr $ Exc . HashSet.singleton
+    handleException f = proc (Exc excs,x) -> do
+                            --ys <- mapList f -< (HashSet.toList excs,x)
+                            --joinList _j -< (_init,ys)
+                            joinList1'' f -< (HashSet.toList excs,x)
+
+instance Arrow c => IsErr Err (ValueT Value c) where
+    err = arr $ Err . Pow.singleton
 
 newtype Value = Value (BaseValue () () () ()) deriving (Eq, Show, Hashable, PreOrd, Complete, Pretty)
 
@@ -32,7 +59,7 @@ valueI64 = Value $ VI64 ()
 valueF32 = Value $ VF32 ()
 valueF64 = Value $ VF64 ()
 
-instance ArrowChoice c => IsVal Value (ValueT Value c) where
+instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (ValueT Value c) where
     type JoinVal y (ValueT Value c) = ArrowComplete y (ValueT Value c)
 
     i32const = proc _ -> returnA -< valueI32
@@ -48,39 +75,39 @@ instance ArrowChoice c => IsVal Value (ValueT Value c) where
         (BS64, ICtz,    VI64 _) -> returnA -< valueI64
         (BS64, IPopcnt, VI64 _) -> returnA -< valueI64
         _ -> returnA -< error "iUnOp: cannot apply operator to arguments"
-    iBinOp eCont sCont = proc (bs,op,x@(Value v1),y@(Value v2),z) -> case (bs,op,v1,v2) of
-        (BS32, IAdd,  VI32 _, VI32 _) -> sCont -< (valueI32,z)
---        (BS32, ISub,  VI32 _, VI32 _) -> returnA -< valueI32
---        (BS32, IMul,  VI32 _, VI32 _) -> returnA -< valueI32
---        (BS32, IDivU, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (eCont -< (op,x,y))
---        (BS32, IDivS, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (eCont -< (op,x,y))
---        (BS32, IRemU, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (eCont -< (op,x,y))
---        (BS32, IRemS, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (eCont -< (op,x,y))
---        (BS32, IAnd,  VI32 _, VI32 _) -> returnA -< valueI32
---        (BS32, IOr,   VI32 _, VI32 _) -> returnA -< valueI32
---        (BS32, IXor,  VI32 _, VI32 _) -> returnA -< valueI32
---        (BS32, IShl,  VI32 _, VI32 _) -> returnA -< valueI32
---        (BS32, IShrU, VI32 _, VI32 _) -> returnA -< valueI32
---        (BS32, IShrS, VI32 _, VI32 _) -> returnA -< valueI32
---        (BS32, IRotl, VI32 _, VI32 _) -> returnA -< valueI32
---        (BS32, IRotr, VI32 _, VI32 _) -> returnA -< valueI32
---
---        (BS64, IAdd,  VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, ISub,  VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, IMul,  VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, IDivU, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (eCont -< (op,x,y))
---        (BS64, IDivS, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (eCont -< (op,x,y))
---        (BS64, IRemU, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (eCont -< (op,x,y))
---        (BS64, IRemS, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (eCont -< (op,x,y))
---        (BS64, IAnd,  VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, IOr,   VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, IXor,  VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, IShl,  VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, IShrU, VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, IShrS, VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, IRotl, VI64 _, VI64 _) -> returnA -< valueI64
---        (BS64, IRotr, VI64 _, VI64 _) -> returnA -< valueI64
---        _ -> returnA -< error "iBinOp: cannot apply binary operator to given arguments."
+    iBinOp = proc (bs,op,Value v1,Value v2) -> case (bs,op,v1,v2) of
+        (BS32, IAdd,  VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, ISub,  VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, IMul,  VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, IDivU, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (trap -< "iBinOp: division by zero.")
+        (BS32, IDivS, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (trap -< "iBinOp: division by zero.")
+        (BS32, IRemU, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (trap -< "iBinOp: division by zero.")
+        (BS32, IRemS, VI32 _, VI32 _) -> (returnA -< valueI32) <⊔> (trap -< "iBinOp: division by zero.")
+        (BS32, IAnd,  VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, IOr,   VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, IXor,  VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, IShl,  VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, IShrU, VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, IShrS, VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, IRotl, VI32 _, VI32 _) -> returnA -< valueI32
+        (BS32, IRotr, VI32 _, VI32 _) -> returnA -< valueI32
+
+        (BS64, IAdd,  VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, ISub,  VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, IMul,  VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, IDivU, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (trap -< "iBinOp: division by zero.")
+        (BS64, IDivS, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (trap -< "iBinOp: division by zero.")
+        (BS64, IRemU, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (trap -< "iBinOp: division by zero.")
+        (BS64, IRemS, VI64 _, VI64 _) -> (returnA -< valueI64) <⊔> (trap -< "iBinOp: division by zero.")
+        (BS64, IAnd,  VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, IOr,   VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, IXor,  VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, IShl,  VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, IShrU, VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, IShrS, VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, IRotl, VI64 _, VI64 _) -> returnA -< valueI64
+        (BS64, IRotr, VI64 _, VI64 _) -> returnA -< valueI64
+        _ -> returnA -< error "iBinOp: cannot apply binary operator to given arguments."
     iRelOp = proc (bs,op,Value v1, Value v2) -> case (bs,op,v1,v2) of
         (BS32, IEq,  VI32 _, VI32 _) -> returnA -< valueI32
         (BS32, INe,  VI32 _, VI32 _) -> returnA -< valueI32
@@ -173,17 +200,21 @@ instance ArrowChoice c => IsVal Value (ValueT Value c) where
     i32WrapI64 = proc (Value v) -> case v of
         (VI64 _) -> returnA -< valueI32
         _ -> returnA -< error "i32WrapI64: cannot apply operator to given argument."
-    iTruncFU eCont = proc (bs1,bs2,x@(Value v)) -> case (bs1,bs2,v) of
-        (BS32, BS32, VF32 _) -> (returnA -< valueI32) <⊔> (eCont -< (bs1,bs2,x))
-        (BS32, BS64, VF64 _) -> (returnA -< valueI32) <⊔> (eCont -< (bs1,bs2,x))
-        (BS64, BS32, VF32 _) -> (returnA -< valueI64) <⊔> (eCont -< (bs1,bs2,x))
-        (BS64, BS64, VF64 _) -> (returnA -< valueI64) <⊔> (eCont -< (bs1,bs2,x))
+    iTruncFU = proc (bs1,bs2,x@(Value v)) -> do
+      let errorTrunc = printf "iTruncFU: truncation operator from %s to %s failed on %s." (show bs1) (show bs2) (show x)
+      case (bs1,bs2,v) of
+        (BS32, BS32, VF32 _) -> (returnA -< valueI32) <⊔> (trap -< errorTrunc)
+        (BS32, BS64, VF64 _) -> (returnA -< valueI32) <⊔> (trap -< errorTrunc)
+        (BS64, BS32, VF32 _) -> (returnA -< valueI64) <⊔> (trap -< errorTrunc)
+        (BS64, BS64, VF64 _) -> (returnA -< valueI64) <⊔> (trap -< errorTrunc)
         _ -> returnA -< error "iTruncFU: cannot apply operator to given argument."
-    iTruncFS eCont = proc (bs1,bs2,x@(Value v)) -> case (bs1,bs2,v) of
-        (BS32, BS32, VF32 _) -> (returnA -< valueI32) <⊔> (eCont -< (bs1,bs2,x))
-        (BS32, BS64, VF64 _) -> (returnA -< valueI32) <⊔> (eCont -< (bs1,bs2,x))
-        (BS64, BS32, VF32 _) -> (returnA -< valueI64) <⊔> (eCont -< (bs1,bs2,x))
-        (BS64, BS64, VF64 _) -> (returnA -< valueI64) <⊔> (eCont -< (bs1,bs2,x))
+    iTruncFS = proc (bs1,bs2,x@(Value v)) -> do
+      let errorTrunc = printf "iTruncFS: truncation operator from %s to %s failed on %s." (show bs1) (show bs2) (show x)
+      case (bs1,bs2,v) of
+        (BS32, BS32, VF32 _) -> (returnA -< valueI32) <⊔> (trap -< errorTrunc)
+        (BS32, BS64, VF64 _) -> (returnA -< valueI32) <⊔> (trap -< errorTrunc)
+        (BS64, BS32, VF32 _) -> (returnA -< valueI64) <⊔> (trap -< errorTrunc)
+        (BS64, BS64, VF64 _) -> (returnA -< valueI64) <⊔> (trap -< errorTrunc)
         _ -> returnA -< error "iTruncFS: cannot apply operator to given argument."
     i64ExtendSI32 = proc (Value v) -> case v of
         (VI32 _) -> returnA -< valueI64
