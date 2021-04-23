@@ -22,7 +22,7 @@ import           Control.Arrow.Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Trans
 import           Control.Arrow.Reader
-import           Control.Arrow.Order (ArrowComplete(..))
+import           Control.Arrow.Order (ArrowComplete(..),ArrowJoin(..))
 import           Control.Arrow.Store as Store
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Transformer.State
@@ -39,7 +39,7 @@ newtype LogErrorT e c x y = LogErrorT (StateT (Errors e) c x y)
   deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift, ArrowTrans,
             ArrowConst r, ArrowReader r,
             ArrowEnv var val, ArrowClosure expr cls, ArrowStore a b, ArrowLetRec var val,
-            ArrowExcept e', ArrowCallSite ctx)
+            ArrowExcept e', ArrowCallSite ctx, ArrowJoin)
 
 runLogErrorT :: (Identifiable e, Profunctor c) => LogErrorT e c x y -> c x (Errors e, y)
 runLogErrorT f = lmap (empty,) (unlift f)

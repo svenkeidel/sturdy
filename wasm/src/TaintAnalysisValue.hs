@@ -27,11 +27,18 @@ import qualified Data.Abstract.DiscretePowerset as Pow
 import           Data.Hashable
 import           Data.HashSet as HashSet
 import           Data.Order
+import           Data.Text.Prettyprint.Doc as Pretty
 import           GHC.Generics
 import           Data.Coerce (coerce)
 
 data Taint = Tainted | Untainted | Top deriving (Eq, Show, Generic, Hashable)
 data Value v = Value Taint v deriving (Eq, Show, Generic, Hashable)
+
+instance Pretty Taint where
+    pretty = viaShow
+
+instance (Show v) => Pretty (Value v) where
+    pretty = viaShow
 
 instance PreOrd Taint where
   _ ⊑ Top = True

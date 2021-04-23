@@ -1,15 +1,16 @@
 {-# LANGUAGE OverloadedLists #-}
 
-module UnitSpec where
+module TaintSpec where
 
-import           Abstract (BaseValue(..))
-import qualified Concrete as Concrete
-import qualified ConcreteInterpreter as Concrete
+import           Abstract
 import qualified Data as D
-import           UnitAnalysis as U
-import           UnitAnalysisValue as U
 import           Soundness
-import           GenericInterpreter(Exc(..),Err(..))
+import           TaintAnalysis
+import           TaintAnalysisValue (Taint(..))
+import qualified TaintAnalysisValue as Taint
+import           UnitAnalysisValue (Exc,Err)
+import qualified UnitAnalysisValue as U
+--import           GenericInterpreter(Exc(..),Err(..))
 import           GraphToDot
 
 --import           Control.Arrow.Transformer.Abstract.WasmFrame (Vector(..))
@@ -19,7 +20,6 @@ import qualified Data.ByteString.Lazy as LBS
 import           Data.Abstract.Error
 import qualified Data.Abstract.Except as Exc
 import           Data.Abstract.FreeCompletion
-import           Data.Abstract.MonotoneErrors(toSet)
 import           Data.Abstract.Terminating
 import qualified Data.HashSet as HashSet
 import           Data.List (isInfixOf)
@@ -56,46 +56,54 @@ readModule path = do
     let Right validMod = validate m
     return validMod
 
-runFunc :: String -> String -> [Value] -> IO Result
+runFunc :: String -> String -> [U.Value] -> IO Result
 runFunc modName funcName args = do
     mod <- readModule ("test/samples/" ++ modName ++ ".wast")
-    Right (modInst, staticS, tabs) <- instantiateAbstract mod
+    Right (modInst, staticS, tabs) <- instantiateTaint mod
     return $ invokeExported staticS tabs modInst (pack funcName) args
 
 succResult :: Result -> [Value]
-succResult (_,(_,(Terminating (_,(_,(Exc.Success (_,result))))))) = result
+succResult (_,(Terminating (Success (_,(_,(Exc.Success (_,result))))))) = result
 
-terminatedSucc :: Result -> Bool
-terminatedSucc (_, (errs, Terminating (_,(_,(Exc.Success (_,result)))))) = HashSet.null (toSet errs)
-terminatedSucc (_, (errs, NonTerminating)) = False
+excResult :: Result -> Exc.Except (Exc Value) [Value]
+excResult (_,(Terminating (Success (_,(_,(Exc.Success (_,result))))))) = Exc.Success result
+excResult (_,(Terminating (Success (_,(_,(Exc.SuccessOrFail e (_,result))))))) = Exc.SuccessOrFail e result
+excResult (_,(Terminating (Success (_,(_,(Exc.Fail e)))))) = Exc.Fail e
 
-terminatedErr :: Result -> Bool
-terminatedErr (_,(errs, NonTerminating)) = not $ HashSet.null (toSet errs)
-terminatedErr _ = False
+errResult :: Result -> Err
+errResult (_,(Terminating (Fail x))) = x
 
-terminatedMaybeErr :: Result -> Bool
-terminatedMaybeErr (_,(errs, Terminating (_,(_,(Exc.Success (_,result)))))) = not $ HashSet.null (toSet errs)
-terminatedMaybeErr _ = False
-
---excResult :: Result -> Exc.Except (U.Exc Value) [Value]
---excResult (_,(Terminating (Success (_,(_,(Exc.Success (_,result))))))) = Exc.Success result
---excResult (_,(Terminating (Success (_,(_,(Exc.SuccessOrFail e (_,result))))))) = Exc.SuccessOrFail e result
---excResult (_,(Terminating (Success (_,(_,(Exc.Fail e)))))) = Exc.Fail e
-
---errResult :: Result -> U.Err
---errResult (_,(Terminating (Fail x))) = x
+taintValue :: Taint -> BaseValue () () () () -> Value
+taintValue t bv = Taint.Value t $ U.Value bv
 
 --fromTrap :: Err -> String
 --fromTrap (Trap s) = s
 
 spec :: Spec
 spec = do
+    it "run const" $ do
+        result <- runFunc "simple" "const" [U.Value $ VI32 ()]
+        (succResult result) `shouldBe` [taintValue Tainted (VI32 ())]
+
+    it "run noop" $ do
+        result <- runFunc "simple" "noop" []
+        (succResult result) `shouldBe` [taintValue Untainted (VI32 ())]
+
+    it "run test2" $ do
+        result <- runFunc "simple" "test2" []
+        (succResult result) `shouldBe` [taintValue Untainted (VI32 ())]
+
+    it "test-mem" $ do
+        result <- runFunc "simple" "test-mem" [U.Value $ VI32 ()]
+        pending
+        --result `shouldSatisfy` (const False)
+        --(succResult result) `shouldBe` [taintValue Taint.Top (VI32 ())]
+
     it "run fact" $ do
-        result <- runFunc "fact" "fac-rec" [Value $ VI64 ()]
+        result <- runFunc "fact" "fac-rec" [U.Value $ VI64 ()]
         let cfg = fst result
         --putStrLn $ show cfg
-        result `shouldSatisfy` terminatedSucc
-        (succResult result) `shouldBe` [Value $ VI64 ()]
+        (succResult result) `shouldBe` [taintValue Taint.Top (VI64 ())]
 --        validMod <- readModule "test/samples/fact.wast"
 --        Right (modInst, store) <- instantiate validMod
 --        let (Success (_,(_,(Exc.Success (_,result))))) = term $ invokeExported store modInst (pack "fac-rec") [Value $ Lower $ VI64 ()]
@@ -112,37 +120,38 @@ spec = do
 --        sound <- isSoundlyAbstracted validMod "fac-rec" args
 --        sound `shouldBe` True
 
-    it "run test2" $ do
-        result <- runFunc "simple" "test2" []
-        result `shouldSatisfy` terminatedSucc
-        (succResult result) `shouldBe` [Value $ VI32 ()]
-
-
-    it "run test-br3" $ do
-        result <- runFunc "simple" "test-br3" [Value $ VI32 ()]
-        result `shouldSatisfy` terminatedSucc
-        (succResult result) `shouldBe` [Value $ VI32 ()]
---        let args = [[Concrete.Value $ Wasm.VI32 10]]
---        sound <- isSoundlyAbstracted validMod "test-br3" args
---        sound `shouldBe` True
-
-    it "run test-call-indirect" $ do
-        result <- runFunc "simple" "test-call-indirect" []
-        result `shouldSatisfy` terminatedMaybeErr
-        (succResult result) `shouldBe` [Value $ VI32 ()]
-
-    it "run test-unreachable" $ do
-        result <- runFunc "simple" "test-unreachable" []
-        let cfg = fst result
-        --putStrLn $ show cfg
-        (succResult result) `shouldBe` [Value $ VI32 ()]
-
-    it "print cfg" $ do
-        result <- runFunc "fact" "fac-rec" [Value $ VI64 ()]
-        let cfg = fst result
-        putStrLn (show cfg)
-        putStrLn $ graphToDot showForGraph cfg
-        pending
+--    it "run test2" $ do
+--        result <- runFunc "simple" "test2" []
+--        (succResult result) `shouldBe` [Value $ VI32 ()]
+--
+--
+--    it "run test-br3" $ do
+--        result <- runFunc "simple" "test-br3" [Value $ VI32 ()]
+--        (succResult result) `shouldBe` [Value $ VI32 ()]
+----        let args = [[Concrete.Value $ Wasm.VI32 10]]
+----        sound <- isSoundlyAbstracted validMod "test-br3" args
+----        sound `shouldBe` True
+--
+--    it "run test-call-indirect" $ do
+--        result <- runFunc "simple" "test-call-indirect" []
+--        pending
+--        --errResult result `shouldSatisfy` const False
+--        --(excResult result) `shouldSatisfy` (\x -> case x of
+--        --                                      (Exc.SuccessOrFail _ [Value (VI32 ())]) -> True
+--        --                                      _ -> False)
+--
+--    it "run test-unreachable" $ do
+--        result <- runFunc "simple" "test-unreachable" []
+--        let cfg = fst result
+--        --putStrLn $ show cfg
+--        (succResult result) `shouldBe` [Value $ VI32 ()]
+--
+--    it "print cfg" $ do
+--        result <- runFunc "fact" "fac-rec" [Value $ VI64 ()]
+--        let cfg = fst result
+--        putStrLn (show cfg)
+--        putStrLn $ graphToDot showForGraph cfg
+--        pending
 
 
 showForGraph :: D.Instruction Natural -> String

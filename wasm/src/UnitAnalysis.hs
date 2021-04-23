@@ -27,7 +27,8 @@ import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Except
-import           Control.Arrow.Transformer.Abstract.Error
+--import           Control.Arrow.Transformer.Abstract.Error
+import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
 import           Control.Arrow.Transformer.Abstract.Fix.Component
@@ -48,8 +49,8 @@ import           Control.Arrow.Transformer.WasmFrame
 
 
 import           Data.Abstract.Terminating
-import           Data.Abstract.Error as Error
 import           Data.Abstract.Except
+import           Data.Abstract.MonotoneErrors (Errors)
 import qualified Data.Abstract.Widening as W
 import           Data.Text.Lazy (Text)
 import qualified Data.Vector as Vec
@@ -84,24 +85,22 @@ tailA f = proc () -> do
     []     -> returnA -< error "tailA: cannot return the tail of an empty list"
 
 
-type In = (JoinVector Value,
+type In = (Errors Err,
+           (JoinVector Value,
             ((Natural, ModuleInstance),
               (Tables,
               (StaticGlobalState Value,
-                (JoinList Value, (JumpTypes, [Instruction Natural]))))))
+                (JoinList Value, (JumpTypes, [Instruction Natural])))))))
 
-type Out = Terminating
-             (Error
-                Err
+type Out = (Errors Err, (Terminating
                 (JoinVector Value,
                 --(Tables,
                   (StaticGlobalState Value,
-                  Except (Exc Value) (JoinList Value, ()))))
+                  Except (Exc Value) (JoinList Value, ())))))
 
 
-type Result = (CFG (Instruction Natural), Terminating
-                                          (Error
-                                             Err
+type Result = (CFG (Instruction Natural), (Errors Err,
+                                            Terminating
                                              (JoinVector Value,
                                               --(Tables,
                                                 (StaticGlobalState Value,
@@ -114,7 +113,7 @@ invokeExported :: StaticGlobalState Value
                                      -> [Value]
                                      -> Result
 invokeExported initialStore tab modInst funcName args =
-    let ?cacheWidening = W.finite in
+    let ?cacheWidening = (W.finite,W.finite) in
     --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
     --let algo = (trace p1 p2) . (Fix.filter isRecursive $ innermost) in
     let algo = recordControlFlowGraph' getExpression . Fix.filter isRecursive innermost in
@@ -132,16 +131,16 @@ invokeExported initialStore tab modInst funcName args =
                       (SerializeT Value
                         (TableT Value
                           (FrameT FrameData Value
-                            (ErrorT Err
-                              (TerminatingT
+                            (TerminatingT
+                              (LogErrorT Err
                                 (FixT
                                   (ComponentT Component In
-                                    (Fix.StackT Fix.Stack  In
-                                      (CacheT Cache In Out
+                                    (Fix.StackT Fix.Stack In
+                                      (CacheT Monotone In Out
                                         (ControlFlowT (Instruction Natural)
                                           (->)))))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(initialStore,([],(Generic.JumpTypes [],(funcName, args)))))))
     where
-        isRecursive (_,(_,(_,(_,(_,(_,inst)))))) = case inst of
+        isRecursive (_,(_,(_,(_,(_,(_,(_,inst))))))) = case inst of
             Loop {} : _ -> True
             Call _ _ : _  -> True
             CallIndirect _ _ : _ -> True --error "todo"
@@ -151,7 +150,7 @@ invokeExported initialStore tab modInst funcName args =
         -- p2 (Terminating (Error.Success (stack, (_,rest)))) = pretty rest
         -- p2 x = pretty x
 
-        getExpression (_,(_,(_,(_,(_,(_,exprs)))))) = case exprs of e:_ -> Just e; _ -> Nothing
+        getExpression (_,(_,(_,(_,(_,(_,(_,exprs))))))) = case exprs of e:_ -> Just e; _ -> Nothing
 
 instantiateAbstract :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Tables))
 instantiateAbstract valMod = do res <- instantiate valMod alpha (\_ _ -> ()) TableInst

@@ -13,13 +13,14 @@ module TaintAnalysis where
 
 import           Prelude as P
 
-import           GenericInterpreter hiding (Exc,Err)
-import qualified GenericInterpreter as Generic
-import           UnitAnalysisValue(Exc(..),Err)
-
 import           Abstract
 import           Data
-import           TaintAnalysisValue
+import           GenericInterpreter hiding (Exc,Err)
+import qualified GenericInterpreter as Generic
+import           TaintAnalysisValue hiding (Value)
+import qualified TaintAnalysisValue as Taint
+import qualified UnitAnalysis as Abs
+import           UnitAnalysisValue(Exc(..),Err)
 import qualified UnitAnalysisValue as Abs
 
 import           Control.Arrow.Fix as Fix
@@ -56,31 +57,35 @@ import           Data.Text.Lazy (Text)
 import qualified Data.Vector as Vec
 
 import           Language.Wasm.Interpreter (ModuleInstance)
+import qualified Language.Wasm.Interpreter as Wasm
+import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
 
-type In = (JoinVector (Value Abs.Value),
+type Value = Taint.Value Abs.Value
+
+type In = (JoinVector Value,
             ((Natural, ModuleInstance),
               (Tables,
-              (StaticGlobalState (Value Abs.Value),
-                (JoinList (Value Abs.Value), (JumpTypes, [Instruction Natural]))))))
+              (StaticGlobalState Value,
+                (JoinList Value, (JumpTypes, [Instruction Natural]))))))
 
 type Out = Terminating
              (Error
                 Err
-                (JoinVector (Value Abs.Value),
-                  (StaticGlobalState (Value Abs.Value),
-                  Except (Exc (Value Abs.Value)) (JoinList (Value Abs.Value), ()))))
+                (JoinVector Value,
+                  (StaticGlobalState Value,
+                  Except (Exc Value) (JoinList Value, ()))))
 
 
 type Result = (CFG (Instruction Natural), Terminating
                                           (Error
                                              Err
-                                             (JoinVector (Value Abs.Value),
-                                                (StaticGlobalState (Value Abs.Value),
-                                                 Except (Exc (Value Abs.Value)) (JoinList (Value Abs.Value), [Value Abs.Value])))))
+                                             (JoinVector Value,
+                                                (StaticGlobalState Value,
+                                                 Except (Exc Value) (JoinList Value, [Value])))))
 
-invokeExported :: StaticGlobalState (Value Abs.Value)
+invokeExported :: StaticGlobalState Value
                     -> Tables
                     -> ModuleInstance
                     -> Text
@@ -94,17 +99,17 @@ invokeExported initialStore tab modInst funcName args =
     let ?fixpointAlgorithm = fixpointAlgorithm algo in
     (\(cfg,(_,res)) -> (cfg,res)) $ Trans.run
     (Generic.invokeExported ::
-      ValueT (Value Abs.Value)
+      ValueT Value
         (ReaderT Generic.JumpTypes
-          (StackT (Value Abs.Value)
-            (ExceptT (Exc (Value Abs.Value))
-              (StaticGlobalStateT (Value Abs.Value)
+          (StackT Value
+            (ExceptT (Exc Value)
+              (StaticGlobalStateT Value
                 (MemoryT
                   (MemAddressT
-                    (SizeT (Value Abs.Value)
-                      (SerializeT (Value Abs.Value)
-                        (TableT (Value Abs.Value)
-                          (FrameT FrameData (Value Abs.Value)
+                    (SizeT Value
+                      (SerializeT Value
+                        (TableT Value
+                          (FrameT FrameData Value
                             (ErrorT Err
                               (TerminatingT
                                 (FixT
@@ -112,9 +117,9 @@ invokeExported initialStore tab modInst funcName args =
                                     (Fix.StackT Fix.Stack  In
                                       (CacheT Cache In Out
                                         (ControlFlowT (Instruction Natural)
-                                          (->)))))))))))))))))) (Text, [Value Abs.Value]) [Value Abs.Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(initialStore,([],(Generic.JumpTypes [],(funcName, P.map taint args)))))))
+                                          (->)))))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(initialStore,([],(Generic.JumpTypes [],(funcName, P.map taint args)))))))
     where
-        taint v = Value Tainted v
+        taint v = Taint.Value Tainted v
         isRecursive (_,(_,(_,(_,(_,(_,inst)))))) = case inst of
             Loop {} : _ -> True
             Call _ _ : _  -> True
@@ -128,4 +133,11 @@ invokeExported initialStore tab modInst funcName args =
         getExpression (_,(_,(_,(_,(_,(_,exprs)))))) = case exprs of e:_ -> Just e; _ -> Nothing
 
 
-deriving instance ArrowComplete (Value Abs.Value) c => ArrowComplete (Value Abs.Value) (ValueT Abs.Value c)
+instantiateTaint :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Tables))
+instantiateTaint valMod = do res <- instantiate valMod (alpha Untainted) (\_ _ -> ()) TableInst
+                             return $ fmap (\(m,s,_,tab) -> (m,s,JoinVector tab)) res
+
+alpha :: Taint -> Wasm.Value -> Value
+alpha t v = Taint.Value t (Abs.alpha v)
+
+deriving instance ArrowComplete Value c => ArrowComplete Value (ValueT Abs.Value c)
