@@ -27,7 +27,6 @@ import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Except
---import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable

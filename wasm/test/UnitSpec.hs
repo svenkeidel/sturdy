@@ -4,38 +4,22 @@ module UnitSpec where
 
 import           Abstract (BaseValue(..))
 import qualified Concrete as Concrete
-import qualified ConcreteInterpreter as Concrete
 import qualified Data as D
 import           UnitAnalysis as U
 import           UnitAnalysisValue as U
 import           Soundness
-import           GenericInterpreter(Exc(..),Err(..))
 import           GraphToDot
 
---import           Control.Arrow.Transformer.Abstract.WasmFrame (Vector(..))
---import           Control.Arrow.Transformer.Abstract.Stack (AbsList(..))
-
 import qualified Data.ByteString.Lazy as LBS
-import           Data.Abstract.Error
 import qualified Data.Abstract.Except as Exc
-import           Data.Abstract.FreeCompletion
 import           Data.Abstract.MonotoneErrors(toSet)
 import           Data.Abstract.Terminating
 import qualified Data.HashSet as HashSet
-import           Data.List (isInfixOf)
-import           Data.List.Singleton (singleton)
-import qualified Data.Abstract.Powerset as Pow
-import           Data.Order
 import           Data.Text.Lazy (pack)
-import           Data.Text.Prettyprint.Doc
-import           Data.Vector(fromList,empty)
-import qualified Data.Vector as Vec
 
 import           Language.Wasm
-import           Language.Wasm.Interpreter (ModuleInstance(..))
 import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Structure
-import           Language.Wasm.Validate
 
 import           Numeric.Natural
 
@@ -46,7 +30,9 @@ main = hspec spec
 
 term :: Terminating a -> a
 term (Terminating a) = a
+term _ = error "not defined"
 
+getFunctionBody :: Function -> Expression
 getFunctionBody (Function _ _ b) = b
 
 readModule :: String -> IO ValidModule
@@ -58,59 +44,37 @@ readModule path = do
 
 runFunc :: String -> String -> [Value] -> IO Result
 runFunc modName funcName args = do
-    mod <- readModule ("test/samples/" ++ modName ++ ".wast")
-    Right (modInst, staticS, tabs) <- instantiateAbstract mod
+    m <- readModule ("test/samples/" ++ modName ++ ".wast")
+    Right (modInst, staticS, tabs) <- instantiateAbstract m
     return $ invokeExported staticS tabs modInst (pack funcName) args
 
 succResult :: Result -> [Value]
 succResult (_,(_,(Terminating (_,(_,(Exc.Success (_,result))))))) = result
+succResult _ = error "not defined"
 
 terminatedSucc :: Result -> Bool
-terminatedSucc (_, (errs, Terminating (_,(_,(Exc.Success (_,result)))))) = HashSet.null (toSet errs)
-terminatedSucc (_, (errs, NonTerminating)) = False
+terminatedSucc (_, (errs, Terminating (_,(_,(Exc.Success _))))) = HashSet.null (toSet errs)
+terminatedSucc (_, (errs, NonTerminating)) = HashSet.null (toSet errs)
+terminatedSucc _ = False
 
 terminatedErr :: Result -> Bool
 terminatedErr (_,(errs, NonTerminating)) = not $ HashSet.null (toSet errs)
 terminatedErr _ = False
 
 terminatedMaybeErr :: Result -> Bool
-terminatedMaybeErr (_,(errs, Terminating (_,(_,(Exc.Success (_,result)))))) = not $ HashSet.null (toSet errs)
+terminatedMaybeErr (_,(errs, Terminating (_,(_,(Exc.Success _))))) = not $ HashSet.null (toSet errs)
 terminatedMaybeErr _ = False
-
---excResult :: Result -> Exc.Except (U.Exc Value) [Value]
---excResult (_,(Terminating (Success (_,(_,(Exc.Success (_,result))))))) = Exc.Success result
---excResult (_,(Terminating (Success (_,(_,(Exc.SuccessOrFail e (_,result))))))) = Exc.SuccessOrFail e result
---excResult (_,(Terminating (Success (_,(_,(Exc.Fail e)))))) = Exc.Fail e
-
---errResult :: Result -> U.Err
---errResult (_,(Terminating (Fail x))) = x
-
---fromTrap :: Err -> String
---fromTrap (Trap s) = s
 
 spec :: Spec
 spec = do
     it "run fact" $ do
         result <- runFunc "fact" "fac-rec" [Value $ VI64 ()]
-        let cfg = fst result
-        --putStrLn $ show cfg
         result `shouldSatisfy` terminatedSucc
         (succResult result) `shouldBe` [Value $ VI64 ()]
---        validMod <- readModule "test/samples/fact.wast"
---        Right (modInst, store) <- instantiate validMod
---        let (Success (_,(_,(Exc.Success (_,result))))) = term $ invokeExported store modInst (pack "fac-rec") [Value $ Lower $ VI64 ()]
---        result `shouldBe` [Value $ Lower $ VI64 ()]
---        let args = [[Concrete.Value $ Wasm.VI64 1],[Concrete.Value $ Wasm.VI64 10]]
-----        Right (concModInst, concStore) <- Concrete.instantiate validMod
-----        Right (absModInst, absStore) <- instantiate validMod
-----        let (AbsList absArgs) = foldr1 (⊔) $ (map (AbsList . map alphaVal1)) $ args
-----        let concResults = map (snd . Concrete.invokeExported concStore concModInst (pack "fac-rec")) args
-----        let (Terminating temp) = invokeExported absStore absModInst (pack "fac-rec") absArgs
-----        --let absResult = resultToAbsList $ temp
-----        putStrLn (show concResults)
-----        putStrLn (show temp)
---        sound <- isSoundlyAbstracted validMod "fac-rec" args
---        sound `shouldBe` True
+        validMod <- readModule "test/samples/fact.wast"
+        let args = [[Concrete.Value $ Wasm.VI64 1],[Concrete.Value $ Wasm.VI64 10]]
+        sound <- isSoundlyAbstracted validMod "fac-rec" args
+        sound `shouldBe` True
 
     it "run test2" $ do
         result <- runFunc "simple" "test2" []
@@ -133,8 +97,6 @@ spec = do
 
     it "run test-unreachable" $ do
         result <- runFunc "simple" "test-unreachable" []
-        let cfg = fst result
-        --putStrLn $ show cfg
         (succResult result) `shouldBe` [Value $ VI32 ()]
 
     it "print cfg" $ do
@@ -153,6 +115,7 @@ showForGraph (D.IRelOp bs op _) = "IRelOp " ++ (show bs) ++ " " ++ (show op)
 showForGraph (D.IBinOp bs op _) = "IBinOp " ++ (show bs) ++ " " ++ (show op)
 showForGraph (D.Call i _) = "Call " ++ (show i)
 showForGraph (D.If t _ _ _) = "If " ++ (show t)
+showForGraph _ = error "todo"
 
 --    it "run non-terminating" $ do
 --        validMod <- readModule "test/samples/simple.wast"

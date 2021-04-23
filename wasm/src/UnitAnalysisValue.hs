@@ -34,7 +34,8 @@ import           Text.Printf
 
 newtype Exc v = Exc (HashSet (Generic.Exc v)) deriving (Eq, Show, Hashable, PreOrd, Complete)
 
-newtype Err = Err (Pow Generic.Err) deriving (Eq, Show, Hashable, PreOrd, Complete)
+--newtype Err = Err (Pow Generic.Err) deriving (Eq, Show, Hashable, PreOrd, Complete)
+type Err = Generic.Err
 
 instance (Show v) => Pretty (Exc v) where pretty = viaShow
 instance (Show n) => Pretty (Instruction n) where pretty = viaShow
@@ -49,7 +50,8 @@ instance (ArrowExcept (Exc Value) c, ArrowChoice c) => IsException (Exc Value) V
                             joinList1'' f -< (HashSet.toList excs,x)
 
 instance Arrow c => IsErr Err (ValueT Value c) where
-    err = arr $ Err . Pow.singleton
+    --err = arr $ Err . Pow.singleton
+    err = arr id
 
 newtype Value = Value (BaseValue () () () ()) deriving (Eq, Show, Hashable, PreOrd, Complete, Pretty)
 

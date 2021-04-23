@@ -91,7 +91,8 @@ instance (Hashable v, ArrowExcept (Abs.Exc (Value v)) c, ArrowChoice c) => IsExc
 --  handleException = id
 
 instance Arrow c => IsErr Abs.Err (ValueT (Value v) c) where
-    err = arr $ Abs.Err . Pow.singleton
+    --err = arr $ Abs.Err . Pow.singleton
+    err = arr id
 
 instance (JoinVal v (ValueT v c), IsVal v (ValueT v c), ArrowChoice c) => IsVal (Value v) (ValueT (Value v) c) where
   type JoinVal y (ValueT (Value v) c) = JoinVal y (ValueT v c)

@@ -110,6 +110,11 @@
 
     )
 
+  (func (export "test-mem2") (result i32)
+    i32.const 0
+    i32.load
+  )
+
   (func (export "test-br1") (result i32)
     (block (result i32)
            i32.const 42

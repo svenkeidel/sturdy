@@ -29,8 +29,8 @@ import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Order
 import           Control.Arrow.Trans as Trans
 
-import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Except
+import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
 import           Control.Arrow.Transformer.Abstract.Fix.Component
@@ -49,8 +49,8 @@ import           Control.Arrow.Transformer.StaticGlobalState
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.WasmFrame
 
-import           Data.Abstract.Error as Error
 import           Data.Abstract.Except
+import           Data.Abstract.MonotoneErrors (Errors)
 import           Data.Abstract.Terminating
 import qualified Data.Abstract.Widening as W
 import           Data.Text.Lazy (Text)
@@ -64,23 +64,21 @@ import           Numeric.Natural (Natural)
 
 type Value = Taint.Value Abs.Value
 
-type In = (JoinVector Value,
+type In = (Errors Err,
+           (JoinVector Value,
             ((Natural, ModuleInstance),
               (Tables,
               (StaticGlobalState Value,
-                (JoinList Value, (JumpTypes, [Instruction Natural]))))))
+                (JoinList Value, (JumpTypes, [Instruction Natural])))))))
 
-type Out = Terminating
-             (Error
-                Err
+type Out = (Errors Err, (Terminating
                 (JoinVector Value,
                   (StaticGlobalState Value,
-                  Except (Exc Value) (JoinList Value, ()))))
+                  Except (Exc Value) (JoinList Value, ())))))
 
 
-type Result = (CFG (Instruction Natural), Terminating
-                                          (Error
-                                             Err
+type Result = (CFG (Instruction Natural), (Errors Err,
+                                            Terminating
                                              (JoinVector Value,
                                                 (StaticGlobalState Value,
                                                  Except (Exc Value) (JoinList Value, [Value])))))
@@ -92,7 +90,7 @@ invokeExported :: StaticGlobalState Value
                     -> [Abs.Value]
                     -> Result
 invokeExported initialStore tab modInst funcName args =
-    let ?cacheWidening = W.finite in
+    let ?cacheWidening = (W.finite,W.finite) in
     --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
     --let algo = (trace p1 p2) . (Fix.filter isRecursive $ innermost) in
     let algo = recordControlFlowGraph' getExpression . Fix.filter isRecursive innermost in
@@ -110,17 +108,17 @@ invokeExported initialStore tab modInst funcName args =
                       (SerializeT Value
                         (TableT Value
                           (FrameT FrameData Value
-                            (ErrorT Err
-                              (TerminatingT
+                            (TerminatingT
+                              (LogErrorT Err
                                 (FixT
                                   (ComponentT Component In
                                     (Fix.StackT Fix.Stack  In
-                                      (CacheT Cache In Out
+                                      (CacheT Monotone In Out
                                         (ControlFlowT (Instruction Natural)
                                           (->)))))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(initialStore,([],(Generic.JumpTypes [],(funcName, P.map taint args)))))))
     where
         taint v = Taint.Value Tainted v
-        isRecursive (_,(_,(_,(_,(_,(_,inst)))))) = case inst of
+        isRecursive (_,(_,(_,(_,(_,(_,(_,inst))))))) = case inst of
             Loop {} : _ -> True
             Call _ _ : _  -> True
             CallIndirect _ _ : _ -> True
@@ -130,7 +128,7 @@ invokeExported initialStore tab modInst funcName args =
         -- p2 (Terminating (Error.Success (stack, (_,rest)))) = pretty rest
         -- p2 x = pretty x
 
-        getExpression (_,(_,(_,(_,(_,(_,exprs)))))) = case exprs of e:_ -> Just e; _ -> Nothing
+        getExpression (_,(_,(_,(_,(_,(_,(_,exprs))))))) = case exprs of e:_ -> Just e; _ -> Nothing
 
 
 instantiateTaint :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Tables))
