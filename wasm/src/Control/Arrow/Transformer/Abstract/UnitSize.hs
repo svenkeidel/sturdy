@@ -18,14 +18,15 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.MemAddress
+import           Control.Arrow.Functions
+import           Control.Arrow.EffectiveAddress
 import           Control.Arrow.Memory
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Size
 import           Control.Arrow.Stack
-import           Control.Arrow.StaticGlobalState
+import           Control.Arrow.Globals
 import           Control.Arrow.Store
 import           Control.Arrow.Table
 import           Control.Arrow.Trans
@@ -39,8 +40,8 @@ import           Data.Profunctor
 newtype SizeT v c x y = SizeT (c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowReader r, ArrowStaticGlobalState val, ArrowMemory addr bytes s,
-              ArrowMemAddress base off addr,
+              ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowMemory addr bytes s,
+              ArrowEffectiveAddress base off addr, ArrowFunctions,
               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
 
 instance ArrowTrans (SizeT v) where

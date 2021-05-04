@@ -23,9 +23,9 @@ import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Except
 import           Control.Arrow.Fail as Fail
 
+import           Control.Arrow.Transformer.JumpTypes
 import           Control.Arrow.Transformer.Stack
 import           Control.Arrow.Transformer.StaticGlobalState
-import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.WasmFrame
 
@@ -329,7 +329,7 @@ invokeExported staticS mem tab modInst funcName args =
     Trans.run
     (Generic.invokeExported ::
       ValueT Value
-        (ReaderT Generic.JumpTypes
+        (JumpTypesT
           (StackT Value
             (ExceptT (Generic.Exc Value)
               (StaticGlobalStateT Value
@@ -338,7 +338,7 @@ invokeExported staticS mem tab modInst funcName args =
                     (TableT
                       (FrameT FrameData Value
                         (FailureT Err
-                          (->)))))))))) (Text, [Value]) [Value]) (JoinVector Vec.empty,((0,modInst),(tab,(mem,(staticS,([],(Generic.JumpTypes [],(funcName,args))))))))
+                          (->)))))))))) (Text, [Value]) [Value]) (JoinVector Vec.empty,((0,modInst),(tab,(mem,(staticS,([],([],(funcName,args))))))))
 
 
 instantiateConcrete :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Memories, Tables))

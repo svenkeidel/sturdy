@@ -38,12 +38,12 @@ import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import qualified Control.Arrow.Transformer.Abstract.Fix.Stack as Fix
 import           Control.Arrow.Transformer.Abstract.Memory
 import           Control.Arrow.Transformer.Abstract.Serialize
-import           Control.Arrow.Transformer.Abstract.UnitMemAddress
+import           Control.Arrow.Transformer.Abstract.UnitEffectiveAddress
 import           Control.Arrow.Transformer.Abstract.UnitSize
 import           Control.Arrow.Transformer.Abstract.Table
 import           Control.Arrow.Transformer.Abstract.Terminating
 
-import           Control.Arrow.Transformer.Reader
+import           Control.Arrow.Transformer.JumpTypes
 import           Control.Arrow.Transformer.Stack (StackT)
 import           Control.Arrow.Transformer.StaticGlobalState
 import           Control.Arrow.Transformer.Value
@@ -58,6 +58,7 @@ import qualified Data.Vector as Vec
 
 import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm
+import           Language.Wasm.Structure (ResultType)
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
@@ -69,7 +70,7 @@ type In = (Errors Err,
             ((Natural, ModuleInstance),
               (Tables,
               (StaticGlobalState Value,
-                (JoinList Value, (JumpTypes, [Instruction Natural])))))))
+                (JoinList Value, ([ResultType], [Instruction Natural])))))))
 
 type Out = (Errors Err, (Terminating
                 (JoinVector Value,
@@ -98,12 +99,12 @@ invokeExported initialStore tab modInst funcName args =
     (\(cfg,(_,res)) -> (cfg,res)) $ Trans.run
     (Generic.invokeExported ::
       ValueT Value
-        (ReaderT Generic.JumpTypes
+        (JumpTypesT
           (StackT Value
             (ExceptT (Exc Value)
               (StaticGlobalStateT Value
                 (MemoryT
-                  (MemAddressT
+                  (EffectiveAddressT
                     (SizeT Value
                       (SerializeT Value
                         (TableT Value
@@ -115,7 +116,7 @@ invokeExported initialStore tab modInst funcName args =
                                     (Fix.StackT Fix.Stack  In
                                       (CacheT Monotone In Out
                                         (ControlFlowT (Instruction Natural)
-                                          (->)))))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(initialStore,([],(Generic.JumpTypes [],(funcName, P.map taint args)))))))
+                                          (->)))))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(initialStore,([],([],(funcName, P.map taint args)))))))
     where
         taint v = Taint.Value Tainted v
         isRecursive (_,(_,(_,(_,(_,(_,(_,inst))))))) = case inst of

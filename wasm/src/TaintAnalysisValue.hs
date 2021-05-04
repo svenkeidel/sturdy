@@ -23,7 +23,6 @@ import           Control.Arrow.Order
 
 import           Control.Arrow.Transformer.Value
 
-import qualified Data.Abstract.DiscretePowerset as Pow
 import           Data.Hashable
 import           Data.HashSet as HashSet
 import           Data.Order

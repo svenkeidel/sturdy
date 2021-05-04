@@ -41,6 +41,11 @@ instance (Show v) => Pretty (Vector v) where pretty = viaShow
 instance (Hashable v) => Hashable (Vector v) where
     hashWithSalt salt v = hashWithSalt salt (Vec.toList v)
 
+type JumpIndex = Natural
+type GlobalAddr = Int
+type FunctionAddr = Int
+type VarIndex = Natural
+
 -- wrappers
 newtype JoinVector v = JoinVector (Vector v) deriving (Show,Eq,Generic,Pretty)
 

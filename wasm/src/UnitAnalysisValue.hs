@@ -24,7 +24,6 @@ import           Control.Arrow.Transformer.Value
 import           Language.Wasm.Structure (BitSize(..), IBinOp(..), IRelOp(..), ValueType(..), IUnOp(..),
                                           FUnOp(..), FBinOp(..), FRelOp(..))
 
-import           Data.Abstract.DiscretePowerset as Pow
 import           Data.Hashable
 import           Data.HashSet as HashSet
 import           Data.Order

@@ -3,28 +3,21 @@ module ConcreteSpec where
 import           Concrete
 import           ConcreteInterpreter
 import           Data
-import           GenericInterpreter(Exc(..))
-
---import           Control.Arrow.Transformer.Concrete.GlobalState
 
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Concrete.Error
-import           Data.List (isInfixOf)
 import           Data.List.Singleton (singleton)
 import           Data.Text.Lazy (pack)
-import           Data.Vector(fromList,empty)
 
 import           Language.Wasm
-import           Language.Wasm.Interpreter (ModuleInstance(..))
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure (BitSize(..), IBinOp(..))
-import           Language.Wasm.Validate
 
 import           Test.Hspec
 
 main :: IO ()
 main = hspec spec
 
+getFunctionBody :: Function -> Expression
 getFunctionBody (Function _ _ b) = b
 
 runFunc :: String -> String -> [Value] -> IO Result
@@ -38,6 +31,7 @@ runFunc modName funcName args = do
 
 succResult :: Result -> [Value]
 succResult (Success (_,(_,(_,(_,(Success (_,result))))))) = result
+succResult _ = error "not defined"
 
 spec :: Spec
 spec = do
@@ -61,32 +55,4 @@ spec = do
 
     it "run test-call-indirect" $ do
         result <- runFunc "simple" "test-call-indirect" []
-        --result `shouldSatisfy` (const False)
         (succResult result) `shouldBe` [Value $ Wasm.VI32 0]
-
---    it "run test-br1" $ do
---        let path = "test/samples/simple.wast"
---        content <- LBS.readFile path
---        let Right m = parse content
---        let Right validMod = validate m
---        Right (modInst, store) <- instantiate validMod
---        let (_, (Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "test-br1") []
---        result `shouldBe` [Value $ Wasm.VI32 42]
---
---    it "run test-br2" $ do
---        let path = "test/samples/simple.wast"
---        content <- LBS.readFile path
---        let Right m = parse content
---        let Right validMod = validate m
---        Right (modInst, store) <- instantiate validMod
---        let (_, (Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "test-br2") []
---        result `shouldBe` [Value $ Wasm.VI32 43]
---
---    it "run test-br3" $ do
---        let path = "test/samples/simple.wast"
---        content <- LBS.readFile path
---        let Right m = parse content
---        let Right validMod = validate m
---        Right (modInst, store) <- instantiate validMod
---        let (_, (Success (_,(_,(Success (_,result)))))) = invokeExported store modInst (pack "test-br3") [Value $ Wasm.VI32 0]
---        result `shouldBe` [Value $ Wasm.VI32 42]

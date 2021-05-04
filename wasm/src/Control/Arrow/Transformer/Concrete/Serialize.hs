@@ -16,12 +16,12 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Logger
+import           Control.Arrow.Functions
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Stack
 import           Control.Arrow.State
-import           Control.Arrow.StaticGlobalState
+import           Control.Arrow.Globals
 import           Control.Arrow.Store
 import           Control.Arrow.Table
 import           Control.Arrow.Trans
@@ -41,7 +41,7 @@ import           Language.Wasm.Structure hiding (exports, Const)
 newtype SerializeT c x y = SerializeT (c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowLogger l, ArrowState s, ArrowStaticGlobalState v, ArrowReader m, ArrowTable v)
+              ArrowStack st, ArrowState s, ArrowGlobals v, ArrowFunctions, ArrowReader m, ArrowTable v)
 
 instance (Profunctor c, ArrowChoice c) => ArrowSerialize Value (Vector Word8) ValueType LoadType StoreType (SerializeT c) where
   decode sCont = proc (dat, decTy, valTy, x) -> do

@@ -12,6 +12,7 @@ import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Kleisli
 import           Control.Arrow.Transformer.Reader
 import           Control.Arrow.Transformer.State
+import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Writer
 
 import           Data.Profunctor.Unsafe
@@ -49,6 +50,8 @@ pushn = proc vs -> case vs of
 
 ---------------- instances -------------------------
 
+deriving instance (ArrowStack v c) => ArrowStack v (ValueT val2 c)
+
 instance (Profunctor c, Arrow c, Monad f, ArrowStack v c) => ArrowStack v (KleisliT f c) where
     push = lift' push
     pop = lift' pop
@@ -75,5 +78,5 @@ instance (Arrow c, Profunctor c, Monoid w, ArrowStack v c) => ArrowStack v (Writ
     push = lift' push
     pop = lift' pop
     peek = lift' peek
-    ifEmpty a1 a2 = lift (ifEmpty (unlift a1) (unlift a1))
+    ifEmpty a1 a2 = lift (ifEmpty (unlift a1) (unlift a2))
     localFreshStack a = lift (localFreshStack (unlift a))

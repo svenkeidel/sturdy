@@ -15,11 +15,12 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
+import           Control.Arrow.Functions
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Stack
 import           Control.Arrow.State
-import           Control.Arrow.StaticGlobalState
+import           Control.Arrow.Globals
 import           Control.Arrow.Store
 import           Control.Arrow.Table
 import           Control.Arrow.Trans
@@ -37,7 +38,7 @@ import qualified Language.Wasm.Interpreter as Wasm
 newtype TableT c x y = TableT (StateT Tables c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowReader r, ArrowStaticGlobalState val,
+              ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowFunctions,
               ArrowSerialize val dat valTy datDecTy datEncTy)
 
 instance (Profunctor c, ArrowChoice c) => ArrowTable Value (TableT c) where

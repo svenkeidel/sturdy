@@ -51,10 +51,10 @@ instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where
         put -< JoinVector $ Vec.fromList vs
         f -< (fd, x)
   frameData = FrameT ask
-  frameLookup = FrameT $ ReaderT $ proc (_,n) -> do
+  getLocal = FrameT $ ReaderT $ proc (_,n) -> do
     (JoinVector vec) <- get -< ()
     returnA -< vec Vec.! fromIntegral n
-  frameUpdate = FrameT $ ReaderT $ proc (_,(n,v)) -> do
+  setLocal = FrameT $ ReaderT $ proc (_,(n,v)) -> do
     (JoinVector vec) <- get -< ()
     put -< JoinVector $ vec Vec.// [(fromIntegral n, v)]
 

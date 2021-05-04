@@ -88,7 +88,7 @@ spec = do
     it "test-mem2" $ do
         result <- runFunc "simple" "test-mem2" []
         result `shouldSatisfy` terminatedMaybeErr
-        (succResult result) `shouldBe` [taintValue Tainted (VI32 ())]
+        (succResult result) `shouldBe` [taintValue Taint.Top (VI32 ())]
 
     it "run fact" $ do
         result <- runFunc "fact" "fac-rec" [U.Value $ VI64 ()]

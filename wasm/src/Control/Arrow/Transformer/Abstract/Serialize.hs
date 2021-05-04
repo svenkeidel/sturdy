@@ -19,8 +19,8 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.Logger
-import           Control.Arrow.MemAddress
+import           Control.Arrow.Functions
+import           Control.Arrow.EffectiveAddress
 import           Control.Arrow.Memory
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
@@ -28,7 +28,7 @@ import           Control.Arrow.Serialize
 import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.State
-import           Control.Arrow.StaticGlobalState
+import           Control.Arrow.Globals
 import           Control.Arrow.Store
 import           Control.Arrow.Table
 import           Control.Arrow.Trans
@@ -45,8 +45,8 @@ import           Language.Wasm.Structure (ValueType(..))
 newtype SerializeT v c x y = SerializeT (c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowLogger l, ArrowState s, ArrowStaticGlobalState v, ArrowReader m, ArrowTable v,
-              ArrowMemory addr bytes sz, ArrowSize v sz, ArrowJoin, ArrowMemAddress base off addr)
+              ArrowStack st, ArrowState s, ArrowGlobals v, ArrowReader m, ArrowTable v, ArrowFunctions,
+              ArrowMemory addr bytes sz, ArrowSize v sz, ArrowJoin, ArrowEffectiveAddress base off addr)
 
 instance ArrowTrans (SerializeT v) where
     lift' = SerializeT
@@ -64,7 +64,7 @@ instance (Profunctor c, Arrow c) => ArrowSerialize Value Bytes ValueType LoadTyp
 tainted :: Arrow c => SerializeT v c x v -> SerializeT (Taint.Value v) c x (Taint.Value v)
 tainted f = proc x -> do
   v <- liftSerializeT f -< x
-  returnA -< Taint.Value Taint.Untainted v
+  returnA -< Taint.Value Taint.Tainted v
 {-# INLINE tainted #-}
 
 liftSerializeT :: SerializeT v c x y -> SerializeT (Taint.Value v) c x y
@@ -78,7 +78,7 @@ unliftSerializeT = coerce
 instance (Arrow c, ArrowSerialize v Bytes ValueType LoadType StoreType (SerializeT v c)) => ArrowSerialize (Taint.Value v) Bytes ValueType LoadType StoreType (SerializeT (Taint.Value v) c) where
     decode sCont = proc (bytes,datDecTy,valTy,x) ->
         liftSerializeT (decode
-          (proc (v,x) -> (unliftSerializeT sCont) -< (Taint.Value Taint.Tainted v,x)))
+          (proc (v,x) -> (unliftSerializeT sCont) -< (Taint.Value Taint.Top v,x)))
           -< (bytes,datDecTy,valTy,x)
     encode sCont = proc (Taint.Value _t v,valTy,datEncTy,x) ->
         liftSerializeT (encode

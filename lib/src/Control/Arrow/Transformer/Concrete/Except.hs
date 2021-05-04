@@ -17,7 +17,6 @@ import Control.Arrow.Except
 import Control.Arrow.Fail
 import Control.Arrow.Fix
 import Control.Arrow.Reader
-import Control.Arrow.Stack
 import Control.Arrow.State
 import Control.Arrow.Store as Store
 import Control.Arrow.Trans
@@ -33,7 +32,7 @@ import Data.Coerce
 newtype ExceptT e c x y = ExceptT (KleisliT (Error e) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift,ArrowTrans,ArrowRun,
             ArrowConst r,ArrowState s,ArrowReader r,ArrowFail err,
-            ArrowEnv var val, ArrowClosure expr cls,ArrowStore var val, ArrowStack st)
+            ArrowEnv var val, ArrowClosure expr cls,ArrowStore var val)
 
 runExceptT :: ExceptT e c x y -> c x (Error e y)
 runExceptT = coerce

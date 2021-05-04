@@ -6,7 +6,6 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
---{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -20,32 +19,30 @@ import Prelude hiding (Read, fail, log)
 
 import           Concrete()
 import           Data (Instruction(..), Function(..), LoadType(..), StoreType(..))
---import           Data hiding (label,iUnOp,iBinOp)
 
 import           Control.Arrow
 import           Control.Arrow.Except
 import qualified Control.Arrow.Except as Exc
 import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.MemAddress
+import           Control.Arrow.Functions
+import           Control.Arrow.EffectiveAddress
+import           Control.Arrow.JumpTypes
 import           Control.Arrow.Memory as Mem
-import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.Table
 import qualified Control.Arrow.Utils as Arr
-import           Control.Arrow.StaticGlobalState
+import           Control.Arrow.Globals
 import           Control.Arrow.WasmFrame
 
 import           Data.Hashable
 import           Data.Profunctor
 import           Data.Text.Lazy (Text)
-import           Data.Text.Prettyprint.Doc
 import           Data.Vector hiding (length, (++))
 import           Data.Word
 
---import           Language.Wasm.Structure hiding (exports, Instruction)
 import           Language.Wasm.Structure (ValueType(..), BitSize, IUnOp(..), IBinOp(..), IRelOp(..),
                                           FUnOp(..), FBinOp(..), FRelOp(..), MemArg(..), FuncType(..), ResultType)
 import           Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance, ExportInstance(..), ExternalValue(..))
@@ -78,11 +75,6 @@ trap = proc s -> fail <<< err -< (Trap s)
 invocationError :: (Fail.Join x c, ArrowFail err c, IsErr err c) => c String x
 invocationError = proc s -> fail <<< err -< (InvocationError s)
 
--- used for storing the return "arity" of nested labels
-newtype JumpTypes = JumpTypes {jumpTypes :: [ResultType]} deriving (Eq,Show,Generic)
-instance Hashable JumpTypes
-instance Pretty JumpTypes where pretty = viaShow
-
 -- stores a frame's static data (return arity and module instance)
 type FrameData = (Natural, ModuleInstance)
 
@@ -101,16 +93,17 @@ type FrameData = (Natural, ModuleInstance)
 
 type ArrowWasmMemory addr bytes sz v c =
   ( ArrowMemory addr bytes sz c,
-    ArrowMemAddress v Natural addr c,
+    ArrowEffectiveAddress v Natural addr c,
     ArrowSize v sz c,
     ArrowSerialize v bytes ValueType LoadType StoreType c,
     Show addr, Show bytes)
 
 type ArrowStaticComponents v c =
-  ( ArrowStaticGlobalState v c,
+  ( ArrowGlobals v c,
+    ArrowFunctions c,
     ArrowStack v c,
     ArrowFrame FrameData v c,
-    ArrowReader JumpTypes c)
+    ArrowJumpTypes c)
 
 type ArrowDynamicComponents v addr bytes sz exc e c =
   ( ArrowTable v c,
@@ -191,15 +184,9 @@ invokeExternal ::
     Fail.Join v c,
     JoinTable () c)
   => c (Int, [v]) [v]
-invokeExternal = proc (funcAddr, args) ->
-  readFunction
-    -- func: function at address funcAddr in the store
-    -- function type: paramTys -> resultTys
-    (proc (func@(FuncType paramTys resultTys, _, _), args) ->
-      withCheckedType (withRootFrame (invoke eval)) -< (paramTys, args, (resultTys, args, func)))
-    --(proc (func@(FuncType paramTys resultTys, _), args) ->
-    --  withCheckedType (withRootFrame invokeHost) -< (paramTys, args, (resultTys, args, func)))
-    -< (funcAddr, args)
+invokeExternal = proc (funcAddr, args) -> do
+  funcData@(FuncType paramTys resultTys,_,_) <- readFunction -< funcAddr
+  withCheckedType (withRootFrame (invoke eval)) -< (paramTys, args, (resultTys, args, funcData))
   where
     -- execute f with "dummy" frame
     withRootFrame f = proc (resultTys, args, x) -> do
@@ -238,38 +225,22 @@ eval ::
     Fail.Join v c)
   => c [Instruction Natural] ()
 eval = fix $ \eval' -> proc is -> do
-    --stack <- getStack -< ()
     case is of
       [] -> returnA -< ()
       i:is' | isNumericInst i -> do
-        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         push <<< evalNumericInst -< i
-        --stack2 <- getStack -< ()
-        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
       i:is' | isVariableInst i -> do
-        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         evalVariableInst -< i
-        --stack2 <- getStack -< ()
-        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
       i:is' | isParametricInst i -> do
-        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         evalParametricInst -< i
-        --stack2 <- getStack -< ()
-        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
       i:is' | isControlInst i -> do
-        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         evalControlInst eval' -< i
-        --stack2 <- getStack -< ()
-        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
       i:is' | isMemoryInst i -> do
-        --log-< "start " ++ (show i) ++ ", stack: " ++ (show stack)-- ++ ", locals: " ++ (show locals)
         evalMemoryInst -< i
-        --stack2 <- getStack -< ()
-        --log-< "end " ++ (show i) ++ ", stack: " ++ (show stack2)
         eval' -< is'
 
 evalControlInst ::
@@ -310,17 +281,7 @@ evalControlInst eval' = proc i -> case i of
   Call ix _ -> do
     (_, modInst) <- frameData -< ()
     let funcAddr = funcaddrs modInst ! fromIntegral ix
-    result <- readFunction (proc (funcAddr, ()) -> do
-                    --stack <- getStack -< ()
-                    --log-< "readFunction start, stack: " ++ (show stack)
-                    result <- invoke eval' <<^ fst -< (funcAddr, ())
-                    --stack2 <- getStack -< ()
-                    --log-< "readFunction end, stack: " ++ (show stack2)
-                    returnA -< result
-        ) -< (funcAddr, ()) --(invokeHost <<^ fst) -< (funcAddr, ())
-    --stack <- getStack -< ()
-    --log-< "before returning to eval, stack: " ++ (show stack)
-    returnA -< result
+    invoke eval' <<< readFunction -< funcAddr
   CallIndirect ix _ -> do
     (_, modInst) <- frameData -< () -- get the current module instance
     let tableAddr = tableaddrs modInst ! 0 -- get address of table 0
@@ -335,17 +296,12 @@ evalControlInst eval' = proc i -> case i of
 invokeChecked ::
   ( ArrowChoice c,
     ArrowStaticComponents v c,
-    --ArrowGlobalState v m c,
     IsVal v c, ArrowExcept exc c, IsException exc v c, JoinExc () c, Exc.Join () c, Fail.Join () c,
     ArrowFail err c, IsErr err c)
   => c [Instruction Natural] () -> c (Int, FuncType) ()
-invokeChecked eval' = proc (addr, ftExpect) ->
-  readFunction
-    (proc (f@(ftActual, _, _), ftExpect) ->
-       withCheckedType (invoke eval') -< (ftActual, ftExpect, f))
-    --(proc (f@(ftActual, _), ftExpect) ->
-    --   withCheckedType invokeHost -< (ftActual, ftExpect, f))
-    -< (addr, ftExpect)
+invokeChecked eval' = proc (addr, ftExpect) -> do
+  funcData@(ftActual,_,_) <- readFunction -< addr
+  withCheckedType (invoke eval') -< (ftActual, ftExpect, funcData)
   where
     withCheckedType f = proc (ftActual, ftExpect, x) ->
       if ftActual == ftExpect
@@ -359,23 +315,16 @@ invokeChecked eval' = proc (addr, ftExpect) ->
 --   - the function produces a trap -> no result, trap is propagated
 --   - TODO: what about break? Can we "break" to a function boundary? -> NO, only to block boundaries
 invoke ::
-  ( ArrowChoice c, ArrowStack v c, ArrowReader JumpTypes c,
+  ( ArrowChoice c, ArrowStack v c, ArrowJumpTypes c,
     IsVal v c, ArrowFrame FrameData v c, ArrowExcept exc c, IsException exc v c, Exc.Join y c,
     ArrowStack v c, JoinExc y c)
   => c [Instruction Natural] y -> c (FuncType, ModuleInstance, Function) y
 invoke eval' = catch
     (proc (FuncType paramTys resultTys, funcModInst, Function _ localTys code) -> do
-        --stack1 <- getStack -< ()
-        --log-< "start invoke, stack: " ++ (show stack1)
         vs <- popn -< fromIntegral $ length paramTys
         zeros <- Arr.map initLocal -< localTys
         let rtLength = fromIntegral $ length resultTys
-        --stack2 <- getStack -< ()
-        --log-< "invoke before transfering control, stack: " ++ (show stack2)
-        -- TODO: removed localFreshStack, not sure if that is what we want
-        result <- inNewFrame (localNoLabels $ localFreshStack $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
-        --stack3 <- getStack -< ()
-        --log-< "end invoke, stack: " ++ (show stack3)
+        result <- inNewFrame (localNoJumpTypes $ localFreshStack $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
         returnA -< result
         )
     (proc (_,e) -> handleException $
@@ -394,24 +343,16 @@ invoke eval' = catch
       F32 -> f32const -< 0
       F64 -> f64const -< 0
 
---invokeHost ::
---  (ArrowChoice c, ArrowStack v c, HostFunctionSupport addr bytes v c)
---  => c (FuncType, HostFunction v c) ()
---invokeHost = proc (FuncType paramTys _, HostFunction hostFunc) -> do
---  vs <- popn -< fromIntegral $ length paramTys
---  pushn <<< app -< (hostFunc, vs)
-
-
-branch :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowReader JumpTypes c) => c Natural ()
+branch :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowJumpTypes c) => c Natural ()
 branch = proc ix -> do
-  JumpTypes{jumpTypes=ls} <- ask -< ()
-  vs <- popn -< fromIntegral $ length $ ls !! fromIntegral ix
+  rt <- jumpType -< ix
+  vs <- popn -< fromIntegral $ length $ rt
   throw <<< exception -< Jump ix vs
 
 -- | Introduces a branching point `g` that can be jumped to from within `f`.
 -- | When escalating jumps, all label-local operands must be popped from the stack.
 -- | This implementation assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
-label :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowReader JumpTypes c, Exc.Join z c,
+label :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowJumpTypes c, Exc.Join z c,
           ArrowStack v c, Show v, JoinExc z c)
   => c x z -> c y z -> c (ResultType, x, y) z
 -- x: code to execute
@@ -419,11 +360,7 @@ label :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c,
 label f g = catch
   -- after executing f without a break we expect |rt| results on top of the stack
   (proc (rt,x,_) -> do
-    --stack <- getStack -< ()
-    --log-< "labal start, stack: " ++ (show stack)
-    result <- localLabel f -< (rt, x)
-    --stack2 <- getStack -< ()
-    --log-< "label end, stack: " ++ (show stack2)
+    result <- withJumpType f -< (rt, x)
     returnA -< result
   )
   -- after a break the results are popped from the stack and passed back via exception e
@@ -435,20 +372,9 @@ label f g = catch
                            -- we expect all label-local operands are popped from the stack
                            Jump n vs -> throw <<< exception -< Jump (n-1) vs
                            _ -> throw <<< exception -< exc)
-                       -< (e,y)--case e of
+                       -< (e,y)
   )
 
-localLabel :: (ArrowReader JumpTypes c) => c x y -> c (ResultType, x) y
-localLabel f = proc (rt, x) -> do
-  r@JumpTypes{jumpTypes=ls} <- ask -< ()
-  --let l = fromIntegral $ length rt
-  local f -< (r{jumpTypes=rt:ls}, x)
-
--- reset all label arities locally and execute f
-localNoLabels :: (ArrowReader JumpTypes c) => c x y -> c x y
-localNoLabels f = proc x -> do
-  --r <- ask -< ()
-  local f -< (JumpTypes{jumpTypes=[]}, x)
 
 evalParametricInst :: (ArrowChoice c, Profunctor c, ArrowStack v c, IsVal v c, JoinVal () c)
   => c (Instruction Natural) ()
@@ -520,7 +446,7 @@ load ::
   => Int -> LoadType -> ValueType -> c Natural ()
 load byteSize loadType valType = proc off -> do
   base <- pop -< ()
-  addr <- memaddr -< (base, off)
+  addr <- effectiveAddress -< (base, off)
   memIndex <- memoryIndex -< ()
   memread
     (proc (bytes,_) ->
@@ -540,7 +466,7 @@ store storeType valType = proc off -> do
   encode
     (proc (bytes,off) -> do
       base <- pop -< ()
-      addr <- memaddr -< (base, off)
+      addr <- effectiveAddress -< (base, off)
       memIndex <- memoryIndex -< ()
       memstore
         (arr $ const ())
@@ -552,13 +478,13 @@ evalVariableInst ::
   ( ArrowChoice c, ArrowStaticComponents v c)
   => c (Instruction Natural) ()
 evalVariableInst = proc i -> case i of
-  GetLocal ix _ -> push <<< frameLookup -< ix
+  GetLocal ix _ -> push <<< getLocal -< ix
   SetLocal ix _-> do
     v <- pop -< ()
-    frameUpdate -< (ix, v)
+    setLocal -< (ix, v)
   TeeLocal ix _ -> do
     v <- peek -< ()
-    frameUpdate -< (ix, v)
+    setLocal -< (ix, v)
   GetGlobal ix _ ->  do
     (_,modInst) <- frameData -< ()
     let globalAddr = globaladdrs modInst ! fromIntegral ix

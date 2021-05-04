@@ -16,14 +16,15 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.MemAddress
+import           Control.Arrow.Functions
+import           Control.Arrow.EffectiveAddress
 import           Control.Arrow.Memory
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Size
 import           Control.Arrow.Stack
-import           Control.Arrow.StaticGlobalState
+import           Control.Arrow.Globals
 import           Control.Arrow.Store
 import           Control.Arrow.Table
 import           Control.Arrow.Trans
@@ -36,8 +37,8 @@ import           Data.Profunctor
 newtype MemoryT c x y = MemoryT (c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowReader r, ArrowStaticGlobalState val, ArrowSize v sz, ArrowMemAddress base off addr,
-              ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
+              ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowSize v sz, ArrowEffectiveAddress base off addr,
+              ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin, ArrowFunctions)
 
 instance ArrowTrans MemoryT where
   -- lift' :: c x y -> MemoryT v c x y
@@ -56,7 +57,7 @@ instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes Size (MemoryT c
 --    _ -> returnA -< error "valToSize: arguments needs to be an i32 integer."
 --  sizeToVal = proc () -> returnA -< valueI32
 
---instance (Arrow c, Profunctor c) => ArrowMemAddress base off Addr (MemoryT c) where
+--instance (Arrow c, Profunctor c) => ArrowEffectiveAddress base off Addr (MemoryT c) where
 --  memaddr = arr $ const Addr
 
 

@@ -16,14 +16,15 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.MemAddress
+import           Control.Arrow.Functions
+import           Control.Arrow.EffectiveAddress
 import           Control.Arrow.Memory
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.State
-import           Control.Arrow.StaticGlobalState
+import           Control.Arrow.Globals
 import           Control.Arrow.Store
 import           Control.Arrow.Table
 import           Control.Arrow.Trans
@@ -45,7 +46,7 @@ import qualified Language.Wasm.Interpreter as Wasm
 newtype MemoryT c x y = MemoryT (StateT Memories c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowReader r, ArrowStaticGlobalState val,
+              ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowFunctions,
               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v)
 
 instance ArrowTrans MemoryT where
@@ -104,8 +105,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowSize Value Int (MemoryT c) where
         _ -> returnA -< error "valToSize: arguments needs to be an i32 integer"
     sizeToVal = proc sz -> returnA -< int32 $ fromIntegral sz
 
-instance (Arrow c, Profunctor c) => ArrowMemAddress Value Natural Word32 (MemoryT c) where
-  memaddr = proc (Value (Wasm.VI32 base), off) -> returnA -< (base + fromIntegral off)
+instance (Arrow c, Profunctor c) => ArrowEffectiveAddress Value Natural Word32 (MemoryT c) where
+  effectiveAddress = proc (Value (Wasm.VI32 base), off) -> returnA -< (base + fromIntegral off)
 
 instance (ArrowLift c, ArrowFix (Underlying (MemoryT c) x y)) => ArrowFix (MemoryT c x y) where
   type Fix (MemoryT c x y) = Fix (Underlying (MemoryT c) x y)

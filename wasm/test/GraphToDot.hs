@@ -1,8 +1,8 @@
 module GraphToDot where
 
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow (CFG(..))
-import           Data.Graph.Inductive.Graph
-import           Data.Graph.Inductive.PatriciaTree
+import           Data.Graph.Inductive.Graph (labNodes,labEdges)
+--import           Data.Graph.Inductive.PatriciaTree
 
 graphToDot :: (stmt -> String) -> CFG stmt -> String
 graphToDot f (CFG graph) =

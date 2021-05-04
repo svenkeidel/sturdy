@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Control.Arrow.Transformer.Abstract.UnitMemAddress where
+module Control.Arrow.Transformer.Abstract.UnitEffectiveAddress where
 
 import           Abstract (Addr(..))
 
@@ -16,13 +16,14 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix
-import           Control.Arrow.MemAddress
+import           Control.Arrow.Functions
+import           Control.Arrow.EffectiveAddress
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Size
 import           Control.Arrow.Stack
-import           Control.Arrow.StaticGlobalState
+import           Control.Arrow.Globals
 import           Control.Arrow.Store
 import           Control.Arrow.Table
 import           Control.Arrow.Trans
@@ -32,21 +33,21 @@ import           Control.Category
 
 import           Data.Profunctor
 
-newtype MemAddressT c x y = MemAddressT (c x y)
+newtype EffectiveAddressT c x y = EffectiveAddressT (c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowReader r, ArrowStaticGlobalState val, ArrowSize v sz,
+              ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowFunctions, ArrowSize v sz,
               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
 
-instance ArrowTrans MemAddressT where
+instance ArrowTrans EffectiveAddressT where
   -- lift' :: c x y -> MemoryT v c x y
-  lift' = MemAddressT
+  lift' = EffectiveAddressT
 
-instance (Arrow c, Profunctor c) => ArrowMemAddress base off Addr (MemAddressT c) where
-  memaddr = arr $ const Addr
+instance (Arrow c, Profunctor c) => ArrowEffectiveAddress base off Addr (EffectiveAddressT c) where
+  effectiveAddress = arr $ const Addr
 
 
-deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (MemAddressT c)
+deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (EffectiveAddressT c)
 
-instance (ArrowLift c, ArrowFix (Underlying (MemAddressT c) x y)) => ArrowFix (MemAddressT c x y) where
-    type Fix (MemAddressT c x y) = Fix (Underlying (MemAddressT c) x y)
+instance (ArrowLift c, ArrowFix (Underlying (EffectiveAddressT c) x y)) => ArrowFix (EffectiveAddressT c x y) where
+    type Fix (EffectiveAddressT c x y) = Fix (Underlying (EffectiveAddressT c) x y)

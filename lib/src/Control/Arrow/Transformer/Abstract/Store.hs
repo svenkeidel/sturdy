@@ -21,7 +21,6 @@ import Control.Arrow.Store
 import Control.Arrow.Except
 import Control.Arrow.Environment
 import Control.Arrow.Closure
-import Control.Arrow.Stack
 import Control.Arrow.Transformer.State
 import Control.Arrow.Utils
 import Control.Category
@@ -42,7 +41,7 @@ newtype StoreT store c x y = StoreT (StateT store c x y)
             ArrowCont, ArrowConst r, ArrowReader r,
             ArrowEnv var' val', ArrowClosure expr cls,
             ArrowFail e, ArrowExcept e, ArrowState store,
-            ArrowLowerBounded a, ArrowRun, ArrowJoin, ArrowStack s)
+            ArrowLowerBounded a, ArrowRun, ArrowJoin)
 
 runStoreT :: StoreT store c x y -> c (store, x) (store, y)
 runStoreT = coerce

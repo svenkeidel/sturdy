@@ -17,12 +17,13 @@ import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Fix hiding (filter)
+import           Control.Arrow.Functions
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Stack
 import           Control.Arrow.State
-import           Control.Arrow.StaticGlobalState
+import           Control.Arrow.Globals
 import           Control.Arrow.Store
 import           Control.Arrow.Table
 import           Control.Arrow.Trans
@@ -41,7 +42,7 @@ import qualified Language.Wasm.Interpreter as Wasm
 newtype TableT v c x y = TableT (ReaderT Tables c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowState s, ArrowStaticGlobalState val,
+              ArrowStack st, ArrowState s, ArrowGlobals val, ArrowFunctions,
               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowJoin)
 
 instance ArrowTrans (TableT v) where
