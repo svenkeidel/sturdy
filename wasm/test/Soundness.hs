@@ -26,7 +26,7 @@ import qualified Data.Vector as Vec
 import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Validate (ValidModule)
 
-type AbsResult = (Except (HashSet Err)
+type AbsResult = (Except (HashSet Generic.Err)
                   (Terminating
                     (JoinVector Abstract.Value,
                       (StaticGlobalState Abstract.Value,
