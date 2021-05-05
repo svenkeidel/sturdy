@@ -53,9 +53,10 @@ import           Text.Printf
 import           GHC.Generics
 import           GHC.Exts
 
--- the kind of exceptions that can be thrown
+-- | the kind of exceptions that can be thrown
 data Exc v = Jump Natural [v] | CallReturn [v] deriving (Show, Eq, Generic)
 
+-- | unrecoverable errors
 data Err = Trap String | InvocationError String deriving (Show, Eq, Generic)
 
 instance Hashable v => Hashable (Exc v)
@@ -66,30 +67,16 @@ class ArrowExcept exc c => IsException exc v c | c -> v where
     exception :: c (Exc v) exc
     handleException :: JoinExc y c => c (Exc v, x) y -> c (exc,x) y
 
-class IsErr err c | c -> err where
-    err :: c Err err
+-- | fail with a trap
+trap :: (Fail.Join x c, ArrowFail Err c) => c String x
+trap = proc s -> fail -< (Trap s)
 
-trap :: (Fail.Join x c, ArrowFail err c, IsErr err c) => c String x
-trap = proc s -> fail <<< err -< (Trap s)
+-- | fail with an invocation error
+invocationError :: (Fail.Join x c, ArrowFail Err c) => c String x
+invocationError = proc s -> fail -< (InvocationError s)
 
-invocationError :: (Fail.Join x c, ArrowFail err c, IsErr err c) => c String x
-invocationError = proc s -> fail <<< err -< (InvocationError s)
-
--- stores a frame's static data (return arity and module instance)
+-- | stores a frame's static data (return arity and module instance)
 type FrameData = (Natural, ModuleInstance)
-
----- constraints to support (and call) host functions
---type HostFunctionSupport addr bytes v c = (ArrowApply c, ArrowGlobalState v m c, ArrowWasmMemory m addr bytes v c)
----- a host function is a function from a list of values (parameters) to a list of values (return values)
---newtype HostFunction v c = HostFunction (
---  forall addr bytes. HostFunctionSupport addr bytes v c => (c [v] [v]) )
---
---instance Show (HostFunction v c) where
---    show _ = "HostFunction"
-
-
-
-
 
 type ArrowWasmMemory addr bytes sz v c =
   ( ArrowMemory addr bytes sz c,
@@ -110,11 +97,12 @@ type ArrowDynamicComponents v addr bytes sz exc e c =
     ArrowWasmMemory addr bytes sz v c,
     IsVal v c,
     ArrowExcept exc c, IsException exc v c,
-    ArrowFail e c, IsErr e c,
+    ArrowFail Err c,
     ArrowFix (c [Instruction Natural] ()),
     ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c [Instruction Natural] ())))
 
 
+-- | the language interface
 class Show v => IsVal v c | c -> v where
     type family JoinVal y (c :: * -> * -> *) :: Constraint
 
@@ -142,14 +130,17 @@ class Show v => IsVal v c | c -> v where
     iReinterpretF :: c (BitSize, v) v
     fReinterpretI :: c (BitSize, v) v
     i32ifNeqz :: (JoinVal y c) => c x y -> c x y -> c (v, x) y
-    -- | `listLookup f g (v, xs, x)`
-    -- | Looks up the `v`-th element in `xs` and passes it to `f`, or
-    -- | passes `x` to `g` if `v` is out of range of `xs`.
+    -- | listLookup f g (v, xs, x):
+    -- Looks up the `v`-th element in `xs` and passes it to `f`, or
+    -- passes `x` to `g` if `v` is out of range of `xs`.
     listLookup :: (JoinVal y c) => c x y -> c x y -> c (v, [x], x) y
     ifHasType :: c x y -> c x y -> c (v, ValueType, x) y
 
 
--- entry point to the generic interpreter
+-- | entry point to the generic interpreter
+--
+-- invokes the function with the given name and the arguments
+
 -- the module instance comes from ArrowFrame
 -- ArrowGlobalState and ArrowWasmMemory are properly initialized
 -- argument Text: name of the function to execute
@@ -173,6 +164,7 @@ invokeExported = proc (funcName, args) -> do
       Just (ExportInstance _ (ExternFunction addr)) -> invokeExternal -< (addr, args)
       _ -> invocationError  -< printf "Function with name %s was not found in module's exports" (show funcName)
 
+-- | invokes function with the given static index and the arguments
 invokeExternal ::
   ( ArrowChoice c,
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
@@ -212,7 +204,7 @@ invokeExternal = proc (funcAddr, args) -> do
         -< (args, paramTys)
       f -< x
 
-
+-- | evaluates the list of instructions in the context provided by arrow c
 eval ::
   ( ArrowChoice c,
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
@@ -297,7 +289,7 @@ invokeChecked ::
   ( ArrowChoice c,
     ArrowStaticComponents v c,
     IsVal v c, ArrowExcept exc c, IsException exc v c, JoinExc () c, Exc.Join () c, Fail.Join () c,
-    ArrowFail err c, IsErr err c)
+    ArrowFail Err c)
   => c [Instruction Natural] () -> c (Int, FuncType) ()
 invokeChecked eval' = proc (addr, ftExpect) -> do
   funcData@(ftActual,_,_) <- readFunction -< addr
@@ -308,12 +300,13 @@ invokeChecked eval' = proc (addr, ftExpect) -> do
       then f -< x
       else trap -< printf "Mismatched function type in indirect call. Expected %s, actual %s." (show ftExpect) (show ftActual)
 
--- invoke function with code code within module instance funcModInst
--- the function execution can finish by different reasons:
---   - all instructions have been executed -> result are the top |resultTys| values on the stack
---   - the function calls return -> result are the top |resultTys| values on the stack
---   - the function produces a trap -> no result, trap is propagated
---   - TODO: what about break? Can we "break" to a function boundary? -> NO, only to block boundaries
+-- | invoke function with code code within module instance funcModInst
+--
+--  the function execution can finish by different reasons:
+--
+--   * all instructions have been executed -> result are the top |resultTys| values on the stack
+--   * the function calls return -> result are the top |resultTys| values on the stack
+--   * the function produces a trap -> no result, trap is propagated
 invoke ::
   ( ArrowChoice c, ArrowStack v c, ArrowJumpTypes c,
     IsVal v c, ArrowFrame FrameData v c, ArrowExcept exc c, IsException exc v c, Exc.Join y c,
@@ -327,7 +320,7 @@ invoke eval' = catch
         result <- inNewFrame (localNoJumpTypes $ localFreshStack $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
         returnA -< result
         )
-    (proc (_,e) -> handleException $
+    (proc (_,e) -> handleException
                    (proc (exc,_) -> case exc of
                        CallReturn vs -> do
                            pushn -< vs
@@ -343,20 +336,19 @@ invoke eval' = catch
       F32 -> f32const -< 0
       F64 -> f64const -< 0
 
+-- | jumps to the enclosing block with given index
 branch :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowJumpTypes c) => c Natural ()
 branch = proc ix -> do
   rt <- jumpType -< ix
-  vs <- popn -< fromIntegral $ length $ rt
+  vs <- popn -< fromIntegral $ length rt
   throw <<< exception -< Jump ix vs
 
 -- | Introduces a branching point `g` that can be jumped to from within `f`.
--- | When escalating jumps, all label-local operands must be popped from the stack.
--- | This implementation assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
+-- When escalating jumps, all label-local operands must be popped from the stack.
+-- This implementation assumes that ArrowExcept discards label-local operands in ArrowStack upon throw.
 label :: (ArrowChoice c, ArrowExcept exc c, IsException exc v c, ArrowStack v c, ArrowJumpTypes c, Exc.Join z c,
           ArrowStack v c, Show v, JoinExc z c)
   => c x z -> c y z -> c (ResultType, x, y) z
--- x: code to execute
--- y: continuation to execute after a break to the current label
 label f g = catch
   -- after executing f without a break we expect |rt| results on top of the stack
   (proc (rt,x,_) -> do
@@ -364,7 +356,7 @@ label f g = catch
     returnA -< result
   )
   -- after a break the results are popped from the stack and passed back via exception e
-  (proc ((_,_,y),e) -> handleException $
+  (proc ((_,_,y),e) -> handleException
                        (proc (exc,y) -> case exc of
                            Jump 0 vs -> do
                                pushn -< vs
@@ -433,12 +425,7 @@ memoryIndex = proc () -> do
   (_,modInst) <- frameData -< ()
   returnA -< memaddrs modInst ! 0
 
---withCurrentMemory :: (ArrowChoice c, ArrowGlobalState v m c, ArrowMemory addr bytes c, ArrowFrame FrameData v c) => c (m,x) (m,y) -> c x y
---withCurrentMemory f = proc x -> do
---  (_,modInst) <- frameData -< ()
---  let memAddr = memaddrs modInst ! 0
---  withMemoryInstance f -< (memAddr, x)
-
+-- | loads byteSize bytes from memory and converts it to valType, the resulting value is pushed to the stack
 load ::
   ( ArrowChoice c,
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
@@ -456,6 +443,7 @@ load byteSize loadType valType = proc off -> do
     (proc addr -> trap -< printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
     -< (memIndex, addr, byteSize, addr)
 
+-- | stores a value into the memory, value and memory address are read from the stack
 store ::
   ( ArrowChoice c,
     ArrowStaticComponents v c, ArrowDynamicComponents v addr bytes sz exc e c,
@@ -498,7 +486,7 @@ evalVariableInst = proc i -> case i of
 
 evalNumericInst ::
   ( ArrowChoice c, ArrowStack v c, ArrowExcept exc c, IsException exc v c, IsVal v c, Show v, JoinVal v c,
-    Fail.Join v c, IsErr err c, ArrowFail err c)
+    Fail.Join v c, ArrowFail Err c)
   => c (Instruction Natural) v
 evalNumericInst = proc i -> case i of
   I32Const lit _ -> i32const -< lit

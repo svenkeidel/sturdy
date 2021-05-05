@@ -43,8 +43,7 @@ import qualified Data.Vector as Vec
 import           Data.Bits
 
 import           Language.Wasm.FloatUtils
-import           Language.Wasm.Interpreter (ModuleInstance)
-import           Language.Wasm.Interpreter (asInt32,asInt64,asWord32,asWord64,nearest,
+import           Language.Wasm.Interpreter (ModuleInstance, asInt32,asInt64,asWord32,asWord64,nearest,
                                             floatFloor, doubleFloor, floatCeil, doubleCeil,
                                             floatTrunc, doubleTrunc, zeroAwareMin, zeroAwareMax)
 import qualified Language.Wasm.Interpreter as Wasm
@@ -296,8 +295,8 @@ instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (Val
         (BS64, Wasm.VI64 val) -> returnA -< float64 $ wordToDouble val
         _ -> returnA -< error "fReinterpretI: cannot apply operator to given argument."
     listLookup sCont eCont = proc (Value v,xs,x) -> case v of
-        (Wasm.VI32 val) -> if (fromIntegral val) < length xs
-                           then sCont -< xs !! (fromIntegral val)
+        (Wasm.VI32 val) -> if fromIntegral val < length xs
+                           then sCont -< xs !! fromIntegral val
                            else eCont -< x
         _ -> returnA -< error "listLookup: cannot apply operator to given arguments."
 
@@ -305,9 +304,6 @@ instance (ArrowExcept (Exc Value) c) => IsException (Exc Value) Value (ValueT Va
     type JoinExc y (ValueT Value c) = ()
     exception = arr id
     handleException = id
-
-instance Arrow c => IsErr Err (ValueT Value c) where
-    err = arr id
 
 type Result = (Error
                              Err

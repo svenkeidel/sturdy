@@ -15,12 +15,12 @@ import           Prelude as P
 
 import           Abstract
 import           Data
-import           GenericInterpreter hiding (Exc,Err)
+import           GenericInterpreter hiding (Exc)
 import qualified GenericInterpreter as Generic
 import           TaintAnalysisValue hiding (Value)
 import qualified TaintAnalysisValue as Taint
 import qualified UnitAnalysis as Abs
-import           UnitAnalysisValue(Exc(..),Err)
+import           UnitAnalysisValue(Exc(..))
 import qualified UnitAnalysisValue as Abs
 
 import           Control.Arrow.Fix as Fix
@@ -72,10 +72,10 @@ type In = (Errors Err,
               (StaticGlobalState Value,
                 (JoinList Value, ([ResultType], [Instruction Natural])))))))
 
-type Out = (Errors Err, (Terminating
+type Out = (Errors Err, Terminating
                 (JoinVector Value,
                   (StaticGlobalState Value,
-                  Except (Exc Value) (JoinList Value, ())))))
+                  Except (Exc Value) (JoinList Value, ()))))
 
 
 type Result = (CFG (Instruction Natural), (Errors Err,
@@ -92,8 +92,6 @@ invokeExported :: StaticGlobalState Value
                     -> Result
 invokeExported initialStore tab modInst funcName args =
     let ?cacheWidening = (W.finite,W.finite) in
-    --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
-    --let algo = (trace p1 p2) . (Fix.filter isRecursive $ innermost) in
     let algo = recordControlFlowGraph' getExpression . Fix.filter isRecursive innermost in
     let ?fixpointAlgorithm = fixpointAlgorithm algo in
     (\(cfg,(_,res)) -> (cfg,res)) $ Trans.run

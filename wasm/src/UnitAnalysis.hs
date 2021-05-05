@@ -16,7 +16,7 @@ module UnitAnalysis where
 
 import           Abstract
 import           Data
-import           GenericInterpreter hiding (Exc,Err)
+import           GenericInterpreter hiding (Exc)
 import qualified GenericInterpreter as Generic
 import           UnitAnalysisValue
 

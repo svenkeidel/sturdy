@@ -12,7 +12,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module TaintAnalysisValue where
 
-import           GenericInterpreter hiding (Exc,Err)
+import           GenericInterpreter hiding (Exc)
 
 import           Data(joinList1'')
 import qualified UnitAnalysisValue as Abs
@@ -74,24 +74,11 @@ liftValueT1 :: (ValueT v c x y -> ValueT v c x' y') -> (ValueT (Value v) c x y -
 liftValueT1 = coerce
 {-# INLINE liftValueT1 #-}
 
---instance (ArrowExcept (Exc Value) c, ArrowChoice c) => IsException (Exc Value) (Value v) (ValueT (Value v) c) where
---  exception = proc (Exc (Value v)) ->
---    liftValueT exception -< (Exc v)
-
 instance (Hashable v, ArrowExcept (Abs.Exc (Value v)) c, ArrowChoice c) => IsException (Abs.Exc (Value v)) (Value v) (ValueT (Value v) c) where
   type JoinExc y (ValueT (Value v) c) = ArrowComplete y (ValueT (Value v) c)
   exception = arr $ Abs.Exc . HashSet.singleton
   handleException f = proc (Abs.Exc excs,x) ->
     joinList1'' f -< (HashSet.toList excs,x)
-
---instance (ArrowExcept (Exc (Value v)) c) => IsException (Exc (Value v)) (Value v) (ValueT (Value v) c) where
---  type JoinExc y (ValueT (Value v) c) = ()
---  exception = arr id
---  handleException = id
-
-instance Arrow c => IsErr Abs.Err (ValueT (Value v) c) where
-    --err = arr $ Abs.Err . Pow.singleton
-    err = arr id
 
 instance (JoinVal v (ValueT v c), IsVal v (ValueT v c), ArrowChoice c) => IsVal (Value v) (ValueT (Value v) c) where
   type JoinVal y (ValueT (Value v) c) = JoinVal y (ValueT v c)
@@ -108,12 +95,6 @@ instance (JoinVal v (ValueT v c), IsVal v (ValueT v c), ArrowChoice c) => IsVal 
   iBinOp = proc (bs,op,Value t1 v1, Value t2 v2) -> do
     v <- liftValueT iBinOp -< (bs,op,v1,v2)
     returnA -< Value (t1 ⊔ t2) v
-
---  iBinOp eCont sCont = proc (bs,op,Value t1 v1, Value t2 v2,x) ->
---    liftValueT (iBinOp
---      (proc (op,v1,v2,(t1,t2,_,x)) -> (unliftValueT eCont) -< (op,Value t1 v1,Value t2 v2,x))
---      (proc (v,(_,_,t,x)) -> (unliftValueT sCont) -< (Value t v,x)))
---      -< (bs,op,v1,v2,(t1,t2,t1 ⊔ t2,x))
 
   iRelOp = proc (bs,op,Value t1 v1, Value t2 v2) -> do
     v <- liftValueT iRelOp -< (bs,op,v1,v2)
