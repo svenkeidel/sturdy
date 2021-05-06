@@ -88,16 +88,6 @@ instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) Int 
     memgrow (MemoryT _) (MemoryT eCont) = MemoryT $ proc (_,_,x) -> do
         -- TODO: allow to grow the memory
         eCont -< x
---        mems <- get -< ()
---        let (MemInst maxSize vec) = mems ! memIndex
---        let oldSize = (length vec) `quot` pageSize
---        if (oldSize + sz > maxSize)
---            then eCont -< x
---            -- we don't allow to grow memory so far -> TODO
---            else eCont -< x
---              -- TODO: grow memory
---              -- return old size
---              --sCont -< (oldSize,x)
 
 instance (ArrowChoice c, Profunctor c) => ArrowSize Value Int (MemoryT c) where
     valToSize = proc (Value v) -> case v of
