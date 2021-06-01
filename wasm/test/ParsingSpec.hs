@@ -25,6 +25,6 @@ spec = do
         content <- LBS.readFile path
         let Right m = parse content
         let Right validMod = validate m
-        Right (modInst, store) <- instantiate emptyStore emptyImports validMod
+        (Right modInst, store) <- instantiate emptyStore emptyImports validMod
         Just result <- invokeExport store modInst (pack "fac-rec") [VI64 2]
         result `shouldBe` [VI64 2]

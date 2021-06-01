@@ -25,8 +25,9 @@ import           Numeric.Natural (Natural)
 
 import           Language.Wasm.Interpreter (ModuleInstance,emptyStore,emptyImports)
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure (ResultType, MemArg, BitSize, IUnOp(..), IBinOp(..), IRelOp(..),
-                                          FUnOp(..), FBinOp(..), FRelOp(..), FuncType, TypeIndex, LocalsType)
+import           Language.Wasm.Structure (MemArg, BitSize, IUnOp(..), IBinOp(..), IRelOp(..),
+                                          FUnOp(..), FBinOp(..), FRelOp(..), FuncType, TypeIndex, LocalsType,
+                                          BlockType)
 import qualified Language.Wasm.Structure as Wasm
 import           Language.Wasm.Validate (ValidModule)
 
@@ -141,9 +142,9 @@ data Instruction index =
     -- Control instructions
     Unreachable Label
     | Nop Label
-    | Block { resultType :: ResultType, body :: Expression, lbl :: Label }
-    | Loop { resultType :: ResultType, body :: Expression, lbl :: Label }
-    | If { resultType :: ResultType, true :: Expression, false :: Expression, lbl :: Label }
+    | Block { blockType :: BlockType, body :: Expression, lbl :: Label }
+    | Loop { blockType :: BlockType, body :: Expression, lbl :: Label }
+    | If { blockType :: BlockType, true :: Expression, false :: Expression, lbl :: Label }
     | Br index Label
     | BrIf index Label
     | BrTable [index] index Label
@@ -286,11 +287,11 @@ unreachable :: LInstruction
 unreachable = Unreachable <$> fresh
 nop :: LInstruction
 nop = Nop <$> fresh
-block :: ResultType -> [LInstruction] -> LInstruction
+block :: BlockType -> [LInstruction] -> LInstruction
 block rt bdy = Block rt <$> sequence bdy <*> fresh
-loop :: ResultType -> [LInstruction] -> LInstruction
+loop :: BlockType -> [LInstruction] -> LInstruction
 loop rt bdy = Loop rt <$> sequence bdy <*> fresh
-if_ :: ResultType -> [LInstruction] -> [LInstruction] -> LInstruction
+if_ :: BlockType -> [LInstruction] -> [LInstruction] -> LInstruction
 if_ rt bTrue bFalse = If rt <$> sequence bTrue <*> sequence bFalse <*> fresh
 br :: Natural -> LInstruction
 br i = Br i <$> fresh
@@ -439,10 +440,10 @@ instantiate :: ValidModule
 instantiate valMod alpha toMem toTable = do
     res <- Wasm.instantiate emptyStore emptyImports valMod
     case res of
-        Right (modInst, store) -> do
+        (Right modInst, store) -> do
             (staticState,tables,mems) <- storeToGlobalState store
             return $ Right (modInst, staticState, tables, mems)
-        Left e                 -> return $ Left e
+        (Left e, _)            -> return $ Left e
 
     where
         storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
@@ -456,7 +457,7 @@ instantiate valMod alpha toMem toTable = do
         convertMem (Wasm.MemoryInstance (Wasm.Limit _ n) mem) = do
             memStore <- readIORef mem
             size <- ByteArray.getSizeofMutableByteArray memStore
-            list <- mapM (\x -> ByteArray.readByteArray memStore x) [0 .. (size-1)]
+            list <- mapM (ByteArray.readByteArray memStore) [0 .. (size-1)]
             let sizeConverted = fmap fromIntegral n
             return $ toMem sizeConverted list
             --return $ MemInst sizeConverted $ Vec.fromList list
@@ -496,6 +497,7 @@ instance Hashable FUnOp
 instance Hashable FBinOp
 instance Hashable FRelOp
 instance Hashable Wasm.ExternalValue
+instance Hashable BlockType
 
 
 deriving instance Generic ModuleInstance

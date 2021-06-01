@@ -38,13 +38,14 @@ import           Control.Arrow.Globals
 import           Control.Arrow.WasmFrame
 
 import           Data.Hashable
+import           Data.Maybe(maybeToList)
 import           Data.Profunctor
 import           Data.Text.Lazy (Text)
 import           Data.Vector hiding (length, (++))
 import           Data.Word
 
 import           Language.Wasm.Structure (ValueType(..), BitSize, IUnOp(..), IBinOp(..), IRelOp(..),
-                                          FUnOp(..), FBinOp(..), FRelOp(..), MemArg(..), FuncType(..), ResultType)
+                                          FUnOp(..), FBinOp(..), FRelOp(..), MemArg(..), FuncType(..), ResultType, BlockType(..))
 import           Language.Wasm.Interpreter (ModuleInstance(..), emptyModInstance, ExportInstance(..), ExternalValue(..))
 
 import           Numeric.Natural (Natural)
@@ -248,14 +249,22 @@ evalControlInst ::
 evalControlInst eval' = proc i -> case i of
   Unreachable _ -> trap -< "Execution of unreachable instruction"
   Nop _ -> returnA -< ()
-  Block rt is _ -> label eval' eval' -< (rt, is, [])
-  Loop rt is l -> label eval' eval' -< (rt, is, [Loop rt is l])
-  If rt isNZero isZero _ -> do
+  Block bt is _ -> do
+    (FuncType paramTys resultTys) <- expandType -< bt
+    popn -< fromIntegral (length paramTys)
+    label eval' eval' -< (resultTys, is, [])
+  Loop bt is l -> do
+    (FuncType paramTys resultTys) <- expandType -< bt
+    popn -< fromIntegral (length paramTys)
+    label eval' eval' -< (resultTys, is, [Loop bt is l])
+  If bt isNZero isZero _ -> do
     v <- pop -< ()
+    (FuncType paramTys resultTys) <- expandType -< bt
+    popn -< fromIntegral (length paramTys)
     i32ifNeqz
       (proc (rt, isNZero, _) -> label eval' eval' -< (rt, isNZero, []))
       (proc (rt, _, isZero) -> label eval' eval' -< (rt, isZero, []))
-      -< (v, (rt, isNZero, isZero))
+      -< (v, (resultTys, isNZero, isZero))
   Br ix _ -> branch -< ix
   BrIf ix _ -> do
     v <- pop -< ()
@@ -284,6 +293,17 @@ evalControlInst eval' = proc i -> case i of
       (proc (ta,ix,_) -> trap -< printf "Index %s out of bounds for table address %s" (show ix) (show ta))
       (proc (ta,ix,_) -> trap -< printf "Index %s uninitialized for table address %s" (show ix) (show ta))
       -< (tableAddr, funcAddr, ftExpect)
+
+
+expandType :: (ArrowChoice c, ArrowStaticComponents v c) => c BlockType FuncType
+expandType = proc bt -> case bt of
+    Inline mVal -> returnA -< FuncType [] (maybeToList mVal)
+    TypeIndex idx -> do
+        (_, modInst) <- frameData -< ()
+        let ft = funcTypes modInst ! fromIntegral idx
+        returnA -< ft
+
+
 
 invokeChecked ::
   ( ArrowChoice c,
