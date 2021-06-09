@@ -18,6 +18,8 @@ import           GHC.Generics
 
 newtype Value = Value Wasm.Value deriving (Show, Eq)
 
+instance Pretty Value where
+    pretty = viaShow
 type Memories = Vector MemInst
 type Tables = Vector TableInst
 

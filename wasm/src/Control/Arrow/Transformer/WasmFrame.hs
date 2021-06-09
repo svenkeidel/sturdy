@@ -48,8 +48,11 @@ instance (ArrowReader r c) => ArrowReader r (FrameT fd v c) where
 instance (ArrowChoice c, Profunctor c) => ArrowFrame fd v (FrameT fd v c) where
   inNewFrame (FrameT (ReaderT f)) =
     FrameT $ ReaderT $ proc (_,(fd, vs, x)) -> do
+        snapshot <- get -< ()
         put -< JoinVector $ Vec.fromList vs
-        f -< (fd, x)
+        res <-f -< (fd, x)
+        put -< snapshot
+        returnA -< res
   frameData = FrameT ask
   getLocal = FrameT $ ReaderT $ proc (_,n) -> do
     (JoinVector vec) <- get -< ()

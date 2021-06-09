@@ -122,6 +122,8 @@ class Show v => IsVal v c | c -> v where
     i32WrapI64 :: c v v
     iTruncFU :: JoinVal v c => c (BitSize, BitSize, v) v
     iTruncFS :: JoinVal v c => c (BitSize, BitSize, v) v
+    iTruncSatFU :: c (BitSize, BitSize, v) v
+    iTruncSatFS :: c (BitSize, BitSize, v) v
     i64ExtendSI32 :: c v v
     i64ExtendUI32 :: c v v
     fConvertIU :: c (BitSize, BitSize, v) v
@@ -179,7 +181,7 @@ invokeExternal ::
   => c (Int, [v]) [v]
 invokeExternal = proc (funcAddr, args) -> do
   funcData@(FuncType paramTys resultTys,_,_) <- readFunction -< funcAddr
-  withCheckedType (withRootFrame (invoke eval)) -< (paramTys, args, (resultTys, args, funcData))
+  withCheckedType (withRootFrame (invoke eval)) -< (paramTys, args, (resultTys, Prelude.reverse args, funcData))
   where
     -- execute f with "dummy" frame
     withRootFrame f = proc (resultTys, args, x) -> do
@@ -188,7 +190,8 @@ invokeExternal = proc (funcAddr, args) -> do
         (proc (rtLength, args, x) -> do
           pushn -< args -- push arguments to the stack
           f -< x -- execute function
-          popn -< rtLength) -- pop result from the stack
+          res <- popn -< rtLength -- pop result from the stack
+          returnA -< Prelude.reverse res)
         -< ((rtLength, emptyModInstance), [], (rtLength, args, x))
 
     -- execute f if arguments match paramTys
@@ -250,17 +253,22 @@ evalControlInst eval' = proc i -> case i of
   Unreachable _ -> trap -< "Execution of unreachable instruction"
   Nop _ -> returnA -< ()
   Block bt is _ -> do
-    (FuncType paramTys resultTys) <- expandType -< bt
-    popn -< fromIntegral (length paramTys)
+    (FuncType _paramTys resultTys) <- expandType -< bt
+    --popn -< fromIntegral (length paramTys)
     label eval' eval' -< (resultTys, is, [])
   Loop bt is l -> do
-    (FuncType paramTys resultTys) <- expandType -< bt
-    popn -< fromIntegral (length paramTys)
-    label eval' eval' -< (resultTys, is, [Loop bt is l])
+    (FuncType paramTys _resultTys) <- expandType -< bt
+    --pars <- popn -< fromIntegral (length paramTys)
+    --label (proc (pars,instr) -> do
+    --           pushn -< pars
+    --           eval' -< instr)
+    --      (proc (_,instr) -> eval' -< instr)
+    --      -< (paramTys, (pars,is), (pars,[Loop bt is l]))
+    label eval' eval' -< (paramTys, is, [Loop bt is l])
   If bt isNZero isZero _ -> do
     v <- pop -< ()
-    (FuncType paramTys resultTys) <- expandType -< bt
-    popn -< fromIntegral (length paramTys)
+    (FuncType _paramTys resultTys) <- expandType -< bt
+    --popn -< fromIntegral (length paramTys)
     i32ifNeqz
       (proc (rt, isNZero, _) -> label eval' eval' -< (rt, isNZero, []))
       (proc (rt, _, isZero) -> label eval' eval' -< (rt, isZero, []))
@@ -337,7 +345,7 @@ invoke eval' = catch
         vs <- popn -< fromIntegral $ length paramTys
         zeros <- Arr.map initLocal -< localTys
         let rtLength = fromIntegral $ length resultTys
-        result <- inNewFrame (localNoJumpTypes $ localFreshStack $ label eval' eval') -< ((rtLength, funcModInst), vs ++ zeros, (resultTys, code, []))
+        result <- inNewFrame (localNoJumpTypes $ localFreshStack $ label eval' eval') -< ((rtLength, funcModInst), Prelude.reverse vs ++ zeros, (resultTys, code, []))
         returnA -< result
         )
     (proc (_,e) -> handleException
@@ -546,6 +554,12 @@ evalNumericInst = proc i -> case i of
   ITruncFS bs1 bs2 _ -> do
     v <- pop -< ()
     iTruncFS -< (bs1,bs2,v)
+  ITruncSatFU bs1 bs2 _ -> do
+    v <- pop -< ()
+    iTruncSatFU -< (bs1,bs2,v)
+  ITruncSatFS bs1 bs2 _ -> do
+    v <- pop -< ()
+    iTruncSatFS -< (bs1,bs2,v)
   I64ExtendSI32 _ -> do
     v <- pop -< ()
     i64ExtendSI32 -< v
@@ -649,6 +663,8 @@ isNumericInst i = case i of
   I32WrapI64 _ -> True
   ITruncFU _ _ _ -> True
   ITruncFS _ _ _ -> True
+  ITruncSatFU _ _ _ -> True
+  ITruncSatFS _ _ _ -> True
   I64ExtendSI32 _ -> True
   I64ExtendUI32 _ -> True
   FConvertIU  _ _ _ -> True

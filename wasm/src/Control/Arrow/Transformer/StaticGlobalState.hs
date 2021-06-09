@@ -47,9 +47,8 @@ newtype StaticGlobalStateT v c x y = StaticGlobalStateT (StateT (StaticGlobalSta
               ArrowSize val sz, ArrowEffectiveAddress base off addr, ArrowTable v1, ArrowJoin)
 
 instance (ArrowState s c) => ArrowState s (StaticGlobalStateT v c) where
-  get = error "TODO: implement StaticGlobalStateT.get"
-  put = error "TODO: implement StaticGlobalStateT.put"
-    -- TODO
+  get = lift' get
+  put = lift' put
 
 instance ArrowTrans (StaticGlobalStateT v) where
     lift' a = StaticGlobalStateT (lift' a)
@@ -74,7 +73,7 @@ instance (ArrowChoice c, Profunctor c) => ArrowFunctions (StaticGlobalStateT v c
             StaticGlobalState{funcInstances = fs} <- get -< ()
             case fs ! i of
                 FuncInst fTy modInst bdy  -> returnA -< (fTy,modInst,bdy)
-                _                         -> returnA -< error "not yet implemented"
+                _                         -> returnA -< error "calling of external functions not yet implemented"
 
 instance ArrowFix (Underlying (StaticGlobalStateT v c) x y) => ArrowFix (StaticGlobalStateT v c x y) where
     type Fix (StaticGlobalStateT v c x y) = Fix (Underlying (StaticGlobalStateT v c) x y)

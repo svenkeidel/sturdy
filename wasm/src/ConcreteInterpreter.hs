@@ -22,6 +22,7 @@ import           Control.Arrow
 import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Except
 import           Control.Arrow.Fail as Fail
+import           Control.Arrow.Fix
 
 import           Control.Arrow.Transformer.JumpTypes
 import           Control.Arrow.Transformer.Stack
@@ -35,12 +36,20 @@ import           Control.Arrow.Transformer.Concrete.Memory
 import           Control.Arrow.Transformer.Concrete.Serialize
 import           Control.Arrow.Transformer.Concrete.Table
 
+import qualified Control.Monad.Primitive as Primitive
+
 import           Data.Concrete.Error
 
 import qualified Data.Function as Function
+import           Data.IORef (writeIORef)
+import qualified Data.Primitive.ByteArray as ByteArray
 import           Data.Text.Lazy (Text)
+import           Data.Text.Prettyprint.Doc (pretty, hsep)
 import qualified Data.Vector as Vec
+import           Data.Word
 import           Data.Bits
+
+import           Debug.Trace
 
 import           Language.Wasm.FloatUtils
 import           Language.Wasm.Interpreter (ModuleInstance, asInt32,asInt64,asWord32,asWord64,nearest,
@@ -52,6 +61,7 @@ import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.IEEE (copySign)
 import           Text.Printf
+--import           Prettyprinter (pretty, hsep)
 
 --trap :: IsException (Exc v) v c => c String x
 --trap = throw <<< exception <<^ Trap
@@ -68,10 +78,26 @@ instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (Val
         (BS32, IClz,    Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ countLeadingZeros v
         (BS32, ICtz,    Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ countTrailingZeros v
         (BS32, IPopcnt, Wasm.VI32 v) -> returnA -< int32 $ fromIntegral $ popCount v
+        (BS32, IExtend8S, Wasm.VI32 v) -> do
+            let half = v .&. 0xFF
+            returnA -< int32 $ if half >= 0x80 then asWord32 (fromIntegral half - 0x100) else half
+        (BS32, IExtend16S, Wasm.VI32 v) -> do
+            let half = v .&. 0xFFFF
+            returnA -< int32 $ if half >= 0x8000 then asWord32 (fromIntegral half - 0x10000) else half
+        (BS32, IExtend32S, Wasm.VI32 v) -> returnA -< int32 v
         (BS64, IClz,    Wasm.VI64 v) -> returnA -< int64 $ fromIntegral $ countLeadingZeros v
         (BS64, ICtz,    Wasm.VI64 v) -> returnA -< int64 $ fromIntegral $ countTrailingZeros v
         (BS64, IPopcnt, Wasm.VI64 v) -> returnA -< int64 $ fromIntegral $ popCount v
-        _ -> returnA -< error "iUnOp: cannot apply operator to arguements"
+        (BS64, IExtend8S, Wasm.VI64 v) -> do
+            let half = v .&. 0xFF
+            returnA -< int64 $ if half >= 0x80 then asWord64 (fromIntegral half - 0x100) else half
+        (BS64, IExtend16S, Wasm.VI64 v) -> do
+            let quart = v .&. 0xFFFF
+            returnA -< int64 $ if quart >= 0x8000 then asWord64 (fromIntegral quart - 0x10000) else quart
+        (BS64, IExtend32S, Wasm.VI64 v) -> do
+            let half = v .&. 0xFFFFFFFF
+            returnA -< int64 $ if half >= 0x80000000 then asWord64 (fromIntegral half - 0x100000000) else half
+        _ -> returnA -< error $ "iUnOp: cannot apply operator " ++ show op ++ " to arguement " ++ show v0 ++ " with " ++ show bs ++ "."
     iBinOp = proc (bs,op,Value v1,Value v2) -> case (bs,op,v1,v2) of
         (BS32, IAdd, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 + val2
         (BS32, ISub, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 - val2
@@ -95,9 +121,9 @@ instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (Val
         (BS32, IAnd,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 .&. val2
         (BS32, IOr,   Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 .|. val2
         (BS32, IXor,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `xor` val2
-        (BS32, IShl,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `shiftL` (fromIntegral val2 `rem` 32)
-        (BS32, IShrU, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `shiftR` (fromIntegral val2 `rem` 32)
-        (BS32, IShrS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ asWord32 $ asInt32 val1 `shiftR` (fromIntegral val2 `rem` 32)
+        (BS32, IShl,  Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `shiftL` fromIntegral (val2 `rem` 32)
+        (BS32, IShrU, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `shiftR` fromIntegral (val2 `rem` 32)
+        (BS32, IShrS, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ asWord32 $ asInt32 val1 `shiftR` fromIntegral (val2 `rem` 32)
         (BS32, IRotl, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `rotateL` fromIntegral val2
         (BS32, IRotr, Wasm.VI32 val1, Wasm.VI32 val2) -> returnA -< int32 $ val1 `rotateR` fromIntegral val2
 
@@ -123,9 +149,9 @@ instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (Val
         (BS64, IAnd,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 .&. val2
         (BS64, IOr,   Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 .|. val2
         (BS64, IXor,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `xor` val2
-        (BS64, IShl,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `shiftL` (fromIntegral val2 `rem` 64)
-        (BS64, IShrU, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `shiftR` (fromIntegral val2 `rem` 64)
-        (BS64, IShrS, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ asWord64 $ asInt64 val1 `shiftR` (fromIntegral val2 `rem` 64)
+        (BS64, IShl,  Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `shiftL` fromIntegral (val2 `rem` 64)
+        (BS64, IShrU, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `shiftR` fromIntegral (val2 `rem` 64)
+        (BS64, IShrS, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ asWord64 $ asInt64 val1 `shiftR` fromIntegral (val2 `rem` 64)
         (BS64, IRotl, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `rotateL` fromIntegral val2
         (BS64, IRotr, Wasm.VI64 val1, Wasm.VI64 val2) -> returnA -< int64 $ val1 `rotateR` fromIntegral val2
         _ -> returnA -< error "iBinOp: cannot apply binary operator to given arguments."
@@ -241,27 +267,91 @@ instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (Val
             if isNaN val || isInfinite val || val >= 2^64 || val <= -1
             then trap -< errorTrunc
             else returnA -< int64 $ truncate val
-        _ -> returnA -< error "iTruncFU: cannot apply operator to given argument."
+        _ -> returnA -< error errorTrunc
     iTruncFS = proc (bs1,bs2,x@(Value v)) -> do
       let errorTrunc = printf "iTruncFS: truncation operator from %s to %s failed on %s." (show bs1) (show bs2) (show x)
       case (bs1,bs2,v) of
         (BS32, BS32, Wasm.VF32 val) ->
-            if isNaN val || isInfinite val || val >= 2^31 || val < -2^31
+            if isNaN val || isInfinite val || val >= 2^31 || val < -2^31 - 1
             then trap -< errorTrunc
             else returnA -< int32 $ truncate val
         (BS32, BS64, Wasm.VF64 val) ->
-            if isNaN val || isInfinite val || val >= 2^31 || val < -2^31
+            if isNaN val || isInfinite val || val >= 2^31 || val <= -2^31 - 1
             then trap -< errorTrunc
             else returnA -< int32 $ truncate val
         (BS64, BS32, Wasm.VF32 val) ->
-            if isNaN val || isInfinite val || val >= 2^63 || val < -2^63
+            if isNaN val || isInfinite val || val >= 2^63 || val < -2^63 - 1
             then trap -< errorTrunc
             else returnA -< int64 $ truncate val
         (BS64, BS64, Wasm.VF64 val) ->
-            if isNaN val || isInfinite val || val >= 2^63 || val < -2^63
+            if isNaN val || isInfinite val || val >= 2^63 || val < -2^63 - 1
             then trap -< errorTrunc
             else returnA -< int64 $ truncate val
-        _ -> returnA -< error "iTruncFS: cannot apply operator to given argument."
+        _ -> returnA -< error errorTrunc
+    iTruncSatFU = proc (bs1,bs2,x@(Value v)) -> do
+        let errorTrunc = printf "iTruncSatFU: truncation operator from %s to %s failed on %s." (show bs1) (show bs2) (show x)
+        case (bs1,bs2,v) of
+            (BS32, BS32, Wasm.VF32 val) ->
+                if val <= -1 || isNaN val
+                then returnA -< int32 0
+                else if val >= 2^32
+                     then returnA -< int32 0xffffffff
+                     else returnA -< int32 $ truncate val
+            (BS32, BS64, Wasm.VF64 val) ->
+                if val <= -1 || isNaN val
+                then returnA -< int32 0
+                else if val >= 2^32
+                     then returnA -< int32 0xffffffff
+                     else returnA -< int32 $ truncate val
+            (BS64, BS32, Wasm.VF32 val) ->
+                if val <= -1 || isNaN val
+                then returnA -< int64 0
+                else if val >= 2^64
+                     then returnA -< int64 0xffffffffffffffff
+                     else returnA -< int64 $ truncate val
+            (BS64, BS64, Wasm.VF64 val) ->
+                if val <= -1 || isNaN val
+                then returnA -< int64 0
+                else if val >= 2^64
+                     then returnA -< int64 0xffffffffffffffff
+                     else returnA -< int64 $ truncate val
+            _ -> returnA -< error errorTrunc
+    iTruncSatFS = proc (bs1,bs2,x@(Value v)) -> do
+        let errorTrunc = printf "iTruncSatFS: truncation operator from %s to %s failed on %s." (show bs1) (show bs2) (show x)
+        case (bs1,bs2,v) of
+            (BS32, BS32, Wasm.VF32 val) ->
+                if isNaN val
+                then returnA -< int32 0
+                else if val >= 2^31
+                     then returnA -< int32 0x7fffffff
+                     else if val <= -2^31 - 1
+                          then returnA -< int32 0x80000000
+                          else returnA -< int32 $ asWord32 $ truncate val
+            (BS32, BS64, Wasm.VF64 val) ->
+                if isNaN val
+                then returnA -< int32 0
+                else if val >= 2^31
+                     then returnA -< int32 0x7fffffff
+                     else if val <= -2^31 - 1
+                          then returnA -< int32 0x80000000
+                          else returnA -< int32 $ asWord32 $ truncate val
+            (BS64, BS32, Wasm.VF32 val) ->
+                if isNaN val
+                then returnA -< int64 0
+                else if val >= 2^63
+                     then returnA -< int64 0x7fffffffffffffff
+                     else if val <= -2^63 - 1
+                          then returnA -< int64 0x8000000000000000
+                          else returnA -< int64 $ asWord64 $ truncate val
+            (BS64, BS64, Wasm.VF64 val) ->
+                if isNaN val
+                then returnA -< int64 0
+                else if val >= 2^63
+                     then returnA -< int64 0x7fffffffffffffff
+                     else if val <= -2^63 - 1
+                          then returnA -< int64 0x8000000000000000
+                          else returnA -< int64 $ asWord64 $ truncate val
+            _ -> returnA -< error errorTrunc
     i64ExtendSI32 = proc (Value v) -> case v of
         (Wasm.VI32 val) -> returnA -< int64 $ asWord64 $ fromIntegral $ asInt32 val
         _ -> returnA -< error "i64ExtendSI32: cannot apply operator to given argument."
@@ -322,6 +412,7 @@ invokeExported :: StaticGlobalState Value
                         -> Result
 invokeExported staticS mem tab modInst funcName args =
     let ?fixpointAlgorithm = Function.fix in
+    --let ?fixpointAlgorithm = fixpointAlgorithm (trace p1 p2) in
     Trans.run
     (Generic.invokeExported ::
       ValueT Value
@@ -335,6 +426,36 @@ invokeExported staticS mem tab modInst funcName args =
                       (FrameT FrameData Value
                         (FailureT Err
                           (->)))))))))) (Text, [Value]) [Value]) (JoinVector Vec.empty,((0,modInst),(tab,(mem,(staticS,([],([],(funcName,args))))))))
+    where
+        p1 (locals,(_,(_,(_,(_,(stack,(_,instr))))))) = hsep [pretty stack, pretty locals, pretty instr]
+        p2 (Success (_, (_,(_,(_, Success (stack,_)))))) = pretty stack
+        p2 _ = pretty "Fail"
+
+invokeExported' :: Wasm.Store -> ModuleInstance -> Text -> [Wasm.Value] -> IO (Maybe [Wasm.Value])
+invokeExported' store modInst funcName wasmArgs = do
+    (gs, ms, ts) <- storeToGlobalState store Value toMem TableInst
+    let res = invokeExported gs ms ts modInst funcName (map Value wasmArgs)
+    case res of
+        (Fail _) -> return Nothing
+        (Success (_,(_,(newMems,(StaticGlobalState _ sturdyGlobs,Success (_,funcRes)))))) -> do
+            let storeMems = Wasm.memInstances store
+            let wasmGlobs = Wasm.globalInstances store
+            Vec.zipWithM_ (\(MemInst _ vec) (Wasm.MemoryInstance _ oldMem) -> do
+                            newMem <- toByteArray vec
+                            writeIORef oldMem newMem) newMems storeMems
+            Vec.zipWithM_ (\(GlobInst _ (Value v)) g ->
+                case g of
+                    Wasm.GIMut _ ref -> writeIORef ref v
+                    _ -> return ()) sturdyGlobs wasmGlobs
+            return $ Just (map (\(Value x) -> x) funcRes)
+        _ -> error "cannot happen in valid module"
+    where
+        toMem size lst = MemInst size (Vec.fromList lst)
+        toByteArray :: Vec.Vector Word8 -> IO (ByteArray.MutableByteArray (Primitive.PrimState IO))
+        toByteArray vec = do
+            mem  <- ByteArray.newByteArray (Vec.length vec)
+            Vec.imapM_ (ByteArray.writeByteArray mem) vec
+            return mem
 
 
 instantiateConcrete :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Memories, Tables))

@@ -19,7 +19,7 @@ spec = do
     it "parsing of webassembly module" $ do
         content <- LBS.readFile path
         let Right parsed = parse content
-        (length $ functions parsed) `shouldBe` 7
+        length (functions parsed) `shouldBe` 7
 
     it "run haskell wasm interpreter" $ do
         content <- LBS.readFile path
@@ -28,3 +28,10 @@ spec = do
         (Right modInst, store) <- instantiate emptyStore emptyImports validMod
         Just result <- invokeExport store modInst (pack "fac-rec") [VI64 2]
         result `shouldBe` [VI64 2]
+
+    it "run script of haskell wasm interpeter" $ do
+        content <- LBS.readFile "test/samples/fac.wast"
+        let Right script = parseScript content
+        let onAssert msg ass = putStrLn $ "Failed assert: " ++ msg ++ ". Assert: " ++ show ass
+        () <- runScript onAssert script
+        () `shouldBe` ()

@@ -32,7 +32,7 @@ import           Control.Arrow.WasmFrame
 
 import           Control.Arrow.Transformer.State
 
-import           Control.Category
+import           Control.Category (Category)
 
 import           Data.Profunctor
 import           Data.Vector (Vector,(!),(//))
@@ -53,7 +53,7 @@ instance ArrowTrans MemoryT where
   -- lift' :: c x y -> MemoryT v c x y
   lift' a = MemoryT (lift' a)
 
-instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) Int (MemoryT c) where
+instance (ArrowChoice c, Profunctor c) => ArrowMemory Word64 (Vector Word8) Int (MemoryT c) where
     type Join y (MemoryT c) = ()
     memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (memIndex,addr,size,x) -> do
         let addrI = fromIntegral addr
@@ -85,9 +85,17 @@ instance (ArrowChoice c, Profunctor c) => ArrowMemory Word32 (Vector Word8) Int 
         let (MemInst _ vec) = mems ! memIndex
         let size = length vec
         returnA -< size `quot` pageSize
-    memgrow (MemoryT _) (MemoryT eCont) = MemoryT $ proc (_,_,x) -> do
-        -- TODO: allow to grow the memory
-        eCont -< x
+    memgrow (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (memIndex,delta,x) -> do
+        mems <- get -< ()
+        let (MemInst maxSize vec) = mems ! memIndex
+        let size = length vec `quot` pageSize
+        let isOk = maybe True ((>= (size+delta)) . fromIntegral) maxSize
+        if isOk
+          then do
+            let deltaVec = Vec.replicate (delta*pageSize) 0
+            put -< mems // [(memIndex, MemInst maxSize (vec Vec.++ deltaVec))]
+            sCont -< (size,x)
+          else eCont -< x
 
 instance (ArrowChoice c, Profunctor c) => ArrowSize Value Int (MemoryT c) where
     valToSize = proc (Value v) -> case v of
@@ -95,8 +103,8 @@ instance (ArrowChoice c, Profunctor c) => ArrowSize Value Int (MemoryT c) where
         _ -> returnA -< error "valToSize: arguments needs to be an i32 integer"
     sizeToVal = proc sz -> returnA -< int32 $ fromIntegral sz
 
-instance (Arrow c, Profunctor c) => ArrowEffectiveAddress Value Natural Word32 (MemoryT c) where
-  effectiveAddress = proc (Value (Wasm.VI32 base), off) -> returnA -< (base + fromIntegral off)
+instance (Arrow c, Profunctor c) => ArrowEffectiveAddress Value Natural Word64 (MemoryT c) where
+  effectiveAddress = proc (Value (Wasm.VI32 base), off) -> returnA -< (fromIntegral base + fromIntegral off)
 
 instance (ArrowLift c, ArrowFix (Underlying (MemoryT c) x y)) => ArrowFix (MemoryT c x y) where
   type Fix (MemoryT c x y) = Fix (Underlying (MemoryT c) x y)

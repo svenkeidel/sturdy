@@ -19,5 +19,5 @@ extra-deps:
   - git: https://github.com/svenkeidel/husk-scheme/
     commit: ca59598b11065eb29a45af7ffca27fc42a49abe5
   - git: https://gitlab.rlp.net/plmz/external/haskell-wasm.git
-    commit: 79a51ce931b183267ab4ac483d7dbaa724df7863
+    commit: cee605e726b74c1125686839591251158f283216
   - knob-0.1.1

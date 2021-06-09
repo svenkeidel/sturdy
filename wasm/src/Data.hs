@@ -1,5 +1,6 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -202,6 +203,8 @@ data Instruction index =
     | I32WrapI64 Label
     | ITruncFU {- Int Size -} BitSize {- Float Size -} BitSize Label
     | ITruncFS {- Int Size -} BitSize {- Float Size -} BitSize Label
+    | ITruncSatFU BitSize BitSize Label
+    | ITruncSatFS BitSize BitSize Label
     | I64ExtendSI32 Label
     | I64ExtendUI32 Label
     | FConvertIU {- Float Size -} BitSize {- Int Size -} BitSize Label
@@ -211,6 +214,9 @@ data Instruction index =
     | IReinterpretF BitSize Label
     | FReinterpretI BitSize Label
     deriving (Show, Eq, Generic)
+
+instance Pretty (Instruction Natural) where
+    pretty = viaShow
 
 instance HasLabel (Instruction i) where
     label e = case e of
@@ -272,6 +278,8 @@ instance HasLabel (Instruction i) where
         I32WrapI64 l -> l
         ITruncFU _ _ l -> l
         ITruncFS _ _  l -> l
+        ITruncSatFU _ _ l -> l
+        ITruncSatFS _ _ l -> l
         I64ExtendSI32 l -> l
         I64ExtendUI32 l -> l
         FConvertIU _ _  l -> l
@@ -327,6 +335,26 @@ f32Load :: MemArg  -> LInstruction
 f32Load m = F32Load m <$> fresh
 f64Load :: MemArg  -> LInstruction
 f64Load m = F64Load m <$> fresh
+i32Load8S :: MemArg -> LInstruction
+i32Load8S m = I32Load8S m <$> fresh
+i32Load8U :: MemArg -> LInstruction
+i32Load8U m = I32Load8U m <$> fresh
+i32Load16S :: MemArg -> LInstruction
+i32Load16S m = I32Load16S m <$> fresh
+i32Load16U :: MemArg -> LInstruction
+i32Load16U m = I32Load16U m <$> fresh
+i64Load8S :: MemArg -> LInstruction
+i64Load8S m = I64Load8S m <$> fresh
+i64Load8U :: MemArg -> LInstruction
+i64Load8U m = I64Load8U m <$> fresh
+i64Load16S :: MemArg -> LInstruction
+i64Load16S m = I64Load16S m <$> fresh
+i64Load16U :: MemArg -> LInstruction
+i64Load16U m = I64Load16U m <$> fresh
+i64Load32S :: MemArg -> LInstruction
+i64Load32S m = I64Load32S m <$> fresh
+i64Load32U :: MemArg -> LInstruction
+i64Load32U m = I64Load32U m <$> fresh
 
 i32Store :: MemArg -> LInstruction
 i32Store m = I32Store m <$> fresh
@@ -336,6 +364,21 @@ f32Store :: MemArg -> LInstruction
 f32Store m = F32Store m <$> fresh
 f64Store :: MemArg -> LInstruction
 f64Store m = F64Store m <$> fresh
+i32Store8 :: MemArg -> LInstruction
+i32Store8 m = I32Store8 m <$> fresh
+i32Store16 :: MemArg -> LInstruction
+i32Store16 m = I32Store16 m <$> fresh
+i64Store8 :: MemArg -> LInstruction
+i64Store8 m = I64Store8 m <$> fresh
+i64Store16 :: MemArg -> LInstruction
+i64Store16 m = I64Store16 m <$> fresh
+i64Store32 :: MemArg -> LInstruction
+i64Store32 m = I64Store32 m <$> fresh
+
+currentMemory :: LInstruction
+currentMemory = CurrentMemory <$> fresh
+growMemory :: LInstruction
+growMemory = GrowMemory <$> fresh
 
 i32Const :: Word32 -> LInstruction
 i32Const w32 = I32Const w32 <$> fresh
@@ -367,11 +410,26 @@ iTruncFU :: BitSize -> BitSize -> LInstruction
 iTruncFU b1 b2 = ITruncFU b1 b2 <$> fresh
 iTruncFS :: BitSize -> BitSize -> LInstruction
 iTruncFS b1 b2 = ITruncFS b1 b2 <$> fresh
+iTruncSatFU :: BitSize -> BitSize -> LInstruction
+iTruncSatFU b1 b2 = ITruncSatFU b1 b2 <$> fresh
+iTruncSatFS :: BitSize -> BitSize -> LInstruction
+iTruncSatFS b1 b2 = ITruncSatFS b1 b2 <$> fresh
 i64ExtendSI32 :: LInstruction
 i64ExtendSI32 = I64ExtendSI32 <$> fresh
 i64ExtendUI32 :: LInstruction
 i64ExtendUI32 = I64ExtendUI32 <$> fresh
-
+fConvertIU :: BitSize -> BitSize -> LInstruction
+fConvertIU b1 b2 = FConvertIU b1 b2 <$> fresh
+fConvertIS :: BitSize -> BitSize -> LInstruction
+fConvertIS b1 b2 = FConvertIS b1 b2 <$> fresh
+f32DemoteF64 :: LInstruction
+f32DemoteF64 = F32DemoteF64 <$> fresh
+f64PromoteF32 :: LInstruction
+f64PromoteF32 = F64PromoteF32 <$> fresh
+iReinterpretF :: BitSize -> LInstruction
+iReinterpretF b = IReinterpretF b <$> fresh
+fReinterpretI :: BitSize -> LInstruction
+fReinterpretI b = FReinterpretI b <$> fresh
 
 convertInstruction :: Wasm.Instruction Natural -> LInstruction
 convertInstruction inst = case inst of
@@ -398,11 +456,29 @@ convertInstruction inst = case inst of
   Wasm.I64Load m -> i64Load m
   Wasm.F32Load m -> f32Load m
   Wasm.F64Load m -> f64Load m
+  Wasm.I32Load8S m -> i32Load8S m
+  Wasm.I32Load8U m -> i32Load8U m
+  Wasm.I32Load16S m -> i32Load16S m
+  Wasm.I32Load16U m -> i32Load16U m
+  Wasm.I64Load8S  m -> i64Load8S m
+  Wasm.I64Load8U  m -> i64Load8U m
+  Wasm.I64Load16S m -> i64Load16S m
+  Wasm.I64Load16U m -> i64Load16U m
+  Wasm.I64Load32S m -> i64Load32S m
+  Wasm.I64Load32U m -> i64Load32U m
 
   Wasm.I32Store m -> i32Store m
   Wasm.I64Store m -> i64Store m
   Wasm.F32Store m -> f32Store m
   Wasm.F64Store m -> f64Store m
+  Wasm.I32Store8 m -> i32Store8 m
+  Wasm.I32Store16 m -> i32Store16 m
+  Wasm.I64Store8 m -> i64Store8 m
+  Wasm.I64Store16 m -> i64Store16 m
+  Wasm.I64Store32 m ->  i64Store32 m
+
+  Wasm.CurrentMemory -> currentMemory
+  Wasm.GrowMemory -> growMemory
 
   Wasm.I32Const w32 -> i32Const w32
   Wasm.I64Const w64 -> i64Const w64
@@ -416,8 +492,21 @@ convertInstruction inst = case inst of
   Wasm.FUnOp bs op -> fUnOp bs op
   Wasm.FBinOp bs op -> fBinOp bs op
   Wasm.FRelOp bs op -> fRelOp bs op
+  Wasm.I32WrapI64 -> i32WrapI64
+  Wasm.ITruncFU b1 b2 -> iTruncFU b1 b2
+  Wasm.ITruncFS b1 b2 -> iTruncFS b1 b2
+  Wasm.ITruncSatFU b1 b2 -> iTruncSatFU b1 b2
+  Wasm.ITruncSatFS b1 b2 -> iTruncSatFS b1 b2
+  Wasm.I64ExtendSI32 -> i64ExtendSI32
+  Wasm.I64ExtendUI32 -> i64ExtendUI32
+  Wasm.FConvertIU b1 b2 -> fConvertIU b1 b2
+  Wasm.FConvertIS b1 b2 -> fConvertIS b1 b2
+  Wasm.F32DemoteF64 -> f32DemoteF64
+  Wasm.F64PromoteF32 -> f64PromoteF32
+  Wasm.IReinterpretF b -> iReinterpretF b
+  Wasm.FReinterpretI b -> fReinterpretI b
 
-  _ -> error "convertInstruction: unsupported instruction"
+  --_ -> error $ "convertInstruction: unsupported instruction " ++ show inst
 
 convertExpr :: Wasm.Expression -> [LInstruction]
 convertExpr = map convertInstruction
@@ -427,7 +516,7 @@ convertFunc (Wasm.Function ft lt bd) = Function ft lt <$> sequence (convertExpr 
 
 convertFuncInst :: Wasm.FunctionInstance -> State Label FuncInst
 convertFuncInst (Wasm.FunctionInstance t m c) = FuncInst t m <$> convertFunc c
-convertFuncInst _ = error "convertFuncInst: unsupported instruction"
+convertFuncInst (Wasm.HostInstance t _) = return $ HostInst t  --error "convertFuncInst: unsupported instruction"
 
 
 -- instatiation of modules
@@ -441,18 +530,21 @@ instantiate valMod alpha toMem toTable = do
     res <- Wasm.instantiate emptyStore emptyImports valMod
     case res of
         (Right modInst, store) -> do
-            (staticState,tables,mems) <- storeToGlobalState store
+            (staticState,tables,mems) <- storeToGlobalState store alpha toMem toTable
             return $ Right (modInst, staticState, tables, mems)
         (Left e, _)            -> return $ Left e
 
+
+storeToGlobalState :: Wasm.Store -> (Wasm.Value -> v) -> (Maybe Word32 -> [Word8] -> m) -> (Wasm.TableInstance -> t) -> IO (StaticGlobalState v, Vector m, Vector t)
+storeToGlobalState (Wasm.Store funcI tableI memI globalI) alpha toMem toTable = do
+    let funcs = generate $ Vec.mapM convertFuncInst funcI
+    mems <- Vec.mapM convertMem memI
+    globs <- Vec.mapM convertGlobal globalI
+    return (StaticGlobalState funcs globs,
+            mems,
+            Vec.map toTable tableI)
+
     where
-        storeToGlobalState (Wasm.Store funcI tableI memI globalI) = do
-            let funcs = generate $ Vec.mapM convertFuncInst funcI
-            mems <- Vec.mapM convertMem memI
-            globs <- Vec.mapM convertGlobal globalI
-            return (StaticGlobalState funcs globs,
-                    mems,
-                    Vec.map toTable tableI)
 
         convertMem (Wasm.MemoryInstance (Wasm.Limit _ n) mem) = do
             memStore <- readIORef mem
@@ -472,6 +564,9 @@ data LoadType = L_I32 | L_I64 | L_F32 | L_F64 | L_I8S | L_I8U | L_I16S | L_I16U 
   deriving Show
 data StoreType = S_I32 | S_I64 | S_F32 | S_F64 | S_I8 | S_I16
   deriving Show
+
+instance Pretty Wasm.ValueType where
+    pretty = viaShow
 
 -- helper functions
 
