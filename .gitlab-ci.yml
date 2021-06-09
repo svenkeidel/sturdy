@@ -1,7 +1,7 @@
 image: fpco/stack-build:latest
 
 before_script:
-  - apt-get update -qq && apt-get -y install xz-utils make graphviz
+  - apt-get update -qq && apt-get -y install xz-utils make graphviz dot
   - git submodule update --init --recursive
   - stack setup
   - stack update
