@@ -39,9 +39,10 @@ runTest filename =
 
 spec :: Spec
 spec = do
-    fs <- runIO $ initTests
-    describe "run testsuite" $ do
-        mapM_ runTest fs
+    return ()
+    -- fs <- runIO $ initTests
+    -- describe "run testsuite" $ do
+    --     mapM_ runTest fs
 
 --    before initTests $ do
 --        describe "run" $ do

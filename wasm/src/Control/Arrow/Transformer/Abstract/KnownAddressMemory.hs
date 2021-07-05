@@ -6,6 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Control.Arrow.Transformer.Abstract.KnownAddressMemory where
 
@@ -42,21 +43,28 @@ import           Control.Category
 import           Data.Coerce (coerce)
 import           Data.Profunctor
 import           Data.Order
+import           Data.Hashable
 import           Data.Word
 import           Data.ByteString.Builder
 import           Data.ByteString.Lazy (unpack, pack)
 import           Data.Binary.Get
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
+
+import           Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as M
+import qualified Data.IntMap.Merge.Strict as M
 
 import           Language.Wasm.Structure (ValueType(..))
 import qualified Language.Wasm.Interpreter as Wasm
 
+import           GHC.Generics
+
 
 data StoredByte = StoredByte Word8 | TopByte
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
+
+instance Hashable StoredByte where
 
 type Bytes = Vector StoredByte
 
@@ -139,15 +147,19 @@ instance (ArrowLift c, ArrowFix (Underlying (SerializeT v c) x y)) => ArrowFix (
 
 -- This abstraction assumes the size of the memory cannot grow unconditionally.
 
-data Memory = Memory (Vector StoredByte)
-    deriving (Eq, Show)
+data Memory = TopMemory | Memory (Vector StoredByte)
+    deriving (Eq, Show, Generic)
 
 instance PreOrd Memory where
+    _ ⊑ TopMemory = True
     Memory v1 ⊑ Memory v2 =
         all (\(b1,b2) -> b1 ⊑ b2) $ V.zip (V.take l v1) (V.take l v2)
       where l = min (length v1) (length v2)
+    _ ⊑ _ = False
 
 instance Complete Memory where
+    TopMemory ⊔ _ = TopMemory
+    _ ⊔ TopMemory = TopMemory
     Memory v1 ⊔ Memory v2 =
         if l1 == l2
             then Memory $ V.zipWith (⊔) v1 v2
@@ -160,54 +172,88 @@ instance Complete Memory where
       where l1 = length v1
             l2 = length v2
 
+instance Hashable Memory where
 
-newtype MemoryT c x y = MemoryT (StateT (Map Int Memory) c x y)
+
+
+newtype Memories = Memories (IntMap Memory)
+    deriving (Eq, Show, Generic)
+
+instance Hashable Memories where
+    hashWithSalt s (Memories mems) = hashWithSalt s $ M.toList mems
+
+instance PreOrd Memories where
+    Memories m1 ⊑ Memories m2 = M.isSubmapOfBy (⊑) m1 m2
+
+instance Complete Memories where
+    Memories mems1 ⊔ Memories mems2 = Memories $ M.unionWith (⊔) mems1 mems2
+
+freshMemoriesAt :: [Int] -> Memories
+freshMemoriesAt = Memories . foldl (\mems mIx -> M.insert mIx (Memory V.empty) mems) M.empty
+
+
+data Addr = TopAddr | Addr Int
+data Size = TopSize | Size Int
+
+newtype MemoryT c x y = MemoryT (StateT Memories c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
               ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowSize v sz, ArrowEffectiveAddress base off addr,
               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin, ArrowFunctions)
 
-instance (Profunctor c, ArrowChoice c) => ArrowMemory Int Bytes Int (MemoryT c) where
-    type Join y (MemoryT c) = ArrowComplete (Map Int Memory, y) c
-    memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,addr,len,x) -> do
-        mems <- get -< ()
-        let Memory vec = mems M.! mIx
-        if length vec < addr + len
-            then eCont -< x
-            else let bytes = V.slice addr len vec in
-                 sCont -< (bytes, x)
-    memstore (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,addr,bytes,x) -> do
-        mems <- get -< ()
-        let Memory vec = mems M.! mIx
-        if length vec < addr + V.length bytes 
-            then eCont -< x
-            else do
-                let writtenMem = Memory $ vec V.// (zip [addr..] $ V.toList bytes)
-                put -< M.insert mIx writtenMem mems
-                sCont -< x
+instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes Size (MemoryT c) where
+    type Join y (MemoryT c) = ArrowComplete (Memories, y) c
+    memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,maddr,len,x) ->
+        case maddr of
+            TopAddr -> (eCont -< x) <⊔> (sCont -< (V.fromList [TopByte], x))
+            Addr addr -> do
+                Memories mems <- get -< ()
+                case mems M.! mIx of
+                    TopMemory -> (eCont -< x) <⊔> (sCont -< (V.fromList [TopByte], x))
+                    Memory vec ->
+                        if length vec < addr + len
+                        then eCont -< x
+                        else sCont -< (V.slice addr len vec, x)
+    memstore (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,maddr,bytes,x) ->
+        case maddr of
+            TopAddr -> do 
+                Memories mems <- get -< ()
+                put -< Memories $ M.insert mIx TopMemory mems
+                (eCont -< x) <⊔> (sCont -< x)
+            Addr addr -> do
+                Memories mems <- get -< ()
+                case mems M.! mIx of 
+                    TopMemory -> (eCont -< x) <⊔> (sCont -< x)
+                    Memory vec ->
+                        if length vec < addr + V.length bytes 
+                        then eCont -< x
+                        else do
+                            let writtenMem = Memory $ vec V.// (zip [addr..] $ V.toList bytes)
+                            put -< Memories $ M.insert mIx writtenMem mems
+                            sCont -< x
     memsize = MemoryT $ proc mIx -> do
-        mems <- get -< ()
-        let Memory vec = mems M.! mIx
-        returnA -< V.length vec
-    memgrow (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,additionalSpace,x) -> do
-        mems <- get -< ()
-        let Memory vec = mems M.! mIx
-        let additional = V.replicate additionalSpace TopByte
-        let extendedMem = Memory $ vec V.++ additional
-        put -< M.insert mIx extendedMem mems
-        (sCont -< (V.length vec + additionalSpace, x)) <⊔> (eCont -< x)
+        Memories mems <- get -< ()
+        case mems M.! mIx of
+            TopMemory -> returnA -< TopSize
+            Memory vec -> returnA -< Size $ V.length vec
+    memgrow (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,madditionalSpace,x) -> do
+        Memories mems <- get -< ()
+        case mems M.! mIx of
+            TopMemory -> (sCont -< (TopSize, x)) <⊔> (eCont -< x)
+            Memory vec ->
+                case madditionalSpace of
+                    TopSize -> do
+                        put -< Memories $ M.insert mIx TopMemory mems
+                        (sCont -< (TopSize, x)) <⊔> (eCont -< x)
+                    Size additionalSpace -> do
+                        let additional = V.replicate additionalSpace TopByte
+                        let extendedMem = Memory $ vec V.++ additional
+                        put -< Memories $ M.insert mIx extendedMem mems
+                        (sCont -< (Size $ V.length vec + additionalSpace, x)) <⊔> (eCont -< x)
 
--- instance (ArrowChoice c, Profunctor c) => ArrowSize Value () (MemoryT c) where
---     valToSize = proc (Value v) -> case v of
---         (VI32 _) -> returnA -< ()
---         _ -> returnA -< error "valToSize: arguments needs to be an i32 integer."
---     sizeToVal = proc () -> returnA -< valueI32
-
--- --instance (Arrow c, Profunctor c) => ArrowEffectiveAddress base off Addr (MemoryT c) where
--- --  memaddr = arr $ const Addr
 
 
-deriving instance (Arrow c, Profunctor c, ArrowComplete (Map Int Memory, y) c) => ArrowComplete y (MemoryT c)
+deriving instance (Arrow c, Profunctor c, ArrowComplete (Memories, y) c) => ArrowComplete y (MemoryT c)
 
 instance (ArrowLift c, ArrowFix (Underlying (MemoryT c) x y)) => ArrowFix (MemoryT c x y) where
     type Fix (MemoryT c x y) = Fix (Underlying (MemoryT c) x y)
@@ -215,52 +261,4 @@ instance (ArrowLift c, ArrowFix (Underlying (MemoryT c) x y)) => ArrowFix (Memor
 
 
 
--- -- EffectiveAddress
 
--- newtype EffectiveAddressT c x y = EffectiveAddressT (c x y)
---     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
---               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
---               ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowFunctions, ArrowSize v sz,
---               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
-
--- instance ArrowTrans EffectiveAddressT where
---   -- lift' :: c x y -> MemoryT v c x y
---   lift' = EffectiveAddressT
-
--- instance (Arrow c, Profunctor c) => ArrowEffectiveAddress base off Addr (EffectiveAddressT c) where
---   effectiveAddress = arr $ const Addr
-
-
--- deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (EffectiveAddressT c)
-
--- instance (ArrowLift c, ArrowFix (Underlying (EffectiveAddressT c) x y)) => ArrowFix (EffectiveAddressT c x y) where
---     type Fix (EffectiveAddressT c x y) = Fix (Underlying (EffectiveAddressT c) x y)
-
-
-
-
--- -- ArrowSize
-
--- newtype SizeT v c x y = SizeT (c x y)
---     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
---               ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
---               ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowMemory addr bytes s,
---               ArrowEffectiveAddress base off addr, ArrowFunctions,
---               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
-
--- instance ArrowTrans (SizeT v) where
---   -- lift' :: c x y -> MemoryT v c x y
---   lift' = SizeT
-
--- instance (ArrowChoice c, Profunctor c) => ArrowSize Value Size (SizeT Value c) where
---   valToSize = proc (Value v) -> case v of
---     (VI32 _) -> returnA -< Size
---     _        -> returnA -< error "valToSize: argument needs to be an i32 integer."
-
---   sizeToVal = proc Size -> returnA -< valueI32
-
-
--- deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (SizeT v c)
-
--- instance (ArrowLift c, ArrowFix (Underlying (SizeT v c) x y)) => ArrowFix (SizeT v c x y) where
---     type Fix (SizeT v c x y) = Fix (Underlying (SizeT v c) x y)
