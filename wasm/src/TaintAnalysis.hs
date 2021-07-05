@@ -36,10 +36,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
 import           Control.Arrow.Transformer.Abstract.Fix.Component
 import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import qualified Control.Arrow.Transformer.Abstract.Fix.Stack as Fix
-import           Control.Arrow.Transformer.Abstract.Memory
-import           Control.Arrow.Transformer.Abstract.Serialize
-import           Control.Arrow.Transformer.Abstract.UnitEffectiveAddress
-import           Control.Arrow.Transformer.Abstract.UnitSize
+import           Control.Arrow.Transformer.Abstract.UnitMemory
 import           Control.Arrow.Transformer.Abstract.Table
 import           Control.Arrow.Transformer.Abstract.Terminating
 

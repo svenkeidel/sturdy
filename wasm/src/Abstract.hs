@@ -63,10 +63,6 @@ instance Complete TableInst where
 
 instance Hashable TableInst
 
-data Size = Size deriving (Eq,Show)
-data Addr = Addr deriving (Eq,Show)
-data Bytes = Bytes deriving (Eq,Show)
-
 --data GlobalState v = GlobalState {
 --    funcInstances :: Vector FuncInst,
 --    tableInstances :: Vector TableInst,

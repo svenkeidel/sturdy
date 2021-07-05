@@ -17,10 +17,12 @@ dependencies:
   - wasm
   - vector
   - bytestring
+  - binary
   - primitive
   - list-singleton
   - prettyprinter
   - ieee754
+  - containers
 
 library:
   ghc-options: -Wall
