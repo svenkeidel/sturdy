@@ -24,6 +24,7 @@ import           Control.Arrow
 import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic (innermost)
 import           Control.Arrow.Fix.ControlFlow
+import           Control.Arrow.Order
 import           Control.Arrow.Trans as Trans
 
 import           Control.Arrow.Transformer.Abstract.Except
@@ -52,18 +53,10 @@ import           Data.Text.Lazy (Text)
 import qualified Data.Vector as Vec
 
 import           Language.Wasm.Interpreter (ModuleInstance)
-import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Structure (ResultType)
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
-
-alpha :: Wasm.Value -> Value
-alpha v = Value $ case v of
-  Wasm.VI32 _ -> VI32 ()
-  Wasm.VI64 _ -> VI64 ()
-  Wasm.VF32 _ -> VF32 ()
-  Wasm.VF64 _ -> VF64 ()
 
 mapList :: (ArrowChoice c) => c (a,x) y -> c ([a],x) [y]
 mapList f = proc (as,x) -> do
@@ -152,3 +145,5 @@ invokeExported initialStore tab modInst funcName args =
 instantiateAbstract :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Tables))
 instantiateAbstract valMod = do res <- instantiate valMod alpha (\_ _ -> ()) TableInst
                                 return $ fmap (\(m,s,_,tab) -> (m,s,JoinVector tab)) res
+
+deriving instance ArrowComplete y c => ArrowComplete y (ValueT Value c)

@@ -134,4 +134,4 @@ instantiateTaint valMod = do res <- instantiate valMod (alpha Untainted) (\_ _ -
 alpha :: Taint -> Wasm.Value -> Value
 alpha t v = Taint.Value t (Abs.alpha v)
 
-deriving instance ArrowComplete Value c => ArrowComplete Value (ValueT Abs.Value c)
+deriving instance ArrowComplete y c => ArrowComplete y (ValueT Value c)

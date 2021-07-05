@@ -23,6 +23,7 @@ import           Control.Arrow.Transformer.Value
 
 import           Language.Wasm.Structure (BitSize(..), IBinOp(..), IRelOp(..), ValueType(..), IUnOp(..),
                                           FUnOp(..), FBinOp(..), FRelOp(..))
+import qualified Language.Wasm.Interpreter as Wasm
 
 import           Data.Hashable
 import           Data.HashSet as HashSet
@@ -50,6 +51,14 @@ valueI32 = Value $ VI32 ()
 valueI64 = Value $ VI64 ()
 valueF32 = Value $ VF32 ()
 valueF64 = Value $ VF64 ()
+
+alpha :: Wasm.Value -> Value
+alpha v = Value $ case v of
+  Wasm.VI32 _ -> VI32 ()
+  Wasm.VI64 _ -> VI64 ()
+  Wasm.VF32 _ -> VF32 ()
+  Wasm.VF64 _ -> VF64 ()
+
 
 instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (ValueT Value c) where
     type JoinVal y (ValueT Value c) = ArrowComplete y (ValueT Value c)
@@ -245,5 +254,5 @@ instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (Val
             (joinList1'' (proc (x,()) -> sCont -< x) -< (xs,())) <⊔> (eCont -< x)
         _ -> returnA -< error "listLookup: cannot apply operator to given arguments."
 
-deriving instance ArrowComplete () c => ArrowComplete () (ValueT v c)
-deriving instance ArrowComplete v c => ArrowComplete v (ValueT v c)
+-- deriving instance ArrowComplete () c => ArrowComplete () (ValueT v c)
+-- deriving instance ArrowComplete y c => ArrowComplete y (ValueT Value c)
