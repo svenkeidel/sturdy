@@ -465,9 +465,7 @@ load byteSize loadType valType = proc off -> do
   memIndex <- memoryIndex -< ()
   memread
     (proc (bytes,_) ->
-      decode
-        (push <<^ fst)
-        -< (bytes, loadType, valType, ()))
+      push <<< decode -< (bytes, loadType, valType))
     (proc addr -> trap -< printf "Memory access out of bounds: Cannot read %d bytes at address %s in current memory" byteSize (show addr))
     -< (memIndex, addr, byteSize, addr)
 
@@ -479,16 +477,14 @@ store ::
   => StoreType -> ValueType -> c Natural ()
 store storeType valType = proc off -> do
   v <- pop -< ()
-  encode
-    (proc (bytes,off) -> do
-      base <- pop -< ()
-      addr <- effectiveAddress -< (base, off)
-      memIndex <- memoryIndex -< ()
-      memstore
-        (arr $ const ())
-        (proc (addr,bytes) -> trap -< printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr))
-        -< (memIndex, addr, bytes, (addr, bytes)))
-    -< (v, valType, storeType, off)
+  bytes <- encode -< (v, valType, storeType)
+  base <- pop -< ()
+  addr <- effectiveAddress -< (base, off)
+  memIndex <- memoryIndex -< ()
+  memstore
+    (arr $ const ())
+    (proc (addr,bytes) -> trap -< printf "Memory access out of bounds: Cannot write %s at address %s in current memory" (show bytes) (show addr))
+    -< (memIndex, addr, bytes, (addr, bytes))
 
 evalVariableInst ::
   ( ArrowChoice c, ArrowStaticComponents v c)

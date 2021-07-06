@@ -10,7 +10,7 @@
 module Control.Arrow.Transformer.Abstract.UnitMemory where
 
 import           Abstract (BaseValue(..))
-import           UnitAnalysisValue (Value(..),valueI32)
+import           UnitAnalysisValue (Value(..),valueI32,unitValue)
 import qualified TaintAnalysisValue as Taint
 
 import           Data
@@ -97,13 +97,8 @@ instance ArrowTrans (SerializeT v) where
     lift' = SerializeT
 
 instance (Profunctor c, Arrow c) => ArrowSerialize Value Bytes ValueType LoadType StoreType (SerializeT Value c) where
-    decode sCont = proc (Bytes,_,valTy,x) -> sCont -< (toTopVal valTy, x)
-        where
-            toTopVal I32 = Value $ VI32 top
-            toTopVal I64 = Value $ VI64 top
-            toTopVal F32 = Value $ VF32 top
-            toTopVal F64 = Value $ VF64 top
-    encode sCont = proc (_,_,_,x) -> sCont -< (Bytes,x)
+    decode = proc (Bytes,_,valTy) -> returnA -< unitValue valTy
+    encode = arr $ const Bytes
 
 
 tainted :: Arrow c => SerializeT v c x v -> SerializeT (Taint.Value v) c x (Taint.Value v)
@@ -121,14 +116,12 @@ unliftSerializeT = coerce
 {-# INLINE unliftSerializeT #-}
 
 instance (Arrow c, ArrowSerialize v Bytes ValueType LoadType StoreType (SerializeT v c)) => ArrowSerialize (Taint.Value v) Bytes ValueType LoadType StoreType (SerializeT (Taint.Value v) c) where
-    decode sCont = proc (bytes,datDecTy,valTy,x) ->
-        liftSerializeT (decode
-          (proc (v,x) -> (unliftSerializeT sCont) -< (Taint.Value Taint.Top v,x)))
-          -< (bytes,datDecTy,valTy,x)
-    encode sCont = proc (Taint.Value _t v,valTy,datEncTy,x) ->
-        liftSerializeT (encode
-          (unliftSerializeT sCont))
-          -< (v,valTy,datEncTy,x)
+    decode = proc (bytes,datDecTy,valTy) -> do
+        v <- liftSerializeT decode -< (bytes,datDecTy,valTy)
+        returnA -< Taint.Value Taint.Top v
+          
+    encode = proc (Taint.Value _t v,valTy,datEncTy) -> 
+        liftSerializeT encode -< (v,valTy,datEncTy)
 
 deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (SerializeT v c)
 

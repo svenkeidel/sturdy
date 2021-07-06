@@ -32,6 +32,7 @@ import           Data.Coerce (coerce)
 import           Data.Profunctor (Profunctor)
 
 instance PreOrd Concrete.Value where
+    a ⊑ b = a == b
 
 instance (ArrowExcept (Unit.Exc Value) c, ArrowChoice c) => IsException (Unit.Exc Value) Value (ValueT Value c) where
     type JoinExc y (ValueT Value c) = ArrowComplete y (ValueT Value c)

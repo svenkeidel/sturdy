@@ -24,38 +24,41 @@ import qualified Data.Order as O
 
 class ArrowSerialize val dat valTy datDecTy datEncTy c | c -> datDecTy, c -> datEncTy where
   --decode :: c (val, x) y -> c x y -> c (dat, datDecTy, valTy, x) y
-  decode :: c (val, x) y -> c (dat, datDecTy, valTy, x) y
+  decode :: c (dat, datDecTy, valTy) val
   --encode :: c (dat, x) y -> c x y -> c (val, valTy, datEncTy, x) y
-  encode :: c (dat, x) y -> c (val, valTy, datEncTy, x) y
+  encode :: c (val, valTy, datEncTy) dat
 
 deriving instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (ValueT val2 c)
 deriving instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (CE.ExceptT e c)
 deriving instance (O.Complete e, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (AE.ExceptT e c)
 instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (KleisliT f c) where
-    decode a = lift $ decode (unlift a)
-
-    encode a= lift $ encode (unlift a)
+    decode = decode
+    encode = encode
 --deriving instance (Arrow c, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (StackT v c)
 instance (Arrow c, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (StateT s c) where
-    decode a = lift $ proc (s, (dat, datdecTy, valTy, x)) ->
-        decode (proc (val, (s,x)) -> (unlift a) -< (s, (val,x)))
-               -< (dat, datdecTy, valTy, (s,x))
+    decode = decode
+    encode = encode
+    -- -- proc (s, (dat, datdecTy, valTy, x)) ->
+    -- --     decode (proc (val, (s,x)) -> (unlift a) -< (s, (val,x)))
+    -- --            -< (dat, datdecTy, valTy, (s,x))
 
-    encode a = lift $ proc (s, (val, valTy, datEncTy, x)) ->
-        encode (proc (dat, (s,x)) -> (unlift a) -< (s, (dat,x)))
-               -< (val, valTy, datEncTy, (s,x))
+    -- encode = lift $ proc (s, (val, valTy, datEncTy, x)) ->
+    --     encode (proc (dat, (s,x)) -> (unlift a) -< (s, (dat,x)))
+               -- -< (val, valTy, datEncTy, (s,x))
 instance (Arrow c, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (ReaderT r c) where
+    decode = decode
+    encode = encode
     -- c1 :: c (r, (val, x)) y
     -- c2 :: c (r, x) y
-    decode a = lift $ proc (r, (dat, datdecTy, valTy, x)) -> do
-        decode (proc (val, (r,x)) -> (unlift a) -< (r, (val,x)))
-               -< (dat, datdecTy, valTy, (r,x))
+    -- decode a = lift $ proc (r, (dat, datdecTy, valTy, x)) -> do
+    --     decode (proc (val, (r,x)) -> (unlift a) -< (r, (val,x)))
+    --            -< (dat, datdecTy, valTy, (r,x))
 
-    encode a = lift $ proc (r, (val, valTy, datEncTy, x)) ->
-        encode (proc (dat, (r,x)) -> (unlift a) -< (r, (dat,x)))
-               -< (val, valTy, datEncTy, (r,x))
+    -- encode a = lift $ proc (r, (val, valTy, datEncTy, x)) ->
+    --     encode (proc (dat, (r,x)) -> (unlift a) -< (r, (dat,x)))
+    --            -< (val, valTy, datEncTy, (r,x))
 instance (ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (WriterT w c) where
-  decode = error "TODO: implement WriterT.decode"
-  encode = error "TODO: implement WriterT.encode"
+    decode = decode
+    encode = encode
 
 deriving instance (Arrow c, ArrowSerialize val dat valTy datDecTy datEncTy c) => ArrowSerialize val dat valTy datDecTy datEncTy (AbsStore.StoreT store c)

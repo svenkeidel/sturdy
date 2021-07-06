@@ -84,21 +84,12 @@ import qualified Data.Map.Strict as M
 
 import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm
-import           Language.Wasm.Structure (ResultType)
+import           Language.Wasm.Structure (ResultType, ValueType)
 import           Language.Wasm.Validate (ValidModule)
 
 import           Numeric.Natural (Natural)
 
 -- EffectiveAddress
-
-newtype EffectiveAddressT c x y = EffectiveAddressT (c x y)
-    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
-              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowFunctions, ArrowSize v sz,
-              ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
-
-instance ArrowTrans EffectiveAddressT where
-  lift' = EffectiveAddressT
 
 instance (Arrow c, Profunctor c, ArrowChoice c) => ArrowEffectiveAddress Value Natural Addr (EffectiveAddressT c) where
   effectiveAddress = proc (v, off) -> case v of
@@ -107,26 +98,7 @@ instance (Arrow c, Profunctor c, ArrowChoice c) => ArrowEffectiveAddress Value N
     _ -> returnA -< error "effectiveAddress: arguments needs to be an i32 integer"
 
 
-deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (EffectiveAddressT c)
-
-instance (ArrowLift c, ArrowFix (Underlying (EffectiveAddressT c) x y)) => ArrowFix (EffectiveAddressT c x y) where
-    type Fix (EffectiveAddressT c x y) = Fix (Underlying (EffectiveAddressT c) x y)
-
-
-
-
 -- ArrowSize
-
-newtype SizeT v c x y = SizeT (c x y)
-    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
-              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
-              ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowMemory addr bytes s,
-              ArrowEffectiveAddress base off addr, ArrowFunctions,
-              ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
-
-instance ArrowTrans (SizeT v) where
-  -- lift' :: c x y -> MemoryT v c x y
-  lift' = SizeT
 
 instance (ArrowChoice c, Profunctor c) => ArrowSize Value MemSize (SizeT Value c) where
   valToSize = proc v -> case v of
@@ -139,14 +111,19 @@ instance (ArrowChoice c, Profunctor c) => ArrowSize Value MemSize (SizeT Value c
     MemSize i -> returnA -< Constant (Concrete.Value (Wasm.VI32 $ fromIntegral i))
 
 
-deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (SizeT v c)
+-- Serialize
 
-instance (ArrowLift c, ArrowFix (Underlying (SizeT v c) x y)) => ArrowFix (SizeT v c x y) where
-    type Fix (SizeT v c x y) = Fix (Underlying (SizeT v c) x y)
+instance (Profunctor c, Arrow c, ArrowChoice c) => ArrowSerialize Value Bytes ValueType LoadType StoreType (SerializeT Value c) where
+    encode = proc (v,_,_) -> case v of
+      Constant (Concrete.Value c) -> returnA -< encodeConcreteValue c
+      UnitValue (Unit.Value (Unit.VI32 ())) -> returnA -< Vec.replicate 4 TopByte
+      UnitValue (Unit.Value (Unit.VI64 ())) -> returnA -< Vec.replicate 8 TopByte
+      UnitValue (Unit.Value (Unit.VF32 ())) -> returnA -< Vec.replicate 4 TopByte
+      UnitValue (Unit.Value (Unit.VF64 ())) -> returnA -< Vec.replicate 8 TopByte
 
-
-
-
+    decode = proc (bytes, _, valTy) -> case decodeConcreteValue valTy bytes of
+      Just c -> returnA -< Constant $ Concrete.Value c
+      Nothing -> returnA -< UnitValue $ Unit.unitValue valTy
 
 
 -- Abstract interpreter

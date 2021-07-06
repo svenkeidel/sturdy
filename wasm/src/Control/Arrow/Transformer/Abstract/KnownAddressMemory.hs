@@ -68,7 +68,6 @@ instance Hashable StoredByte where
 
 type Bytes = Vector StoredByte
 
-
 instance PreOrd StoredByte where
     StoredByte b1 ⊑ StoredByte b2 = b1 == b2
     _ ⊑ TopByte = True
@@ -78,7 +77,7 @@ instance Complete StoredByte where
     StoredByte b1 ⊔ StoredByte b2 | b1 == b2 = StoredByte b1
     _ ⊔ _ = TopByte
 
--- -- Serializable
+-- Serialize
 
 newtype SerializeT v c x y = SerializeT (c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
@@ -125,27 +124,42 @@ decodeConcreteValue F64 =
    fmap (Wasm.VF64 . runGet getDoublele . pack) . decodeBytes
 
 
--- instance (Profunctor c, Arrow c) => ArrowSerialize Value Bytes ValueType LoadType StoreType (SerializeT Value c) where
---     decode sCont = proc (Bytes,_,valTy,x) -> sCont -< (toTopVal valTy, x)
---         where
---             toTopVal I32 = Value $ VI32 top
---             toTopVal I64 = Value $ VI64 top
---             toTopVal F32 = Value $ VF32 top
---             toTopVal F64 = Value $ VF64 top
---     encode sCont = proc (_,_,_,x) -> sCont -< (Bytes,x)
-
-
 deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (SerializeT v c)
 
 instance (ArrowLift c, ArrowFix (Underlying (SerializeT v c) x y)) => ArrowFix (SerializeT v c x y) where
     type Fix (SerializeT v c x y) = Fix (Underlying (SerializeT v c) x y)
 
 
+-- Size
+
+data MemSize = TopMemSize | MemSize Int
+    deriving (Show, Eq)
+
+newtype SizeT v c x y = SizeT (c x y)
+    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
+              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
+              ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowMemory addr bytes s,
+              ArrowEffectiveAddress base off addr, ArrowFunctions,
+              ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
+
+instance ArrowTrans (SizeT v) where
+  -- lift' :: c x y -> MemoryT v c x y
+  lift' = SizeT
 
 
--- -- Memory
+deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (SizeT v c)
+
+instance (ArrowLift c, ArrowFix (Underlying (SizeT v c) x y)) => ArrowFix (SizeT v c x y) where
+    type Fix (SizeT v c x y) = Fix (Underlying (SizeT v c) x y)
+
+
+
+-- Memory
 
 -- This abstraction assumes the MemSize of the memory cannot grow unconditionally.
+
+data Addr = TopAddr | Addr Int
+    deriving (Show, Eq)
 
 data Memory = TopMemory | Memory (Vector StoredByte)
     deriving (Eq, Show, Generic)
@@ -194,9 +208,6 @@ freshMemories sizes = Memories $ foldl (\mems (mIx, size) -> M.insert mIx (fresh
         freshMem TopMemSize = TopMemory
         freshMem (MemSize sz) = Memory $ V.replicate sz TopByte
 
-
-data Addr = TopAddr | Addr Int
-data MemSize = TopMemSize | MemSize Int
 
 newtype MemoryT c x y = MemoryT (StateT Memories c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
@@ -260,6 +271,24 @@ deriving instance (Arrow c, Profunctor c, ArrowComplete (Memories, y) c) => Arro
 
 instance (ArrowLift c, ArrowFix (Underlying (MemoryT c) x y)) => ArrowFix (MemoryT c x y) where
     type Fix (MemoryT c x y) = Fix (Underlying (MemoryT c) x y)
+
+
+-- EffectiveAddress
+
+newtype EffectiveAddressT c x y = EffectiveAddressT (c x y)
+    deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
+              ArrowFail e, ArrowExcept e, ArrowConst r, ArrowStore var' val', ArrowRun, ArrowFrame fd val,
+              ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowFunctions, ArrowSize v sz,
+              ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin)
+
+instance ArrowTrans EffectiveAddressT where
+  lift' = EffectiveAddressT
+
+
+deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (EffectiveAddressT c)
+
+instance (ArrowLift c, ArrowFix (Underlying (EffectiveAddressT c) x y)) => ArrowFix (EffectiveAddressT c x y) where
+    type Fix (EffectiveAddressT c x y) = Fix (Underlying (EffectiveAddressT c) x y)
 
 
 

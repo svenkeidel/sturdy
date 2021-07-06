@@ -59,6 +59,11 @@ alpha v = Value $ case v of
   Wasm.VF32 _ -> VF32 ()
   Wasm.VF64 _ -> VF64 ()
 
+unitValue :: ValueType -> Value
+unitValue I32 = Value $ VI32 ()
+unitValue I64 = Value $ VI64 ()
+unitValue F32 = Value $ VF32 ()
+unitValue F64 = Value $ VF64 ()
 
 instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (ValueT Value c) where
     type JoinVal y (ValueT Value c) = ArrowComplete y (ValueT Value c)
