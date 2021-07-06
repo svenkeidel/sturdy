@@ -128,15 +128,15 @@ instance ArrowTrans (SizeT v) where
   -- lift' :: c x y -> MemoryT v c x y
   lift' = SizeT
 
-instance (ArrowChoice c, Profunctor c) => ArrowSize Value Size (SizeT Value c) where
+instance (ArrowChoice c, Profunctor c) => ArrowSize Value MemSize (SizeT Value c) where
   valToSize = proc v -> case v of
-    Constant (Concrete.Value (Wasm.VI32 w32)) -> returnA -< Size $ fromIntegral w32
-    UnitValue (Unit.Value (Unit.VI32 ())) -> returnA -< TopSize
+    Constant (Concrete.Value (Wasm.VI32 w32)) -> returnA -< MemSize $ fromIntegral w32
+    UnitValue (Unit.Value (Unit.VI32 ())) -> returnA -< TopMemSize
     _        -> returnA -< error "valToSize: argument needs to be an i32 integer."
 
   sizeToVal = proc size -> case size of
-    TopSize -> returnA -< UnitValue (Unit.Value (Unit.VI32 ()))
-    Size i -> returnA -< Constant (Concrete.Value (Wasm.VI32 $ fromIntegral i))
+    TopMemSize -> returnA -< UnitValue (Unit.Value (Unit.VI32 ()))
+    MemSize i -> returnA -< Constant (Concrete.Value (Wasm.VI32 $ fromIntegral i))
 
 
 deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (SizeT v c)
@@ -179,10 +179,11 @@ type Result = (CFG (Instruction Natural), (Errors Err,
 invokeExported :: StaticGlobalState Value
                                      -> Tables
                                      -> ModuleInstance
+                                     -> [MemSize]
                                      -> Text
                                      -> [Value]
                                      -> Result
-invokeExported initialState tab modInst funcName args =
+invokeExported initialState tab modInst memSizes funcName args =
     let ?cacheWidening = (W.finite,W.finite) in
     --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
     --let algo = (trace p1 p2) . (Fix.filter isRecursive $ innermost) in
@@ -208,7 +209,8 @@ invokeExported initialState tab modInst funcName args =
                                     (Fix.StackT Fix.Stack In
                                       (CacheT Monotone In Out
                                         (ControlFlowT (Instruction Natural)
-                                          (->)))))))))))))))))) (Text, [Value]) [Value]) (JoinVector $ Vec.empty,((0,modInst),(tab,(M.empty,(initialState,([],([],(funcName, args))))))))
+                                          (->)))))))))))))))))) (Text, [Value]) [Value]) 
+        (JoinVector $ Vec.empty,((0,modInst),(tab,(freshMemories memSizes,(initialState,([],([],(funcName, args))))))))
     where
         isRecursive (_,(_,(_,(_,(_,(_,(_,(_,inst)))))))) = case inst of
             Loop {} : _ -> True
@@ -221,8 +223,6 @@ invokeExported initialState tab modInst funcName args =
         -- p2 x = pretty x
 
         getExpression (_,(_,(_,(_,(_,(_,(_,(_,exprs)))))))) = case exprs of e:_ -> Just e; _ -> Nothing
-
-        memories = freshMemoriesAt $ Vec.toList $ Wasm.memaddrs modInst
 
 -- instantiateAbstract :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Tables))
 -- instantiateAbstract valMod = do res <- instantiate valMod alpha (\_ _ -> ()) TableInst

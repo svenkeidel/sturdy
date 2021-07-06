@@ -145,7 +145,7 @@ instance (ArrowLift c, ArrowFix (Underlying (SerializeT v c) x y)) => ArrowFix (
 
 -- -- Memory
 
--- This abstraction assumes the size of the memory cannot grow unconditionally.
+-- This abstraction assumes the MemSize of the memory cannot grow unconditionally.
 
 data Memory = TopMemory | Memory (Vector StoredByte)
     deriving (Eq, Show, Generic)
@@ -163,7 +163,7 @@ instance Complete Memory where
     Memory v1 ⊔ Memory v2 =
         if l1 == l2
             then Memory $ V.zipWith (⊔) v1 v2
-            else error $ "Cannot join memories of different size " ++ show (Memory v1, Memory v2)
+            else error $ "Cannot join memories of different MemSize " ++ show (Memory v1, Memory v2)
                 -- if l1 < l2
                 -- then let (v2head, v2tail) = V.splitAt l1 v2 in
                 --      Memory $ (V.zipWith (⊔) v1 v2head) V.++ v2tail
@@ -188,12 +188,15 @@ instance PreOrd Memories where
 instance Complete Memories where
     Memories mems1 ⊔ Memories mems2 = Memories $ M.unionWith (⊔) mems1 mems2
 
-freshMemoriesAt :: [Int] -> Memories
-freshMemoriesAt = Memories . foldl (\mems mIx -> M.insert mIx (Memory V.empty) mems) M.empty
+freshMemories :: [MemSize] -> Memories
+freshMemories sizes = Memories $ foldl (\mems (mIx, size) -> M.insert mIx (freshMem size) mems) M.empty $ zip [0..] sizes
+    where  
+        freshMem TopMemSize = TopMemory
+        freshMem (MemSize sz) = Memory $ V.replicate sz TopByte
 
 
 data Addr = TopAddr | Addr Int
-data Size = TopSize | Size Int
+data MemSize = TopMemSize | MemSize Int
 
 newtype MemoryT c x y = MemoryT (StateT Memories c x y)
     deriving (Profunctor, Category, Arrow, ArrowChoice, ArrowLift,
@@ -201,7 +204,7 @@ newtype MemoryT c x y = MemoryT (StateT Memories c x y)
               ArrowStack st, ArrowReader r, ArrowGlobals val, ArrowSize v sz, ArrowEffectiveAddress base off addr,
               ArrowSerialize val dat valTy datDecTy datEncTy, ArrowTable v, ArrowJoin, ArrowFunctions)
 
-instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes Size (MemoryT c) where
+instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes MemSize (MemoryT c) where
     type Join y (MemoryT c) = ArrowComplete (Memories, y) c
     memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,maddr,len,x) ->
         case maddr of
@@ -234,22 +237,22 @@ instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes Size (MemoryT c
     memsize = MemoryT $ proc mIx -> do
         Memories mems <- get -< ()
         case mems M.! mIx of
-            TopMemory -> returnA -< TopSize
-            Memory vec -> returnA -< Size $ V.length vec
+            TopMemory -> returnA -< TopMemSize
+            Memory vec -> returnA -< MemSize $ V.length vec
     memgrow (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,madditionalSpace,x) -> do
         Memories mems <- get -< ()
         case mems M.! mIx of
-            TopMemory -> (sCont -< (TopSize, x)) <⊔> (eCont -< x)
+            TopMemory -> (sCont -< (TopMemSize, x)) <⊔> (eCont -< x)
             Memory vec ->
                 case madditionalSpace of
-                    TopSize -> do
+                    TopMemSize -> do
                         put -< Memories $ M.insert mIx TopMemory mems
-                        (sCont -< (TopSize, x)) <⊔> (eCont -< x)
-                    Size additionalSpace -> do
+                        (sCont -< (TopMemSize, x)) <⊔> (eCont -< x)
+                    MemSize additionalSpace -> do
                         let additional = V.replicate additionalSpace TopByte
                         let extendedMem = Memory $ vec V.++ additional
                         put -< Memories $ M.insert mIx extendedMem mems
-                        (sCont -< (Size $ V.length vec + additionalSpace, x)) <⊔> (eCont -< x)
+                        (sCont -< (MemSize $ V.length vec + additionalSpace, x)) <⊔> (eCont -< x)
 
 
 
