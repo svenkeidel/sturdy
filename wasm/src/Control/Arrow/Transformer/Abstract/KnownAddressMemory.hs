@@ -50,6 +50,7 @@ import           Data.ByteString.Lazy (unpack, pack)
 import           Data.Binary.Get
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
+import           Data.Text.Prettyprint.Doc as Pretty
 
 import           Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as M
@@ -193,6 +194,9 @@ instance Hashable Memory where
 newtype Memories = Memories (IntMap Memory)
     deriving (Eq, Show, Generic)
 
+instance Pretty Memories where
+    pretty = viaShow
+
 instance Hashable Memories where
     hashWithSalt s (Memories mems) = hashWithSalt s $ M.toList mems
 
@@ -202,11 +206,11 @@ instance PreOrd Memories where
 instance Complete Memories where
     Memories mems1 ⊔ Memories mems2 = Memories $ M.unionWith (⊔) mems1 mems2
 
-freshMemories :: [MemSize] -> Memories
-freshMemories sizes = Memories $ foldl (\mems (mIx, size) -> M.insert mIx (freshMem size) mems) M.empty $ zip [0..] sizes
-    where  
-        freshMem TopMemSize = TopMemory
-        freshMem (MemSize sz) = Memory $ V.replicate sz TopByte
+makeMemory :: [Word8] -> Memory
+makeMemory bytes = Memory $ V.fromList $ map StoredByte bytes
+
+makeMemories :: Vector Memory -> Memories
+makeMemories mems = Memories $ M.fromList $ zip [0..] $ V.toList mems
 
 
 newtype MemoryT c x y = MemoryT (StateT Memories c x y)
@@ -249,21 +253,23 @@ instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes MemSize (Memory
         Memories mems <- get -< ()
         case mems M.! mIx of
             TopMemory -> returnA -< TopMemSize
-            Memory vec -> returnA -< MemSize $ V.length vec
+            Memory vec -> returnA -< MemSize $ V.length vec `quot` pageSize
     memgrow (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,madditionalSpace,x) -> do
+        -- TODO: check the maximal size of the memory
         Memories mems <- get -< ()
         case mems M.! mIx of
             TopMemory -> (sCont -< (TopMemSize, x)) <⊔> (eCont -< x)
-            Memory vec ->
+            Memory vec -> do
+                let oldsize = V.length vec `quot` pageSize
                 case madditionalSpace of
                     TopMemSize -> do
                         put -< Memories $ M.insert mIx TopMemory mems
                         (sCont -< (TopMemSize, x)) <⊔> (eCont -< x)
-                    MemSize additionalSpace -> do
-                        let additional = V.replicate additionalSpace TopByte
-                        let extendedMem = Memory $ vec V.++ additional
+                    MemSize delta -> do
+                        let deltaVec = V.replicate (delta * pageSize) (StoredByte 0)
+                        let extendedMem = Memory $ vec V.++ deltaVec
                         put -< Memories $ M.insert mIx extendedMem mems
-                        (sCont -< (MemSize $ V.length vec + additionalSpace, x)) <⊔> (eCont -< x)
+                        (sCont -< (MemSize $ oldsize, x))
 
 
 

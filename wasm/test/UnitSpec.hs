@@ -7,7 +7,7 @@ import qualified Concrete as Concrete
 --import qualified Data as D
 import           UnitAnalysis as U
 import           UnitAnalysisValue as U
-import           Soundness
+import           UnitSoundness
 --import           GraphToDot
 
 import qualified Data.ByteString.Lazy as LBS

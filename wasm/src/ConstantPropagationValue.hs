@@ -9,6 +9,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ConstantPropagationValue where
 
+import           Abstract (BaseValue)
 import           Data(joinList1'')
 import           GenericInterpreter hiding (Exc)
 import qualified Concrete as Concrete
@@ -43,6 +44,12 @@ instance (ArrowExcept (Unit.Exc Value) c, ArrowChoice c) => IsException (Unit.Ex
 
 data Value = UnitValue Unit.Value | Constant Concrete.Value
     deriving (Eq, Show)
+
+constantValue :: Wasm.Value -> Value
+constantValue = Constant . Concrete.Value
+
+unitValue :: BaseValue () () () () -> Value
+unitValue = UnitValue . Unit.Value
 
 instance Pretty Value where
     pretty (UnitValue t) = pretty t
@@ -103,9 +110,9 @@ unitConstant :: Concrete.Value -> Unit.Value
 unitConstant (Concrete.Value c) = Unit.alpha c
 {-# INLINE unitConstant #-}
 
-unitValue :: Value -> Unit.Value
-unitValue (Constant c) = unitConstant c
-unitValue (UnitValue t) = t
+asUnitValue :: Value -> Unit.Value
+asUnitValue (Constant c) = unitConstant c
+asUnitValue (UnitValue t) = t
 {-# INLINE unitValue #-}
 
 instance (Arrow c, Profunctor c, Complete y) => ArrowComplete y (ValueT Value c) where
@@ -134,11 +141,11 @@ instance (ArrowChoice c, ArrowFail Err c,
 
     iBinOp = proc (bs,op,v1,v2) -> case (v1,v2) of
         (Constant c1, Constant c2) -> constant iBinOp -< (bs, op, c1, c2)
-        _ -> unit iBinOp -< (bs, op, unitValue v1, unitValue v2)
+        _ -> unit iBinOp -< (bs, op, asUnitValue v1, asUnitValue v2)
 
     iRelOp = proc (bs,op,v1,v2) -> case (v1,v2) of
         (Constant c1, Constant c2) -> constant iRelOp -< (bs, op, c1, c2)
-        _ -> unit iRelOp -< (bs, op, unitValue v1, unitValue v2)
+        _ -> unit iRelOp -< (bs, op, asUnitValue v1, asUnitValue v2)
 
     i32eqz = proc v -> case v of
         Constant c -> constant i32eqz -< c
@@ -161,11 +168,11 @@ instance (ArrowChoice c, ArrowFail Err c,
     
     fBinOp = proc (bs,op,v1,v2) -> case (v1,v2) of
         (Constant c1, Constant c2) -> constant fBinOp -< (bs, op, c1, c2)
-        _ -> unit fBinOp -< (bs, op, unitValue v1, unitValue v2)
+        _ -> unit fBinOp -< (bs, op, asUnitValue v1, asUnitValue v2)
 
     fRelOp = proc (bs,op,v1,v2) -> case (v1,v2) of
         (Constant c1, Constant c2) -> constant fRelOp -< (bs, op, c1, c2)
-        _ -> unit fRelOp -< (bs, op, unitValue v1, unitValue v2)
+        _ -> unit fRelOp -< (bs, op, asUnitValue v1, asUnitValue v2)
 
     i32WrapI64 = proc v -> case v of
         Constant c -> constant i32WrapI64 -< c

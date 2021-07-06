@@ -156,11 +156,11 @@ type Result = (CFG (Instruction Natural), (Errors Err,
 invokeExported :: StaticGlobalState Value
                                      -> Tables
                                      -> ModuleInstance
-                                     -> [MemSize]
+                                     -> Memories
                                      -> Text
                                      -> [Value]
                                      -> Result
-invokeExported initialState tab modInst memSizes funcName args =
+invokeExported initialState tab modInst mems funcName args =
     let ?cacheWidening = (W.finite,W.finite) in
     --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
     --let algo = (trace p1 p2) . (Fix.filter isRecursive $ innermost) in
@@ -187,7 +187,7 @@ invokeExported initialState tab modInst memSizes funcName args =
                                       (CacheT Monotone In Out
                                         (ControlFlowT (Instruction Natural)
                                           (->)))))))))))))))))) (Text, [Value]) [Value]) 
-        (JoinVector $ Vec.empty,((0,modInst),(tab,(freshMemories memSizes,(initialState,([],([],(funcName, args))))))))
+        (JoinVector $ Vec.empty,((0,modInst),(tab,(mems,(initialState,([],([],(funcName, args))))))))
     where
         isRecursive (_,(_,(_,(_,(_,(_,(_,(_,inst)))))))) = case inst of
             Loop {} : _ -> True
@@ -201,6 +201,8 @@ invokeExported initialState tab modInst memSizes funcName args =
 
         getExpression (_,(_,(_,(_,(_,(_,(_,(_,exprs)))))))) = case exprs of e:_ -> Just e; _ -> Nothing
 
--- instantiateAbstract :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Tables))
--- instantiateAbstract valMod = do res <- instantiate valMod alpha (\_ _ -> ()) TableInst
---                                 return $ fmap (\(m,s,_,tab) -> (m,s,JoinVector tab)) res
+instantiateAbstract :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Memories, JoinVector TableInst))
+instantiateAbstract valMod = do
+  res <- instantiate valMod (Constant . Concrete.Value) (const makeMemory) TableInst
+  return $ fmap (\(m,s,mems,tab) -> (m,s,makeMemories mems,JoinVector tab)) res
+
