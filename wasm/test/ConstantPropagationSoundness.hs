@@ -82,7 +82,7 @@ alphaGlobals :: StaticGlobalState Concrete.Value -> StaticGlobalState Abstract.V
 alphaGlobals (StaticGlobalState f g) = StaticGlobalState f (Vec.map alphaGlob g)
 
 alphaMemories :: Concrete.Memories -> Memories
-alphaMemories = undefined
+alphaMemories = makeMemories . Vec.map (makeMemory . \(Concrete.MemInst _ ms) -> Vec.toList ms)
 
 alphaGlob :: GlobInst Concrete.Value -> GlobInst Abstract.Value
 alphaGlob (GlobInst m v) = GlobInst m (alphaVal v)
@@ -126,5 +126,8 @@ isSoundlyAbstracted valMod func argsList = do
     -- run abstract interpreter with abstract argument list
     let absResultRaw = Abstract.invokeExported absState absTab absModInst absMem (pack func) absArgs
     let absResult = convertAbsResult absResultRaw
+    -- putStrLn $ show absArgs
+    -- putStrLn $ show concResults
+    -- putStrLn $ show absResult
     -- check soundness
     return $ alphaResults concResults ⊑ absResult

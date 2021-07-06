@@ -7,7 +7,7 @@ import qualified Concrete as Concrete
 import           ConstantPropagation as A
 import           ConstantPropagationValue as A
 import           UnitAnalysisValue as U
-import           Soundness
+import           ConstantPropagationSoundness
 --import           GraphToDot
 
 import           Data.List.Singleton (singleton)
@@ -150,94 +150,53 @@ spec = do
 
     -- UNIT VALUES
 
-    it "unit: run const" $ do
-        result <- runFunc "simple" "const" [minialpha $ A.constantValue $ Wasm.VI32 5]
-        succResult result `shouldBe` [minialpha $ A.constantValue $ Wasm.VI32 5]
-
-    it "unit: run fac-rec" $ do
-        let params = map (singleton . minialpha .  A.constantValue . Wasm.VI64) [0 .. 8]
-        results <- mapM (runFunc "fact" "fac-rec") params
-        let rs = map succResult results
-        rs `shouldBe` map (singleton . minialpha . A.constantValue . Wasm.VI64) [1,1,2,6,24,120,720,5040,40320]
-
-    it "unit: run fac-rec2" $ do
-        result <- runFunc "fact" "fac-rec" [minialpha . A.constantValue $ Wasm.VI64 25]
-        succResult result `shouldBe` [minialpha . A.constantValue $ Wasm.VI64 7034535277573963776]
-
-    it "unit: run fac-iter" $ do
-        result <- runFunc "fact" "fac-iter" [minialpha . A.constantValue $ Wasm.VI64 25]
-        succResult result `shouldBe` [minialpha . A.constantValue $ Wasm.VI64 7034535277573963776]
-
-    it "unit: run fac-rec-named" $ do
-        result <- runFunc "fact" "fac-rec-named" [minialpha . A.constantValue $ Wasm.VI64 25]
-        succResult result `shouldBe` [minialpha . A.constantValue $ Wasm.VI64 7034535277573963776]
-
-    it "unit: run fac-iter-named" $ do
-        result <- runFunc "fact" "fac-iter-named" [minialpha . A.constantValue $ Wasm.VI64 25]
-        succResult result `shouldBe` [minialpha . A.constantValue $ Wasm.VI64 7034535277573963776]
-
-    it "unit: run fac-opt" $ do
-        result <- runFunc "fact" "fac-opt" [minialpha . A.constantValue $ Wasm.VI64 25]
-        succResult result `shouldBe` [minialpha . A.constantValue $ Wasm.VI64 7034535277573963776]
-
-
-    -- it "run test2" $ do
-    --     result <- runFunc "simple" "test2" []
+    -- it "const: run fact" $ do
+    --     result <- runFunc "fact" "fac-rec" [minialpha $ A.constantValue $ Wasm.VI64 1]
     --     result `shouldSatisfy` terminatedSucc
-    --     (succResult result) `shouldBe` [A.constantValue $ VI32 ()]
-    --     checkSoundness "simple" "test2" [[]] `shouldReturn` True
+    --     (succResult result) `shouldBe` [minialpha $ A.constantValue $ Wasm.VI64 1]
+    --     let args = [[Concrete.Value $ Wasm.VI64 1],[Concrete.Value $ Wasm.VI64 10]]
+    --     checkSoundness "fact" "fac-rec" args `shouldReturn` True
 
+    it "const: run test2" $ do
+        checkSoundness "simple" "test2" [[]] `shouldReturn` True
 
-    -- it "run test-br3" $ do
-    --     result <- runFunc "simple" "test-br3" [A.constantValue $ VI32 ()]
-    --     result `shouldSatisfy` terminatedSucc
-    --     (succResult result) `shouldBe` [A.constantValue $ VI32 ()]
-    --     let args = [[Concrete.A.constantValue $ Wasm.VI32 10]]
-    --     checkSoundness "simple" "test-br3" args `shouldReturn` True
+    it "const: run test-br3" $ do
+        let args = [[Concrete.Value $ Wasm.VI32 10]]
+        checkSoundness "simple" "test-br3" args `shouldReturn` True
 
-    -- it "run test-call-indirect" $ do
-    --     result <- runFunc "simple" "test-call-indirect" []
-    --     result `shouldSatisfy` terminatedMaybeErr
-    --     (succResult result) `shouldBe` [A.constantValue $ VI32 ()]
-    --     checkSoundness "simple" "test-call-indirect" [[]] `shouldReturn` True
+    it "const: run test-call-indirect" $ do
+        checkSoundness "simple" "test-call-indirect" [[]] `shouldReturn` True
 
-    -- it "run non-terminating" $ do
-    --     result <- runFunc "simple" "non-terminating" []
-    --     result `shouldSatisfy` terminatedSucc
-    --     result `shouldSatisfy` isNonTerminating
+    it "const: run maybe-non-terminating" $ do
+        let args = [[Concrete.Value $ Wasm.VI32 42]]
+        checkSoundness "simple" "maybe-non-terminating" args `shouldReturn` True
 
-    -- it "run maybe-non-terminating" $ do
-    --     let args = [[Concrete.A.constantValue $ Wasm.VI32 42]]
-    --     checkSoundness "simple" "maybe-non-terminating" args `shouldReturn` True
+    it "const: run test-unreachable" $ do
+        checkSoundness "simple" "test-unreachable" [[]] `shouldReturn` True
 
-    -- it "run test-unreachable" $ do
-    --     result <- runFunc "simple" "test-unreachable" []
-    --     (succResult result) `shouldBe` [A.constantValue $ VI32 ()]
-    --     checkSoundness "simple" "test-unreachable" [[]] `shouldReturn` True
+    it "const: run test-unreachable2" $ do
+        checkSoundness "simple" "test-unreachable2" [[]] `shouldReturn` True
 
-    -- it "run test-unreachable2" $ do
-    --     checkSoundness "simple" "test-unreachable2" [[]] `shouldReturn` True
+    it "const: run test-unreachable3" $ do
+        checkSoundness "simple" "test-unreachable3" [[]] `shouldReturn` True
 
-    -- it "run test-unreachable3" $ do
-    --     checkSoundness "simple" "test-unreachable3" [[]] `shouldReturn` True
+    it "const: run test-unreachable4" $ do
+        checkSoundness "simple" "test-unreachable4" [[]] `shouldReturn` True
 
-    -- it "run test-unreachable4" $ do
-    --     checkSoundness "simple" "test-unreachable4" [[]] `shouldReturn` True
+    it "const: run test-unreachable5" $ do
+        checkSoundness "simple" "test-unreachable4" [[]] `shouldReturn` True
 
-    -- it "run test-unreachable5" $ do
-    --     checkSoundness "simple" "test-unreachable4" [[]] `shouldReturn` True
+    it "const: run test-br-and-return" $ do
+        let args = [[Concrete.Value $ Wasm.VI32 10]]
+        checkSoundness "simple" "test-br-and-return" args `shouldReturn` True
 
-    -- it "run test-br-and-return" $ do
-    --     let args = [[Concrete.A.constantValue $ Wasm.VI32 10]]
-    --     checkSoundness "simple" "test-br-and-return" args `shouldReturn` True
+    it "const: run test-br-and-return2" $ do
+        let args = [[Concrete.Value $ Wasm.VI32 10]]
+        checkSoundness "simple" "test-br-and-return2" args `shouldReturn` True
 
-    -- it "run test-br-and-return2" $ do
-    --     let args = [[Concrete.A.constantValue $ Wasm.VI32 10]]
-    --     checkSoundness "simple" "test-br-and-return2" args `shouldReturn` True
-
-    -- it "run test-br-and-return3" $ do
-    --     let args = [[Concrete.A.constantValue $ Wasm.VI32 10]]
-    --     checkSoundness "simple" "test-br-and-return3" args `shouldReturn` True
+    it "const: run test-br-and-return3" $ do
+        let args = [[Concrete.Value $ Wasm.VI32 10]]
+        checkSoundness "simple" "test-br-and-return3" args `shouldReturn` True
 
 
 
