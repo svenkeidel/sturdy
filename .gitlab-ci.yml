@@ -22,12 +22,12 @@ stages:
 stack-dependencies:
   stage: dependencies
   script:
-    - stack test --no-terminal --fast --install-ghc --only-dependencies -j1 sturdy-wasm
+    - stack test --no-terminal --fast --install-ghc --only-dependencies -j1
 
 stack-build:
   stage: build
   script:
-    - stack build --no-terminal --fast -j1 sturdy-wasm
+    - stack build --no-terminal --fast -j1
 
 stack-test:
   stage: test
