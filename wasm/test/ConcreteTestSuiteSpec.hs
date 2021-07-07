@@ -1,4 +1,4 @@
-module TestSuiteSpec where
+module ConcreteTestSuiteSpec where
 
 import           ConcreteInterpreter
 
@@ -21,7 +21,7 @@ initTests = List.sort . filter p . filter (List.isSuffixOf ".wast") <$> Director
     where p :: String -> Bool
           p s = not (any (\e -> List.isInfixOf e s) exclude)
 exclude :: [String]
-exclude = ["stack-guard","memory_grow", "float_exprs", "memory_trap", "imports"]
+exclude = ["stack-guard","memory_grow", "float_exprs", "memory_trap", "imports", "call", "fac", "names", "func_ptrs"]
 
 runTest :: String -> Spec
 runTest filename =
@@ -39,14 +39,13 @@ runTest filename =
 
 spec :: Spec
 spec = do
-    return ()
-    -- fs <- runIO $ initTests
-    -- describe "run testsuite" $ do
-    --     mapM_ runTest fs
+    fs <- runIO $ initTests
+    describe "run testsuite" $ do
+        mapM_ runTest fs
 
---    before initTests $ do
---        describe "run" $ do
---            it "test" $ \(fs,c) -> do
---                idx <- readIORef c
---                writeIORef c (idx + 1)
---                runTest (fs !! 5)
+    -- before initTests $ do
+    --     describe "run" $ do
+    --         it "test" $ \(fs,c) -> do
+    --             idx <- readIORef c
+    --             writeIORef c (idx + 1)
+    --             runTest (fs !! 5)
