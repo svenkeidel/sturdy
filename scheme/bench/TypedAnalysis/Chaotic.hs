@@ -44,12 +44,13 @@ import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
 import           Control.Arrow.Transformer.Abstract.Fix.Component as Comp
-import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.CallSite
 import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Data.Text (Text)
+import           Data.Label
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
 import           Data.Profunctor
@@ -73,7 +74,7 @@ type Interp =
             (ComponentT Comp.Component In
               (StackT Stack.Stack In
                 (CacheT Cache.Monotone In Out
-                  (ContextT Ctx
+                  (CallSiteT Label
                     (->)))))))))
 
 {-# SPECIALIZE if__ :: (ArrowComplete z Interp)
@@ -87,8 +88,8 @@ evalInner e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
         Fix.fixpointAlgorithm $
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.filter isFunctionBody (chaotic innermost)
+        Ctx.recordCallSite ?sensitivity (\(_,(_,exprs)) -> label $ head exprs) .
+        Fix.filter isFunctionBody innermost
   in snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
 
 evalOuter :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
@@ -96,6 +97,6 @@ evalOuter e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $
         Fix.fixpointAlgorithm $
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
-        Fix.filter isFunctionBody (chaotic outermost)
+        Ctx.recordCallSite ?sensitivity (\(_,(_,exprs)) -> label $ head exprs) .
+        Fix.filter isFunctionBody outermost
   in snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))

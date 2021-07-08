@@ -34,12 +34,13 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Abstract.FiniteEnvStore
 import           Control.Arrow.Transformer.Abstract.LogError
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Context
+import           Control.Arrow.Transformer.Abstract.Fix.CallSite
 import           Control.Arrow.Transformer.Abstract.Fix.Stack as Stack
 import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable as Cache
 import           Control.Arrow.Transformer.Abstract.Terminating
 
 import           Data.Text (Text)
+import           Data.Label
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
 import           Data.Empty
@@ -59,7 +60,7 @@ type Interp =
         (EnvStoreT Text Addr Val
           (FixT
             (CacheT (Parallel Cache.Monotone) In Out
-              (ContextT Ctx
+              (CallSiteT Label
                 (->)))))))
 
 {-# SPECIALIZE if__ :: (ArrowComplete z Interp)
@@ -72,7 +73,7 @@ evalParallel :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalParallel e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ Par.parallel $ \update_ ->
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        Ctx.recordCallSite ?sensitivity (\(_,(_,exprs)) -> label $ head exprs) .
         Fix.filter isFunctionBody update_ in
   snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
 
@@ -80,6 +81,6 @@ evalADI :: (?sensitivity :: Int) => Expr -> (Errors, Terminating Val)
 evalADI e =
   let ?cacheWidening = (storeErrWidening, W.finite) in
   let ?fixpointAlgorithm = transform $ Par.adi $ \update_ ->
-        Ctx.recordCallsite ?sensitivity (\(_,(_,exprs)) -> case exprs of App _ _ l:_ -> Just l; _ -> Nothing) .
+        Ctx.recordCallSite ?sensitivity (\(_,(_,exprs)) -> label $ head exprs) .
         Fix.filter isFunctionBody update_ in
   snd $ snd $ Trans.run (Generic.runFixed :: Interp [Expr] Val) (empty,(empty,[e]))
