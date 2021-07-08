@@ -12,7 +12,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module ConstantPropagation where
+module ConstantPropagationUnitMemory where
 
 import           Prelude hiding ((.))
 
@@ -24,8 +24,10 @@ import           ConstantPropagationValue hiding (Value)
 import           UnitAnalysisValue (Exc(..))
 import qualified UnitAnalysisValue as Unit
 
+
 import qualified Concrete as Concrete
 import qualified Abstract as Unit
+import qualified UnitAnalysisValue as Unit
 
 import           Control.Arrow
 import           Control.Arrow.Fix as Fix
@@ -62,7 +64,7 @@ import           Control.Arrow.Transformer.Abstract.Fix.ControlFlow
 import qualified Control.Arrow.Transformer.Abstract.Fix.Stack as Fix
 import           Control.Arrow.Transformer.Abstract.Table
 import           Control.Arrow.Transformer.Abstract.Terminating
-import           Control.Arrow.Transformer.Abstract.KnownAddressMemory
+import           Control.Arrow.Transformer.Abstract.UnitMemory
 
 import           Control.Arrow.Transformer.JumpTypes
 import           Control.Arrow.Transformer.Stack (StackT)
@@ -90,44 +92,30 @@ import           Language.Wasm.Validate (ValidModule)
 import           Numeric.Natural (Natural)
 
 
-type Value = ConstantOr Unit.Value
 
+type Value = ConstantOr Unit.Value
 
 -- EffectiveAddress
 
-instance (Arrow c, Profunctor c, ArrowChoice c) => ArrowEffectiveAddress Value Natural Addr (EffectiveAddressT c) where
-  effectiveAddress = proc (v, off) -> case v of
-    Constant (Concrete.Value (Wasm.VI32 w32)) -> returnA -< Addr $ fromIntegral w32 + fromIntegral off
-    NotConstant (Unit.Value (Unit.VI32 ())) -> returnA -< TopAddr
-    _ -> returnA -< error "effectiveAddress: arguments needs to be an i32 integer"
+-- instance (Arrow c, Profunctor c, ArrowChoice c) => ArrowEffectiveAddress Value Natural Addr (EffectiveAddressT c) where
+--   effectiveAddress = proc (v, off) -> case v of
+--     Constant (Concrete.Value (Wasm.VI32 w32)) -> returnA -< Addr $ fromIntegral w32 + fromIntegral off
+--     NotConstant (Unit.Value (Unit.VI32 ())) -> returnA -< TopAddr
+--     _ -> returnA -< error "effectiveAddress: arguments needs to be an i32 integer"
 
 
 -- ArrowSize
 
-instance (ArrowChoice c, Profunctor c) => ArrowSize Value MemSize (SizeT Value c) where
-  valToSize = proc v -> case v of
-    Constant (Concrete.Value (Wasm.VI32 w32)) -> returnA -< MemSize $ fromIntegral w32
-    NotConstant (Unit.Value (Unit.VI32 ())) -> returnA -< TopMemSize
-    _        -> returnA -< error "valToSize: argument needs to be an i32 integer."
-
-  sizeToVal = proc size -> case size of
-    TopMemSize -> returnA -< NotConstant (Unit.Value (Unit.VI32 ()))
-    MemSize i -> returnA -< Constant (Concrete.Value (Wasm.VI32 $ fromIntegral i))
+instance (ArrowChoice c, Profunctor c) => ArrowSize Value Size (SizeT Value c) where
+  valToSize = arr $ const Size
+  sizeToVal = proc Size -> returnA -< NotConstant (Unit.Value (Unit.VI32 ()))
 
 
 -- Serialize
 
 instance (Profunctor c, Arrow c, ArrowChoice c) => ArrowSerialize Value Bytes ValueType LoadType StoreType (SerializeT Value c) where
-    encode = proc (v,_,_) -> case v of
-      Constant (Concrete.Value c) -> returnA -< encodeConcreteValue c
-      NotConstant (Unit.Value (Unit.VI32 ())) -> returnA -< Vec.replicate 4 TopByte
-      NotConstant (Unit.Value (Unit.VI64 ())) -> returnA -< Vec.replicate 8 TopByte
-      NotConstant (Unit.Value (Unit.VF32 ())) -> returnA -< Vec.replicate 4 TopByte
-      NotConstant (Unit.Value (Unit.VF64 ())) -> returnA -< Vec.replicate 8 TopByte
-
-    decode = proc (bytes, _, valTy) -> case decodeConcreteValue valTy bytes of
-      Just c -> returnA -< Constant $ Concrete.Value c
-      Nothing -> returnA -< NotConstant $ Unit.unitValue valTy
+    encode = arr $ const Bytes
+    decode = proc (Bytes, _, valTy) -> returnA -< NotConstant $ Unit.unitValue valTy
 
 
 -- Abstract interpreter
@@ -136,35 +124,31 @@ type In = (Errors Err,
            (JoinVector Value,
             ((Natural, ModuleInstance),
               (Tables,
-                (Memories,
                   (StaticGlobalState Value,
-                    (JoinList Value, ([ResultType], [Instruction Natural]))))))))
+                    (JoinList Value, ([ResultType], [Instruction Natural])))))))
 
 type Out = (Errors Err, (Terminating
                 (JoinVector Value,
                 -- (Tables,
-                    (Memories,
                       (StaticGlobalState Value,
-                        Except (Exc Value) (JoinList Value, ()))))))
+                        Except (Exc Value) (JoinList Value, ())))))
 
 
 type Result = (CFG (Instruction Natural), (Errors Err,
                                             Terminating
                                              (JoinVector Value,
                                               -- (Tables,
-                                              (Memories,
                                                 (StaticGlobalState Value,
-                                                 Except (Exc Value) (JoinList Value, [Value]))))))
+                                                 Except (Exc Value) (JoinList Value, [Value])))))
 
 
 invokeExported :: StaticGlobalState Value
                                      -> Tables
                                      -> ModuleInstance
-                                     -> Memories
                                      -> Text
                                      -> [Value]
                                      -> Result
-invokeExported initialState tab modInst mems funcName args =
+invokeExported initialState tab modInst funcName args =
     let ?cacheWidening = (W.finite,W.finite) in
     --let ?fixpointAlgorithm = Function.fix in -- TODO: we need something else here
     --let algo = (trace p1 p2) . (Fix.filter isRecursive $ innermost) in
@@ -191,9 +175,9 @@ invokeExported initialState tab modInst mems funcName args =
                                       (CacheT Monotone In Out
                                         (ControlFlowT (Instruction Natural)
                                           (->)))))))))))))))))) (Text, [Value]) [Value]) 
-        (JoinVector $ Vec.empty,((0,modInst),(tab,(mems,(initialState,([],([],(funcName, args))))))))
+        (JoinVector $ Vec.empty,((0,modInst),(tab,(initialState,([],([],(funcName, args)))))))
     where
-        isRecursive (_,(_,(_,(_,(_,(_,(_,(_,inst)))))))) = case inst of
+        isRecursive (_,(_,(_,(_,(_,(_,(_,inst))))))) = case inst of
             Loop {} : _ -> True
             Call _ _ : _  -> True
             CallIndirect _ _ : _ -> True --error "todo"
@@ -203,10 +187,10 @@ invokeExported initialState tab modInst mems funcName args =
         -- p2 (Terminating (Error.Success (stack, (_,rest)))) = pretty rest
         -- p2 x = pretty x
 
-        getExpression (_,(_,(_,(_,(_,(_,(_,(_,exprs)))))))) = case exprs of e:_ -> Just e; _ -> Nothing
+        getExpression (_,(_,(_,(_,(_,(_,(_,exprs))))))) = case exprs of e:_ -> Just e; _ -> Nothing
 
-instantiateAbstract :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, Memories, JoinVector TableInst))
+instantiateAbstract :: ValidModule -> IO (Either String (ModuleInstance, StaticGlobalState Value, JoinVector TableInst))
 instantiateAbstract valMod = do
-  res <- instantiate valMod (Constant . Concrete.Value) (const makeMemory) TableInst
-  return $ fmap (\(m,s,mems,tab) -> (m,s,makeMemories mems,JoinVector tab)) res
+  res <- instantiate valMod (Constant . Concrete.Value) (\_ _ -> ()) TableInst
+  return $ fmap (\(m,s,_,tab) -> (m,s,JoinVector tab)) res
 

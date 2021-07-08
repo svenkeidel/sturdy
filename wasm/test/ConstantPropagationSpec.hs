@@ -76,7 +76,7 @@ isNonTerminating (_,(_, NonTerminating)) = True
 isNonTerminating _ = False
 
 minialpha :: A.Value -> A.Value
-minialpha = A.UnitValue . A.asUnitValue
+minialpha = A.NotConstant . A.asNotConstant
 
 spec :: Spec
 spec = do
