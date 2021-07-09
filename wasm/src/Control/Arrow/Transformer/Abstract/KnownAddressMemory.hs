@@ -96,13 +96,8 @@ encodeBytes _ = V.fromList . map StoredByte
 
 -- decodeBytes :: [Byte] -> [Word8]
 -- decodeBytes = map byteValue
-decodeBytes :: Bytes -> Maybe [Word8]
-decodeBytes = V.foldr op (Just []) 
-    where
-        op _ Nothing = Nothing
-        op TopByte _ = Nothing
-        op (StoredByte b) (Just bs) = Just $ b:bs
-
+decodeBytes :: Bytes -> [Word8]
+decodeBytes = map (\(StoredByte b) -> b) . V.toList
 
 encodeConcreteValue :: Wasm.Value -> Bytes
 encodeConcreteValue (Wasm.VI32 w32) = 
@@ -114,15 +109,15 @@ encodeConcreteValue (Wasm.VF32 f32) =
 encodeConcreteValue (Wasm.VF64 f64) = 
     encodeBytes 8 $ unpack $ toLazyByteString $ doubleLE f64
 
-decodeConcreteValue :: ValueType -> Bytes -> Maybe Wasm.Value
+decodeConcreteValue :: ValueType -> Bytes -> Wasm.Value
 decodeConcreteValue I32 = 
-   fmap (Wasm.VI32 . runGet getWord32le . pack) . decodeBytes
+   Wasm.VI32 . runGet getWord32le . pack . decodeBytes
 decodeConcreteValue I64 = 
-   fmap (Wasm.VI64 . runGet getWord64le . pack) . decodeBytes
+   Wasm.VI64 . runGet getWord64le . pack . decodeBytes
 decodeConcreteValue F32 = 
-   fmap (Wasm.VF32 . runGet getFloatle . pack) . decodeBytes
+   Wasm.VF32 . runGet getFloatle . pack . decodeBytes
 decodeConcreteValue F64 = 
-   fmap (Wasm.VF64 . runGet getDoublele . pack) . decodeBytes
+   Wasm.VF64 . runGet getDoublele . pack . decodeBytes
 
 
 deriving instance (Arrow c, Profunctor c, ArrowComplete y c) => ArrowComplete y (SerializeT v c)
@@ -167,25 +162,17 @@ data Memory = TopMemory | Memory (Vector StoredByte)
 
 instance PreOrd Memory where
     _ ⊑ TopMemory = True
-    Memory v1 ⊑ Memory v2 =
-        all (\(b1,b2) -> b1 ⊑ b2) $ V.zip (V.take l v1) (V.take l v2)
-      where l = min (length v1) (length v2)
+    Memory v1 ⊑ Memory v2 | length v1 == length v2 = all (\(b1,b2) -> b1 ⊑ b2) $ V.zip v1 v2
     _ ⊑ _ = False
 
 instance Complete Memory where
-    TopMemory ⊔ _ = TopMemory
-    _ ⊔ TopMemory = TopMemory
-    Memory v1 ⊔ Memory v2 =
-        if l1 == l2
-            then Memory $ V.zipWith (⊔) v1 v2
-            else error $ "Cannot join memories of different MemSize " ++ show (Memory v1, Memory v2)
+    Memory v1 ⊔ Memory v2 | length v1 == length v2 = Memory $ V.zipWith (⊔) v1 v2
+    _ ⊔ _ = TopMemory
                 -- if l1 < l2
                 -- then let (v2head, v2tail) = V.splitAt l1 v2 in
                 --      Memory $ (V.zipWith (⊔) v1 v2head) V.++ v2tail
                 -- else let (v1head, v1tail) = V.splitAt l2 v1 in
                 --      Memory $ (V.zipWith (⊔) v1head v2) V.++ v1tail
-      where l1 = length v1
-            l2 = length v2
 
 instance Hashable Memory where
 
@@ -223,11 +210,11 @@ instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes MemSize (Memory
     type Join y (MemoryT c) = ArrowComplete (Memories, y) c
     memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,maddr,len,x) ->
         case maddr of
-            TopAddr -> (eCont -< x) <⊔> (sCont -< (V.fromList [TopByte], x))
+            TopAddr -> (eCont -< x) <⊔> (sCont -< (V.replicate len TopByte, x))
             Addr addr -> do
                 Memories mems <- get -< ()
                 case mems M.! mIx of
-                    TopMemory -> (eCont -< x) <⊔> (sCont -< (V.fromList [TopByte], x))
+                    TopMemory -> (eCont -< x) <⊔> (sCont -< (V.replicate len TopByte, x))
                     Memory vec ->
                         if length vec < addr + len
                         then eCont -< x

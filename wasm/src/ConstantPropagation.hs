@@ -125,9 +125,10 @@ instance (Profunctor c, Arrow c, ArrowChoice c) => ArrowSerialize Value Bytes Va
       NotConstant (Unit.Value (Unit.VF32 ())) -> returnA -< Vec.replicate 4 TopByte
       NotConstant (Unit.Value (Unit.VF64 ())) -> returnA -< Vec.replicate 8 TopByte
 
-    decode = proc (bytes, _, valTy) -> case decodeConcreteValue valTy bytes of
-      Just c -> returnA -< Constant $ Concrete.Value c
-      Nothing -> returnA -< NotConstant $ Unit.unitValue valTy
+    decode = proc (bytes, _, valTy) -> 
+      if any (==TopByte) bytes
+      then returnA -< NotConstant $ Unit.unitValue valTy
+      else returnA -< Constant $ Concrete.Value $ decodeConcreteValue valTy bytes
 
 
 -- Abstract interpreter
