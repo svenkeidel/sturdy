@@ -62,20 +62,20 @@ import qualified Language.Wasm.Interpreter as Wasm
 import           GHC.Generics
 
 
-data StoredByte = StoredByte Word8 | TopByte
+data Byte = Byte Word8 | TopByte
     deriving (Eq, Show, Generic)
 
-instance Hashable StoredByte where
+instance Hashable Byte where
 
-type Bytes = Vector StoredByte
+type Bytes = Vector Byte
 
-instance PreOrd StoredByte where
-    StoredByte b1 ⊑ StoredByte b2 = b1 == b2
+instance PreOrd Byte where
+    Byte b1 ⊑ Byte b2 = b1 == b2
     _ ⊑ TopByte = True
     _ ⊑ _ = False
 
-instance Complete StoredByte where
-    StoredByte b1 ⊔ StoredByte b2 | b1 == b2 = StoredByte b1
+instance Complete Byte where
+    Byte b1 ⊔ Byte b2 | b1 == b2 = Byte b1
     _ ⊔ _ = TopByte
 
 -- Serialize
@@ -92,12 +92,12 @@ instance ArrowTrans (SerializeT v) where
 -- encodeBytes :: Int -> [Word8] -> [Byte]
 -- encodeBytes len = map (\(ixL,ixR,b) -> Byte b ixL ixR) . zip3 [0..] [len-1,len-2..]
 encodeBytes :: Int -> [Word8] -> Bytes
-encodeBytes _ = V.fromList . map StoredByte
+encodeBytes _ = V.fromList . map Byte
 
 -- decodeBytes :: [Byte] -> [Word8]
 -- decodeBytes = map byteValue
 decodeBytes :: Bytes -> [Word8]
-decodeBytes = map (\(StoredByte b) -> b) . V.toList
+decodeBytes = map (\(Byte b) -> b) . V.toList
 
 encodeConcreteValue :: Wasm.Value -> Bytes
 encodeConcreteValue (Wasm.VI32 w32) = 
@@ -157,7 +157,7 @@ instance (ArrowLift c, ArrowFix (Underlying (SizeT v c) x y)) => ArrowFix (SizeT
 data Addr = TopAddr | Addr Int
     deriving (Show, Eq)
 
-data Memory = TopMemory | Memory (Vector StoredByte)
+data Memory = TopMemory | Memory (Vector Byte)
     deriving (Eq, Show, Generic)
 
 instance PreOrd Memory where
@@ -194,7 +194,7 @@ instance Complete Memories where
     Memories mems1 ⊔ Memories mems2 = Memories $ M.unionWith (⊔) mems1 mems2
 
 makeMemory :: [Word8] -> Memory
-makeMemory bytes = Memory $ V.fromList $ map StoredByte bytes
+makeMemory bytes = Memory $ V.fromList $ map Byte bytes
 
 makeMemories :: Vector Memory -> Memories
 makeMemories mems = Memories $ M.fromList $ zip [0..] $ V.toList mems
@@ -253,7 +253,7 @@ instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes MemSize (Memory
                         put -< Memories $ M.insert mIx TopMemory mems
                         (sCont -< (TopMemSize, x)) <⊔> (eCont -< x)
                     MemSize delta -> do
-                        let deltaVec = V.replicate (delta * pageSize) (StoredByte 0)
+                        let deltaVec = V.replicate (delta * pageSize) (Byte 0)
                         let extendedMem = Memory $ vec V.++ deltaVec
                         put -< Memories $ M.insert mIx extendedMem mems
                         (sCont -< (MemSize $ oldsize, x))
