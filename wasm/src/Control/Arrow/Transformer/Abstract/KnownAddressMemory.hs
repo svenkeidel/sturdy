@@ -208,34 +208,30 @@ newtype MemoryT c x y = MemoryT (StateT Memories c x y)
 
 instance (Profunctor c, ArrowChoice c) => ArrowMemory Addr Bytes MemSize (MemoryT c) where
     type Join y (MemoryT c) = ArrowComplete (Memories, y) c
-    memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,maddr,len,x) ->
-        case maddr of
-            TopAddr -> (eCont -< x) <⊔> (sCont -< (V.replicate len TopByte, x))
-            Addr addr -> do
-                Memories mems <- get -< ()
-                case mems M.! mIx of
-                    TopMemory -> (eCont -< x) <⊔> (sCont -< (V.replicate len TopByte, x))
-                    Memory vec ->
-                        if length vec < addr + len
-                        then eCont -< x
-                        else sCont -< (V.slice addr len vec, x)
-    memstore (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,maddr,bytes,x) ->
-        case maddr of
-            TopAddr -> do 
-                Memories mems <- get -< ()
-                put -< Memories $ M.insert mIx TopMemory mems
-                (eCont -< x) <⊔> (sCont -< x)
-            Addr addr -> do
-                Memories mems <- get -< ()
-                case mems M.! mIx of 
-                    TopMemory -> (eCont -< x) <⊔> (sCont -< x)
-                    Memory vec ->
-                        if length vec < addr + V.length bytes 
-                        then eCont -< x
-                        else do
-                            let writtenMem = Memory $ vec V.// (zip [addr..] $ V.toList bytes)
-                            put -< Memories $ M.insert mIx writtenMem mems
-                            sCont -< x
+    memread (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,maddr,len,x) -> do
+        Memories mems <- get -< ()
+        case mems M.! mIx of
+            TopMemory -> (eCont -< x) <⊔> (sCont -< (V.replicate len TopByte, x))
+            Memory vec -> case maddr of
+                TopAddr -> (eCont -< x) <⊔> (sCont -< (V.replicate len TopByte, x))
+                Addr addr ->
+                    if addr + len <= length vec
+                    then sCont -< (V.slice addr len vec, x)
+                    else eCont -< x
+    memstore (MemoryT sCont) (MemoryT eCont) = MemoryT $ proc (mIx,maddr,bytes,x) -> do
+        Memories mems <- get -< ()
+        case mems M.! mIx of 
+            TopMemory -> (eCont -< x) <⊔> (sCont -< x)
+            Memory vec -> case maddr of
+                TopAddr -> do 
+                    put -< Memories $ M.insert mIx TopMemory mems
+                    (eCont -< x) <⊔> (sCont -< x)
+                Addr addr ->
+                    if addr + V.length bytes <= length vec
+                    then let updatedVec = vec V.// (zip [addr..] $ V.toList bytes) in do
+                        put -< Memories $ M.insert mIx (Memory updatedVec) mems
+                        sCont -< x
+                    else eCont -< x
     memsize = MemoryT $ proc mIx -> do
         Memories mems <- get -< ()
         case mems M.! mIx of
