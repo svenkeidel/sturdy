@@ -56,7 +56,7 @@ innermost f = proc call -> do
               iterate -< callNew
         NotInSCC ->
           returnA -< resultNew
-{-# INLINABLE innermost #-}
+{-# INLINE innermost #-}
 
 outermost :: forall c a b.
              (?cacheWidening :: Widening c, ArrowChoice c,
@@ -91,7 +91,7 @@ outermost f = proc call -> do
             Unstable ->
               iterate -< callNew
         _ -> returnA -< resultNew
-{-# INLINABLE outermost #-}
+{-# INLINE outermost #-}
 
 -- type IterationStrategy c a b = c a b -> c (Stable,a,b) b -> c a b
 
