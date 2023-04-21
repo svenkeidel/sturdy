@@ -1,3 +1,7 @@
+<span style="color: red; font-weight: bold">
+The Haskell version of Sturdy is not maintained anymore. The Sturdy project has been reimplemented in Scala and is available at https://gitlab.rlp.net/plmz/sturdy.scala.
+</span>
+
 # Sturdy ![build-status](https://travis-ci.org/svenkeidel/sturdy.svg?branch=master)
 
 <img align="left" alt="Sturdy Logo" src="/logo.svg" width="25%">
