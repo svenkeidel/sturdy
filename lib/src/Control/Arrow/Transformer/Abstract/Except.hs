@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -56,7 +57,7 @@ instance (O.Complete e, ArrowChoice c, ArrowJoin c) => ArrowExcept e (ExceptT e 
   {-# INLINE throw #-}
   {-# INLINE try #-}
 
-instance (O.Complete e, ArrowJoin c, ArrowChoice c, ArrowApply c, Profunctor c) => ArrowApply (ExceptT e c) where
+instance (O.Complete e, ArrowJoin c, ArrowChoice c, ArrowApply c) => ArrowApply (ExceptT e c) where
   app = lift (app .# first coerce)
   {-# INLINE app #-}
 

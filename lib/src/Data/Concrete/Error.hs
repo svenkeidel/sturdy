@@ -16,11 +16,11 @@ data Error e x = Fail e | Success x
   deriving (Eq, Functor)
 
 instance Applicative (Error e) where
-  pure = return
+  pure = Success
   (<*>) = ap
 
 instance Monad (Error e) where
-  return = Success
+  return = pure
   Fail e >>= _ = Fail e
   Success a >>= k = k a
 

@@ -13,8 +13,8 @@ import           Data.Hashable
 import           Data.Label
 import           Data.String
 import           Data.GraphViz.Attributes
-import           Data.Text.Prettyprint.Doc hiding (list)
-import           Data.Text.Prettyprint.Doc.Render.Text
+import           Prettyprinter hiding (list)
+import           Prettyprinter.Render.Text
 
 import           Control.Monad.State
 import           Control.DeepSeq
@@ -293,6 +293,7 @@ prettyExpr e0 = case e0 of
   Op2 op2 e1 e2 _ -> parens $ pretty op2 <> prettyExpr e1 <+> prettyExpr e2
   OpVar opvar es _ -> parens $ pretty opvar <+> prettyExprList es
   Error err _ -> parens $ "error " <+> dquotes (pretty err)
+  Breakpoint _ -> "breakpoint"
 
 prettyExprList :: [Expr] -> Doc ann
 prettyExprList expr = hsep (map prettyExpr expr)
@@ -317,6 +318,7 @@ showTopLvl e = case e of
     Op2 op2 e1 e2 _ -> pretty op2 <+> showTopLvl e1 <> "," <> showTopLvl e2
     OpVar opvar es _ -> pretty opvar <+> hsep (map showTopLvl es)
     Error _ _ -> "error"
+    Breakpoint _ -> "breakpoint"
 
 controlFlow :: Expr -> Maybe Expr
 controlFlow e = case e of
@@ -351,6 +353,7 @@ instance HasLabel Expr where
     Op2 _ _ _ l -> l
     OpVar _ _ l -> l
     Error _ l -> l
+    Breakpoint e' -> label e'
 
 instance Hashable Expr where
   hashWithSalt s e = s `hashWithSalt` label e

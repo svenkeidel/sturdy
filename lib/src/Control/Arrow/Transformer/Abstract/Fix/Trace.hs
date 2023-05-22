@@ -29,7 +29,7 @@ import Data.Profunctor.Unsafe
 import Data.Coerce
 import Data.Abstract.Stable
 import Debug.Trace as Debug
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 
 newtype TraceT c x y = TraceT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowLift, ArrowLowerBounded b,

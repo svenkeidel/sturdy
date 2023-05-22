@@ -67,6 +67,6 @@ benchmarks:
       - sturdy-lib
       - sturdy-scheme
       - criterion
-      - dump-core
+      # - dump-core
     ghc-options: -O2 # -fplugin=DumpCore -fplugin-opt DumpCore:core-html
 

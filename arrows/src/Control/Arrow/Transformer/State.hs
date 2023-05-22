@@ -98,7 +98,7 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (StateT s c) where
   app = lift $ lmap (\(s,(f,b)) -> (unlift f,(s,b))) app
   {-# INLINE app #-}
 
-instance (ArrowCont c, Profunctor c) => ArrowCont (StateT s c) where
+instance (ArrowCont c) => ArrowCont (StateT s c) where
   type Cont (StateT s c) x = Cont c (s,x)
   callCC f = lift $ callCC $ \k -> unlift (f k)
   jump k = lift $ jump k

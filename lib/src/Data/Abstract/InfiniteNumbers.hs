@@ -6,7 +6,7 @@ module Data.Abstract.InfiniteNumbers where
 import Data.Order
 import Data.Hashable
 import Data.Metric
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 
 import Control.DeepSeq
 

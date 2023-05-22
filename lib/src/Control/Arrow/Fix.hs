@@ -37,7 +37,7 @@ import           Control.Arrow.Transformer.Writer
 import qualified Data.Function as Function
 import           Data.Profunctor
 import           Data.Lens(Iso',from,get,Prism',getMaybe,set)
-import           Data.Text.Prettyprint.Doc
+import           Prettyprinter
 
 import qualified Debug.Trace as Debug
 import           Text.Printf

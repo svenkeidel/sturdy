@@ -27,6 +27,7 @@ import           Data.Text (Text)
 import           Text.Printf
 import           Data.List.Split
 import           Data.Label
+import           Data.Kind(Type)
 
 import           GHC.Exts (IsString(..),Constraint)
 
@@ -91,6 +92,8 @@ eval run' = proc e0 -> case e0 of
     opvar_ -< (x, vs)
   Error err _ ->
     failString -< "error: " ++ err
+  Breakpoint e ->
+    run' -< [e]
   where
     -- Helper function used to apply closure or a suspended fixpoint computation to its argument.
     applyClosure' = proc (e, args) -> case e of  -- args = [(argVal, argLabel)]
@@ -194,7 +197,7 @@ class ArrowAlloc addr c where
   alloc :: c (Text,Label) addr
 
 class (Arrow c) => IsVal v c | c -> v where
-  type family Join y (c :: * -> * -> *) :: Constraint
+  type family Join y (c :: Type -> Type -> Type) :: Constraint
   lit :: c Literal v
   if_ :: Join z c => c x z -> c y z -> c (v, (x, y)) z
 

@@ -1,7 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Data.Abstract.Constructor(Constr,isEmpty,isSingleton,widening) where
 
 import           Control.DeepSeq
@@ -48,9 +47,6 @@ instance (Identifiable n, Complete n) => IsList (Constr n) where
   type Item (Constr n) = (Text,[n])
   fromList l = Constr $ M.fromListWith (IM.unionWith (zipWith (⊔))) [ (c, IM.singleton (length ts) ts) | (c,ts) <- l]
   toList (Constr n) = [ (c,ts) | (c,tss) <- M.toList n, ts <- IM.elems tss ]
-
-instance Hashable n => Hashable (IntMap n) where
-  hashWithSalt s m = hashWithSalt s (IM.toList m)
 
 isEmpty :: Constr n -> Bool
 isEmpty (Constr n) = M.null n

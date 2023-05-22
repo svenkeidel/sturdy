@@ -12,7 +12,7 @@ import Data.Abstract.FreeCompletion
 import Control.Monad.State
 import Control.DeepSeq
 import Text.Printf
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics

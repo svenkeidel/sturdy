@@ -85,7 +85,7 @@ instance (ArrowMonad f c, ArrowApply c) => ArrowApply (KleisliT f c) where
   app = lift (app .# first coerce)
   {-# INLINE app #-}
 
-instance (ArrowCont c, Monad f, ArrowMonad f c) => ArrowCont (KleisliT f c) where
+instance (ArrowCont c, ArrowMonad f c) => ArrowCont (KleisliT f c) where
   type Cont (KleisliT f c) y = Cont c (f y)
   callCC f = lift $ callCC $ \k -> unlift (f k)
   jump k = lift $ lmap (return @f) (jump k)

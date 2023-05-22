@@ -207,7 +207,7 @@ intersection g1 g2 = generate $ do
               go (A.LeftRight n1 n2)
 
 -- | Inlines all productions reachable via epsilon rules.
-epsilonClosure :: (Identifiable n, IsGrammar n t) => Grammar n t -> Grammar n t
+epsilonClosure :: (IsGrammar n t) => Grammar n t -> Grammar n t
 epsilonClosure g = g { productions = Map.mapWithKey close (productions g) }
   where
     close name _ =

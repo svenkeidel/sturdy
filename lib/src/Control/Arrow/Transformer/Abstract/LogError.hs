@@ -1,6 +1,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}

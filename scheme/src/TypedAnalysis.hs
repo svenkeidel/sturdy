@@ -58,7 +58,7 @@ import qualified Data.Boolean as B
 import           Data.HashSet(HashSet)
 import qualified Data.HashSet as Set
 import           Data.Identifiable
-import           Data.Text.Prettyprint.Doc
+import           Prettyprinter
 import           Data.Profunctor
 import qualified Data.Lens as L
 

@@ -13,7 +13,7 @@ import           Data.Empty
 import           Data.Hashable
 import           Data.Identifiable
 import           Data.Order
-import           Data.Text.Prettyprint.Doc
+import           Prettyprinter
 
 import           GHC.Exts
 

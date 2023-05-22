@@ -24,7 +24,7 @@ instance Show ATerm where
     String s -> show s
     Number i -> show i
 
-parseATerm :: MonadError String m => Text -> m ATerm
+parseATerm :: (MonadError String m, MonadFail m) => Text -> m ATerm
 parseATerm t = case parse aterm t of
   Done _ r -> return r
   Fail _ _ err -> fail err

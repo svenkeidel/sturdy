@@ -133,7 +133,7 @@ instance (Identifiable a, ArrowStack a c) => ArrowStack a (MetricsT Metrics a c)
   {-# INLINE elem #-}
   {-# INLINE push #-}
 
-instance (Identifiable a, ArrowChoice c, Profunctor c, ArrowCache a b c) => ArrowCache a b (MetricsT Metrics a c) where
+instance (Identifiable a, ArrowChoice c, ArrowCache a b c) => ArrowCache a b (MetricsT Metrics a c) where
   type Widening (MetricsT Metrics a c) = Cache.Widening c
   initialize = MetricsT $ proc a -> do
     modifyMetric incrementInitializes -< a
@@ -186,7 +186,7 @@ incrementIterated :: Metric -> Metric
 incrementIterated m@Metric{..} = m { iteration = iteration + 1 }
 
 incrementInitializes :: Metric -> Metric
-incrementInitializes m@Metric{..} = m { cacheEntries = 1 }
+incrementInitializes m@Metric{} = m { cacheEntries = 1 }
 
 incrementCacheLookups :: Metric -> Metric
 incrementCacheLookups m@Metric{..} = m { cacheLookups = cacheLookups + 1 }
@@ -227,7 +227,7 @@ instance (Identifiable b, ArrowStack (a,b) c) => ArrowStack (a,b) (MetricsT Mono
   {-# INLINE elem #-}
   {-# INLINE push #-}
 
-instance (Identifiable a', ArrowChoice c, Profunctor c, ArrowCache (a,a') b c) => ArrowCache (a,a') b (MetricsT Monotone (a,a') c) where
+instance (Identifiable a', ArrowChoice c, ArrowCache (a,a') b c) => ArrowCache (a,a') b (MetricsT Monotone (a,a') c) where
   type Widening (MetricsT Monotone (a,a') c) = Cache.Widening c
   initialize = MetricsT $ proc x@(_,a') -> do
     modifyMetric' incrementInitializes -< a'

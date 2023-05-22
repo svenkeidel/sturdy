@@ -43,25 +43,25 @@ instance Galois (Con.Pow Con.Bool) Abs.Bool where
     Abs.True  -> [Con.True]
     Abs.False -> [Con.False]
 
-instance (Hashable a, Eq a, Ord a, Enum a) => Galois (Con.Pow a) (Abs.Interval a) where
+instance (Hashable a, Ord a, Enum a) => Galois (Con.Pow a) (Abs.Interval a) where
   alpha x = Abs.Interval (minimum x) (maximum x)
   gamma (Abs.Interval x y) = [x..y]
 
-instance (Complete a', Eq a, Hashable a, Galois (Con.Pow a) a', Eq b, Hashable b, Complete b', Galois (Con.Pow b) b')
+instance (Complete a', Hashable a, Galois (Con.Pow a) a', Hashable b, Complete b', Galois (Con.Pow b) b')
     => Galois (Con.Pow (Con.Error a b)) (Abs.Except a' b') where
   alpha = lifted $ \e -> case e of
     Con.Fail x -> Abs.Fail (alphaSing x)
     Con.Success y -> Abs.Success (alphaSing y)
   gamma = error "noncomputable"
 
-instance (Eq e, Hashable e, Eq b, Hashable b, Complete b', Galois (Con.Pow b) b')
+instance (Hashable e, Hashable b, Complete b', Galois (Con.Pow b) b')
     => Galois (Con.Pow (Con.Error e b)) (AbsF.Failure e b') where
   alpha = lifted $ \e -> case e of
     Con.Fail x -> AbsF.Fail x
     Con.Success y -> AbsF.Success (alphaSing y)
   gamma = error "noncomputable"
 
-instance (Hashable a, Eq a, Complete a', Galois (Con.Pow a) a')
+instance (Hashable a, Complete a', Galois (Con.Pow a) a')
     => Galois (Con.Pow (Maybe a)) (Maybe a') where
   alpha = lifted $ \e -> case e of
     Just x -> Just (alphaSing x)

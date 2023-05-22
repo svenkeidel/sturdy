@@ -11,7 +11,7 @@ import qualified Prelude as P
 import Data.Boolean
 import Data.Hashable
 import Data.Order
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 
 import Data.Abstract.Stable
 import Data.Abstract.Widening

@@ -17,7 +17,7 @@ import Control.DeepSeq
 import Data.Abstract.Widening
 import Data.Abstract.Stable
 
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 import Data.Profunctor
 import Data.Hashable
 import Data.Order
@@ -44,13 +44,13 @@ instance Hashable a => Hashable (FreeCompletion a) where
   {-# INLINE hashWithSalt #-}
 
 instance Applicative FreeCompletion where
-  pure = return
+  pure = Lower
   (<*>) = ap
   {-# INLINE pure #-}
   {-# INLINE (<*>) #-}
 
 instance Monad FreeCompletion where
-  return = Lower
+  return = pure
   Lower x >>= k = k x
   Top >>= _ = Top
   {-# INLINE return #-}

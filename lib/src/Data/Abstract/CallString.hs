@@ -11,7 +11,7 @@ import           Data.Hashable
 import           Data.Sequence (Seq,(|>))
 import qualified Data.Sequence as S
 import           Data.Empty
-import           Data.Text.Prettyprint.Doc
+import           Prettyprinter
 
 import           Control.DeepSeq
 import           GHC.Generics(Generic)

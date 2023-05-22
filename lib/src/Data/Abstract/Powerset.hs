@@ -31,7 +31,7 @@ newtype Pow a = Pow (Seq a) deriving (Functor, Applicative, Monad, Alternative, 
 instance PreOrd a => PreOrd (Pow a) where
   as ⊑ bs = all (\x -> any (x ⊑) bs) as
 
-instance (Eq a, Hashable a) => Eq (Pow a) where
+instance Hashable a => Eq (Pow a) where
   as == bs = toHashSet as == toHashSet bs
 
 instance PreOrd a => Complete (Pow a) where
@@ -46,7 +46,7 @@ instance UpperBounded a => UpperBounded (Pow a) where
 instance Show a => Show (Pow a) where
   show (Pow a) = "{" ++ intercalate ", " (show <$> toList a) ++ "}"
 
-instance (Eq a, Hashable a) => Hashable (Pow a) where
+instance Hashable a => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
 
 instance (ArrowChoice c, Profunctor c) => ArrowFunctor Pow c where
@@ -72,7 +72,7 @@ insert a (Pow as) = Pow (a <| as)
 union :: Pow a -> Pow a -> Pow a
 union = mappend
 
-toHashSet :: (Hashable a, Eq a) => Pow a -> HashSet a
+toHashSet :: (Hashable a) => Pow a -> HashSet a
 toHashSet = foldl' (flip H.insert) H.empty
 
 fromFoldable :: (Foldable f, Monad t, Monoid (t a)) => f a -> t a
@@ -81,5 +81,5 @@ fromFoldable = foldMap return
 size :: Foldable f => f a -> Int
 size = length
 
-dedup :: (Hashable a, Eq a) => Pow a -> Pow a
+dedup :: (Hashable a) => Pow a -> Pow a
 dedup = fromFoldable . toHashSet

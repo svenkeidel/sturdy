@@ -17,7 +17,7 @@ import Data.Order
 import Data.Hashable
 import Data.Abstract.Stable
 import Data.Abstract.Widening
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 
 import GHC.Generics
 
@@ -35,13 +35,13 @@ instance Pretty a => Pretty (Terminating a) where
 instance Hashable a => Hashable (Terminating a)
 
 instance Applicative Terminating where
-  pure = return
+  pure = Terminating
   (<*>) = ap
   {-# INLINE pure #-}
   {-# INLINE (<*>) #-}
 
 instance Monad Terminating where
-  return = Terminating
+  return = pure
   Terminating x >>= k = k x
   NonTerminating >>= _ = NonTerminating
   {-# INLINE return #-}

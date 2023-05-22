@@ -1,20 +1,20 @@
 flags: {}
 extra-package-dbs: []
-resolver: lts-16.31
+resolver: lts-20.22
 packages:
 - 'arrows'
 - 'lib'
 - 'pcf'
 - 'scheme'
 - 'while'
-# - 'stratego'
+- 'stratego'
 - 'jimple'
 - 'tutorial'
 allow-newer: true
 extra-deps:
-  - git: https://github.com/svenkeidel/dump-core/
-    commit: 0c07091a7413cf808c2e01e2011589c1ed175667
-  - monadLib-3.10
   - git: https://github.com/svenkeidel/husk-scheme/
     commit: ca59598b11065eb29a45af7ffca27fc42a49abe5
-  - knob-0.1.1
+  # - git: https://github.com/svenkeidel/dump-core/
+  #   commit: 0c07091a7413cf808c2e01e2011589c1ed175667
+  # - monadLib-3.10
+  # - knob-0.1.1

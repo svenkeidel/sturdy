@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -23,7 +24,7 @@ import Data.GaloisConnection
 import Data.Concrete.Powerset as C
 import Data.Identifiable
 import qualified Data.Concrete.Error as C
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
@@ -61,13 +62,13 @@ instance IsString e => MonadFail (Error e) where
   fail e = Fail (fromString e)
 
 instance Applicative (Error e) where
-  pure = return
+  pure = Success
   (<*>) = ap
   {-# INLINE pure #-}
   {-# INLINE (<*>) #-}
 
 instance Monad (Error e) where
-  return = Success
+  return = pure
   Fail e >>= _ = Fail e
   Success a >>= k = k a
   {-# INLINE return #-}

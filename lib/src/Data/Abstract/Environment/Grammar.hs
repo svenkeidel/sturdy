@@ -36,7 +36,7 @@ newtype Env var val = Env (Grammar Int (HashMap var val))
 instance (Identifiable var, Terminal val, Semigroup (val Int), Eq (val Int)) => Eq (Env var val) where
   Env env1 == Env env2 = G.identical env1 env2 || env1 == env2
 
-instance (Identifiable var, Terminal val, Semigroup (val Int)) => Hashable (Env var val) where
+instance (Identifiable var, Terminal val, Eq (val Int), Semigroup (val Int)) => Hashable (Env var val) where
   hashWithSalt s (Env env) = G.hashTerminals s env
 
 deriving instance (Show var, Show (val Int)) => Show (Env var val)

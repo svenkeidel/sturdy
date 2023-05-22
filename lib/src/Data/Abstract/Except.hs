@@ -24,7 +24,7 @@ import Data.Bifunctor (Bifunctor(bimap))
 import Data.Hashable
 import Data.Order hiding (lub)
 import Data.Traversable
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 
 import Data.Abstract.FreeCompletion (FreeCompletion(..))
 import Data.Abstract.Widening
@@ -52,12 +52,12 @@ instance (Pretty e, Pretty a) => Pretty (Except e a) where
   pretty (Success a) = pretty a
   pretty (SuccessOrFail e x) = "Success" <+> pretty x <+> "⊔" <+> "Fail" <+> pretty e
 
-instance (O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowFunctor (Except e) c where
+instance (O.ArrowJoin c, ArrowChoice c) => ArrowFunctor (Except e) c where
   mapA f =
     lmap toEither (arr Fail ||| rmap Success f ||| O.joinSecond (\(Fail e) (Success y) -> SuccessOrFail e y) (\(e,_) -> Fail e) (proc (_,x) -> rmap Success f -< x))
   {-# INLINABLE mapA #-}
 
-instance (Complete e, O.ArrowJoin c, ArrowChoice c, Profunctor c) => ArrowMonad (Except e) c where
+instance (Complete e, O.ArrowJoin c, ArrowChoice c) => ArrowMonad (Except e) c where
   mapJoinA f = lmap toEither (arr Fail ||| f ||| O.joinSecond lub (\(e,_) -> Fail e) (proc (_,x) -> f -< x))
     where
       lub (Fail e) m = case m of
@@ -134,13 +134,13 @@ instance Functor (Except e) where
   {-# INLINE fmap #-}
 
 instance Complete e => Applicative (Except e) where
-  pure = return
+  pure = Success
   (<*>) = ap
   {-# INLINE pure #-}
   {-# INLINE (<*>) #-}
 
 instance Complete e => Monad (Except e) where
-  return = Success
+  return = pure
   x >>= k = case x of
     Success y -> k y
     Fail e -> Fail e

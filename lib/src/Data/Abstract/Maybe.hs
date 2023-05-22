@@ -71,14 +71,14 @@ instance Functor Maybe where
     JustNothing a -> JustNothing (f a)
 
 instance Applicative Maybe where
-  pure = return
+  pure = Just
   (<*>) = ap
 
 instance IsEmpty (Maybe a) where
   empty = Nothing
 
 instance Monad Maybe where
-  return = Just
+  return = pure
   x >>= k = case x of
     Nothing -> Nothing
     Just a -> k a

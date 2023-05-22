@@ -41,7 +41,7 @@ import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
 import           Data.Monoidal
 import           Data.Maybe
-import           Data.Text.Prettyprint.Doc
+import           Prettyprinter
 
 import           Data.Abstract.Stable
 import qualified Data.Abstract.Widening as W

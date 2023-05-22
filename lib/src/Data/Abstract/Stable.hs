@@ -5,7 +5,7 @@ module Data.Abstract.Stable where
 
 import Data.Order
 import Data.Hashable
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 import GHC.Generics
 import Control.DeepSeq
 

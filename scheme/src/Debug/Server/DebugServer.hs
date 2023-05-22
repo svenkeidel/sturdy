@@ -16,6 +16,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC
+  -Wnot
   -fspecialise-aggressively
   -flate-specialise
   -fsimpl-tick-factor=500

@@ -67,7 +67,7 @@ instance ArrowFail e c => ArrowFail e (ReaderT r c) where
   fail = lift' fail
   {-# INLINE fail #-}
 
-instance (ArrowFail e c, Profunctor c) => ArrowFail e (StateT s c) where
+instance (ArrowFail e c) => ArrowFail e (StateT s c) where
   type Join x (StateT s c) = Join (s,x) c
   fail = lift (lmap snd fail)
   {-# INLINE fail #-}

@@ -4,7 +4,7 @@ module Data.Hashed.Lazy where
 import Data.Hashable(Hashable(..))
 import Data.Order
 import Data.Empty
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 
 import Control.DeepSeq
 
@@ -29,7 +29,7 @@ instance Eq a => Eq (Hashed a) where
 instance Show a => Show (Hashed a) where
   show (Hashed a _) = show a
 
-instance Hashable (Hashed a) where
+instance Eq a => Hashable (Hashed a) where
   hashWithSalt salt (Hashed _ h) = hashWithSalt salt h
   hash (Hashed _ h) = h
 

@@ -4,7 +4,7 @@ module Data.Abstract.There where
 
 import Data.Order
 import Data.Hashable
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 import Data.Abstract.Widening
 import Data.Abstract.Stable
 

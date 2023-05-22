@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -79,11 +80,11 @@ instance MonadError e (Failure e) where
   catchError (Success a) _ = Success a
 
 instance Applicative (Failure e) where
-  pure = return
+  pure = Success
   (<*>) = ap
 
 instance Monad (Failure e) where
-  return = Success
+  return = pure
   Fail e >>= _ = Fail e
   Success a >>= k = k a
 

@@ -79,7 +79,7 @@ instance (ArrowApply c, Profunctor c) => ArrowApply (ReaderT r c) where
   app = lift $ lmap (\(r,(f,b)) -> (unlift f,(r,b))) app
   {-# INLINE app #-}
 
-instance (ArrowCont c, Profunctor c) => ArrowCont (ReaderT r c) where
+instance (ArrowCont c) => ArrowCont (ReaderT r c) where
   type Cont (ReaderT r c) y = Cont c y
   callCC f = lift $ callCC $ \k -> unlift (f k)
   jump k = lift $ lmap snd $ jump k

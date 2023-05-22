@@ -25,7 +25,7 @@ import qualified Data.Abstract.FreeCompletion as F
 
 import           GHC.Generics
 import           GHC.Exts
-import           Data.Text.Prettyprint.Doc
+import           Prettyprinter
 
 data Pow x = Pow (HashSet x) | Top deriving (Eq,Generic)
 instance NFData x => NFData (Pow x)

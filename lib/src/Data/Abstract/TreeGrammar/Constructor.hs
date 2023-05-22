@@ -26,7 +26,7 @@ import           Text.Printf
 
 newtype Constr n = Constr (HashMap Text (IntMap (HashSet [n]))) deriving (Eq,NFData)
 
-instance (Eq n, Hashable n) => Hashable (Constr n) where
+instance (Hashable n) => Hashable (Constr n) where
   hashWithSalt s t = runIdentity (hashWithSalt (\s' -> Identity . Hash.hashWithSalt s') s t)
 
 instance Identifiable n => IsList (Constr n) where

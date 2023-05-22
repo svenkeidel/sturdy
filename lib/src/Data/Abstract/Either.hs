@@ -76,11 +76,11 @@ instance Functor (Either a) where
     LeftRight a b -> LeftRight a (f b)
 
 instance Complete a => Applicative (Either a) where
-  pure = return
+  pure = Right
   (<*>) = ap
 
 instance Complete a => Monad (Either a) where
-  return = Right
+  return = pure
   x >>= k = case x of
     Left a -> Left a
     Right b -> k b

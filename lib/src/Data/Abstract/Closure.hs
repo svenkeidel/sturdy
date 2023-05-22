@@ -19,7 +19,7 @@ import           Data.Coerce
 import           Data.Abstract.Widening
 import           Data.Foldable
 import           Data.Traversable
-import           Data.Text.Prettyprint.Doc
+import           Prettyprinter
 
 import           GHC.Exts
 import           Text.Printf

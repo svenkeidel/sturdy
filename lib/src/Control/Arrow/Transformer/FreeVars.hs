@@ -45,7 +45,7 @@ instance (Identifiable var, ArrowRun c) => ArrowRun (FreeVarsT var c) where
   run = run . runFreeVarsT
   {-# INLINE run #-}
 
-instance (Identifiable var, ArrowEnv var val c, Profunctor c) => ArrowEnv var val (FreeVarsT var c) where
+instance (Identifiable var, ArrowEnv var val c) => ArrowEnv var val (FreeVarsT var c) where
   type Join y (FreeVarsT var c) = Env.Join (HashSet var,y) c
   lookup (FreeVarsT f) (FreeVarsT g) = FreeVarsT $ proc (var,x) -> do
     tell -< H.singleton var

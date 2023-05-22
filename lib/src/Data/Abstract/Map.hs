@@ -22,7 +22,7 @@ import           Data.Order
 import           Data.Identifiable
 import           Data.Maybe (fromJust)
 import           Data.Empty
-import           Data.Text.Prettyprint.Doc
+import           Prettyprinter
 
 import qualified Data.Abstract.Maybe as M
 import           Data.Abstract.There (There(..))

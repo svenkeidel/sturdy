@@ -10,7 +10,7 @@ import qualified Data.HashMap.Strict as Map
 import           Data.Hashable
 import           Data.Identifiable
 import           Data.Order
-import           Data.Text.Prettyprint.Doc
+import           Prettyprinter
 
 -- | This datatype provides an abstraction for stores, whose stored objects only
 -- grow monotonically (i.e., no strong updates). In particular, the abstraction
