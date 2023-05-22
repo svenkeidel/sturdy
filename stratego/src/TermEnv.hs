@@ -20,7 +20,8 @@ import Control.Arrow hiding ((<+>))
 import Control.Arrow.Store(ArrowStore)
 import qualified Control.Arrow.Store as Store
 import Control.Arrow.State
-import Control.Arrow.Fail
+import Control.Arrow.Fail(ArrowFail)
+import qualified Control.Arrow.Fail as Fail
 import Control.Arrow.Trans
 import Control.Arrow.Utils
 import Control.Arrow.Transformer.Value
@@ -32,6 +33,7 @@ import Control.Arrow.Transformer.Abstract.Environment as AbsEnv
 import Control.Arrow.Transformer.Concrete.Environment as ConEnv
 
 import Data.Profunctor
+import Data.Kind(Type)
 
 import GHC.Exts ( Constraint, IsString(..) )
 
@@ -41,7 +43,7 @@ import GHC.Exts ( Constraint, IsString(..) )
 -- mutable state then conventional environments.
 class Arrow c => IsTermEnv env term c | c -> env, env -> term where
   -- | Type class constraint used by the abstract instances to join arrow computations.
-  type family Join y (c :: * -> * -> *) :: Constraint
+  type family Join y (c :: Type -> Type -> Type) :: Constraint
 
   -- | Fetch the current term environment.
   getTermEnv :: c () env
@@ -75,11 +77,11 @@ class Arrow c => IsTermEnv env term c | c -> env, env -> term where
 
   unionTermEnvs :: c ([TermVar],env) ()
 
-lookupTermVarOrFail :: (IsTermEnv env t c, ArrowFail e c, IsString e, Join t c) => c TermVar t
+lookupTermVarOrFail :: (IsTermEnv env t c, ArrowFail e c, IsString e, Fail.Join t c, Join t c) => c TermVar t
 lookupTermVarOrFail = proc var ->
   lookupTermVar
     (proc (term,_) -> returnA -< term)
-    (proc var -> fail -< fromString ("Unbound variable " ++ show var))
+    (proc var -> Fail.fail -< fromString ("Unbound variable " ++ show var))
     -< (var, var)
 {-# INLINE lookupTermVarOrFail #-}
 
@@ -90,7 +92,21 @@ bindings f = proc (terms,x) -> do
   f -< x
 {-# INLINE bindings #-}
 
-deriving instance (Profunctor c, IsTermEnv env t c) => IsTermEnv env t (ConstT r c)
+instance (Profunctor c, IsTermEnv env t c) => IsTermEnv env t (ConstT r c) where
+  type Join x (ConstT r c) = Join x c
+  getTermEnv = lift' getTermEnv
+  putTermEnv = lift' putTermEnv
+  lookupTermVar f g = lift $ \r -> lookupTermVar (unlift f r) (unlift g r)
+  insertTerm = lift' insertTerm
+  deleteTermVars = lift' deleteTermVars
+  unionTermEnvs = lift' unionTermEnvs
+  {-# INLINE getTermEnv #-}
+  {-# INLINE putTermEnv #-}
+  {-# INLINE lookupTermVar #-}
+  {-# INLINE insertTerm #-}
+  {-# INLINE deleteTermVars #-}
+  {-# INLINE unionTermEnvs #-}
+
 deriving instance (Profunctor c, IsTermEnv env t c) => IsTermEnv env t (ValueT val c)
 
 instance (ArrowApply c, Profunctor c, IsTermEnv env t c) => IsTermEnv env t (ReaderT r c) where
@@ -113,6 +129,7 @@ instance (Profunctor c, Applicative r, IsTermEnv env t c) => IsTermEnv env t (St
   type Join x (StaticT r c) = Join x c
   getTermEnv = StaticT $ pure getTermEnv
   putTermEnv = StaticT $ pure putTermEnv
+  -- lookupTermVar :: (Profunctor c, Applicative r, IsTermEnv env t c, Join y (StaticT r c)) => StaticT r c (t, x) y -> StaticT r c x y -> StaticT r c (TermVar, x) y
   lookupTermVar (StaticT f) (StaticT g) = StaticT $ lookupTermVar <$> f <*> g
   insertTerm = StaticT $ pure insertTerm
   deleteTermVars = StaticT $ pure deleteTermVars
@@ -139,5 +156,5 @@ instance (Profunctor c, IsTermEnv env t c) => IsTermEnv env t (NoInlineT c) wher
   {-# NOINLINE deleteTermVars #-}
   {-# NOINLINE unionTermEnvs #-}
 
-deriving instance (Profunctor c, ArrowApply c, IsTermEnv env t c) => IsTermEnv env t (AbsEnv.EnvT (env' :: k1 -> k2 -> *) var val c)
-deriving instance (Profunctor c, ArrowApply c, IsTermEnv env t c) => IsTermEnv env t (ConEnv.EnvT var val c)
+deriving instance (Profunctor c, ArrowApply c, IsTermEnv env t c) => IsTermEnv env t (AbsEnv.EnvT env' c)
+deriving instance (Profunctor c, ArrowApply c, IsTermEnv env t c) => IsTermEnv env t (ConEnv.EnvT env' c)

@@ -24,11 +24,11 @@ instance Show ATerm where
     String s -> show s
     Number i -> show i
 
-parseATerm :: (MonadError String m, MonadFail m) => Text -> m ATerm
+parseATerm :: (MonadError String m) => Text -> m ATerm
 parseATerm t = case parse aterm t of
   Done _ r -> return r
-  Fail _ _ err -> fail err
-  Partial {} -> fail "Partial"
+  Fail _ _ err -> throwError err
+  Partial {} -> throwError "Partial"
 
 aterm :: Parser ATerm
 aterm = constructor <|> constant <|> list <|> string <|> number

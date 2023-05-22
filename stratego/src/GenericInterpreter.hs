@@ -5,6 +5,8 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module GenericInterpreter where
 
 import           Prelude hiding ((.),id,all,sequence,curry, uncurry,fail,map)
@@ -16,12 +18,13 @@ import           Utils
 
 import           Control.Category
 import           Control.Arrow hiding ((<+>))
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Fix
 import           Control.Arrow.Environment as SEnv
 import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Except as Exc
 import           Control.Arrow.Utils(map)
+import           Control.Arrow.LetRec
 
 import           Data.Constructor
 import           Data.Text(Text)
@@ -34,11 +37,12 @@ import           GHC.Exts(IsString(..))
 
 -- | Generic interpreter for Stratego
 eval :: (
+  ?fixpointAlgorithm :: FixpointAlgorithm (Fix (c (Strat,t) t)),
   ArrowChoice c, ArrowFail e c, ArrowExcept () c,
   ArrowApply c, ArrowFix (c (Strat,t) t), Identifiable t, Show t, Show env,
-  ArrowLetRec StratVar cls c, ArrowClosure Strategy cls c,
+  ArrowEnv StratVar cls c, ArrowLetRec StratVar cls c, ArrowClosure Strategy cls c,
   IsTerm t c, IsTermEnv env t c, IsString e,
-  Exc.Join t c, Exc.Join (t,[t]) c, SEnv.Join t c, TEnv.Join env c, TEnv.Join t c, Cls.Join t c
+  Exc.Join t c, Exc.Join (t,[t]) c, SEnv.Join t c, TEnv.Join env c, TEnv.Join t c, Cls.Join t cls c, Fail.Join t c
   ) => (Strat -> c t t)
 eval = fix' $ \ev s0 -> case s0 of
   Match f _ -> proc t -> match -< (f,t)
@@ -116,10 +120,11 @@ let_ bs body ev = proc t -> do
 {-# INLINE let_ #-}
 
 -- | Strategy calls bind strategy variables and term variables.
-call :: (ArrowChoice c, ArrowExcept () c, ArrowFail e c, IsString e,
-         ArrowLetRec StratVar cls c, ArrowClosure Strategy cls c,
+call :: forall cls c env t e.
+        (ArrowChoice c, ArrowExcept () c, ArrowFail e c, IsString e,
+         ArrowEnv StratVar cls c, ArrowLetRec StratVar cls c, ArrowClosure Strategy cls c,
          ArrowApply c, IsTermEnv env t c,
-         TEnv.Join env c, TEnv.Join t c, SEnv.Join t c, Exc.Join t c, Cls.Join t c)
+         TEnv.Join env c, TEnv.Join t c, SEnv.Join t c, Exc.Join t c, Cls.Join t cls c, Fail.Join t c)
        => StratVar -> [Strat] -> [TermVar] -> (Strat -> c t t) -> c t t
 call f actualStratArgs termArgVars ev = proc t ->
 
@@ -128,7 +133,7 @@ call f actualStratArgs termArgVars ev = proc t ->
     (proc (cls,t) -> do
 
        -- Close the strategy arguments in the call-site environment.
-       sargs <- map Cls.closure -< [ Strategy [] [] s (label s) | s <- actualStratArgs]
+       sargs <- map (Cls.closure @Strategy @cls @c) -< [ Strategy [] [] s (label s) | s <- actualStratArgs]
        Cls.apply
          (proc (Strategy formalStratArgs formalTermArgs body _, (sargs,t)) -> do
 
@@ -211,7 +216,7 @@ match = proc (p,t) -> case p of
 
 -- | Build a new term from a pattern. Variables are pattern are
 -- replaced by terms in the current term environment.
-build :: (ArrowChoice c, ArrowFail e c, IsString e, IsTerm t c, IsTermEnv env t c, TEnv.Join t c)
+build :: (ArrowChoice c, ArrowFail e c, IsString e, IsTerm t c, IsTermEnv env t c, TEnv.Join t c, Fail.Join t c)
       => c TermPattern t
 build = proc p -> case p of
   S.As _ _ -> fail -< "As-pattern in build is disallowed"
@@ -274,7 +279,7 @@ class Arrow c => IsTerm t c | c -> t where
 ---- Helper functions ----
 
 -- | Fixpoint combinator used by Stratego.
-fix' :: (ArrowFix (c (z,x) y), ArrowApply c) => ((z -> c x y) -> (z -> c x y)) -> (z -> c x y)
+fix' :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (c (z,x) y)), ArrowFix (c (z,x) y), ArrowApply c) => ((z -> c x y) -> (z -> c x y)) -> (z -> c x y)
 fix' f = curry (fix (uncurry . f . curry))
   where
     curry :: Arrow c => c (z,x) y -> (z -> c x y)

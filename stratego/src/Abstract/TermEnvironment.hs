@@ -35,12 +35,12 @@ import           TermEnv
 
 type TermEnv t = Map TermVar t
 
-newtype EnvT t c x y = EnvT (StoreT Map TermVar t c x y)
-  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowTrans,ArrowTrans, ArrowRun, ArrowLowerBounded,
+newtype EnvT t c x y = EnvT (StoreT (Map TermVar t) c x y)
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowJoin,ArrowLift,ArrowTrans,ArrowRun,ArrowLowerBounded a,
             ArrowFail e,ArrowExcept e,ArrowConst r, ArrowState (TermEnv t), ArrowStore TermVar t)
 
 instance (Complete t, ArrowChoice c, ArrowJoin c) => IsTermEnv (TermEnv t) t (EnvT t c) where
-  type Join y (EnvT t c) = Store.Join y (StoreT Map TermVar t c)
+  type Join y (EnvT t c) = Store.Join y (StoreT (Map TermVar t) c)
   deleteTermVars = EnvT $ modify' $ \(vars,env) -> ((), S.delete' vars env)
   unionTermEnvs = EnvT $ modify' $ \((vars,oldEnv),newEnv) -> ((), S.delete' vars newEnv `union` oldEnv)
   {-# INLINE deleteTermVars #-}
@@ -49,8 +49,9 @@ instance (Complete t, ArrowChoice c, ArrowJoin c) => IsTermEnv (TermEnv t) t (En
 union :: TermEnv t -> TermEnv t -> TermEnv t
 union = S.unsafeUnion
 
-type instance Fix (EnvT t c) x y = EnvT t (Fix c (TermEnv t, x) (TermEnv t, y))
-deriving instance ArrowFix (Underlying (EnvT t c) x y) => ArrowFix (EnvT t c x y)
+instance ArrowFix (Underlying (EnvT t c) x y) => ArrowFix (EnvT t c x y) where
+  type Fix (EnvT t c x y) = Fix (Underlying (EnvT t c) x y)
+
 deriving instance ArrowComplete (TermEnv t, y) c => ArrowComplete y (EnvT t c)
 
 instance (Profunctor c, ArrowApply c) => ArrowApply (EnvT t c) where

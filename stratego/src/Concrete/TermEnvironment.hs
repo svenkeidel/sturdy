@@ -32,8 +32,8 @@ import           TermEnv
 
 type TermEnv t = HashMap TermVar t
 
-newtype EnvT t c x y = EnvT (StoreT TermVar t c x y)
-  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowRun,ArrowTrans,ArrowTrans,ArrowFail e,ArrowExcept e,ArrowConst r, ArrowStore TermVar t, ArrowState (TermEnv t))
+newtype EnvT t c x y = EnvT (StoreT (TermEnv t) c x y)
+  deriving (Category,Profunctor,Arrow,ArrowChoice,ArrowRun,ArrowLift,ArrowTrans,ArrowFail e,ArrowExcept e,ArrowConst r, ArrowStore TermVar t, ArrowState (TermEnv t))
 
 instance (Profunctor c, ArrowChoice c) => IsTermEnv (TermEnv term) term (EnvT term c) where
   type Join x (EnvT term c) = ()
@@ -46,7 +46,8 @@ delete :: [TermVar] -> TermEnv term -> TermEnv term
 delete vars env = foldr M.delete env vars
 {-# INLINE delete #-}
 
-type instance Fix (EnvT t c) x y = EnvT t (Fix c (TermEnv t, x) (TermEnv t, y))
-deriving instance ArrowFix (Underlying (EnvT t c) x y) => ArrowFix (EnvT t c x y)
+instance ArrowFix (Underlying (EnvT t c) x y) => ArrowFix (EnvT t c x y) where
+  type Fix (EnvT t c x y) = Fix (Underlying (EnvT t c) x y)
+
 instance (Profunctor c, ArrowApply c) => ArrowApply (EnvT t c) where
   app = EnvT $ lmap (first coerce) app

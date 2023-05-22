@@ -19,6 +19,7 @@ dependencies:
   - hashable
   - profunctors
   - mtl
+  - sturdy-arrows
   - sturdy-lib
   - text
   - transformers

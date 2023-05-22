@@ -18,10 +18,8 @@ import           Syntax hiding (Fail,TermPattern(..),id)
 import           Abstract.TermEnvironment as TEnv
 
 import           Control.Category
-import           Control.Arrow
 import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix as Fix
-import           Control.Arrow.Fix.Reuse (ArrowReuse(reuse))
+import           Control.Arrow.Fix.Stack (reuseFirst)
 import           Control.Arrow.Trans
 import           Control.Arrow.Closure as Cls
 import           Control.Arrow.Transformer.Value
@@ -32,9 +30,10 @@ import           Control.Arrow.Transformer.Abstract.Except
 import           Control.Arrow.Transformer.Abstract.Error
 import           Control.Arrow.Transformer.Abstract.Terminating
 import           Control.Arrow.Transformer.Abstract.Fix
-import           Control.Arrow.Transformer.Abstract.Fix.Chaotic
+import           Control.Arrow.Fix.Chaotic
 import           Control.Arrow.Transformer.Abstract.Fix.Stack
-import           Control.Arrow.Transformer.Abstract.Fix.Cache
+import           Control.Arrow.Transformer.Abstract.Fix.Cache.Immutable
+import           Control.Arrow.Transformer.Abstract.Fix.Component as Comp
 
 import           Data.Hashable
 import qualified Data.HashMap.Lazy as M
@@ -54,80 +53,61 @@ import           Data.Abstract.Stable
 import           Data.Abstract.Widening as W
 import           Data.Order
 import           Data.Identifiable
-import           Data.Profunctor
-import           Data.Monoid(First(..))
-
-import           Control.Arrow.Fix.Cache as Cache
-import           Control.Arrow.Fix.Chaotic as Iterate
-import           Control.Arrow.Fix.Context as Context
-import           Control.Arrow.Transformer.Abstract.Fix.Trace
-import           Text.Printf
-import           GHC.Exts
-import qualified Debug.Trace as Debug
 
 type TypeError = Pow String
 type SEnv = Flat.Env StratVar (Closure Strategy)
 
 type Dom t = ((Hashed Strat,Hashed SEnv),(Hashed t,Hashed (TermEnv t)))
 type Cod t = Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,t))))
-type Interp t x y =
-  Fix
-   (ValueT t
+type Interp t =
+   ValueT t
     (ConstT Context
-     (SEnv.EnvT Flat.Env StratVar (Closure Strategy)
+     (SEnv.EnvT (Flat.Env StratVar (Closure Strategy))
       (TEnv.EnvT t
        (--NoInlineT
         (ExceptT ()
          (ErrorT TypeError
           (CompletionT
            (TerminatingT
-            (FixT () ()
-             (-- TraceT
-              (ChaoticT (Dom t)
+            (FixT
+             -- TraceT
+              (ComponentT Comp.Component (Dom t)
                (StackT Stack (Dom t)
                 (CacheT (Group Cache) (Dom t) (Cod t)
-                 (->)))))))))))))))
-   (Strat,t) t x y
+                 (->)))))))))))))
 
 runInterp :: forall t x y. (Show t, Complete t, Identifiable t, ?sensitivity :: Int) =>
-  Interp t x y -> W.Widening t -> StratEnv -> Context -> TermEnv t -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,y))))
+  (FixpointAlgorithm (Fix (Interp t (Strat,t) t)) -> Interp t x y) -> W.Widening t -> StratEnv -> Context -> TermEnv t -> x -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,y))))
 runInterp f termWidening senv0 ctx0 tenv0 a0 =
-  snd (run f ctx0 iterationStrategy resultWidening (tenv0, (senvInit, a0)))
-  where
-    iterationStrategy
-      =
-        trace (\(tenv,(senv,(strat,term))) -> printf "STRAT %s\nTERM  %s\nENV   %s\nSENV  %s\n" (show strat) (show term) (show tenv) (show senv))
-              (printf "RET   %s" . show) .
-        Fix.filter stratApply
+  let ?cacheWidening = T.widening (Free.widening (F.widening P.widening (E.widening (\_ _ -> (Stable,())) (S.widening termWidening W.** termWidening)))) in
+  let algorithm =
+        Fix.fixpointAlgorithm $
+        -- trace (\(tenv,(senv,(strat,term))) -> printf "STRAT %s\nTERM  %s\nENV   %s\nSENV  %s\n" (show strat) (show term) (show tenv) (show senv)) $
+        Fix.filterPrism stratApply
         (
-          traceCache (\cache -> printf "CACHE %s" (show [ (strat,a,tenv,b,s{-senv-}) | ((strat,senv),cache') <- toList cache, ((a,tenv),b,s) <- toList cache'])) .
+          -- traceCache (\cache -> printf "CACHE %s" (show [ (strat,a,tenv,b,s{-senv-}) | ((strat,senv),cache') <- toList cache, ((a,tenv),b,s) <- toList cache'])) .
           -- trace' (\((strat,_senv),(term,tenv)) -> printf "STRAT %s\nTERM  %s\nENV   %s\nSENV  %s\n" (show strat) (show term) (show tenv) "" {-(show senv)-})
           --       (printf "RET   %s" . show)
           --       reuseFirst .
           reuseFirst .
-          -- iterateInner
-          iterateOuter
+          outermost
         )
-    {-# INLINE iterationStrategy #-}
-
+  in snd (run (f algorithm) ctx0 (tenv0, (senvInit, a0)))
+  where
     senvInit = Flat.fromList [ (var,Cl.closure strat ())| (var,strat) <- M.toList senv0]
-
-    resultWidening :: W.Widening (Terminating (FreeCompletion (Error TypeError (Except () (TermEnv t,t)))))
-    resultWidening = T.widening (Free.widening (F.widening P.widening (E.widening (\_ _ -> (Stable,())) (S.widening termWidening W.** termWidening))))
-    {-# INLINE resultWidening #-}
 {-# INLINE runInterp #-}
 
-reuseFirst :: (PreOrd t, ArrowChoice c, ArrowIterate (Dom t) c, ArrowReuse (Dom t) (Cod t) c) => IterationStrategy c (Dom t) (Cod t)
-reuseFirst f = proc a@(_,(_,tenv)) -> do
-  m <- reuse Stable (\a a' s' b' m -> case m of
-                 First (Just _) -> m
-                 First Nothing
-                   | a ⊑ a' -> First (Just (a',b',s'))
-                   | otherwise -> m) -< a
-  case getFirst m of
-    Just (_,b',Stable) -> returnA -< fmap (fmap (fmap (fmap (\(tenv',t') -> (tenv' `union` unhashed tenv,t'))))) b'
-    _ -> f -< a
-{-# INLINE reuseFirst #-}
+-- reuseFirst :: (PreOrd t, ArrowChoice c) => FixpointCombinator c (Dom t) (Cod t)
+-- reuseFirst f = proc a@(_,(_,tenv)) -> do
+--   m <- reuse Stable (\a a' s' b' m -> case m of
+--                  First (Just _) -> m
+--                  First Nothing
+--                    | a ⊑ a' -> First (Just (a',b',s'))
+--                    | otherwise -> m) -< a
+--   case getFirst m of
+--     Just (_,b',Stable) -> returnA -< fmap (fmap (fmap (fmap (\(tenv',t') -> (tenv' `union` unhashed tenv,t'))))) b'
+--     _ -> f -< a
+-- {-# INLINE reuseFirst #-}
 
     -- Just (a',b',Unstable) -> iterate -< (a',fmap (fmap (fmap (fmap (\(tenv',t') -> (tenv' `union` unhashed tenv,t'))))) b')
 -- instance (Show t, ArrowIterate (Dom t) c) => ArrowIterate (Dom t) (TraceT c) where
@@ -152,7 +132,7 @@ reuseFirst f = proc a@(_,(_,tenv)) -> do
 --   {-# INLINE setStable #-}
 
 instance ArrowClosure Strategy cls c => ArrowClosure Strategy cls (ValueT val c) where
-  type Join y (ValueT val c) = Cls.Join y c
+  type Join y cls (ValueT val c) = Cls.Join y cls c
   closure = ValueT Cls.closure
   apply (ValueT f) = ValueT $ Cls.apply f
   {-# INLINE closure #-}
