@@ -24,6 +24,7 @@ import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
 import           Control.Arrow.Trans
 import           Control.Arrow.State
+import           Control.Arrow.Fix.Reuse(ArrowReuse(..))
 import           Control.Arrow.Fix.CallCount as CallCount
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
 import           Control.Arrow.Fix.Context as Context
@@ -123,6 +124,12 @@ instance (Arrow c, Profunctor c) => ArrowIterateCache a b (CacheT Cache a b c) w
     returnA -< x
   {-# INLINE nextIteration #-}
 
+instance (PreOrd a, Arrow c, Profunctor c) => ArrowReuse a b (CacheT Cache a b c) where
+  reuse f = CacheT $ proc (a,s) -> do
+    Cache cache <- get -< ()
+    returnA -< M.foldlWithKey' (\m a' (s',b') -> if s' ⊑ s && a ⊑ a' then m <> f a a' s' b' else m) mempty cache
+  {-# INLINE reuse #-}
+
 instance (LowerBounded b, Profunctor c, Arrow c) => ArrowLowerBounded b (CacheT Cache a b c) where
   bottom = proc _ -> returnA -< bottom
   {-# INLINE bottom #-}
@@ -168,6 +175,11 @@ withGroup f = lift $
         (\((groups,k),(cache,y)) -> (Groups (M.insert k cache groups), y))
         (second (unlift f))
 {-# INLINE withGroup #-}
+
+
+instance (Identifiable k, IsEmpty (cache a b), ArrowApply c, Profunctor c, ArrowReuse a b (CacheT cache a b c)) => ArrowReuse (k,a) b (CacheT (Group cache) (k,a) b c) where
+  reuse f = proc ((k,a0),s) -> withGroup (reuse (\a a' -> f (k,a) (k,a'))) -<< (k,(a0,s))
+  {-# INLINE reuse #-}
 
 instance Identifiable k => IsList (Group cache (k,a) b) where
   type Item (Group cache (k,a) b) = (k,cache a b)

@@ -1,17 +1,26 @@
-{-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE MonoLocalBinds #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralisedNewtypeDeriving #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures -fsimpl-tick-factor=800 #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC
+  -Wno-partial-type-signatures
+  -Wno-orphans
+  -fspecialise-aggressively
+  -fexpose-all-unfoldings
+  -funfolding-use-threshold=10000
+  -flate-specialise
+  -flate-dmd-anal
+  -fsimpl-tick-factor=50000
+  -fmax-simplifier-iterations=10
+#-}
 module SortSemantics where
 
 import           Prelude hiding ((.),fail)
@@ -22,18 +31,21 @@ import           Abstract.TermEnvironment
 import           Sort
 import           SortContext (Context,Signature(..))
 import qualified SortContext as Ctx
-import           Syntax (Strat,LStrat,LStratEnv)
+import           Syntax (Strat,LStrat,LStratEnv,Strategy)
 import           Utils
 
 import           Control.Category
 import           Control.Arrow
+import           Control.Arrow.Closure
+import           Control.Arrow.Trans
 import           Control.Arrow.Const
 import           Control.Arrow.Except
-import           Control.Arrow.Fail
+import           Control.Arrow.Fail as Fail
 import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Value
 import           Control.DeepSeq
 
+import           Data.Abstract.Closure(Closure)
 import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except as E
@@ -46,22 +58,25 @@ import           Data.Profunctor
 import           Data.Label
 
 import           Text.Printf
+import           Prettyprinter
 import           GHC.Exts(IsString(..))
 
 data Term = Term { sort :: Sort, context :: Context }
 
-{-# SPECIALIZE Generic.eval :: Strat -> Interp Term Term Term #-}
+-- {-# SPECIALIZE Generic.eval :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp Term (Strat,Term) Term)))
+--                             => Strat -> Interp Term Term Term #-}
 
 eval :: (?sensitivity :: Int) => Int -> LStrat -> LStratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
 eval j lstrat lsenv ctx =
   let (strat,senv) = generate $ (,) <$> lstrat <*> lsenv
-  in runInterp ((Generic.eval :: Strat -> Interp Term Term Term) strat ) termWidening senv ctx
+  in runInterp (\algo -> let ?fixpointAlgorithm = algo in
+                   (Generic.eval :: Strat -> Interp Term Term Term) strat) termWidening senv ctx
   where
     termWidening :: Widening Term
     termWidening (Term s _) (Term s' _) = let ~(st,s'') = Ctx.widening ctx j s s' in (st,Term s'' ctx)
 
 -- Instances -----------------------------------------------------------------------------------------
-instance (ArrowChoice c, ArrowApply c, ArrowComplete Term c, ArrowLowerBounded c, ArrowConst Context c, ArrowFail e c, ArrowExcept () c, IsString e)
+instance (ArrowChoice c, ArrowApply c, ArrowComplete Term c, ArrowConst Context c, ArrowLowerBounded Term c, ArrowFail e c, ArrowExcept () c, IsString e, Fail.Join Term c)
     => IsTerm Term (ValueT Term c) where
   matchCons matchSubterms = proc (c,ps,t@(Term s ctx)) ->
     case (c,ps,s) of
@@ -194,9 +209,13 @@ instance (ArrowChoice c, ArrowApply c, ArrowComplete Term c, ArrowLowerBounded c
 --     ctx <- askConst -< ()
 --     returnA -< Term Top ctx
 
-instance ArrowComplete Term c => ArrowComplete Term (ValueT Term c) where
-  ValueT f <⊔> ValueT g = ValueT $ proc x -> f <⊔> g -< x
-  {-# INLINE (<⊔>) #-}
+deriving instance ArrowComplete Term c => ArrowComplete Term (ValueT Term c)
+deriving instance ArrowLowerBounded Term c => ArrowLowerBounded Term (ValueT Term c)
+deriving instance ArrowClosure Strategy (Closure Strategy SEnv) c => ArrowClosure Strategy (Closure Strategy SEnv) (ValueT Term c)
+
+instance ArrowTrans (ValueT Term) where
+  lift' = ValueT
+  {-# INLINE lift' #-}
 
 instance Complete (FreeCompletion Term) where
   Lower x ⊔ Lower y = Lower (x ⊔ y)
@@ -204,6 +223,9 @@ instance Complete (FreeCompletion Term) where
 
 instance Show Term where
   show (Term s _) = show s
+
+instance Pretty Term where
+  pretty = viaShow
 
 instance Eq Term where
   Term t1 _ == Term t2 _ = t1 == t2
@@ -251,10 +273,10 @@ isSingleton (Term s ctx) = Ctx.isSingleton ctx s
 sortsToTerms :: [Sort] -> Context -> [Term]
 sortsToTerms ss ctx = map (`Term` ctx) ss
 
-typeMismatch :: (ArrowFail e c, IsString e) => c (String,String) a
+typeMismatch :: (ArrowFail e c, Fail.Join a c, IsString e) => c (String,String) a
 typeMismatch = lmap (\(expected,actual) -> printf "expected type %s but got type %s" (show expected) (show actual)) typeError
 
-typeError :: (ArrowFail e c, IsString e) => c String a
+typeError :: (ArrowFail e c, Fail.Join a c, IsString e) => c String a
 typeError = lmap fromString fail
 
 -- alphaTerm :: Context -> C.Pow C.Term -> Term

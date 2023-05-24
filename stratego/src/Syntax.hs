@@ -44,6 +44,8 @@ import           Text.Read (readMaybe)
 import           Test.QuickCheck (Arbitrary(..),Gen)
 import qualified Test.QuickCheck as Q
 
+import           Prettyprinter
+
 -- | Expressions for the Stratego core language are called strategies.
 data Strat
   = Fail Label
@@ -373,6 +375,9 @@ instance Show TermVar where
 instance IsString TermVar where
   fromString = TermVar . pack
 
+instance Pretty TermVar where
+  pretty (TermVar x) = pretty x
+
 instance IsString TermPattern where
   fromString = Var . fromString
 
@@ -595,9 +600,9 @@ stratCall = L.prism' (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term))))
                    _ -> Nothing)
 {-# INLINE stratCall #-}
 
-stratApply :: (Hashable tenv, Hashable senv, Hashable term) => Prism' (tenv,(senv,(Strat,term))) ((Hashed Strat, Hashed senv),(Hashed term,Hashed tenv))
-stratApply = L.prism' (\((strat,senv),(term,tenv)) -> (unhashed tenv,(unhashed senv,(unhashed strat,unhashed term))))
+stratApply :: Prism' (tenv,(senv,(Strat,term))) ((Strat, senv),(term,tenv))
+stratApply = L.prism' (\((strat,senv),(term,tenv)) -> (tenv,(senv,(strat,term))))
                 (\(tenv,(senv,(strat,term))) -> case strat of
-                   Apply {} -> Just ((hashed strat,hashed senv),(hashed term,hashed tenv))
+                   Apply {} -> Just ((strat,senv),(term,tenv))
                    _ -> Nothing)
 {-# INLINE stratApply #-}

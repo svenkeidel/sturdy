@@ -1,12 +1,13 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module ConcreteInterpreter where
@@ -32,6 +33,7 @@ import           Control.Category
 import           Control.Monad (join)
 import           Control.Monad.Reader (replicateM)
 
+import qualified Data.Function as Function
 import           Data.Profunctor
 import           Data.Concrete.Closure
 import           Data.Concrete.Error (Error)
@@ -60,7 +62,12 @@ type TermEnv = TEnv.TermEnv Term
 
 -- | Concrete interpreter arrow give access to the strategy
 -- environment, term environment, and handles anonymous exceptions.
-type Interp a b = ValueT Term (SEnv.EnvT StratVar Cls (TEnv.EnvT Term (ExceptT () (FailureT String (->))))) a b
+type Interp a b =
+  ValueT Term
+   (SEnv.EnvT SEnv
+    (TEnv.EnvT Term
+     (ExceptT ()
+      (FailureT String (->))))) a b
 
 -- | Executes a concrete interpreter computation.
 runInterp :: Interp a b -> StratEnv -> TermEnv -> a -> Error String (Error () (TermEnv,b))
@@ -71,6 +78,7 @@ runInterp f senv tenv t = run f (tenv, (senv', t))
 -- | Concrete interpreter function.
 eval :: LStrat -> LStratEnv -> TermEnv -> Term -> Error String (Error () (TermEnv,Term))
 eval ls lsenv =
+  let ?fixpointAlgorithm = Function.fix in
   let (s,senv) = generate $ (,) <$> ls <*> lsenv
   in runInterp (Generic.eval s) senv
 
@@ -152,7 +160,7 @@ instance (ArrowChoice c, ArrowExcept () c) => IsTerm Term (ValueT Term c) where
   {-# INLINE mapSubterms #-}
 
 instance ArrowClosure Strategy (Closure Strategy SEnv) c => ArrowClosure Strategy Cls (ValueT Term c) where
-  type Join y (ValueT Term c) = Cls.Join y c
+  type Join y Cls (ValueT Term c) = Cls.Join y (Closure Strategy SEnv) c
   closure = ValueT $ rmap Cls Cls.closure
   apply (ValueT f) = ValueT $ lmap (first (\(Cls cl) -> cl)) (Cls.apply f)
 

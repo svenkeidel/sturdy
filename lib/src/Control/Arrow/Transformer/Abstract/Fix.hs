@@ -25,6 +25,7 @@ import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Fix.Context
 import           Control.Arrow.Fix.Metrics
 import           Control.Arrow.Fix.Stack
+import           Control.Arrow.Fix.Reuse
 import           Control.Arrow.Order(ArrowComplete(..),ArrowJoin(..))
 import           Control.Arrow.Trans
 
@@ -39,7 +40,7 @@ newtype FixT c x y = FixT (c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowCallSite ctx, ArrowContext ctx a, ArrowControlFlow a,
             ArrowCache a b, ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache,
-            ArrowStack a,ArrowStackElements a,ArrowStackDepth, ArrowSCC a,
+            ArrowStack a,ArrowStackElements a,ArrowStackDepth, ArrowSCC a, ArrowReuse a b,
             ArrowMetrics a, ArrowStrict, ArrowPrimitive, ArrowCFG a, ArrowCallCount a)
 
 runFixT :: FixT c x y -> c x y

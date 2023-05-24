@@ -21,6 +21,7 @@ import           Control.Arrow.Strict
 import           Control.Arrow.Fix.ControlFlow as ControlFlow
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.CallCount
+import           Control.Arrow.Fix.Reuse
 import           Control.Arrow.Fix.Stack (ArrowStack,ArrowStackDepth,ArrowStackElements,StackPointer,RecurrentCall(..))
 import qualified Control.Arrow.Fix.Stack as Stack
 import           Control.Arrow.Fix.Context (ArrowContext,ArrowCallSite)
@@ -44,7 +45,7 @@ newtype StackT stack a c x y = StackT (ReaderT (stack a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,
             ArrowStrict,ArrowTrans, ArrowLowerBounded z,
             ArrowParallelCache a b, ArrowIterateCache a b, ArrowGetCache cache, ArrowState s,
-            ArrowContext ctx a', ArrowCallSite lab, ArrowCallCount a',
+            ArrowContext ctx a', ArrowCallSite lab, ArrowCallCount a',ArrowReuse a b,
             ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph)
 
 runStackT :: (IsEmpty (stack a), Profunctor c) => StackT stack a c x y -> c x y

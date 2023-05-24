@@ -3,15 +3,23 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures -Wno-orphans #-}
+{-# OPTIONS_GHC
+  -Wno-partial-type-signatures
+  -Wno-orphans
+  -fspecialise-aggressively
+  -fexpose-all-unfoldings
+  -funfolding-use-threshold=10000
+  -flate-specialise
+  -flate-dmd-anal
+  -fsimpl-tick-factor=50000
+  -fmax-simplifier-iterations=10
+#-}
 module SingletonSemantics where
 
 import           Prelude hiding ((.),fail)
@@ -26,12 +34,14 @@ import           Abstract.TermEnvironment
 import           Utils
 
 import           Control.Arrow
+import           Control.Arrow.Closure
 import           Control.Arrow.Const
 import           Control.Arrow.Except
 import           Control.Arrow.Fail
 import           Control.Arrow.Order
 import           Control.Arrow.Transformer.Value
 
+import           Data.Abstract.Closure(Closure)
 import           Data.Abstract.FreeCompletion hiding (Top)
 import qualified Data.Abstract.FreeCompletion as Free
 import           Data.Abstract.Except as E
@@ -44,13 +54,18 @@ import           Data.Order
 import           Data.Term
 import           Data.Profunctor
 
+import           Prettyprinter
+
 type Term = Singleton C.Term
 
 eval :: (?sensitivity :: Int) => Int -> Strat -> StratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
-eval _ strat senv ctx  = runInterp (Generic.eval strat) W.finite senv ctx
+eval _ strat =
+  runInterp (\algo ->
+               let ?fixpointAlgorithm = algo in
+                 Generic.eval strat) W.finite
 
 -- Instances -----------------------------------------------------------------------------------------
-instance (ArrowChoice c, ArrowComplete Term c, ArrowConst Context c, ArrowFail e c, ArrowExcept () c, ArrowLowerBounded c)
+instance (ArrowChoice c, ArrowComplete Term c, ArrowConst Context c, ArrowFail e c, ArrowExcept () c, ArrowLowerBounded Term c)
     => IsTerm Term (ValueT Term c) where
   matchCons matchSubterms = proc (c,ps,t) -> case t of
     Single (C.Cons c' ts) | c == c' && eqLength ps ts -> do
@@ -128,8 +143,8 @@ instance (ArrowChoice c, ArrowComplete Term c, ArrowConst Context c, ArrowFail e
 -- instance (Arrow c, Profunctor c) => ArrowTop Term c where
 --   topA = arr (const Any)
 
-instance (ArrowChoice c, ArrowComplete Term c) => ArrowComplete Term (ValueT Term c) where
-  ValueT f <⊔> ValueT g = ValueT $ proc x -> f <⊔> g -< x
+deriving instance (ArrowChoice c, ArrowComplete Term c) => ArrowComplete Term (ValueT Term c)
+deriving instance ArrowClosure Strategy (Closure Strategy SEnv) c => ArrowClosure Strategy (Closure Strategy SEnv) (ValueT Term c)
 
 instance Complete (FreeCompletion Term) where
   Lower x ⊔ Lower y = Lower (x ⊔ y)
@@ -138,3 +153,6 @@ instance Complete (FreeCompletion Term) where
 liftConcrete :: Profunctor c => ValueT C.Term c x y -> ValueT t' c x (Singleton y)
 liftConcrete (ValueT f) = rmap Single (ValueT f)
 {-# INLINE liftConcrete #-}
+
+instance Pretty Term where
+  pretty = viaShow

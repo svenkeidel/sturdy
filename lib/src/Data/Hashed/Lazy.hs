@@ -5,6 +5,8 @@ import Data.Hashable(Hashable(..))
 import Data.Order
 import Data.Empty
 import Prettyprinter
+import Data.Abstract.Widening
+import Data.Abstract.Stable
 
 import Control.DeepSeq
 
@@ -22,6 +24,12 @@ hashed a = Hashed a (hash a)
 
 mapHashed :: Hashable b => (a -> b) -> Hashed a -> Hashed b
 mapHashed f (Hashed a _) = hashed (f a)
+
+widening :: Hashable a => Widening a -> Widening (Hashed a)
+widening widenA (Hashed a1 h1) (Hashed a2 _) =
+  case widenA a1 a2 of
+    (Stable,_) -> (Stable,Hashed a1 h1)
+    (Unstable,a') -> (Unstable,hashed a')
 
 instance Eq a => Eq (Hashed a) where
   Hashed a ha == Hashed b hb = ha == hb && a == b

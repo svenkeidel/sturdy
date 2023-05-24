@@ -18,6 +18,7 @@ import           Control.Category
 import           Control.Arrow hiding (loop)
 import           Control.Arrow.Primitive
 import           Control.Arrow.Strict
+import           Control.Arrow.Fix.Reuse
 import           Control.Arrow.Fix.SCC
 import           Control.Arrow.Fix.Cache as Cache
 import           Control.Arrow.Fix.CallCount
@@ -39,7 +40,7 @@ import           Text.Printf
 
 newtype ComponentT component a c x y = ComponentT (StateT (component a) c x y)
   deriving (Profunctor,Category,Arrow,ArrowChoice,ArrowStrict,
-            ArrowStackDepth,ArrowStackElements a,
+            ArrowStackDepth,ArrowStackElements a,ArrowReuse a b,
             ArrowCache a b, ArrowParallelCache a b,ArrowIterateCache a b,ArrowGetCache cache,
             ArrowCallCount u, ArrowCallSite ctx, ArrowContext ctx u,
             ArrowControlFlow stmt, ArrowPrimitive, ArrowCFG graph)
