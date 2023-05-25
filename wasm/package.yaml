@@ -1,0 +1,46 @@
+name:                sturdy-wasm
+version:             0.2.0.0
+license:             BSD3
+maintainer:          Sebastian Erdweg
+category:            Language
+
+dependencies:
+  - base
+  - hashable
+  - mtl
+  - profunctors
+  - sturdy-arrows
+  - sturdy-lib
+  - text
+  - transformers
+  - unordered-containers
+  - wasm
+  - vector
+  - bytestring
+  - binary
+  - primitive
+  - list-singleton
+  - prettyprinter
+  - ieee754
+  - containers
+
+library:
+  ghc-options: -Wall
+  source-dirs:
+    - src
+
+tests:
+  spec:
+    main: Spec.hs
+
+    source-dirs:
+      - test
+
+    ghc-options: -Wall
+
+    dependencies:
+      - hspec
+      - sturdy-wasm
+      - prettyprinter
+      - fgl
+      - directory

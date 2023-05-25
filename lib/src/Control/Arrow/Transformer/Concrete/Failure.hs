@@ -4,7 +4,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
-module Control.Arrow.Transformer.Concrete.Failure(FailureT,runFailureT) where
+module Control.Arrow.Transformer.Concrete.Failure(FailureT (..),runFailureT) where
 
 import Prelude hiding (id,(.),lookup,read,fail)
 

@@ -32,4 +32,4 @@ stack-build:
 stack-test:
   stage: test
   script:
-    - stack test --fast -j1
+    - stack test --fast -j1 sturdy-wasm

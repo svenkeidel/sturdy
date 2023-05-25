@@ -5,7 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
-module Control.Arrow.Transformer.Abstract.Failure(FailureT,runFailureT) where
+module Control.Arrow.Transformer.Abstract.Failure(FailureT(..),runFailureT) where
 
 import Prelude hiding (id,(.),lookup,read)
 

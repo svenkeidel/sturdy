@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Data.Abstract.Powerset where
@@ -23,6 +24,7 @@ import qualified Data.HashSet as H
 import           Data.Foldable (foldl',toList)
 import           Data.List (intercalate)
 import           Data.Order
+import           Data.Text.Prettyprint.Doc
 
 import           GHC.Generics (Generic)
 
@@ -45,6 +47,9 @@ instance UpperBounded a => UpperBounded (Pow a) where
 
 instance Show a => Show (Pow a) where
   show (Pow a) = "{" ++ intercalate ", " (show <$> toList a) ++ "}"
+
+instance Pretty a => Pretty (Pow a) where
+  pretty (Pow a) = braces $ hsep (punctuate "," (pretty <$> toList a))
 
 instance Hashable a => Hashable (Pow a) where
   hashWithSalt salt x = hashWithSalt salt (toHashSet x)
