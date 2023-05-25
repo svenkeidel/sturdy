@@ -22,7 +22,6 @@ import           Control.Arrow
 import qualified Control.Arrow.Trans as Trans
 import           Control.Arrow.Except
 import           Control.Arrow.Fail as Fail
-import           Control.Arrow.Fix
 
 import           Control.Arrow.Transformer.JumpTypes
 import           Control.Arrow.Transformer.Stack
@@ -44,12 +43,11 @@ import qualified Data.Function as Function
 import           Data.IORef (writeIORef)
 import qualified Data.Primitive.ByteArray as ByteArray
 import           Data.Text.Lazy (Text)
-import           Data.Text.Prettyprint.Doc (pretty, hsep)
 import qualified Data.Vector as Vec
 import           Data.Word
 import           Data.Bits
 
-import           Debug.Trace
+import           Prettyprinter
 
 import           Language.Wasm.FloatUtils
 import           Language.Wasm.Interpreter (ModuleInstance, asInt32,asInt64,asWord32,asWord64,nearest,

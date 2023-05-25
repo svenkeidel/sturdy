@@ -23,7 +23,6 @@ import           Data.Order
 import           Data.Text.Lazy (pack)
 import qualified Data.Vector as Vec
 
-import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Validate (ValidModule)
 
 type AbsResult = (Except (HashSet Generic.Err)

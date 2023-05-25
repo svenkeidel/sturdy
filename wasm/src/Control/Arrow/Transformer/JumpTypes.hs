@@ -1,5 +1,6 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -22,7 +23,7 @@ import           Control.Arrow.JumpTypes
 import           Control.Arrow.Memory
 import           Control.Arrow.Order
 import           Control.Arrow.Reader
-import           Control.Arrow.Serialize
+import Control.Arrow.Serialize ( ArrowSerialize )
 import           Control.Arrow.Size
 import           Control.Arrow.Stack
 import           Control.Arrow.State

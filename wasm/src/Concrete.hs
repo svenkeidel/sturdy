@@ -6,9 +6,10 @@ module Concrete where
 
 import           Data()
 import           Data.Hashable
-import           Data.Text.Prettyprint.Doc
 import           Data.Vector (Vector)
 import           Data.Word
+
+import           Prettyprinter
 
 import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm

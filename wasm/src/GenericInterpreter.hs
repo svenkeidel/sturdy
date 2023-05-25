@@ -43,6 +43,7 @@ import           Data.Profunctor
 import           Data.Text.Lazy (Text)
 import           Data.Vector hiding (length, (++))
 import           Data.Word
+import           Data.Kind(Type)
 
 import           Language.Wasm.Structure (ValueType(..), BitSize, IUnOp(..), IBinOp(..), IRelOp(..),
                                           FUnOp(..), FBinOp(..), FRelOp(..), MemArg(..), FuncType(..), ResultType, BlockType(..))
@@ -64,7 +65,7 @@ instance Hashable v => Hashable (Exc v)
 instance Hashable Err
 
 class ArrowExcept exc c => IsException exc v c | c -> v where
-    type family JoinExc y (c :: * -> * -> *) :: Constraint
+    type family JoinExc y (c :: Type -> Type -> Type) :: Constraint
     exception :: c (Exc v) exc
     handleException :: JoinExc y c => c (Exc v, x) y -> c (exc,x) y
 
@@ -105,7 +106,7 @@ type ArrowDynamicComponents v addr bytes sz exc e c =
 
 -- | the language interface
 class Show v => IsVal v c | c -> v where
-    type family JoinVal y (c :: * -> * -> *) :: Constraint
+    type family JoinVal y (c :: Type -> Type -> Type) :: Constraint
 
     i32const :: c Word32 v
     i64const :: c Word64 v

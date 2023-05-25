@@ -21,11 +21,12 @@ import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Writer
 
 import           Data.Profunctor
+import           Data.Kind(Type)
 
 import           GHC.Exts
 
 class ArrowTable v c | c -> v where
-    type family JoinTable y (c :: * -> * -> *) :: Constraint
+    type family JoinTable y (c :: Type -> Type -> Type) :: Constraint
     -- | readTable f g h (ta,ix,x)
     -- | Lookup `ix` in table `ta` to retrieve the function address `fa`.
     -- | Invokes `f (fa, x)` if all goes well.

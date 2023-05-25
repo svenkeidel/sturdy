@@ -17,10 +17,11 @@ import           Data.IORef
 import           Data.Label
 import           Data.Order
 import qualified Data.Primitive.ByteArray as ByteArray
-import           Data.Text.Prettyprint.Doc hiding (list)
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import           Data.Word (Word8, Word32, Word64)
+
+import           Prettyprinter ( viaShow, Pretty(pretty) )
 
 import           Numeric.Natural (Natural)
 

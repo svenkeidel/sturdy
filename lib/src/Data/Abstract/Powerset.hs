@@ -24,7 +24,8 @@ import qualified Data.HashSet as H
 import           Data.Foldable (foldl',toList)
 import           Data.List (intercalate)
 import           Data.Order
-import           Data.Text.Prettyprint.Doc
+
+import           Prettyprinter
 
 import           GHC.Generics (Generic)
 

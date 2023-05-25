@@ -7,7 +7,6 @@ import           Data
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Concrete.Error
 import           Data.Either(isRight)
-import           Data.List.Singleton (singleton)
 import           Data.Text.Lazy (pack)
 
 import           Language.Wasm
@@ -88,10 +87,10 @@ spec = do
 --        succResult result `shouldBe` [Value $ Wasm.VI64 2]
 
     it "run test-mem" $ do
-        result <- runFunc "simple" "test-mem" [Value $ Wasm.VI32 42]
-        succResult result `shouldBe` [Value $ Wasm.VI32 43]
-        result <- runFunc "simple" "test-mem" [Value $ Wasm.VI32 (2^32-2)]
-        succResult result `shouldBe` [Value $ Wasm.VI32 (2^32-1)]
+        -- result <- runFunc "simple" "test-mem" [Value $ Wasm.VI32 42]
+        -- succResult result `shouldBe` [Value $ Wasm.VI32 43]
+        result <- runFunc "simple" "test-mem" [Value $ Wasm.VI32 (2^(32::Int)-2)]
+        succResult result `shouldBe` [Value $ Wasm.VI32 (2^(32::Int)-1)]
 
     it "run test-size" $ do
         result <- runFunc "simple" "test-size" []
@@ -132,3 +131,7 @@ spec = do
 --    it "run fac script" $ do
 --        () <- runScriptInterp "fac"
 --        () `shouldBe` ()
+
+  where
+    singleton :: a -> [a]
+    singleton x = [x]

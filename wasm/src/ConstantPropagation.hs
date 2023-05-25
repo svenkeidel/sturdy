@@ -20,7 +20,7 @@ import           Abstract
 import           Data
 import           GenericInterpreter hiding (Exc)
 import qualified GenericInterpreter as Generic
-import           ConstantPropagationValue hiding (Value)
+import           ConstantPropagationValue
 import           UnitAnalysisValue (Exc(..))
 import qualified UnitAnalysisValue as Unit
 
@@ -32,24 +32,9 @@ import           Control.Arrow.Fix as Fix
 import           Control.Arrow.Fix.Chaotic (innermost)
 import           Control.Arrow.Fix.ControlFlow
 import           Control.Arrow.Trans as Trans
-import           Control.Arrow.Const
-import           Control.Arrow.Except
-import           Control.Arrow.Fail
-import           Control.Arrow.Fix
-import           Control.Arrow.Functions
 import           Control.Arrow.EffectiveAddress
-import           Control.Arrow.Memory
-import           Control.Arrow.Order
-import           Control.Arrow.Reader
 import           Control.Arrow.Serialize
 import           Control.Arrow.Size
-import           Control.Arrow.Stack
-import           Control.Arrow.Globals
-import           Control.Arrow.State
-import           Control.Arrow.Store
-import           Control.Arrow.Table
-import           Control.Arrow.Trans
-import           Control.Arrow.WasmFrame
 
 import           Control.Category
 
@@ -79,8 +64,6 @@ import           Data.Abstract.MonotoneErrors (Errors)
 import qualified Data.Abstract.Widening as W
 import           Data.Text.Lazy (Text)
 import qualified Data.Vector as Vec
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
 
 import           Language.Wasm.Interpreter (ModuleInstance)
 import qualified Language.Wasm.Interpreter as Wasm

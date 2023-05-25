@@ -10,16 +10,19 @@ import qualified Data.List as List
 import           Data.IORef
 
 import           Language.Wasm
-import qualified Language.Wasm.Interpreter as Wasm
 import           Language.Wasm.Script (runScript')
 
 import qualified System.Directory as Directory
+
+main :: IO ()
+main = hspec spec
 
 initTests :: IO [String]
 initTests = List.sort . filter p . filter (List.isSuffixOf ".wast") <$> Directory.listDirectory "test/spec"
     --return ["block.wast","br_if.wast","br_table.wast"]
     where p :: String -> Bool
           p s = not (any (\e -> List.isInfixOf e s) exclude)
+
 exclude :: [String]
 exclude = ["stack-guard","memory_grow", "float_exprs", "memory_trap", "imports", "call", "fac", "names", "func_ptrs"]
 
@@ -38,15 +41,14 @@ runTest filename =
         readIORef errors `shouldReturn` []
 
 spec :: Spec
-spec = return ()
-    -- do
-    -- fs <- runIO $ initTests
-    -- describe "run testsuite" $ do
-    --     mapM_ runTest fs
+spec = do
+  fs <- runIO $ initTests
+  describe "run testsuite" $ do
+      mapM_ runTest fs
 
-    -- before initTests $ do
-    --     describe "run" $ do
-    --         it "test" $ \(fs,c) -> do
-    --             idx <- readIORef c
-    --             writeIORef c (idx + 1)
-    --             runTest (fs !! 5)
+  -- before initTests $ do
+  --     describe "run" $ do
+  --         it "test" $ \(fs,c) -> do
+  --             idx <- readIORef c
+  --             writeIORef c (idx + 1)
+  --             runTest (fs !! 5)

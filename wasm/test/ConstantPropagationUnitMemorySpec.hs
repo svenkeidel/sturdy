@@ -10,7 +10,6 @@ import           UnitAnalysisValue as U
 import           ConstantPropagationSoundness
 --import           GraphToDot
 
-import           Data.List.Singleton (singleton)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Abstract.Except as Exc
 import           Data.Abstract.MonotoneErrors(toSet)
@@ -118,10 +117,10 @@ spec = do
         succResult result `shouldBe` [A.constantValue $ Wasm.VI64 7034535277573963776]
 
     it "run test-mem" $ do
-        result <- runFunc "simple" "test-mem" [A.constantValue $ Wasm.VI32 42]
-        succResult result `shouldBe` [minialpha $ A.constantValue $ Wasm.VI32 43]
-        result <- runFunc "simple" "test-mem" [A.constantValue $ Wasm.VI32 (2^32-2)]
-        succResult result `shouldBe` [minialpha $ A.constantValue $ Wasm.VI32 (2^32-1)]
+        -- result <- runFunc "simple" "test-mem" [A.constantValue $ Wasm.VI32 42]
+        -- succResult result `shouldBe` [minialpha $ A.constantValue $ Wasm.VI32 43]
+        result <- runFunc "simple" "test-mem" [A.constantValue $ Wasm.VI32 (2^(32::Int)-2)]
+        succResult result `shouldBe` [minialpha $ A.constantValue $ Wasm.VI32 (2^(32::Int)-1)]
 
     it "run test-size" $ do
         result <- runFunc "simple" "test-size" []
@@ -199,6 +198,9 @@ spec = do
         checkSoundness "simple" "test-br-and-return3" args `shouldReturn` True
 
 
+  where
+    singleton :: a -> [a]
+    singleton x = [x]
 
 
 

@@ -19,7 +19,7 @@ dependencies:
   - bytestring
   - binary
   - primitive
-  - list-singleton
+  # - list-singleton
   - prettyprinter
   - ieee754
   - containers

@@ -12,8 +12,6 @@ module Control.Arrow.Transformer.Abstract.KnownAddressMemory where
 
 import           Prelude hiding ((.))
 
-import           Abstract (BaseValue(..))
-
 import           Data
 
 import           Control.Arrow
@@ -40,7 +38,6 @@ import           Control.Arrow.Transformer.State
 
 import           Control.Category
 
-import           Data.Coerce (coerce)
 import           Data.Profunctor
 import           Data.Order
 import           Data.Hashable
@@ -50,11 +47,11 @@ import           Data.ByteString.Lazy (unpack, pack)
 import           Data.Binary.Get
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
-import           Data.Text.Prettyprint.Doc as Pretty
 
 import           Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as M
-import qualified Data.IntMap.Merge.Strict as M
+
+import           Prettyprinter
 
 import           Language.Wasm.Structure (ValueType(..))
 import qualified Language.Wasm.Interpreter as Wasm
