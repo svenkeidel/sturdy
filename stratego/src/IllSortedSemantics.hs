@@ -8,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -80,7 +81,7 @@ eval i j lstrat lsenv ctx =
                    Generic.eval strat) (termWidening ctx i j) senv ctx
 
 -- Instances -----------------------------------------------------------------------------------------
-instance (ArrowChoice c, ArrowApply c, ArrowComplete Term c, ArrowComplete Sort.Term c, ArrowConst Context c,
+instance forall e c. (ArrowChoice c, ArrowApply c, ArrowComplete Term c, ArrowComplete Sort.Term c, ArrowConst Context c,
           ArrowFail e c, ArrowExcept () c, IsString e,
           ArrowLowerBounded Term c, Fail.Join Term c,
           ArrowLowerBounded Sort.Term c, Fail.Join Sort.Term c)
@@ -190,10 +191,15 @@ instance (ArrowChoice c, ArrowApply c, ArrowComplete Term c, ArrowComplete Sort.
   mapSubterms f = proc t -> case t of
     IllSorted cs -> mapSubterms' -< toList cs
     Sorted S.Top _ -> typeError -< "generic traversal over top is not supported."
-    Sorted s ctx -> mapSubterms' -< lookupSort ctx s
+    Sorted S.Lexical _ -> returnA -< t
+    Sorted S.Numerical _ -> returnA -< t
+    Sorted s ctx -> mapSubterms' -< [ (c',sortsToTerms ss ctx) | (Constructor c',Signature ss _) <- Ctx.lookupSort ctx s]
     where
+      mapSubterms' :: ValueT Term c [(Text, [Term])] Term
       mapSubterms' = proc l ->
-        (| joinList (bottom -< ()) (\(c',ts) -> do
+        (| joinList
+          (typeError -< printf "Sort %s not found in context." (show l))
+          (\(c',ts) -> do
           ts' <- f -< ts
           buildCons -< (Constructor c',ts')
         ) |) l
@@ -282,12 +288,14 @@ instance IsString Term where
 
 termWidening :: Context -> Int -> Int -> Widening Term
 termWidening ctx _ j (Sorted s1 _) (Sorted s2 _) = (`Sorted` ctx) <$> Ctx.widening ctx j s1 s2
-termWidening ctx k j (IllSorted cs1) (IllSorted cs2)
-  | k == 0    = let s = Sorted (typecheck ctx (IllSorted (cs1 ⊔ cs2))) ctx in (if s ⊑ IllSorted (cs1 ⊔ cs2) then Stable else Unstable, s)
+termWidening ctx k j t1@(IllSorted cs1) (IllSorted cs2)
+  | k == 0    = let csUnion = IllSorted (cs1 ⊔ cs2)
+                    s = Sorted (typecheck ctx csUnion) ctx
+                in (if s ⊑ t1 then Stable else Unstable, s)
   | otherwise = IllSorted <$> Constr.widening (termWidening ctx (k-1) j) cs1 cs2
 termWidening ctx _ _ (Sorted S.Top _) (IllSorted _) = (Stable,Sorted S.Top ctx)
 termWidening ctx k j (Sorted s1 _) (IllSorted cs2) = termWidening ctx k j (IllSorted (fromList (lookupSort ctx s1))) (IllSorted cs2)
-termWidening ctx _ _ (IllSorted _) (Sorted S.Top _) = (Stable,Sorted S.Top ctx)
+termWidening ctx _ _ (IllSorted _) (Sorted S.Top _) = (Unstable,Sorted S.Top ctx)
 termWidening ctx k j (IllSorted cs1) (Sorted s2 _) = termWidening ctx k j (IllSorted cs1) (IllSorted (fromList (lookupSort ctx s2)))
 
 typecheck :: Context -> Term -> Sort

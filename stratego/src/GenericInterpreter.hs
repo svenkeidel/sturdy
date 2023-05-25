@@ -60,8 +60,8 @@ eval = fix' $ \ev s0 -> case s0 of
 
   Scope xs s _ -> proc t -> scope (ev s) -< (xs,t)
   Let bnds body _ -> let_ bnds body ev
-  Call f ss ts _ -> call f ss ts ev
-  Apply body _ -> ev body
+  Call f ss ts _ -> call s0 f ss ts ev
+  Apply _ body _ -> ev body
 
   Prim {} -> proc _ -> failString -< "We do not support primitive operations."
 {-# INLINEABLE eval #-}
@@ -126,8 +126,8 @@ call :: forall cls c env t e.
          ArrowEnv StratVar cls c, ArrowLetRec StratVar cls c, ArrowClosure Strategy cls c,
          ArrowApply c, IsTermEnv env t c,
          TEnv.Join env c, TEnv.Join t c, SEnv.Join t c, Exc.Join t c, Cls.Join t cls c, Fail.Join t c)
-       => StratVar -> [Strat] -> [TermVar] -> (Strat -> c t t) -> c t t
-call f actualStratArgs termArgVars ev = proc t ->
+       => Strat -> StratVar -> [Strat] -> [TermVar] -> (Strat -> c t t) -> c t t
+call cll f actualStratArgs termArgVars ev = proc t ->
 
   -- Lookup the strategy in the strategy environment.
   SEnv.lookup
@@ -151,9 +151,9 @@ call f actualStratArgs termArgVars ev = proc t ->
                  case body of
                    -- If the body of the strategy is a scope, apply the fixpoint
                    -- algorithm inside the scope such that term variables don't leak.
-                   Scope vars b l -> scope (bindings (ev (Apply b l)))
+                   Scope vars b l -> scope (bindings (ev (Apply cll b l)))
                      -<< (formalTermArgs ++ vars,(termBindings,t))
-                   _ -> scope (bindings (ev (Apply body (label body))))
+                   _ -> scope (bindings (ev (Apply cll body (label body))))
                      -<< (formalTermArgs,(termBindings,t))
 
               ) -< (stratArgs,(formalTermArgs,body,t))

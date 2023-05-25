@@ -45,6 +45,7 @@ import           Test.QuickCheck (Arbitrary(..),Gen)
 import qualified Test.QuickCheck as Q
 
 import           Prettyprinter
+import           Text.Printf
 
 -- | Expressions for the Stratego core language are called strategies.
 data Strat
@@ -61,7 +62,7 @@ data Strat
   | Let [(StratVar,Strategy)] Strat Label
   | Call StratVar [Strat] [TermVar] Label
   | Prim StratVar [Strat] [TermVar] Label
-  | Apply Strat Label
+  | Apply Strat Strat Label
   deriving stock (Generic,Eq)
   deriving PreOrd via Discrete Strat
   deriving anyclass NFData
@@ -137,14 +138,20 @@ data Strategy = Strategy { strategyStratArguments :: [StratVar]
                          , strategyBody :: Strat
                          , strategyLabel :: Label
                          }
-  deriving stock (Show,Generic)
+  deriving stock (Generic)
   deriving anyclass (NFData)
+
+instance Show Strategy where
+  show strat = printf "%s:%s" (show (strategyLabel strat)) (show (strategyBody strat))
 
 instance HasLabel Strategy where
   label = strategyLabel
 
 instance Eq Strategy where
   s1 == s2 = label s1 == label s2
+
+instance Pretty Strategy where pretty = viaShow
+instance Pretty Strat where pretty = viaShow
 
 strategy :: MonadState Label m => [StratVar] -> [TermVar] -> m Strat -> m Strategy
 strategy svs tvs body = Strategy svs tvs <$> body <*> fresh
@@ -212,7 +219,7 @@ liftScopes strat = case strat of
   Prim f ss ts l -> do
     let ss' = map (\s -> liftStratScopes s l) ss
     return $ Prim f ss' ts l
-  Apply body l -> Apply <$> liftScopes body <*> pure l
+  Apply cll body l -> Apply <$> liftScopes cll <*> liftScopes body <*> pure l
 
 -- instance Monoid TermVarSet where
 --   mempty = TermVarSet mempty
@@ -407,7 +414,7 @@ instance HasLabel Strat where
     Call _ _ _ l -> l
     Let _ _ l -> l
     Prim _ _ _ l -> l
-    Apply _ l -> l
+    Apply _ _ l -> l
 
 instance Hashable Strat where
   hashWithSalt s x = s `hashWithSalt` label x
@@ -461,8 +468,12 @@ instance Show Strat where
      . showString "|"
      . showString (intercalate "," (map show ts))
      . showString ")"
-    Apply body _ ->
-      showsPrec d body
+    Apply cll body _ ->
+      showString "Call: "
+      . showsPrec d cll
+      . showString " -> "
+      . showString "Callee: "
+      . showsPrec d body
     Prim (StratVar f) ss ts _ ->
      showString (unpack f)
      . showString "("
@@ -486,6 +497,9 @@ instance Hashable Strategy where
 
 instance Show StratVar where
   show (StratVar x) = unpack x
+
+instance Pretty StratVar where
+  pretty (StratVar x) = pretty x
 
 instance Num TermPattern where
   t1 + t2 = Cons "Add" [t1,t2]
@@ -567,7 +581,7 @@ instance TermVars Strat where
     Let strats s1 _ -> termVars strats <> termVars s1
     Call _ _ vs _ -> termVars vs
     Prim _ _ vs _ -> termVars vs
-    Apply body _ -> termVars body
+    Apply _ body _ -> termVars body
 
 instance TermVars StratVar where
   termVars _ = mempty

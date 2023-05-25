@@ -4,6 +4,7 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -18,9 +19,11 @@ import           Syntax hiding (Fail,TermPattern(..),id)
 import           Abstract.TermEnvironment as TEnv
 
 import           Control.Category
-import           Control.Arrow
+import           Control.Arrow hiding ((<+>))
 import           Control.Arrow.Fix as Fix
+import           Control.Arrow.Fix.Context (callsiteSensitive)
 import           Control.Arrow.Fix.Reuse(ArrowReuse(..))
+import           Control.Arrow.Fix.Stack(reuseFirst)
 import           Control.Arrow.Trans
 import           Control.Arrow.Transformer.Value
 import           Control.Arrow.Transformer.Const
@@ -57,10 +60,14 @@ import           Data.Abstract.CallString as CallString
 import           Data.Order
 import           Data.Label
 import           Data.Identifiable
+import           Data.Hashable(Hashable(hash))
 import           Data.Monoid(First(..))
+import           GHC.Exts(IsList(..))
+
+import           Text.Printf(printf)
 
 import           Prettyprinter
-import Control.Arrow.Fix.Context (callsiteSensitive)
+
 
 type TypeError = Pow String
 type SEnv = Flat.Env StratVar (Closure Strategy)
@@ -70,7 +77,7 @@ type Cod t = Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv
 type Interp t =
    ValueT t
     (ConstT Context
-     (SEnv.EnvT (Flat.Env StratVar (Closure Strategy))
+     (SEnv.EnvT SEnv
       (TEnv.EnvT t
        --NoInlineT
         (ExceptT ()
@@ -82,8 +89,7 @@ type Interp t =
               (ComponentT Comp.Component (Dom t)
                (StackT Stack (Dom t)
                 (CacheT (Group Cache) (Dom t) (Cod t)
-                 (CallSiteT Label
-                  (ContextT (Ctx.Group Ctx.Context) (CallString Label) (Dom t) (->))))))))))))))
+                 (->))))))))))))
 
 runInterp :: forall t x y. (Pretty t, Show t, Complete t, Identifiable t, ?sensitivity :: Int)
           => (FixpointAlgorithm (Fix (Interp t (Strat,t) t)) -> Interp t x y)
@@ -94,38 +100,45 @@ runInterp :: forall t x y. (Pretty t, Show t, Complete t, Identifiable t, ?sensi
           -> x
           -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,y))))
 runInterp f termWidening senv0 ctx0 tenv0 a0 =
-  let ?contextWidening = termWidening W.** S.widening termWidening in
+  -- let ?contextWidening = termWidening W.** S.widening termWidening in
   let ?cacheWidening = T.widening (Free.widening (F.widening P.widening (E.widening (\_ _ -> (Stable,())) (S.widening termWidening W.** termWidening)))) in
   let algorithm =
         Fix.fixpointAlgorithm $
         -- Fix.trace' (\(tenv,(senv,(strat,term))) -> printf "STRAT %s\nTERM  %s\nENV   %s\nSENV  %s\n" (show strat) (show term) (show tenv) (show senv)) (\_ -> "") $
         Fix.filterPrism stratApply
         (
-          -- reuseFirst .
-          callsiteSensitive ?sensitivity (\((strat, _), _) -> label strat) .
-          outermost
-
-          -- traceCache (\cache -> printf "CACHE %s" (show [ (strat,a,tenv,b,s{-senv-}) | ((strat,senv),cache') <- toList cache, ((a,tenv),b,s) <- toList cache'])) .
-          -- Fix.trace' (\((strat,_senv),(term,tenv)) -> printf "STRAT %s\nTERM  %s\nENV   %s\nSENV  %s\n" (show strat) (show term) (show tenv) "" {-(show senv)-})
-          --            (printf "RET   %s" . Prelude.show)
-          -- (
-            -- reuseFirst .
-            -- outermost
-          -- )
+          reuseFirst .
+          Fix.trace (\((strat,senv),(term,tenv)) ->
+                       vsep [ "STRAT" <+> pretty strat <> "@" <> pretty (hash strat)
+                            , "TERM " <+> pretty term <> "@" <> pretty (hash term)
+                            , "TENV " <+> pretty tenv <> "@" <> pretty (hash tenv)
+                            , "SENV " <+> pretty (hash senv)
+                            ])
+                     (\ret -> pretty ret <> "@" <> pretty (hash ret)) .
+          Fix.traceCache (\(cache :: Group Cache (Dom t) (Cod t)) ->
+                            show $ vsep [ vsep [pretty strat <+> pretty (hash strat),
+                                                pretty term <+> pretty (hash term),
+                                                pretty tenv <+> pretty (hash tenv),
+                                                pretty (hash senv), -- pretty senv <+> pretty (hash senv),
+                                                pretty ret <+> pretty (hash ret),
+                                                pretty stable]
+                                        | ((strat,senv),cache')    <- toList cache,
+                                          ((term,tenv),ret,stable) <- toList cache']) .
+            outermost
         )
   in snd (run (f algorithm) ctx0 (tenv0, (senvInit, a0)))
   where
     senvInit = Flat.fromList [ (var,Cl.closure strat ())| (var,strat) <- M.toList senv0]
 {-# INLINE runInterp #-}
 
-reuseFirst :: (PreOrd t, ArrowChoice c, ArrowReuse (Dom t) (Cod t) c) => FixpointCombinator c (Dom t) (Cod t)
-reuseFirst f = proc a@(_,(_,tenv)) -> do
-  m <- reuse (\_ a' s' b' -> First (Just (a',b',s'))) -< (a,Stable)
-  case getFirst m of
-    Just (_,b',Stable) -> returnA -< fmap (fmap (fmap (fmap (\(tenv',t') -> (tenv' `union` tenv,t'))))) b'
-    Just (a',_,Unstable) -> f -< a'
-    _ -> f -< a
-{-# INLINE reuseFirst #-}
+-- reuseFirst :: (PreOrd t, ArrowChoice c, ArrowReuse (Dom t) (Cod t) c) => FixpointCombinator c (Dom t) (Cod t)
+-- reuseFirst f = proc a@(_,(_,tenv)) -> do
+--   m <- reuse (\_ a' s' b' -> First (Just (a',b',s'))) -< (a,Stable)
+--   case getFirst m of
+--     Just (_,b',Stable) -> returnA -< fmap (fmap (fmap (fmap (\(tenv',t') -> (tenv' `union` tenv,t'))))) b'
+--     Just (a',_,Unstable) -> f -< a'
+--     _ -> f -< a
+-- {-# INLINE reuseFirst #-}
 
     -- Just (a',b',Unstable) -> iterate -< (a',fmap (fmap (fmap (fmap (\(tenv',t') -> (tenv' `union` unhashed tenv,t'))))) b')
 -- instance (Show t, ArrowIterate (Dom t) c) => ArrowIterate (Dom t) (TraceT c) where

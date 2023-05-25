@@ -133,9 +133,9 @@ traceShow = trace pretty pretty
 traceCache :: ArrowGetCache cache c => (cache -> String) -> FixpointCombinator c a b
 traceCache showCache f = proc a -> do
   cache <- getCache -< ()
-  b <- f -< Debug.trace (printf "CACHE %s\n\n" (showCache cache)) a
+  b <- f -< Debug.trace (printf "CACHE\n%s\n\n" (showCache cache)) a
   cache' <- getCache -< ()
-  returnA -< Debug.trace (printf "CACHE %s\n\n" (showCache cache')) b
+  returnA -< Debug.trace (printf "CACHE\n%s\n\n" (showCache cache')) b
 {-# INLINE traceCache #-}
 
 ------------- Instances --------------

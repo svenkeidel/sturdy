@@ -72,8 +72,8 @@ lookupSort Context {..} s0 = do
     List a -> [("Cons", Signature [a, List a] (List a)), ("Nil", Signature [] (List a))]
     Option a -> [("Some", Signature [a] (Option a)), ("None", Signature [] (Option a))]
     Tuple as -> [("", Signature as (Tuple as))]
-    Lexical -> [("", Signature [Lexical] Lexical)]
-    Numerical -> [("", Signature [Numerical] Numerical)]
+    Lexical -> [("", Signature [] Lexical)]
+    Numerical -> [("", Signature [] Numerical)]
     Sort _ -> fromMaybe [] (M.lookup s sorts)
 
 isLexical :: Context -> Sort -> Bool
@@ -120,7 +120,9 @@ class Arrow c => HasContext c where
   getContext :: c () Context
 
 widening :: Context -> Int -> Widening Sort
-widening ctx n0 s1 s2 = let s' = go n0 (lub ctx s1 s2) in (if s' == s1 && s' == s2 then Stable else Unstable,s')
+widening ctx n0 s1 s2 =
+  let s' = go n0 (lub ctx s1 s2)
+  in (if s' == s1 then Stable else Unstable, s')
   where
     go 0 _ = Top
     go n s = case s of

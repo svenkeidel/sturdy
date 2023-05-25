@@ -17,6 +17,7 @@ import           Abstract.TermEnvironment
 
 import           Control.Arrow
 
+import           Data.Abstract.Stable(Stable(..))
 import           Data.Abstract.FreeCompletion (fromCompletion)
 import           Data.Abstract.Except as E
 import           Data.Abstract.Error as F
@@ -38,6 +39,21 @@ main = hspec spec
 
 spec :: Spec
 spec = do
+
+  it "Widening" $ do
+    let ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp")]
+    let expr = Sorted "Exp" ctx
+    let top = Sorted Top ctx
+    termWidening ctx 0 10 expr top `shouldBe` (Unstable,top)
+    termWidening ctx 0 10 top expr `shouldBe` (Stable,top)
+    termWidening ctx 0 10 (IllSorted [("Succ", [expr])]) (IllSorted [("Zero", [])]) `shouldBe` (Unstable, expr)
+    termWidening ctx 1 10 (IllSorted [("Succ", [expr])]) (IllSorted [("Zero", [])]) `shouldBe` (Unstable, IllSorted [("Succ", [expr]), ("Zero", [])])
+    termWidening ctx 0 10 (IllSorted [("Zero", [])]) (IllSorted [("Succ", [expr])]) `shouldBe` (Unstable, expr)
+    termWidening ctx 0 10 expr (IllSorted [("Succ", [expr])]) `shouldBe` (Stable, expr)
+    termWidening ctx 0 10 (IllSorted [("Succ", [expr])]) expr `shouldBe` (Unstable, expr)
+    termWidening ctx 0 10 top (IllSorted [("Succ", [expr])]) `shouldBe` (Stable, top)
+    termWidening ctx 0 10 (IllSorted [("Succ", [expr])]) top `shouldBe` (Unstable, top)
+
 
   describe "Utilities" $ do
     it "convertToList should work with identical sorts" $
@@ -424,7 +440,7 @@ spec = do
         let prog = term (Tuple [Lexical, List (Tuple [Lexical, "Val"])])
             val  = term "Val"
         in do
-          seval'' 0 10 (call "lookup_0_0" [] []) pcf emptyEnv prog `shouldBe`
+          seval'' 0 1 (call "lookup_0_0" [] []) pcf emptyEnv prog `shouldBe`
             successOrFail () (emptyEnv, val)
 
       it "eval: Env * Exp -> Val" $ \pcf ->
@@ -432,8 +448,15 @@ spec = do
         let prog = term (Tuple [List (Tuple [Lexical, "Val"]), "Exp"])
             val  = term "Val"
         in do
-          seval'' 0 10 (call "eval_0_0" [] []) pcf emptyEnv prog `shouldBe`
+          seval'' 0 1 (call "eval_0_0" [] []) pcf emptyEnv prog `shouldBe`
              successOrFail () (emptyEnv, val)
+
+  describe "Negative Normal Form" $
+    caseStudy CaseStudy.nnf $
+      it "nnf: Formula -> Formula" $ \nnf ->
+        let ?sensitivity = 0
+        in seval'' 0 10 (call "main_0_0" [] []) nnf emptyEnv (term "Formula") `shouldBe`
+            success (emptyEnv, term "Formula")
 
   describe "Arrow" $
     caseStudy CaseStudy.arrows $ do

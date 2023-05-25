@@ -1,11 +1,12 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Data.Abstract.Environment.Flat
 ( Env
 , empty
@@ -37,6 +38,7 @@ import           Data.Hashable
 
 import           Text.Printf
 import           GHC.Generics
+import           Prettyprinter
 
 data Env var val = Env { visible :: Set var, env :: HashMap var (val (Set var)) }
   deriving (Generic)
@@ -48,9 +50,13 @@ instance (Identifiable var, Show var,Show (val (Set var))) => Show (Env var val)
   show Env {..}
     | M.null env = "[]"
     | otherwise = "[" ++ init (unwords
-                         [ printf "%s %s %s," (show var) (if H.member var visible then "->" else "~>") (show val)
+                         [ printf "%s %s %s," (show var) (if H.member var visible then "->" else "~>" :: String) (show val)
                          | (var,val) <- M.toList env])
                   ++ "]"
+
+instance (Identifiable var, Pretty var,Pretty (val (Set var))) => Pretty (Env var val) where
+  pretty Env {..} = list [ pretty var <+> (if H.member var visible then "->" else "~>") <+> pretty val
+                         | (var,val) <- M.toList env]
 
 instance IsEmpty (Env var val) where
   empty = Env empty empty
