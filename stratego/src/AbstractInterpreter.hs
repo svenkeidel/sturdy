@@ -38,7 +38,6 @@ import           Control.Arrow.Transformer.Abstract.Fix.CallSite(CallSiteT)
 import           Control.Arrow.Transformer.Abstract.Fix.Context (ContextT) 
 import qualified Control.Arrow.Transformer.Abstract.Fix.Context as Ctx
 
-import           Data.Hashable
 import qualified Data.HashMap.Lazy as M
 import qualified Data.Abstract.Environment.Flat as Flat
 import           Data.Abstract.Closure (Closure)
@@ -60,7 +59,6 @@ import           Data.Label
 import           Data.Identifiable
 import           Data.Monoid(First(..))
 
-import           Text.Printf(printf)
 import           Prettyprinter
 import Control.Arrow.Fix.Context (callsiteSensitive)
 
@@ -85,7 +83,7 @@ type Interp t =
                (StackT Stack (Dom t)
                 (CacheT (Group Cache) (Dom t) (Cod t)
                  (CallSiteT Label
-                  (ContextT Ctx.Context (CallString Label) (Dom t) (->))))))))))))))
+                  (ContextT (Ctx.Group Ctx.Context) (CallString Label) (Dom t) (->))))))))))))))
 
 runInterp :: forall t x y. (Pretty t, Show t, Complete t, Identifiable t, ?sensitivity :: Int)
           => (FixpointAlgorithm (Fix (Interp t (Strat,t) t)) -> Interp t x y)
@@ -96,14 +94,15 @@ runInterp :: forall t x y. (Pretty t, Show t, Complete t, Identifiable t, ?sensi
           -> x
           -> Terminating (FreeCompletion (Error (Pow String) (Except () (TermEnv t,y))))
 runInterp f termWidening senv0 ctx0 tenv0 a0 =
-  let ?contextWidening = _ W.** (_ W.** _) in
+  let ?contextWidening = termWidening W.** S.widening termWidening in
   let ?cacheWidening = T.widening (Free.widening (F.widening P.widening (E.widening (\_ _ -> (Stable,())) (S.widening termWidening W.** termWidening)))) in
   let algorithm =
         Fix.fixpointAlgorithm $
         -- Fix.trace' (\(tenv,(senv,(strat,term))) -> printf "STRAT %s\nTERM  %s\nENV   %s\nSENV  %s\n" (show strat) (show term) (show tenv) (show senv)) (\_ -> "") $
         Fix.filterPrism stratApply
         (
-          callsiteSensitive 0 (\((strat, _), _) -> label (unhashed strat)) .
+          -- reuseFirst .
+          callsiteSensitive ?sensitivity (\((strat, _), _) -> label strat) .
           outermost
 
           -- traceCache (\cache -> printf "CACHE %s" (show [ (strat,a,tenv,b,s{-senv-}) | ((strat,senv),cache') <- toList cache, ((a,tenv),b,s) <- toList cache'])) .
@@ -124,6 +123,7 @@ reuseFirst f = proc a@(_,(_,tenv)) -> do
   m <- reuse (\_ a' s' b' -> First (Just (a',b',s'))) -< (a,Stable)
   case getFirst m of
     Just (_,b',Stable) -> returnA -< fmap (fmap (fmap (fmap (\(tenv',t') -> (tenv' `union` tenv,t'))))) b'
+    Just (a',_,Unstable) -> f -< a'
     _ -> f -< a
 {-# INLINE reuseFirst #-}
 

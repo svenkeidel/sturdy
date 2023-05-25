@@ -385,7 +385,7 @@ spec = do
 
     it "reduce Add(Zero,y) <+ Add(x,Zero) <+ Double(x)" $
       let ?ctx = Ctx.fromList [("Succ",["Exp"],"Exp"),("Zero",[],"Exp"),("Add",["Exp","Exp"],"Exp")]
-          ?sensitivity = 0 in
+          ?sensitivity = 1 in
       let exp = term "Exp"
           reduce1 = match (Cons "Add" [Cons "Zero" [], "y"]) `seq` build "y"
           reduce2 = match (Cons "Add" ["x", Cons "Zero" []]) `seq` build "x"
@@ -493,7 +493,7 @@ spec = do
         let prog = term "APat"
             val  = term $ List "Var"
         in do
-          seval'' 0 10 (call "free_pat_vars_0_0" [] []) desugar emptyEnv prog `shouldBe`
+          seval'' 0 1 (call "free_pat_vars_0_0" [] []) desugar emptyEnv prog `shouldBe`
             successOrFail () (emptyEnv, val)
 
       it "free-decls-vars: Declbinds -> List Var " $ \desugar ->
@@ -501,7 +501,7 @@ spec = do
         let prog = term "Declbinds"
             val  = term $ List "Var"
         in do
-          seval'' 0 10 (call "free_decls_vars_0_0" [] []) desugar emptyEnv prog `shouldBe`
+          seval'' 0 1 (call "free_decls_vars_0_0" [] []) desugar emptyEnv prog `shouldBe`
             successOrFail () (emptyEnv, val)
 
       it "desugar-arrow': ArrCommand -> Exp" $ \desugar ->
@@ -510,7 +510,7 @@ spec = do
             val  = term "Exp"
             env = termEnv [("vars-list", term $ List "Var")]
         in do
-          seval'' 0 10 (call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) desugar env prog `shouldBe`
+          seval'' 0 1 (call "desugar_arrow_p__0_1" [] [TermVar "vars-list"]) desugar env prog `shouldBe`
             successOrFail () (env, val)
 
   where
