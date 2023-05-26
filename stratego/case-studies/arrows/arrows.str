@@ -292,7 +292,7 @@ signature
                      : QVARSYM -> Qvarsym1
                      : VARSYM -> Varsym
                      : Qconid -> Qcon
-    BinCon           : Qconsym -> Qcon
+    BinCon           : Qop -> Qcon // CHANGED
                      : CONSYM -> Consym
                      : QCONSYM -> Qconsym
                      : Consym -> Qconsym

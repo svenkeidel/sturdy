@@ -38,6 +38,7 @@ import           Data.Empty
 import           Data.Order hiding (lub)
 import           Data.Coerce
 import           Data.Identifiable
+import           Data.Hashable(hash)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
 import           Data.Monoidal
@@ -78,8 +79,11 @@ instance IsEmpty (Cache a b) where
 instance (Show a, Show b) => Show (Cache a b) where
   show (Cache m) = show (M.toList m)
 
-instance (Pretty a, Pretty b) => Pretty (Cache a b) where
-  pretty (Cache m) = list [ pretty k <+> prettyStable s <+> pretty v | (k,(s,v)) <- M.toList m]
+instance (Identifiable a, Pretty a, Identifiable b, Pretty b) => Pretty (Cache a b) where
+  pretty (Cache m) = list [ pretty k<> "@" <> pretty (hash k) <+>
+                            prettyStable s <+>
+                            pretty v <> "@" <> pretty (hash v)
+                          | (k,(s,v)) <- M.toList m]
     where
       prettyStable Stable = "->"
       prettyStable Unstable = "~>"
@@ -142,6 +146,9 @@ instance Identifiable a => IsList (Cache a b) where
 ------ Group Cache ------
 data Group cache a b where
   Groups :: HashMap k (cache a b) -> Group cache (k,a) b
+
+instance (Identifiable k, Pretty k, Pretty (cache a b)) => Pretty (Group cache (k, a) b) where
+  pretty (Groups m) = vsep [pretty k <> "@" <> pretty (hash k) <+> "->" <> line <> indent 4 (pretty cache) | (k, cache) <- M.toList m]
 
 instance IsEmpty (Group cache (k,a) b) where
   empty = Groups empty

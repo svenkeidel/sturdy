@@ -1421,7 +1421,7 @@ Specification(
             )
           , OpDecl(
               "BinCon"
-            , FunType([ConstType(SortNoArgs("Qconsym"))], ConstType(SortNoArgs("Qcon")))
+            , FunType([ConstType(SortNoArgs("Qop"))], ConstType(SortNoArgs("Qcon")))
             )
           , OpDeclInj(
               FunType([ConstType(SortNoArgs("CONSYM"))], ConstType(SortNoArgs("Consym")))

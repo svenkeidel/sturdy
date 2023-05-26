@@ -18,6 +18,9 @@ pcf = caseStudy "pcf"
 nnf :: IO (Context,LStratEnv)
 nnf = caseStudy "nnf"
 
+cca :: IO (Context,LStratEnv)
+cca = caseStudy "cca"
+
 arrows :: IO (Context,LStratEnv)
 arrows = caseStudy "arrows"
 

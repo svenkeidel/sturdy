@@ -66,7 +66,7 @@ data Term = Term { sort :: Sort, context :: Context }
 -- {-# SPECIALIZE Generic.eval :: (?fixpointAlgorithm :: FixpointAlgorithm (Fix (Interp Term (Strat,Term) Term)))
 --                             => Strat -> Interp Term Term Term #-}
 
-eval :: (?sensitivity :: Int) => Int -> LStrat -> LStratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
+eval :: Int -> LStrat -> LStratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
 eval j lstrat lsenv ctx =
   let (strat,senv) = generate $ (,) <$> lstrat <*> lsenv
   in runInterp (\algo -> let ?fixpointAlgorithm = algo in

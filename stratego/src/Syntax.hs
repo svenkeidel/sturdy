@@ -63,7 +63,7 @@ data Strat
   | Call StratVar [Strat] [TermVar] Label
   | Prim StratVar [Strat] [TermVar] Label
   | Apply Strat Strat Label
-  deriving stock (Generic,Eq)
+  deriving stock (Generic)
   deriving PreOrd via Discrete Strat
   deriving anyclass NFData
 
@@ -415,6 +415,9 @@ instance HasLabel Strat where
     Let _ _ l -> l
     Prim _ _ _ l -> l
     Apply _ _ l -> l
+
+instance Eq Strat where
+  s1 == s2 = label s1 == label s2
 
 instance Hashable Strat where
   hashWithSalt s x = s `hashWithSalt` label x

@@ -889,8 +889,6 @@ exports
     "(" Qvarsym ")" 	-> Qvar 	{cons("BinOp")}
     "(" Consym ")" 	-> Con 		{cons("BinCon")}
     "(" Qconsym ")" 	-> Qcon 	{cons("BinCon")}
-    
-
   context-free syntax
     VARSYM 		-> Varsym
 

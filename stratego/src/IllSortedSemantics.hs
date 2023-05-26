@@ -74,7 +74,7 @@ import           GHC.Exts(IsList(..),IsString(..))
 
 data Term = Sorted Sort Context | IllSorted (Constr Term) deriving (Eq)
 
-eval :: (?sensitivity :: Int) => Int -> Int -> LStrat -> LStratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
+eval :: Int -> Int -> LStrat -> LStratEnv -> Context -> TermEnv Term -> Term -> Terminating (FreeCompletion (Error TypeError (Except () (TermEnv Term,Term))))
 eval i j lstrat lsenv ctx =
   let (strat,senv) = generate $ (,) <$> lstrat <*> lsenv
   in runInterp (\algo -> let ?fixpointAlgorithm = algo in
