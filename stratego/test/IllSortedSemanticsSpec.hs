@@ -704,7 +704,7 @@ spec = do
               success (tenv, term "Exp")
 
         let pat = build (Cons "ArrForm"
-                        [ Cons "BinCon" ["p_14"]
+                        [ Cons "Constr" [Cons "BinCon" ["p_14"]]
                         , Cons "Cons"
                           [ "q_14"
                           , Cons "Cons"
@@ -718,12 +718,12 @@ spec = do
                            ,("r_14", term "ArrCommand")
                            ]
           in seval'' 1 10 pat desugar tenv bottom `shouldBe`
-              success (tenv, term "Exp")
+              success (tenv, term "ArrCommand")
 
         let pat = build (Cons "BinCon" ["p_14"])
             tenv = termEnv [("p_14", term "Qop")]
           in seval'' 1 10 pat desugar tenv bottom `shouldBe`
-              success (tenv, term "Exp")
+              success (tenv, term "Qcon")
 
         let pat = build (Cons "OpApp"
                          [Cons "AppBin"

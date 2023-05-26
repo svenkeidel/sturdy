@@ -464,7 +464,7 @@ rules
 
   desugar-arrow'(|vars):
     ArrOpApp(c1, op, c2) -> <desugar-arrow'(|vars)> ArrForm(
-                                                      BinCon(op)
+                                                      Constr(BinCon(op))
                                                     , [c1, c2]
                                                     )
 
