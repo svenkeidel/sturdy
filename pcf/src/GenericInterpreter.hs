@@ -21,6 +21,7 @@ import qualified Control.Arrow.LetRec as LetRec
 import qualified Control.Arrow.Environment as Env
 
 import           Data.Text (Text)
+import           Data.Kind (Type)
 
 import           Text.Printf
 
@@ -78,7 +79,7 @@ eval = fix $ \ev -> proc e0 -> case e0 of
 
 -- | Interface for numeric operations
 class IsVal v c | c -> v where
-  type family Join y (c :: * -> * -> *) :: Constraint
+  type family Join y (c :: Type -> Type -> Type) :: Constraint
 
   -- | increments the given number value.
   succ :: c v v

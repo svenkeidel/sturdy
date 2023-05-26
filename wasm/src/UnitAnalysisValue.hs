@@ -28,7 +28,8 @@ import qualified Language.Wasm.Interpreter as Wasm
 import           Data.Hashable
 import           Data.HashSet as HashSet
 import           Data.Order
-import           Data.Text.Prettyprint.Doc as Pretty
+
+import           Prettyprinter
 
 import           Text.Printf
 
@@ -258,6 +259,9 @@ instance (ArrowChoice c, ArrowFail Err c, Fail.Join Value c) => IsVal Value (Val
         (VI32 _) -> do
             (joinList1'' (proc (x,()) -> sCont -< x) -< (xs,())) <⊔> (eCont -< x)
         _ -> returnA -< error "listLookup: cannot apply operator to given arguments."
+
+    iTruncSatFU = error "not implemented"
+    iTruncSatFS = error "not implemented"
 
 -- deriving instance ArrowComplete () c => ArrowComplete () (ValueT v c)
 -- deriving instance ArrowComplete y c => ArrowComplete y (ValueT Value c)

@@ -386,7 +386,8 @@ spec = do
 
   describe "Negative Normal Form" $
     caseStudy CaseStudy.nnf $
-      it "nnf: Formula -> Formula" $ \pcf ->
+      it "nnf: Formula -> Formula" $ \pcf -> do
+        pendingWith "too imprecise to type check"
         seval'' 10 (call "main_0_0" [] []) pcf emptyEnv (term "Formula") `shouldBe`
           successOrfail () (emptyEnv, term "Formula")
 

@@ -9,8 +9,7 @@ packages:
 - 'while'
 - 'stratego'
 - 'wasm'
-# - 'stratego'
-- 'jimple'
+# - 'jimple'
 - 'tutorial'
 allow-newer: true
 extra-deps:

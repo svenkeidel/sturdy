@@ -94,7 +94,7 @@ encodeBytes _ = V.fromList . map Byte
 -- decodeBytes :: [Byte] -> [Word8]
 -- decodeBytes = map byteValue
 decodeBytes :: Bytes -> [Word8]
-decodeBytes = map (\(Byte b) -> b) . V.toList
+decodeBytes = map (\b -> case b of Byte b' -> b'; TopByte -> error "cannot decode top types") . V.toList
 
 encodeConcreteValue :: Wasm.Value -> Bytes
 encodeConcreteValue (Wasm.VI32 w32) = 

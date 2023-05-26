@@ -47,8 +47,6 @@ import qualified Data.Vector as Vec
 import           Data.Word
 import           Data.Bits
 
-import           Prettyprinter
-
 import           Language.Wasm.FloatUtils
 import           Language.Wasm.Interpreter (ModuleInstance, asInt32,asInt64,asWord32,asWord64,nearest,
                                             floatFloor, doubleFloor, floatCeil, doubleCeil,
@@ -410,7 +408,6 @@ invokeExported :: StaticGlobalState Value
                         -> Result
 invokeExported staticS mem tab modInst funcName args =
     let ?fixpointAlgorithm = Function.fix in
-    --let ?fixpointAlgorithm = fixpointAlgorithm (trace p1 p2) in
     Trans.run
     (Generic.invokeExported ::
       ValueT Value
@@ -424,10 +421,6 @@ invokeExported staticS mem tab modInst funcName args =
                       (FrameT FrameData Value
                         (FailureT Err
                           (->)))))))))) (Text, [Value]) [Value]) (JoinVector Vec.empty,((0,modInst),(tab,(mem,(staticS,([],([],(funcName,args))))))))
-    where
-        p1 (locals,(_,(_,(_,(_,(stack,(_,instr))))))) = hsep [pretty stack, pretty locals, pretty instr]
-        p2 (Success (_, (_,(_,(_, Success (stack,_)))))) = pretty stack
-        p2 _ = pretty "Fail"
 
 invokeExported' :: Wasm.Store -> ModuleInstance -> Text -> [Wasm.Value] -> IO (Maybe [Wasm.Value])
 invokeExported' store modInst funcName wasmArgs = do

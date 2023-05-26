@@ -39,7 +39,6 @@ import           Control.Category
 
 import           Data.Coerce (coerce)
 import           Data.Profunctor
-import           Data.Order
 
 import           Language.Wasm.Structure (ValueType(..))
 

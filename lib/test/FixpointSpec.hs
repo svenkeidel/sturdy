@@ -34,7 +34,8 @@ import           Data.Abstract.Terminating (Terminating)
 import qualified Data.Abstract.Terminating as T
 import           Data.Abstract.Widening (Widening)
 import qualified Data.Abstract.Widening as W
-import           Data.Text.Prettyprint.Doc
+
+import           Prettyprinter
 
 import           Data.Order
 

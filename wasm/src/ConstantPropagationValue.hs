@@ -28,9 +28,10 @@ import qualified Language.Wasm.Interpreter as Wasm
 import           Data.Hashable
 import           Data.HashSet as HashSet
 import           Data.Order
-import           Data.Text.Prettyprint.Doc as Pretty
 import           Data.Coerce (coerce)
 import           Data.Profunctor (Profunctor)
+
+import           Prettyprinter
 
 instance PreOrd Concrete.Value where
     a ⊑ b = a == b

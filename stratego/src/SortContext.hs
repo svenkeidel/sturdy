@@ -3,7 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans -fno-warn-incomplete-uni-patterns #-}
 module SortContext(
   Context, HasContext(..), Sort(..), Signature(..), SortId(..), empty, signatures, sorts,
   fromList, insertSignature, insertSubtype, subtype, lookupSort, lookupCons, numSorts,

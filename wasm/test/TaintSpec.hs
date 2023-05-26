@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 module TaintSpec where
 
 import           Abstract

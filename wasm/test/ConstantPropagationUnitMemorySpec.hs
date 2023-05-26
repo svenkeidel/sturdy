@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedLists #-}
-
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 module ConstantPropagationUnitMemorySpec where
 
 import qualified Concrete as Concrete
 --import qualified Data as D
 import           ConstantPropagationUnitMemory as A
 import           ConstantPropagationValue as A
-import           UnitAnalysisValue as U
+-- import           UnitAnalysisValue as U
 import           ConstantPropagationSoundness
 --import           GraphToDot
 

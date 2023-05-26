@@ -48,7 +48,8 @@ import           Data.Boolean
 import           Data.Identifiable
 import           Data.Order
 import           Data.Hashable
-import           Data.Text.Prettyprint.Doc
+
+import           Prettyprinter
 
 import           GHC.Generics
 

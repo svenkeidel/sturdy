@@ -26,9 +26,10 @@ import           Control.Arrow.Transformer.Value
 import           Data.Hashable
 import           Data.HashSet as HashSet
 import           Data.Order
-import           Data.Text.Prettyprint.Doc as Pretty
-import           GHC.Generics
 import           Data.Coerce (coerce)
+
+import           Prettyprinter
+import           GHC.Generics
 
 data Taint = Tainted | Untainted | Top deriving (Eq, Show, Generic, Hashable)
 data Value v = Value Taint v deriving (Eq, Show, Generic, Hashable)
@@ -181,3 +182,6 @@ instance (JoinVal v (ValueT v c), IsVal v (ValueT v c), ArrowChoice c) => IsVal 
       (unliftValueT f)
       (unliftValueT g))
     -< (v,xs,x)
+
+  iTruncSatFU = error "not implemented"
+  iTruncSatFS = error "not implemented"

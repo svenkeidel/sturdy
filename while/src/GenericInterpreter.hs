@@ -24,6 +24,7 @@ import           Control.Arrow.Utils
 
 import           Data.Text (Text)
 import           Data.String
+import           Data.Kind(Type)
 
 import           Syntax
 import           GHC.Exts
@@ -145,7 +146,7 @@ run = fix $ \run' -> proc stmts -> case stmts of
 class Arrow c => IsVal v c | c -> v where
   -- | In case of the abstract interpreter allows to join the result
   -- of an @if@ statement.
-  type family JoinVal x (c :: * -> * -> *) :: Constraint
+  type family JoinVal x (c :: Type -> Type -> Type) :: Constraint
 
   boolLit :: c Bool v
   and :: c (v,v) v
@@ -164,6 +165,6 @@ class ArrowAlloc addr c where
   alloc :: c (Text,v,Label) addr
 
 class IsException exc v c | c -> v where
-  type family JoinExc y (c :: * -> * -> *) :: Constraint
+  type family JoinExc y (c :: Type -> Type -> Type) :: Constraint
   namedException :: c (Text,v) exc
   matchException :: JoinExc y c => c (v,x) y -> c x y -> c (Text,exc,x) y

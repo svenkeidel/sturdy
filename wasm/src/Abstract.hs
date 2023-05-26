@@ -11,7 +11,8 @@ import           GenericInterpreter()
 
 import           Data.Hashable
 import           Data.Order
-import           Data.Text.Prettyprint.Doc
+
+import           Prettyprinter
 
 import           GHC.Generics
 

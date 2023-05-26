@@ -56,7 +56,6 @@ import           Data.Label
 import           Data.Text (Text)
 import           Data.Utils
 import qualified Data.Lens as L
-import           Data.Text.Prettyprint.Doc
 
 import           Data.Abstract.Boolean (Bool)
 import qualified Data.Abstract.Boolean as B
@@ -85,6 +84,7 @@ import qualified Data.Abstract.Widening as W
 import           GHC.Exts(IsString(..))
 import           GHC.Generics
 import           Text.Printf
+import           Prettyprinter
 
 -- | Abstract values are either abstract booleans or intervals.
 data Val = BoolVal Bool | NumVal IV | TypeError (Pow String) deriving (Eq,Generic)

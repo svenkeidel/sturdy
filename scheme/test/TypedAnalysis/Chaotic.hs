@@ -49,7 +49,7 @@ import qualified Data.Abstract.Widening as W
 import           Data.Abstract.Terminating(Terminating)
 
 import           TypedAnalysis
-import           Syntax (LExpr,Expr(App))
+import           Syntax (LExpr,Expr)
 import           GenericInterpreter as Generic
 
 type InterpT c x y =

@@ -5,11 +5,10 @@ METRICS='metrics.csv'
 
 # Clean up first, so there is no accidental interaction between consecutive benchmark runs.
 rm -f bench.csv
-stack clean
 
 # Run the benchmarks and combine the resulting csv files.
 stack bench --benchmark-arguments="--csv $RUNTIMES" sturdy-scheme
-stack test --fast --test-arguments='-m "/TypedAnalysis/Benchmarks"' sturdy-scheme
+stack test --test-arguments='-m "/TypedAnalysis/Benchmarks"' sturdy-scheme
 
 # Post process the benchmark data
 body() { # Apply a command to the body of a file

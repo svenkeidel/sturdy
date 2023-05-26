@@ -53,8 +53,8 @@ import           Data.Abstract.Widening as W
 import           Data.Order
 
 import           Data.Identifiable
-import           Data.Hashable(hash)
-import           GHC.Exts(toList)
+-- import           Data.Hashable(hash)
+-- import           GHC.Exts(toList)
 
 import           Prettyprinter
 
@@ -97,13 +97,14 @@ runInterp f termWidening senv0 ctx0 tenv0 a0 =
         Fix.filterPrism stratApply
         (
           reuseFirst .
-          Fix.trace (\((strat,senv),(term,tenv)) ->
-                       vsep [ "STRAT" <+> align (pretty strat <> "@" <> pretty (hash strat))
-                            , "TERM " <+> align (pretty term <> "@" <> pretty (hash term))
-                            , "TENV " <+> align (pretty tenv <> "@" <> pretty (hash tenv))
-                            , "SENV " <+> align (pretty (hash senv))
-                            ])
-                     (\ret -> pretty ret <> "@" <> pretty (hash ret)) .
+
+          -- Fix.trace (\((strat,senv),(term,tenv)) ->
+          --              vsep [ "STRAT" <+> align (pretty strat <> "@" <> pretty (hash strat))
+          --                   , "TERM " <+> align (pretty term <> "@" <> pretty (hash term))
+          --                   , "TENV " <+> align (pretty tenv <> "@" <> pretty (hash tenv))
+          --                   , "SENV " <+> align (pretty (hash senv))
+          --                   ])
+          --            (\ret -> pretty ret <> "@" <> pretty (hash ret)) .
 
           -- Fix.traceCache (\(cache :: Group Cache (Dom t) (Cod t)) ->
           --                   show $ vsep [ vsep [pretty strat <+> pretty (hash strat),

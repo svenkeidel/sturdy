@@ -29,7 +29,8 @@ import qualified Data.Metric as M
 import           Data.Order
 import           Data.Hashable
 import           Data.Profunctor
-import           Data.Text.Prettyprint.Doc
+
+import           Prettyprinter
 
 import           GHC.Generics
 

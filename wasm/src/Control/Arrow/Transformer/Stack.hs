@@ -49,7 +49,10 @@ deriving instance (ArrowComplete (JoinList v, y) c) => ArrowComplete y (StackT v
 
 instance (ArrowChoice c, Profunctor c) => ArrowStack v (StackT v c) where
   push = StackT $ modify $ arr $ \(v, JoinList st) -> ((), JoinList $ v : st)
-  pop = StackT $ modify $ arr $ \((), JoinList (v:st)) -> (v, JoinList st)
+  pop = StackT $ modify $ arr $ \((), JoinList l) ->
+    case l of
+      v : st -> (v, JoinList st)
+      [] -> error "cannot pop an empty stack"
   peek = StackT $ get >>^ (\(JoinList vs) -> head vs)
   ifEmpty (StackT f) (StackT g) = StackT $ proc x -> do
     st <- get -< ()

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 module ConstantPropagationSpec where
 
 import qualified Concrete as Concrete

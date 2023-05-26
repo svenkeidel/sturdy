@@ -51,7 +51,7 @@ import           Data.Text (Text)
 import qualified Data.Abstract.Widening as W
 
 
-import           Syntax (Expr(App))
+import           Syntax (Expr)
 import qualified GenericInterpreter as Generic
 import           TypedAnalysis
 

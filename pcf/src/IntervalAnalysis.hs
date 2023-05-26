@@ -53,7 +53,6 @@ import           Data.Profunctor
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
 import           Data.HashSet(HashSet)
-import           Data.Text.Prettyprint.Doc
 
 import           Data.Abstract.Error (Error)
 import qualified Data.Abstract.Error as E
@@ -73,6 +72,7 @@ import           Data.Abstract.CallString(CallString)
 import           GHC.Exts(IsString(..))
 import           GHC.Generics(Generic)
 import           Text.Printf
+import           Prettyprinter
 
 import           Syntax (Expr(..),isApplication,isFunctionBody)
 import           GenericInterpreter as Generic

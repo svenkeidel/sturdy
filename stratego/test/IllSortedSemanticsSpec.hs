@@ -405,7 +405,7 @@ spec = do
 
   describe "Negative Normal Form" $
     caseStudy CaseStudy.nnf $
-      it "nnf: Formula -> Formula" $ \nnf ->
+      it "nnf: Formula -> Formula" $ \nnf -> do
         seval'' 0 10 (call "main_0_0" [] []) nnf emptyEnv (term "Formula") `shouldBe`
             success (emptyEnv, term "Formula")
 
@@ -526,7 +526,7 @@ spec = do
           in termWidening ?ctx 0 10 t bottom `shouldBe` (Unstable,term "APat")
 
         let t = IllSorted [("BinCon",[term "Qop"])]
-          in termWidening ?ctx 0 10 t bottom `shouldBe` (Unstable,term "Exp")
+          in termWidening ?ctx 0 10 t bottom `shouldBe` (Unstable,term "Qcon")
 
       it "builds" $ \desugar -> do
         let pat = build (Cons "OpApp"
