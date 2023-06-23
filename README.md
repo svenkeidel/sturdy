@@ -48,6 +48,17 @@ stack test sturdy-pcf
 
 ## Publications
 
+**Combinator-Based Fixpoint Algorithms for Big-Step Abstract Interpreters**  
+Sven Keidel, Sebastian Erdweg, Tobias Hombücher  
+International Conference on Functional Programming (ICFP). ACM, 2023.
+[[pdf](https://svenkeidel.de/assets/papers/fixpoint_combinators.pdf)]
+
+**Modular Abstract Definitional Interpreters for WebAssembly**  
+Katharina Brandl, Sebastian Erdweg, Sven Keidel, Nils Hansen  
+European Conference on Object-Oriented Programming (ECOOP). ACM, 2023.
+[[pdf](https://svenkeidel.de/assets/papers/sturdy_wasm.pdf)]
+
+
 **A Systematic Approach to Abstract Interpretation of Program Transformations**  
 Sven Keidel and Sebastian Erdweg.  
 Verification, Model Checking, and Abstract Interpretation (VMCAI). Springer, 2020.
@@ -55,14 +66,14 @@ Verification, Model Checking, and Abstract Interpretation (VMCAI). Springer, 202
 
 **Sound and Reusable Components for Abstract Interpretation**  
 Sven Keidel and Sebastian Erdweg.  
-_Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)_.
+Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA).
 ACM, 2019
 [[pdf](https://doi.org/10.1145/3360602)]
 [[Talk](https://youtu.be/uCM54R3ab-Q)]
 
 **Compositional Soundness Proofs of Abstract Interpreters**  
 Sven Keidel, Casper Bach Poulsen and Sebastian Erdweg.  
-_International Conference on Functional Programming (ICFP)_.
+International Conference on Functional Programming (ICFP).
 ACM, 2018
 [[pdf](https://doi.org/10.1145/3236767)]
 [[Talk](https://www.youtube.com/watch?v=zOqSlHAMGt4)]
